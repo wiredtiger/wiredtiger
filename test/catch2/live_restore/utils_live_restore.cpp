@@ -38,7 +38,7 @@ extent_list_str(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 
 // Open the live restore file handle for a file. This file path is identical to the backing file in
 // the destination folder.
-void
+int
 open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
   WT_LIVE_RESTORE_FILE_HANDLE **lr_fhp)
 {
@@ -46,9 +46,9 @@ open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
     WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env.session);
     // Make sure we're always opening the file in the destination directory.
     REQUIRE(strncmp(dest_file.c_str(), env.DB_DEST.c_str(), env.DB_DEST.size()) == 0);
-    testutil_check(lr_fs->iface.fs_open_file(reinterpret_cast<WT_FILE_SYSTEM *>(lr_fs), wt_session,
+    return lr_fs->iface.fs_open_file(reinterpret_cast<WT_FILE_SYSTEM *>(lr_fs), wt_session,
       dest_file.c_str(), WT_FS_OPEN_FILE_TYPE_REGULAR, 0,
-      reinterpret_cast<WT_FILE_HANDLE **>(lr_fhp)));
+      reinterpret_cast<WT_FILE_HANDLE **>(lr_fhp));
 }
 
 /* Verify that all extents in an extent list are in order and don't overlap. */

@@ -20,7 +20,7 @@ std::string extent_list_str(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh);
 
 // File op helpers
 void create_file(const std::string &filepath, int len);
-void open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
+int open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
   WT_LIVE_RESTORE_FILE_HANDLE **lr_fhp);
 
 } // namespace utils.

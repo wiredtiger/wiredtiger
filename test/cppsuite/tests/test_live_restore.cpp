@@ -324,7 +324,8 @@ main(int argc, char *argv[])
     // TODO: Make verbosity level configurable at runtime.
     const std::string conn_config = CONNECTION_CREATE +
       ",live_restore=(enabled=true,threads_max=0,path=\"" + SOURCE_DIR +
-      "\",debug=(fill_holes_on_close=true)),cache_size=1GB,verbose=[fileops:2],statistics=(all),statistics_log=(json,on_close,wait="
+      "\",debug=(fill_holes_on_close=true)),cache_size=1GB,verbose=[fileops:2],statistics=(all),"
+      "statistics_log=(json,on_close,wait="
       "1)";
 
     logger::log_msg(LOG_TRACE, "arg count: " + std::to_string(argc));
