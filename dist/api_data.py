@@ -1028,8 +1028,8 @@ wiredtiger_open_live_restore_configuration = [
             Config('fill_holes_on_close', 'false', r'''
                 Copy all missing data from the source to the directory on file close.
                 This can result in very slow file closes.''',
-                type='boolean', undoc=True),
-        ]),
+                type='boolean'),
+        ], undoc=True),
         Config('enabled', 'false', r'''whether live restore is enabled or not.''', type='boolean'),
         Config('path', '', r'''the path to the backup that will be restored from.'''),
         Config('threads_max', '8', r'''
