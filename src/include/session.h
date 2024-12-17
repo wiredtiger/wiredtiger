@@ -66,7 +66,7 @@ struct __wt_prefetch {
 struct __wt_error_info {
     int err;
     int sub_level_err;
-    const char *err_msg;
+    char *err_msg;
 };
 
 /* Get the connection implementation for a session */
