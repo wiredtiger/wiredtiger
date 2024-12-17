@@ -36,20 +36,22 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __wt_spin_lock(session, &server->queue_lock);
     server->threads_working--;
 
-    /*
-     * If the connection is closing the queue will be drained, therefore we cannot indicate that the
-     * live restore is complete as we don't know if the connection closing drained the queue or if
-     * the worker threads drained it.
-     */
-    if (server->threads_working == 0 && !F_ISSET(S2C(session), WT_CONN_CLOSING)) {
+    if (server->threads_working == 0) {
         /*
          * If all the threads have stopped and the queue is empty signal that the live restore is
          * complete.
          */
-        WT_ASSERT_ALWAYS(session, TAILQ_EMPTY(&server->work_queue),
-          "All background migration threads have finished but there is still work to do!");
-        WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
-        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "%s", "Live restore finished");
+        if (TAILQ_EMPTY(&server->work_queue)) {
+            WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
+            __wt_verbose_debug1(session, WT_VERB_FILEOPS, "%s", "Live restore finished");
+        }
+        /*
+         * Future proofing: in general unless the conn is closing the queue must be empty if there
+         * are zero threads working.
+         */
+        if (!F_ISSET(S2C(session), WT_CONN_CLOSING))
+            WT_ASSERT_ALWAYS(session, TAILQ_EMPTY(&server->work_queue),
+              "All background migration threads have finished but there is still work to do!");
     }
     __wt_spin_unlock(session, &server->queue_lock);
 
