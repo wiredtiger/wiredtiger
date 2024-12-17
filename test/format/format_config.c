@@ -512,9 +512,6 @@ config_run(void)
 
     config_in_memory(); /* Periodically run in-memory. */
 
-    if (GV(OPS_PREPARE) && GV(CHECKPOINT_PRECISE))
-        config_off(NULL, "checkpoint.precise");
-
     tables_apply(config_table, NULL); /* Configure the tables. */
 
     /* TODO: Temporarily disable salvage test due to increased failures. */
@@ -763,6 +760,9 @@ config_cache(void)
             GV(CACHE) = (uint32_t)cache;
     }
 
+    if (GV(CHECKPOINT_PRECISE) && GV(CACHE) < 1024)
+        GV(CACHE) = 1024;
+
     /* Give any block cache 20% of the total cache size, over and above the cache. */
     if (GV(BLOCK_CACHE) != 0)
         GV(BLOCK_CACHE_SIZE) = (GV(CACHE) + 4) / 5;
@@ -799,13 +799,19 @@ config_checkpoint(void)
         case 4: /* 20% */
             config_single(NULL, "checkpoint=wiredtiger", false);
             break;
-        case 5: /* 5 % */
+        case 5: /* 5% */
             config_off(NULL, "checkpoint");
             break;
         default: /* 75% */
             config_single(NULL, "checkpoint=on", false);
+            /* 50% */
+            if (mmrand(&g.extra_rnd, 1, 10) > 5)
+                config_single(NULL, "checkpoint=on", false);
             break;
         }
+
+    if (GV(OPS_PREPARE) && GV(CHECKPOINT_PRECISE))
+        config_off(NULL, "checkpoint.precise");
 }
 
 /*

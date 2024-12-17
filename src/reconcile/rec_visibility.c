@@ -655,6 +655,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
           upd->durable_ts > r->rec_start_pinned_stable_ts) {
+            WT_ASSERT(session, !is_hs_page);
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
             continue;
