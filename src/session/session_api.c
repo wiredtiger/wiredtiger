@@ -2501,7 +2501,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     /* Set the default error codes and message. */
     char *init_err_msg;
     WT_ERR(__wt_malloc(session_ret, sizeof(WT_SESSION_DEFAULT_ERR_MSG), &init_err_msg));
-    strcpy(init_err_msg, WT_SESSION_DEFAULT_ERR_MSG);
+    WT_ERR(__wt_snprintf(
+      init_err_msg, sizeof(WT_SESSION_DEFAULT_ERR_MSG), "%s", WT_SESSION_DEFAULT_ERR_MSG));
     session_ret->err_info = (WT_ERROR_INFO){0, 0, init_err_msg};
 
     *sessionp = session_ret;
