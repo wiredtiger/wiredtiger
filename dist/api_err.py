@@ -134,18 +134,18 @@ errors = [
 
 sub_errors = [
     Error('WT_NONE', -32000,
-    'last API call was successful', '''
-    This is the default sub-level error code that should be used when there is no
-    sub-level error to pair with an error. It indicates that no further context
-    exists or is necessary.'''),
+        'last API call was successful', '''
+        This is the default sub-level error code that should be used when there is no
+        sub-level error to pair with an error. It indicates that no further context
+        exists or is necessary.'''),
     Error('WT_COMPACTION_ALREADY_RUNNING', -32001,
-    "Cannot reconfigure background compaction while it's already running", '''
-    This error is generated when the user tries to reconfigure the background
-    compaction while it is already running.'''),
+        "Cannot reconfigure background compaction while it's already running", '''
+        This error is generated when the user tries to reconfigure the background
+        compaction while it is already running.'''),
     Error('WT_SESSION_MAX', -32002,
-    "out of sessions, configured for XXX (including internal sessions)", '''
-    This sub-level error is generated when the user has created the max amount of
-    sessions configured.'''),
+        "out of sessions, configured for XXX (including internal sessions)", '''
+        This sub-level error is generated when the user has created the max amount of
+        sessions configured.'''),
 ]
 
 # Update the #defines in the wiredtiger.in file.
