@@ -30,6 +30,21 @@ struct __wt_ckpt_session {
     uint64_t current_sec;
 };
 
+/*
+ * WT_CKPT_SERVER --
+ *     Checkpoint server information.
+ */
+struct __wt_ckpt_server {
+    WT_SESSION_IMPL *session; /* Checkpoint thread session */
+    wt_thread_t tid;          /* Checkpoint thread id */
+    bool tid_set;             /* Checkpoint thread set */
+    WT_CONDVAR *cond;         /* Checkpoint thread wait mutex */
+#define WT_CKPT_LOGSIZE(conn) (__wt_atomic_loadi64(&(conn)->ckpt.server.logsize) != 0)
+    wt_shared wt_off_t logsize; /* Checkpoint thread log size period */
+    bool signalled;             /* Checkpoint thread signalled */
+    uint64_t usecs;             /* Checkpoint thread timer */
+};
+
 struct __wt_ckpt_connection {
     WT_SESSION_IMPL *session;       /* Checkpoint thread session */
     wt_thread_t tid;                /* Checkpoint thread */

@@ -137,6 +137,8 @@ struct __wt_ckpt_block_mods;
 typedef struct __wt_ckpt_block_mods WT_CKPT_BLOCK_MODS;
 struct __wt_ckpt_connection;
 typedef struct __wt_ckpt_connection WT_CKPT_CONNECTION;
+struct __wt_ckpt_server;
+typedef struct __wt_ckpt_server WT_CKPT_SERVER;
 struct __wt_ckpt_session;
 typedef struct __wt_ckpt_session WT_CKPT_SESSION;
 struct __wt_ckpt_snapshot;
