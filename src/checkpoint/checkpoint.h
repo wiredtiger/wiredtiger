@@ -46,14 +46,9 @@ struct __wt_ckpt_server {
 };
 
 struct __wt_ckpt_connection {
-    WT_SESSION_IMPL *session;       /* Checkpoint thread session */
-    wt_thread_t tid;                /* Checkpoint thread */
-    bool tid_set;                   /* Checkpoint thread set */
-    WT_CONDVAR *cond;               /* Checkpoint wait mutex */
+    WT_CKPT_SERVER server; /* Checkpoint thread.*/
+
     wt_shared uint64_t most_recent; /* Clock value of most recent checkpoint */
-#define WT_CKPT_LOGSIZE(conn) (__wt_atomic_loadi64(&(conn)->ckpt.logsize) != 0)
-    wt_shared wt_off_t logsize; /* Checkpoint log size period */
-    bool signalled;             /* Checkpoint signalled */
 
     uint64_t apply;           /* Checkpoint handles applied */
     uint64_t apply_time;      /* Checkpoint applied handles gather time */
@@ -65,7 +60,6 @@ struct __wt_ckpt_connection {
     uint64_t meta_check_time; /* Checkpoint handles metadata check time */
     uint64_t skip;            /* Checkpoint handles skipped */
     uint64_t skip_time;       /* Checkpoint skipped handles gather time */
-    uint64_t usecs;           /* Checkpoint timer */
 
     uint64_t scrub_max; /* Checkpoint scrub time min/max */
     uint64_t scrub_min;
