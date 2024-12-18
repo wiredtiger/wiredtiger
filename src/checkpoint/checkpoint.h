@@ -64,17 +64,9 @@ struct __wt_ckpt_connection {
     wt_shared wt_off_t logsize; /* Checkpoint log size period */
     bool signalled;             /* Checkpoint signalled */
 
-    uint64_t apply;           /* Checkpoint handles applied */
-    uint64_t apply_time;      /* Checkpoint applied handles gather time */
-    uint64_t drop;            /* Checkpoint handles drop */
-    uint64_t drop_time;       /* Checkpoint handles drop time */
-    uint64_t lock;            /* Checkpoint handles lock */
-    uint64_t lock_time;       /* Checkpoint handles lock time */
-    uint64_t meta_check;      /* Checkpoint handles metadata check */
-    uint64_t meta_check_time; /* Checkpoint handles metadata check time */
-    uint64_t skip;            /* Checkpoint handles skipped */
-    uint64_t skip_time;       /* Checkpoint skipped handles gather time */
-    uint64_t usecs;           /* Checkpoint timer */
+    WT_CKPT_HANDLE handle;
+
+    uint64_t usecs; /* Checkpoint timer */
 
     uint64_t scrub_max; /* Checkpoint scrub time min/max */
     uint64_t scrub_min;
