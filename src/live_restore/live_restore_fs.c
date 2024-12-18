@@ -717,14 +717,9 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
-    /*
-     * FIXME-WT-13809: This should be superseded by background thread migration. Right now it exists
-     * as a solution to handle certain testing cases. Once the background thread is implemented the
-     * test will need to handle situations where a full restore hasn't completed by the end of the
-     * test. Calling this in a production environment will produce very slow file closes as we copy
-     * all remaining data to the destination.
-     */
-    WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
+    if (FLD_ISSET(
+          lr_fh->destination.back_pointer->debug_flags, WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE))
+        WT_RET(__live_restore_fs_fill_holes_on_file_close(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     __live_restore_fs_free_extent_list(session, lr_fh);
@@ -855,7 +850,8 @@ __live_restore_fh_find_holes_in_dest_file(
 
     data_end_offset = 0;
     WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
-    WT_ERR(ret);
+    if (ret != 0)
+        WT_RET_MSG(session, ret, "Failed to open file descriptor on %s", filename);
 
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
@@ -896,12 +892,68 @@ err:
 }
 
 /*
+ * __live_restore_handle_verify_hole_list --
+ *     Check that the generated hole list doesn't not contain holes that extend past the end of the
+ *     source file. If it does we would read junk data and copy it into the destination file.
+ */
+static int
+__live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, const char *name)
+{
+    WT_DECL_RET;
+    WT_FILE_HANDLE *source_fh = NULL;
+    char *source_path = NULL;
+
+    if (lr_fh->destination.hole_list_head == NULL)
+        return (0);
+
+    bool source_exist = false;
+    WT_ERR_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist), true);
+
+    if (source_exist) {
+        wt_off_t source_size;
+
+        WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, name, &source_path));
+        WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
+          source_path, lr_fh->file_type, 0, &source_fh));
+        WT_ERR(lr_fs->os_file_system->fs_size(
+          lr_fs->os_file_system, (WT_SESSION *)session, source_fh->name, &source_size));
+
+        WT_LIVE_RESTORE_HOLE_NODE *final_hole;
+        final_hole = lr_fh->destination.hole_list_head;
+        while (final_hole->next != NULL)
+            final_hole = final_hole->next;
+
+        if (WT_EXTENT_END(final_hole) >= source_size) {
+            __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+              "Error: Hole list for %s has holes beyond the the end of the source file!", name);
+            __live_restore_debug_dump_extent_list(session, lr_fh);
+            WT_ERR_MSG(session, EINVAL,
+              "Hole list for %s has holes beyond the the end of the source file!", name);
+        }
+
+    } else
+        WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
+          "Source file doesn't exist but there are holes in the destination file");
+
+err:
+    if (source_fh != NULL)
+        source_fh->close(source_fh, &session->iface);
+
+    if (source_path != NULL)
+        __wt_free(session, source_path);
+
+    return (ret);
+}
+
+/*
  * __live_restore_fs_open_in_destination --
  *     Open a file handle.
  */
 static int
 __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *session,
-  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint32_t flags, bool create)
+  WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, const char *name, uint32_t flags, bool create)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
@@ -923,6 +975,8 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
     /* Get the list of holes of the file that need copying across from the source directory. */
     WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
     WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
+    WT_ERR(__live_restore_handle_verify_hole_list(session, lr_fs, lr_fh, name));
+
 err:
     __wt_free(session, path);
     return (ret);
@@ -968,7 +1022,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     /* Open it in the destination layer. */
     WT_ERR_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist), true);
-    WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, flags, !dest_exist));
+    WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
 
     WT_ERR(__dest_has_tombstone(lr_fs, lr_fh->destination.fh->name, session, &have_tombstone));
     if (have_tombstone) {
@@ -1130,7 +1184,7 @@ __live_restore_fs_rename(
       session, WT_VERB_FILEOPS, "LIVE_RESTORE: Renaming file from: %s to %s\n", from, to);
     WT_RET(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
     if (!exist)
-        return (ENOENT);
+        WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", from);
 
     if (which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(
@@ -1174,7 +1228,7 @@ __live_restore_fs_size(
 
     WT_RET(__live_restore_fs_find_layer(fs, session, name, &which, &exist));
     if (!exist)
-        return (ENOENT);
+        WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", name);
 
     /* The file will always exist in the destination. This the is authoritative file size. */
     WT_ASSERT(session, which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION);
@@ -1262,6 +1316,11 @@ __wt_os_live_restore_fs(
     /* Configure the background thread count maximum. */
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
     lr_fs->background_threads_max = (uint8_t)cval.val;
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "live_restore.debug.fill_holes_on_close", &cval), false);
+    if (cval.val != 0)
+        FLD_SET(lr_fs->debug_flags, WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE);
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS,
       "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
