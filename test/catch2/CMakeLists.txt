@@ -21,6 +21,7 @@ else()
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
+        misc_tests/test_session_get_last_error.cpp
         misc_tests/test_tailq.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
