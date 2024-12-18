@@ -7,6 +7,7 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
+        misc_tests/test_strerror.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
@@ -20,6 +21,7 @@ else()
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
+        misc_tests/test_session_get_last_error.cpp
         misc_tests/test_tailq.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
@@ -41,6 +43,11 @@ else()
     )
 endif()
 
+# Live restore is not supported on Windows
+if(NOT WT_WIN)
+    set(unittests live_restore/unit/test_live_restore_extent_list.cpp ${unittests})
+endif()
+
 set(unittest_sources
     main.cpp
     utils.cpp
@@ -54,6 +61,15 @@ set(unittest_sources
     wrappers/mock_session.cpp
     ${unittests}
 )
+
+# Live restore is not supported on Windows
+if(NOT WT_WIN)
+    set(unittest_sources
+        live_restore/live_restore_test_env.cpp
+        live_restore/utils_live_restore.cpp
+        ${unittest_sources}
+    )
+endif()
 
 # Disable 4200 warning on windows, its related to struct definitions with zero sized arrays.
 if(WT_WIN)
