@@ -12,12 +12,14 @@ import sys, os
 # layercparse is a library written and maintained by the WiredTiger team.
 import layercparse as lcp
 
+WT_DEFS_RELATIVE_PATH = "dist/modularity/wt_defs.py"
+
 def main():
     lcp.Log.module_name_mismatch.enabled = False
 
     rootPath = os.path.realpath(sys.argv[1])
     lcp.setRootPath(rootPath)
-    wt_defs = lcp.load_wt_defs(rootPath)
+    wt_defs = lcp.load_wt_defs(rootPath, WT_DEFS_RELATIVE_PATH)
     lcp.setModules(wt_defs["modules"])
 
     files = lcp.get_files()  # list of all source files
