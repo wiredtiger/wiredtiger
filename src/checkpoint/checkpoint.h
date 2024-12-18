@@ -9,7 +9,10 @@
 #pragma once
 
 #include "checkpoint_private.h"
-
+/*
+ * WT_CKPT_SESSION --
+ *     Per-session checkpoint information.
+ */
 struct __wt_ckpt_session {
     WT_SPINLOCK lock; /* Checkpoint spinlock */
 
@@ -30,6 +33,10 @@ struct __wt_ckpt_session {
     uint64_t current_sec;
 };
 
+/*
+ * WT_CKPT_CONNECTION --
+ *     Checkpoint information.
+ */
 struct __wt_ckpt_connection {
     WT_SESSION_IMPL *session;       /* Checkpoint thread session */
     wt_thread_t tid;                /* Checkpoint thread */
