@@ -600,8 +600,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
-          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                            !__txn_visible_id(session, txnid))) {
+          (F_ISSET(r, WT_REC_VISIBLE_ALL_TXNID) ? WT_TXNID_LE(r->last_running, txnid) :
+                                                  !__txn_visible_id(session, txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we
@@ -655,6 +655,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
           upd->durable_ts > r->rec_start_pinned_stable_ts) {
+            WT_ASSERT(session, !is_hs_page);
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
             *has_newer_updatesp = true;
             continue;

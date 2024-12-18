@@ -872,7 +872,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * outside world.
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
-            LF_SET(WT_REC_VISIBLE_ALL);
+            LF_SET(WT_REC_VISIBLE_ALL_TXNID);
         else
             __wt_txn_bump_snapshot(session);
     } else if (use_snapshot_for_app_thread) {
@@ -890,9 +890,10 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
-        LF_SET(WT_REC_VISIBLE_ALL);
+        LF_SET(WT_REC_VISIBLE_ALL_TXNID);
 
-    WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+    WT_ASSERT(
+      session, LF_ISSET(WT_REC_VISIBLE_ALL_TXNID) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* We should not be trying to evict using a checkpoint-cursor transaction. */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));

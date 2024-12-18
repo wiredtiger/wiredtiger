@@ -684,6 +684,8 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
             CONFIG_APPEND(p, ",%s", s);
         if (g.config_open != NULL)
             CONFIG_APPEND(p, ",%s", g.config_open);
+        if (GV(CHECKPOINT_PRECISE))
+            CONFIG_APPEND(p, ",checkpoint=(precise=true)");
 
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (GV(OPS_VERIFY) && verify_metadata)

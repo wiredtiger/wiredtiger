@@ -16,10 +16,12 @@ static int
 __rec_child_deleted(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_MODIFY_STATE *cmsp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_PAGE_DELETED *page_del;
     uint8_t prepare_state;
     bool visible, visible_all;
 
+    conn = S2C(session);
     visible = visible_all = false;
     page_del = ref->page_del;
 
@@ -54,8 +56,27 @@ __rec_child_deleted(
      * setting the page delete structure committed flag cannot overlap with us checking the flag.
      */
     if (__wt_page_del_committed_set(page_del)) {
-        if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
+        if (F_ISSET(r, WT_REC_VISIBLE_ALL_TXNID)) {
+            visible = WT_TXNID_LE(page_del->txnid, r->last_running);
+
+            if (visible) {
+                WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, page_del->prepare_state);
+                if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
+                    visible = false;
+            }
+
+            if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+              page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
+                visible = false;
+
+            visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
+        } else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
+
+            if (visible && F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+              page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
+                visible = false;
+
             visible_all = visible ? __wt_page_del_visible_all(session, page_del, true) : false;
         } else
             visible = visible_all = __wt_page_del_visible_all(session, page_del, true);

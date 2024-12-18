@@ -141,6 +141,8 @@ CONFIG configuration_list[] = {
 
 {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0}
 
+{"checkpoint.precise", "Precise checkpoint", C_BOOL, 50, 0, 0}
+
 {"checkpoint.log_size", "MB of log to wait if wiredtiger checkpoints configured", 0x0, 20, 200, 1024}
 
 {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600}

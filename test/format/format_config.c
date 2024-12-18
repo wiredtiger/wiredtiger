@@ -741,6 +741,10 @@ config_cache(void)
     cache = table_sumv(V_TABLE_BTREE_MEMORY_PAGE_MAX); /* in MB units, no conversion to cache */
     cache *= workers;
     cache *= 2;
+
+    if (GV(CHECKPOINT_PRECISE))
+        cache *= 4;
+
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
 
@@ -759,6 +763,9 @@ config_cache(void)
         if (GV(CACHE) < cache)
             GV(CACHE) = (uint32_t)cache;
     }
+
+    if (GV(CHECKPOINT_PRECISE) && GV(CACHE) < 2048)
+        GV(CACHE) = 2048;
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
     if (GV(BLOCK_CACHE) != 0)
@@ -796,13 +803,19 @@ config_checkpoint(void)
         case 4: /* 20% */
             config_single(NULL, "checkpoint=wiredtiger", false);
             break;
-        case 5: /* 5 % */
+        case 5: /* 5% */
             config_off(NULL, "checkpoint");
             break;
         default: /* 75% */
             config_single(NULL, "checkpoint=on", false);
+            /* 50% */
+            if (mmrand(&g.extra_rnd, 1, 10) > 5)
+                config_single(NULL, "checkpoint=on", false);
             break;
         }
+
+    if (GV(OPS_PREPARE) && GV(CHECKPOINT_PRECISE))
+        config_off(NULL, "checkpoint.precise");
 }
 
 /*

@@ -49,7 +49,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * isolation.
      */
     WT_ASSERT_ALWAYS(session,
-      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
+      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL_TXNID) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT),
       "Attempting an eviction with transaction visibility and no snapshot");
 
