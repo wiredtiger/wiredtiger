@@ -94,6 +94,13 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET ex_get_last_error
+    SOURCES ex_get_last_error.c
+    DIR_NAME ex_get_last_error
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_get_last_error>/WT_HOME>
+)
+
+define_c_test(
     TARGET ex_hello
     SOURCES ex_hello.c
     DIR_NAME ex_hello
