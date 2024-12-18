@@ -232,6 +232,8 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (cval.val == 0)
         return (0);
 
+    WT_RET(__wt_spin_init(session, &server->queue_lock, "live restore migration work queue"));
+
     /*
      * Set the in progress state before we run the threads. If we do it after there's a chance we'll
      * context switch and then this state will happen after the finish state. By setting it here it
@@ -292,5 +294,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
     WT_RET(__wt_thread_group_destroy(session, &server->threads));
 
     __live_restore_work_queue_drain(session);
+
+    __wt_spin_destroy(session, &server->queue_lock);
     return (0);
 }
