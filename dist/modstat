@@ -5,4 +5,4 @@ cd_top
 set -ueo pipefail
 cd dist/modularity
 . ./init.sh
-./mod_stat/scan_sources.py $TOP_DIR "$@"
+./scan_sources.py $TOP_DIR "$@"
