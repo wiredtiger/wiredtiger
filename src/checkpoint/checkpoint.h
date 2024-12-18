@@ -34,20 +34,20 @@ struct __wt_ckpt_session {
 };
 
 /*
- * WT_CKPT_HANDLE --
- *     Checkpoint information related to handles.
+ * WT_CKPT_HANDLE_STATS --
+ *     Statistics related to handles.
  */
-struct __wt_ckpt_handle {
-    uint64_t apply;           /* Checkpoint handles applied */
-    uint64_t apply_time;      /* Checkpoint applied handles gather time */
-    uint64_t drop;            /* Checkpoint handles drop */
-    uint64_t drop_time;       /* Checkpoint handles drop time */
-    uint64_t lock;            /* Checkpoint handles lock */
-    uint64_t lock_time;       /* Checkpoint handles lock time */
-    uint64_t meta_check;      /* Checkpoint handles metadata check */
-    uint64_t meta_check_time; /* Checkpoint handles metadata check time */
-    uint64_t skip;            /* Checkpoint handles skipped */
-    uint64_t skip_time;       /* Checkpoint skipped handles gather time */
+struct __wt_ckpt_handle_stats {
+    uint64_t apply;           /* handles applied */
+    uint64_t apply_time;      /* applied handles gather time */
+    uint64_t drop;            /* handles drop */
+    uint64_t drop_time;       /* handles drop time */
+    uint64_t lock;            /* handles lock */
+    uint64_t lock_time;       /* handles lock time */
+    uint64_t meta_check;      /* handles metadata check */
+    uint64_t meta_check_time; /* handles metadata check time */
+    uint64_t skip;            /* handles skipped */
+    uint64_t skip_time;       /* skipped handles gather time */
 };
 
 /*
@@ -64,7 +64,7 @@ struct __wt_ckpt_connection {
     wt_shared wt_off_t logsize; /* Checkpoint log size period */
     bool signalled;             /* Checkpoint signalled */
 
-    WT_CKPT_HANDLE handle;
+    WT_CKPT_HANDLE_STATS handle_stats;
 
     uint64_t usecs; /* Checkpoint timer */
 
