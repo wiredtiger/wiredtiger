@@ -1,5 +1,3 @@
-from layercparse import Module
-
 {
     "extraFiles": ["src/include/wiredtiger.in"],
     "modules": [
