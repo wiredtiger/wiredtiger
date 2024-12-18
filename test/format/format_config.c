@@ -743,7 +743,7 @@ config_cache(void)
     cache *= 2;
 
     if (GV(CHECKPOINT_PRECISE))
-        cache *= 2;
+        cache *= 4;
 
     if (GV(CACHE) < cache)
         GV(CACHE) = (uint32_t)cache;
@@ -764,8 +764,8 @@ config_cache(void)
             GV(CACHE) = (uint32_t)cache;
     }
 
-    if (GV(CHECKPOINT_PRECISE) && GV(CACHE) < 1024)
-        GV(CACHE) = 1024;
+    if (GV(CHECKPOINT_PRECISE) && GV(CACHE) < 2048)
+        GV(CACHE) = 2048;
 
     /* Give any block cache 20% of the total cache size, over and above the cache. */
     if (GV(BLOCK_CACHE) != 0)
