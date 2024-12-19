@@ -84,5 +84,5 @@ wiredtiger_strerror(int error)
 bool
 __wt_is_valid_sub_level_error(int sub_level_err)
 {
-    return (sub_level_err <= -32000 && sub_level_err > -33000);
+    return (sub_level_err <= -32000 && sub_level_err > -32200);
 }

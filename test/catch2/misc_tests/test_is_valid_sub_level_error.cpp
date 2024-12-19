@@ -40,7 +40,7 @@ TEST_CASE(
     CHECK(!__wt_is_valid_sub_level_error(-31999));
     CHECK(__wt_is_valid_sub_level_error(-32000));
     CHECK(__wt_is_valid_sub_level_error(-32001));
-    CHECK(__wt_is_valid_sub_level_error(-32999));
-    CHECK(!__wt_is_valid_sub_level_error(-33000));
-    CHECK(!__wt_is_valid_sub_level_error(-33001));
+    CHECK(__wt_is_valid_sub_level_error(-32199));
+    CHECK(!__wt_is_valid_sub_level_error(-32200));
+    CHECK(!__wt_is_valid_sub_level_error(-32201));
 }

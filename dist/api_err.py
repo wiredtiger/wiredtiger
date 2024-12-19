@@ -217,7 +217,7 @@ wiredtiger_strerror(int error)
 bool
 __wt_is_valid_sub_level_error(int sub_level_err)
 {
-\treturn (sub_level_err <= -32000 && sub_level_err > -33000);
+\treturn (sub_level_err <= -32000 && sub_level_err > -32200);
 }
 ''')
 tfile.close()
