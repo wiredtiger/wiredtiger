@@ -22,25 +22,25 @@ TEST_CASE(
 {
 
     /* Ensure no normal error codes are mistaken for sub level error codes. */
-    CHECK(!__wt_is_valid_sub_level_error(WT_ROLLBACK));
-    CHECK(!__wt_is_valid_sub_level_error(WT_DUPLICATE_KEY));
-    CHECK(!__wt_is_valid_sub_level_error(WT_ERROR));
-    CHECK(!__wt_is_valid_sub_level_error(WT_NOTFOUND));
-    CHECK(!__wt_is_valid_sub_level_error(WT_PANIC));
-    CHECK(!__wt_is_valid_sub_level_error(WT_RESTART));
-    CHECK(!__wt_is_valid_sub_level_error(WT_RUN_RECOVERY));
-    CHECK(!__wt_is_valid_sub_level_error(WT_CACHE_FULL));
-    CHECK(!__wt_is_valid_sub_level_error(WT_PREPARE_CONFLICT));
-    CHECK(!__wt_is_valid_sub_level_error(WT_TRY_SALVAGE));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_ROLLBACK));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_DUPLICATE_KEY));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_ERROR));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_NOTFOUND));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_PANIC));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_RESTART));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_RUN_RECOVERY));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_CACHE_FULL));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_PREPARE_CONFLICT));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(WT_TRY_SALVAGE));
 
     /* Ensure that all valid sub level error codes are validated. */
     CHECK(__wt_is_valid_sub_level_error(WT_NONE));
 
     /* Boundary checks (valid between -32000 and -32199 inclusive). */
-    CHECK(!__wt_is_valid_sub_level_error(-31999));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(-31999));
     CHECK(__wt_is_valid_sub_level_error(-32000));
     CHECK(__wt_is_valid_sub_level_error(-32001));
     CHECK(__wt_is_valid_sub_level_error(-32199));
-    CHECK(!__wt_is_valid_sub_level_error(-32200));
-    CHECK(!__wt_is_valid_sub_level_error(-32201));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(-32200));
+    CHECK_FALSE(__wt_is_valid_sub_level_error(-32201));
 }
