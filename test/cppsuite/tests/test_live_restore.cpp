@@ -41,8 +41,10 @@
 #include "src/storage/connection_manager.h"
 #include "src/storage/scoped_session.h"
 #include "src/main/thread_worker.h"
+#include "src/util/options_parser.h"
 
 #include <vector>
+#include <cstdlib>
 
 extern "C" {
 #include "wiredtiger.h"
@@ -104,12 +106,17 @@ private:
     std::vector<std::string> _collections;
 };
 
-static const int crud_ops = 20000;
-static const int warmup_insertions = crud_ops / 3;
+static const int iteration_count_default = 2;
+/* FIXME-WT-13825: Set thread_count_default to non zero once extent list concurrency is implemented. */
+static const int thread_count_default = 0;
+static const int op_count_default = 20000;
+static const int warmup_insertion_factor = 3;
+
 static database_model db;
 static const int key_size = 10;
 static const int value_size = 10;
-static const char *SOURCE_DIR = "WT_LIVE_RESTORE_SOURCE";
+static const char *SOURCE_PATH = "WT_LIVE_RESTORE_SOURCE";
+static const char *HOME_PATH = DEFAULT_DIR;
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 void do_random_crud(scoped_session &session, bool fresh_start);
@@ -240,17 +247,18 @@ create_collection(scoped_session &session)
     db.add_new_collection(session);
 }
 
-void
-do_random_crud(scoped_session &session, bool fresh_start)
+static void
+do_random_crud(scoped_session &session, int64_t op_count, bool fresh_start)
 {
     bool file_created = fresh_start == false;
 
     /* Insert random data. */
     std::string key, value;
-    for (int i = 0; i < crud_ops; i++) {
+    int64_t warmup_insertions = op_count / warmup_insertion_factor;
+    for (int i = 0; i < op_count; i++) {
         auto ran = random_generator::instance().generate_integer(0, 10000);
         if (ran <= 1 || !file_created) {
-            // Create a new file, if none exist force this path.s
+            // Create a new file, if none exist force this path.
             create_collection(session);
             file_created = true;
             continue;
@@ -299,50 +307,148 @@ configure_database(scoped_session &session)
     }
 }
 
-int
-main(int argc, char *argv[])
+static void
+get_stat(WT_CURSOR *cursor, int stat_field, int64_t *valuep)
 {
-    /* Set the program name for error messages. */
-    const std::string progname = testutil_set_progname(argv);
-    /* Set the tracing level for the logger component. */
-    logger::trace_level = LOG_TRACE;
+    const char *desc, *pvalue;
 
+    cursor->set_key(cursor, stat_field);
+    error_check(cursor->search(cursor));
+    error_check(cursor->get_value(cursor, &desc, &pvalue, valuep));
+}
+
+static
+void run_restore(const std::string &home, const std::string &source, const int64_t thread_count, const int64_t op_count, const bool background_thread_mode, const int64_t verbose_level, const bool first) {
     /* Create a connection, set the cache size and specify the home directory. */
-    // TODO: Make verbosity level configurable at runtime.
-    const std::string conn_config = CONNECTION_CREATE + ",live_restore=(enabled=true,path=\"" +
-      SOURCE_DIR + "\",debug=(fill_holes_on_close=true)),cache_size=1GB,verbose=[fileops:2]";
+    const std::string verbose_string = verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
+    const std::string conn_config = CONNECTION_CREATE +
+      ",live_restore=(enabled=true,threads_max=" + std::to_string(thread_count) + ",path=\"" + source +
+      "\"),cache_size=1GB,"+verbose_string+",statistics=(all),statistics_log=(json,on_close,wait="
+      "1)";
 
-    logger::log_msg(LOG_TRACE, "arg count: " + std::to_string(argc));
-    bool fresh_start = false;
-    if (argc > 1 && argv[1][1] == 'f') {
-        fresh_start = true;
-        logger::log_msg(LOG_WARN, "Started in -f mode will clean up existing directories");
-        // Live restore expects the source directory to exist.
-        testutil_recreate_dir(SOURCE_DIR);
-        testutil_remove("WT_TEST");
-    }
-    // We will recreate this directory every time, on exit the contents in it will be moved to
-    // WT_LIVE_RESTORE_SOURCE/.
-    testutil_recreate_dir("WT_TEST");
+    //,debug=(fill_holes_on_close=true)
 
     /* Create connection. */
-    if (fresh_start)
-        connection_manager::instance().create(conn_config, DEFAULT_DIR);
+    if (first)
+        connection_manager::instance().create(conn_config, home);
     else
-        connection_manager::instance().reopen(conn_config, DEFAULT_DIR);
+        connection_manager::instance().reopen(conn_config, home);
 
     auto crud_session = connection_manager::instance().create_session();
-
-    if (!fresh_start)
+    if (!first && !background_thread_mode)
         configure_database(crud_session);
 
-    do_random_crud(crud_session, fresh_start);
+    if (!background_thread_mode)
+        do_random_crud(crud_session, op_count, first);
+
+    // Loop until the state stat is complete!
+    if (thread_count > 0 && (background_thread_mode && !first)) {
+        int64_t state = 0;
+        logger::log_msg(LOG_INFO, "Waiting for background data transfer to complete...");
+        while (state != WT_LIVE_RESTORE_COMPLETE) {
+            auto stat_cursor = crud_session.open_scoped_cursor("statistics:");
+            get_stat(stat_cursor.get(), WT_STAT_CONN_LIVE_RESTORE_STATE, &state);
+            __wt_sleep(1, 0);
+        }
+        logger::log_msg(LOG_INFO, "Done!");
+    }
 
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
     crud_session.close_session();
     connection_manager::instance().close();
-    testutil_remove(SOURCE_DIR);
-    testutil_copy("WT_TEST", SOURCE_DIR);
+}
+
+/* Usage:
+ *  -b background thread debug mode, initialize the database then loop for iteration count. Each
+ *  iteration will wait for the background thread to finish transferring data before terminating.
+ *  -s path to source directory, if this is specified the database a live restore will commence
+ *  with that source path. Default: WT_LIVE_RESTORE_SOURCE.
+ *  -h home path. The new database will be created here, by default WT_TEST.
+ *  -o op_count the number of crud operations to apply while live restoring. If -1 operations will
+ *  be applied until the background thread has completed migration.
+ *  -i iteration count, the number of iterations to run the test program. Note: A value of 1 with no
+ *  source directory specified will simply populate a database i.e. no live restore will take place.
+ *  The default iteration count is 2.
+ *  -c adittional connection flags to pass to the wiredtiger_open.
+ *  -t thread count for the background thread. A value of 0 is legal in which case data files will
+ *  not be transferred in the background.
+ *  -v verbose level, this setting will set WT_VERB_FILE_OPS with whatever level is provided.
+ *  default is off.
+ *  -l log level, this controls the level of logging that this test will run with. This is distinct
+ *  from verbose level as that is a WiredTiger configuration. Default is LOG_ERROR (0). The other
+ *  levels are LOG_WARN (1), LOG_INFO (2) and LOG_TRACE (3).
+ */
+#include <iostream>
+int
+main(int argc, char *argv[])
+{
+    /* Set the program name for error messages. */
+    const std::string progname = testutil_set_progname(argv);
+
+    // Parse the options.
+    auto log_level_str = value_for_opt("-l", argc, argv);
+
+    // Set the tracing level for the logger component.
+    logger::trace_level = log_level_str.empty() ? LOG_ERROR : atoi(log_level_str.c_str());
+
+    // Get the iteration count if it exists.
+    auto it_count_str = value_for_opt("-i", argc, argv);
+    int64_t it_count = it_count_str.empty() ? iteration_count_default : atoi(it_count_str.c_str());
+    logger::log_msg(LOG_INFO, "Iteration count: " + std::to_string(it_count));
+
+    // Get the thread count if it exists.
+    auto thread_count_str = value_for_opt("-t", argc, argv);
+    int64_t thread_count = thread_count_str.empty() ? thread_count_default : atoi(thread_count_str.c_str());
+    logger::log_msg(LOG_INFO, "Background thread count: " + std::to_string(thread_count));
+
+    // Get the op_count if it exists.
+    auto op_count_str = value_for_opt("-o", argc, argv);
+    int64_t op_count = op_count_str.empty() ? op_count_default : atoi(op_count_str.c_str());
+    logger::log_msg(LOG_INFO, "Op count: " + std::to_string(op_count));
+
+    // Get the verbose_level if it exists.
+    auto verbose_str = value_for_opt("-v", argc, argv);
+    int64_t verbose_level = verbose_str.empty() ? 0 : atoi(verbose_str.c_str());
+    logger::log_msg(LOG_INFO, "Verbose level: " + std::to_string(verbose_level));
+
+
+    // Background thread debug mode option.
+    bool background_thread_debug_mode = option_exists("-b", argc, argv);
+
+    // Home path option.
+    std::string home_path = value_for_opt("-h", argc, argv);
+    if (home_path.empty())
+        home_path = HOME_PATH;
+    logger::log_msg(LOG_INFO, "Home: " + home_path);
+
+
+    // Source path option.
+    std::string source_path = value_for_opt("-s", argc, argv);
+    bool source_path_provided = !source_path.empty();
+    // Copy the source path as we'll delete it after one iteration.
+    if (source_path_provided)
+        testutil_copy(source_path.c_str(), SOURCE_PATH);
+    else
+        // If we're providing the source path delete any existing one.
+        testutil_recreate_dir(SOURCE_PATH);
+    source_path = SOURCE_PATH;
+    logger::log_msg(LOG_INFO, "Source: " + source_path);
+
+    // Recreate the home directory on startup everytime.
+    testutil_recreate_dir(home_path.c_str());
+
+    bool first = !source_path_provided;
+    /* When setting up the database we don't want to wait for the background threads to complete. */
+    bool background_thread_mode_enabled = (!first && background_thread_debug_mode);
+    for (int i = 0; i < it_count; i++) {
+        logger::log_msg(LOG_INFO, "!!!! Beginning iteration: " + std::to_string(i) + " !!!!");
+        run_restore(home_path, source_path, thread_count, op_count, background_thread_mode_enabled, verbose_level, first);
+        testutil_remove(SOURCE_PATH);
+        testutil_move(HOME_PATH, SOURCE_PATH);
+        first = false;
+        background_thread_mode_enabled = background_thread_debug_mode;
+    }
+
     return (0);
 }
