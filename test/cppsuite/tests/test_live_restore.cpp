@@ -107,7 +107,8 @@ private:
 };
 
 static const int iteration_count_default = 2;
-/* FIXME-WT-13825: Set thread_count_default to non zero once extent list concurrency is implemented. */
+/* FIXME-WT-13825: Set thread_count_default to non zero once extent list concurrency is implemented.
+ */
 static const int thread_count_default = 0;
 static const int op_count_default = 20000;
 static const int warmup_insertion_factor = 3;
@@ -248,7 +249,8 @@ create_collection(scoped_session &session)
 }
 
 static void
-do_random_crud(scoped_session &session, const int64_t collection_count, const int64_t op_count, const bool fresh_start)
+do_random_crud(scoped_session &session, const int64_t collection_count, const int64_t op_count,
+  const bool fresh_start)
 {
     bool file_created = fresh_start == false;
 
@@ -258,7 +260,9 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
     for (int i = 0; i < op_count; i++) {
         auto ran = random_generator::instance().generate_integer(0, 10000);
         if (ran <= 1 || !file_created) {
-            logger::log_msg(LOG_INFO, "Collection_count: " + std::to_string(collection_count) + " db collection count: " + std::to_string(db.collection_count()));
+            logger::log_msg(LOG_INFO,
+              "Collection_count: " + std::to_string(collection_count) +
+                " db collection count: " + std::to_string(db.collection_count()));
             if (static_cast<size_t>(collection_count) == db.collection_count()) {
                 continue;
             }
@@ -305,13 +309,18 @@ get_stat(WT_CURSOR *cursor, int stat_field, int64_t *valuep)
     error_check(cursor->get_value(cursor, &desc, &pvalue, valuep));
 }
 
-static
-void run_restore(const std::string &home, const std::string &source, const int64_t thread_count, const int64_t collection_count, const int64_t op_count, const bool background_thread_mode, const int64_t verbose_level, const bool first) {
+static void
+run_restore(const std::string &home, const std::string &source, const int64_t thread_count,
+  const int64_t collection_count, const int64_t op_count, const bool background_thread_mode,
+  const int64_t verbose_level, const bool first)
+{
     /* Create a connection, set the cache size and specify the home directory. */
-    const std::string verbose_string = verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
+    const std::string verbose_string =
+      verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
     const std::string conn_config = CONNECTION_CREATE +
-      ",live_restore=(enabled=true,threads_max=" + std::to_string(thread_count) + ",path=\"" + source +
-      "\"),cache_size=1GB,"+verbose_string+",statistics=(all),statistics_log=(json,on_close,wait="
+      ",live_restore=(enabled=true,threads_max=" + std::to_string(thread_count) + ",path=\"" +
+      source + "\"),cache_size=1GB," + verbose_string +
+      ",statistics=(all),statistics_log=(json,on_close,wait="
       "1)";
 
     //,debug=(fill_holes_on_close=true)
@@ -381,7 +390,8 @@ main(int argc, char *argv[])
 
     // Get the thread count if it exists.
     auto thread_count_str = value_for_opt("-t", argc, argv);
-    int64_t thread_count = thread_count_str.empty() ? thread_count_default : atoi(thread_count_str.c_str());
+    int64_t thread_count =
+      thread_count_str.empty() ? thread_count_default : atoi(thread_count_str.c_str());
     logger::log_msg(LOG_INFO, "Background thread count: " + std::to_string(thread_count));
 
     // Get the op_count if it exists.
@@ -402,7 +412,6 @@ main(int argc, char *argv[])
     int64_t verbose_level = verbose_str.empty() ? 0 : atoi(verbose_str.c_str());
     logger::log_msg(LOG_INFO, "Verbose level: " + std::to_string(verbose_level));
 
-
     // Background thread debug mode option.
     bool background_thread_debug_mode = option_exists("-b", argc, argv);
 
@@ -416,7 +425,7 @@ main(int argc, char *argv[])
     testutil_recreate_dir(SOURCE_PATH);
     logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
 
-    // Recreate the home directory on startup everytime.
+    // Recreate the home directory on startup every time.
     testutil_recreate_dir(home_path.c_str());
 
     bool first = true;
@@ -424,7 +433,8 @@ main(int argc, char *argv[])
     bool background_thread_mode_enabled = (!first && background_thread_debug_mode);
     for (int i = 0; i < it_count; i++) {
         logger::log_msg(LOG_INFO, "!!!! Beginning iteration: " + std::to_string(i) + " !!!!");
-        run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count, background_thread_mode_enabled, verbose_level, first);
+        run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count,
+          background_thread_mode_enabled, verbose_level, first);
         testutil_remove(SOURCE_PATH);
         testutil_move(HOME_PATH, SOURCE_PATH);
         testutil_recreate_dir(HOME_PATH);
