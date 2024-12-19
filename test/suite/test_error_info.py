@@ -29,8 +29,6 @@
 import wiredtiger, wttest, time
 from wtdataset import SimpleDataSet
 
-WT_NONE = -32000
-
 # test_error_info.py
 #   Test that the placeholder get_last_error() session API returns placeholder error values.
 class test_error_info(wttest.WiredTigerTestCase):
@@ -38,5 +36,5 @@ class test_error_info(wttest.WiredTigerTestCase):
     def test_error_info(self):
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, 0)
-        self.assertEqual(sub_level_err, WT_NONE)
+        self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
         self.assertEqual(err_msg, "WT_NONE: last API call was successful")
