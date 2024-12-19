@@ -40,10 +40,10 @@ struct __wt_ckpt_session {
 struct __wt_ckpt_handle_stats {
     uint64_t apply;           /* handles applied */
     uint64_t apply_time;      /* applied handles gather time */
-    uint64_t drop;            /* handles drop */
-    uint64_t drop_time;       /* handles drop time */
-    uint64_t lock;            /* handles lock */
-    uint64_t lock_time;       /* handles lock time */
+    uint64_t drop;            /* handles dropped */
+    uint64_t drop_time;       /* handles dropped time */
+    uint64_t lock;            /* handles locked */
+    uint64_t lock_time;       /* handles locked time */
     uint64_t meta_check;      /* handles metadata check */
     uint64_t meta_check_time; /* handles metadata check time */
     uint64_t skip;            /* handles skipped */
