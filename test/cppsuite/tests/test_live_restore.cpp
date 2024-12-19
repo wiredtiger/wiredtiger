@@ -248,7 +248,7 @@ create_collection(scoped_session &session)
 }
 
 static void
-do_random_crud(scoped_session &session, int64_t op_count, bool fresh_start)
+do_random_crud(scoped_session &session, const int64_t collection_count, const int64_t op_count, const bool fresh_start)
 {
     bool file_created = fresh_start == false;
 
@@ -258,6 +258,10 @@ do_random_crud(scoped_session &session, int64_t op_count, bool fresh_start)
     for (int i = 0; i < op_count; i++) {
         auto ran = random_generator::instance().generate_integer(0, 10000);
         if (ran <= 1 || !file_created) {
+            logger::log_msg(LOG_INFO, "Collection_count: " + std::to_string(collection_count) + " db collection count: " + std::to_string(db.collection_count()));
+            if (static_cast<size_t>(collection_count) == db.collection_count()) {
+                continue;
+            }
             // Create a new file, if none exist force this path.
             create_collection(session);
             file_created = true;
@@ -291,24 +295,6 @@ do_random_crud(scoped_session &session, int64_t op_count, bool fresh_start)
     }
 }
 
-/* Setup the initial set of collections in the source path. */
-void
-configure_database(scoped_session &session)
-{
-    scoped_cursor cursor = session.open_scoped_cursor("metadata:", "");
-    while (cursor->next(cursor.get()) != WT_NOTFOUND) {
-        const char *key_str = nullptr;
-        testutil_check(cursor->get_key(cursor.get(), &key_str));
-        auto metadata_str = std::string(key_str);
-        auto pos = metadata_str.find("table:");
-        if (pos != std::string::npos) {
-            testutil_assert(pos == 0);
-            db.add_and_open_existing_collection(session, metadata_str);
-            logger::log_msg(LOG_TRACE, "Adding collection: " + metadata_str);
-        }
-    }
-}
-
 static void
 get_stat(WT_CURSOR *cursor, int stat_field, int64_t *valuep)
 {
@@ -320,7 +306,7 @@ get_stat(WT_CURSOR *cursor, int stat_field, int64_t *valuep)
 }
 
 static
-void run_restore(const std::string &home, const std::string &source, const int64_t thread_count, const int64_t op_count, const bool background_thread_mode, const int64_t verbose_level, const bool first) {
+void run_restore(const std::string &home, const std::string &source, const int64_t thread_count, const int64_t collection_count, const int64_t op_count, const bool background_thread_mode, const int64_t verbose_level, const bool first) {
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string verbose_string = verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
     const std::string conn_config = CONNECTION_CREATE +
@@ -337,11 +323,8 @@ void run_restore(const std::string &home, const std::string &source, const int64
         connection_manager::instance().reopen(conn_config, home);
 
     auto crud_session = connection_manager::instance().create_session();
-    if (!first && !background_thread_mode)
-        configure_database(crud_session);
-
     if (!background_thread_mode)
-        do_random_crud(crud_session, op_count, first);
+        do_random_crud(crud_session, collection_count, op_count, first);
 
     // Loop until the state stat is complete!
     if (thread_count > 0 && (background_thread_mode && !first)) {
@@ -364,15 +347,12 @@ void run_restore(const std::string &home, const std::string &source, const int64
 /* Usage:
  *  -b background thread debug mode, initialize the database then loop for iteration count. Each
  *  iteration will wait for the background thread to finish transferring data before terminating.
- *  -s path to source directory, if this is specified the database a live restore will commence
- *  with that source path. Default: WT_LIVE_RESTORE_SOURCE.
  *  -h home path. The new database will be created here, by default WT_TEST.
- *  -o op_count the number of crud operations to apply while live restoring. If -1 operations will
- *  be applied until the background thread has completed migration.
+ *  -o op_count the number of crud operations to apply while live restoring.
  *  -i iteration count, the number of iterations to run the test program. Note: A value of 1 with no
  *  source directory specified will simply populate a database i.e. no live restore will take place.
  *  The default iteration count is 2.
- *  -c adittional connection flags to pass to the wiredtiger_open.
+ *  -c the collection count to run the test with, if unset collections are created at random.
  *  -t thread count for the background thread. A value of 0 is legal in which case data files will
  *  not be transferred in the background.
  *  -v verbose level, this setting will set WT_VERB_FILE_OPS with whatever level is provided.
@@ -405,6 +385,14 @@ main(int argc, char *argv[])
     logger::log_msg(LOG_INFO, "Background thread count: " + std::to_string(thread_count));
 
     // Get the op_count if it exists.
+    auto coll_count_str = value_for_opt("-c", argc, argv);
+    int64_t coll_count = INT64_MAX;
+    if (!coll_count_str.empty()) {
+        coll_count = atoi(coll_count_str.c_str());
+        logger::log_msg(LOG_INFO, "Collection count: " + std::to_string(coll_count));
+    }
+
+    // Get the op_count if it exists.
     auto op_count_str = value_for_opt("-o", argc, argv);
     int64_t op_count = op_count_str.empty() ? op_count_default : atoi(op_count_str.c_str());
     logger::log_msg(LOG_INFO, "Op count: " + std::to_string(op_count));
@@ -422,32 +410,24 @@ main(int argc, char *argv[])
     std::string home_path = value_for_opt("-h", argc, argv);
     if (home_path.empty())
         home_path = HOME_PATH;
-    logger::log_msg(LOG_INFO, "Home: " + home_path);
+    logger::log_msg(LOG_INFO, "Home path: " + home_path);
 
-
-    // Source path option.
-    std::string source_path = value_for_opt("-s", argc, argv);
-    bool source_path_provided = !source_path.empty();
-    // Copy the source path as we'll delete it after one iteration.
-    if (source_path_provided)
-        testutil_copy(source_path.c_str(), SOURCE_PATH);
-    else
-        // If we're providing the source path delete any existing one.
-        testutil_recreate_dir(SOURCE_PATH);
-    source_path = SOURCE_PATH;
-    logger::log_msg(LOG_INFO, "Source: " + source_path);
+    // Delete any existing source dir.
+    testutil_recreate_dir(SOURCE_PATH);
+    logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
 
     // Recreate the home directory on startup everytime.
     testutil_recreate_dir(home_path.c_str());
 
-    bool first = !source_path_provided;
+    bool first = true;
     /* When setting up the database we don't want to wait for the background threads to complete. */
     bool background_thread_mode_enabled = (!first && background_thread_debug_mode);
     for (int i = 0; i < it_count; i++) {
         logger::log_msg(LOG_INFO, "!!!! Beginning iteration: " + std::to_string(i) + " !!!!");
-        run_restore(home_path, source_path, thread_count, op_count, background_thread_mode_enabled, verbose_level, first);
+        run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count, background_thread_mode_enabled, verbose_level, first);
         testutil_remove(SOURCE_PATH);
         testutil_move(HOME_PATH, SOURCE_PATH);
+        testutil_recreate_dir(HOME_PATH);
         first = false;
         background_thread_mode_enabled = background_thread_debug_mode;
     }
