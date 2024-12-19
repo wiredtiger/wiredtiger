@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
+
 /*
  * __layered_create_missing_ingest_table --
  *     Create a missing ingest table from an existing layered table configuration.
@@ -50,6 +52,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_DECL_ITEM(item);
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
+    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t ckpt_timestamp;
     size_t len, metadata_value_cfg_len;
     uint64_t global_checkpoint_id;
@@ -57,6 +60,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
+    txn_global = &conn->txn_global;
 
     buf = NULL;
     cursor = NULL;
@@ -220,7 +224,25 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
      * of the last checkpoint for later query. This gets saved in the connection.
      */
     WT_ERR(__wt_meta_read_checkpoint_timestamp(session, NULL, &ckpt_timestamp, NULL));
-    conn->txn_global.last_ckpt_timestamp = ckpt_timestamp;
+    /* This value is updated by a single thread. No need for synchronization. */
+    txn_global->last_ckpt_timestamp = ckpt_timestamp;
+
+    if (txn_global->stable_timestamp < ckpt_timestamp) {
+        __wt_writelock(session, &txn_global->rwlock);
+        if (txn_global->stable_timestamp < ckpt_timestamp) {
+            WT_RELEASE_WRITE(txn_global->stable_timestamp, ckpt_timestamp);
+            WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
+            /*
+             * Release write requires the data and destination have exactly the same size. stdbool.h
+             * only defines true as `#define true 1` so we need a bool cast to provide proper type
+             * information.
+             */
+            WT_RELEASE_WRITE(txn_global->has_stable_timestamp, (bool)true);
+            txn_global->stable_is_pinned = false;
+            __wt_verbose_timestamp(session, ckpt_timestamp, "Updated global stable timestamp");
+        }
+        __wt_writeunlock(session, &txn_global->rwlock);
+    }
 
 err:
     if (cursor != NULL)
@@ -1039,9 +1061,13 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     else {
         if (WT_CONFIG_LIT_MATCH("follower", cval))
             conn->layered_table_manager.leader = leader = false;
-        else if (WT_CONFIG_LIT_MATCH("leader", cval))
+        else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
+            /* Drain the ingest tables before switching to leader. */
+            if (reconfig)
+                WT_ERR(__layered_drain_ingest_tables(session));
+
             conn->layered_table_manager.leader = leader = true;
-        else
+        } else
             WT_ERR_MSG(session, EINVAL, "Invalid node role");
 
         /* Follower step-up. */
@@ -1437,11 +1463,6 @@ err:
     WT_TRET(version_cursor->close(version_cursor));
     return (ret);
 }
-
-/* TODO: use this function to drain the inges table */
-#ifdef __linux__
-static int __layered_drain_ingest_tables(WT_SESSION_IMPL *) __attribute__((unused));
-#endif
 
 /*
  * __layered_drain_ingest_tables --
