@@ -270,7 +270,11 @@ do_random_crud(scoped_session &session, int64_t op_count, bool fresh_start)
             i = warmup_insertions;
         }
 
-        if (ran < 5000) {
+        if (ran < 3) {
+            // 0.01% Checkpoint.
+            testutil_check(session->checkpoint(session.get(), NULL));
+            logger::log_msg(LOG_INFO, "Taking checkpoint");
+        } else if (ran < 5000) {
             // 50% Write.
             write(session, false);
         } else if (ran <= 9980) {
@@ -284,8 +288,6 @@ do_random_crud(scoped_session &session, int64_t op_count, bool fresh_start)
               "do_random_crud RNG (" + std::to_string(ran) + ") didn't find an operation to run");
             testutil_assert(false);
         }
-
-        // Unreachable.
     }
 }
 
