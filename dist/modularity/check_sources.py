@@ -19,7 +19,7 @@ def main():
 
     rootPath = os.path.realpath(sys.argv[1])
     lcp.setRootPath(rootPath)
-    wt_defs = lcp.load_wt_defs(rootPath, WT_DEFS_RELATIVE_PATH)
+    wt_defs = lcp.load_code_config(rootPath, WT_DEFS_RELATIVE_PATH)
     lcp.setModules(wt_defs["modules"])
 
     files = lcp.get_files()  # list of all source files
