@@ -1002,8 +1002,6 @@ extern int __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool fro
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_library_init(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_allocfile(WT_SESSION_IMPL *session, uint32_t lognum, const char *dest)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2245,7 +2243,6 @@ extern void __wt_layered_table_log_written_reset(WT_SESSION_IMPL *session);
 extern void __wt_layered_table_log_wrlsn(WT_SESSION_IMPL *session, int *yield);
 extern void __wt_layered_table_logmgr_compat_version(WT_SESSION_IMPL *session);
 extern void __wt_layered_table_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp);
-extern void __wt_layered_table_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp);
 extern void __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id);
 extern void __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn);
 extern void __wt_log_slot_free(WT_SESSION_IMPL *session, WT_LOGSLOT *slot);

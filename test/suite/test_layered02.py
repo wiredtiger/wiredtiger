@@ -26,14 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import os, wttest
 
 # test_layered02.py
 #    Basic layered tree cursor creation
 class test_layered02(wttest.WiredTigerTestCase):
 
     uri_base = "test_layered02"
-    conn_config = 'layered_table_log=(enabled),verbose=[layered],disaggregated=(role="leader"),' \
+    conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
     uri = "layered:" + uri_base

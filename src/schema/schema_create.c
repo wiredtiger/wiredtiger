@@ -1153,7 +1153,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * regular logging. That logging will allow for write ahead log replay into the stable table.
      */
     WT_ERR(__wt_buf_fmt(session, tmp,
-      "layered_table_log=(enabled=true,layered_constituent=true),in_memory=true,"
+      "in_memory=true,"
       "disaggregated=(page_log=none)"));
     ingest_cfg[2] = tmp->data;
 

@@ -472,11 +472,11 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
      * ingest table. If the layered table server is running, retrieve the oldest ID necessary in all
      * layered ingest tables and use that as the oldest reader.
      */
-    if (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LAYERED)) {
-        __wt_layered_table_manager_get_pinned_id(session, &layered_pinned_id);
-        if (WT_TXNID_LT(layered_pinned_id, last_running))
-            last_running = layered_pinned_id;
-    }
+    // if (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LAYERED)) {
+    //     __wt_layered_table_manager_get_pinned_id(session, &layered_pinned_id);
+    //     if (WT_TXNID_LT(layered_pinned_id, last_running))
+    //         last_running = layered_pinned_id;
+    // }
     if (WT_TXNID_LT(last_running, oldest_id))
         oldest_id = last_running;
 

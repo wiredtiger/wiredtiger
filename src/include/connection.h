@@ -158,11 +158,11 @@ struct __wt_layered_table_manager {
      */
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
 
-#define WT_LAYERED_TABLE_THREAD_COUNT 2
-    WT_THREAD_GROUP threads;
+    // #define WT_LAYERED_TABLE_THREAD_COUNT 2
+    //     WT_THREAD_GROUP threads;
 
-    WT_LSN max_replay_lsn;
-    uint64_t max_applied_txnid;
+    //     WT_LSN max_replay_lsn;
+    //     uint64_t max_applied_txnid;
 
     bool leader;
 };

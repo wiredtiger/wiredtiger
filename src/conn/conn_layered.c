@@ -27,8 +27,7 @@ __layered_create_missing_ingest_table(
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
     WT_ERR(__wt_buf_fmt(session, ingest_config,
       "key_format=\"%.*s\",value_format=\"%.*s\","
-      "layered_table_log=(enabled=true,layered_constituent=true),in_memory=true,"
-      "disaggregated=(page_log=none,storage_source=none)",
+      "in_memory=true,disaggregated=(page_log=none,storage_source=none)",
       (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
 
     WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, ingest_config->data));
@@ -51,6 +50,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
     WT_DECL_ITEM(item);
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
+    wt_timestamp_t ckpt_timestamp;
     size_t len, metadata_value_cfg_len;
     uint64_t global_checkpoint_id;
     char *buf, *cfg_ret, *metadata_value_cfg, *layered_ingest_uri;
@@ -213,6 +213,15 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_id)
      */
     WT_RELEASE_WRITE(conn->disaggregated_storage.global_checkpoint_id, checkpoint_id + 1);
 
+    /*
+     * TODO: We need to ensure we have updated the system information. This should come from MongoD?
+     *
+     * Read the system checkpoint information from the metadata file and save the stable timestamp
+     * of the last checkpoint for later query. This gets saved in the connection.
+     */
+    WT_ERR(__wt_meta_read_checkpoint_timestamp(session, NULL, &ckpt_timestamp, NULL));
+    conn->txn_global.last_ckpt_timestamp = ckpt_timestamp;
+
 err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
@@ -272,12 +281,12 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
 
-    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
-    WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
-      WT_LAYERED_TABLE_THREAD_COUNT, WT_LAYERED_TABLE_THREAD_COUNT, session_flags,
-      __wt_layered_table_manager_thread_chk, __wt_layered_table_manager_thread_run, NULL));
+    // session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
+    // WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
+    //   WT_LAYERED_TABLE_THREAD_COUNT, WT_LAYERED_TABLE_THREAD_COUNT, session_flags,
+    //   __wt_layered_table_manager_thread_chk, __wt_layered_table_manager_thread_run, NULL));
 
-    WT_MAX_LSN(&manager->max_replay_lsn);
+    // WT_MAX_LSN(&manager->max_replay_lsn);
 
     WT_STAT_CONN_SET(session, layered_table_manager_running, 1);
     __wt_verbose_level(
@@ -468,16 +477,16 @@ __layered_table_get_constituent_cursor(
  * __layered_table_manager_checkpoint_locked --
  *     Trigger a checkpoint of the handle - will acquire necessary locks
  */
-static int
-__layered_table_manager_checkpoint_locked(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
+// static int
+// __layered_table_manager_checkpoint_locked(WT_SESSION_IMPL *session)
+// {
+//     WT_DECL_RET;
 
-    WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_checkpoints);
-    WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_checkpoint(session, 0)));
-    return (ret);
-}
+//     WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_checkpoints);
+//     WT_WITH_CHECKPOINT_LOCK(
+//       session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_checkpoint(session, 0)));
+//     return (ret);
+// }
 
 /*
  * __layered_table_manager_checkpoint_one --
@@ -485,256 +494,268 @@ __layered_table_manager_checkpoint_locked(WT_SESSION_IMPL *session)
  *     this just checkpoints the first table that meets the threshold. In the future it should be
  *     more fair in selecting a table.
  */
-static int
-__layered_table_manager_checkpoint_one(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *ingest_btree;
-    WT_CURSOR *stable_cursor;
-    WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    WT_TXN_ISOLATION saved_isolation;
-    uint64_t satisfied_txn_id;
-    uint32_t i;
+// static int
+// __layered_table_manager_checkpoint_one(WT_SESSION_IMPL *session)
+// {
+//     WT_BTREE *ingest_btree;
+//     WT_CURSOR *stable_cursor;
+//     WT_DECL_RET;
+//     WT_LAYERED_TABLE_MANAGER *manager;
+//     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+//     WT_TXN_ISOLATION saved_isolation;
+//     uint64_t satisfied_txn_id;
+//     uint32_t i;
 
-    manager = &S2C(session)->layered_table_manager;
+//     manager = &S2C(session)->layered_table_manager;
 
-    /* The table count never shrinks, so this is safe. It probably needs the layered table lock */
-    for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL &&
-          entry->accumulated_write_bytes > WT_LAYERED_TABLE_CHECKPOINT_THRESHOLD) {
-            /*
-             * Retrieve the current tranasaction ID - ensure it actually gets read from the shared
-             * variable here, it would lead to data loss if it was read later and included
-             * transaction IDs that aren't included in the checkpoint. It's OK for it to miss IDs -
-             * this requires an "at least as much" guarantee, not an exact match guarantee.
-             */
-            WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
-            __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-              "layered table %s being checkpointed, satisfied txnid=%" PRIu64, entry->stable_uri,
-              satisfied_txn_id);
+//     /* The table count never shrinks, so this is safe. It probably needs the layered table lock
+//     */ for (i = 0; i < manager->open_layered_table_count; i++) {
+//         if ((entry = manager->entries[i]) != NULL &&
+//           entry->accumulated_write_bytes > WT_LAYERED_TABLE_CHECKPOINT_THRESHOLD) {
+//             /*
+//              * Retrieve the current tranasaction ID - ensure it actually gets read from the
+//              shared
+//              * variable here, it would lead to data loss if it was read later and included
+//              * transaction IDs that aren't included in the checkpoint. It's OK for it to miss
+//              IDs -
+//              * this requires an "at least as much" guarantee, not an exact match guarantee.
+//              */
+//             WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
+//             __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+//               "layered table %s being checkpointed, satisfied txnid=%" PRIu64,
+//               entry->stable_uri, satisfied_txn_id);
 
-            WT_RET(
-              __layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
-            /*
-             * Clear out the byte count before checkpointing - otherwise any writes done during the
-             * checkpoint won't count towards the next threshold.
-             */
-            entry->accumulated_write_bytes = 0;
+//             WT_RET(
+//               __layered_table_get_constituent_cursor(session, entry->ingest_id,
+//               &stable_cursor));
+//             /*
+//              * Clear out the byte count before checkpointing - otherwise any writes done during
+//              the
+//              * checkpoint won't count towards the next threshold.
+//              */
+//             entry->accumulated_write_bytes = 0;
 
-            /*
-             * We know all content in the table is visible - use the cheapest check we can during
-             * reconciliation.
-             */
-            saved_isolation = session->txn->isolation;
-            session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
+//             /*
+//              * We know all content in the table is visible - use the cheapest check we can
+//              during
+//              * reconciliation.
+//              */
+//             saved_isolation = session->txn->isolation;
+//             session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
 
-            /*
-             * Turn on metadata tracking to ensure the checkpoint gets the necessary handle locks.
-             */
-            WT_RET(__wt_meta_track_on(session));
-            WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
-              ret = __layered_table_manager_checkpoint_locked(session));
-            WT_TRET(__wt_meta_track_off(session, false, ret != 0));
-            session->txn->isolation = saved_isolation;
-            if (ret == 0) {
-                entry->checkpoint_txn_id = satisfied_txn_id;
-                ingest_btree = (WT_BTREE *)entry->layered_table->ingest->handle;
-                WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT),
-                  "Ingest table not setup for garbage collection");
-                ingest_btree->oldest_live_txnid = satisfied_txn_id;
-            }
+//             /*
+//              * Turn on metadata tracking to ensure the checkpoint gets the necessary handle
+//              locks.
+//              */
+//             WT_RET(__wt_meta_track_on(session));
+//             WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
+//               ret = __layered_table_manager_checkpoint_locked(session));
+//             WT_TRET(__wt_meta_track_off(session, false, ret != 0));
+//             session->txn->isolation = saved_isolation;
+//             if (ret == 0) {
+//                 entry->checkpoint_txn_id = satisfied_txn_id;
+//                 ingest_btree = (WT_BTREE *)entry->layered_table->ingest->handle;
+//                 WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT),
+//                   "Ingest table not setup for garbage collection");
+//                 ingest_btree->oldest_live_txnid = satisfied_txn_id;
+//             }
 
-            /* We've done (or tried to do) a checkpoint - that's it. */
-            return (ret);
-        } else if (entry != NULL) {
-            if (entry->accumulated_write_bytes > 0)
-                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                  "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
-                  entry->accumulated_write_bytes);
-        }
-    }
+//             /* We've done (or tried to do) a checkpoint - that's it. */
+//             return (ret);
+//         } else if (entry != NULL) {
+//             if (entry->accumulated_write_bytes > 0)
+//                 __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+//                   "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
+//                   entry->accumulated_write_bytes);
+//         }
+//     }
 
-    WT_STAT_CONN_SET(session, layered_table_manager_checkpoint_candidates, i);
-    return (0);
-}
+//     WT_STAT_CONN_SET(session, layered_table_manager_checkpoint_candidates, i);
+//     return (0);
+// }
 
 /*
  * __layered_table_log_replay_op_apply --
  *     Apply a transactional operation during recovery.
  */
-static int
-__layered_table_log_replay_op_apply(
-  WT_SESSION_IMPL *session, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
-{
-    WT_CURSOR *stable_cursor;
-    WT_DECL_RET;
-    WT_ITEM key, start_key, stop_key, value;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    wt_timestamp_t commit, durable, first_commit, prepare, read;
-    uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
-    uint32_t fileid, mode, opsize, optype;
-    bool applied;
+// static int
+// __layered_table_log_replay_op_apply(
+//   WT_SESSION_IMPL *session, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
+// {
+//     WT_CURSOR *stable_cursor;
+//     WT_DECL_RET;
+//     WT_ITEM key, start_key, stop_key, value;
+//     WT_LAYERED_TABLE_MANAGER *manager;
+//     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+//     wt_timestamp_t commit, durable, first_commit, prepare, read;
+//     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
+//     uint32_t fileid, mode, opsize, optype;
+//     bool applied;
 
-    manager = &S2C(session)->layered_table_manager;
-    stable_cursor = NULL;
-    applied = false;
-    fileid = 0;
-    memset(&value, 0, sizeof(WT_ITEM));
+//     manager = &S2C(session)->layered_table_manager;
+//     stable_cursor = NULL;
+//     applied = false;
+//     fileid = 0;
+//     memset(&value, 0, sizeof(WT_ITEM));
 
-    /* Peek at the size and the type. */
-    WT_ERR(__wt_layered_table_logop_read(session, pp, end, &optype, &opsize));
-    end = *pp + opsize;
+//     /* Peek at the size and the type. */
+//     WT_ERR(__wt_layered_table_logop_read(session, pp, end, &optype, &opsize));
+//     end = *pp + opsize;
 
-    /*
-     * If it is an operation type that should be ignored, we're done. Note that file ids within
-     * known operations also use the same macros to indicate that operation should be ignored.
-     */
-    if (WT_LOGOP_IS_IGNORED(optype)) {
-        *pp += opsize;
-        goto done;
-    }
+//     /*
+//      * If it is an operation type that should be ignored, we're done. Note that file ids within
+//      * known operations also use the same macros to indicate that operation should be ignored.
+//      */
+//     if (WT_LOGOP_IS_IGNORED(optype)) {
+//         *pp += opsize;
+//         goto done;
+//     }
 
-    switch (optype) {
-    case WT_LOGOP_COL_MODIFY:
-        WT_ERR(
-          __wt_layered_table_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
-        break;
-    case WT_LOGOP_COL_PUT:
-        WT_ERR(__wt_layered_table_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
-        break;
-    case WT_LOGOP_COL_REMOVE:
-        WT_ERR(__wt_layered_table_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
-        break;
-    case WT_LOGOP_COL_TRUNCATE:
-        WT_ERR(__wt_layered_table_logop_col_truncate_unpack(
-          session, pp, end, &fileid, &start_recno, &stop_recno));
-        break;
-    case WT_LOGOP_ROW_MODIFY:
-        WT_ERR(__wt_layered_table_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
-        if ((entry = manager->entries[fileid]) != NULL) {
-            WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
-            __wt_cursor_set_raw_key(stable_cursor, &key);
-            if ((ret = stable_cursor->search(stable_cursor)) != 0)
-                WT_ERR_NOTFOUND_OK(ret, false);
-            else {
-                /*
-                 * Build/insert a complete value during recovery rather than using cursor modify to
-                 * create a partial update (for no particular reason than simplicity).
-                 */
-                WT_ERR(__wt_modify_apply_item(CUR2S(stable_cursor), stable_cursor->value_format,
-                  &stable_cursor->value, value.data));
-                WT_ERR(stable_cursor->insert(stable_cursor));
-                entry->accumulated_write_bytes += (key.size + stable_cursor->value.size);
-                applied = true;
-            }
-        }
-        break;
+//     switch (optype) {
+//     case WT_LOGOP_COL_MODIFY:
+//         WT_ERR(
+//           __wt_layered_table_logop_col_modify_unpack(session, pp, end, &fileid, &recno,
+//           &value));
+//         break;
+//     case WT_LOGOP_COL_PUT:
+//         WT_ERR(__wt_layered_table_logop_col_put_unpack(session, pp, end, &fileid, &recno,
+//         &value)); break;
+//     case WT_LOGOP_COL_REMOVE:
+//         WT_ERR(__wt_layered_table_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
+//         break;
+//     case WT_LOGOP_COL_TRUNCATE:
+//         WT_ERR(__wt_layered_table_logop_col_truncate_unpack(
+//           session, pp, end, &fileid, &start_recno, &stop_recno));
+//         break;
+//     case WT_LOGOP_ROW_MODIFY:
+//         WT_ERR(__wt_layered_table_logop_row_modify_unpack(session, pp, end, &fileid, &key,
+//         &value)); if ((entry = manager->entries[fileid]) != NULL) {
+//             WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
+//             __wt_cursor_set_raw_key(stable_cursor, &key);
+//             if ((ret = stable_cursor->search(stable_cursor)) != 0)
+//                 WT_ERR_NOTFOUND_OK(ret, false);
+//             else {
+//                 /*
+//                  * Build/insert a complete value during recovery rather than using cursor
+//                  modify to
+//                  * create a partial update (for no particular reason than simplicity).
+//                  */
+//                 WT_ERR(__wt_modify_apply_item(CUR2S(stable_cursor),
+//                 stable_cursor->value_format,
+//                   &stable_cursor->value, value.data));
+//                 WT_ERR(stable_cursor->insert(stable_cursor));
+//                 entry->accumulated_write_bytes += (key.size + stable_cursor->value.size);
+//                 applied = true;
+//             }
+//         }
+//         break;
 
-    case WT_LOGOP_ROW_PUT:
-        WT_ERR(__wt_layered_table_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
-        if ((entry = manager->entries[fileid]) != NULL) {
-            /*
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
-          "layered table log application row store put applying to stable table %s",
-        entry->ingest_uri);
-          */
-            WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
-            __wt_cursor_set_raw_key(stable_cursor, &key);
-            __wt_cursor_set_raw_value(stable_cursor, &value);
-            WT_ERR(stable_cursor->insert(stable_cursor));
+//     case WT_LOGOP_ROW_PUT:
+//         WT_ERR(__wt_layered_table_logop_row_put_unpack(session, pp, end, &fileid, &key,
+//         &value)); if ((entry = manager->entries[fileid]) != NULL) {
+//             /*
+//         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
+//           "layered table log application row store put applying to stable table %s",
+//         entry->ingest_uri);
+//           */
+//             WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
+//             __wt_cursor_set_raw_key(stable_cursor, &key);
+//             __wt_cursor_set_raw_value(stable_cursor, &value);
+//             WT_ERR(stable_cursor->insert(stable_cursor));
 
-            entry->accumulated_write_bytes += (key.size + value.size);
-            applied = true;
-        }
-        break;
+//             entry->accumulated_write_bytes += (key.size + value.size);
+//             applied = true;
+//         }
+//         break;
 
-    case WT_LOGOP_ROW_REMOVE:
-        /*
-         * TODO: There should not be any remove operations logged - we turn them into tombstone
-         * writes.
-         */
-        WT_ERR(__wt_layered_table_logop_row_remove_unpack(session, pp, end, &fileid, &key));
-        if ((entry = manager->entries[fileid]) != NULL) {
-            WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
-            __wt_cursor_set_raw_key(stable_cursor, &key);
-            /*
-             * WT_NOTFOUND is an expected error because the checkpoint snapshot we're rolling
-             * forward may race with a remove, resulting in the key not being in the tree, but
-             * recovery still processing the log record of the remove.
-             */
-            WT_ERR_NOTFOUND_OK(stable_cursor->remove(stable_cursor), false);
-            entry->accumulated_write_bytes += (key.size + value.size);
-            applied = true;
-        }
-        break;
+//     case WT_LOGOP_ROW_REMOVE:
+//         /*
+//          * TODO: There should not be any remove operations logged - we turn them into tombstone
+//          * writes.
+//          */
+//         WT_ERR(__wt_layered_table_logop_row_remove_unpack(session, pp, end, &fileid, &key));
+//         if ((entry = manager->entries[fileid]) != NULL) {
+//             WT_ERR(__layered_table_get_constituent_cursor(session, fileid, &stable_cursor));
+//             __wt_cursor_set_raw_key(stable_cursor, &key);
+//             /*
+//              * WT_NOTFOUND is an expected error because the checkpoint snapshot we're rolling
+//              * forward may race with a remove, resulting in the key not being in the tree, but
+//              * recovery still processing the log record of the remove.
+//              */
+//             WT_ERR_NOTFOUND_OK(stable_cursor->remove(stable_cursor), false);
+//             entry->accumulated_write_bytes += (key.size + value.size);
+//             applied = true;
+//         }
+//         break;
 
-    case WT_LOGOP_ROW_TRUNCATE:
-        WT_ERR(__wt_layered_table_logop_row_truncate_unpack(
-          session, pp, end, &fileid, &start_key, &stop_key, &mode));
-        break;
-    case WT_LOGOP_TXN_TIMESTAMP:
-        /*
-         * Timestamp records are informational only. We have to unpack it to properly move forward
-         * in the log record to the next operation, but otherwise ignore.
-         */
-        WT_ERR(__wt_layered_table_logop_txn_timestamp_unpack(
-          session, pp, end, &t_sec, &t_nsec, &commit, &durable, &first_commit, &prepare, &read));
-        break;
-    default:
-        WT_ERR(__wt_illegal_value(session, optype));
-    }
+//     case WT_LOGOP_ROW_TRUNCATE:
+//         WT_ERR(__wt_layered_table_logop_row_truncate_unpack(
+//           session, pp, end, &fileid, &start_key, &stop_key, &mode));
+//         break;
+//     case WT_LOGOP_TXN_TIMESTAMP:
+//         /*
+//          * Timestamp records are informational only. We have to unpack it to properly move
+//          forward
+//          * in the log record to the next operation, but otherwise ignore.
+//          */
+//         WT_ERR(__wt_layered_table_logop_txn_timestamp_unpack(
+//           session, pp, end, &t_sec, &t_nsec, &commit, &durable, &first_commit, &prepare,
+//           &read));
+//         break;
+//     default:
+//         WT_ERR(__wt_illegal_value(session, optype));
+//     }
 
-    /*
-     * The zero file ID means either the metadata table, or no file ID was retrieved from the log
-     * record - it is safe to skip either case.
-     */
-    if (fileid != 0 && !applied && manager->entries[fileid] != NULL) {
-        WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_logops_skipped);
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
-          "layered table log application skipped a record associated with layered tree. Record "
-          "type: "
-          "%" PRIu32,
-          optype);
-    } else {
-        if (applied)
-            WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_logops_applied);
-    }
+//     /*
+//      * The zero file ID means either the metadata table, or no file ID was retrieved from the
+//      log
+//      * record - it is safe to skip either case.
+//      */
+//     if (fileid != 0 && !applied && manager->entries[fileid] != NULL) {
+//         WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_logops_skipped);
+//         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
+//           "layered table log application skipped a record associated with layered tree. Record
+//           " "type: "
+//           "%" PRIu32,
+//           optype);
+//     } else {
+//         if (applied)
+//             WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_logops_applied);
+//     }
 
-done:
-    /* Reset the cursor so it doesn't block eviction. */
-    if (stable_cursor != NULL)
-        WT_ERR(stable_cursor->reset(stable_cursor));
-    return (0);
+// done:
+//     /* Reset the cursor so it doesn't block eviction. */
+//     if (stable_cursor != NULL)
+//         WT_ERR(stable_cursor->reset(stable_cursor));
+//     return (0);
 
-err:
-    __wt_err(session, ret,
-      "operation apply failed during recovery: operation type %" PRIu32 " at LSN %" PRIu32
-      "/%" PRIu32,
-      optype, lsnp->l.file, __wt_layered_table_lsn_offset(lsnp));
-    return (ret);
-}
+// err:
+//     __wt_err(session, ret,
+//       "operation apply failed during recovery: operation type %" PRIu32 " at LSN %" PRIu32
+//       "/%" PRIu32,
+//       optype, lsnp->l.file, __wt_layered_table_lsn_offset(lsnp));
+//     return (ret);
+// }
 
 /*
  * __layered_table_log_replay_commit_apply --
  *     Apply a commit record during layered table log replay.
  */
-static int
-__layered_table_log_replay_commit_apply(
-  WT_SESSION_IMPL *session, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
-{
-    /*
-     * __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
-     *   "layered table log application commit applying");
-     */
+// static int
+// __layered_table_log_replay_commit_apply(
+//   WT_SESSION_IMPL *session, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
+// {
+//     /*
+//      * __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
+//      *   "layered table log application commit applying");
+//      */
 
-    /* The logging subsystem zero-pads records. */
-    while (*pp < end && **pp)
-        WT_RET(__layered_table_log_replay_op_apply(session, lsnp, pp, end));
+//     /* The logging subsystem zero-pads records. */
+//     while (*pp < end && **pp)
+//         WT_RET(__layered_table_log_replay_op_apply(session, lsnp, pp, end));
 
-    return (0);
-}
+//     return (0);
+// }
 
 /*
  * __layered_table_log_replay --
@@ -747,139 +768,143 @@ __layered_table_log_replay_commit_apply(
  *     simplified duplicate approach for now - it was most expedient, debuggable and performant.
  *     Long term we might want to do something different.
  */
-static int
-__layered_table_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp,
-  WT_LSN *next_lsnp, void *cookie, int firstrecord)
-{
-    WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    uint64_t txnid;
-    uint32_t rectype;
-    const uint8_t *end, *p;
+// static int
+// __layered_table_log_replay(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp,
+//   WT_LSN *next_lsnp, void *cookie, int firstrecord)
+// {
+//     WT_DECL_RET;
+//     WT_LAYERED_TABLE_MANAGER *manager;
+//     uint64_t txnid;
+//     uint32_t rectype;
+//     const uint8_t *end, *p;
 
-    manager = &S2C(session)->layered_table_manager;
-    p = WT_LOG_SKIP_HEADER(logrec->data);
-    end = (const uint8_t *)logrec->data + logrec->size;
-    /* If this becomes multi-threaded we might move the context from manager here */
-    WT_UNUSED(cookie);
-    WT_UNUSED(firstrecord);
+//     manager = &S2C(session)->layered_table_manager;
+//     p = WT_LOG_SKIP_HEADER(logrec->data);
+//     end = (const uint8_t *)logrec->data + logrec->size;
+//     /* If this becomes multi-threaded we might move the context from manager here */
+//     WT_UNUSED(cookie);
+//     WT_UNUSED(firstrecord);
 
-    if (!manager->leader)
-        return (0);
+//     if (!manager->leader)
+//         return (0);
 
-    /* First, peek at the log record type. */
-    WT_RET(__wt_layered_table_logrec_read(session, &p, end, &rectype));
+//     /* First, peek at the log record type. */
+//     WT_RET(__wt_layered_table_logrec_read(session, &p, end, &rectype));
 
-    /* We are only ever interested in commit records */
-    if (rectype != WT_LOGREC_COMMIT)
-        return (0);
+//     /* We are only ever interested in commit records */
+//     if (rectype != WT_LOGREC_COMMIT)
+//         return (0);
 
-    if (!WT_IS_MAX_LSN(&manager->max_replay_lsn) &&
-      __wt_layered_table_log_cmp(lsnp, &manager->max_replay_lsn) < 0) {
-        WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_skip_lsn);
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
-          "Layered table skipping previously applied LSN: [%" PRIu32 "][%" PRIu32 "]", lsnp->l.file,
-          lsnp->l.offset);
-        return (0);
-    }
+//     if (!WT_IS_MAX_LSN(&manager->max_replay_lsn) &&
+//       __wt_layered_table_log_cmp(lsnp, &manager->max_replay_lsn) < 0) {
+//         WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_skip_lsn);
+//         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1,
+//           "Layered table skipping previously applied LSN: [%" PRIu32 "][%" PRIu32 "]",
+//           lsnp->l.file, lsnp->l.offset);
+//         return (0);
+//     }
 
-    if ((ret = __wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid)) != 0)
-        WT_RET_MSG(session, ret, "layered_table_log_replay: unpack failure");
-    WT_RET(__layered_table_log_replay_commit_apply(session, lsnp, &p, end));
+//     if ((ret = __wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid)) != 0)
+//         WT_RET_MSG(session, ret, "layered_table_log_replay: unpack failure");
+//     WT_RET(__layered_table_log_replay_commit_apply(session, lsnp, &p, end));
 
-    /* Record the highest LSN we've processed so future scans can start from there. */
-    WT_ASSIGN_LSN(&manager->max_replay_lsn, next_lsnp);
-    /* This will need to be made thread-safe if log application becomes multi-threaded */
-    manager->max_applied_txnid = txnid;
+//     /* Record the highest LSN we've processed so future scans can start from there. */
+//     WT_ASSIGN_LSN(&manager->max_replay_lsn, next_lsnp);
+//     /* This will need to be made thread-safe if log application becomes multi-threaded */
+//     manager->max_applied_txnid = txnid;
 
-    return (0);
-}
+//     return (0);
+// }
 
 /*
  * __wt_layered_table_manager_thread_run --
  *     Entry function for a layered table manager thread. This is called repeatedly from the thread
  *     group code so it does not need to loop itself.
  */
-int
-__wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
-{
-    WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_SESSION_IMPL *session;
+// int
+// __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
+// {
+//     WT_DECL_RET;
+//     WT_LAYERED_TABLE_MANAGER *manager;
+//     WT_SESSION_IMPL *session;
 
-    WT_UNUSED(session_shared);
-    session = thread->session;
-    WT_ASSERT(session, session->id != 0);
-    manager = &S2C(session)->layered_table_manager;
+//     WT_UNUSED(session_shared);
+//     session = thread->session;
+//     WT_ASSERT(session, session->id != 0);
+//     manager = &S2C(session)->layered_table_manager;
 
-    WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
+//     WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
 
-    /*
-     * There are two threads: let one do log replay and the other checkpoints. For now use just the
-     * first thread in the group for log application, otherwise the way cursors are saved in the
-     * manager queue gets confused (since they are associated with sessions).
-     */
-    /* __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s",
-     * "__wt_layered_table_manager_thread_run"); */
-    if (thread->id == 0 && __wt_atomic_load32(&manager->log_applying) == 0 &&
-      __wt_atomic_cas32(&manager->log_applying, 0, 1)) {
-        if (WT_IS_MAX_LSN(&manager->max_replay_lsn))
-            ret = __wt_layered_table_log_scan(
-              session, NULL, NULL, WT_LOGSCAN_FIRST, __layered_table_log_replay, NULL);
-        else
-            ret = __wt_layered_table_log_scan(
-              session, &manager->max_replay_lsn, NULL, 0, __layered_table_log_replay, NULL);
+//     /*
+//      * There are two threads: let one do log replay and the other checkpoints. For now use just
+//      the
+//      * first thread in the group for log application, otherwise the way cursors are saved in
+//      the
+//      * manager queue gets confused (since they are associated with sessions).
+//      */
+//     /* __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s",
+//      * "__wt_layered_table_manager_thread_run"); */
+//     if (thread->id == 0 && __wt_atomic_load32(&manager->log_applying) == 0 &&
+//       __wt_atomic_cas32(&manager->log_applying, 0, 1)) {
+//         if (WT_IS_MAX_LSN(&manager->max_replay_lsn))
+//             ret = __wt_layered_table_log_scan(
+//               session, NULL, NULL, WT_LOGSCAN_FIRST, __layered_table_log_replay, NULL);
+//         else
+//             ret = __wt_layered_table_log_scan(
+//               session, &manager->max_replay_lsn, NULL, 0, __layered_table_log_replay, NULL);
 
-        /* Ignore errors at startup or attempting to read more log record when no additional content
-         * has been generated */
-        if (ret == ENOENT || ret == WT_NOTFOUND)
-            ret = 0;
-        /*
-         * The log scan interface returns a generic error if the LSN is past the end of the log
-         * file. In that case bump the LSN to be the first record in the next file.
-         */
-        if (ret == WT_ERROR) {
-            manager->max_replay_lsn.l.file++;
-            manager->max_replay_lsn.l.offset = 0;
-            ret = 0;
-        }
-        __wt_atomic_store32(&manager->log_applying, 0);
-    } else if (thread->id == 1)
-        WT_RET(__layered_table_manager_checkpoint_one(session));
+//         /* Ignore errors at startup or attempting to read more log record when no additional
+//         content
+//          * has been generated */
+//         if (ret == ENOENT || ret == WT_NOTFOUND)
+//             ret = 0;
+//         /*
+//          * The log scan interface returns a generic error if the LSN is past the end of the log
+//          * file. In that case bump the LSN to be the first record in the next file.
+//          */
+//         if (ret == WT_ERROR) {
+//             manager->max_replay_lsn.l.file++;
+//             manager->max_replay_lsn.l.offset = 0;
+//             ret = 0;
+//         }
+//         __wt_atomic_store32(&manager->log_applying, 0);
+//     } else if (thread->id == 1)
+//         WT_RET(__layered_table_manager_checkpoint_one(session));
 
-    WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
+//     WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
 
-    /* Sometimes the logging subsystem is still getting started and ENOENT is expected */
-    if (ret == ENOENT)
-        ret = 0;
-    return (ret);
-}
+//     /* Sometimes the logging subsystem is still getting started and ENOENT is expected */
+//     if (ret == ENOENT)
+//         ret = 0;
+//     return (ret);
+// }
 
 /*
  * __wt_layered_table_manager_get_pinned_id --
  *     Retrieve the oldest checkpoint ID that's relevant to garbage collection
  */
-void
-__wt_layered_table_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp)
-{
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    uint64_t pinned;
-    uint32_t i;
+// void
+// __wt_layered_table_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp)
+// {
+//     WT_LAYERED_TABLE_MANAGER *manager;
+//     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+//     uint64_t pinned;
+//     uint32_t i;
 
-    manager = &S2C(session)->layered_table_manager;
+//     manager = &S2C(session)->layered_table_manager;
 
-    /* If no tables are being managed, then don't pin anything */
-    pinned = WT_TXN_MAX;
-    for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL && WT_TXNID_LT(entry->checkpoint_txn_id, pinned))
-            pinned = entry->checkpoint_txn_id;
-    }
+//     /* If no tables are being managed, then don't pin anything */
+//     pinned = WT_TXN_MAX;
+//     for (i = 0; i < manager->open_layered_table_count; i++) {
+//         if ((entry = manager->entries[i]) != NULL && WT_TXNID_LT(entry->checkpoint_txn_id,
+//         pinned))
+//             pinned = entry->checkpoint_txn_id;
+//     }
 
-    *pinnedp = pinned;
+//     *pinnedp = pinned;
 
-    WT_STAT_CONN_SET(session, layered_table_manager_pinned_id_tables_searched, i);
-}
+//     WT_STAT_CONN_SET(session, layered_table_manager_pinned_id_tables_searched, i);
+// }
 
 /*
  * __wt_layered_table_manager_destroy --
@@ -916,15 +941,15 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     }
 
     /* Ensure other things that engage with the layered table server know it's gone. */
-    FLD_CLR(conn->server_flags, WT_CONN_SERVER_LAYERED);
+    // FLD_CLR(conn->server_flags, WT_CONN_SERVER_LAYERED);
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
-    /* Let any running threads finish up. */
-    __wt_cond_signal(session, manager->threads.wait_cond);
-    __wt_writelock(session, &manager->threads.lock);
+    // /* Let any running threads finish up. */
+    // __wt_cond_signal(session, manager->threads.wait_cond);
+    // __wt_writelock(session, &manager->threads.lock);
 
-    WT_RET(__wt_thread_group_destroy(session, &manager->threads));
+    // WT_RET(__wt_thread_group_destroy(session, &manager->threads));
 
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_layered_table_count; i++) {
@@ -933,7 +958,7 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
-    WT_MAX_LSN(&manager->max_replay_lsn);
+    // WT_MAX_LSN(&manager->max_replay_lsn);
 
     __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
     WT_STAT_CONN_SET(session, layered_table_manager_running, 0);

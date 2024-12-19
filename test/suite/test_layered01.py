@@ -28,7 +28,6 @@
 
 import os, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin
-from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -37,7 +36,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_layered01(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri_base = "test_layered01"
-    conn_config = 'layered_table_log=(enabled),verbose=[layered],disaggregated=(role="leader"),' \
+    conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm)'
 
     uri = "layered:" + uri_base

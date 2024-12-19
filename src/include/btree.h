@@ -274,7 +274,7 @@ struct __wt_btree {
      * Garbage collection is done in reconciliation - obsolete content isn't included when content
      * is written back to disk.
      */
-    uint64_t oldest_live_txnid;
+    // uint64_t oldest_live_txnid;
 
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;
