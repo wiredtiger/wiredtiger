@@ -51,22 +51,30 @@ struct __wt_ckpt_handle_stats {
 };
 
 /*
+ * WT_CKPT_THREAD --
+ *     Checkpoint server information.
+ */
+struct __wt_ckpt_thread {
+    WT_CONDVAR *cond;         /* wait mutex */
+    WT_SESSION_IMPL *session; /* session associated with thread */
+    wt_thread_t tid;          /* thread id */
+    bool tid_set;             /* thread set */
+#define WT_CKPT_LOGSIZE(conn) (__wt_atomic_loadi64(&(conn)->ckpt.server.logsize) != 0)
+    wt_shared wt_off_t logsize; /* thread log size period */
+    bool signalled;             /* thread signalled */
+    uint64_t usecs;             /* thread timer */
+};
+
+/*
  * WT_CKPT_CONNECTION --
  *     Checkpoint information.
  */
 struct __wt_ckpt_connection {
-    WT_SESSION_IMPL *session;       /* Checkpoint thread session */
-    wt_thread_t tid;                /* Checkpoint thread */
-    bool tid_set;                   /* Checkpoint thread set */
-    WT_CONDVAR *cond;               /* Checkpoint wait mutex */
+    WT_CKPT_THREAD server; /* Checkpoint thread.*/
+
     wt_shared uint64_t most_recent; /* Clock value of most recent checkpoint */
-#define WT_CKPT_LOGSIZE(conn) (__wt_atomic_loadi64(&(conn)->ckpt.logsize) != 0)
-    wt_shared wt_off_t logsize; /* Checkpoint log size period */
-    bool signalled;             /* Checkpoint signalled */
 
     WT_CKPT_HANDLE_STATS handle_stats;
-
-    uint64_t usecs; /* Checkpoint timer */
 
     uint64_t scrub_max; /* Checkpoint scrub time min/max */
     uint64_t scrub_min;
