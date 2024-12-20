@@ -30,25 +30,9 @@
 
 #include <string>
 
-static bool option_exists(const std::string &opt, int argc, char *argv[]) {
-    for (int i = 0; i < argc; i ++) {
-        auto arg = std::string(argv[i]);
-        auto result = arg.find(opt);
-        if (result != std::string::npos)
-            return true;
-    }
-    return false;
-}
 
-static std::string value_for_opt(const std::string &opt, int argc, char *argv[]) {
-    for (int i = 0; i < argc; i ++) {
-        auto arg = std::string(argv[i]);
-        auto result = arg.find(opt);
-        if (result != std::string::npos) {
-            if (i == argc - 1)
-                return "";
-            return std::string(argv[i + 1]);
-        }
-    }
-    return "";
-}
+/* Return whether an option has been provided on the command line. */
+bool option_exists(const std::string &opt, int argc, char *argv[]);
+
+/* Return the value for a given option. */
+std::string value_for_opt(const std::string &opt, int argc, char *argv[]);
