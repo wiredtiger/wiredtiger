@@ -4055,6 +4055,8 @@ tasks:
             pip3 install lorem==0.1.1 pymongo==3.12.2 "pymongo[srv]==3.12.2"
             mongod_path=$(find -L ../../mongo/build -executable -type f -path \*/bin/mongod)
             echo "mongod_path = '$mongod_path'"
+            # Log the actual path, using ls to display any symlinks
+            ls -l $mongod_path
             ./run_many_coll.sh $mongod_path mongodb.log config/many-collection-testing many-collection clean-and-populate
       - func: "convert-to-atlas-evergreen-format"
         vars:
