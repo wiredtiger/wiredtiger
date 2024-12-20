@@ -70,6 +70,8 @@ struct __wt_ckpt_thread {
  *     Time-related statistics.
  */
 struct __wt_ckpt_time_stats {
+    struct timespec timer_end;
+    struct timespec timer_start;
     uint64_t max;
     uint64_t min;
     uint64_t recent;
