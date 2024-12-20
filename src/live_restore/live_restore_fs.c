@@ -49,6 +49,7 @@ __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_I
 {
     WT_DECL_RET;
     char *buf, *filename;
+    size_t len;
 
     buf = filename = NULL;
 
@@ -63,7 +64,12 @@ __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_I
          * directory, which will include the destination folder. We need to replace this destination
          * folder's path with the source directory's path.
          */
-        WT_ERR(__live_restore_create_file_path(session, layer, filename, &buf));
+        filename += strlen(dest_home);
+
+        /* +1 for the null terminator. */
+        len = strlen(layer->home) + strlen(filename) + 1;
+        WT_ERR(__wt_calloc(session, 1, len, &buf));
+        WT_ERR(__wt_snprintf(buf, len, "%s%s", layer->home, filename));
 
         *pathp = buf;
         __wt_verbose_debug3(session, WT_VERB_FILEOPS,
