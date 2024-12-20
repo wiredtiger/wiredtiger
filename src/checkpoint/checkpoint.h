@@ -87,10 +87,7 @@ struct __wt_ckpt_connection {
 
     WT_CKPT_HANDLE_STATS handle_stats;
 
-    uint64_t scrub_max; /* Checkpoint scrub time min/max */
-    uint64_t scrub_min;
-    uint64_t scrub_recent; /* Checkpoint scrub time recent/total */
-    uint64_t scrub_total;
+    WT_CKPT_TIME_STATS scrub;
 
     uint64_t prep_max; /* Checkpoint prepare time min/max */
     uint64_t prep_min;

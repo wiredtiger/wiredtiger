@@ -75,7 +75,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
 
     conn->ckpt.prep_min = UINT64_MAX;
     conn->ckpt.time_min = UINT64_MAX;
-    conn->ckpt.scrub_min = UINT64_MAX;
+    conn->ckpt.scrub.min = UINT64_MAX;
 
 err:
     return (ret);

@@ -2458,11 +2458,11 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
         0 :
         __wt_atomic_loadv64(&txn_global->current) - checkpoint_pinned);
 
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_max, conn->ckpt.scrub_max);
-    if (conn->ckpt.scrub_min != UINT64_MAX)
-        WT_STATP_CONN_SET(session, stats, checkpoint_scrub_min, conn->ckpt.scrub_min);
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_recent, conn->ckpt.scrub_recent);
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_total, conn->ckpt.scrub_total);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_max, conn->ckpt.scrub.max);
+    if (conn->ckpt.scrub.min != UINT64_MAX)
+        WT_STATP_CONN_SET(session, stats, checkpoint_scrub_min, conn->ckpt.scrub.min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_recent, conn->ckpt.scrub.recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_total, conn->ckpt.scrub.total);
 
     WT_STATP_CONN_SET(session, stats, checkpoint_prep_max, conn->ckpt.prep_max);
     if (conn->ckpt.prep_min != UINT64_MAX)
