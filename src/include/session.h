@@ -59,6 +59,16 @@ struct __wt_prefetch {
     uint64_t prefetch_skipped_with_parent;
 };
 
+/*
+ * WT_ERROR_INFO --
+ *  An error structure containing verbose information about an error from a session API call.
+ */
+struct __wt_error_info {
+    int err;
+    int sub_level_err;
+    char *err_msg;
+};
+
 /* Get the connection implementation for a session */
 #define S2C(session) ((WT_CONNECTION_IMPL *)((WT_SESSION_IMPL *)(session))->iface.connection)
 
@@ -205,6 +215,7 @@ struct __wt_session_impl {
     } evict_timeline;
 
     WT_ITEM err; /* Error buffer */
+    WT_ERROR_INFO err_info;
 
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */

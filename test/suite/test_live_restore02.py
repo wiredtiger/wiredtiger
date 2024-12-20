@@ -90,7 +90,7 @@ class test_live_restore02(wttest.WiredTigerTestCase):
             if (state == 2):
                 break
             time.sleep(1)
-        self.assertEquals(state, 2)
+        self.assertEqual(state, 2)
 
         conn2 = self.setUpConnectionOpen('SOURCE/')
         session2 = self.setUpSessionOpen(conn2)
@@ -103,8 +103,8 @@ class test_live_restore02(wttest.WiredTigerTestCase):
                 ret = cursor.next()
                 ret2 = cursor2.next()
                 if ret != 0:
-                    self.assertEquals(ret, wiredtiger.WT_NOTFOUND)
-                    self.assertEquals(ret2, wiredtiger.WT_NOTFOUND)
+                    self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+                    self.assertEqual(ret2, wiredtiger.WT_NOTFOUND)
                     break
-                self.assertEquals(cursor.get_key(), cursor2.get_key())
-                self.assertEquals(cursor.get_value(), cursor2.get_value())
+                self.assertEqual(cursor.get_key(), cursor2.get_key())
+                self.assertEqual(cursor.get_value(), cursor2.get_value())
