@@ -27,7 +27,7 @@ __live_restore_create_file_path(
     /* +1 for the path separator, +1 for the null terminator. */
     size_t len = strlen(layer->home) + 1 + strlen(base_name) + 1;
 
-    WT_RET(__wt_calloc(session, 1, len, *out));
+    WT_RET(__wt_calloc(session, 1, len, out));
     WT_RET(__wt_snprintf(*out, len, "%s%s%s", layer->home, __wt_path_separator(), base_name));
 
     return (0);
