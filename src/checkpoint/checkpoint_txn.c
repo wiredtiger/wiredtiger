@@ -575,7 +575,7 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
     __wt_epoch(session, &cur_time);
 
     /* Time since the full database checkpoint started */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.timer_start);
+    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.time.timer_start);
 
     if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress_msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
@@ -602,7 +602,7 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
     __wt_epoch(session, &cur_time);
 
     /* Time since the full database checkpoint started */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.timer_start);
+    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.time.timer_start);
 
     if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress_msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
@@ -632,7 +632,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
-    msec = WT_TIMEDIFF_MS(stop, conn->ckpt.timer_start);
+    msec = WT_TIMEDIFF_MS(stop, conn->ckpt.time.timer_start);
 
     if (msec > conn->ckpt.time.max)
         conn->ckpt.time.max = msec;
@@ -642,7 +642,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn->ckpt.time.total += msec;
 
     /* Compute timer statistics for the scrub. */
-    msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.timer_start);
+    msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.time.timer_start);
 
     if (msec > conn->ckpt.scrub.max)
         conn->ckpt.scrub.max = msec;
@@ -680,7 +680,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
     __wt_epoch(session, &stop);
 
     /* Get time diff in milliseconds. */
-    msec = WT_TIMEDIFF_MS(stop, conn->ckpt.timer_start);
+    msec = WT_TIMEDIFF_MS(stop, conn->ckpt.time.timer_start);
     __wt_verbose_debug1(session, WT_VERB_CHECKPOINT,
       "time: %" PRIu64 " ms, gen: %" PRIu64 ": Full database checkpoint %s", msec,
       __wt_gen(session, WT_GEN_CHECKPOINT), msg);
@@ -1116,7 +1116,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     conn->rec_maximum_milliseconds = 0;
 
     /* Initialize the verbose tracking timer */
-    __wt_epoch(session, &conn->ckpt.timer_start);
+    __wt_epoch(session, &conn->ckpt.time.timer_start);
 
     /* Initialize the checkpoint progress tracking data */
     conn->ckpt.progress_msg_count = 0;
@@ -1439,7 +1439,7 @@ err:
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
      */
-    conn->ckpt.timer_start.tv_sec = 0;
+    conn->ckpt.time.timer_start.tv_sec = 0;
 
     /*
      * XXX Rolling back the changes here is problematic.
