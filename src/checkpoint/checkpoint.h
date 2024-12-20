@@ -95,8 +95,6 @@ struct __wt_ckpt_connection {
     WT_CKPT_TIME_STATS time;
 
     /* Checkpoint stats and verbosity timers. */
-    struct timespec prep_end;
-    struct timespec prep_start;
     struct timespec timer_start;
     struct timespec timer_scrub_end;
 

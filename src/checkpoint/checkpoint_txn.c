@@ -652,7 +652,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn->ckpt.scrub.total += msec;
 
     /* Compute timer statistics for the checkpoint prepare. */
-    msec = WT_TIMEDIFF_MS(conn->ckpt.prep_end, conn->ckpt.prep_start);
+    msec = WT_TIMEDIFF_MS(conn->ckpt.prepare.timer_end, conn->ckpt.prepare.timer_start);
 
     if (msec > conn->ckpt.prepare.max)
         conn->ckpt.prepare.max = msec;
@@ -742,7 +742,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * which applications can hold open across calls to checkpoint.
      */
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 1);
-    __wt_epoch(session, &conn->ckpt.prep_start);
+    __wt_epoch(session, &conn->ckpt.prepare.timer_start);
 
     WT_ERR(__wt_txn_begin(session, txn_conf));
     /* Wait 1000 microseconds to simulate slowdown in checkpoint prepare. */
@@ -883,7 +883,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_WITH_TABLE_READ_LOCK(
       session, ret = __checkpoint_apply_operation(session, cfg, __wt_checkpoint_get_handles));
 
-    __wt_epoch(session, &conn->ckpt.prep_end);
+    __wt_epoch(session, &conn->ckpt.prepare.timer_end);
     WT_STAT_CONN_SET(session, checkpoint_prep_running, 0);
 
 err:
