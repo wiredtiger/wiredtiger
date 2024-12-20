@@ -318,10 +318,9 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     const std::string verbose_string =
       verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
     const std::string conn_config = CONNECTION_CREATE +
-      ",live_restore=(enabled=true,threads_max=" + std::to_string(thread_count) + ",path=\"" +
-      source + "\"),cache_size=1GB," + verbose_string +
-      ",statistics=(all),statistics_log=(json,on_close,wait="
-      "1)";
+      ",live_restore=(enabled=true,debug=(fill_holes_on_close=true),threads_max=" +
+      std::to_string(thread_count) + ",path=\"" + source + "\"),cache_size=1GB," + verbose_string +
+      ",statistics=(all),statistics_log=(json,on_close,wait=1)";
 
     /* Create connection. */
     if (first)
