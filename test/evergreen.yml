@@ -2485,7 +2485,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../test/live_restore/test_live_restore_loop.sh 5
+            ../test/live_restore/short_test.sh
 
   - name: live-restore-long
     depends_on:
@@ -2498,7 +2498,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../test/live_restore/test_live_restore_loop.sh 50
+            ../test/live_restore/long_test.sh
 
   # End of live restore tests
 

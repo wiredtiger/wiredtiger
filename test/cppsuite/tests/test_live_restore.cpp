@@ -107,7 +107,8 @@ private:
 };
 
 static const int iteration_count_default = 2;
-/* FIXME-WT-13825: Set thread_count_default to non zero once extent list concurrency is implemented.
+/*
+ * FIXME-WT-13825: Set thread_count_default to non zero once extent list concurrency is implemented.
  */
 static const int thread_count_default = 0;
 static const int op_count_default = 20000;
@@ -260,12 +261,8 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
     for (int i = 0; i < op_count; i++) {
         auto ran = random_generator::instance().generate_integer(0, 10000);
         if (ran <= 1 || !file_created) {
-            logger::log_msg(LOG_INFO,
-              "Collection_count: " + std::to_string(collection_count) +
-                " db collection count: " + std::to_string(db.collection_count()));
-            if (static_cast<size_t>(collection_count) == db.collection_count()) {
+            if (static_cast<size_t>(collection_count) == db.collection_count())
                 continue;
-            }
             // Create a new file, if none exist force this path.
             create_collection(session);
             file_created = true;
