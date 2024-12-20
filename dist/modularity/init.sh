@@ -16,10 +16,7 @@ is_cached() {
 
 needs_update() {
     if is_cached && [[ -f "$HASH_FILE" ]]; then
-        LAST_TIME_CHECKED=$(stat -c %Y "$HASH_FILE")
-        CURRENT_TIME=$(date +%s)
-        DIFF=$((CURRENT_TIME - LAST_TIME_CHECKED))
-        if [[ "$DIFF" -le 86400 ]]; then
+        if find "$HASH_FILE" -mtime -1 | grep -q "$HASH_FILE"; then
             return 1
         fi
     fi
@@ -27,10 +24,10 @@ needs_update() {
 }
 
 if needs_update; then
-    LATEST_HASH=$(git ls-remote $REPO_URL $BRANCH | awk '{print $1}')
-    if [[ ! -f "$HASH_FILE" || "$LATEST_HASH" != "$(cat $HASH_FILE)" || ! is_cached ]]; then
+    latest_hash=$(git ls-remote $REPO_URL $BRANCH | awk '{print $1}')
+    if [[ ! -f "$HASH_FILE" || "$latest_hash" != "$(cat $HASH_FILE)" || ! is_cached ]]; then
         pip3 -q --disable-pip-version-check install git+"$REPO_URL@$BRANCH"
-        echo "$LATEST_HASH" > "$HASH_FILE"
+        echo "$latest_hash" > "$HASH_FILE"
     fi
     touch "$HASH_FILE"
 fi
