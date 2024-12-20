@@ -60,6 +60,7 @@ struct __wt_live_restore_file_handle {
     WT_LIVE_RESTORE_DESTINATION_METADATA destination;
 
     WT_FS_OPEN_FILE_TYPE file_type;
+    WT_SPINLOCK ext_lock; /* File extent list lock */
 };
 
 typedef enum {
