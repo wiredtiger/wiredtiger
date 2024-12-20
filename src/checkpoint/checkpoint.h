@@ -81,28 +81,32 @@ struct __wt_ckpt_time_stats {
  *     Checkpoint information.
  */
 struct __wt_ckpt_connection {
-    WT_CKPT_THREAD server; /* Checkpoint thread.*/
-
-    wt_shared uint64_t most_recent; /* Clock value of most recent checkpoint */
 
     WT_CKPT_HANDLE_STATS handle_stats;
 
-    WT_CKPT_TIME_STATS scrub;
+    /* Checkpoint thread. */
+    WT_CKPT_THREAD server;
+
+    /* Time-related stats. */
     WT_CKPT_TIME_STATS prepare;
+    WT_CKPT_TIME_STATS scrub;
     WT_CKPT_TIME_STATS time;
 
-    /* Checkpoint stats and verbosity timers */
+    /* Checkpoint stats and verbosity timers. */
     struct timespec prep_end;
     struct timespec prep_start;
     struct timespec timer_start;
     struct timespec timer_scrub_end;
 
-    /* Checkpoint progress message data */
+    /* Clock value of most recent checkpoint. */
+    wt_shared uint64_t most_recent;
+
+    /* Checkpoint progress message data. */
     uint64_t progress_msg_count;
     uint64_t write_bytes;
     uint64_t write_pages;
 
-    /* Last checkpoint connection's base write generation */
+    /* Last checkpoint connection's base write generation. */
     uint64_t last_base_write_gen;
 };
 
