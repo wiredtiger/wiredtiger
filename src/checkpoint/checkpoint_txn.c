@@ -642,7 +642,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn->ckpt.time.total += msec;
 
     /* Compute timer statistics for the scrub. */
-    msec = WT_TIMEDIFF_MS(conn->ckpt.timer_scrub_end, conn->ckpt.timer_start);
+    msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.timer_start);
 
     if (msec > conn->ckpt.scrub.max)
         conn->ckpt.scrub.max = msec;
@@ -1153,7 +1153,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_verbose_track(session, "starting transaction");
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_START_TXN);
 
-    __wt_epoch(session, &conn->ckpt.timer_scrub_end);
+    __wt_epoch(session, &conn->ckpt.scrub.timer_end);
 
     /*
      * Start the checkpoint for real.

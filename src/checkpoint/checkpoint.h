@@ -94,9 +94,8 @@ struct __wt_ckpt_connection {
     WT_CKPT_TIME_STATS scrub;
     WT_CKPT_TIME_STATS time;
 
-    /* Checkpoint stats and verbosity timers. */
+    /* Timer used to derive how long checkpoint takes. */
     struct timespec timer_start;
-    struct timespec timer_scrub_end;
 
     /* Clock value of most recent checkpoint. */
     wt_shared uint64_t most_recent;
