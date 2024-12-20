@@ -53,6 +53,8 @@ extern "C" {
 
 using namespace test_harness;
 
+static const char *file_config = "allocation_size=512B,internal_page_max=512B,leaf_page_max=512B";
+
 class database_model {
 public:
     /* Collection names start from zero. */
@@ -60,8 +62,8 @@ public:
     add_new_collection(scoped_session &session)
     {
         auto uri = database::build_collection_name(collection_count());
-        testutil_check(
-          session->create(session.get(), uri.c_str(), DEFAULT_FRAMEWORK_SCHEMA.c_str()));
+        testutil_check(session->create(
+          session.get(), uri.c_str(), (DEFAULT_FRAMEWORK_SCHEMA + file_config).c_str()));
         _collections.emplace_back(uri);
     }
 
@@ -391,7 +393,7 @@ main(int argc, char *argv[])
       thread_count_str.empty() ? thread_count_default : atoi(thread_count_str.c_str());
     logger::log_msg(LOG_INFO, "Background thread count: " + std::to_string(thread_count));
 
-    // Get the op_count if it exists.
+    // Get the collection count if it exists.
     auto coll_count_str = value_for_opt("-c", argc, argv);
     int64_t coll_count = INT64_MAX;
     if (!coll_count_str.empty()) {
