@@ -323,8 +323,6 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
       ",statistics=(all),statistics_log=(json,on_close,wait="
       "1)";
 
-    //,debug=(fill_holes_on_close=true)
-
     /* Create connection. */
     if (first)
         connection_manager::instance().create(conn_config, home);
