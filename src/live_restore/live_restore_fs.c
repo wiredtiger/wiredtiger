@@ -489,12 +489,12 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
              * A read can cross-over into a hole, in which case, we need to do a partial read from
              * source.
              */
-            // __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-            //   "PARTIAL READ %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
-            //   "-%" PRId64,
-            //   lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
+            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+              "PARTIAL READ %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
+              "-%" PRId64,
+              lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
             unserviceable_hole = hole;
-            return (false);
+            return (true);
         } else if (read_begins_in_hole && !read_ends_in_hole) {
             /* A partial read should not begin in a hole. */
             WT_ASSERT_ALWAYS(session, false,
@@ -532,8 +532,8 @@ __live_restore_fh_write(
      * Read promotes will all have already taken the lock from the original live restore read. Only
      * take the lock if we don't already have it.
      */
-    if (!__wt_spin_owned(session, &lr_fh->ext_lock))
-        __wt_spin_lock(session, &lr_fh->ext_lock);
+
+    __wt_spin_lock(session, &lr_fh->ext_lock);
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
     WT_RET(__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
     __wt_spin_unlock(session, &lr_fh->ext_lock);
@@ -571,11 +571,12 @@ __live_restore_fh_read(
     char *read_data;
     size_t dest_partial_read_len;
     size_t source_partial_read_len;
+    bool can_service_read;
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_spin_lock(session, &lr_fh->ext_lock);
+    // __wt_spin_lock(session, &lr_fh->ext_lock);
 
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "READ %s : %" PRId64 ", %lu", fh->name, offset, len);
@@ -584,12 +585,17 @@ __live_restore_fh_read(
     unserviceable_hole = NULL;
     source_partial_read_len = dest_partial_read_len = 0;
 
+    __wt_spin_lock(session, &lr_fh->ext_lock);
+    can_service_read =
+      __live_restore_can_service_read(lr_fh, session, offset, len, unserviceable_hole);
+    __wt_spin_unlock(session, &lr_fh->ext_lock);
+
     /*
      * FIXME-WT-13828: WiredTiger will read the metadata file after creation but before anything has
      * been written in this case we forward the read to the empty metadata file in the destination.
      * Is this correct?
      */
-    if (__live_restore_can_service_read(lr_fh, session, offset, len, unserviceable_hole)) {
+    if (can_service_read) {
         /*
          * If a portion of the read region is serviceable, combine a read from the source and
          * destination.
@@ -610,6 +616,8 @@ __live_restore_fh_read(
              */
             dest_partial_read_len = (size_t)(unserviceable_hole->off - offset);
             source_partial_read_len = (size_t)(len - (size_t)(unserviceable_hole->off - offset));
+
+            WT_ASSERT(session, dest_partial_read_len + source_partial_read_len == len);
 
             /* First read the serviceable portion from the destination. */
             __wt_verbose_debug2(session, WT_VERB_FILEOPS,
@@ -652,7 +660,7 @@ __live_restore_fh_read(
         WT_RET(__read_promote(lr_fh, session, offset, len, read_data));
     }
 
-    __wt_spin_unlock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
+    // __wt_spin_unlock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
 
     return (0);
 }
