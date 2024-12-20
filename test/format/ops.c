@@ -497,10 +497,10 @@ operations(u_int ops_seconds, u_int run_current, u_int run_total)
 static void
 begin_transaction_ts(TINFO *tinfo)
 {
-    const char* config;
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
+    const char *config;
 
     session = tinfo->session;
 
@@ -518,7 +518,7 @@ begin_transaction_ts(TINFO *tinfo)
         ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
     if (ts != 0) {
         /* 10% of times configure ignore_prepare */
-        if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1 )) {
+        if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
             config = "ignore_prepare=true";
             tinfo->ignore_prepare = true;
         } else {
@@ -526,7 +526,7 @@ begin_transaction_ts(TINFO *tinfo)
             tinfo->ignore_prepare = false;
         }
 
-        wt_wrap_begin_transaction(session,config);
+        wt_wrap_begin_transaction(session, config);
 
         /*
          * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
@@ -758,11 +758,10 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * If we're in a snapshot-isolation transaction, optionally reserve a row (it's an update so
          * can't be done at lower isolation levels). Reserving a row in an implicit transaction will
          * work, but doesn't make sense. Reserving a row before a read won't be useful but it's not
-         * unexpected.
-         * a row cannot be reserved with ignore prepare.
+         * unexpected. A row cannot be reserved with ignore prepare.
          */
-        if (intxn && iso_level == ISOLATION_SNAPSHOT && tinfo->ignore_prepare == false 
-            && mmrand(&tinfo->data_rnd, 0, 20) == 1) {
+        if (intxn && iso_level == ISOLATION_SNAPSHOT && tinfo->ignore_prepare == false &&
+          mmrand(&tinfo->data_rnd, 0, 20) == 1) {
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);
@@ -1125,11 +1124,12 @@ rollback_retry:
         }
 
         /*
-         * Select an operation: updates cannot happen at lower isolation levels or with ignore_prepare
-         * and modify must be in an explicit transaction.
+         * Select an operation: updates cannot happen at lower isolation levels or with
+         * ignore_prepare and modify must be in an explicit transaction.
          */
         op = READ;
-        if ((iso_level == ISOLATION_IMPLICIT || iso_level == ISOLATION_SNAPSHOT ) && (tinfo->ignore_prepare == false)) {
+        if ((iso_level == ISOLATION_IMPLICIT || iso_level == ISOLATION_SNAPSHOT) &&
+          (tinfo->ignore_prepare == false)) {
             i = mmrand(&tinfo->data_rnd, 1, 100);
             if (i < TV(OPS_PCT_DELETE)) {
                 op = REMOVE;
