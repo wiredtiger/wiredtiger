@@ -654,12 +654,12 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     /* Compute timer statistics for the checkpoint prepare. */
     msec = WT_TIMEDIFF_MS(conn->ckpt.prep_end, conn->ckpt.prep_start);
 
-    if (msec > conn->ckpt.prep_max)
-        conn->ckpt.prep_max = msec;
-    if (msec < conn->ckpt.prep_min)
-        conn->ckpt.prep_min = msec;
-    conn->ckpt.prep_recent = msec;
-    conn->ckpt.prep_total += msec;
+    if (msec > conn->ckpt.prepare.max)
+        conn->ckpt.prepare.max = msec;
+    if (msec < conn->ckpt.prepare.min)
+        conn->ckpt.prepare.min = msec;
+    conn->ckpt.prepare.recent = msec;
+    conn->ckpt.prepare.total += msec;
 }
 
 /*
