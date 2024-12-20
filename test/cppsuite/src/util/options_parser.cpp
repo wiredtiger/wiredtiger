@@ -30,10 +30,12 @@
 
 /*
  * option_exists --
- *    Return whether an option has been provided on the command line.
+ *     Return whether an option has been provided on the command line.
  */
-bool option_exists(const std::string &opt, int argc, char *argv[]) {
-    for (int i = 0; i < argc; i ++) {
+bool
+option_exists(const std::string &opt, int argc, char *argv[])
+{
+    for (int i = 0; i < argc; i++) {
         auto arg = std::string(argv[i]);
         auto result = arg.find(opt);
         if (result != std::string::npos)
@@ -44,10 +46,12 @@ bool option_exists(const std::string &opt, int argc, char *argv[]) {
 
 /*
  * value_for_opt --
- *    Return the value for a given option.
+ *     Return the value for a given option.
  */
-std::string value_for_opt(const std::string &opt, int argc, char *argv[]) {
-    for (int i = 0; i < argc; i ++) {
+std::string
+value_for_opt(const std::string &opt, int argc, char *argv[])
+{
+    for (int i = 0; i < argc; i++) {
         auto arg = std::string(argv[i]);
         auto result = arg.find(opt);
         if (result != std::string::npos) {

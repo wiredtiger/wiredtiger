@@ -30,7 +30,6 @@
 
 #include <string>
 
-
 /* Return whether an option has been provided on the command line. */
 bool option_exists(const std::string &opt, int argc, char *argv[]);
 
