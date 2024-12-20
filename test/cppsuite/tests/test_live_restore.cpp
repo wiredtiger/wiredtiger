@@ -45,6 +45,7 @@
 
 #include <vector>
 #include <cstdlib>
+#include <iostream>
 
 extern "C" {
 #include "wiredtiger.h"
@@ -352,23 +353,45 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     connection_manager::instance().close();
 }
 
-/* Usage:
- *  -b background thread debug mode, initialize the database then loop for iteration count. Each
- *  iteration will wait for the background thread to finish transferring data before terminating.
- *  -h home path. The new database will be created here, by default WT_TEST.
- *  -o op_count the number of crud operations to apply while live restoring.
- *  -i iteration count, the number of iterations to run the test program. Note: A value of 1 with no
- *  source directory specified will simply populate a database i.e. no live restore will take place.
- *  The default iteration count is 2.
- *  -c the collection count to run the test with, if unset collections are created at random.
- *  -t thread count for the background thread. A value of 0 is legal in which case data files will
- *  not be transferred in the background.
- *  -v verbose level, this setting will set WT_VERB_FILE_OPS with whatever level is provided.
- *  default is off.
- *  -l log level, this controls the level of logging that this test will run with. This is distinct
- *  from verbose level as that is a WiredTiger configuration. Default is LOG_ERROR (0). The other
- *  levels are LOG_WARN (1), LOG_INFO (2) and LOG_TRACE (3).
- */
+static void
+usage()
+{
+    std::cout << "Usage: ./test_live_restore [OPTIONS]" << std::endl;
+    std::cout << "DESCRIPTION" << std::endl;
+    std::cout << "\t The live restore test simulates performing a live restore on a database. If "
+                 "no options are specified it will run with a default configuration."
+              << std::endl;
+    std::cout << "OPTIONS" << std::endl;
+    std::cout << "\t-b Background thread debug mode, initialize the database then loop for "
+                 "iteration count. Each iteration will wait for the background thread to finish "
+                 "transferring data before terminating. No additional CRUD operations will take "
+                 "place during background thread debug mode. "
+              << std::endl;
+    std::cout << "\t-c The maximum number of collections to run the test with, if unset "
+                 "collections are created at random."
+              << std::endl;
+    std::cout << "\t-H Specifies the database home directory." << std::endl;
+    std::cout << "\t-h Output a usage message and exit." << std::endl;
+    std::cout << "\t-i Iteration count, the number of iterations to run the test program. Note: A "
+                 "value of 1 with no source directory specified will simply populate a database "
+                 "i.e. no live restore will take place. The default iteration count is 2."
+              << std::endl;
+    std::cout << "\t-l Log level, this controls the level of logging that this test will run with. "
+                 "This is distinct from the verbose level option as that is a WiredTiger "
+                 "configuration. Default is LOG_ERROR (0). The other levels are LOG_WARN (1), "
+                 "LOG_INFO (2) and LOG_TRACE (3)."
+              << std::endl;
+    std::cout << "\t-o Op count, op_count the number of crud operations to apply while live "
+                 "restoring."
+              << std::endl;
+    std::cout << "\t-t Thread count for the background thread. A value of 0 is legal in which case "
+                 "data files will not be transferred in the background."
+              << std::endl;
+    std::cout << "\t-o Verbose level, this setting will set WT_VERB_FILE_OPS with whatever level "
+                 "is provided. The default is off."
+              << std::endl;
+}
+
 #include <iostream>
 int
 main(int argc, char *argv[])
@@ -376,9 +399,13 @@ main(int argc, char *argv[])
     /* Set the program name for error messages. */
     const std::string progname = testutil_set_progname(argv);
 
-    // Parse the options.
-    auto log_level_str = value_for_opt("-l", argc, argv);
+    // Parse the options. Starting with the help message.
+    if (option_exists("-h", argc, argv)) {
+        usage();
+        return EXIT_FAILURE;
+    };
 
+    auto log_level_str = value_for_opt("-l", argc, argv);
     // Set the tracing level for the logger component.
     logger::trace_level = log_level_str.empty() ? LOG_ERROR : atoi(log_level_str.c_str());
 
@@ -415,7 +442,7 @@ main(int argc, char *argv[])
     bool background_thread_debug_mode = option_exists("-b", argc, argv);
 
     // Home path option.
-    std::string home_path = value_for_opt("-h", argc, argv);
+    std::string home_path = value_for_opt("-H", argc, argv);
     if (home_path.empty())
         home_path = HOME_PATH;
     logger::log_msg(LOG_INFO, "Home path: " + home_path);
