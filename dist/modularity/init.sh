@@ -16,12 +16,12 @@ is_layercparse_cached() {
 
 # Function to check if layercparse cache is older than 24 hours
 is_layercparse_cache_outdated() {
-  [[ -n $(find "$HASH_FILE" -mtime +0 2>/dev/null) ]]
+    [[ -z $(find "$HASH_FILE" -mtime -1 2>/dev/null) ]]
 }
 
 if ! is_layercparse_cached || is_layercparse_cache_outdated; then
     latest_hash=$(git ls-remote $REPO_URL $BRANCH | awk '{print $1}')
-    if [[ ! -f "$HASH_FILE" || "$latest_hash" != "$(cat $HASH_FILE)" || ! is_cached ]]; then
+    if [[ ! -f "$HASH_FILE" || "$latest_hash" != "$(cat $HASH_FILE)" || ! is_layercparse_cached ]]; then
         pip3 -q --disable-pip-version-check install git+"$REPO_URL@$BRANCH"
         echo "$latest_hash" > "$HASH_FILE"
     fi
