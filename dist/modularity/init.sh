@@ -18,7 +18,7 @@ is_layercparse_cached() {
 is_layercparse_cache_outdated() {
     [[ -z $(find "$HASH_FILE" -mtime -1 2>/dev/null) ]]
 }
-
+h
 if ! is_layercparse_cached || is_layercparse_cache_outdated; then
     latest_hash=$(git ls-remote $REPO_URL $BRANCH | awk '{print $1}')
     if [[ ! -f "$HASH_FILE" || "$latest_hash" != "$(cat $HASH_FILE)" || ! is_layercparse_cached ]]; then
