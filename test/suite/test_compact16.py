@@ -40,7 +40,7 @@ class test_compact16(wttest.WiredTigerTestCase):
     uri = 'table:test_compact16'
 
     table_numkv = 1000 * 1000
-    
+
     def populate(self, uri, start_key, num_keys, value=None, value_size=1024):
         c = self.session.open_cursor(uri, None)
         for k in range(start_key, num_keys):
@@ -56,7 +56,7 @@ class test_compact16(wttest.WiredTigerTestCase):
             c.set_key(i)
             c.remove()
         c.close()
-        
+
     def get_stat(self, stat, uri = None):
         if not uri:
             uri = ''
@@ -64,10 +64,10 @@ class test_compact16(wttest.WiredTigerTestCase):
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
-        
+
     def get_bytes_avail_for_reuse(self, uri):
         return self.get_stat(stat.dsrc.block_reuse_bytes, uri)
-    
+
     # Return the size of the given file.
     def get_size(self, uri):
         # To allow this to work on systems without ftruncate,
