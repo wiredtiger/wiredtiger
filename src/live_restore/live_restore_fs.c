@@ -300,9 +300,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
       ENOENT, false);
 
     for (namep = dirlist_dest; namep != NULL && *namep != NULL; namep++)
-        if (namep != NULL && *namep != NULL &&
-          !(strlen(*namep) >= strlen(".deleted") &&
-            strcmp(*namep + strlen(*namep) - strlen(".deleted"), ".deleted") == 0)) {
+        if (!WT_SUFFIX_MATCH(*namep, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
             WT_ERR(__wt_realloc_def(session, &dirallocsz, count_dest + 1, &entries));
             WT_ERR(__wt_strdup(session, *namep, &entries[count_dest]));
             ++count_dest;
