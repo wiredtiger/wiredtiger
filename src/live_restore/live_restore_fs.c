@@ -48,8 +48,8 @@ __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_I
   const char *dest_home, const char *name, char **pathp)
 {
     WT_DECL_RET;
-    char *buf, *filename;
     size_t len;
+    char *buf, *filename;
 
     buf = filename = NULL;
 
