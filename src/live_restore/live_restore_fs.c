@@ -289,10 +289,11 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     /* Get files from destination. */
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, directory, &path_dest));
-    WT_ERR(lr_fs->os_file_system->fs_directory_list(
-      lr_fs->os_file_system, wt_session, path_dest, prefix, &dirlist_dest, countp));
+    WT_ERR_ERROR_OK(lr_fs->os_file_system->fs_directory_list(
+                      lr_fs->os_file_system, wt_session, path_dest, prefix, &dirlist_dest, countp),
+      ENOENT, false);
 
-    for (namep = dirlist_dest; *namep != NULL; namep++)
+    for (namep = dirlist_dest; namep != NULL && *namep != NULL; namep++)
         if (namep != NULL && *namep != NULL &&
           !(strlen(*namep) >= strlen(".deleted") &&
             strcmp(*namep + strlen(*namep) - strlen(".deleted"), ".deleted") == 0)) {
@@ -307,15 +308,16 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     /* Get files from source. */
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->source, session, lr_fs->destination.home, directory, &path_src));
-    WT_ERR(lr_fs->os_file_system->fs_directory_list(
-      lr_fs->os_file_system, wt_session, path_src, prefix, &dirlist_src, countp));
+    WT_ERR_ERROR_OK(lr_fs->os_file_system->fs_directory_list(
+                      lr_fs->os_file_system, wt_session, path_src, prefix, &dirlist_src, countp),
+      ENOENT, false);
 
-    for (namep = dirlist_src; *namep != NULL; namep++) {
+    for (namep = dirlist_src; namep != NULL && *namep != NULL; namep++) {
         /* Create file path for the file from the source directory. */
         WT_ERR(__live_restore_create_file_path(session, &lr_fs->source, *namep, &temp_path));
         WT_ERR_NOTFOUND_OK(
           __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, temp_path, &dest_exist),
-          true);
+          false);
         WT_ERR(__dest_has_tombstone(lr_fs, temp_path, session, &have_tombstone));
 
         if (!dest_exist && !have_tombstone) {
