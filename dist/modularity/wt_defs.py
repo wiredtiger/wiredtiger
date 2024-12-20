@@ -27,7 +27,7 @@
         Module("session"),
         # Module("support"),
         Module("tiered"),
-        Module("truncate")
+        Module("truncate"),
         Module("txn"),
         # Module("utilities"),
 
