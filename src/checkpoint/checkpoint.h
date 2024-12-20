@@ -66,6 +66,17 @@ struct __wt_ckpt_thread {
 };
 
 /*
+ * WT_CKPT_TIME_STATS --
+ *     Time-related statistics.
+ */
+struct __wt_ckpt_time_stats {
+    uint64_t max;
+    uint64_t min;
+    uint64_t recent;
+    uint64_t total;
+};
+
+/*
  * WT_CKPT_CONNECTION --
  *     Checkpoint information.
  */
