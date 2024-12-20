@@ -16,28 +16,45 @@ static int __live_restore_fs_directory_list_free(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count);
 
 /*
+ * __live_restore_create_filepath --
+ *     Generate the file path of a layer for a file's name. This file path does not need to
+ *     exist.
+ */
+static int
+__live_restore_create_filepath(
+  WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS_LAYER *layer, char *name, char **out)
+{
+    char *base_name = basename(name);
+    /* +1 for the path separator, +1 for the null terminator. */
+    size_t len = strlen(layer->home) + 1 + strlen(base_name) + 1;
+
+    WT_RET(__wt_calloc(session, 1, len, *out));
+    WT_RET(__wt_snprintf(*out, len, "%s%s%s", layer->home, __wt_path_separator(), base_name));
+
+    return (0);
+}
+
+/*
  * __live_restore_fs_backing_filename --
  *     Convert a live restore file/directory path (e..g WT_TEST/WiredTiger.wt) to the actual path of
  *     the backing file/directory. This can be the file in the destination directory (which is
- *     identical to the live restore path), or the file in the source directory. The function
+ *     identical the wiredtiger home path), or the file in the source directory. The function
  *     allocates memory for the path string and expects the caller to free it. If name is an
  *     absolute path, it will always be in format "/absolute_prefix/dest_home/relative_path",
- *     otherwise name always begins with dest_home (e..g dest_home/relative_path). The function
- *     returns path in format "layer->home/relative_path".
+ *     otherwise name is a relative path which always begins with dest_home (e..g
+ *     dest_home/relative_path). The function returns path in format "layer->home/relative_path".
  */
 static int
 __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_IMPL *session,
   const char *dest_home, const char *name, char **pathp)
 {
     WT_DECL_RET;
-    size_t len;
-    char *buf, *filename, *temp_name;
+    char *buf, *filename;
 
-    buf = filename = temp_name = NULL;
-    WT_RET(__wt_strdup(session, name, &temp_name));
+    buf = filename = NULL;
 
     /* Name must contain dest_home. */
-    filename = strstr(temp_name, dest_home);
+    filename = strstr(name, dest_home);
 
     if (layer->which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_RET(__wt_strdup(session, filename, pathp));
@@ -47,12 +64,7 @@ __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_I
          * directory, which will include the destination folder. We need to replace this destination
          * folder's path with the source directory's path.
          */
-        filename += strlen(dest_home);
-
-        /* +1 for the null terminator. */
-        len = strlen(layer->home) + strlen(filename) + 1;
-        WT_ERR(__wt_calloc(session, 1, len, &buf));
-        WT_ERR(__wt_snprintf(buf, len, "%s%s", layer->home, filename));
+        WT_ERR(__live_restore_create_filepath(session, layer, filename, &buf));
 
         *pathp = buf;
         __wt_verbose_debug3(session, WT_VERB_FILEOPS,
@@ -63,7 +75,6 @@ __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_I
 err:
         __wt_free(session, buf);
     }
-    __wt_free(session, temp_name);
     return (ret);
 }
 
@@ -248,8 +259,6 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
     return (0);
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 /*
  * __live_restore_fs_directory_list_worker --
  *     The list is a combination of files from the destination and source directories. For
@@ -265,14 +274,14 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     WT_SESSION_IMPL *session;
     size_t dirallocsz;
     uint32_t count_dest, count_src;
-    char **dirlist_dest, **dirlist_src, **entries, **namep, *path_dest, *path_src;
+    char **dirlist_dest, **dirlist_src, **entries, **namep, *path_dest, *path_src, *temp_filepath;
     bool dest_exist, have_tombstone;
 
     session = (WT_SESSION_IMPL *)wt_session;
     lr_fs = (WT_LIVE_RESTORE_FS *)fs;
     count_dest = count_src = dirallocsz = 0;
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
-    path_dest = path_src = NULL;
+    path_dest = path_src = temp_filepath = NULL;
     dest_exist = have_tombstone = false;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "DIRECTORY LIST %s (single ? %s) : ", directory,
@@ -303,10 +312,12 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
       lr_fs->os_file_system, wt_session, path_src, prefix, &dirlist_src, countp));
 
     for (namep = dirlist_src; *namep != NULL; namep++) {
-        WT_ERR_NOTFOUND_OK(
-          __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, *namep, &dest_exist),
+        /* Create file path for the file from the source directory. */
+        WT_ERR(__live_restore_create_filepath(session, &lr_fs->source, *namep, &temp_filepath));
+        WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(
+                             lr_fs, &lr_fs->destination, session, temp_filepath, &dest_exist),
           true);
-        WT_ERR(__dest_has_tombstone(lr_fs, *namep, session, &have_tombstone));
+        WT_ERR(__dest_has_tombstone(lr_fs, temp_filepath, session, &have_tombstone));
 
         if (!dest_exist && !have_tombstone) {
             WT_ERR(__wt_realloc_def(session, &dirallocsz, count_dest + count_src + 1, &entries));
@@ -314,6 +325,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
             ++count_src;
         }
 
+        __wt_free(session, temp_filepath);
         if (single)
             goto done;
     }
@@ -322,6 +334,7 @@ done:
 err:
     __wt_free(session, path_dest);
     __wt_free(session, path_src);
+    __wt_free(session, temp_filepath);
     if (dirlist_dest != NULL)
         WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, dirlist_dest, count_dest));
     if (dirlist_src != NULL)
@@ -329,10 +342,9 @@ err:
 
     *dirlistp = entries;
     *countp = count_dest + count_src;
-    if (ret == 0)
-        return (0);
 
-    WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, entries, *countp));
+    if (ret != 0)
+        WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, entries, *countp));
     return (ret);
 }
 
@@ -375,7 +387,6 @@ __live_restore_fs_directory_list_free(
     return (lr_fs->os_file_system->fs_directory_list_free(
       lr_fs->os_file_system, wt_session, dirlist, count));
 }
-#pragma GCC diagnostic pop
 
 /*
  * __live_restore_fs_exist --
@@ -918,7 +929,8 @@ __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE
     if (source_exist) {
         wt_off_t source_size;
 
-        WT_ERR(__live_restore_fs_backing_filename(&lr_fs->source, session, name, &source_path));
+        WT_ERR(__live_restore_fs_backing_filename(
+          &lr_fs->source, session, lr_fs->destination.home, name, &source_path));
         WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
           source_path, lr_fh->file_type, 0, &source_fh));
         WT_ERR(lr_fs->os_file_system->fs_size(
