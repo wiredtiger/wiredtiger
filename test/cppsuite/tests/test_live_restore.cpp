@@ -372,18 +372,16 @@ usage()
               << std::endl;
     std::cout << "\t-H Specifies the database home directory." << std::endl;
     std::cout << "\t-h Output a usage message and exit." << std::endl;
-    std::cout << "\t-i Iteration count, the number of iterations to run the test program. Note: A "
-                 "value of 1 with no source directory specified will simply populate a database "
-                 "i.e. no live restore will take place. The default iteration count is 2."
+    std::cout << "\t-i The number of iterations to run the test program. Note: A value of 1 with "
+                 "no source directory specified will simply populate a database i.e. no live "
+                 "restore will take place. The default iteration count is 2."
               << std::endl;
     std::cout << "\t-l Log level, this controls the level of logging that this test will run with. "
                  "This is distinct from the verbose level option as that is a WiredTiger "
                  "configuration. Default is LOG_ERROR (0). The other levels are LOG_WARN (1), "
                  "LOG_INFO (2) and LOG_TRACE (3)."
               << std::endl;
-    std::cout << "\t-o Op count, op_count the number of crud operations to apply while live "
-                 "restoring."
-              << std::endl;
+    std::cout << "\t-o The number of crud operations to apply while live restoring." << std::endl;
     std::cout << "\t-t Thread count for the background thread. A value of 0 is legal in which case "
                  "data files will not be transferred in the background."
               << std::endl;
