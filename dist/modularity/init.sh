@@ -8,7 +8,7 @@ chmod 755 .venv/bin/activate
 . "$VENV_PATH"/bin/activate
 
 REPO_URL="https://github.com/wiredtiger/layercparse.git"
-BRANCH="wtbuild-268-remove-wtdefs"
+BRANCH="main"
 LAYERCPARSE_METADATA_FILE="$VENV_PATH/layercparse_metadata"
 
 IS_CACHED=$(pip3 show layercparse > /dev/null 2>&1 && echo true || echo false)
