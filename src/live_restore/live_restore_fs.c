@@ -16,12 +16,11 @@ static int __live_restore_fs_directory_list_free(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count);
 
 /*
- * __live_restore_create_filepath --
- *     Generate the file path of a layer for a file's name. This file path does not need to
- *     exist.
+ * __live_restore_create_file_path --
+ *     Generate the file path of a layer for a file's name. This file path does not need to exist.
  */
 static int
-__live_restore_create_filepath(
+__live_restore_create_file_path(
   WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS_LAYER *layer, char *name, char **out)
 {
     char *base_name = basename(name);
@@ -64,7 +63,7 @@ __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_I
          * directory, which will include the destination folder. We need to replace this destination
          * folder's path with the source directory's path.
          */
-        WT_ERR(__live_restore_create_filepath(session, layer, filename, &buf));
+        WT_ERR(__live_restore_create_file_path(session, layer, filename, &buf));
 
         *pathp = buf;
         __wt_verbose_debug3(session, WT_VERB_FILEOPS,
@@ -274,14 +273,14 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     WT_SESSION_IMPL *session;
     size_t dirallocsz;
     uint32_t count_dest, count_src;
-    char **dirlist_dest, **dirlist_src, **entries, **namep, *path_dest, *path_src, *temp_filepath;
+    char **dirlist_dest, **dirlist_src, **entries, **namep, *path_dest, *path_src, *temp_path;
     bool dest_exist, have_tombstone;
 
     session = (WT_SESSION_IMPL *)wt_session;
     lr_fs = (WT_LIVE_RESTORE_FS *)fs;
     count_dest = count_src = dirallocsz = 0;
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
-    path_dest = path_src = temp_filepath = NULL;
+    path_dest = path_src = temp_path = NULL;
     dest_exist = have_tombstone = false;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "DIRECTORY LIST %s (single ? %s) : ", directory,
@@ -313,11 +312,11 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
 
     for (namep = dirlist_src; *namep != NULL; namep++) {
         /* Create file path for the file from the source directory. */
-        WT_ERR(__live_restore_create_filepath(session, &lr_fs->source, *namep, &temp_filepath));
-        WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(
-                             lr_fs, &lr_fs->destination, session, temp_filepath, &dest_exist),
+        WT_ERR(__live_restore_create_file_path(session, &lr_fs->source, *namep, &temp_path));
+        WT_ERR_NOTFOUND_OK(
+          __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, temp_path, &dest_exist),
           true);
-        WT_ERR(__dest_has_tombstone(lr_fs, temp_filepath, session, &have_tombstone));
+        WT_ERR(__dest_has_tombstone(lr_fs, temp_path, session, &have_tombstone));
 
         if (!dest_exist && !have_tombstone) {
             WT_ERR(__wt_realloc_def(session, &dirallocsz, count_dest + count_src + 1, &entries));
@@ -325,7 +324,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
             ++count_src;
         }
 
-        __wt_free(session, temp_filepath);
+        __wt_free(session, temp_path);
         if (single)
             goto done;
     }
@@ -334,7 +333,7 @@ done:
 err:
     __wt_free(session, path_dest);
     __wt_free(session, path_src);
-    __wt_free(session, temp_filepath);
+    __wt_free(session, temp_path);
     if (dirlist_dest != NULL)
         WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, dirlist_dest, count_dest));
     if (dirlist_src != NULL)
