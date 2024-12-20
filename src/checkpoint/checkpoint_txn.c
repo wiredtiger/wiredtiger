@@ -634,12 +634,12 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     __wt_epoch(session, &stop);
     msec = WT_TIMEDIFF_MS(stop, conn->ckpt.timer_start);
 
-    if (msec > conn->ckpt.time_max)
-        conn->ckpt.time_max = msec;
-    if (msec < conn->ckpt.time_min)
-        conn->ckpt.time_min = msec;
-    conn->ckpt.time_recent = msec;
-    conn->ckpt.time_total += msec;
+    if (msec > conn->ckpt.time.max)
+        conn->ckpt.time.max = msec;
+    if (msec < conn->ckpt.time.min)
+        conn->ckpt.time.min = msec;
+    conn->ckpt.time.recent = msec;
+    conn->ckpt.time.total += msec;
 
     /* Compute timer statistics for the scrub. */
     msec = WT_TIMEDIFF_MS(conn->ckpt.timer_scrub_end, conn->ckpt.timer_start);

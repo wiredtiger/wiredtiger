@@ -74,7 +74,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->blockqh); /* Block manager list */
 
     conn->ckpt.prepare.min = UINT64_MAX;
-    conn->ckpt.time_min = UINT64_MAX;
+    conn->ckpt.time.min = UINT64_MAX;
     conn->ckpt.scrub.min = UINT64_MAX;
 
 err:

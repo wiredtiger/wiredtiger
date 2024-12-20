@@ -89,11 +89,7 @@ struct __wt_ckpt_connection {
 
     WT_CKPT_TIME_STATS scrub;
     WT_CKPT_TIME_STATS prepare;
-
-    uint64_t time_max; /* Checkpoint time min/max */
-    uint64_t time_min;
-    uint64_t time_recent; /* Checkpoint time recent/total */
-    uint64_t time_total;
+    WT_CKPT_TIME_STATS time;
 
     /* Checkpoint stats and verbosity timers */
     struct timespec prep_end;
