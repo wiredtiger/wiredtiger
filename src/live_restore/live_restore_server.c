@@ -113,7 +113,6 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     work_item = TAILQ_FIRST(&server->work_queue);
     WT_ASSERT(session, work_item != NULL);
     TAILQ_REMOVE(&server->work_queue, work_item, q);
-    WT_STAT_CONN_SET(session, live_restore_queue_length, --server->queue_size);
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore worker taking queue item: %s", work_item->uri);
     __wt_spin_unlock(session, &server->queue_lock);
@@ -151,8 +150,12 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      * FIXME-WT-13825: Update this comment.
      */
     __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "Live restore worker filling holes for: %s", work_item->uri);
+      session, WT_VERB_FILEOPS, "Live restore worker filling holes for %s", work_item->uri);
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
+    __wt_verbose_debug2(
+      session, WT_VERB_FILEOPS, "Live finished filling holes in %s", work_item->uri);
+    WT_STAT_CONN_SET(session, live_restore_queue_length, --server->queue_size);
+
     WT_TRET(cursor->close(cursor));
 
     return (ret);

@@ -118,8 +118,8 @@ static const int op_count_default = 20000;
 static const int warmup_insertion_factor = 3;
 
 static database_model db;
-static const int key_size = 10;
-static const int value_size = 10;
+static const int key_size = 100;
+static const int value_size = 50000;
 static const char *SOURCE_PATH = "WT_LIVE_RESTORE_SOURCE";
 static const char *HOME_PATH = DEFAULT_DIR;
 
@@ -178,7 +178,7 @@ generate_key()
 std::string
 generate_value()
 {
-    return random_generator::instance().generate_random_string(value_size);
+    return random_generator::instance().generate_pseudo_random_string(value_size);
 }
 
 void
@@ -282,11 +282,11 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
             logger::log_msg(LOG_INFO, "Taking checkpoint");
-        } else if (ran < 5000) {
-            // 50% Write.
+        } else if (ran < 9000) {
+            // 90% Write.
             write(session, false);
         } else if (ran <= 9980) {
-            // 49.8% Read.
+            // 10% Read.
             read(session);
         } else if (ran <= 10000) {
             // 0.2% fs_truncate
@@ -318,8 +318,8 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     const std::string verbose_string =
       verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
     const std::string conn_config = CONNECTION_CREATE +
-      ",live_restore=(enabled=true,debug=(fill_holes_on_close=true),threads_max=" +
-      std::to_string(thread_count) + ",path=\"" + source + "\"),cache_size=1GB," + verbose_string +
+      ",live_restore=(enabled=true,threads_max=" +
+      std::to_string(thread_count) + ",path=\"" + source + "\"),cache_size=5GB," + verbose_string +
       ",statistics=(all),statistics_log=(json,on_close,wait=1)";
 
     /* Create connection. */
@@ -333,12 +333,14 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
         do_random_crud(crud_session, collection_count, op_count, first);
 
     // Loop until the state stat is complete!
-    if (thread_count > 0 && (background_thread_mode && !first)) {
-        int64_t state = 0;
+    if (thread_count > 0 || (background_thread_mode && !first)) {
         logger::log_msg(LOG_INFO, "Waiting for background data transfer to complete...");
-        while (state != WT_LIVE_RESTORE_COMPLETE) {
+        while (true) {
             auto stat_cursor = crud_session.open_scoped_cursor("statistics:");
+            int64_t state;
             get_stat(stat_cursor.get(), WT_STAT_CONN_LIVE_RESTORE_STATE, &state);
+            if (state == WT_LIVE_RESTORE_COMPLETE)
+                break;
             __wt_sleep(1, 0);
         }
         logger::log_msg(LOG_INFO, "Done!");

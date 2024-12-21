@@ -455,7 +455,7 @@ __live_restore_remove_extlist_hole(
  */
 static bool
 __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session,
-  wt_off_t offset, size_t len, WT_LIVE_RESTORE_HOLE_NODE *unserviceable_hole)
+  wt_off_t offset, size_t len, WT_LIVE_RESTORE_HOLE_NODE **holep)
 {
     WT_LIVE_RESTORE_HOLE_NODE *hole;
     wt_off_t read_end;
@@ -493,7 +493,7 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
               "PARTIAL READ %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
               "-%" PRId64,
               lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
-            unserviceable_hole = hole;
+            *holep = hole;
             return (true);
         } else if (read_begins_in_hole && !read_ends_in_hole) {
             /* A partial read should not begin in a hole. */
@@ -511,12 +511,8 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
     return (true);
 }
 
-/*
- * __live_restore_fh_write --
- *     File write.
- */
 static int
-__live_restore_fh_write(
+__live_restore_fh_write_int(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
@@ -525,19 +521,35 @@ __live_restore_fh_write(
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
+    /* Callers of this function must hold the extent list lock. */
+    WT_ASSERT_SPINLOCK_OWNED(session, &lr_fh->ext_lock);
+
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "WRITE %s: %" PRId64 ", %lu", fh->name, offset, len);
 
-    /*
-     * Read promotes will all have already taken the lock from the original live restore read. Only
-     * take the lock if we don't already have it.
-     */
+    WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
+    return (__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
+}
+
+/*
+ * __live_restore_fh_write --
+ *     File write.
+ */
+static int
+__live_restore_fh_write(
+  WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
+{
+    WT_DECL_RET;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+    WT_SESSION_IMPL *session;
+
+    lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
+    session = (WT_SESSION_IMPL *)wt_session;
 
     __wt_spin_lock(session, &lr_fh->ext_lock);
-    WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
-    WT_RET(__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
+    ret = __live_restore_fh_write_int(fh, wt_session, offset, len, buf);
     __wt_spin_unlock(session, &lr_fh->ext_lock);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -551,8 +563,8 @@ __read_promote(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_
 {
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ PROMOTE %s : %" PRId64 ", %lu",
       lr_fh->iface.name, offset, len);
-    WT_RET(
-      __live_restore_fh_write((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, offset, len, read));
+    WT_RET(__live_restore_fh_write_int(
+      (WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, offset, len, read));
 
     return (0);
 }
@@ -565,82 +577,36 @@ static int
 __live_restore_fh_read(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
+    WT_DECL_RET;
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_LIVE_RESTORE_HOLE_NODE *unserviceable_hole;
     WT_SESSION_IMPL *session;
-    char *read_data;
     size_t dest_partial_read_len;
     size_t source_partial_read_len;
+    char *read_data;
     bool can_service_read;
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    // __wt_spin_lock(session, &lr_fh->ext_lock);
-
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "READ %s : %" PRId64 ", %lu", fh->name, offset, len);
 
     read_data = (char *)buf;
-    unserviceable_hole = NULL;
     source_partial_read_len = dest_partial_read_len = 0;
 
-    __wt_spin_lock(session, &lr_fh->ext_lock);
-    can_service_read =
-      __live_restore_can_service_read(lr_fh, session, offset, len, unserviceable_hole);
-    __wt_spin_unlock(session, &lr_fh->ext_lock);
+    bool pre_locked = __wt_spin_owned(session, &lr_fh->ext_lock);
+    if (!pre_locked)
+        __wt_spin_lock(session, &lr_fh->ext_lock);
+
+    WT_LIVE_RESTORE_HOLE_NODE *hole = NULL;
+    can_service_read = __live_restore_can_service_read(lr_fh, session, offset, len, &hole);
 
     /*
      * FIXME-WT-13828: WiredTiger will read the metadata file after creation but before anything has
      * been written in this case we forward the read to the empty metadata file in the destination.
      * Is this correct?
      */
-    if (can_service_read) {
-        /*
-         * If a portion of the read region is serviceable, combine a read from the source and
-         * destination.
-         */
-        if (unserviceable_hole != NULL) {
-            /*
-             *              <--read len--->
-             * read:        |-------------|
-             * extent list: |####|----hole----|
-             *              ^    ^        |
-             *              |    |        |
-             *           read off|        |
-             *                hole off    |
-             * read dest:   |----|
-             * read source:      |--------|
-             *
-             *
-             */
-            dest_partial_read_len = (size_t)(unserviceable_hole->off - offset);
-            source_partial_read_len = (size_t)(len - (size_t)(unserviceable_hole->off - offset));
-
-            WT_ASSERT(session, dest_partial_read_len + source_partial_read_len == len);
-
-            /* First read the serviceable portion from the destination. */
-            __wt_verbose_debug2(session, WT_VERB_FILEOPS,
-              "    PARTIAL READ FROM DEST (offset: %ld, len: %lu)", offset, dest_partial_read_len);
-            WT_DECL_ITEM(dest_partial_read_data);
-            WT_RET(__wt_buf_init(session, dest_partial_read_data, dest_partial_read_len));
-            WT_RET(lr_fh->destination.fh->fh_read(lr_fh->destination.fh, wt_session, offset,
-              dest_partial_read_len, dest_partial_read_data->mem));
-
-            /* Now read the remaining data from the source. */
-            __wt_verbose_debug2(session, WT_VERB_FILEOPS,
-              "    PARTIAL READ FROM SOURCE (offset: %ld, len: %lu)", unserviceable_hole->off,
-              source_partial_read_len);
-            WT_DECL_ITEM(source_partial_read_data);
-            WT_RET(__wt_buf_init(session, source_partial_read_data, source_partial_read_len));
-            WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, unserviceable_hole->off,
-              source_partial_read_len, source_partial_read_data->mem));
-
-            /* Combine data buffers. */
-            memcpy(read_data, dest_partial_read_data->mem, dest_partial_read_len);
-            memcpy(read_data + dest_partial_read_len, source_partial_read_data->mem,
-              source_partial_read_len);
-        }
+    if (can_service_read && hole == NULL) {
         /*
          * FIXME-WT-13797: Right now if complete is true source will always be null. So the if
          * statement here has redundancy is there a time when we need it? Maybe with the background
@@ -649,20 +615,66 @@ __live_restore_fh_read(
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
           lr_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
-        WT_RET(lr_fh->destination.fh->fh_read(
+        WT_ERR(lr_fh->destination.fh->fh_read(
           lr_fh->destination.fh, wt_session, offset, len, read_data));
+    } else if (can_service_read && hole != NULL) {
+        /*
+         * If a portion of the read region is serviceable, combine a read from the source and
+         * destination.
+         */
+        /*
+         *              <--read len--->
+         * read:        |-------------|
+         * extent list: |####|----hole----|
+         *              ^    ^        |
+         *              |    |        |
+         *           read off|        |
+         *                hole off    |
+         * read dest:   |----|
+         * read source:      |--------|
+         *
+         *
+         */
+        dest_partial_read_len = (size_t)(hole->off - offset);
+        source_partial_read_len = (size_t)(len - (size_t)(hole->off - offset));
+
+        WT_ASSERT(session, dest_partial_read_len + source_partial_read_len == len);
+
+        /* First read the serviceable portion from the destination. */
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+          "    PARTIAL READ FROM DEST (offset: %ld, len: %lu)", offset, dest_partial_read_len);
+        WT_DECL_ITEM(dest_partial_read_data);
+        WT_ERR(__wt_buf_init(session, dest_partial_read_data, dest_partial_read_len));
+        WT_ERR(lr_fh->destination.fh->fh_read(lr_fh->destination.fh, wt_session, offset,
+          dest_partial_read_len, dest_partial_read_data->mem));
+
+        /* Now read the remaining data from the source. */
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+          "    PARTIAL READ FROM SOURCE (offset: %ld, len: %lu)", hole->off,
+          source_partial_read_len);
+        WT_DECL_ITEM(source_partial_read_data);
+        WT_ERR(__wt_buf_init(session, source_partial_read_data, source_partial_read_len));
+        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, source_partial_read_len,
+          source_partial_read_data->mem));
+
+        /* Combine data buffers. */
+        memcpy(read_data, dest_partial_read_data->mem, dest_partial_read_len);
+        memcpy(read_data + dest_partial_read_len, source_partial_read_data->mem,
+          source_partial_read_len);
     } else {
         /* Interestingly you cannot not have a format in verbose. */
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
         /* Read the full read from the source. */
-        WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
+        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
-        WT_RET(__read_promote(lr_fh, session, offset, len, read_data));
+        WT_ERR(__read_promote(lr_fh, session, offset, len, read_data));
     }
 
-    // __wt_spin_unlock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
+err:
+    if (!pre_locked)
+        __wt_spin_unlock(session, &lr_fh->ext_lock);
 
-    return (0);
+    return (ret);
 }
 
 /*
@@ -677,6 +689,7 @@ __live_restore_fh_read(
 int
 __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
+    WT_DECL_RET;
 /*
  * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
  * it in 4KB chunks.
@@ -687,19 +700,18 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     char buf[WT_LIVE_RESTORE_READ_SIZE];
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
-
-    __wt_spin_lock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
-    // Take a copy of hole because it could be freed
-    hole = lr_fh->destination.hole_list_head;
-    __wt_spin_unlock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
-
-    while (hole != NULL) {
-        __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL*)wt_session;
+    while (true) {
+        __wt_spin_lock(session, &lr_fh->ext_lock);
+        hole = lr_fh->destination.hole_list_head;
+        if (hole == NULL) {
+            /* If hole is NULL we're done. */
+            __wt_spin_unlock(session, &lr_fh->ext_lock);
+            break;
+        }
+        __wt_verbose_debug3(session, WT_VERB_FILEOPS,
           "Found hole in %s at %" PRId64 "-%" PRId64 " during background migration. ", fh->name,
           hole->off, WT_EXTENT_END(hole));
-
-        /* If panic is set on the connection stop doing work. */
-        WT_RET(WT_SESSION_CHECK_PANIC(wt_session));
 
         /*
          * When encountering a large hole, break the read into small chunks. Split the hole into n
@@ -708,15 +720,16 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
          * shrinking the hole in the stack below us. This is why we always read from the start at
          * the beginning of the loop.
          */
-
         // This read could read from the destination. We should optimise for that.
-        WT_RET(__live_restore_fh_read(fh, wt_session, hole->off,
+        WT_ERR(__live_restore_fh_read(fh, wt_session, hole->off,
           hole->len > WT_LIVE_RESTORE_READ_SIZE ? WT_LIVE_RESTORE_READ_SIZE : hole->len, buf));
-        __wt_spin_lock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
-        hole = lr_fh->destination.hole_list_head;
-        // Take a copy of hole because it could be freed
-        __wt_spin_unlock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
+        /* If panic is set on the connection stop doing work. */
+        WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
+        __wt_spin_unlock(session, &lr_fh->ext_lock);
     }
+err:
+    __wt_spin_unlock(session, &lr_fh->ext_lock);
+
     return (0);
 }
 
