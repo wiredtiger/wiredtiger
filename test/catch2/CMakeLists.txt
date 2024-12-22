@@ -15,6 +15,7 @@ else()
         misc_tests/test_fnv.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_mock_session.cpp
+        misc_tests/test_is_valid_sub_level_error.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
