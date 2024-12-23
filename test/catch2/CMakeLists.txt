@@ -8,6 +8,7 @@ else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_strerror.cpp
+        misc_tests/test_session_set_last_error.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
