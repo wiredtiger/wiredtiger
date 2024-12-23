@@ -317,9 +317,14 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string verbose_string =
       verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
+    // const std::string fill_on_close = "";
+    // FIXME - Remove the fill_holes_on_config argument. We should be able to trigger background
+    // migration at the end of this func to copy across remaining data.
+    const std::string fill_on_close =
+      (!background_thread_mode) ? ", debug=(fill_holes_on_close=true)" : "";
     const std::string conn_config = CONNECTION_CREATE +
-      ",live_restore=(enabled=true,threads_max=" +
-      std::to_string(thread_count) + ",path=\"" + source + "\"),cache_size=5GB," + verbose_string +
+      ",live_restore=(enabled=true,threads_max=" + std::to_string(thread_count) + ",path=\"" +
+      source + "\"" + fill_on_close + "),cache_size=5GB," + verbose_string +
       ",statistics=(all),statistics_log=(json,on_close,wait=1)";
 
     /* Create connection. */
