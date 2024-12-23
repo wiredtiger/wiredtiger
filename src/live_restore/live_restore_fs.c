@@ -447,13 +447,21 @@ __live_restore_remove_extlist_hole(
     return (0);
 }
 
-/*
+typedef enum { FULL, PARTIAL, NONE } WT_LIVE_RESTORE_SERVICE_STATE;
+
+/*!!
  * __live_restore_can_service_read --
- *     Return if a read can be serviced by the destination file. This assumes that the block manager
- *     is the only thing that perform reads and it only reads and writes full blocks. If that
- *     changes this code will unceremoniously fall over.
+ *     Return if a read can be serviced by the destination file.
+ *     There are three possible scenarios:
+ *     - The read is entirely within a hole and we return NONE.
+ *     - The read is entirely outside of all holes and we return FULL.
+ *     - The begins begins outside a hole and then ends inside, in which case we return PARTIAL.
+ *       This will only happen if a background migration thread is copying data and has partially
+ *       the migrated content we're reading. The background threads always copy data in order,
+ *       so the partially filled hole can only start outside a hole and then continue into a hole.
+ *     All other scenarios are considered impossible.
  */
-static bool
+static WT_LIVE_RESTORE_SERVICE_STATE
 __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session,
   wt_off_t offset, size_t len, WT_LIVE_RESTORE_HOLE_NODE **holep)
 {
@@ -462,7 +470,7 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
     bool read_begins_in_hole, read_ends_in_hole;
 
     if (lr_fh->destination.complete || lr_fh->source == NULL)
-        return (true);
+        return (FULL);
 
     WT_ASSERT_SPINLOCK_OWNED(session, &lr_fh->ext_lock);
 
@@ -483,18 +491,19 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
               "CANNOT SERVICE %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
               "-%" PRId64,
               lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
-            return (false);
+            return (NONE);
         } else if (!read_begins_in_hole && read_ends_in_hole) {
             /*
              * A read can cross-over into a hole, in which case, we need to do a partial read from
-             * source.
+             * source. This will only happen if a background migration thread is copying data and
+             * has partially copied a block we try to read.
              */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "PARTIAL READ %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
               "-%" PRId64,
               lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
             *holep = hole;
-            return (true);
+            return (PARTIAL);
         } else if (read_begins_in_hole && !read_ends_in_hole) {
             /* A partial read should not begin in a hole. */
             WT_ASSERT_ALWAYS(session, false,
@@ -508,7 +517,7 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
 
     __wt_verbose_debug3(
       session, WT_VERB_FILEOPS, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
-    return (true);
+    return (FULL);
 }
 
 static int
@@ -579,11 +588,11 @@ __live_restore_fh_read(
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+    WT_LIVE_RESTORE_SERVICE_STATE service_state;
     WT_SESSION_IMPL *session;
     size_t dest_partial_read_len;
     size_t source_partial_read_len;
     char *read_data;
-    bool can_service_read;
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
@@ -599,25 +608,21 @@ __live_restore_fh_read(
         __wt_spin_lock(session, &lr_fh->ext_lock);
 
     WT_LIVE_RESTORE_HOLE_NODE *hole = NULL;
-    can_service_read = __live_restore_can_service_read(lr_fh, session, offset, len, &hole);
 
     /*
      * FIXME-WT-13828: WiredTiger will read the metadata file after creation but before anything has
      * been written in this case we forward the read to the empty metadata file in the destination.
      * Is this correct?
      */
-    if (can_service_read && hole == NULL) {
-        /*
-         * FIXME-WT-13797: Right now if complete is true source will always be null. So the if
-         * statement here has redundancy is there a time when we need it? Maybe with the background
-         * thread.
-         */
+    switch (__live_restore_can_service_read(lr_fh, session, offset, len, &hole)) {
+    case FULL:
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
           lr_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
         WT_ERR(lr_fh->destination.fh->fh_read(
           lr_fh->destination.fh, wt_session, offset, len, read_data));
-    } else if (can_service_read && hole != NULL) {
+        break;
+    case PARTIAL:
         /*
          * If a portion of the read region is serviceable, combine a read from the source and
          * destination.
@@ -639,6 +644,7 @@ __live_restore_fh_read(
         source_partial_read_len = (size_t)(len - (size_t)(hole->off - offset));
 
         WT_ASSERT(session, dest_partial_read_len + source_partial_read_len == len);
+        WT_ASSERT(session, hole->off == offset + dest_partial_read_len);
 
         /* First read the serviceable portion from the destination. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
@@ -661,13 +667,17 @@ __live_restore_fh_read(
         memcpy(read_data, dest_partial_read_data->mem, dest_partial_read_len);
         memcpy(read_data + dest_partial_read_len, source_partial_read_data->mem,
           source_partial_read_len);
-    } else {
+        break;
+    case NONE:
         /* Interestingly you cannot not have a format in verbose. */
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
         /* Read the full read from the source. */
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
         /* Promote the read */
         WT_ERR(__read_promote(lr_fh, session, offset, len, read_data));
+        break;
+    default:
+        WT_ASSERT_ALWAYS(session, false, "Invalid service state: %d", service_state);
     }
 
 err:
