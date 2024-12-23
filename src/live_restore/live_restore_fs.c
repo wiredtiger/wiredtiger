@@ -625,6 +625,7 @@ __live_restore_fh_read(
         WT_ERR(lr_fh->destination.fh->fh_read(
           lr_fh->destination.fh, wt_session, offset, len, read_data));
         break;
+
     case PARTIAL:
         /*
          * If a portion of the read region is serviceable, combine a read from the source and
@@ -652,25 +653,17 @@ __live_restore_fh_read(
         /* First read the serviceable portion from the destination. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
           "    PARTIAL READ FROM DEST (offset: %ld, len: %lu)", offset, dest_partial_read_len);
-        WT_DECL_ITEM(dest_partial_read_data);
-        WT_ERR(__wt_buf_init(session, dest_partial_read_data, dest_partial_read_len));
         WT_ERR(lr_fh->destination.fh->fh_read(lr_fh->destination.fh, wt_session, offset,
-          dest_partial_read_len, dest_partial_read_data->mem));
+          dest_partial_read_len, read_data));
 
         /* Now read the remaining data from the source. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
           "    PARTIAL READ FROM SOURCE (offset: %ld, len: %lu)", hole->off,
           source_partial_read_len);
-        WT_DECL_ITEM(source_partial_read_data);
-        WT_ERR(__wt_buf_init(session, source_partial_read_data, source_partial_read_len));
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, source_partial_read_len,
-          source_partial_read_data->mem));
-
-        /* Combine data buffers. */
-        memcpy(read_data, dest_partial_read_data->mem, dest_partial_read_len);
-        memcpy(read_data + dest_partial_read_len, source_partial_read_data->mem,
-          source_partial_read_len);
+          read_data + dest_partial_read_len));
         break;
+
     case NONE:
         /* Interestingly you cannot not have a format in verbose. */
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
@@ -679,6 +672,7 @@ __live_restore_fh_read(
         /* Promote the read */
         WT_ERR(__read_promote(lr_fh, session, offset, len, read_data));
         break;
+
     default:
         WT_ASSERT_ALWAYS(session, false, "Invalid service state: %d", service_state);
     }
