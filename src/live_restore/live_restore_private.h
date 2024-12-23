@@ -60,6 +60,10 @@ struct __wt_live_restore_file_handle {
     WT_LIVE_RESTORE_DESTINATION_METADATA destination;
 
     WT_FS_OPEN_FILE_TYPE file_type;
+    /*
+     * FIXME-WT-13929 Review the performance impacts of using a single spinlock to control access to
+     * the entire file.
+     */
     WT_SPINLOCK ext_lock; /* File extent list lock */
 };
 
