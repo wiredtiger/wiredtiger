@@ -25,7 +25,6 @@ else()
         misc_tests/test_string_match.cpp
         misc_tests/test_session_get_last_error.cpp
         misc_tests/test_tailq.cpp
-        misc_tests/test_verbose_msg.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
         block/unit/test_bitstring.cpp

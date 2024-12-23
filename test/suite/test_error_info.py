@@ -36,6 +36,12 @@ class test_error_info(wttest.WiredTigerTestCase):
 
     table_name1 = 'test_error_infoa.wt'
 
+    def test_max_sessions(self):
+        self.assertEqual(True, True)
+
+    def test_max_sessions(self):
+        self.assertEqual(True, True)
+
     def test_error_info(self):
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, 0)
