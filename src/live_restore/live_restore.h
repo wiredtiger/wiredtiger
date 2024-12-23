@@ -26,7 +26,7 @@ struct __wt_live_restore_server {
     WT_THREAD_GROUP threads;
     wt_shared uint32_t threads_working;
     WT_SPINLOCK queue_lock;
-    uint64_t queue_size;
+    wt_shared uint64_t work_items_remaining;
 
     TAILQ_HEAD(__wt_live_restore_work_queue, __wt_live_restore_work_item) work_queue;
 };

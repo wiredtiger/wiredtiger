@@ -154,7 +154,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live finished filling holes in %s", work_item->uri);
-    WT_STAT_CONN_SET(session, live_restore_queue_length, --server->queue_size);
+    WT_STAT_CONN_SET(session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
 
     WT_TRET(cursor->close(cursor));
 
@@ -251,7 +251,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t work_count;
     WT_RET(__live_restore_populate_queue(session, &work_count));
     WT_STAT_CONN_SET(session, live_restore_queue_length, work_count);
-    server->queue_size = work_count;
+    __wt_atomic_store64(&server->work_items_remaining, work_count);
 
     /* Set this value before the threads start up in case they immediately decrement it. */
     server->threads_working = (uint32_t)cval.val;
