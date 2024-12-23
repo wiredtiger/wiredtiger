@@ -143,18 +143,13 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     /* FIXME-WT-13897 Replace this with an API call into the block manager. */
     WT_FILE_HANDLE *fh = bm->block->fh->handle;
 
-    /*
-     * Call the fill holes function. Right now no other reads or writes should be occurring
-     * concurrently or else things will eventually break.
-     *
-     * FIXME-WT-13825: Update this comment.
-     */
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore worker filling holes for %s", work_item->uri);
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live finished filling holes in %s", work_item->uri);
-    WT_STAT_CONN_SET(session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
+    WT_STAT_CONN_SET(
+      session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
 
     WT_TRET(cursor->close(cursor));
 

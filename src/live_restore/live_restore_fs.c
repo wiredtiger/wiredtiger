@@ -378,7 +378,6 @@ __live_restore_remove_extlist_hole(
 
     write_end = WT_OFFSET_END(offset, len);
 
-    /* FIXME-WT-13825 - We need to make sure we're thread safe when touching the hole_list_head. */
     WT_ASSERT_SPINLOCK_OWNED(session, &lr_fh->ext_lock);
 
     hole = lr_fh->destination.hole_list_head;
@@ -520,6 +519,10 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
     return (FULL);
 }
 
+/*
+ * __live_restore_fh_write --
+ *     Write to a file. This function assumes the extent list lock is already held.
+ */
 static int
 __live_restore_fh_write_int(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
@@ -710,7 +713,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     char buf[WT_LIVE_RESTORE_READ_SIZE];
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
-    WT_SESSION_IMPL *session = (WT_SESSION_IMPL*)wt_session;
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
     while (true) {
         __wt_spin_lock(session, &lr_fh->ext_lock);
         hole = lr_fh->destination.hole_list_head;
@@ -740,7 +743,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 err:
     __wt_spin_unlock(session, &lr_fh->ext_lock);
 
-    return (0);
+    return (ret);
 }
 
 /*
