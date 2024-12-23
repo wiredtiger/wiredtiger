@@ -244,7 +244,6 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, int sub_error, const
     const char *err, *prefix, *verbosity_level_tag;
     bool no_stderr;
     va_list ap_copy;
-    (void)sub_error;
 
     /* SECURITY: Message buffer placed at the end of the stack in case snprintf overflows. */
     char msg[4 * 1024];
@@ -331,7 +330,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, int sub_error, const
         /* Format the message into a scratch buffer, growing it if necessary. */
         WT_ERR(__wt_scr_alloc(session, 4 * 1024, &tmp));
         WT_ERR(__wt_vsnprintf_len_set(tmp->mem, tmp->memsize, &len, fmt, ap));
-        WT_ERR(__wt_session_set_last_error(wt_session, error, WT_NONE, tmp->mem));
+        WT_ERR(__wt_session_set_last_error(wt_session, error, sub_error, tmp->mem));
         tmp->size = len;
         if (len >= tmp->memsize) {
             WT_ERR(__wt_buf_grow(session, tmp, len + 1024));
@@ -343,7 +342,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, int sub_error, const
              */
             no_stderr = true;
             WT_ERR(__wt_vsnprintf_len_set(tmp->mem, tmp->memsize, &len, fmt, ap_copy));
-            WT_ERR(__wt_session_set_last_error(wt_session, error, WT_NONE, tmp->mem));
+            WT_ERR(__wt_session_set_last_error(wt_session, error, sub_error, tmp->mem));
             tmp->size = len;
             if (len >= tmp->memsize)
                 goto err;
@@ -396,7 +395,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, int sub_error, const
         final = msg;
         prefix_len = sizeof(msg) - remain;
         WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap));
-        WT_ERR(__wt_session_set_last_error(wt_session, error, WT_NONE, p));
+        WT_ERR(__wt_session_set_last_error(wt_session, error, sub_error, p));
         if (len < remain) {
             remain -= len;
             p += len;
@@ -420,7 +419,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, int sub_error, const
              */
             no_stderr = true;
             WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap_copy));
-            WT_ERR(__wt_session_set_last_error(wt_session, error, WT_NONE, p));
+            WT_ERR(__wt_session_set_last_error(wt_session, error, sub_error, p));
             if (len < remain) {
                 remain -= len;
                 p += len;
