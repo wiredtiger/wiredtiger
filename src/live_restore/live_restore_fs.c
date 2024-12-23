@@ -705,7 +705,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     WT_DECL_RET;
 /*
  * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
- * it in 4KB chunks.
+ * it in 4KB chunks. This function will takes the extent list lock. The caller should *not* hold the lock when calling.
  */
 #define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
@@ -714,6 +714,8 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     char buf[WT_LIVE_RESTORE_READ_SIZE];
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
+
+    WT_ASSERT(session, !__wt_spin_owned(session, &lr_fh->ext_lock));
     while (true) {
         __wt_spin_lock(session, &lr_fh->ext_lock);
         hole = lr_fh->destination.hole_list_head;
@@ -741,7 +743,8 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         __wt_spin_unlock(session, &lr_fh->ext_lock);
     }
 err:
-    __wt_spin_unlock(session, &lr_fh->ext_lock);
+    if (__wt_spin_owned(session, &lr_fh->ext_lock))
+        __wt_spin_unlock(session, &lr_fh->ext_lock);
 
     return (ret);
 }
