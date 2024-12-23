@@ -729,10 +729,10 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
          * shrinking the hole in the stack below us. This is why we always read from the start at
          * the beginning of the loop.
          */
-        // This read could read from the destination. We should optimise for that.
-        WT_ERR(__live_restore_fh_read(fh, wt_session, hole->off,
-          hole->len > WT_LIVE_RESTORE_READ_SIZE ? WT_LIVE_RESTORE_READ_SIZE : hole->len, buf));
-        /* If panic is set on the connection stop doing work. */
+        size_t read_size = hole->len > WT_LIVE_RESTORE_READ_SIZE ? WT_LIVE_RESTORE_READ_SIZE : hole->len;
+        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
+        WT_ERR(__read_promote(lr_fh, session, hole->off, read_size, buf));
+
         WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
         __wt_spin_unlock(session, &lr_fh->ext_lock);
     }
