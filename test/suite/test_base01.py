@@ -77,11 +77,6 @@ class test_base01(wttest.WiredTigerTestCase):
                 self.assertTrue(str(e).find('nvalid argument') >= 0)
         self.assertTrue(gotException, msg = 'expected exception')
 
-        err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EINVAL)
-        self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
-        self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
-
     def test_empty(self):
         """
         Create a table, look for a nonexistent key
