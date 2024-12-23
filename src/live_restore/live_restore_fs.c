@@ -54,8 +54,14 @@ __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_I
 
     buf = filename = NULL;
 
-    /* Name must contain dest_home. */
+    /*
+     * Name must start with dest_home. If name is an absolute path like "/home/dest_home/file.txt"
+     * then dest_home which derived from conn->home will be "/home/dest_home".
+     */
     filename = strstr(name, dest_home);
+    WT_ASSERT_ALWAYS(session, filename == name,
+      "Provided name '%s' does not start with the destination home folder path '%s'", name,
+      dest_home);
 
     if (layer->which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_RET(__wt_strdup(session, filename, pathp));
