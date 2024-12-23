@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import errno
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
@@ -75,6 +76,11 @@ class test_base01(wttest.WiredTigerTestCase):
                 self.pr('got expected exception: ' + str(e))
                 self.assertTrue(str(e).find('nvalid argument') >= 0)
         self.assertTrue(gotException, msg = 'expected exception')
+
+        err, sub_level_err, err_msg = self.session.get_last_error()
+        self.assertEqual(err, errno.EINVAL)
+        self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
+        self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
 
     def test_empty(self):
         """

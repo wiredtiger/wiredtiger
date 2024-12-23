@@ -27,7 +27,7 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
     REQUIRE(wiredtiger_open(home, NULL, "create", &conn) == 0);
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
 
-    SECTION("Test API placeholder")
+    SECTION("Test default values")
     {
         /* Prepare return arguments. */
         int err, sub_level_err;

@@ -313,6 +313,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
 
     WT_VERBOSE_LEVEL_STR(level, verbosity_level_tag);
     err = error == 0 ? NULL : __wt_strerror(session, error, NULL, 0);
+    wt_session = (WT_SESSION *)session;
     if (is_json) {
         /* Category and verbosity level. */
         WT_ERROR_APPEND(p, remain, "\"category\":\"%s\",", verbose_category_strings[category]);
@@ -329,6 +330,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
         /* Format the message into a scratch buffer, growing it if necessary. */
         WT_ERR(__wt_scr_alloc(session, 4 * 1024, &tmp));
         WT_ERR(__wt_vsnprintf_len_set(tmp->mem, tmp->memsize, &len, fmt, ap));
+        WT_ERR(__wt_session_set_last_error(wt_session, error, WT_NONE, tmp->mem));
         tmp->size = len;
         if (len >= tmp->memsize) {
             WT_ERR(__wt_buf_grow(session, tmp, len + 1024));
@@ -340,6 +342,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
              */
             no_stderr = true;
             WT_ERR(__wt_vsnprintf_len_set(tmp->mem, tmp->memsize, &len, fmt, ap_copy));
+            WT_ERR(__wt_session_set_last_error(wt_session, error, WT_NONE, tmp->mem));
             tmp->size = len;
             if (len >= tmp->memsize)
                 goto err;
@@ -392,6 +395,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
         final = msg;
         prefix_len = sizeof(msg) - remain;
         WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap));
+        WT_ERR(__wt_session_set_last_error(wt_session, error, WT_NONE, p));
         if (len < remain) {
             remain -= len;
             p += len;
@@ -415,6 +419,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
              */
             no_stderr = true;
             WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap_copy));
+            WT_ERR(__wt_session_set_last_error(wt_session, error, WT_NONE, p));
             if (len < remain) {
                 remain -= len;
                 p += len;
@@ -440,7 +445,6 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
      * If an application-specified error message handler fails, complain using the default error
      * handler. If the default error handler fails, fallback to stderr.
      */
-    wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
     if (level != WT_VERBOSE_ERROR) {
         ret = handler->handle_message(handler, wt_session, final);
