@@ -32,7 +32,10 @@
 
 #define __wt_err(session, error, ...) \
     __wt_err_func(                    \
-      session, error, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
+      session, error, 0, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
+#define __wt_err_verbose(session, error, sub_error, ...)                    \
+    __wt_err_func(session, error, sub_error, __PRETTY_FUNCTION__, __LINE__, \
+      WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
 #define __wt_errx(session, ...) \
     __wt_errx_func(session, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
 #define __wt_panic(session, error, ...) \
@@ -52,6 +55,13 @@
         ret = (v);                           \
         __wt_err(session, ret, __VA_ARGS__); \
         goto err;                            \
+    } while (0)
+#define WT_ERR_VERBOSE_MSG(session, v, sub_v, ...)                \
+    do {                                                          \
+        ret = (v);                                                \
+        int __sub_error = sub_v;                                  \
+        __wt_err_verbose(session, ret, __sub_error, __VA_ARGS__); \
+        goto err;                                                 \
     } while (0)
 #define WT_ERR_TEST(a, v, keep) \
     do {                        \
@@ -87,6 +97,13 @@
         int __ret = (v);                       \
         __wt_err(session, __ret, __VA_ARGS__); \
         return (__ret);                        \
+    } while (0)
+#define WT_RET_VERBOSE_MSG(session, v, sub_v, ...)                  \
+    do {                                                            \
+        int __ret = (v);                                            \
+        int __sub_error = sub_v;                                    \
+        __wt_err_verbose(session, __ret, __sub_error, __VA_ARGS__); \
+        return (__ret);                                             \
     } while (0)
 #define WT_RET_TEST(a, v) \
     do {                  \
