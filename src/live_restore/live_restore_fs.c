@@ -17,18 +17,19 @@ static int __live_restore_fs_directory_list_free(
 
 /*
  * __live_restore_create_file_path --
- *     Generate the file path of a layer for a file's name. This file path does not need to exist.
+ *     Generate the path of a file or directory in a layer. The file or directory must exist at the
+ *     root of the layer.
  */
 static int
 __live_restore_create_file_path(
-  WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS_LAYER *layer, char *name, char **out)
+  WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS_LAYER *layer, char *name, char **filepathp)
 {
     char *base_name = basename(name);
     /* +1 for the path separator, +1 for the null terminator. */
     size_t len = strlen(layer->home) + 1 + strlen(base_name) + 1;
 
-    WT_RET(__wt_calloc(session, 1, len, out));
-    WT_RET(__wt_snprintf(*out, len, "%s%s%s", layer->home, __wt_path_separator(), base_name));
+    WT_RET(__wt_calloc(session, 1, len, filepathp));
+    WT_RET(__wt_snprintf(*filepathp, len, "%s%s%s", layer->home, __wt_path_separator(), base_name));
 
     return (0);
 }
@@ -275,19 +276,15 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
   const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp, bool single)
 {
     WT_DECL_RET;
-    WT_LIVE_RESTORE_FS *lr_fs;
-    WT_SESSION_IMPL *session;
-    size_t dirallocsz;
-    uint32_t count_dest, count_src;
+    WT_LIVE_RESTORE_FS *lr_fs = (WT_LIVE_RESTORE_FS *)fs;
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
+    size_t dirallocsz = 0;
+    uint32_t count_dest = 0, count_src = 0;
     char **dirlist_dest, **dirlist_src, **entries, **namep, *path_dest, *path_src, *temp_path;
-    bool dest_exist, have_tombstone;
+    bool dest_exist = false, have_tombstone = false;
 
-    session = (WT_SESSION_IMPL *)wt_session;
-    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
-    count_dest = count_src = dirallocsz = 0;
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
     path_dest = path_src = temp_path = NULL;
-    dest_exist = have_tombstone = false;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "DIRECTORY LIST %s (single ? %s) : ", directory,
       single ? "YES" : "NO");
