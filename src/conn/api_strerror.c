@@ -45,6 +45,31 @@ __wt_wiredtiger_error(int error)
     switch (error) {
     case WT_NONE:
         return ("WT_NONE: last API call was successful");
+    case WT_COMPACTION_ALREADY_RUNNING:
+        return (
+          "WT_COMPACTION_ALREADY_RUNNING: cannot reconfigure background compaction while it's "
+          "already running");
+    case WT_SESSION_MAX:
+        return ("WT_SESSION_MAX: out of sessions (including internal sessions)");
+    case WT_CACHE_OVERFLOW:
+        return ("WT_CACHE_OVERFLOW: transaction rolled back because of cache overflow");
+    case WT_WRITE_CONFLICT:
+        return ("WT_WRITE_CONFLICT: conflict between concurrent operations");
+    case WT_OLDEST_FOR_EVICTION:
+        return ("WT_OLDEST_FOR_EVICTION: oldest pinned transaction ID rolled back for eviction");
+    case WT_CONFLICT_BACKUP:
+        return ("WT_CONFLICT_BACKUP: the table is currently performing backup");
+    case WT_CONFLICT_DHANDLE:
+        return ("WT_CONFLICT_DHANDLE: another thread is accessing the table");
+    case WT_CONFLICT_SCHEMA_LOCK:
+        return ("WT_CONFLICT_SCHEMA_LOCK: another thread is performing a schema operation");
+    case WT_UNCOMMITTED_DATA:
+        return ("WT_UNCOMMITTED_DATA: the table has uncommitted data and can not be dropped yet");
+    case WT_DIRTY_DATA:
+        return ("WT_DIRTY_DATA: the table has dirty data and can not be dropped yet");
+    case WT_CONFLICT_TABLE_LOCK:
+        return (
+          "WT_CONFLICT_TABLE_LOCK: another thread is currently reading or writing on the table");
     }
 
     /* Windows strerror doesn't support ENOTSUP. */

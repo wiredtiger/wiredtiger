@@ -36,6 +36,24 @@ from suite_subprocess import suite_subprocess
 # test_strerror01.py
 #     Test generation of sub-level error codes when using calling strerror.
 class test_strerror(wttest.WiredTigerTestCase, suite_subprocess):
+    sub_errors = [
+        (-32000, "WT_NONE: last API call was successful"),
+        (-32001, "WT_COMPACTION_ALREADY_RUNNING: cannot reconfigure background compaction while it's already running"),
+        (-32002, "WT_SESSION_MAX: out of sessions (including internal sessions)"),
+        (-32003, "WT_CACHE_OVERFLOW: transaction rolled back because of cache overflow"),
+        (-32004, "WT_WRITE_CONFLICT: conflict between concurrent operations"),
+        (-32005, "WT_OLDEST_FOR_EVICTION: oldest pinned transaction ID rolled back for eviction"),
+        (-32006, "WT_CONFLICT_BACKUP: the table is currently performing backup"),
+        (-32007, "WT_CONFLICT_DHANDLE: another thread is accessing the table"),
+        (-32008, "WT_CONFLICT_SCHEMA_LOCK: another thread is performing a schema operation"),
+        (-32009, "WT_UNCOMMITTED_DATA: the table has uncommitted data and can not be dropped yet"),
+        (-32010, "WT_DIRTY_DATA: the table has dirty data and can not be dropped yet"),
+        (-32011, "WT_CONFLICT_TABLE_LOCK: another thread is currently reading or writing on the table"),
+    ]
+
+    def check_error_code(self, error, expected):
+        assert self.session.strerror(error) == expected
 
     def test_strerror(self):
-        assert self.session.strerror(-32000) == "WT_NONE: last API call was successful"
+       for code, expected in self.sub_errors:
+           self.check_error_code(code, expected)

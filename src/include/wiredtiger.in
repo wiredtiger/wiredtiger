@@ -4064,6 +4064,72 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * exists or is necessary.
  */
 #define	WT_NONE	(-32000)
+/*!
+ * Cannot reconfigure background compaction while it's already running.
+ * This sub-level error is generated when the user tries to reconfigure the
+ * background compaction while it is already running.
+ */
+#define	WT_COMPACTION_ALREADY_RUNNING	(-32001)
+/*!
+ * Out of sessions (including internal sessions).
+ * This sub-level error is generated when the user has created the max amount of
+ * sessions configured.
+ */
+#define	WT_SESSION_MAX	(-32002)
+/*!
+ * Transaction rolled back because of cache overflow.
+ * This sub-level error is generated when the cache has exceeded its configured
+ * memory limit. This causes the transaction to be rolled back.
+ */
+#define	WT_CACHE_OVERFLOW	(-32003)
+/*!
+ * Conflict between concurrent operations.
+ * This sub-level error is generated when two or more transactions attempt to
+ * write to the same data.
+ */
+#define	WT_WRITE_CONFLICT	(-32004)
+/*!
+ * Oldest pinned transaction ID rolled back for eviction.
+ * This sub-level error is generated when oldest pinned transaction ID is rolled
+ * back for eviction.
+ */
+#define	WT_OLDEST_FOR_EVICTION	(-32005)
+/*!
+ * The table is currently performing backup.
+ * This sub-level error is generated when an operation conflicts with an ongoing
+ * backup process.
+ */
+#define	WT_CONFLICT_BACKUP	(-32006)
+/*!
+ * Another thread is accessing the table.
+ * This sub-level error is generated when a when another thread is accessing the
+ * table, leading to conflicting dhandles.
+ */
+#define	WT_CONFLICT_DHANDLE	(-32007)
+/*!
+ * Another thread is performing a schema operation.
+ * This sub-level error is generated when another thread is performing a schema
+ * operation, which locks out other operations.
+ */
+#define	WT_CONFLICT_SCHEMA_LOCK	(-32008)
+/*!
+ * The table has uncommitted data and can not be dropped yet.
+ * This sub-level error is generated when operations are attempting to access
+ * data that has not yet been committed, so the table cannot be dropped
+ */
+#define	WT_UNCOMMITTED_DATA	(-32009)
+/*!
+ * The table has dirty data and can not be dropped yet.
+ * This sub-level error is generated when there is data that has been modified
+ * but not yet written to permanent storage, so the table cannot be dropped
+ */
+#define	WT_DIRTY_DATA	(-32010)
+/*!
+ * Another thread is currently reading or writing on the table.
+ * This sub-level error is generated when a thread is reading or writing from
+ * the table, causing it to be locked from other threads.
+ */
+#define	WT_CONFLICT_TABLE_LOCK	(-32011)
 /*
  * Sub-level error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.
