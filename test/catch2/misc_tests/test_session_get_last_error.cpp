@@ -60,6 +60,11 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
 
     SECTION("Test compaction already running")
     {
+        session->create(session, "table:mytable", "key_format=S,value_format=S");
+        session->compact(session, "table:mytable", NULL);
+        conn->reconfigure(conn,
+          "eviction_target=80,eviction_trigger=95,eviction_dirty_target=80,eviction_dirty_trigger="
+          "95");
         check_error(session, EINVAL, WT_COMPACTION_ALREADY_RUNNING,
           "cannot reconfigure background compaction while it's already running");
     }
