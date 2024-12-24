@@ -10,6 +10,10 @@ REPO_URL="https://github.com/wiredtiger/layercparse.git"
 BRANCH="main"
 HASH_FILE=".venv/layercparse_hash"
 
+get_remote_hash() {
+    git ls-remote $REPO_URL $BRANCH | awk '{print $1}'
+}
+
 is_layercparse_cached() {
   pip3 -qq show layercparse > /dev/null 2>&1
 }
@@ -19,11 +23,19 @@ is_layercparse_cache_outdated() {
     [[ -z $(find "$HASH_FILE" -mtime -1 2>/dev/null) ]]
 }
 
-if ! is_layercparse_cached || is_layercparse_cache_outdated; then
-    latest_hash=$(git ls-remote $REPO_URL $BRANCH | awk '{print $1}')
-    if [[ ! -f "$HASH_FILE" || "$latest_hash" != "$(cat $HASH_FILE)" || ! is_layercparse_cached ]]; then
-        pip3 -q --disable-pip-version-check install git+"$REPO_URL@$BRANCH"
-        echo "$latest_hash" > "$HASH_FILE"
+want_update() {
+    ! is_layercparse_cached && REMOTE_HASH=$(get_remote_hash) && return 0
+    
+    if is_layercparse_cache_outdated; then
+        touch "$HASH_FILE"
+        local cached_hash=$(cat "$HASH_FILE")
+        REMOTE_HASH=$(get_remote_hash)
+        [[ -n "$REMOTE_HASH" && "$cached_hash" != "$REMOTE_HASH" ]] && return 0
     fi
-    touch "$HASH_FILE"
+    return 1
+}
+
+if want_update; then
+    pip3 -q --disable-pip-version-check install git+"$REPO_URL@$BRANCH"
+    echo "$REMOTE_HASH" > "$HASH_FILE"
 fi
