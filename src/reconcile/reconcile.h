@@ -265,11 +265,6 @@ struct __wt_reconcile {
     WT_CURSOR *hs_cursor;
 };
 
-/*
- * Enumeration used to track the context of reconstructing modifies within a update list.
- */
-typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
-
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
