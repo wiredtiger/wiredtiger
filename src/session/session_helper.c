@@ -150,7 +150,7 @@ __wt_session_set_last_error(
     size_t err_msg_size;
 
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
-    WT_ASSERT(session, err_msg_content != NULL);
+    WT_RET(err_msg_content == NULL);
 
     /* Free the last error message string, if it was allocated. */
     __wt_free(session, err_msg);
