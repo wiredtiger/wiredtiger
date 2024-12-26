@@ -149,8 +149,10 @@ __wt_session_set_last_error(
     char *err_msg = session->err_info.err_msg;
     size_t err_msg_size;
 
+    /* Ensure arguments are valid, and that session is not a mock */
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
-    WT_RET(err_msg_content == NULL);
+    if (err_msg_content == NULL || wt_session->get_last_error == NULL)
+        return (0);
 
     /* Free the last error message string, if it was allocated. */
     __wt_free(session, err_msg);
