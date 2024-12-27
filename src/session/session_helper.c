@@ -151,17 +151,18 @@ __wt_session_set_last_error(
     /* Ensure arguments are valid, and that session is not a mock */
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
     WT_ASSERT(session, err_msg_content != NULL);
-    if (((WT_SESSION *)session)->get_last_error == NULL)
-        return (0);
 
     /* Free the last error message string, if it was allocated. */
-    __wt_free(session, err_msg);
+    if (err_msg != NULL)
+        __wt_free(session, err_msg);
 
     /* Load error codes and message content into err_info. */
     err_msg_size = strlen(err_msg_content) + 1;
     WT_ERR(__wt_calloc(session, err_msg_size, 1, &err_msg));
     WT_ERR(__wt_snprintf(err_msg, err_msg_size, "%s", err_msg_content));
-    session->err_info = (WT_ERROR_INFO){err, sub_level_err, err_msg};
+    session->err_info.err = err;
+    session->err_info.sub_level_err = sub_level_err;
+    session->err_info.err_msg = err_msg;
 
 err:
     return (ret);
