@@ -30,7 +30,7 @@ err:
     return (ret);
 }
 
-TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message macros]")
+TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
