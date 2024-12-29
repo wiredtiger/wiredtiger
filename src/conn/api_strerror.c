@@ -60,7 +60,7 @@ __wt_wiredtiger_error(int error)
     case WT_CONFLICT_DHANDLE:
         return ("WT_CONFLICT_DHANDLE: Another thread currently holds the data handle of the table");
     case WT_CONFLICT_SCHEMA_LOCK:
-        return ("WT_CONFLICT_SCHEMA_LOCK: Conflict grabbing WiredTiger schema lock");
+        return ("WT_CONFLICT_SCHEMA_LOCK: Conflict performing schema operation");
     case WT_UNCOMMITTED_DATA:
         return ("WT_UNCOMMITTED_DATA: Table has uncommitted data");
     case WT_DIRTY_DATA:

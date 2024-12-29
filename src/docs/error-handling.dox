@@ -122,7 +122,8 @@ backup in the system.
 This sub-level error indicates that a concurrent operation is holding the data handle of the table.
 
 @par \c WT_CONFLICT_SCHEMA_LOCK
-This sub-level error indicates that a concurrent operation is performing a schema operation.
+This sub-level error indicates that a concurrent operation is performing a schema type operation or
+currently holds the schema lock.
 
 @par \c WT_UNCOMMITTED_DATA
 This sub-level error returns when the table has uncommitted data.

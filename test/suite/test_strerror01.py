@@ -45,7 +45,7 @@ class test_strerror(wttest.WiredTigerTestCase, suite_subprocess):
         (wiredtiger.WT_OLDEST_FOR_EVICTION, "WT_OLDEST_FOR_EVICTION: Transaction has the oldest pinned transaction ID"),
         (wiredtiger.WT_CONFLICT_BACKUP, "WT_CONFLICT_BACKUP: Conflict performing operation due to running backup"),
         (wiredtiger.WT_CONFLICT_DHANDLE, "WT_CONFLICT_DHANDLE: Another thread currently holds the data handle of the table"),
-        (wiredtiger.WT_CONFLICT_SCHEMA_LOCK, "WT_CONFLICT_SCHEMA_LOCK: Conflict grabbing WiredTiger schema lock"),
+        (wiredtiger.WT_CONFLICT_SCHEMA_LOCK, "WT_CONFLICT_SCHEMA_LOCK: Conflict performing schema operation"),
         (wiredtiger.WT_UNCOMMITTED_DATA, "WT_UNCOMMITTED_DATA: Table has uncommitted data"),
         (wiredtiger.WT_DIRTY_DATA, "WT_DIRTY_DATA: Table has dirty data"),
         (wiredtiger.WT_CONFLICT_TABLE_LOCK, "WT_CONFLICT_TABLE_LOCK: Another thread currently holds the table lock"),

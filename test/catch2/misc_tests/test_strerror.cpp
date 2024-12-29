@@ -35,7 +35,7 @@ TEST_CASE("Test generation of sub-level error codes when strerror is called", "[
           {WT_CONFLICT_DHANDLE,
             "WT_CONFLICT_DHANDLE: Another thread currently holds the data handle of the table"},
           {WT_CONFLICT_SCHEMA_LOCK,
-            "WT_CONFLICT_SCHEMA_LOCK: Conflict grabbing WiredTiger schema lock"},
+            "WT_CONFLICT_SCHEMA_LOCK: Conflict performing schema operation"},
           {WT_UNCOMMITTED_DATA, "WT_UNCOMMITTED_DATA: Table has uncommitted data"},
           {WT_DIRTY_DATA, "WT_DIRTY_DATA: Table has dirty data"},
           {WT_CONFLICT_TABLE_LOCK,

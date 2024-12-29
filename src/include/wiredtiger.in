@@ -4116,9 +4116,9 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  */
 #define	WT_CONFLICT_DHANDLE	(-32007)
 /*!
- * Conflict grabbing WiredTiger schema lock.
+ * Conflict performing schema operation.
  * This sub-level error indicates that a concurrent operation is performing a
- * schema operation.
+ * schema type operation or currently holds the schema lock.
  */
 #define	WT_CONFLICT_SCHEMA_LOCK	(-32008)
 /*!
