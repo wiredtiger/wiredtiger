@@ -148,7 +148,7 @@ __wt_session_set_last_error(
     char *err_msg = session->err_info.err_msg;
     size_t err_msg_size;
 
-    /* Ensure arguments are valid, and that session is not a mock */
+    /* Ensure arguments are valid */
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
     WT_ASSERT(session, err_msg_content != NULL);
 
