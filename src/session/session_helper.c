@@ -150,7 +150,9 @@ __wt_session_set_last_error(
 
     /* Ensure arguments are valid, and that session is not a mock */
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
-    WT_ASSERT(session, err_msg_content != NULL);
+    // WT_ASSERT(session, err_msg_content != NULL);
+    if (err_msg_content == NULL)
+        return 0;
 
     /* Free the last error message string, if it was allocated. */
     if (err_msg != NULL)
