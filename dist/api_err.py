@@ -171,9 +171,9 @@ sub_errors = [
         This sub-level error indicates that a concurrent operation is holding the data
         handle of the table.'''),
     Error('WT_CONFLICT_SCHEMA_LOCK', -32008,
-        "Conflict grabbing WiredTiger schema lock", '''
-        This sub-level error indicates that a concurrent operation is performing a
-        schema operation.'''),
+        "Conflict performing schema operation", '''
+        This sub-level error indicates that a concurrent operation is performing a schema
+        type operation or currently holds the schema lock.'''),
     Error('WT_UNCOMMITTED_DATA', -32009,
         "Table has uncommitted data", '''
         This sub-level error returns when the table has uncommitted data.'''),
