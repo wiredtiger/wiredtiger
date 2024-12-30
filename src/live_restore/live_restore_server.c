@@ -219,8 +219,7 @@ err:
 int
 __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CONFIG_ITEM cval;
-
+    WT_DECL_RET;
     /*
      * Check that we have a live restore file system before starting the threads or allocating the
      * the server.
@@ -228,15 +227,16 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
-    WT_RET(__wt_calloc_one(session, &S2C(session)->live_restore_server));
+    WT_ERR(__wt_calloc_one(session, &S2C(session)->live_restore_server));
     WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     /* Read the threads_max config, zero threads is valid in which case we don't do anything. */
-    WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+    WT_CONFIG_ITEM cval;
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
     if (cval.val == 0)
         return (0);
 
-    WT_RET(__wt_spin_init(session, &server->queue_lock, "live restore migration work queue"));
+    WT_ERR(__wt_spin_init(session, &server->queue_lock, "live restore migration work queue"));
 
     /*
      * Set the in progress state before we run the threads. If we do it after there's a chance we'll
@@ -250,7 +250,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * which means there will always be at least one item in the queue.
      */
     uint64_t work_count;
-    WT_RET(__live_restore_populate_queue(session, &work_count));
+    WT_ERR(__live_restore_populate_queue(session, &work_count));
     WT_STAT_CONN_SET(session, live_restore_queue_length, work_count);
     server->queue_size = work_count;
 
@@ -265,9 +265,15 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Furthermore because our threads terminate themselves the scaling logic may not be possible
      * without some adjustments to either the live restore server or the thread group code itself.
      */
-    return (__wt_thread_group_create(session, &server->threads, "live_restore_workers",
+    WT_ERR(__wt_thread_group_create(session, &server->threads, "live_restore_workers",
       (uint32_t)cval.val, (uint32_t)cval.val, 0, __live_restore_worker_check,
       __live_restore_worker_run, __live_restore_worker_stop));
+
+    if (0) {
+err:
+        __wt_free(session, server);
+    }
+    return (ret);
 }
 
 /*
@@ -288,19 +294,17 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
      * created before destroying it. One such case would be if we configure the live restore file
      * system. But then an error occurs and we never initialize the server before destroying it.
      */
-    if (server->threads.wait_cond == NULL)
-        return (0);
+    if (server->threads.wait_cond != NULL) {
+        /* Let any running threads finish up. */
+        __wt_cond_signal(session, server->threads.wait_cond);
+        __wt_writelock(session, &server->threads.lock);
+        /* This call destroys the thread group lock. */
+        WT_RET(__wt_thread_group_destroy(session, &server->threads));
 
-    /* Let any running threads finish up. */
-    __wt_cond_signal(session, server->threads.wait_cond);
-    __wt_writelock(session, &server->threads.lock);
-    /* This call destroys the thread group lock. */
-    WT_RET(__wt_thread_group_destroy(session, &server->threads));
+        __live_restore_work_queue_drain(session);
 
-    __live_restore_work_queue_drain(session);
-
-    __wt_spin_destroy(session, &server->queue_lock);
-
+        __wt_spin_destroy(session, &server->queue_lock);
+    }
     __wt_free(session, server);
     return (0);
 }
