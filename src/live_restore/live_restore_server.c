@@ -31,7 +31,7 @@ static int
 __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 {
     WT_UNUSED(ctx);
-    WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     __wt_spin_lock(session, &server->queue_lock);
     server->threads_working--;
@@ -67,7 +67,7 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 static void
 __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
 {
-    WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     /*
      * All contexts that call this function are single threaded however we take the lock as that is
@@ -97,7 +97,7 @@ static int
 __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 {
     WT_DECL_RET;
-    WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     __wt_spin_lock(session, &server->queue_lock);
     if (TAILQ_EMPTY(&server->work_queue)) {
@@ -166,7 +166,7 @@ static int
 __live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
 {
     WT_DECL_RET;
-    WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     TAILQ_INIT(&server->work_queue);
     /*
@@ -221,11 +221,15 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
 
-    WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
-
-    /* Check that we have a live restore file system before starting the threads. */
+    /*
+     * Check that we have a live restore file system before starting the threads or allocating the
+     * the server.
+     */
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
+
+    WT_RET(__wt_calloc_one(session, &S2C(session)->live_restore_server));
+    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     /* Read the threads_max config, zero threads is valid in which case we don't do anything. */
     WT_RET(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
@@ -273,7 +277,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
 {
-    WT_LIVE_RESTORE_SERVER *server = &S2C(session)->live_restore_server;
+    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     /* If we didn't create a live restore file system there is nothing to do. */
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
@@ -296,5 +300,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
     __live_restore_work_queue_drain(session);
 
     __wt_spin_destroy(session, &server->queue_lock);
+
+    __wt_free(session, server);
     return (0);
 }

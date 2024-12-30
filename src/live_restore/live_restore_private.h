@@ -95,6 +95,29 @@ struct __wt_live_restore_fs {
     uint8_t debug_flags;
 };
 
+/*
+ * WT_LIVE_RESTORE_WORK_ITEM --
+ *     A single item of work to be worked on by a thread.
+ */
+struct __wt_live_restore_work_item {
+    char *uri;
+    TAILQ_ENTRY(__wt_live_restore_work_item) q; /* List of URIs queued for background migration. */
+};
+
+/*
+ * WT_LIVE_RESTORE_SERVER --
+ *     The live restore server object that is kept on the connection. Holds a thread group and the
+ *     work queue, with some additional info.
+ */
+struct __wt_live_restore_server {
+    WT_THREAD_GROUP threads;
+    wt_shared uint32_t threads_working;
+    WT_SPINLOCK queue_lock;
+    uint64_t queue_size;
+
+    TAILQ_HEAD(__wt_live_restore_work_queue, __wt_live_restore_work_item) work_queue;
+};
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
