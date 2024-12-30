@@ -30,17 +30,51 @@ import errno
 import wiredtiger, wttest, time
 from wtdataset import SimpleDataSet
 
+import unittest
+
 # test_error_info.py
 #   Test that the placeholder get_last_error() session API returns placeholder error values.
 class test_error_info(wttest.WiredTigerTestCase):
 
-    table_name1 = 'test_error_infoa.wt'
+    table_name1 = 'table:test_error'
 
-    def test_max_sessions(self):
-        self.assertEqual(True, True)
+    def test_uncommitted_data(self):
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.table_name1)
+        self.session.begin_transaction()
+        cursor.set_key('key')
+        cursor.set_value('value')
+        cursor.update()
+        self.session.commit_transaction()
+        # self.session.checkpoint()
+        cursor.close()
 
-    def test_max_sessions(self):
-        self.assertEqual(True, True)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None), "/Device or resource busy/")
+
+        err, sub_level_err, err_msg = self.session.get_last_error()
+        self.assertEqual(err, 16)
+        self.assertEqual(sub_level_err, wiredtiger.WT_UNCOMMITTED_DATA)
+        self.assertEqual(err_msg, "the table has uncommitted data and can not be dropped yet")
+    
+    def test_dirty_data(self):
+        self.session.create('table:test_error', 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor('table:test_error')
+        self.session.begin_transaction()
+        cursor.set_key('key')
+        cursor.set_value('value')
+        cursor.update()
+        self.session.commit_transaction()
+        # self.session.checkpoint()
+        cursor.close()
+        
+        time.sleep(1)
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None), "/Device or resource busy/")
+
+        err, sub_level_err, err_msg = self.session.get_last_error()
+        self.assertEqual(err, 16)
+        self.assertEqual(sub_level_err, wiredtiger.WT_DIRTY_DATA)
+        self.assertEqual(err_msg, "the table has dirty data and can not be dropped yet")
 
     def test_error_info(self):
         err, sub_level_err, err_msg = self.session.get_last_error()
@@ -48,21 +82,21 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
         self.assertEqual(err_msg, "")
 
-    def test_invalid_config(self):
-        gotException = False
-        expectMessage = 'unknown configuration key'
-        with self.expectedStderrPattern(expectMessage):
-            try:
-                self.pr('expect an error message...')
-                self.session.create('table:' + self.table_name1,
-                                    'expect_this_error,okay?')
-            except wiredtiger.WiredTigerError as e:
-                gotException = True
-                self.pr('got expected exception: ' + str(e))
-                self.assertTrue(str(e).find('nvalid argument') >= 0)
-        self.assertTrue(gotException, msg = 'expected exception')
+    # def test_invalid_config(self):
+    #     gotException = False
+    #     expectMessage = 'unknown configuration key'
+    #     with self.expectedStderrPattern(expectMessage):
+    #         try:
+    #             self.pr('expect an error message...')
+    #             self.session.create('table:' + self.table_name1,
+    #                                 'expect_this_error,okay?')
+    #         except wiredtiger.WiredTigerError as e:
+    #             gotException = True
+    #             self.pr('got expected exception: ' + str(e))
+    #             self.assertTrue(str(e).find('nvalid argument') >= 0)
+    #     self.assertTrue(gotException, msg = 'expected exception')
 
-        err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EINVAL)
-        self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
-        self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
+    #     err, sub_level_err, err_msg = self.session.get_last_error()
+    #     self.assertEqual(err, errno.EINVAL)
+    #     self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
+    #     self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")

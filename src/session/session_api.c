@@ -2371,7 +2371,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         if (!session_ret->active)
             break;
     if (i == conn->session_array.size)
-        WT_ERR_VERBOSE_MSG(session, WT_ERROR, WT_SESSION_MAX,
+        WT_ERR_MSG(session, WT_ERROR,
           "out of sessions, configured for %" PRIu32 " (including internal sessions)",
           conn->session_array.size);
 
