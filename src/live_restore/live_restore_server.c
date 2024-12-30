@@ -229,7 +229,6 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_ERR(__wt_calloc_one(session, &conn->live_restore_server));
-    WT_LIVE_RESTORE_SERVER *server = conn->live_restore_server;
 
     /* Read the threads_max config, zero threads is valid in which case we don't do anything. */
     WT_CONFIG_ITEM cval;
@@ -237,7 +236,8 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (cval.val == 0)
         return (0);
 
-    WT_ERR(__wt_spin_init(session, &server->queue_lock, "live restore migration work queue"));
+    WT_ERR(__wt_spin_init(
+      session, &conn->live_restore_server->queue_lock, "live restore migration work queue"));
 
     /*
      * Set the in progress state before we run the threads. If we do it after there's a chance we'll
@@ -253,10 +253,10 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t work_count;
     WT_ERR(__live_restore_populate_queue(session, &work_count));
     WT_STAT_CONN_SET(session, live_restore_queue_length, work_count);
-    server->queue_size = work_count;
+    conn->live_restore_server->queue_size = work_count;
 
     /* Set this value before the threads start up in case they immediately decrement it. */
-    server->threads_working = (uint32_t)cval.val;
+    conn->live_restore_server->threads_working = (uint32_t)cval.val;
     /*
      * Create the thread group.
      *
@@ -266,9 +266,9 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Furthermore because our threads terminate themselves the scaling logic may not be possible
      * without some adjustments to either the live restore server or the thread group code itself.
      */
-    WT_ERR(__wt_thread_group_create(session, &server->threads, "live_restore_workers",
-      (uint32_t)cval.val, (uint32_t)cval.val, 0, __live_restore_worker_check,
-      __live_restore_worker_run, __live_restore_worker_stop));
+    WT_ERR(__wt_thread_group_create(session, &conn->live_restore_server->threads,
+      "live_restore_workers", (uint32_t)cval.val, (uint32_t)cval.val, 0,
+      __live_restore_worker_check, __live_restore_worker_run, __live_restore_worker_stop));
 
     if (0) {
 err:
@@ -299,7 +299,10 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
         /* Let any running threads finish up. */
         __wt_cond_signal(session, server->threads.wait_cond);
         __wt_writelock(session, &server->threads.lock);
-        /* This call destroys the thread group lock. */
+        /*
+         * This call destroys the thread group lock, in theory it can fail and we will not free any
+         * further items. Given we are in a failure state this is okay.
+         */
         WT_RET(__wt_thread_group_destroy(session, &server->threads));
 
         __live_restore_work_queue_drain(session);
