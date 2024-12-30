@@ -506,8 +506,8 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, WT_VERBOSE_
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, 0, func,
-      line, category, WT_VERBOSE_ERROR, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, WT_NONE,
+      func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 }
 
@@ -538,7 +538,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_start(ap, fmt);
     WT_IGNORE_RET(
       __eventv(session, conn != NULL ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false,
-        error, 0, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
+        error, WT_NONE, func, line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
 
     /* If the connection has already panicked, just return the error. */
@@ -553,8 +553,8 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      conn != NULL ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false, WT_PANIC, 0, func,
-      line, category, WT_VERBOSE_ERROR, "the process must exit and restart", ap));
+      conn != NULL ? FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR) : false, WT_PANIC, WT_NONE,
+      func, line, category, WT_VERBOSE_ERROR, "the process must exit and restart", ap));
     va_end(ap);
 
 #ifdef HAVE_DIAGNOSTIC
@@ -621,8 +621,8 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
 
     va_start(ap, fmt);
     ret = __eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, 0, NULL, 0,
-      WT_VERB_EXTENSION, WT_VERBOSE_ERROR, fmt, ap);
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, 0, WT_NONE,
+      NULL, 0, WT_VERB_EXTENSION, WT_VERBOSE_ERROR, fmt, ap);
     va_end(ap);
     return (ret);
 }
@@ -639,8 +639,8 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, WT_VERBOSE_CATEGORY category, WT_V
 
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session,
-      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0, 0, NULL, 0,
-      category, level, fmt, ap));
+      session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE) : false, 0, WT_NONE,
+      NULL, 0, category, level, fmt, ap));
     va_end(ap);
 }
 
