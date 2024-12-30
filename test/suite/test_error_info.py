@@ -53,7 +53,7 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.assertEqual(err, 16)
         self.assertEqual(sub_level_err, wiredtiger.WT_UNCOMMITTED_DATA)
         self.assertEqual(err_msg, "the table has uncommitted data and can not be dropped yet")
-    
+
     def test_dirty_data(self):
         self.session.create('table:test_error', 'key_format=S,value_format=S')
         cursor = self.session.open_cursor('table:test_error')
@@ -63,7 +63,7 @@ class test_error_info(wttest.WiredTigerTestCase):
         cursor.update()
         self.session.commit_transaction()
         cursor.close()
-        
+
         time.sleep(1)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None), "/Device or resource busy/")
