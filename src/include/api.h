@@ -120,8 +120,7 @@
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                \
             __wt_op_timer_stop(s);                                                         \
         if ((s)->err_info.err == 0)                                                        \
-            WT_IGNORE_RET(                                                                 \
-              __wt_session_set_last_error(s, 0, WT_NONE, "last API call was successful")); \
+            WT_IGNORE_RET(__wt_session_set_last_api_success(s));                           \
         /*                                                                                 \
          * We should not leave any history store cursor open when return from an api call. \
          * However, we cannot do a stricter check before WT-7247 is resolved.              \
