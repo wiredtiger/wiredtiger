@@ -30,9 +30,9 @@
 #define WT_DIAGNOSTIC_YIELD
 #endif
 
-#define __wt_err(session, error, ...) \
-    __wt_err_func(                    \
-      session, error, 0, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
+#define __wt_err(session, error, ...)                                     \
+    __wt_err_func(session, error, WT_NONE, __PRETTY_FUNCTION__, __LINE__, \
+      WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
 #define __wt_err_verbose(session, error, sub_error, ...)                    \
     __wt_err_func(session, error, sub_error, __PRETTY_FUNCTION__, __LINE__, \
       WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)

@@ -44,6 +44,6 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
 
     SECTION("Test default values")
     {
-        check_error(session, 0, WT_NONE, "");
+        check_error(session, 0, WT_NONE, "WT_NONE: No additional context");
     }
 }
