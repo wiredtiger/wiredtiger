@@ -32,32 +32,27 @@ struct __wt_live_restore_hole_node {
 };
 
 /*
- * WT_LIVE_RESTORE_DESTINATION_METADATA --
- *     Metadata kept along side a file handle to track holes in the destination file.
- */
-typedef struct {
-    WT_FILE_HANDLE *fh;
-    bool complete;
-
-    /* We need to get back to the file system when checking for tombstone files. */
-    WT_LIVE_RESTORE_FS *back_pointer;
-
-    /*
-     * The hole list tracks which ranges in the destination file are holes. As the migration
-     * continues the holes will be gradually filled by either data from the source or new writes.
-     * Holes in these extents should only shrink and never grow.
-     */
-    WT_LIVE_RESTORE_HOLE_NODE *hole_list_head;
-} WT_LIVE_RESTORE_DESTINATION_METADATA;
-
-/*
  * __wt_live_restore_file_handle --
  *     A file handle in a live restore file system.
  */
 struct __wt_live_restore_file_handle {
     WT_FILE_HANDLE iface;
     WT_FILE_HANDLE *source;
-    WT_LIVE_RESTORE_DESTINATION_METADATA destination;
+    /* Metadata kept along side a file handle to track holes in the destination file. */
+    struct {
+        WT_FILE_HANDLE *fh;
+        bool complete;
+
+        /* We need to get back to the file system when checking for tombstone files. */
+        WT_LIVE_RESTORE_FS *back_pointer;
+
+        /*
+        * The hole list tracks which ranges in the destination file are holes. As the migration
+        * continues the holes will be gradually filled by either data from the source or new writes.
+        * Holes in these extents should only shrink and never grow.
+        */
+        WT_LIVE_RESTORE_HOLE_NODE *hole_list_head;
+    } destination;
 
     WT_FS_OPEN_FILE_TYPE file_type;
 };
