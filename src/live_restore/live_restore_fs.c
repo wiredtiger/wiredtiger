@@ -448,13 +448,13 @@ __live_restore_remove_extlist_hole(
 
 typedef enum { FULL, PARTIAL, NONE } WT_LIVE_RESTORE_SERVICE_STATE;
 
-/*!!
+/* !!!
  * __live_restore_can_service_read --
  *     Return if a read can be serviced by the destination file.
  *     There are three possible scenarios:
  *     - The read is entirely within a hole and we return NONE.
  *     - The read is entirely outside of all holes and we return FULL.
- *     - The begins begins outside a hole and then ends inside, in which case we return PARTIAL.
+ *     - The begins outside a hole and then ends inside, in which case we return PARTIAL.
  *       This will only happen if a background migration thread is copying data and has partially
  *       the migrated content we're reading. The background threads always copy data in order,
  *       so the partially filled hole can only start outside a hole and then continue into a hole.
@@ -519,8 +519,8 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
     return (FULL);
 }
 
-/*
- * __live_restore_fh_write --
+/* !!!
+ * __live_restore_fh_write_int --
  *     Write to a file. This function assumes the extent list lock is already held.
  */
 static int
@@ -653,8 +653,8 @@ __live_restore_fh_read(
         /* First read the serviceable portion from the destination. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
           "    PARTIAL READ FROM DEST (offset: %ld, len: %lu)", offset, dest_partial_read_len);
-        WT_ERR(lr_fh->destination.fh->fh_read(lr_fh->destination.fh, wt_session, offset,
-          dest_partial_read_len, read_data));
+        WT_ERR(lr_fh->destination.fh->fh_read(
+          lr_fh->destination.fh, wt_session, offset, dest_partial_read_len, read_data));
 
         /* Now read the remaining data from the source. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
@@ -699,7 +699,8 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     WT_DECL_RET;
 /*
  * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
- * it in 4KB chunks. This function will takes the extent list lock. The caller should *not* hold the lock when calling.
+ * it in 4KB chunks. This function will takes the extent list lock. The caller should *not* hold the
+ * lock when calling.
  */
 #define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
@@ -729,7 +730,8 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
          * shrinking the hole in the stack below us. This is why we always read from the start at
          * the beginning of the loop.
          */
-        size_t read_size = hole->len > WT_LIVE_RESTORE_READ_SIZE ? WT_LIVE_RESTORE_READ_SIZE : hole->len;
+        size_t read_size =
+          hole->len > WT_LIVE_RESTORE_READ_SIZE ? WT_LIVE_RESTORE_READ_SIZE : hole->len;
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
         WT_ERR(__read_promote(lr_fh, session, hole->off, read_size, buf));
 
@@ -918,9 +920,10 @@ __live_restore_fh_find_holes_in_dest_file(
     /*
      * Find the next data block. data_end_offset is initialized to zero so we start from the
      * beginning of the file. lseek will find a block when it starts already positioned on the
-     * block, so starting at zero ensures we'll find data blocks at the beginning of the file.
+     * block, so starting at zero ensures we'll find data blocks at the beginning of the file. This
+     * logic is single threaded but the logic to remove holes from the extent list requires the
+     * lock.
      */
-    // This is single threaded but the remove extlist hole requires the lock.
     __wt_spin_lock(session, &lr_fh->ext_lock);
     wt_off_t data_offset;
     while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
@@ -1084,7 +1087,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
          * source. Therefore the destination must be complete.
          */
         lr_fh->destination.complete = true;
-        // This is single threaded but the remove extlist free requires the lock.
+        /* Opening files is single threaded but the remove extlist free requires the lock. */
         __wt_spin_lock(session, &lr_fh->ext_lock);
         __live_restore_fs_free_extent_list(session, lr_fh);
         __wt_spin_unlock(session, &lr_fh->ext_lock);

@@ -111,7 +111,7 @@ private:
 
 static const int iteration_count_default = 2;
 /*
- * FIXME-WT-13825: Set thread_count_default to non zero once extent list concurrency is implemented.
+ * FIXME-WT-13940: Set thread_count_default to non zero once extent list concurrency is implemented.
  */
 static const int thread_count_default = 0;
 static const int op_count_default = 20000;
@@ -317,9 +317,12 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string verbose_string =
       verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
-    // const std::string fill_on_close = "";
-    // FIXME - Remove the fill_holes_on_config argument. We should be able to trigger background
-    // migration at the end of this func to copy across remaining data.
+    /*
+     * FIXME-WT-13940 - This config can be removed. We only use it when we don't want to run
+     * background migration (live_restore.threads_max = 0), but once we can reconfigure threads we
+     * should instead set live_restore.threads_max to non-zero before connection close and wait
+     * until migration has completed.
+     */
     const std::string fill_on_close =
       (!background_thread_mode) ? ", debug=(fill_holes_on_close=true)" : "";
     const std::string conn_config = CONNECTION_CREATE +
