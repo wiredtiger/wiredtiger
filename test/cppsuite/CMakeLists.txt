@@ -32,6 +32,7 @@ add_library(cppsuite_test_harness STATIC
     src/util/barrier.cpp
     src/util/execution_timer.cpp
     src/util/instruction_counter.cpp
+    src/util/options_parser.cpp
 )
 
 target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
