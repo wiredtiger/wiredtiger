@@ -101,8 +101,11 @@ __wti_schema_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_se
 int
 __wti_schema_session_release(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
 {
-    if (session != int_session)
+    if (session != int_session) {
+        WT_RET(__wt_session_set_last_error(session, int_session->err_info.err,
+          int_session->err_info.sub_level_err, int_session->err_info.err_msg));
         WT_RET(__wt_session_close_internal(int_session));
+    }
 
     return (0);
 }

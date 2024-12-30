@@ -45,8 +45,6 @@ class test_error_info(wttest.WiredTigerTestCase):
         cursor.set_key('key')
         cursor.set_value('value')
         cursor.update()
-        self.session.commit_transaction()
-        # self.session.checkpoint()
         cursor.close()
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None), "/Device or resource busy/")
@@ -64,7 +62,6 @@ class test_error_info(wttest.WiredTigerTestCase):
         cursor.set_value('value')
         cursor.update()
         self.session.commit_transaction()
-        # self.session.checkpoint()
         cursor.close()
         
         time.sleep(1)
