@@ -227,8 +227,9 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
-    WT_ERR(__wt_calloc_one(session, &S2C(session)->live_restore_server));
-    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_ERR(__wt_calloc_one(session, &conn->live_restore_server));
+    WT_LIVE_RESTORE_SERVER *server = conn->live_restore_server;
 
     /* Read the threads_max config, zero threads is valid in which case we don't do anything. */
     WT_CONFIG_ITEM cval;
@@ -271,7 +272,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (0) {
 err:
-        __wt_free(session, server);
+        __wt_free(session, conn->live_restore_server);
     }
     return (ret);
 }
