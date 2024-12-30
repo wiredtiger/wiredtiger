@@ -519,7 +519,7 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
     return (FULL);
 }
 
-/* !!!
+/*
  * __live_restore_fh_write_int --
  *     Write to a file. This function assumes the extent list lock is already held.
  */
@@ -699,7 +699,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     WT_DECL_RET;
 /*
  * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
- * it in 4KB chunks. This function will takes the extent list lock. The caller should *not* hold the
+ * it in 4KB chunks. This function will take the extent list lock. The caller should *not* hold the
  * lock when calling.
  */
 #define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
@@ -921,8 +921,7 @@ __live_restore_fh_find_holes_in_dest_file(
      * Find the next data block. data_end_offset is initialized to zero so we start from the
      * beginning of the file. lseek will find a block when it starts already positioned on the
      * block, so starting at zero ensures we'll find data blocks at the beginning of the file. This
-     * logic is single threaded but the logic to remove holes from the extent list requires the
-     * lock.
+     * logic is single threaded but remove holes from the extent list requires the lock.
      */
     __wt_spin_lock(session, &lr_fh->ext_lock);
     wt_off_t data_offset;
