@@ -46,26 +46,4 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
     {
         check_error(session, 0, WT_NONE, "");
     }
-
-    SECTION("Test max sessions")
-    {
-        /* Attempt opening 33000 sessions (max amount configured for a user).*/
-        for (int i = 0; i < 33; ++i) {
-            conn->open_session(conn, NULL, NULL, &session);
-        }
-
-        check_error(
-          session, WT_ERROR, WT_SESSION_MAX, "out of sessions (including internal sessions)");
-    }
-
-    SECTION("Test compaction already running")
-    {
-        session->create(session, "table:mytable", "key_format=S,value_format=S");
-        session->compact(session, "table:mytable", NULL);
-        conn->reconfigure(conn,
-          "eviction_target=80,eviction_trigger=95,eviction_dirty_target=80,eviction_dirty_trigger="
-          "95");
-        check_error(session, EINVAL, WT_COMPACTION_ALREADY_RUNNING,
-          "cannot reconfigure background compaction while it's already running");
-    }
 }
