@@ -297,7 +297,7 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, u_int probability)
 
 /*
  * __wt_session_set_last_api_success --
- *     This function records that the result of the last session API call was successful
+ *     This function records that the result of the last session API call was successful.
  */
 static WT_INLINE int
 __wt_session_set_last_api_success(WT_SESSION_IMPL *session)
