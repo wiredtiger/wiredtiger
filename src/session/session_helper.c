@@ -141,25 +141,28 @@ err:
  */
 int
 __wt_session_set_last_error(
-  WT_SESSION *wt_session, int err, int sub_level_err, const char *err_msg_content)
+  WT_SESSION_IMPL *session, int err, int sub_level_err, const char *err_msg_content)
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
     char *err_msg = session->err_info.err_msg;
     size_t err_msg_size;
 
+    /* Ensure arguments are valid */
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
     WT_ASSERT(session, err_msg_content != NULL);
 
     /* Free the last error message string, if it was allocated. */
-    __wt_free(session, err_msg);
+    if (err_msg != NULL)
+        __wt_free(session, err_msg);
 
     /* Load error codes and message content into err_info. */
-    err_msg_size = (strlen(err_msg_content) + 1) * sizeof(char);
-    WT_ERR(__wt_malloc(session, err_msg_size, &err_msg));
+    err_msg_size = strlen(err_msg_content) + 1;
+    WT_ERR(__wt_calloc(session, err_msg_size, 1, &err_msg));
     WT_ERR(__wt_snprintf(err_msg, err_msg_size, "%s", err_msg_content));
-    session->err_info = (WT_ERROR_INFO){err, sub_level_err, err_msg};
+    session->err_info.err = err;
+    session->err_info.sub_level_err = sub_level_err;
+    session->err_info.err_msg = err_msg;
 
 err:
     return (ret);

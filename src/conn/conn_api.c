@@ -3236,6 +3236,8 @@ err:
      */
     if (session != &conn->dummy_session)
         __wt_scr_discard(session);
+    if ((&conn->dummy_session)->err_info.err_msg != NULL)
+        __wt_free(session, (&conn->dummy_session)->err_info.err_msg);
     __wt_scr_discard(&conn->dummy_session);
 
     /*

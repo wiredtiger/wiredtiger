@@ -2493,7 +2493,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     /* Initialize the default error info. */
     session_ret->err_info.err_msg = NULL;
-    WT_ERR(__wt_session_set_last_error((WT_SESSION *)session_ret, 0, WT_NONE, ""));
+    WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, ""));
 
     *sessionp = session_ret;
 
