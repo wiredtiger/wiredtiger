@@ -1891,7 +1891,7 @@ static WT_INLINE int __wt_row_leaf_key(WT_SESSION_IMPL *session, WT_PAGE *page, 
   WT_ITEM *key, bool instantiate) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_row_leaf_key_instantiate(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE int __wt_session_set_last_api_success(WT_SESSION_IMPL *session)
+static WT_INLINE int __wt_session_set_last_api_call_success(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_snprintf(char *buf, size_t size, const char *fmt, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 3, 4)))

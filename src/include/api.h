@@ -80,6 +80,7 @@
     WT_ERR(WT_SESSION_CHECK_PANIC(s));                                  \
     WT_SINGLE_THREAD_CHECK_START(s);                                    \
     WT_TRACK_OP_INIT(s);                                                \
+    (s)->api_call_no_errs = true;                                       \
     if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) \
         __wt_op_timer_start(s);                                         \
     /* Reset wait time if this isn't an API reentry. */                 \
@@ -159,9 +160,9 @@
 
 /* End a transactional API call, optional retry on rollback. */
 #define TXN_API_END(s, ret, retry)                                  \
+    if ((s)->api_call_no_errs)                                      \
+        WT_IGNORE_RET(__wt_session_set_last_api_call_success(s));   \
     API_END(s, ret);                                                \
-    if ((s)->err_info.err == 0)                                     \
-        WT_IGNORE_RET(__wt_session_set_last_api_success(s));        \
     if (__update)                                                   \
         F_CLR((s)->txn, WT_TXN_UPDATE);                             \
     if (__autotxn) {                                                \
@@ -196,10 +197,10 @@
  * method is about to return WT_NOTFOUND (some underlying object was not found), map it to ENOENT,
  * only cursor methods return WT_NOTFOUND.
  */
-#define API_END_RET(s, ret)                                  \
-    API_END(s, ret);                                         \
-    if ((s)->err_info.err == 0)                              \
-        WT_IGNORE_RET(__wt_session_set_last_api_success(s)); \
+#define API_END_RET(s, ret)                                       \
+    if ((s)->api_call_no_errs)                                    \
+        WT_IGNORE_RET(__wt_session_set_last_api_call_success(s)); \
+    API_END(s, ret);                                              \
     return (ret)
 
 #define API_END_STAT(s, ret, api)                   \

@@ -216,6 +216,7 @@ struct __wt_session_impl {
 
     WT_ITEM err; /* Error buffer */
     WT_ERROR_INFO err_info;
+    bool api_call_no_errs;
 
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
