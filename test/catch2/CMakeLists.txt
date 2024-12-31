@@ -10,6 +10,7 @@ else()
         misc_tests/test_strerror.cpp
         misc_tests/test_session_set_last_error.cpp
         misc_tests/test_binary_search_string.cpp
+        misc_tests/test_api_end.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_error.cpp
