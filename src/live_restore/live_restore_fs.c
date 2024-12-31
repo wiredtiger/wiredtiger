@@ -591,7 +591,6 @@ __live_restore_fh_read(
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_LIVE_RESTORE_SERVICE_STATE service_state;
     WT_SESSION_IMPL *session;
     size_t dest_partial_read_len;
     size_t source_partial_read_len;
@@ -648,7 +647,7 @@ __live_restore_fh_read(
         source_partial_read_len = (size_t)(len - (size_t)(hole->off - offset));
 
         WT_ASSERT(session, dest_partial_read_len + source_partial_read_len == len);
-        WT_ASSERT(session, hole->off == offset + dest_partial_read_len);
+        WT_ASSERT(session, hole->off == offset + (wt_off_t)dest_partial_read_len);
 
         /* First read the serviceable portion from the destination. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
@@ -672,9 +671,6 @@ __live_restore_fh_read(
         /* Promote the read */
         WT_ERR(__read_promote(lr_fh, session, offset, len, read_data));
         break;
-
-    default:
-        WT_ASSERT_ALWAYS(session, false, "Invalid service state: %d", service_state);
     }
 
 err:
