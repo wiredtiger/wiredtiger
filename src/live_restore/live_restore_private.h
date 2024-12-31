@@ -59,7 +59,7 @@ struct __wt_live_restore_file_handle {
      * FIXME-WT-13929 Review the performance impacts of using a single spinlock to control access to
      * the entire file.
      */
-    WT_SPINLOCK ext_lock; /* File extent list lock */
+    WT_RWLOCK ext_lock; /* File extent list lock */
 };
 
 typedef enum {
