@@ -2661,8 +2661,8 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * can lead to files that are inconsistent on disk after a crash.
      */
     if (btree->modified && !bulk && !metadata)
-        WT_RET_VERBOSE_MSG(
-          session, EBUSY, WT_DIRTY_DATA, "the table has dirty data and can not be dropped yet");
+        WT_RET_VERBOSE_MSG(session, __wt_set_return(session, EBUSY), WT_DIRTY_DATA,
+          "the table has dirty data and can not be dropped yet");
 
     /*
      * Make sure there isn't a potential race between backup copying the metadata and a checkpoint
