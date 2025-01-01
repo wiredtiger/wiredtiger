@@ -161,4 +161,32 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
     }
 
+    SECTION("Directory list - Test a file isn't reported when there's a tombstone in the destination")
+    {
+        std::string file_1 = "file1.txt";
+        std::string file_2 = "file2.txt";
+        std::string file_3 = "file3.txt";
+        std::string file_4 = "file4.txt";
+
+        // Add some files to the source.
+        create_file(env.source_file_path(file_1).c_str(), 1000);
+        create_file(env.source_file_path(file_2).c_str(), 1000);
+        create_file(env.source_file_path(file_3).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {file_1, file_2, file_3}));
+
+        // Now progressively add tombstones. The files are no longer reported.
+        create_file(env.tombstone_file_path(file_2).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {file_1, file_3}));
+
+        create_file(env.tombstone_file_path(file_1).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {file_3}));
+
+        create_file(env.tombstone_file_path(file_3).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {}));
+
+        // Now add the tombstone before the file to confirm it isn't reported.
+        create_file(env.tombstone_file_path(file_4).c_str(), 1000);
+        create_file(env.source_file_path(file_4).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {}));
+    }
 }
