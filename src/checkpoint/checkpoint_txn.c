@@ -2660,9 +2660,11 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * Don't flush data from modified trees independent of system-wide checkpoint. Flushing trees
      * can lead to files that are inconsistent on disk after a crash.
      */
-    if (btree->modified && !bulk && !metadata)
-        WT_RET_VERBOSE_MSG(session, __wt_set_return(session, EBUSY), WT_DIRTY_DATA,
-          "the table has dirty data and can not be dropped yet");
+    if (btree->modified && !bulk && !metadata) {
+        WT_IGNORE_RET(__wt_session_set_last_error(
+          session, EBUSY, WT_DIRTY_DATA, "the table has dirty data and can not be dropped yet"));
+        return (__wt_set_return(session, EBUSY));
+    }
 
     /*
      * Make sure there isn't a potential race between backup copying the metadata and a checkpoint
