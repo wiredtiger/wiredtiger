@@ -59,18 +59,17 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         // Start with an empty directory.
         REQUIRE(all_expected_files_found(env, "", {}));
 
-        // And now 1 file
+        // Progressively add files
         create_file(env.dest_file_path(file_1).c_str(), 1000);
         REQUIRE(all_expected_files_found(env, "", {file_1}));
 
-        // And now 2 and then 3 files
         create_file(env.dest_file_path(file_2).c_str(), 1000);
         REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
 
         create_file(env.dest_file_path(file_3).c_str(), 1000);
         REQUIRE(all_expected_files_found(env, "", {file_1, file_2, file_3}));
 
-        // And now delete the files
+        // And then delete them
         testutil_remove(env.dest_file_path(file_2).c_str());
         REQUIRE(all_expected_files_found(env, "", {file_1, file_3}));
 
@@ -90,24 +89,59 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         // Start with an empty directory.
         REQUIRE(all_expected_files_found(env, "", {}));
 
-        // And now 1 file
+        // Progressively add files
         create_file(env.source_file_path(file_1).c_str(), 1000);
         REQUIRE(all_expected_files_found(env, "", {file_1}));
 
-        // And now 2 and then 3 files
         create_file(env.source_file_path(file_2).c_str(), 1000);
         REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
 
         create_file(env.source_file_path(file_3).c_str(), 1000);
         REQUIRE(all_expected_files_found(env, "", {file_1, file_2, file_3}));
 
-        // And now delete the files
+        // And then delete them
         testutil_remove(env.source_file_path(file_2).c_str());
         REQUIRE(all_expected_files_found(env, "", {file_1, file_3}));
 
         testutil_remove(env.source_file_path(file_1).c_str());
         REQUIRE(all_expected_files_found(env, "", {file_3}));
 
+        testutil_remove(env.source_file_path(file_3).c_str());
+        REQUIRE(all_expected_files_found(env, "", {}));
+    }
+
+    SECTION("Directory list - Test files when files are present in both source and destination")
+    {
+        std::string file_1 = "file1.txt";
+        std::string file_2 = "file2.txt";
+        std::string file_3 = "file3.txt";
+
+        // Start with an empty directory.
+        REQUIRE(all_expected_files_found(env, "", {}));
+
+        // Progressively add files
+        create_file(env.dest_file_path(file_1).c_str(), 1000);
+        create_file(env.source_file_path(file_1).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {file_1}));
+
+        create_file(env.dest_file_path(file_2).c_str(), 1000);
+        create_file(env.source_file_path(file_2).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
+
+        create_file(env.dest_file_path(file_3).c_str(), 1000);
+        create_file(env.source_file_path(file_3).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {file_1, file_2, file_3}));
+
+        // And then delete them
+        testutil_remove(env.dest_file_path(file_2).c_str());
+        testutil_remove(env.source_file_path(file_2).c_str());
+        REQUIRE(all_expected_files_found(env, "", {file_1, file_3}));
+
+        testutil_remove(env.dest_file_path(file_1).c_str());
+        testutil_remove(env.source_file_path(file_1).c_str());
+        REQUIRE(all_expected_files_found(env, "", {file_3}));
+
+        testutil_remove(env.dest_file_path(file_3).c_str());
         testutil_remove(env.source_file_path(file_3).c_str());
         REQUIRE(all_expected_files_found(env, "", {}));
     }
