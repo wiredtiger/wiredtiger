@@ -142,3 +142,5 @@ class test_alter04(TieredConfigMixin, wttest.WiredTigerTestCase):
             else:
                 self.session.alter(suburi, alter_param)
                 self.verify_metadata(alter_param)
+        
+        self.ignoreStderrPatternIfExists('the table has dirty data and can not be dropped yet')

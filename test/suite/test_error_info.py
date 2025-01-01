@@ -47,7 +47,7 @@ class test_error_info(wttest.WiredTigerTestCase):
         cursor.update()
         cursor.close()
 
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None), "/Device or resource busy/")
 
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, 16)
@@ -66,7 +66,7 @@ class test_error_info(wttest.WiredTigerTestCase):
 
         time.sleep(1)
 
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None), "/Device or resource busy/")
 
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, 16)
