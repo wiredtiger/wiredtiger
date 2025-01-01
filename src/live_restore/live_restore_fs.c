@@ -320,8 +320,8 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
       ENOENT, false);
 
     for (namep = dirlist_src; namep != NULL && *namep != NULL; namep++) {
-        /* Create file path for the file from the source directory. */
-        WT_ERR(__live_restore_create_file_path(session, &lr_fs->source, *namep, &temp_path));
+        /* We're iterating files in the source, but we want to check if they exist in the destination, so create the file path to the backing destination file. */
+        WT_ERR(__live_restore_create_file_path(session, &lr_fs->destination, *namep, &temp_path));
         WT_ERR_NOTFOUND_OK(
           __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, temp_path, &dest_exist),
           false);
