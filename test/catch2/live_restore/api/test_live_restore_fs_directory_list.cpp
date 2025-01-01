@@ -145,4 +145,20 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         testutil_remove(env.source_file_path(file_3).c_str());
         REQUIRE(all_expected_files_found(env, "", {}));
     }
+
+    SECTION("Directory list - Test files when are present in source or destination, but not both")
+    {
+        std::string file_1 = "file1.txt";
+        std::string file_2 = "file2.txt";
+        std::string file_3 = "file3.txt";
+
+        // Add one file to the source.
+        create_file(env.source_file_path(file_1).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {file_1}));
+
+        // And now the destination.
+        create_file(env.dest_file_path(file_2).c_str(), 1000);
+        REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
+    }
+
 }
