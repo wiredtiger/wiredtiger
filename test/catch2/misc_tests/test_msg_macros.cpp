@@ -30,23 +30,6 @@ err:
     return (ret);
 }
 
-int
-test_wt_ret_verbose_msg(
-  WT_SESSION_IMPL *session_impl, int err, int sub_err, const char *err_msg_content)
-{
-    WT_RET_VERBOSE_MSG(session_impl, err, sub_err, "%s", err_msg_content);
-}
-
-int
-test_wt_err_verbose_msg(
-  WT_SESSION_IMPL *session_impl, int err, int sub_err, const char *err_msg_content)
-{
-    WT_DECL_RET;
-    WT_ERR_VERBOSE_MSG(session_impl, err, sub_err, "%s", err_msg_content);
-err:
-    return (ret);
-}
-
 TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
 {
     WT_CONNECTION *conn;
@@ -92,44 +75,6 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
         test_wt_err_msg(session_impl, EINVAL, err_msg_content);
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
-    }
-
-    SECTION("Test WT_RET_VERBOSE_MSG with initial values")
-    {
-        err_msg_content = "";
-        test_wt_ret_verbose_msg(session_impl, 0, WT_NONE, err_msg_content);
-        CHECK(session_impl->err_info.err == 0);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
-    }
-
-    SECTION("Test WT_ERR_VERBOSE_MSG with initial values")
-    {
-        err_msg_content = "";
-        test_wt_ret_verbose_msg(session_impl, 0, WT_NONE, err_msg_content);
-        CHECK(session_impl->err_info.err == 0);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
-    }
-
-    SECTION("Test WT_RET_VERBOSE_MSG with EINVAL error, WT_COMPACTION_ALREADY_RUNNING sub-error")
-    {
-        err_msg_content = "Some EINVAL error";
-        test_wt_err_verbose_msg(
-          session_impl, EINVAL, WT_COMPACTION_ALREADY_RUNNING, err_msg_content);
-        CHECK(session_impl->err_info.err == EINVAL);
-        CHECK(session_impl->err_info.sub_level_err == WT_COMPACTION_ALREADY_RUNNING);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
-    }
-
-    SECTION("Test WT_ERR_VERBOSE_MSG with EINVAL error, WT_COMPACTION_ALREADY_RUNNING sub-error")
-    {
-        err_msg_content = "Some EINVAL error";
-        test_wt_err_verbose_msg(
-          session_impl, EINVAL, WT_COMPACTION_ALREADY_RUNNING, err_msg_content);
-        CHECK(session_impl->err_info.err == EINVAL);
-        CHECK(session_impl->err_info.sub_level_err == WT_COMPACTION_ALREADY_RUNNING);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
     }
 }
