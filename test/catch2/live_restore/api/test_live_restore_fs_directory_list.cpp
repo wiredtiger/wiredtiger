@@ -56,6 +56,10 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
     std::string file_3 = "file3.txt";
     std::string file_4 = "file4.txt";
 
+    std::string subfolder = "subfolder";
+    std::string subfolder_dest_path = env.DB_DEST + "/" + subfolder;
+    std::string subfolder_source_path = env.DB_SOURCE + "/" + subfolder;
+
     SECTION("Directory list - Test when files only exist in the destination")
     {
         // Start with an empty directory.
@@ -173,5 +177,29 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         create_file(env.tombstone_file_path(file_4).c_str(), 1000);
         create_file(env.source_file_path(file_4).c_str(), 1000);
         REQUIRE(directory_list_is(env, "", {}));
+    }
+
+    SECTION("Directory list - Test directory list reports subfolders")
+    {
+        // Only in the destination
+        testutil_mkdir(subfolder_dest_path.c_str());
+        REQUIRE(directory_list_is(env, "", {subfolder}));
+
+        // And then deleted
+        testutil_remove(subfolder_dest_path.c_str());
+        REQUIRE(directory_list_is(env, "", {}));
+
+        // Only in the source
+        testutil_mkdir(subfolder_source_path.c_str());
+        REQUIRE(directory_list_is(env, "", {subfolder}));
+
+        // Now in both
+        testutil_mkdir(subfolder_dest_path.c_str());
+        REQUIRE(directory_list_is(env, "", {subfolder}));
+
+        // Check that we *don't* report the contents, just the subfolder itself
+        std::string subfile_1 = subfolder + "/" + file_1;
+        create_file(env.dest_file_path(subfile_1).c_str(), 1000);
+        REQUIRE(directory_list_is(env, "", {subfolder}));
     }
 }
