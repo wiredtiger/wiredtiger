@@ -236,4 +236,15 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         testutil_mkdir(subfolder_dest_path.c_str());
         REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{});
     }
+
+    SECTION("Directory list - Test multiple level subdirectories")
+    {
+        std::string subsubfolder_dest_path = env.DB_DEST + "/" + subfolder + "/subsubfolder";
+        std::string subsubfolder_file_1_path = env.DB_DEST + "/" + subfolder + "/subsubfolder/file_1.txt";
+        testutil_mkdir(subfolder_dest_path.c_str());
+        testutil_mkdir(subsubfolder_dest_path.c_str());
+        create_file(subsubfolder_file_1_path.c_str());
+
+        REQUIRE(directory_list(env, subsubfolder_dest_path) == set<string>{"file_1.txt"});
+    }
 }
