@@ -225,8 +225,8 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         REQUIRE(directory_list(env) == lr_files{subfolder});
 
         // Check that we *don't* report the contents, just the subfolder itself
-        std::string subfile_1 = subfolder + "/" + file_1;
-        create_file(env.dest_file_path(subfile_1).c_str());
+        std::string sub_file_1 = subfolder + "/" + file_1;
+        create_file(env.dest_file_path(sub_file_1).c_str());
         REQUIRE(directory_list(env) == lr_files{subfolder});
     }
 
@@ -251,14 +251,14 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
 
     SECTION("Directory list - Test multi-level subdirectories")
     {
-        std::string subsubfolder_dest_path = env.DB_DEST + "/" + subfolder + "/subsubfolder";
-        std::string subsubfolder_file_1_path =
-          env.DB_DEST + "/" + subfolder + "/subsubfolder/file_1.txt";
+        std::string sub_subfolder_dest_path = env.DB_DEST + "/" + subfolder + "/sub_subfolder";
+        std::string sub_subfolder_file_1_path =
+          env.DB_DEST + "/" + subfolder + "/sub_subfolder/file_1.txt";
         testutil_mkdir(subfolder_dest_path.c_str());
-        testutil_mkdir(subsubfolder_dest_path.c_str());
-        create_file(subsubfolder_file_1_path.c_str());
+        testutil_mkdir(sub_subfolder_dest_path.c_str());
+        create_file(sub_subfolder_file_1_path.c_str());
 
-        REQUIRE(directory_list(env, subsubfolder_dest_path) == lr_files{"file_1.txt"});
+        REQUIRE(directory_list(env, sub_subfolder_dest_path) == lr_files{"file_1.txt"});
     }
 
     SECTION("Directory list - Test reporting contents of a subdirectory")
@@ -267,14 +267,14 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         testutil_mkdir(subfolder_source_path.c_str());
 
         // To keep this test short we'll just test on file in each backing directory.
-        // We've tested other behaviour above
-        std::string subfile_1 = subfolder + "/" + file_1;
-        create_file(env.dest_file_path(subfile_1).c_str());
+        // We've tested other behaviors above
+        std::string sub_file_1 = subfolder + "/" + file_1;
+        create_file(env.dest_file_path(sub_file_1).c_str());
 
-        std::string subfile_2 = subfolder + "/" + file_2;
-        create_file(env.source_file_path(subfile_2).c_str());
+        std::string sub_file_2 = subfolder + "/" + file_2;
+        create_file(env.source_file_path(sub_file_2).c_str());
 
-        // Note we're returning file_1 here, not subfile_1. Since we're reporting the
+        // Note we're returning file_1 here, not sub_file_1. Since we're reporting the
         // contents of the subfolder the file names are relative to that folder.
         REQUIRE(directory_list(env, subfolder_dest_path) == lr_files{file_1, file_2});
     }
