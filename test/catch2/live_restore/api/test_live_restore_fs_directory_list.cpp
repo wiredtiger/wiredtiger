@@ -66,13 +66,13 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         REQUIRE(directory_list_is(env, "", {}));
 
         // Progressively add files
-        create_file(env.dest_file_path(file_1).c_str(), 1000);
+        create_file(env.dest_file_path(file_1).c_str());
         REQUIRE(directory_list_is(env, "", {file_1}));
 
-        create_file(env.dest_file_path(file_2).c_str(), 1000);
+        create_file(env.dest_file_path(file_2).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_2}));
 
-        create_file(env.dest_file_path(file_3).c_str(), 1000);
+        create_file(env.dest_file_path(file_3).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_2, file_3}));
 
         // And then delete them
@@ -92,13 +92,13 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         REQUIRE(directory_list_is(env, "", {}));
 
         // Progressively add files
-        create_file(env.source_file_path(file_1).c_str(), 1000);
+        create_file(env.source_file_path(file_1).c_str());
         REQUIRE(directory_list_is(env, "", {file_1}));
 
-        create_file(env.source_file_path(file_2).c_str(), 1000);
+        create_file(env.source_file_path(file_2).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_2}));
 
-        create_file(env.source_file_path(file_3).c_str(), 1000);
+        create_file(env.source_file_path(file_3).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_2, file_3}));
 
         // And then delete them
@@ -118,16 +118,16 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         REQUIRE(directory_list_is(env, "", {}));
 
         // Progressively add files
-        create_file(env.dest_file_path(file_1).c_str(), 1000);
-        create_file(env.source_file_path(file_1).c_str(), 1000);
+        create_file(env.dest_file_path(file_1).c_str());
+        create_file(env.source_file_path(file_1).c_str());
         REQUIRE(directory_list_is(env, "", {file_1}));
 
-        create_file(env.dest_file_path(file_2).c_str(), 1000);
-        create_file(env.source_file_path(file_2).c_str(), 1000);
+        create_file(env.dest_file_path(file_2).c_str());
+        create_file(env.source_file_path(file_2).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_2}));
 
-        create_file(env.dest_file_path(file_3).c_str(), 1000);
-        create_file(env.source_file_path(file_3).c_str(), 1000);
+        create_file(env.dest_file_path(file_3).c_str());
+        create_file(env.source_file_path(file_3).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_2, file_3}));
 
         // And then delete them
@@ -147,35 +147,35 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
     SECTION("Directory list - Test when files exist either in source or destination, but not both")
     {
         // Add one file to the source.
-        create_file(env.source_file_path(file_1).c_str(), 1000);
+        create_file(env.source_file_path(file_1).c_str());
         REQUIRE(directory_list_is(env, "", {file_1}));
 
         // And now the destination.
-        create_file(env.dest_file_path(file_2).c_str(), 1000);
+        create_file(env.dest_file_path(file_2).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_2}));
     }
 
     SECTION("Directory list - Test a file isn't reported when there's a tombstone in the destination")
     {
         // Add some files to the source.
-        create_file(env.source_file_path(file_1).c_str(), 1000);
-        create_file(env.source_file_path(file_2).c_str(), 1000);
-        create_file(env.source_file_path(file_3).c_str(), 1000);
+        create_file(env.source_file_path(file_1).c_str());
+        create_file(env.source_file_path(file_2).c_str());
+        create_file(env.source_file_path(file_3).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_2, file_3}));
 
         // Now progressively add tombstones. The files are no longer reported.
-        create_file(env.tombstone_file_path(file_2).c_str(), 1000);
+        create_file(env.tombstone_file_path(file_2).c_str());
         REQUIRE(directory_list_is(env, "", {file_1, file_3}));
 
-        create_file(env.tombstone_file_path(file_1).c_str(), 1000);
+        create_file(env.tombstone_file_path(file_1).c_str());
         REQUIRE(directory_list_is(env, "", {file_3}));
 
-        create_file(env.tombstone_file_path(file_3).c_str(), 1000);
+        create_file(env.tombstone_file_path(file_3).c_str());
         REQUIRE(directory_list_is(env, "", {}));
 
         // Now add the tombstone before the file to confirm it isn't reported.
-        create_file(env.tombstone_file_path(file_4).c_str(), 1000);
-        create_file(env.source_file_path(file_4).c_str(), 1000);
+        create_file(env.tombstone_file_path(file_4).c_str());
+        create_file(env.source_file_path(file_4).c_str());
         REQUIRE(directory_list_is(env, "", {}));
     }
 
@@ -199,7 +199,7 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
 
         // Check that we *don't* report the contents, just the subfolder itself
         std::string subfile_1 = subfolder + "/" + file_1;
-        create_file(env.dest_file_path(subfile_1).c_str(), 1000);
+        create_file(env.dest_file_path(subfile_1).c_str());
         REQUIRE(directory_list_is(env, "", {subfolder}));
     }
 }
