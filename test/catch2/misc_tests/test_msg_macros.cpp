@@ -45,7 +45,7 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
     SECTION("Test WT_RET_MSG with initial values")
     {
         err_msg_content = "";
-        test_wt_ret_msg(session_impl, 0, err_msg_content);
+        CHECK(test_wt_ret_msg(session_impl, 0, err_msg_content) == 0);
         CHECK(session_impl->err_info.err == 0);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
@@ -54,7 +54,7 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
     SECTION("Test WT_ERR_MSG with initial values")
     {
         err_msg_content = "";
-        test_wt_ret_msg(session_impl, 0, err_msg_content);
+        CHECK(test_wt_err_msg(session_impl, 0, err_msg_content) == 0);
         CHECK(session_impl->err_info.err == 0);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
@@ -63,7 +63,7 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
     SECTION("Test WT_RET_MSG with EINVAL error")
     {
         err_msg_content = "Some EINVAL error";
-        test_wt_err_msg(session_impl, EINVAL, err_msg_content);
+        CHECK(test_wt_ret_msg(session_impl, EINVAL, err_msg_content) == EINVAL);
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
@@ -72,7 +72,7 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
     SECTION("Test WT_ERR_MSG with EINVAL error")
     {
         err_msg_content = "Some EINVAL error";
-        test_wt_err_msg(session_impl, EINVAL, err_msg_content);
+        CHECK(test_wt_err_msg(session_impl, EINVAL, err_msg_content) == EINVAL);
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);

@@ -31,7 +31,7 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
     SECTION("Test with initial values")
     {
         err_msg_content = "";
-        WT_IGNORE_RET(__wt_session_set_last_error(session_impl, 0, WT_NONE, err_msg_content));
+        CHECK(__wt_session_set_last_error(session_impl, 0, WT_NONE, err_msg_content) == 0);
         CHECK(session_impl->err_info.err == 0);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
@@ -40,7 +40,7 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
     SECTION("Test with EINVAL error")
     {
         err_msg_content = "Some EINVAL error";
-        WT_IGNORE_RET(__wt_session_set_last_error(session_impl, EINVAL, WT_NONE, err_msg_content));
+        CHECK(__wt_session_set_last_error(session_impl, EINVAL, WT_NONE, err_msg_content) == 0);
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);

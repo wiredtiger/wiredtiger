@@ -34,7 +34,7 @@ from wtdataset import SimpleDataSet
 #   Test that the placeholder get_last_error() session API returns placeholder error values.
 class test_error_info(wttest.WiredTigerTestCase):
 
-    table_name1 = 'test_error_infoa.wt'
+    table_name1 = 'test_error_info.wt'
 
     def test_error_info(self):
         err, sub_level_err, err_msg = self.session.get_last_error()
@@ -43,18 +43,13 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.assertEqual(err_msg, "")
 
     def test_invalid_config(self):
-        gotException = False
         expectMessage = 'unknown configuration key'
         with self.expectedStderrPattern(expectMessage):
             try:
-                self.pr('expect an error message...')
                 self.session.create('table:' + self.table_name1,
                                     'expect_this_error,okay?')
             except wiredtiger.WiredTigerError as e:
-                gotException = True
-                self.pr('got expected exception: ' + str(e))
                 self.assertTrue(str(e).find('nvalid argument') >= 0)
-        self.assertTrue(gotException, msg = 'expected exception')
 
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, errno.EINVAL)

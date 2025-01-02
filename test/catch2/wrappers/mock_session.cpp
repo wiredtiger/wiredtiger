@@ -39,7 +39,7 @@ mock_session::~mock_session()
         __wt_free(nullptr, _session_impl->dhandle);
     }
 
-    // Free any stored error messages
+    // Free any stored error messages.
     if (_session_impl->err_info.err_msg != nullptr)
         __wt_free(nullptr, _session_impl->err_info.err_msg);
 
