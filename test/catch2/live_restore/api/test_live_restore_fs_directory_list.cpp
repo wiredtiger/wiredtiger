@@ -247,4 +247,24 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
 
         REQUIRE(directory_list(env, subsubfolder_dest_path) == set<string>{"file_1.txt"});
     }
+
+    SECTION("Directory list - Test reporting contents of a subdirectory")
+    {
+        testutil_mkdir(subfolder_dest_path.c_str());
+        testutil_mkdir(subfolder_source_path.c_str());
+
+        // To keep this test short we'll just test on file in each backing directory.
+        // We've tested other behaviour above
+        std::string subfile_1 = subfolder + "/" + file_1;
+        create_file(env.dest_file_path(subfile_1).c_str());
+
+        std::string subfile_2 = subfolder + "/" + file_2;
+        create_file(env.source_file_path(subfile_2).c_str());
+
+        // Note we're returning file_1 here, not subfile_1. Since we're reporting the
+        // contents of the subfolder the file names are relative to that folder.
+        REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{file_1, file_2});
+
+    }
+
 }
