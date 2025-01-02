@@ -110,10 +110,7 @@ private:
 };
 
 static const int iteration_count_default = 2;
-/*
- * FIXME-WT-13940: Set thread_count_default to non zero once extent list concurrency is implemented.
- */
-static const int thread_count_default = 0;
+static const int thread_count_default = 4;
 static const int op_count_default = 20000;
 static const int warmup_insertion_factor = 3;
 
@@ -317,17 +314,9 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string verbose_string =
       verbose_level == 0 ? "" : "verbose=[fileops:" + std::to_string(verbose_level) + "]";
-    /*
-     * FIXME-WT-13940 - This config can be removed. We only use it when we don't want to run
-     * background migration (live_restore.threads_max = 0), but once we can reconfigure threads we
-     * should instead set live_restore.threads_max to non-zero before connection close and wait
-     * until migration has completed.
-     */
-    const std::string fill_on_close =
-      (!background_thread_mode) ? ",debug=(fill_holes_on_close=true)" : "";
     const std::string conn_config = CONNECTION_CREATE +
       ",live_restore=(enabled=true,threads_max=" + std::to_string(thread_count) + ",path=\"" +
-      source + "\"" + fill_on_close + "),cache_size=5GB," + verbose_string +
+      source + "\"),cache_size=5GB," + verbose_string +
       ",statistics=(all),statistics_log=(json,on_close,wait=1)";
 
     /* Create connection. */
@@ -445,6 +434,11 @@ main(int argc, char *argv[])
 
     // Background thread debug mode option.
     bool background_thread_debug_mode = option_exists("-b", argc, argv);
+    if (background_thread_debug_mode && thread_count == 0) {
+        logger::log_msg(
+          LOG_ERROR, "Cannot run in background thread debug mode with zero background threads.");
+        return EXIT_FAILURE;
+    }
 
     // Home path option.
     std::string home_path = value_for_opt("-H", argc, argv);
