@@ -289,6 +289,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     char **dirlist_dest, **dirlist_src, **entries, **namep, *path_dest, *path_src, *temp_path;
     bool dest_exist = false, have_tombstone = false;
     bool dest_folder_exists = false, source_folder_exists = false;
+    uint32_t num_src_files = 0, num_dest_files = 0;
 
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
     path_dest = path_src = temp_path = NULL;
@@ -305,7 +306,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
 
     if (dest_folder_exists) {
         WT_ERR_ERROR_OK(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, wt_session,
-                          path_dest, prefix, &dirlist_dest, countp),
+                          path_dest, prefix, &dirlist_dest, &num_dest_files),
           ENOENT, false);
 
         for (namep = dirlist_dest; namep != NULL && *namep != NULL; namep++)
@@ -328,7 +329,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
 
     if (source_folder_exists) {
         WT_ERR_ERROR_OK(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, wt_session,
-                          path_src, prefix, &dirlist_src, countp),
+                          path_src, prefix, &dirlist_src, &num_src_files),
           ENOENT, false);
 
         for (namep = dirlist_src; namep != NULL && *namep != NULL; namep++) {
@@ -367,9 +368,10 @@ err:
     __wt_free(session, path_src);
     __wt_free(session, temp_path);
     if (dirlist_dest != NULL)
-        WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, dirlist_dest, count_dest));
+        WT_TRET(
+          __live_restore_fs_directory_list_free(fs, wt_session, dirlist_dest, num_dest_files));
     if (dirlist_src != NULL)
-        WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, dirlist_src, count_src));
+        WT_TRET(__live_restore_fs_directory_list_free(fs, wt_session, dirlist_src, num_src_files));
 
     *dirlistp = entries;
     *countp = count_dest + count_src;
