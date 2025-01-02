@@ -17,7 +17,8 @@
 
 using namespace utils;
 
-static bool all_expected_files_found(live_restore_test_env& env, const std::string& prefix, const std::set<std::string>& expected_files) {
+// Require that a directory_list call using `prefix` returns exactly the list in `expected_files`.
+static bool directory_list_is(live_restore_test_env& env, const std::string& prefix, const std::set<std::string>& expected_files) {
 
     WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env.session);
     WT_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
@@ -50,143 +51,127 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
      */
     live_restore_test_env env;
 
-    SECTION("Directory list - Test files that only exist in the destination")
-    {
-        std::string file_1 = "file1.txt";
-        std::string file_2 = "file2.txt";
-        std::string file_3 = "file3.txt";
+    std::string file_1 = "file1.txt";
+    std::string file_2 = "file2.txt";
+    std::string file_3 = "file3.txt";
+    std::string file_4 = "file4.txt";
 
+    SECTION("Directory list - Test when files only exist in the destination")
+    {
         // Start with an empty directory.
-        REQUIRE(all_expected_files_found(env, "", {}));
+        REQUIRE(directory_list_is(env, "", {}));
 
         // Progressively add files
         create_file(env.dest_file_path(file_1).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1}));
+        REQUIRE(directory_list_is(env, "", {file_1}));
 
         create_file(env.dest_file_path(file_2).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_2}));
 
         create_file(env.dest_file_path(file_3).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_2, file_3}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_2, file_3}));
 
         // And then delete them
         testutil_remove(env.dest_file_path(file_2).c_str());
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_3}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_3}));
 
         testutil_remove(env.dest_file_path(file_1).c_str());
-        REQUIRE(all_expected_files_found(env, "", {file_3}));
+        REQUIRE(directory_list_is(env, "", {file_3}));
 
         testutil_remove(env.dest_file_path(file_3).c_str());
-        REQUIRE(all_expected_files_found(env, "", {}));
+        REQUIRE(directory_list_is(env, "", {}));
     }
 
-    SECTION("Directory list - Test files that only exist in the source")
+    SECTION("Directory list - Test when files only exist in the source")
     {
-        std::string file_1 = "file1.txt";
-        std::string file_2 = "file2.txt";
-        std::string file_3 = "file3.txt";
-
         // Start with an empty directory.
-        REQUIRE(all_expected_files_found(env, "", {}));
+        REQUIRE(directory_list_is(env, "", {}));
 
         // Progressively add files
         create_file(env.source_file_path(file_1).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1}));
+        REQUIRE(directory_list_is(env, "", {file_1}));
 
         create_file(env.source_file_path(file_2).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_2}));
 
         create_file(env.source_file_path(file_3).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_2, file_3}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_2, file_3}));
 
         // And then delete them
         testutil_remove(env.source_file_path(file_2).c_str());
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_3}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_3}));
 
         testutil_remove(env.source_file_path(file_1).c_str());
-        REQUIRE(all_expected_files_found(env, "", {file_3}));
+        REQUIRE(directory_list_is(env, "", {file_3}));
 
         testutil_remove(env.source_file_path(file_3).c_str());
-        REQUIRE(all_expected_files_found(env, "", {}));
+        REQUIRE(directory_list_is(env, "", {}));
     }
 
-    SECTION("Directory list - Test files when files are present in both source and destination")
+    SECTION("Directory list - Test when files exist in both source and destination")
     {
-        std::string file_1 = "file1.txt";
-        std::string file_2 = "file2.txt";
-        std::string file_3 = "file3.txt";
-
         // Start with an empty directory.
-        REQUIRE(all_expected_files_found(env, "", {}));
+        REQUIRE(directory_list_is(env, "", {}));
 
         // Progressively add files
         create_file(env.dest_file_path(file_1).c_str(), 1000);
         create_file(env.source_file_path(file_1).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1}));
+        REQUIRE(directory_list_is(env, "", {file_1}));
 
         create_file(env.dest_file_path(file_2).c_str(), 1000);
         create_file(env.source_file_path(file_2).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_2}));
 
         create_file(env.dest_file_path(file_3).c_str(), 1000);
         create_file(env.source_file_path(file_3).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_2, file_3}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_2, file_3}));
 
         // And then delete them
         testutil_remove(env.dest_file_path(file_2).c_str());
         testutil_remove(env.source_file_path(file_2).c_str());
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_3}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_3}));
 
         testutil_remove(env.dest_file_path(file_1).c_str());
         testutil_remove(env.source_file_path(file_1).c_str());
-        REQUIRE(all_expected_files_found(env, "", {file_3}));
+        REQUIRE(directory_list_is(env, "", {file_3}));
 
         testutil_remove(env.dest_file_path(file_3).c_str());
         testutil_remove(env.source_file_path(file_3).c_str());
-        REQUIRE(all_expected_files_found(env, "", {}));
+        REQUIRE(directory_list_is(env, "", {}));
     }
 
-    SECTION("Directory list - Test files when are present in source or destination, but not both")
+    SECTION("Directory list - Test when files exist either in source or destination, but not both")
     {
-        std::string file_1 = "file1.txt";
-        std::string file_2 = "file2.txt";
-        std::string file_3 = "file3.txt";
-
         // Add one file to the source.
         create_file(env.source_file_path(file_1).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1}));
+        REQUIRE(directory_list_is(env, "", {file_1}));
 
         // And now the destination.
         create_file(env.dest_file_path(file_2).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_2}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_2}));
     }
 
     SECTION("Directory list - Test a file isn't reported when there's a tombstone in the destination")
     {
-        std::string file_1 = "file1.txt";
-        std::string file_2 = "file2.txt";
-        std::string file_3 = "file3.txt";
-        std::string file_4 = "file4.txt";
-
         // Add some files to the source.
         create_file(env.source_file_path(file_1).c_str(), 1000);
         create_file(env.source_file_path(file_2).c_str(), 1000);
         create_file(env.source_file_path(file_3).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_2, file_3}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_2, file_3}));
 
         // Now progressively add tombstones. The files are no longer reported.
         create_file(env.tombstone_file_path(file_2).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_1, file_3}));
+        REQUIRE(directory_list_is(env, "", {file_1, file_3}));
 
         create_file(env.tombstone_file_path(file_1).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {file_3}));
+        REQUIRE(directory_list_is(env, "", {file_3}));
 
         create_file(env.tombstone_file_path(file_3).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {}));
+        REQUIRE(directory_list_is(env, "", {}));
 
         // Now add the tombstone before the file to confirm it isn't reported.
         create_file(env.tombstone_file_path(file_4).c_str(), 1000);
         create_file(env.source_file_path(file_4).c_str(), 1000);
-        REQUIRE(all_expected_files_found(env, "", {}));
+        REQUIRE(directory_list_is(env, "", {}));
     }
 }
