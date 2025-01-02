@@ -393,8 +393,8 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
         final = msg;
         prefix_len = sizeof(msg) - remain;
         WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap));
-        WT_ERR(__wt_session_set_last_error(session, error, WT_NONE, p));
         if (len < remain) {
+            WT_ERR(__wt_session_set_last_error(session, error, WT_NONE, p));
             remain -= len;
             p += len;
             if (err != NULL)
@@ -417,8 +417,8 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
              */
             no_stderr = true;
             WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap_copy));
-            WT_ERR(__wt_session_set_last_error(session, error, WT_NONE, p));
             if (len < remain) {
+                WT_ERR(__wt_session_set_last_error(session, error, WT_NONE, p));
                 remain -= len;
                 p += len;
                 if (err != NULL)
