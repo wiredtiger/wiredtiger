@@ -2404,8 +2404,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     WT_ERR(__wt_spin_init(session, &session_ret->scratch_lock, "scratch buffer lock"));
 
-    /* Ensure error info string is null before it is initialized. */
-    session_ret->err_info.err_msg = NULL;
+    /* Initialize the error info struct. */
+    WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, ""));
 
     /*
      * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions
@@ -2488,16 +2488,14 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     if (config != NULL)
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
 
+    /* Ensure error info struct is still empty, in case it was overwritten since initialization. */
+    WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, ""));
+
     /*
      * Release write to ensure structure fields are set before any other thread will consider the
      * session.
      */
     WT_RELEASE_WRITE_WITH_BARRIER(session_ret->active, 1);
-
-    /* Initialize the default error info. */
-    if (session_ret->err_info.err_msg != NULL)
-        __wt_free(session_ret, session_ret->err_info.err_msg);
-    WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, ""));
 
     *sessionp = session_ret;
 
