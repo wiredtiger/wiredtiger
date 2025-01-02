@@ -324,7 +324,7 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
      * until migration has completed.
      */
     const std::string fill_on_close =
-      (!background_thread_mode) ? ", debug=(fill_holes_on_close=true)" : "";
+      (!background_thread_mode) ? ",debug=(fill_holes_on_close=true)" : "";
     const std::string conn_config = CONNECTION_CREATE +
       ",live_restore=(enabled=true,threads_max=" + std::to_string(thread_count) + ",path=\"" +
       source + "\"" + fill_on_close + "),cache_size=5GB," + verbose_string +
