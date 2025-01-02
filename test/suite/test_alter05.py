@@ -111,3 +111,5 @@ class test_alter05(TieredConfigMixin, wttest.WiredTigerTestCase):
 
         alter_checkpoints = self.get_stat(wiredtiger.stat.conn.session_table_alter_trigger_checkpoint)
         self.assertEqual(prev_alter_checkpoints + 1, alter_checkpoints)
+
+        self.ignoreStderrPatternIfExists('the table has dirty data and can not be dropped yet')

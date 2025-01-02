@@ -119,3 +119,5 @@ class test_alter03(TieredConfigMixin, wttest.WiredTigerTestCase):
         # Confirm we retain the app_metadata as expected after reopen
         self.reopen_conn()
         self.verify_metadata('app_metadata="meta_data_5",', 'app_metadata="meta_data_3",')
+
+        self.ignoreStderrPatternIfExists('the table has dirty data and can not be dropped yet')
