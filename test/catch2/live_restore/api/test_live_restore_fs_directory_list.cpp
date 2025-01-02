@@ -252,13 +252,12 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
     SECTION("Directory list - Test multi-level subdirectories")
     {
         std::string sub_subfolder_dest_path = env.DB_DEST + "/" + subfolder + "/sub_subfolder";
-        std::string sub_subfolder_file_1_path =
-          env.DB_DEST + "/" + subfolder + "/sub_subfolder/file_1.txt";
+        std::string sub_subfolder_file_1_path = sub_subfolder_dest_path + "/" + file_1;
         testutil_mkdir(subfolder_dest_path.c_str());
         testutil_mkdir(sub_subfolder_dest_path.c_str());
         create_file(sub_subfolder_file_1_path.c_str());
 
-        REQUIRE(directory_list(env, sub_subfolder_dest_path) == lr_files{"file_1.txt"});
+        REQUIRE(directory_list(env, sub_subfolder_dest_path) == lr_files{file_1});
     }
 
     SECTION("Directory list - Test reporting contents of a subdirectory")
@@ -304,7 +303,7 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         // The prefix is actually a suffix
         REQUIRE(directory_list_prefix(env, "_1.txt") == lr_files{});
 
-        // The prefix is matches a file's full name but then has additional characters
+        // The prefix matches a file's full name but then has additional characters
         REQUIRE(directory_list_prefix(env, "file_1.txt.txt.txt") == lr_files{});
     }
 }

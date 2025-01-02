@@ -332,24 +332,36 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
 
         for (namep = dirlist_src; namep != NULL && *namep != NULL; namep++) {
             /*
-             * We're iterating files in the source, but we want to check if they exist in the
-             * destination, so create the file path to the backing destination file.
+             * If a file in source hasn't been background migrated yet we need to add it to the
+             * list.
              */
-            WT_ERR(
-              __live_restore_create_file_path(session, &lr_fs->destination, *namep, &temp_path));
-            WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(
-                                 lr_fs, &lr_fs->destination, session, temp_path, &dest_exist),
-              false);
-            WT_ERR(__dest_has_tombstone(lr_fs, temp_path, session, &have_tombstone));
+            bool add_source_file = false;
 
-            if (!dest_exist && !have_tombstone) {
+            if (!dest_folder_exists)
+                add_source_file = true;
+            else {
+                /*
+                 * We're iterating files in the source, but we want to check if they exist in the
+                 * destination, so create the file path to the backing destination file.
+                 */
+                WT_ERR(__live_restore_create_file_path(
+                  session, &lr_fs->destination, *namep, &temp_path));
+                WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(
+                                     lr_fs, &lr_fs->destination, session, temp_path, &dest_exist),
+                  false);
+                WT_ERR(__dest_has_tombstone(lr_fs, temp_path, session, &have_tombstone));
+                __wt_free(session, temp_path);
+
+                add_source_file = !dest_exist && !have_tombstone;
+            }
+
+            if (add_source_file) {
                 WT_ERR(
                   __wt_realloc_def(session, &dirallocsz, count_dest + count_src + 1, &entries));
                 WT_ERR(__wt_strdup(session, *namep, &entries[count_dest + count_src]));
                 ++count_src;
             }
 
-            __wt_free(session, temp_path);
             if (single)
                 goto done;
         }
