@@ -50,7 +50,7 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
 
         err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, 16)
+        self.assertEqual(err, errno.EBUSY)
         self.assertEqual(sub_level_err, wiredtiger.WT_UNCOMMITTED_DATA)
         self.assertEqual(err_msg, "the table has uncommitted data and can not be dropped yet")
 
@@ -69,7 +69,7 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
 
         err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, 16)
+        self.assertEqual(err, errno.EBUSY)
         self.assertEqual(sub_level_err, wiredtiger.WT_DIRTY_DATA)
         self.assertEqual(err_msg, "the table has dirty data and can not be dropped yet")
 
