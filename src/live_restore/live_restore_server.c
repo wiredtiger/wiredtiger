@@ -284,8 +284,12 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
-    /* If we didn't create a live restore file system there is nothing to do. */
-    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+    /*
+     * If we didn't create a live restore file system or the server there is nothing to do. It is
+     * rare but possible to arrive here with the flag set and a NULL server, this happens when an
+     * error is encountered after the file system initialization but before the server is created.
+     */
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS) || server == NULL)
         return (0);
 
     /*
