@@ -663,9 +663,8 @@ __live_restore_fh_write(
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_writelock(session, &lr_fh->ext_lock);
-    ret = __live_restore_fh_write_int(fh, wt_session, offset, len, buf);
-    __wt_writeunlock(session, &lr_fh->ext_lock);
+    WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+      session, lr_fh, ret = __live_restore_fh_write_int(fh, wt_session, offset, len, buf));
     return (ret);
 }
 
@@ -853,10 +852,8 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
 
-    __wt_writelock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
-    __live_restore_fs_free_extent_list(session, lr_fh);
-    __wt_writeunlock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
-
+    WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+      session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
     __wt_rwlock_destroy(session, &lr_fh->ext_lock);
 
     if (lr_fh->source != NULL) /* It's possible that we never opened the file in the source. */
@@ -1180,9 +1177,8 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
          */
         lr_fh->destination.complete = true;
         /* Opening files is single threaded but the remove extlist free requires the lock. */
-        __wt_writelock(session, &lr_fh->ext_lock);
-        __live_restore_fs_free_extent_list(session, lr_fh);
-        __wt_writeunlock(session, &lr_fh->ext_lock);
+        WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+          session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
     } else {
         /*
          * If it exists in the source, open it. If it doesn't exist in the source then by definition
