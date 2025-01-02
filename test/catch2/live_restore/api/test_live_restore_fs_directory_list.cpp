@@ -59,6 +59,12 @@ directory_list_subfolder(
     return directory_list(env, directory, "", expect_ret);
 }
 
+static set<string>
+directory_list_prefix(live_restore_test_env &env, const std::string &prefix, int expect_ret = 0)
+{
+    return directory_list(env, env.DB_DEST, prefix, expect_ret);
+}
+
 TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory_list]")
 {
     /*
@@ -268,5 +274,34 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         // Note we're returning file_1 here, not subfile_1. Since we're reporting the
         // contents of the subfolder the file names are relative to that folder.
         REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{file_1, file_2});
+    }
+
+    SECTION("Directory list - Test only files matching the specified prefix are returned")
+    {
+
+        create_file(env.dest_file_path(file_1).c_str());
+        create_file(env.source_file_path(file_2).c_str());
+        testutil_mkdir(subfolder_dest_path.c_str());
+
+        // Report all files and folders when prefix == ""
+        REQUIRE(directory_list_prefix(env, "") == set<string>{file_1, file_2, subfolder});
+
+        // Now only report the files
+        REQUIRE(directory_list_prefix(env, "file") == set<string>{file_1, file_2});
+
+        // Only the folder
+        REQUIRE(directory_list_prefix(env, "sub") == set<string>{subfolder});
+
+        // Only file_1. The prefix is the entire file name
+        REQUIRE(directory_list_prefix(env, file_1) == set<string>{file_1});
+
+        // A prefix longer than any files or folders in the directory
+        REQUIRE(directory_list_prefix(env, string(10000, 'A')) == set<string>{});
+
+        // The prefix is actually a suffix
+        REQUIRE(directory_list_prefix(env, "_1.txt") == set<string>{});
+
+        // The prefix is matches a file's full name but then has additional characters
+        REQUIRE(directory_list_prefix(env, "file_1.txt.txt.txt") == set<string>{});
     }
 }
