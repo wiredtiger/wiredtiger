@@ -68,14 +68,14 @@ struct __wt_live_restore_file_handle {
  *     Acquire the extent list read lock and perform an operation. This is not intended to be a
  *     re-entrant lock so we assert that we do not hold it already.
  */
-#define WT_WITH_LIVE_RESTORE_EXTENT_LIST_READ_LOCK(session, lr_fh, op)                \
-    do {                                                                              \
-        WT_ASSERT(session, !F_ISSET((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED)); \
-        __wt_readlock(session, &(lr_fh)->ext_lock);                                   \
-        F_SET((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED);                        \
-        op;                                                                           \
-        F_CLR((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED);                        \
-        __wt_readunlock(session, &(lr_fh)->ext_lock);                                 \
+#define WT_WITH_LIVE_RESTORE_EXTENT_LIST_READ_LOCK(session, lr_fh, op)                  \
+    do {                                                                                \
+        WT_ASSERT((session), !F_ISSET((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED)); \
+        __wt_readlock((session), &(lr_fh)->ext_lock);                                   \
+        F_SET((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED);                          \
+        op;                                                                             \
+        F_CLR((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED);                          \
+        __wt_readunlock((session), &(lr_fh)->ext_lock);                                 \
     } while (0)
 
 /*
@@ -83,14 +83,14 @@ struct __wt_live_restore_file_handle {
  *     Acquire the extent list write lock and perform an operation. This is not intended to be a
  *     re-entrant lock so we assert that we do not hold it already.
  */
-#define WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, lr_fh, op)               \
-    do {                                                                              \
-        WT_ASSERT(session, !F_ISSET((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED)); \
-        __wt_writelock(session, &(lr_fh)->ext_lock);                                  \
-        F_SET((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED);                        \
-        op;                                                                           \
-        F_CLR((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED);                        \
-        __wt_writeunlock(session, &(lr_fh)->ext_lock);                                \
+#define WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, lr_fh, op)                 \
+    do {                                                                                \
+        WT_ASSERT((session), !F_ISSET((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED)); \
+        __wt_writelock((session), &(lr_fh)->ext_lock);                                  \
+        F_SET((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED);                          \
+        op;                                                                             \
+        F_CLR((lr_fh), WT_LIVE_RESTORE_FH_EXTENT_LIST_LOCKED);                          \
+        __wt_writeunlock((session), &(lr_fh)->ext_lock);                                \
     } while (0)
 
 typedef enum {

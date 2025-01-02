@@ -60,8 +60,8 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
 /*
  * __live_restore_free_work_item --
- *     Free a work item from the queue. Set the callers pointer to NULL. This enables catch2
- *     testing.
+ *     Free a work item from the queue. Set the callers pointer to NULL. This enables unit testing
+ *     and is consistent with most WiredTiger free functions.
  */
 static void
 __live_restore_free_work_item(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_WORK_ITEM **work_itemp)
