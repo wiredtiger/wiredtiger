@@ -231,11 +231,11 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
     }
 
     SECTION(
-      "Directory list - Test WT_NOTFOUND is returned when listing the contents of a subfolder that "
+      "Directory list - Test ENOENT is returned when listing the contents of a subfolder that "
       "doesn't exist")
     {
-        // When the subfolder doesn't exist expect a WT_NOTFOUND will be returned.
-        directory_list_subfolder(env, subfolder_dest_path, WT_NOTFOUND);
+        // When the subfolder doesn't exist expect a ENOENT will be returned.
+        directory_list_subfolder(env, subfolder_dest_path, ENOENT);
 
         // But if the subfolder exists in either backing directory we'll return successfully.
         testutil_mkdir(subfolder_dest_path.c_str());

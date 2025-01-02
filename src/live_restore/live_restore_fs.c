@@ -305,9 +305,8 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
       lr_fs->os_file_system, wt_session, path_dest, &dest_folder_exists));
 
     if (dest_folder_exists) {
-        WT_ERR_ERROR_OK(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, wt_session,
-                          path_dest, prefix, &dirlist_dest, &num_dest_files),
-          ENOENT, false);
+        WT_ERR(lr_fs->os_file_system->fs_directory_list(
+          lr_fs->os_file_system, wt_session, path_dest, prefix, &dirlist_dest, &num_dest_files));
 
         for (namep = dirlist_dest; namep != NULL && *namep != NULL; namep++)
             if (!WT_SUFFIX_MATCH(*namep, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
@@ -328,9 +327,8 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
       lr_fs->os_file_system, wt_session, path_src, &source_folder_exists));
 
     if (source_folder_exists) {
-        WT_ERR_ERROR_OK(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, wt_session,
-                          path_src, prefix, &dirlist_src, &num_src_files),
-          ENOENT, false);
+        WT_ERR(lr_fs->os_file_system->fs_directory_list(
+          lr_fs->os_file_system, wt_session, path_src, prefix, &dirlist_src, &num_src_files));
 
         for (namep = dirlist_src; namep != NULL && *namep != NULL; namep++) {
             /*
@@ -358,7 +356,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     }
 
     if (!dest_folder_exists && !source_folder_exists)
-        WT_ERR_MSG(session, WT_NOTFOUND,
+        WT_ERR_MSG(session, ENOENT,
           "Cannot report contents of '%s'. Folder does not exist in the source or destination.",
           directory);
 
