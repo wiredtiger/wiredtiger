@@ -104,9 +104,12 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
     WT_LIVE_RESTORE_HOLE_NODE *prev;
     bool list_valid;
 
-    prev = NULL;
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "Dumping extent list for %s\n", lr_fh->iface.name);
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+      "Live restore lock not taken when needed");
+
+    prev = NULL;
     hole = lr_fh->destination.hole_list_head;
     list_valid = true;
 
@@ -476,6 +479,8 @@ __live_restore_remove_extlist_hole(
     WT_LIVE_RESTORE_HOLE_NODE *hole, *tmp, *new, *prev_hole;
     wt_off_t write_end;
 
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+      "Live restore lock not taken when needed");
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
       lr_fh->iface.name, offset, WT_OFFSET_END(offset, len));
 
@@ -572,8 +577,10 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
     if (lr_fh->destination.complete || lr_fh->source == NULL)
         return (FULL);
 
-    read_end = WT_OFFSET_END(offset, len);
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+      "Live restore lock not taken when needed");
 
+    read_end = WT_OFFSET_END(offset, len);
     hole = lr_fh->destination.hole_list_head;
     while (hole != NULL) {
 
@@ -632,6 +639,8 @@ __live_restore_fh_write_int(
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+      "Live restore lock not taken when needed");
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "WRITE %s: %" PRId64 ", %lu", fh->name, offset, len);
 
