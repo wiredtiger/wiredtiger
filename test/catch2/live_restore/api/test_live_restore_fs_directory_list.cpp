@@ -19,7 +19,14 @@ using namespace utils;
 using namespace std;
 
 const std::string NO_DIR = "NO_DIRECTORY";
-static set<string> directory_list(live_restore_test_env& env, const std::string& directory=NO_DIR, const std::string& prefix="") {
+
+// Return the list of files in the directory, optionally specifying a subdirectory or prefix all
+// files must match. An expected return code can also be provided. If we expect an error and it
+// fires we'll still return an empty list of files.
+static set<string>
+directory_list(live_restore_test_env &env, const std::string &directory = NO_DIR,
+  const std::string &prefix = "", int expect_ret = 0)
+{
 
     WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env.session);
     WT_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
@@ -27,12 +34,13 @@ static set<string> directory_list(live_restore_test_env& env, const std::string&
     char **dirlist = NULL;
     uint32_t count;
     std::string list_dir = directory;
-    if(list_dir == NO_DIR) {
+    if (list_dir == NO_DIR) {
         list_dir = env.DB_DEST;
     }
 
-    lr_fs->iface.fs_directory_list(
-        (WT_FILE_SYSTEM *)lr_fs, wt_session, list_dir.c_str(), prefix.c_str(), &dirlist, &count);
+    int ret = lr_fs->iface.fs_directory_list(
+      (WT_FILE_SYSTEM *)lr_fs, wt_session, list_dir.c_str(), prefix.c_str(), &dirlist, &count);
+    REQUIRE(ret == expect_ret);
 
     std::set<std::string> found_files{};
     for (int i = 0; i < count; i++) {
@@ -42,7 +50,13 @@ static set<string> directory_list(live_restore_test_env& env, const std::string&
 
     lr_fs->iface.fs_directory_list_free((WT_FILE_SYSTEM *)lr_fs, wt_session, dirlist, count);
     return found_files;
+}
 
+static set<string>
+directory_list_subfolder(
+  live_restore_test_env &env, const std::string &directory, int expect_ret = 0)
+{
+    return directory_list(env, directory, "", expect_ret);
 }
 
 TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory_list]")
@@ -204,5 +218,22 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         std::string subfile_1 = subfolder + "/" + file_1;
         create_file(env.dest_file_path(subfile_1).c_str());
         REQUIRE(directory_list(env) == set<string>{subfolder});
+    }
+
+    SECTION("Directory list - Test WT_NOTFOUND is returned when the subfolder doesn't exist")
+    {
+        // When the subfolder doesn't exist expect a WT_NOTFOUND will be returned.
+        directory_list_subfolder(env, subfolder_dest_path, WT_NOTFOUND);
+
+        // But if the subfolder exists in either backing directory we'll return successfully.
+        testutil_mkdir(subfolder_dest_path.c_str());
+        REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{});
+
+        testutil_remove(subfolder_dest_path.c_str());
+        testutil_mkdir(subfolder_source_path.c_str());
+        REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{});
+
+        testutil_mkdir(subfolder_dest_path.c_str());
+        REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{});
     }
 }
