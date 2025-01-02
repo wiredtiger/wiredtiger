@@ -2710,6 +2710,11 @@ wiredtiger_dummy_session_init(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_
      * The dummy session should never be used to access data handles.
      */
     F_SET(session, WT_SESSION_NO_DATA_HANDLES);
+
+    /*
+     * The dummy session should not track errors or be used in external API calls.
+     */
+    F_SET(session, WT_SESSION_INTERNAL);
 }
 
 /*
@@ -3236,8 +3241,6 @@ err:
      */
     if (session != &conn->dummy_session)
         __wt_scr_discard(session);
-    if ((&conn->dummy_session)->err_info.err_msg != NULL)
-        __wt_free(session, (&conn->dummy_session)->err_info.err_msg);
     __wt_scr_discard(&conn->dummy_session);
 
     /*
