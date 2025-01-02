@@ -7,9 +7,9 @@
  */
 
 /*
- * Tests of the Live Restore file systems, directory list functions.
- * These functions report which files exist in the unified live restore directory, hiding whether they're in the destination, source, or both backing directories.
- * [live_restore_directory_list]
+ * Tests of the Live Restore file systems, directory list functions. These functions report which
+ * files exist in the unified live restore directory, hiding whether they're in the destination,
+ * source, or both backing directories. [live_restore_directory_list]
  */
 
 #include "../utils_live_restore.h"
@@ -172,7 +172,8 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         REQUIRE(directory_list(env) == set<string>{file_1, file_2});
     }
 
-    SECTION("Directory list - Test a file isn't reported when there's a tombstone in the destination")
+    SECTION(
+      "Directory list - Test a file isn't reported when there's a tombstone in the destination")
     {
         // Add some files to the source.
         create_file(env.source_file_path(file_1).c_str());
@@ -220,7 +221,9 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         REQUIRE(directory_list(env) == set<string>{subfolder});
     }
 
-    SECTION("Directory list - Test WT_NOTFOUND is returned when the subfolder doesn't exist")
+    SECTION(
+      "Directory list - Test WT_NOTFOUND is returned when listing the contents of a subfolder that "
+      "doesn't exist")
     {
         // When the subfolder doesn't exist expect a WT_NOTFOUND will be returned.
         directory_list_subfolder(env, subfolder_dest_path, WT_NOTFOUND);
@@ -237,10 +240,11 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{});
     }
 
-    SECTION("Directory list - Test multiple level subdirectories")
+    SECTION("Directory list - Test multi-level subdirectories")
     {
         std::string subsubfolder_dest_path = env.DB_DEST + "/" + subfolder + "/subsubfolder";
-        std::string subsubfolder_file_1_path = env.DB_DEST + "/" + subfolder + "/subsubfolder/file_1.txt";
+        std::string subsubfolder_file_1_path =
+          env.DB_DEST + "/" + subfolder + "/subsubfolder/file_1.txt";
         testutil_mkdir(subfolder_dest_path.c_str());
         testutil_mkdir(subsubfolder_dest_path.c_str());
         create_file(subsubfolder_file_1_path.c_str());
@@ -264,7 +268,5 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         // Note we're returning file_1 here, not subfile_1. Since we're reporting the
         // contents of the subfolder the file names are relative to that folder.
         REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{file_1, file_2});
-
     }
-
 }
