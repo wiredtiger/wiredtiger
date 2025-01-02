@@ -16,14 +16,17 @@
 #include <set>
 
 using namespace utils;
-using namespace std;
+
+using lr_files = std::set<std::string>;
 
 const std::string NO_DIR = "NO_DIRECTORY";
 
-// Return the list of files in the directory, optionally specifying a subdirectory or prefix all
-// files must match. An expected return code can also be provided. If we expect an error and it
-// fires we'll still return an empty list of files.
-static set<string>
+/*
+ * Run directory_list and return the files found as a set for easy comparisons. Optionally specify a
+ * subdirectory too look in or a prefix all results must match. An expected return code can also be
+ * provided. If we expect an error and it fires we'll still return an empty list of files.
+ */
+static lr_files
 directory_list(live_restore_test_env &env, const std::string &directory = NO_DIR,
   const std::string &prefix = "", int expect_ret = 0)
 {
@@ -52,14 +55,14 @@ directory_list(live_restore_test_env &env, const std::string &directory = NO_DIR
     return found_files;
 }
 
-static set<string>
+static lr_files
 directory_list_subfolder(
   live_restore_test_env &env, const std::string &directory, int expect_ret = 0)
 {
     return directory_list(env, directory, "", expect_ret);
 }
 
-static set<string>
+static lr_files
 directory_list_prefix(live_restore_test_env &env, const std::string &prefix, int expect_ret = 0)
 {
     return directory_list(env, env.DB_DEST, prefix, expect_ret);
@@ -86,96 +89,96 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
     SECTION("Directory list - Test when files only exist in the destination")
     {
         // Start with an empty directory.
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
 
         // Progressively add files
         create_file(env.dest_file_path(file_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1});
+        REQUIRE(directory_list(env) == lr_files{file_1});
 
         create_file(env.dest_file_path(file_2).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_2});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_2});
 
         create_file(env.dest_file_path(file_3).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_2, file_3});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_2, file_3});
 
         // And then delete them
         testutil_remove(env.dest_file_path(file_2).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_3});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_3});
 
         testutil_remove(env.dest_file_path(file_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_3});
+        REQUIRE(directory_list(env) == lr_files{file_3});
 
         testutil_remove(env.dest_file_path(file_3).c_str());
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
     }
 
     SECTION("Directory list - Test when files only exist in the source")
     {
         // Start with an empty directory.
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
 
         // Progressively add files
         create_file(env.source_file_path(file_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1});
+        REQUIRE(directory_list(env) == lr_files{file_1});
 
         create_file(env.source_file_path(file_2).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_2});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_2});
 
         create_file(env.source_file_path(file_3).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_2, file_3});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_2, file_3});
 
         // And then delete them
         testutil_remove(env.source_file_path(file_2).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_3});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_3});
 
         testutil_remove(env.source_file_path(file_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_3});
+        REQUIRE(directory_list(env) == lr_files{file_3});
 
         testutil_remove(env.source_file_path(file_3).c_str());
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
     }
 
     SECTION("Directory list - Test when files exist in both source and destination")
     {
         // Start with an empty directory.
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
 
         // Progressively add files
         create_file(env.dest_file_path(file_1).c_str());
         create_file(env.source_file_path(file_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1});
+        REQUIRE(directory_list(env) == lr_files{file_1});
 
         create_file(env.dest_file_path(file_2).c_str());
         create_file(env.source_file_path(file_2).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_2});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_2});
 
         create_file(env.dest_file_path(file_3).c_str());
         create_file(env.source_file_path(file_3).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_2, file_3});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_2, file_3});
 
         // And then delete them
         testutil_remove(env.dest_file_path(file_2).c_str());
         testutil_remove(env.source_file_path(file_2).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_3});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_3});
 
         testutil_remove(env.dest_file_path(file_1).c_str());
         testutil_remove(env.source_file_path(file_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_3});
+        REQUIRE(directory_list(env) == lr_files{file_3});
 
         testutil_remove(env.dest_file_path(file_3).c_str());
         testutil_remove(env.source_file_path(file_3).c_str());
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
     }
 
     SECTION("Directory list - Test when files exist either in source or destination, but not both")
     {
         // Add one file to the source.
         create_file(env.source_file_path(file_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1});
+        REQUIRE(directory_list(env) == lr_files{file_1});
 
         // And now the destination.
         create_file(env.dest_file_path(file_2).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_2});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_2});
     }
 
     SECTION(
@@ -185,46 +188,46 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         create_file(env.source_file_path(file_1).c_str());
         create_file(env.source_file_path(file_2).c_str());
         create_file(env.source_file_path(file_3).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_2, file_3});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_2, file_3});
 
         // Now progressively add tombstones. The files are no longer reported.
         create_file(env.tombstone_file_path(file_2).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_1, file_3});
+        REQUIRE(directory_list(env) == lr_files{file_1, file_3});
 
         create_file(env.tombstone_file_path(file_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{file_3});
+        REQUIRE(directory_list(env) == lr_files{file_3});
 
         create_file(env.tombstone_file_path(file_3).c_str());
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
 
         // Now add the tombstone before the file to confirm it isn't reported.
         create_file(env.tombstone_file_path(file_4).c_str());
         create_file(env.source_file_path(file_4).c_str());
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
     }
 
     SECTION("Directory list - Test directory list reports subfolders")
     {
         // Only in the destination
         testutil_mkdir(subfolder_dest_path.c_str());
-        REQUIRE(directory_list(env) == set<string>{subfolder});
+        REQUIRE(directory_list(env) == lr_files{subfolder});
 
         // And then deleted
         testutil_remove(subfolder_dest_path.c_str());
-        REQUIRE(directory_list(env) == set<string>{});
+        REQUIRE(directory_list(env) == lr_files{});
 
         // Only in the source
         testutil_mkdir(subfolder_source_path.c_str());
-        REQUIRE(directory_list(env) == set<string>{subfolder});
+        REQUIRE(directory_list(env) == lr_files{subfolder});
 
         // Now in both
         testutil_mkdir(subfolder_dest_path.c_str());
-        REQUIRE(directory_list(env) == set<string>{subfolder});
+        REQUIRE(directory_list(env) == lr_files{subfolder});
 
         // Check that we *don't* report the contents, just the subfolder itself
         std::string subfile_1 = subfolder + "/" + file_1;
         create_file(env.dest_file_path(subfile_1).c_str());
-        REQUIRE(directory_list(env) == set<string>{subfolder});
+        REQUIRE(directory_list(env) == lr_files{subfolder});
     }
 
     SECTION(
@@ -236,14 +239,14 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
 
         // But if the subfolder exists in either backing directory we'll return successfully.
         testutil_mkdir(subfolder_dest_path.c_str());
-        REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{});
+        REQUIRE(directory_list(env, subfolder_dest_path) == lr_files{});
 
         testutil_remove(subfolder_dest_path.c_str());
         testutil_mkdir(subfolder_source_path.c_str());
-        REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{});
+        REQUIRE(directory_list(env, subfolder_dest_path) == lr_files{});
 
         testutil_mkdir(subfolder_dest_path.c_str());
-        REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{});
+        REQUIRE(directory_list(env, subfolder_dest_path) == lr_files{});
     }
 
     SECTION("Directory list - Test multi-level subdirectories")
@@ -255,7 +258,7 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         testutil_mkdir(subsubfolder_dest_path.c_str());
         create_file(subsubfolder_file_1_path.c_str());
 
-        REQUIRE(directory_list(env, subsubfolder_dest_path) == set<string>{"file_1.txt"});
+        REQUIRE(directory_list(env, subsubfolder_dest_path) == lr_files{"file_1.txt"});
     }
 
     SECTION("Directory list - Test reporting contents of a subdirectory")
@@ -273,7 +276,7 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
 
         // Note we're returning file_1 here, not subfile_1. Since we're reporting the
         // contents of the subfolder the file names are relative to that folder.
-        REQUIRE(directory_list(env, subfolder_dest_path) == set<string>{file_1, file_2});
+        REQUIRE(directory_list(env, subfolder_dest_path) == lr_files{file_1, file_2});
     }
 
     SECTION("Directory list - Test only files matching the specified prefix are returned")
@@ -284,24 +287,24 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         testutil_mkdir(subfolder_dest_path.c_str());
 
         // Report all files and folders when prefix == ""
-        REQUIRE(directory_list_prefix(env, "") == set<string>{file_1, file_2, subfolder});
+        REQUIRE(directory_list_prefix(env, "") == lr_files{file_1, file_2, subfolder});
 
         // Now only report the files
-        REQUIRE(directory_list_prefix(env, "file") == set<string>{file_1, file_2});
+        REQUIRE(directory_list_prefix(env, "file") == lr_files{file_1, file_2});
 
         // Only the folder
-        REQUIRE(directory_list_prefix(env, "sub") == set<string>{subfolder});
+        REQUIRE(directory_list_prefix(env, "sub") == lr_files{subfolder});
 
         // Only file_1. The prefix is the entire file name
-        REQUIRE(directory_list_prefix(env, file_1) == set<string>{file_1});
+        REQUIRE(directory_list_prefix(env, file_1) == lr_files{file_1});
 
         // A prefix longer than any files or folders in the directory
-        REQUIRE(directory_list_prefix(env, string(10000, 'A')) == set<string>{});
+        REQUIRE(directory_list_prefix(env, std::string(10000, 'A')) == lr_files{});
 
         // The prefix is actually a suffix
-        REQUIRE(directory_list_prefix(env, "_1.txt") == set<string>{});
+        REQUIRE(directory_list_prefix(env, "_1.txt") == lr_files{});
 
         // The prefix is matches a file's full name but then has additional characters
-        REQUIRE(directory_list_prefix(env, "file_1.txt.txt.txt") == set<string>{});
+        REQUIRE(directory_list_prefix(env, "file_1.txt.txt.txt") == lr_files{});
     }
 }
