@@ -146,6 +146,10 @@ __wt_session_set_last_error(
     WT_DECL_RET;
     size_t err_msg_size;
 
+    /* Only record the error for external sessions. */
+    if (F_ISSET(session, WT_SESSION_INTERNAL))
+        return (0);
+
     /* Only set the error if it results in a change. */
     if (session->err_info.err == err && session->err_info.sub_level_err == sub_level_err &&
       (strcmp(session->err_info.err_msg, err_msg_content) == 0))
