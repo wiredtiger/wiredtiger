@@ -241,5 +241,3 @@ class test_alter02(TieredConfigMixin, wttest.WiredTigerTestCase):
         if self.conncreate or (self.connreopen and self.reopen):
             self.pr("EXPECTED KEYS 2: " + str(expected_keys))
             self.verify_logrecs(expected_keys)
-        
-        self.ignoreStderrPatternIfExists('the table has dirty data and can not be dropped yet')
