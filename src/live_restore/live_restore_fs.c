@@ -1063,6 +1063,7 @@ __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE
         WT_ERR(lr_fs->os_file_system->fs_size(
           lr_fs->os_file_system, (WT_SESSION *)session, source_fh->name, &source_size));
 
+        __wt_readlock(session, &lr_fh->ext_lock);
         WT_LIVE_RESTORE_HOLE_NODE *final_hole;
         final_hole = lr_fh->destination.hole_list_head;
         while (final_hole->next != NULL)
@@ -1072,9 +1073,11 @@ __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE
             __wt_verbose_debug1(session, WT_VERB_FILEOPS,
               "Error: Hole list for %s has holes beyond the the end of the source file!", name);
             __live_restore_debug_dump_extent_list(session, lr_fh);
+            __wt_readunlock(session, &lr_fh->ext_lock);
             WT_ERR_MSG(session, EINVAL,
               "Hole list for %s has holes beyond the the end of the source file!", name);
         }
+        __wt_readunlock(session, &lr_fh->ext_lock);
 
     } else
         WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
