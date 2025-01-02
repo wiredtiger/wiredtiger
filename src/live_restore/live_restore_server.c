@@ -59,6 +59,20 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 }
 
 /*
+ * __live_restore_free_work_item --
+ *     Free a work item from the queue. Set the callers pointer to NULL. This enables catch2
+ *     testing.
+ */
+static void
+__live_restore_free_work_item(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_WORK_ITEM **work_itemp)
+{
+    __wt_free(session, (*work_itemp)->uri);
+    __wt_free(session, *work_itemp);
+
+    *work_itemp = NULL;
+}
+
+/*
  * __live_restore_work_queue_drain --
  *     Drain the work queue of any remaining items. This is called either on connection close, and
  *     the work will be continued after a restart, or for error handling cleanup in which case we're
@@ -79,8 +93,7 @@ __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
         TAILQ_FOREACH_SAFE(work_item, &server->work_queue, q, work_item_tmp)
         {
             TAILQ_REMOVE(&server->work_queue, work_item, q);
-            __wt_free(session, work_item->uri);
-            __wt_free(session, work_item);
+            __live_restore_free_work_item(session, &work_item);
         }
     }
     WT_ASSERT_ALWAYS(
@@ -148,6 +161,9 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live finished filling holes in %s", work_item->uri);
+
+    /* Free the work item. */
+    __live_restore_free_work_item(session, &work_item);
     WT_STAT_CONN_SET(
       session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
 
