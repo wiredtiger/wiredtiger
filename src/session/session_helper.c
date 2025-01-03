@@ -163,7 +163,7 @@ __wt_session_set_last_error(
     /* Only set the error if it results in a change. */
     if (session->err_info.err == err && session->err_info.sub_level_err == sub_level_err &&
       session->err_info.err_msg != NULL && strcmp(session->err_info.err_msg, err_msg_content) == 0)
-        return (0);
+        goto err;
 
     /* Free the last error message string. */
     __wt_free(session, session->err_info.err_msg);
