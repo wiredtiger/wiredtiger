@@ -2017,6 +2017,22 @@ static const char *const __stats_connection_desc[] = {
   "log: total size of compressed records",
   "log: written slots coalesced",
   "log: yields waiting for previous log file close",
+  "perf: block manager read latency histogram (bucket 1) - 0-10ms",
+  "perf: block manager read latency histogram (bucket 2) - 10-49ms",
+  "perf: block manager read latency histogram (bucket 3) - 50-99ms",
+  "perf: block manager read latency histogram (bucket 4) - 100-249ms",
+  "perf: block manager read latency histogram (bucket 5) - 250-499ms",
+  "perf: block manager read latency histogram (bucket 6) - 500-999ms",
+  "perf: block manager read latency histogram (bucket 7) - 1000ms+",
+  "perf: block manager read latency histogram total (msecs)",
+  "perf: block manager write latency histogram (bucket 1) - 0-10ms",
+  "perf: block manager write latency histogram (bucket 2) - 10-49ms",
+  "perf: block manager write latency histogram (bucket 3) - 50-99ms",
+  "perf: block manager write latency histogram (bucket 4) - 100-249ms",
+  "perf: block manager write latency histogram (bucket 5) - 250-499ms",
+  "perf: block manager write latency histogram (bucket 6) - 500-999ms",
+  "perf: block manager write latency histogram (bucket 7) - 1000ms+",
+  "perf: block manager write latency histogram total (msecs)",
   "perf: file system read latency histogram (bucket 1) - 0-10ms",
   "perf: file system read latency histogram (bucket 2) - 10-49ms",
   "perf: file system read latency histogram (bucket 3) - 50-99ms",
@@ -2789,6 +2805,22 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->log_compress_len = 0;
     stats->log_slot_coalesced = 0;
     stats->log_close_yields = 0;
+    stats->perf_hist_bmread_latency_lt10 = 0;
+    stats->perf_hist_bmread_latency_lt50 = 0;
+    stats->perf_hist_bmread_latency_lt100 = 0;
+    stats->perf_hist_bmread_latency_lt250 = 0;
+    stats->perf_hist_bmread_latency_lt500 = 0;
+    stats->perf_hist_bmread_latency_lt1000 = 0;
+    stats->perf_hist_bmread_latency_gt1000 = 0;
+    stats->perf_hist_bmread_latency_total_msecs = 0;
+    stats->perf_hist_bmwrite_latency_lt10 = 0;
+    stats->perf_hist_bmwrite_latency_lt50 = 0;
+    stats->perf_hist_bmwrite_latency_lt100 = 0;
+    stats->perf_hist_bmwrite_latency_lt250 = 0;
+    stats->perf_hist_bmwrite_latency_lt500 = 0;
+    stats->perf_hist_bmwrite_latency_lt1000 = 0;
+    stats->perf_hist_bmwrite_latency_gt1000 = 0;
+    stats->perf_hist_bmwrite_latency_total_msecs = 0;
     stats->perf_hist_fsread_latency_lt10 = 0;
     stats->perf_hist_fsread_latency_lt50 = 0;
     stats->perf_hist_fsread_latency_lt100 = 0;
@@ -3623,6 +3655,26 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->log_compress_len += WT_STAT_CONN_READ(from, log_compress_len);
     to->log_slot_coalesced += WT_STAT_CONN_READ(from, log_slot_coalesced);
     to->log_close_yields += WT_STAT_CONN_READ(from, log_close_yields);
+    to->perf_hist_bmread_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt10);
+    to->perf_hist_bmread_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt50);
+    to->perf_hist_bmread_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt100);
+    to->perf_hist_bmread_latency_lt250 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt250);
+    to->perf_hist_bmread_latency_lt500 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt500);
+    to->perf_hist_bmread_latency_lt1000 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt1000);
+    to->perf_hist_bmread_latency_gt1000 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_gt1000);
+    to->perf_hist_bmread_latency_total_msecs +=
+      WT_STAT_CONN_READ(from, perf_hist_bmread_latency_total_msecs);
+    to->perf_hist_bmwrite_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt10);
+    to->perf_hist_bmwrite_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt50);
+    to->perf_hist_bmwrite_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt100);
+    to->perf_hist_bmwrite_latency_lt250 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt250);
+    to->perf_hist_bmwrite_latency_lt500 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt500);
+    to->perf_hist_bmwrite_latency_lt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt1000);
+    to->perf_hist_bmwrite_latency_gt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_gt1000);
+    to->perf_hist_bmwrite_latency_total_msecs +=
+      WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_total_msecs);
     to->perf_hist_fsread_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt10);
     to->perf_hist_fsread_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt50);
     to->perf_hist_fsread_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt100);

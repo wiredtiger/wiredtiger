@@ -631,6 +631,22 @@ conn_stats = [
     ##########################################
     # Performance Histogram Stats
     ##########################################
+    PerfHistStat('perf_hist_bmread_latency_gt1000', 'block manager read latency histogram (bucket 7) - 1000ms+'),
+    PerfHistStat('perf_hist_bmread_latency_lt10', 'block manager read latency histogram (bucket 1) - 0-10ms'),
+    PerfHistStat('perf_hist_bmread_latency_lt50', 'block manager read latency histogram (bucket 2) - 10-49ms'),
+    PerfHistStat('perf_hist_bmread_latency_lt100', 'block manager read latency histogram (bucket 3) - 50-99ms'),
+    PerfHistStat('perf_hist_bmread_latency_lt250', 'block manager read latency histogram (bucket 4) - 100-249ms'),
+    PerfHistStat('perf_hist_bmread_latency_lt500', 'block manager read latency histogram (bucket 5) - 250-499ms'),
+    PerfHistStat('perf_hist_bmread_latency_lt1000', 'block manager read latency histogram (bucket 6) - 500-999ms'),
+    PerfHistStat('perf_hist_bmread_latency_total_msecs', 'block manager read latency histogram total (msecs)'),
+    PerfHistStat('perf_hist_bmwrite_latency_gt1000', 'block manager write latency histogram (bucket 7) - 1000ms+'),
+    PerfHistStat('perf_hist_bmwrite_latency_lt10', 'block manager write latency histogram (bucket 1) - 0-10ms'),
+    PerfHistStat('perf_hist_bmwrite_latency_lt50', 'block manager write latency histogram (bucket 2) - 10-49ms'),
+    PerfHistStat('perf_hist_bmwrite_latency_lt100', 'block manager write latency histogram (bucket 3) - 50-99ms'),
+    PerfHistStat('perf_hist_bmwrite_latency_lt250', 'block manager write latency histogram (bucket 4) - 100-249ms'),
+    PerfHistStat('perf_hist_bmwrite_latency_lt500', 'block manager write latency histogram (bucket 5) - 250-499ms'),
+    PerfHistStat('perf_hist_bmwrite_latency_lt1000', 'block manager write latency histogram (bucket 6) - 500-999ms'),
+    PerfHistStat('perf_hist_bmwrite_latency_total_msecs', 'block manager write latency histogram total (msecs)'),
     PerfHistStat('perf_hist_fsread_latency_gt1000', 'file system read latency histogram (bucket 7) - 1000ms+'),
     PerfHistStat('perf_hist_fsread_latency_lt10', 'file system read latency histogram (bucket 1) - 0-10ms'),
     PerfHistStat('perf_hist_fsread_latency_lt50', 'file system read latency histogram (bucket 2) - 10-49ms'),

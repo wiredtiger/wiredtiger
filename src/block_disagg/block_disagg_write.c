@@ -70,9 +70,11 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_PAGE_HEADER *page_header;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_PAGE_LOG_PUT_ARGS put_args;
-    uint64_t checkpoint_id, page_id, page_log_checkpoint_id;
+    uint64_t checkpoint_id, page_id, page_log_checkpoint_id, time_start, time_stop;
     uint32_t checksum;
     bool is_delta;
+
+    time_start = __wt_clock(session);
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id >= WT_BLOCK_MIN_PAGE_ID);
@@ -206,6 +208,8 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_STAT_CONN_INCRV(session, block_byte_write, buf->size);
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, buf->size);
+    time_stop = __wt_clock(session);
+    __wt_stat_msecs_hist_incr_bmwrite(session, WT_CLOCKDIFF_MS(time_stop, time_start));
 
     __wt_verbose(session, WT_VERB_WRITE, "off %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIu32,
       (uintmax_t)page_id, (uintmax_t)buf->size, checksum);
