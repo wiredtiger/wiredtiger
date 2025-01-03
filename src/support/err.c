@@ -344,6 +344,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
             if (len >= tmp->memsize)
                 goto err;
         }
+        WT_ERR(__wt_session_set_last_error(session, error, WT_NONE, tmp->mem));
 
         /* Allocate a scratch buffer (known to be large enough), and JSON encode the message. */
         WT_ERR(__wt_scr_alloc(session, tmp->size * WT_MAX_JSON_ENCODE + 256, &json_msg));
@@ -393,6 +394,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
         prefix_len = sizeof(msg) - remain;
         WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap));
         if (len < remain) {
+            WT_ERR(__wt_session_set_last_error(session, error, WT_NONE, p));
             remain -= len;
             p += len;
             if (err != NULL)
@@ -416,6 +418,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
             no_stderr = true;
             WT_ERR(__wt_vsnprintf_len_set(p, remain, &len, fmt, ap_copy));
             if (len < remain) {
+                WT_ERR(__wt_session_set_last_error(session, error, WT_NONE, p));
                 remain -= len;
                 p += len;
                 if (err != NULL)

@@ -8,6 +8,7 @@ else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_strerror.cpp
+        misc_tests/test_session_set_last_error.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
@@ -18,6 +19,7 @@ else()
         misc_tests/test_is_valid_sub_level_error.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_pow.cpp
+        misc_tests/test_msg_macros.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_session_config.cpp
