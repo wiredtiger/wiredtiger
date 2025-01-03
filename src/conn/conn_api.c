@@ -3234,8 +3234,6 @@ err:
      * We may have allocated scratch memory when using the dummy session or the subsequently created
      * real session, and we don't want to tie down memory for the rest of the run in either of them.
      */
-    if ((&conn->dummy_session)->err_info.err_msg != NULL)
-        __wt_free(session, (&conn->dummy_session)->err_info.err_msg);
     if (session != &conn->dummy_session)
         __wt_scr_discard(session);
     __wt_scr_discard(&conn->dummy_session);
