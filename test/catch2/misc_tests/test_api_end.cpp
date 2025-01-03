@@ -31,6 +31,7 @@ api_call_with_error(
     WT_DECL_RET;
     SESSION_API_CALL_NOCONF(session_impl, log_printf);
 
+    ret = err;
     session_impl->api_call_no_errs = false;
     WT_IGNORE_RET(__wt_session_set_last_error(session_impl, err, sub_level_err, err_msg_content));
 err:
@@ -56,6 +57,7 @@ txn_api_call_with_error(
     SESSION_TXN_API_CALL(session_impl, ret, log_printf, NULL, cfg);
     WT_UNUSED(cfg);
 
+    ret = err;
     session_impl->api_call_no_errs = false;
     WT_IGNORE_RET(__wt_session_set_last_error(session_impl, err, sub_level_err, err_msg_content));
 err:
@@ -80,7 +82,7 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
     {
         err_msg_content = "last API call was successful";
 
-        WT_IGNORE_RET(api_call_with_no_error(session_impl));
+        CHECK(api_call_with_no_error(session_impl) == 0);
 
         CHECK(session_impl->err_info.err == 0);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
@@ -91,7 +93,7 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
     {
         err_msg_content = "Some EINVAL error";
 
-        WT_IGNORE_RET(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content));
+        CHECK(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
 
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
@@ -102,7 +104,7 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
     {
         err_msg_content = "last API call was successful";
 
-        WT_IGNORE_RET(txn_api_call_with_no_error(session_impl));
+        CHECK(txn_api_call_with_no_error(session_impl) == 0);
 
         CHECK(session_impl->err_info.err == 0);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
@@ -113,7 +115,7 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
     {
         err_msg_content = "Some EINVAL error";
 
-        WT_IGNORE_RET(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content));
+        CHECK(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
 
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);

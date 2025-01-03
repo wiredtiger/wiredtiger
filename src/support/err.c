@@ -484,9 +484,6 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
       session ? FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR) : false, error, func,
       line, category, WT_VERBOSE_ERROR, fmt, ap));
     va_end(ap);
-
-    if (!F_ISSET(session, WT_SESSION_INTERNAL))
-        session->api_call_no_errs = false;
 }
 
 /*

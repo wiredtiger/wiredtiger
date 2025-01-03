@@ -165,7 +165,7 @@ __wt_session_set_last_error(
       session->err_info.err_msg != NULL && strcmp(session->err_info.err_msg, err_msg_content) == 0)
         goto err;
 
-    /* Free the last error message string. */
+    /* Free the previous error message string. */
     __wt_free(session, session->err_info.err_msg);
 
     /* Load error codes and message content into err_info. */
@@ -173,6 +173,10 @@ __wt_session_set_last_error(
     WT_ERR(__wt_snprintf(session->err_info.err_msg, buf->size + 1, "%s", err_msg_content));
     session->err_info.err = err;
     session->err_info.sub_level_err = sub_level_err;
+
+    /* Make sure this error is not overwritten after the API call ends. */
+    if (err != 0)
+        session->api_call_no_errs = false;
 
 err:
     __wt_scr_free(session, &buf);
