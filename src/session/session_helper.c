@@ -141,35 +141,40 @@ err:
  */
 int
 __wt_session_set_last_error(
-  WT_SESSION_IMPL *session, int err, int sub_level_err, const char *err_msg_content)
+  WT_SESSION_IMPL *session, int err, int sub_level_err, const char *fmt, ...)
 {
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    size_t err_msg_size;
+    const char *err_msg_content;
+
+    /* Ensure arguments are valid. */
+    WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
+    WT_ASSERT(session, fmt != NULL);
 
     /* Only record the error for external sessions. */
     if (F_ISSET(session, WT_SESSION_INTERNAL))
         return (0);
 
+    /* Format the error message string. */
+    WT_RET(__wt_scr_alloc(session, 0, &buf));
+    WT_VA_ARGS_BUF_FORMAT(session, buf, fmt, false);
+    err_msg_content = buf->data;
+
     /* Only set the error if it results in a change. */
     if (session->err_info.err == err && session->err_info.sub_level_err == sub_level_err &&
-      (strcmp(session->err_info.err_msg, err_msg_content) == 0))
+      session->err_info.err_msg != NULL && strcmp(session->err_info.err_msg, err_msg_content) == 0)
         return (0);
 
-    /* Ensure arguments are valid. */
-    WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
-    WT_ASSERT(session, err_msg_content != NULL);
-
-    /* Free the last error message string, if it was allocated. */
-    if (session->err_info.err_msg != NULL)
-        __wt_free(session, session->err_info.err_msg);
+    /* Free the last error message string. */
+    __wt_free(session, session->err_info.err_msg);
 
     /* Load error codes and message content into err_info. */
-    err_msg_size = strlen(err_msg_content) + 1;
-    WT_ERR(__wt_calloc(session, err_msg_size, 1, &(session->err_info.err_msg)));
-    WT_ERR(__wt_snprintf(session->err_info.err_msg, err_msg_size, "%s", err_msg_content));
+    WT_ERR(__wt_calloc(session, buf->size + 1, 1, &(session->err_info.err_msg)));
+    WT_ERR(__wt_snprintf(session->err_info.err_msg, buf->size + 1, "%s", err_msg_content));
     session->err_info.err = err;
     session->err_info.sub_level_err = sub_level_err;
 
 err:
+    __wt_scr_free(session, &buf);
     return (ret);
 }
