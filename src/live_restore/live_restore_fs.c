@@ -440,6 +440,9 @@ __live_restore_fs_free_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FIL
     WT_LIVE_RESTORE_HOLE_NODE *hole;
     WT_LIVE_RESTORE_HOLE_NODE *temp;
 
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+      "Live restore lock not taken when needed");
+
     hole = lr_fh->destination.hole_list_head;
     lr_fh->destination.hole_list_head = NULL;
 
@@ -599,9 +602,13 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
             return (NONE);
         } else if (!read_begins_in_hole && read_ends_in_hole) {
             /*
-             * A read can cross-over into a hole, in which case, we need to do a partial read from
-             * source. This will only happen if a background migration thread is copying data and
-             * has partially copied a block we try to read.
+             * The block manager reads entire pages so we can expect all reads to exist entirely
+             * inside or outside a hole during normal WiredTiger operation. The one exception is
+             * when background migration threads are running as they will copy data chunks
+             * regardless of page size. The background threads always migrate a file from start to
+             * finish so the one case where we partially read from a hole is when the background
+             * thread reads the first part of a page and then we read that page before the second
+             * part is migrated.
              */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "PARTIAL READ %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
@@ -610,7 +617,7 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
             *holep = hole;
             return (PARTIAL);
         } else if (read_begins_in_hole && !read_ends_in_hole) {
-            /* A partial read should not begin in a hole. */
+            /* A partial read should never begin in a hole. */
             WT_ASSERT_ALWAYS(session, false,
               "Read (offset: %ld, len: %lu) begins in a hole but does not end in one (offset: %ld, "
               "len: %lu)",
@@ -730,10 +737,7 @@ __live_restore_fh_read(
          *
          */
         size_t dest_partial_read_len = (size_t)(hole->off - offset);
-        size_t source_partial_read_len = (size_t)(len - (size_t)(hole->off - offset));
-
-        WT_ASSERT(session, dest_partial_read_len + source_partial_read_len == len);
-        WT_ASSERT(session, hole->off == offset + (wt_off_t)dest_partial_read_len);
+        size_t source_partial_read_len = len - dest_partial_read_len;
 
         /* First read the serviceable portion from the destination. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
@@ -813,8 +817,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
          * shrinking the hole in the stack below us. This is why we always read from the start at
          * the beginning of the loop.
          */
-        size_t read_size =
-          hole->len > WT_LIVE_RESTORE_READ_SIZE ? WT_LIVE_RESTORE_READ_SIZE : hole->len;
+        size_t read_size = WT_MIN(hole->len, (size_t)WT_LIVE_RESTORE_READ_SIZE);
         __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    BACKGROUND READ %s : %" PRId64 ", %lu",
           lr_fh->iface.name, hole->off, read_size);
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
@@ -901,6 +904,7 @@ __live_restore_fh_sync(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 static int
 __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t len)
 {
+    WT_DECL_RET;
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     wt_off_t old_len, truncate_start, truncate_end;
 
@@ -926,12 +930,13 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
     truncate_start = WT_MIN(len, old_len);
     truncate_end = WT_MAX(len, old_len);
 
-    __wt_writelock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
-    WT_RET(__live_restore_remove_extlist_hole(lr_fh, (WT_SESSION_IMPL *)wt_session, truncate_start,
-      (size_t)(truncate_end - truncate_start)));
-
-    __wt_writeunlock((WT_SESSION_IMPL *)wt_session, &lr_fh->ext_lock);
+    WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+      session, lr_fh,
+      ret = __live_restore_remove_extlist_hole(
+        lr_fh, session, truncate_start, (size_t)(truncate_end - truncate_start)););
+    WT_RET(ret);
 
     return (lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, len));
 }
@@ -1007,7 +1012,7 @@ __live_restore_fh_find_holes_in_dest_file(
      * Find the next data block. data_end_offset is initialized to zero so we start from the
      * beginning of the file. lseek will find a block when it starts already positioned on the
      * block, so starting at zero ensures we'll find data blocks at the beginning of the file. This
-     * logic is single threaded but remove holes from the extent list requires the lock.
+     * logic is single threaded but removing holes from the extent list requires the lock.
      */
     __wt_writelock(session, &lr_fh->ext_lock);
     wt_off_t data_offset;
