@@ -142,8 +142,11 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      * regular files dropped, don't error out.
      */
     ret = wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor);
-    if (ret == ENOENT)
+    if (ret == ENOENT) {
+        /* Free the work item. */
+        __live_restore_free_work_item(session, &work_item);
         return (0);
+    }
     WT_RET(ret);
 
     /*
@@ -166,9 +169,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __live_restore_free_work_item(session, &work_item);
     WT_STAT_CONN_SET(
       session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
-
     WT_TRET(cursor->close(cursor));
-
     return (ret);
 }
 
