@@ -889,6 +889,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 static int
 __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
+    WT_DECL_RET;
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
 
@@ -896,15 +897,18 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
-    if (FLD_ISSET(
-          lr_fh->destination.back_pointer->debug_flags, WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE))
-        WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
+    if (lr_fh->destination.fh != NULL) {
+        if (FLD_ISSET(lr_fh->destination.back_pointer->debug_flags,
+              WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE))
+            WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+              session, lr_fh, ret = __wti_live_restore_fs_fill_holes(fh, wt_session));
 
-    lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
+        lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
 
-    WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
-      session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
-    __wt_rwlock_destroy(session, &lr_fh->ext_lock);
+        WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+          session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
+        __wt_rwlock_destroy(session, &lr_fh->ext_lock);
+    }
 
     if (lr_fh->source != NULL) /* It's possible that we never opened the file in the source. */
         lr_fh->source->close(lr_fh->source, wt_session);
@@ -1216,9 +1220,16 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 
     /* FIXME-WT-13823 Handle the exclusive flag and other flags */
 
-    /* Open it in the destination layer. */
+    // Check file exists
     WT_ERR_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist), true);
+    WT_ERR_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist), true);
+
+    if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
+        WT_ERR_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
+
+    /* Open it in the destination layer. */
     WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
 
     WT_ERR(__dest_has_tombstone(lr_fs, lr_fh->destination.fh->name, session, &have_tombstone));
@@ -1261,6 +1272,8 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  * the file. We're bypassing the live_restore layer so we don't try to modify the
                  * extents in hole_list_head.
                  */
+                // FIXME - Do we need to copy across file metadata? What are the odds a file has
+                // unusual permissions?
                 WT_ERR(lr_fh->destination.fh->fh_truncate(
                   lr_fh->destination.fh, wt_session, source_size));
 
@@ -1299,8 +1312,10 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 
     if (0) {
 err:
-        if (lr_fh != NULL)
-            WT_RET(__live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session));
+        __wt_abort(session);
+        // if (lr_fh != NULL)
+        //     WT_RET(__live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session));
+        //     WT_RET(__live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session));
     }
     return (ret);
 }
