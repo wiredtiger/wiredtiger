@@ -77,7 +77,7 @@ class test_error_info(wttest.WiredTigerTestCase):
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, 0)
         self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
-        self.assertEqual(err_msg, "WT_NONE: No additional context")
+        self.assertEqual(err_msg, "")
 
     def test_invalid_config(self):
         gotException = False
@@ -97,3 +97,4 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.assertEqual(err, errno.EINVAL)
         self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
         self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
+        
