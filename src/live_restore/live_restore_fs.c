@@ -1028,9 +1028,9 @@ __live_restore_fh_find_holes_in_dest_file(
         WT_ERR(__live_restore_remove_extlist_hole(
           lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
     }
-    __wt_writeunlock(session, &lr_fh->ext_lock);
 
 err:
+    __wt_writeunlock(session, &lr_fh->ext_lock);
     WT_SYSCALL_TRET(close(fd), ret);
     return (ret);
 }

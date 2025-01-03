@@ -157,10 +157,10 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_FILE_HANDLE *fh = bm->block->fh->handle;
 
     __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "Live restore worker filling holes for %s", work_item->uri);
+      session, WT_VERB_FILEOPS, "Live restore worker: Filling holes in %s", work_item->uri);
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
-    __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "Live finished filling holes in %s", work_item->uri);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS,
+      "Live restore worker: Finished finished filling holes in %s", work_item->uri);
 
     /* Free the work item. */
     __live_restore_free_work_item(session, &work_item);
