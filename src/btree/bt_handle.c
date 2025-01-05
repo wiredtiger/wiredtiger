@@ -396,9 +396,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         }
     }
 
-    /* Page sizes */
-    WT_RET(__btree_page_sizes(session));
-
     /*
      * This option turns off eviction for a tree. Therefore, its memory footprint can only grow. But
      * checkpoint will still visit it to persist the data.
@@ -513,6 +510,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         /* A page log service and a storage source cannot both be enabled. */
         WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
     }
+
+    /* Page sizes */
+    WT_RET(__btree_page_sizes(session));
 
     /* Get the last flush times for tiered storage, if applicable. */
     btree->flush_most_recent_secs = 0;
@@ -1130,8 +1130,12 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      *
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
+     *
+     * TODO the disaggregated check is a workaround for the disaggregated block manager not yet
+     * supporting overflow items.
      */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
+      F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
         btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);
