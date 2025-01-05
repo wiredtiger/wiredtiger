@@ -69,10 +69,13 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_DECL_RET;
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
+    uint64_t time_start, time_stop;
     uint32_t orig_count, retry;
     int32_t result, last;
     uint8_t compatible_version, expected_magic;
     bool is_delta;
+
+    time_start = __wt_clock(session);
 
     retry = 0;
 
@@ -130,7 +133,7 @@ reread:
          */
         if (retry < 100)
             goto reread;
-        return (WT_NOTFOUND);
+        WT_ERR(WT_NOTFOUND);
     }
 
     last = (int32_t)(*results_count - 1);
@@ -237,6 +240,9 @@ corrupt:
         WT_ERR_PANIC(session, WT_ERROR, "%s: fatal read error", block_disagg->name);
     }
 err:
+    time_stop = __wt_clock(session);
+    __wt_stat_msecs_hist_incr_bmread(session, WT_CLOCKDIFF_MS(time_stop, time_start));
+
     return (ret);
 }
 
@@ -280,5 +286,6 @@ __wt_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session, WT_PAGE_BLO
     /* Read the block. */
     WT_RET(__block_disagg_read_multiple(session, block_disagg, block_meta, page_id, checkpoint_id,
       reconciliation_id, size, checksum, buffer_array, buffer_count));
+
     return (0);
 }
