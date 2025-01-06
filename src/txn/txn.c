@@ -2470,11 +2470,11 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, checkpoint_prep_recent, conn->ckpt.prepare.recent);
     WT_STATP_CONN_SET(session, stats, checkpoint_prep_total, conn->ckpt.prepare.total);
 
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_max, conn->ckpt.time.max);
-    if (conn->ckpt.time.min != UINT64_MAX)
-        WT_STATP_CONN_SET(session, stats, checkpoint_time_min, conn->ckpt.time.min);
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_recent, conn->ckpt.time.recent);
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_total, conn->ckpt.time.total);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_max, conn->ckpt.ckpt_api.max);
+    if (conn->ckpt.ckpt_api.min != UINT64_MAX)
+        WT_STATP_CONN_SET(session, stats, checkpoint_time_min, conn->ckpt.ckpt_api.min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_recent, conn->ckpt.ckpt_api.recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_total, conn->ckpt.ckpt_api.total);
 }
 
 /*

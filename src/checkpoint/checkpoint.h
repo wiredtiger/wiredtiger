@@ -92,7 +92,7 @@ struct __wt_ckpt_connection {
     /* Time-related stats. */
     WT_CKPT_TIMER prepare;
     WT_CKPT_TIMER scrub;
-    WT_CKPT_TIMER time;
+    WT_CKPT_TIMER ckpt_api;
 
     /* Clock value of most recent checkpoint. */
     wt_shared uint64_t most_recent;
