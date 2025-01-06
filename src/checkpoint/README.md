@@ -11,3 +11,19 @@ The checkpoint process goes through five stages:
 - Metadata checkpoint
 
 Each stage is described in details in [arch-checkpoint.dox](../docs/arch-checkpoint.dox).
+
+### APIs for Checkpoint
+
+The checkpoint APIs are declared in [checkpoint.h](./checkpoint.h). Below is a brief description of the functionalities provided by these APIs:
+
+- List the files to checkpoint.
+- Take a checkpoint of a file. It is worth noting that there is a distinct API when taking a checkpoint before closing a file.
+- Cleanup checkpoint-related structures.
+- Output checkpoint progress messages.
+
+There are also APIs dedicated to the checkpoint server to perform the following:
+
+- Create and destroy the thread.
+- Signal the thread to start a checkpoint.
+
+> For a detailed explanation of API functionality (declared in [checkpoint.h](./checkpoint.h)), refer to the comments located above each function definition.
