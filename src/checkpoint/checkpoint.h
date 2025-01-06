@@ -66,10 +66,10 @@ struct __wt_ckpt_thread {
 };
 
 /*
- * WT_CKPT_TIME_STATS --
+ * WT_CKPT_TIMER --
  *     Time-related statistics.
  */
-struct __wt_ckpt_time_stats {
+struct __wt_ckpt_timer {
     struct timespec timer_end;
     struct timespec timer_start;
     uint64_t max;
@@ -90,9 +90,9 @@ struct __wt_ckpt_connection {
     WT_CKPT_THREAD server;
 
     /* Time-related stats. */
-    WT_CKPT_TIME_STATS prepare;
-    WT_CKPT_TIME_STATS scrub;
-    WT_CKPT_TIME_STATS time;
+    WT_CKPT_TIMER prepare;
+    WT_CKPT_TIMER scrub;
+    WT_CKPT_TIMER time;
 
     /* Clock value of most recent checkpoint. */
     wt_shared uint64_t most_recent;
