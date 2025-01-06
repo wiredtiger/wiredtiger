@@ -151,7 +151,7 @@ __wt_session_set_last_error(
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
     WT_ASSERT(session, fmt != NULL);
 
-    /* Only record the error for external sessions (for which get_last_error can be called). */
+    /* Only record the error if it occurs during a session API call, or during initialization. */
     if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS))
         return (0);
 
