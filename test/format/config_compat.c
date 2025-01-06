@@ -78,8 +78,8 @@ static const struct compat_list list[] = {{"alter=", "ops.alter"},
 void
 config_compat(const char **namep)
 {
-    const struct compat_list *p;
     static char conv[100];
+    const struct compat_list *p;
     const char *current, *equalp, *name, *orig;
 
     name = *namep;
