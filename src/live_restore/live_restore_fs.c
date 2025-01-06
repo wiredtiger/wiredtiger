@@ -600,7 +600,7 @@ typedef enum { FULL, PARTIAL, NONE } WT_LIVE_RESTORE_SERVICE_STATE;
  *     - The read is entirely outside of all holes and we return FULL.
  *     - The read begins outside a hole and then ends inside, in which case we return PARTIAL.
  *       This scenario will only happen if background data migration occurs concurrently and has
- *       partially the migrated content we're reading. The background threads always copies data in
+ *       partially migrated the content we're reading. The background threads always copies data in
  *       order, so the partially filled hole can only start outside a hole and then continue into a
  *       hole.
  *     All other scenarios are considered impossible.
