@@ -589,7 +589,7 @@ __live_restore_remove_extlist_hole(
     return (0);
 }
 
-typedef enum { FULL, PARTIAL, NONE } WT_LIVE_RESTORE_SERVICE_STATE;
+typedef enum { NONE, FULL, PARTIAL } WT_LIVE_RESTORE_SERVICE_STATE;
 
 /* !!!
  * __live_restore_can_service_read --
@@ -642,8 +642,8 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
              * when background migration threads are running as they will copy data chunks
              * regardless of page size. The background threads always migrate a file from start to
              * finish so the one case where we partially read from a hole is when the background
-             * thread reads the first part of a page and then we read that page before the second
-             * part is migrated.
+             * thread reads the first part of a page and then we read that page before the remainder
+             * is migrated.
              */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
               "PARTIAL READ %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
@@ -662,8 +662,8 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
         hole = hole->next;
     }
     /*
-     * We traversed the full hole list and didn't find a related hole, this means that the read is
-     * beyond the end of any of the existing holes.
+     * If we got here we either traversed the full hole list and didn't find a hole, or the read is
+     * prior to any holes.
      */
 done:
     __wt_verbose_debug3(
@@ -812,6 +812,13 @@ err:
 }
 
 /*
+ * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
+ * it in 4KB chunks. This function will take the extent list writelock. The caller should *not* hold
+ * the lock when calling.
+ */
+#define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
+
+/*
  * __live_restore_fill_hole --
  *     Fill a single hole in the destination file. If the hole list is empty indicate using the
  *     finished parameter. Must be called while holding the extent list write lock.
@@ -830,14 +837,6 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finis
         return (0);
     }
 
-/*
- * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
- * it in 4KB chunks. This function will take the extent list writelock. The caller should *not* hold
- * the lock when calling.
- */
-#define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
-    char buf[WT_LIVE_RESTORE_READ_SIZE];
-
     __wt_verbose_debug3(session, WT_VERB_FILEOPS,
       "Found hole in %s at %" PRId64 "-%" PRId64 " during background migration. ", fh->name,
       hole->off, WT_EXTENT_END(hole));
@@ -849,6 +848,7 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finis
      * shrinking the hole in the stack below us. This is why we always read from the start at the
      * beginning of the loop.
      */
+    char buf[WT_LIVE_RESTORE_READ_SIZE];
     size_t read_size = WT_MIN(hole->len, (size_t)WT_LIVE_RESTORE_READ_SIZE);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    BACKGROUND READ %s : %" PRId64 ", %lu",
       lr_fh->iface.name, hole->off, read_size);

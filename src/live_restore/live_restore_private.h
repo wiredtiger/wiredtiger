@@ -59,17 +59,6 @@ struct __wt_live_restore_file_handle {
 };
 
 /*
- * WT_WITH_LIVE_RESTORE_EXTENT_LIST_READ_LOCK --
- *     Acquire the extent list read lock and perform an operation.
- */
-#define WT_WITH_LIVE_RESTORE_EXTENT_LIST_READ_LOCK(session, lr_fh, op) \
-    do {                                                               \
-        __wt_readlock((session), &(lr_fh)->ext_lock);                  \
-        op;                                                            \
-        __wt_readunlock((session), &(lr_fh)->ext_lock);                \
-    } while (0)
-
-/*
  * WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK --
  *     Acquire the extent list write lock and perform an operation.
  */
