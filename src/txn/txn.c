@@ -2751,7 +2751,7 @@ __wt_verbose_dump_txn_one(
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     uint32_t i, buf_len;
-    char ckpt_lsn_str[WT_MAX_LSN_STRING];
+    char ckpt_lsn_str[WTI_MAX_LSN_STRING];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 

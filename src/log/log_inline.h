@@ -14,7 +14,7 @@
  *     Handle big- and little-endian transformation of the log file description block.
  */
 static WT_INLINE void
-__wti_log_desc_byteswap(WT_LOG_DESC *desc)
+__wti_log_desc_byteswap(WTI_LOG_DESC *desc)
 {
 #ifdef WORDS_BIGENDIAN
     desc->log_magic = __wt_bswap32(desc->log_magic);
@@ -69,7 +69,7 @@ __wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
 static WT_INLINE int
 __wt_lsn_string(WT_LSN *lsn, size_t len, char *buf)
 {
-    WT_ASSERT(NULL, len >= WT_MAX_LSN_STRING);
+    WT_ASSERT(NULL, len >= WTI_MAX_LSN_STRING);
     return (
       __wt_snprintf(buf, len, "%" PRIu32 ",%" PRIu32, __wt_lsn_file(lsn), __wt_lsn_offset(lsn)));
 }
