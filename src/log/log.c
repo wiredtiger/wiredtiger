@@ -1400,7 +1400,8 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
     log_mgr = &conn->log_mgr;
     log = log_mgr->log;
 
-    if (!F_ISSET(log, WTI_LOG_TRUNCATE_NOTSUP) && __wt_atomic_load64(&conn->hot_backup_start) == 0) {
+    if (!F_ISSET(log, WTI_LOG_TRUNCATE_NOTSUP) &&
+      __wt_atomic_load64(&conn->hot_backup_start) == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(session, ret = __wt_ftruncate(session, log_fh, offset), &skipp);
         if (!skipp) {
             if (ret != ENOTSUP)
@@ -2683,7 +2684,8 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
      */
     force = LF_ISSET(WT_LOG_FLUSH | WT_LOG_FSYNC);
     ret = 0;
-    if (myslot.end_offset >= WTI_LOG_SLOT_BUF_MAX || F_ISSET(&myslot, WTI_MYSLOT_UNBUFFERED) || force)
+    if (myslot.end_offset >= WTI_LOG_SLOT_BUF_MAX || F_ISSET(&myslot, WTI_MYSLOT_UNBUFFERED) ||
+      force)
         ret = __wti_log_slot_switch(session, &myslot, true, false, NULL);
     if (ret == 0)
         ret = __wti_log_fill(session, &myslot, false, record, &lsn);

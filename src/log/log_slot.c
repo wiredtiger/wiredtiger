@@ -310,7 +310,8 @@ __log_slot_new(WT_SESSION_IMPL *session)
  *     Switch out the current slot and set up a new one.
  */
 static int
-__log_slot_switch_internal(WT_SESSION_IMPL *session, WTI_MYSLOT *myslot, bool forced, bool *did_work)
+__log_slot_switch_internal(
+  WT_SESSION_IMPL *session, WTI_MYSLOT *myslot, bool forced, bool *did_work)
 {
     WT_DECL_RET;
     WTI_LOG *log;
@@ -454,7 +455,8 @@ __wti_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
      * small log file sizes.
      */
     if (alloc) {
-        log->slot_buf_size = (uint32_t)WT_MIN((size_t)log_mgr->file_max / 10, WTI_LOG_SLOT_BUF_SIZE);
+        log->slot_buf_size =
+          (uint32_t)WT_MIN((size_t)log_mgr->file_max / 10, WTI_LOG_SLOT_BUF_SIZE);
         for (i = 0; i < WTI_SLOT_POOL; i++) {
             WT_ERR(__wt_buf_init(session, &log->slot_pool[i].slot_buf, log->slot_buf_size));
             F_SET_ATOMIC_16(&log->slot_pool[i], WTI_SLOT_INIT_FLAGS);

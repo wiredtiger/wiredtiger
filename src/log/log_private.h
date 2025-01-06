@@ -113,9 +113,9 @@
 #define WTI_LOG_SLOT_INPROGRESS(state) (WTI_LOG_SLOT_RELEASED(state) != WTI_LOG_SLOT_JOINED(state))
 #define WTI_LOG_SLOT_DONE(state) (WTI_LOG_SLOT_CLOSED(state) && !WTI_LOG_SLOT_INPROGRESS(state))
 /* Slot is in use, more threads may join this slot */
-#define WTI_LOG_SLOT_OPEN(state)                                           \
+#define WTI_LOG_SLOT_OPEN(state)                                            \
     (WTI_LOG_SLOT_ACTIVE(state) && !WTI_LOG_SLOT_UNBUFFERED_ISSET(state) && \
-      !FLD_LOG_SLOT_ISSET((uint64_t)(state), WTI_LOG_SLOT_CLOSE) &&        \
+      !FLD_LOG_SLOT_ISSET((uint64_t)(state), WTI_LOG_SLOT_CLOSE) &&         \
       WTI_LOG_SLOT_JOINED(state) < WTI_LOG_SLOT_BUF_MAX)
 
 struct __wti_logslot {
@@ -132,33 +132,33 @@ struct __wti_logslot {
     WT_ITEM slot_buf;                      /* Buffer for grouped writes */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WTI_SLOT_CLOSEFH 0x01u        /* Close old fh on release */
-#define WTI_SLOT_FLUSH 0x02u          /* Wait for write */
-#define WTI_SLOT_SYNC 0x04u           /* Needs sync on release */
-#define WTI_SLOT_SYNC_DIR 0x08u       /* Directory sync on release */
-#define WTI_SLOT_SYNC_DIRTY 0x10u     /* Sync system buffers on release */
+#define WTI_SLOT_CLOSEFH 0x01u       /* Close old fh on release */
+#define WTI_SLOT_FLUSH 0x02u         /* Wait for write */
+#define WTI_SLOT_SYNC 0x04u          /* Needs sync on release */
+#define WTI_SLOT_SYNC_DIR 0x08u      /* Directory sync on release */
+#define WTI_SLOT_SYNC_DIRTY 0x10u    /* Sync system buffers on release */
                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic; /* Atomic flags, use F_*_ATOMIC_16 */
     WT_CACHE_LINE_PAD_END
 };
 
 /* Check struct is correctly padded. */
-static_assert(
-  sizeof(WTI_LOGSLOT) > WT_CACHE_LINE_ALIGNMENT || sizeof(WTI_LOGSLOT) % WT_CACHE_LINE_ALIGNMENT == 0,
+static_assert(sizeof(WTI_LOGSLOT) > WT_CACHE_LINE_ALIGNMENT ||
+    sizeof(WTI_LOGSLOT) % WT_CACHE_LINE_ALIGNMENT == 0,
   "WTI_LOGSLOT padding check failed");
 
 #define WTI_SLOT_INIT_FLAGS 0
 
 #define WTI_SLOT_SYNC_FLAGS (WTI_SLOT_SYNC | WTI_SLOT_SYNC_DIR | WTI_SLOT_SYNC_DIRTY)
 
-#define WTI_WITH_SLOT_LOCK(session, log, op)                                            \
+#define WTI_WITH_SLOT_LOCK(session, log, op)                                           \
     do {                                                                               \
         WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));   \
         WT_WITH_LOCK_WAIT(session, &(log)->log_slot_lock, WT_SESSION_LOCKED_SLOT, op); \
     } while (0)
 
 struct __wti_myslot {
-    WTI_LOGSLOT *slot;    /* Slot I'm using */
+    WTI_LOGSLOT *slot;   /* Slot I'm using */
     wt_off_t end_offset; /* My end offset in buffer */
     wt_off_t offset;     /* Slot buffer offset */
 
@@ -166,7 +166,7 @@ struct __wti_myslot {
 #define WTI_MYSLOT_CLOSE 0x1u         /* This thread is closing the slot */
 #define WTI_MYSLOT_NEEDS_RELEASE 0x2u /* This thread is releasing the slot */
 #define WTI_MYSLOT_UNBUFFERED 0x4u    /* Write directly */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
@@ -230,10 +230,10 @@ struct __wti_log {
  * arrays.
  */
 #define WTI_SLOT_POOL 128
-    wt_shared WTI_LOGSLOT *active_slot;            /* Active slot */
+    wt_shared WTI_LOGSLOT *active_slot;             /* Active slot */
     wt_shared WTI_LOGSLOT slot_pool[WTI_SLOT_POOL]; /* Pool of all slots */
-    int32_t pool_index;                           /* Index into slot pool */
-    size_t slot_buf_size;                         /* Buffer size for slots */
+    int32_t pool_index;                             /* Index into slot pool */
+    size_t slot_buf_size;                           /* Buffer size for slots */
 #ifdef HAVE_DIAGNOSTIC
     uint64_t write_calls; /* Calls to log_write */
 #endif
@@ -242,7 +242,7 @@ struct __wti_log {
 #define WTI_LOG_FORCE_NEWFILE 0x1u   /* Force switch to new log file */
 #define WTI_LOG_OPENED 0x2u          /* Log subsystem successfully open */
 #define WTI_LOG_TRUNCATE_NOTSUP 0x4u /* File system truncate not supported */
-                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
@@ -286,7 +286,7 @@ struct __wti_cursor_log {
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WTI_CURLOG_REMOVE_LOCK 0x1u /* Remove lock held */
-                                   /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
 
