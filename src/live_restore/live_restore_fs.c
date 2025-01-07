@@ -896,6 +896,10 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
+    /*
+     * If we hit an error during file handle creation we'll call this function to free the partially
+     * created handle. At this point fields may be uninitialized so we check for null pointers.
+     */
     if (lr_fh->destination.fh != NULL) {
         if (FLD_ISSET(lr_fh->destination.back_pointer->debug_flags,
               WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE))
@@ -1157,7 +1161,8 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
     char *path;
 
     /* This function is only called for files. Directories are handled separately. */
-    WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
+    WT_ASSERT_ALWAYS(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY,
+      "Open in destination should not be called on directories");
 
     path = NULL;
 
@@ -1331,21 +1336,10 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
 {
     WT_DECL_RET;
-    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_LIVE_RESTORE_FS *lr_fs;
-    WT_LIVE_RESTORE_FS_LAYER_TYPE which;
-    WT_SESSION_IMPL *session;
-    bool readonly;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
-
-    lr_fh = NULL;
-    readonly = LF_ISSET(WT_FS_OPEN_READONLY);
-    WT_UNUSED(readonly);
-    WT_UNUSED(which);
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
     /* Set up the file handle. */
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = NULL;
     WT_ERR(__wt_calloc_one(session, &lr_fh));
     WT_ERR(__wt_strdup(session, name, &lr_fh->iface.name));
     lr_fh->iface.file_system = fs;
@@ -1374,11 +1368,11 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 
     /* FIXME-WT-13823 Handle the exclusive flag and other flags */
 
-    if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY) {
+    WT_LIVE_RESTORE_FS *lr_fs = (WT_LIVE_RESTORE_FS *)fs;
+    if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY)
         WT_ERR(__live_restore_setup_lr_fh_directory(session, lr_fs, name, flags, lr_fh));
-    } else {
+    else
         WT_ERR(__live_restore_setup_lr_fh_file(session, lr_fs, name, flags, lr_fh));
-    }
 
     *file_handlep = (WT_FILE_HANDLE *)lr_fh;
 
