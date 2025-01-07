@@ -2492,7 +2492,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     WT_RELEASE_WRITE_WITH_BARRIER(session_ret->active, 1);
 
     /* Initialize the default error info. */
-    F_SET(session_ret, session_ret->flags | WT_SESSION_SAVE_ERRORS);
+    F_SET(session_ret, WT_SESSION_SAVE_ERRORS);
     session_ret->err_info.err_msg = NULL;
     WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, ""));
 

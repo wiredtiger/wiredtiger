@@ -27,22 +27,23 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
     conn = conn_wrapper.get_wt_connection();
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
     session_impl = (WT_SESSION_IMPL *)session;
+    WT_ERROR_INFO *err_info = &(session_impl->err_info);
 
     SECTION("Test with initial values")
     {
         err_msg_content = "";
         CHECK(__wt_session_set_last_error(session_impl, 0, WT_NONE, err_msg_content) == 0);
-        CHECK(session_impl->err_info.err == 0);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
+        CHECK(err_info->err == 0);
+        CHECK(err_info->sub_level_err == WT_NONE);
+        CHECK(strcmp(err_info->err_msg, err_msg_content) == 0);
     }
 
     SECTION("Test with EINVAL error")
     {
         err_msg_content = "Some EINVAL error";
         CHECK(__wt_session_set_last_error(session_impl, EINVAL, WT_NONE, err_msg_content) == 0);
-        CHECK(session_impl->err_info.err == EINVAL);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
+        CHECK(err_info->err == EINVAL);
+        CHECK(err_info->sub_level_err == WT_NONE);
+        CHECK(strcmp(err_info->err_msg, err_msg_content) == 0);
     }
 }
