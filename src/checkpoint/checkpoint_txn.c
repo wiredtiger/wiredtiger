@@ -1592,8 +1592,8 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      * between the special rules for history store eviction and the special handling of the
      * checkpoint transaction.
      */
-    orig_flags = F_MASK(session, WT_CHECKPOINT_SESSION_FLAGS);
-    F_SET(session, WT_CHECKPOINT_SESSION_FLAGS);
+    orig_flags = F_MASK(session, WTI_CHECKPOINT_SESSION_FLAGS);
+    F_SET(session, WTI_CHECKPOINT_SESSION_FLAGS);
 
     WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
     checkpoint_cleanup = cval.val;
@@ -1636,7 +1636,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));
 err:
-    F_CLR(session, WT_CHECKPOINT_SESSION_FLAGS);
+    F_CLR(session, WTI_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, orig_flags);
 
     return (ret);
