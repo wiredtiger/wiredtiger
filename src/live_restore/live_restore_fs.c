@@ -1341,6 +1341,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
+    WT_LIVE_RESTORE_FS *lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
     /* Set up the file handle. */
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = NULL;
@@ -1372,7 +1373,6 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 
     /* FIXME-WT-13823 Handle the exclusive flag and other flags */
 
-    WT_LIVE_RESTORE_FS *lr_fs = (WT_LIVE_RESTORE_FS *)fs;
     if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY)
         WT_ERR(__live_restore_setup_lr_fh_directory(session, lr_fs, name, flags, lr_fh));
     else
