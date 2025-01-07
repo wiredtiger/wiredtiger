@@ -1213,26 +1213,25 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
     if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "Directory %s does not exist in source or destination", name);
 
+    WT_RET(__live_restore_create_file_path(
+      session, &lr_fs->destination, (char *)name, &dest_folder_path));
+
     if (!dest_exist) {
-        /* The directory doesn't exist in the destination yet. We need to create it in all cases. */
-
-        WT_RET(__live_restore_create_file_path(
-          session, &lr_fs->destination, (char *)name, &dest_folder_path));
-
         /*
-         * We can't create directories with a WT_FS_OPEN_CREATE call. Instead we do it manually.
+         * The directory doesn't exist in the destination yet. We need to create it in all cases. We
+         * can't create directories with a WT_FS_OPEN_CREATE call. Instead we do it manually.
          *
          * FIXME-WT-13971 Defaulting to permissions 0755. If the folder exists in the source should
          * we copy the permissions from the source?
          */
         mkdir(dest_folder_path, 0755);
-
-        WT_FILE_HANDLE *fh;
-        WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-          dest_folder_path, lr_fhp->file_type, flags, &fh));
-
-        lr_fhp->destination.fh = fh;
     }
+
+    WT_FILE_HANDLE *fh;
+    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
+      dest_folder_path, lr_fhp->file_type, flags, &fh));
+
+    lr_fhp->destination.fh = fh;
 
     /* There's no need for a hole list. The directory has already been fully copied */
     lr_fhp->destination.hole_list_head = NULL;
