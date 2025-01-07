@@ -1156,6 +1156,9 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
     WT_FILE_HANDLE *fh;
     char *path;
 
+    /* This function is only called for files. Directories are handled separately. */
+    WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
+
     path = NULL;
 
     if (create)
@@ -1170,7 +1173,6 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
     lr_fh->destination.back_pointer = lr_fs;
 
     /* Get the list of holes of the file that need copying across from the source directory. */
-    WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
     WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
     WT_ERR(__live_restore_handle_verify_hole_list(session, lr_fs, lr_fh, name));
 
@@ -1180,18 +1182,73 @@ err:
 }
 
 /*
- * __live_restore_populate_lr_fh_regular_file --
+ * __live_restore_setup_lr_fh_directory --
+ *     Populate a live restore file handle. Directories have special handling. If they don't exist
+ *     in the destination they'll be created immediately (but not their contents) and immediately
+ *     marked as complete. WiredTiger will never create or destroy a directory so we don't need to
+ *     think about tombstones.
+ */
+static int
+__live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
+  const char *name, uint32_t flags, WT_LIVE_RESTORE_FILE_HANDLE *lr_fhp)
+{
+    WT_DECL_RET;
+    char *dest_folder_path = NULL;
+    bool dest_exist = false, source_exist = false;
+
+    WT_RET_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
+    WT_RET_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
+
+    if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
+        WT_RET_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
+
+    if (!dest_exist) {
+        if (source_exist) {
+            WT_FILE_HANDLE *fh;
+
+            WT_RET(__live_restore_create_file_path(
+              session, &lr_fs->destination, (char *)name, &dest_folder_path));
+
+            /*
+             * FIXME-WT-13971 - We can't create directories with a WT_FS_OPEN_CREATE call. Instead
+             * do it manually. Defaulting to permissions 0755. Should we copy the perms from the
+             * source?
+             */
+            mkdir(dest_folder_path, 0755);
+
+            WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
+              dest_folder_path, lr_fhp->file_type, flags, &fh));
+
+            lr_fhp->destination.fh = fh;
+        } else if (LF_ISSET(WT_FS_OPEN_CREATE)) {
+            WT_ERR(__live_restore_create_file_path(
+              session, &lr_fs->destination, (char *)name, &dest_folder_path));
+            mkdir(dest_folder_path, 0755);
+        }
+    }
+
+    lr_fhp->destination.complete = true;
+
+err:
+    if (dest_folder_path != NULL)
+        __wt_free(session, dest_folder_path);
+    return (ret);
+}
+
+/*
+ * __live_restore_setup_lr_fh_file --
  *     Populate a live restore file handle. Specific to regular (non-directory) files.
  */
 static int
-__live_restore_populate_lr_fh_regular_file(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
+__live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
   const char *name, uint32_t flags, WT_LIVE_RESTORE_FILE_HANDLE *lr_fhp)
 {
 
     bool dest_exist = false, source_exist = false, have_tombstone = false;
     WT_SESSION *wt_session = (WT_SESSION *)session;
 
-    // Check file exists
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
     WT_RET_NOTFOUND_OK(
@@ -1231,6 +1288,8 @@ __live_restore_populate_lr_fh_regular_file(WT_SESSION_IMPL *session, WT_LIVE_RES
                  */
                 wt_off_t source_size;
 
+                /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
+
                 WT_RET(lr_fhp->source->fh_size(lr_fhp->source, wt_session, &source_size));
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
                   "Creating destination file backed by source file. Copying size (%" PRId64
@@ -1243,8 +1302,6 @@ __live_restore_populate_lr_fh_regular_file(WT_SESSION_IMPL *session, WT_LIVE_RES
                  * the file. We're bypassing the live_restore layer so we don't try to modify the
                  * extents in hole_list_head.
                  */
-                // FIXME - Do we need to copy across file metadata? What are the odds a file has
-                // unusual permissions?
                 WT_RET(lr_fhp->destination.fh->fh_truncate(
                   lr_fhp->destination.fh, wt_session, source_size));
 
@@ -1316,7 +1373,11 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 
     /* FIXME-WT-13823 Handle the exclusive flag and other flags */
 
-    WT_ERR(__live_restore_populate_lr_fh_regular_file(session, lr_fs, name, flags, lr_fh));
+    if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY) {
+        WT_ERR(__live_restore_setup_lr_fh_directory(session, lr_fs, name, flags, lr_fh));
+    } else {
+        WT_ERR(__live_restore_setup_lr_fh_file(session, lr_fs, name, flags, lr_fh));
+    }
 
     *file_handlep = (WT_FILE_HANDLE *)lr_fh;
 
