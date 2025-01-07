@@ -44,10 +44,11 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
 
     SECTION("fs_open - File")
     {
-        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = nullptr;
 
         // If the file doesn't exist return ENOENT.
         lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR, ENOENT);
+        REQUIRE(lr_fh == nullptr);
 
         // However if we provide the WT_FS_OPEN_CREATE flag the file is created in the destination.
         lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, WT_FS_OPEN_CREATE);
@@ -58,6 +59,7 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         // If the file only exists in the destination open is successful.
         create_file(env.dest_file_path(file_1));
         lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR);
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
 
         // If the file only exists in the source open is successful and we create a copy in the
         // destination
@@ -65,6 +67,7 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         create_file(env.source_file_path(file_1));
         lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR);
         REQUIRE(testutil_exists(".", env.dest_file_path(file_1).c_str()));
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
 
         // If the file exists in both source and destination open is successful.
         testutil_remove(env.dest_file_path(file_1).c_str());
@@ -73,22 +76,22 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         create_file(env.dest_file_path(file_1));
         create_file(env.source_file_path(file_1));
         lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR);
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
 
         // If the file is deleted in the destination open returns ENOENT even when the file is
         // present in the source.
         testutil_remove(env.dest_file_path(file_1).c_str());
         create_file(env.tombstone_file_path(file_1));
         lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR, ENOENT);
-
-        WT_UNUSED(lr_fh);
     }
 
     SECTION("fs_open - Directory")
     {
-        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = nullptr;
 
         // If the folder doesn't exist return ENOENT.
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY, ENOENT);
+        REQUIRE(lr_fh == nullptr);
 
         // However if we provide the WT_FS_OPEN_CREATE flag it will be created in the destination.
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, WT_FS_OPEN_CREATE);
@@ -100,6 +103,7 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         testutil_mkdir(env.dest_file_path(subfolder).c_str());
         REQUIRE(testutil_exists(".", env.dest_file_path(subfolder).c_str()));
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY);
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
 
         // If the folder only exists in the source open is successful and we create a copy in the
         // destination
@@ -107,6 +111,7 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         testutil_mkdir(env.source_file_path(subfolder).c_str());
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY);
         REQUIRE(testutil_exists(".", env.dest_file_path(subfolder).c_str()));
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
 
         // If the folder exists in both source and destination open is successful.
         testutil_remove(env.dest_file_path(subfolder).c_str());
@@ -115,9 +120,8 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         testutil_mkdir(env.dest_file_path(subfolder).c_str());
         testutil_mkdir(env.source_file_path(subfolder).c_str());
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY);
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
 
         // We don't consider tombstones for directories. WiredTiger will never delete a folder.
-
-        WT_UNUSED(lr_fh);
     }
 }

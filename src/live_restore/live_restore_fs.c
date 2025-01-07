@@ -902,11 +902,11 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
             WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
 
         lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
-
-        WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
-          session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
-        __wt_rwlock_destroy(session, &lr_fh->ext_lock);
     }
+
+    WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+      session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
+    __wt_rwlock_destroy(session, &lr_fh->ext_lock);
 
     if (lr_fh->source != NULL) /* It's possible that we never opened the file in the source. */
         lr_fh->source->close(lr_fh->source, wt_session);
