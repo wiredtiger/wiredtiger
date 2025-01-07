@@ -23,6 +23,7 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
     connection_wrapper conn_wrapper = connection_wrapper(".", "create");
     WT_CONNECTION *conn = conn_wrapper.get_wt_connection();
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
+    
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     WT_ERROR_INFO *err_info = &(session_impl->err_info);
 
