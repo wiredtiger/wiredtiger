@@ -654,7 +654,9 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
         } else if (read_begins_in_hole && !read_ends_in_hole) {
             /* A partial read should never begin in a hole. */
             WT_ASSERT_ALWAYS(session, false,
-              "Read (offset: %" PRId64 ", len: %lu) begins in a hole but does not end in one (offset: %" PRId64 ", "
+              "Read (offset: %" PRId64
+              ", len: %lu) begins in a hole but does not end in one (offset: %" PRId64
+              ", "
               "len: %lu)",
               offset, len, hole->off, hole->len);
         }
@@ -780,13 +782,14 @@ __live_restore_fh_read(
 
         /* First read the serviceable portion from the destination. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-          "    PARTIAL READ FROM DEST (offset: %"PRId64", len: %lu)", offset, dest_partial_read_len);
+          "    PARTIAL READ FROM DEST (offset: %" PRId64 ", len: %lu)", offset,
+          dest_partial_read_len);
         WT_ERR(lr_fh->destination.fh->fh_read(
           lr_fh->destination.fh, wt_session, offset, dest_partial_read_len, read_data));
 
         /* Now read the remaining data from the source. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-          "    PARTIAL READ FROM SOURCE (offset: %"PRId64", len: %lu)", hole->off,
+          "    PARTIAL READ FROM SOURCE (offset: %" PRId64 ", len: %lu)", hole->off,
           source_partial_read_len);
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, source_partial_read_len,
           read_data + dest_partial_read_len));
