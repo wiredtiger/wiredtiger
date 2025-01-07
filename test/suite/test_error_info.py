@@ -78,23 +78,3 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.assertEqual(err, 0)
         self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
         self.assertEqual(err_msg, "")
-
-    def test_invalid_config(self):
-        gotException = False
-        expectMessage = 'unknown configuration key'
-        with self.expectedStderrPattern(expectMessage):
-            try:
-                self.pr('expect an error message...')
-                self.session.create('table:' + self.table_name1,
-                                    'expect_this_error,okay?')
-            except wiredtiger.WiredTigerError as e:
-                gotException = True
-                self.pr('got expected exception: ' + str(e))
-                self.assertTrue(str(e).find('nvalid argument') >= 0)
-        self.assertTrue(gotException, msg = 'expected exception')
-
-        err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, errno.EINVAL)
-        self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
-        self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
-

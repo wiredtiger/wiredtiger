@@ -15,23 +15,6 @@
  * Tests the API for getting verbose information about the last error of the session.
  */
 
-static void
-check_error(
-  WT_SESSION *session, int expected_err, int expected_sub_level_err, const char *expected_err_msg)
-{
-    /* Prepare return arguments. */
-    int err, sub_level_err;
-    const char *err_msg;
-
-    /* Call the error info API. */
-    session->get_last_error(session, &err, &sub_level_err, &err_msg);
-
-    /* Test that the API returns expected values. */
-    CHECK(err == expected_err);
-    CHECK(sub_level_err == expected_sub_level_err);
-    CHECK(strcmp(err_msg, expected_err_msg) == 0);
-}
-
 TEST_CASE("Session get last error - test getting verbose info about the last error in the session",
   "[session_get_last_error]")
 {
@@ -44,6 +27,16 @@ TEST_CASE("Session get last error - test getting verbose info about the last err
 
     SECTION("Test default values")
     {
-        check_error(session, 0, WT_NONE, "");
+        /* Prepare return arguments. */
+        int err, sub_level_err;
+        const char *err_msg;
+
+        /* Call the error info API. */
+        session->get_last_error(session, &err, &sub_level_err, &err_msg);
+
+        /* Test that the API returns expected default values. */
+        CHECK(err == 0);
+        CHECK(sub_level_err == WT_NONE);
+        CHECK(strcmp(err_msg, "") == 0);
     }
 }
