@@ -46,7 +46,7 @@ class test_error_info(compact_util):
         self.assertEqual(err_msg, error_msg)
 
     def test_compaction_already_running(self):
-        # Create a basic large table
+        # Create a basic large table.
         SimpleDataSet(self, self.table_name1, 1000, key_format='S', value_format='S').populate()
 
         # Enable the background compaction server.
@@ -70,7 +70,7 @@ class test_error_info(compact_util):
         self.assertEqual(cursor.update(), 0)
         cursor.close()
 
-        # Attempt to drop the table without committing the transaction
+        # Attempt to drop the table without committing the transaction.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
 
         # Expect error code, sub-error code and error message to reflect uncommitted data.

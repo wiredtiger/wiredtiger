@@ -32,7 +32,7 @@ err:
     return (ret);
 }
 
-TEST_CASE("Test WT_RET_MSG, WT_ERR_MSG, WT_RET_VERBOSE_MSG, WT_ERR_VERBOSE_MSG", "[message_macros]")
+TEST_CASE("Test WT_RET_SUB, WT_ERR_SUB macros", "[message_macros]")
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -44,7 +44,7 @@ TEST_CASE("Test WT_RET_MSG, WT_ERR_MSG, WT_RET_VERBOSE_MSG, WT_ERR_VERBOSE_MSG",
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
     session_impl = (WT_SESSION_IMPL *)session;
 
-    SECTION("Test WT_RET_VERBOSE_MSG with initial values")
+    SECTION("Test WT_RET_SUB with initial values")
     {
         err_msg_content = "";
         test_wt_ret_sub(session_impl, 0, WT_NONE, err_msg_content);
@@ -53,7 +53,7 @@ TEST_CASE("Test WT_RET_MSG, WT_ERR_MSG, WT_RET_VERBOSE_MSG, WT_ERR_VERBOSE_MSG",
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
     }
 
-    SECTION("Test WT_ERR_VERBOSE_MSG with initial values")
+    SECTION("Test WT_ERR_SUB with initial values")
     {
         err_msg_content = "";
         test_wt_err_sub(session_impl, 0, WT_NONE, err_msg_content);
@@ -62,7 +62,7 @@ TEST_CASE("Test WT_RET_MSG, WT_ERR_MSG, WT_RET_VERBOSE_MSG, WT_ERR_VERBOSE_MSG",
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
     }
 
-    SECTION("Test WT_RET_VERBOSE_MSG with EINVAL error WT_COMPACTION_ALREADY_RUNNING sub-error")
+    SECTION("Test WT_RET_SUB with EINVAL error WT_COMPACTION_ALREADY_RUNNING sub_level_error")
     {
         err_msg_content = "Some EINVAL error";
         test_wt_ret_sub(session_impl, EINVAL, WT_COMPACTION_ALREADY_RUNNING, err_msg_content);
@@ -71,7 +71,7 @@ TEST_CASE("Test WT_RET_MSG, WT_ERR_MSG, WT_RET_VERBOSE_MSG, WT_ERR_VERBOSE_MSG",
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
     }
 
-    SECTION("Test WT_ERR_VERBOSE_MSG with EINVAL error WT_COMPACTION_ALREADY_RUNNING sub-error")
+    SECTION("Test WT_ERR_SUB with EINVAL error WT_COMPACTION_ALREADY_RUNNING sub_level_error")
     {
         err_msg_content = "Some EINVAL error";
         test_wt_err_sub(session_impl, EINVAL, WT_COMPACTION_ALREADY_RUNNING, err_msg_content);
