@@ -296,16 +296,6 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, u_int probability)
 }
 
 /*
- * __wt_session_set_last_api_call_success --
- *     This function records that the result of the last session API call was successful.
- */
-static WT_INLINE int
-__wt_session_set_last_api_call_success(WT_SESSION_IMPL *session)
-{
-    return (__wt_session_set_last_error(session, 0, WT_NONE, "last API call was successful"));
-}
-
-/*
  * __wt_set_shared_double --
  *     This function enables suppressing TSan warnings about setting doubles in a shared context.
  */

@@ -215,8 +215,7 @@ struct __wt_session_impl {
     } evict_timeline;
 
     WT_ITEM err; /* Error buffer */
-
-    WT_ERROR_INFO err_info; /* Structure storing error codes and message */
+    WT_ERROR_INFO err_info;
 
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
