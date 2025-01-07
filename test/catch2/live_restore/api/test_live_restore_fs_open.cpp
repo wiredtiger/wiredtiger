@@ -118,4 +118,26 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
 
         WT_UNUSED(lr_fh);
     }
+
+    SECTION("fs_close - File")
+    {
+        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+
+        // Open this file once. The contents of source and destination don't matter for testing file
+        // close.
+        create_file(env.dest_file_path(file_1));
+        lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR);
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
+    }
+
+    SECTION("fs_close - Directory")
+    {
+        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+
+        // Open this folder once. The contents of source and destination don't matter for testing
+        // file close.
+        create_file(env.dest_file_path(subfolder));
+        lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_REGULAR);
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
+    }
 }
