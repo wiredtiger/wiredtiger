@@ -1312,10 +1312,8 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 
     if (0) {
 err:
-        __wt_abort(session);
-        // if (lr_fh != NULL)
-        //     WT_RET(__live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session));
-        //     WT_RET(__live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session));
+        if (lr_fh != NULL)
+            WT_RET(__live_restore_fh_close((WT_FILE_HANDLE *)lr_fh, wt_session));
     }
     return (ret);
 }

@@ -44,7 +44,7 @@ TEST_CASE("Live Restore fs_open", "[live_restore],[live_restore_fs_open]")
     SECTION("fs_open")
     {
         WT_LIVE_RESTORE_FILE_HANDLE *lr_fh =
-          open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR, WT_NOTFOUND);
+          open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR, ENOENT);
         WT_UNUSED(lr_fh);
     }
 }
