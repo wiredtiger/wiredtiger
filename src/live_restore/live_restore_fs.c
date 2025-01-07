@@ -119,14 +119,15 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
         if (prev != NULL) {
             if (WT_EXTENT_END(prev) >= hole->off) {
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-                  "Error: Holes overlap prev: %" PRId64 "-%" PRId64 ", hole: %" PRId64 "-%" PRId64
+                  "Error: Holes overlap prev: %" PRIu64 "-%" PRIu64 ", hole: %" PRIu64 "-%" PRIu64
                   "\n",
-                  prev->off, WT_EXTENT_END(prev), hole->off, WT_EXTENT_END(hole));
+                  (uint64_t)prev->off, (uint64_t)WT_EXTENT_END(prev), (uint64_t)hole->off,
+                  (uint64_t)WT_EXTENT_END(hole));
                 list_valid = false;
             }
         }
-        __wt_verbose_debug1(
-          session, WT_VERB_FILEOPS, "Hole: %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "Hole: %" PRIu64 "-%" PRIu64,
+          (uint64_t)hole->off, (uint64_t)WT_EXTENT_END(hole));
 
         prev = hole;
         hole = hole->next;
@@ -519,8 +520,8 @@ __live_restore_remove_extlist_hole(
 
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
-      lr_fh->iface.name, offset, WT_OFFSET_END(offset, len));
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %" PRIu64 "-%" PRIu64,
+      lr_fh->iface.name, (uint64_t)offset, (uint64_t)WT_OFFSET_END(offset, len));
 
     write_end = WT_OFFSET_END(offset, len);
     hole = lr_fh->destination.hole_list_head;
@@ -535,7 +536,8 @@ __live_restore_remove_extlist_hole(
         if (offset <= hole->off && write_end >= WT_EXTENT_END(hole)) {
             /* The write fully overlaps a hole. Delete it. */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "Fully overlaps hole %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
+              "Fully overlaps hole %" PRIu64 "-%" PRIu64, (uint64_t)hole->off,
+              (uint64_t)WT_EXTENT_END(hole));
 
             tmp = hole;
             if (prev_hole == NULL)
@@ -550,7 +552,8 @@ __live_restore_remove_extlist_hole(
             /* The write is entirely within the hole. Split the hole in two. */
 
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "Fully contained by hole %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
+              "Fully contained by hole %" PRIu64 "-%" PRIu64, (uint64_t)hole->off,
+              (uint64_t)WT_EXTENT_END(hole));
 
             /* First create the hole to the right of the write. */
             WT_RET(__live_restore_alloc_extent(
@@ -566,16 +569,16 @@ __live_restore_remove_extlist_hole(
         } else if (offset <= hole->off && WT_OFFSET_IN_EXTENT(write_end, hole)) {
             /* The write starts before the hole and ends within it. Shrink the hole. */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "Partial overlap to the left of hole %" PRId64 "-%" PRId64, hole->off,
-              WT_EXTENT_END(hole));
+              "Partial overlap to the left of hole %" PRIu64 "-%" PRIu64, (uint64_t)hole->off,
+              (uint64_t)WT_EXTENT_END(hole));
 
             hole->len = (size_t)(WT_EXTENT_END(hole) - write_end);
             hole->off = write_end + 1;
 
         } else if (WT_OFFSET_IN_EXTENT(offset, hole) && write_end >= WT_EXTENT_END(hole)) {
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "Partial overlap to the right of hole %" PRId64 "-%" PRId64, hole->off,
-              WT_EXTENT_END(hole));
+              "Partial overlap to the right of hole %" PRIu64 "-%" PRIu64, (uint64_t)hole->off,
+              (uint64_t)WT_EXTENT_END(hole));
             /* The write starts within the hole and ends after it. Shrink the hole. */
             hole->len = (size_t)(offset - hole->off);
 
@@ -631,9 +634,10 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
         if (read_begins_in_hole && read_ends_in_hole) {
             /* Our read is entirely within a hole */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "CANNOT SERVICE %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
-              "-%" PRId64,
-              lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
+              "CANNOT SERVICE %s: Reading from hole. Read: %" PRIu64 "-%" PRIu64 ", hole: %" PRIu64
+              "-%" PRIu64,
+              lr_fh->iface.name, (uint64_t)offset, (uint64_t)read_end, (uint64_t)hole->off,
+              (uint64_t)WT_EXTENT_END(hole));
             return (NONE);
         } else if (!read_begins_in_hole && read_ends_in_hole) {
             /*
@@ -646,19 +650,20 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
              * is migrated.
              */
             __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-              "PARTIAL READ %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
-              "-%" PRId64,
-              lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
+              "PARTIAL READ %s: Reading from hole. Read: %" PRIu64 "-%" PRIu64 ", hole: %" PRIu64
+              "-%" PRIu64,
+              lr_fh->iface.name, (uint64_t)offset, (uint64_t)read_end, (uint64_t)hole->off,
+              (uint64_t)WT_EXTENT_END(hole));
             *holep = hole;
             return (PARTIAL);
         } else if (read_begins_in_hole && !read_ends_in_hole) {
             /* A partial read should never begin in a hole. */
             WT_ASSERT_ALWAYS(session, false,
-              "Read (offset: %" PRId64
-              ", len: %lu) begins in a hole but does not end in one (offset: %" PRId64
+              "Read (offset: %" PRIu64 ", len: %" PRIu64
+              ") begins in a hole but does not end in one (offset: %" PRIu64
               ", "
-              "len: %lu)",
-              offset, len, hole->off, hole->len);
+              "len: %" PRIu64 ")",
+              (uint64_t)offset, (uint64_t)len, (uint64_t)hole->off, (uint64_t)hole->len);
         }
 
         hole = hole->next;
@@ -689,8 +694,8 @@ __live_restore_fh_write_int(
 
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "WRITE %s: %" PRId64 ", %lu", fh->name, offset, len);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "WRITE %s: %" PRIu64 ", %" PRIu64, fh->name,
+      (uint64_t)offset, (uint64_t)len);
 
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
     return (__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
@@ -732,8 +737,8 @@ __live_restore_fh_read(
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "READ %s : %" PRId64 ", %lu", fh->name, offset, len);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "READ %s : %" PRIu64 ", %" PRIu64, fh->name,
+      (uint64_t)offset, (uint64_t)len);
 
     read_data = (char *)buf;
 
@@ -782,15 +787,15 @@ __live_restore_fh_read(
 
         /* First read the serviceable portion from the destination. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-          "    PARTIAL READ FROM DEST (offset: %" PRId64 ", len: %lu)", offset,
-          dest_partial_read_len);
+          "    PARTIAL READ FROM DEST (offset: %" PRIu64 ", len: %" PRIu64 ")", (uint64_t)offset,
+          (uint64_t)dest_partial_read_len);
         WT_ERR(lr_fh->destination.fh->fh_read(
           lr_fh->destination.fh, wt_session, offset, dest_partial_read_len, read_data));
 
         /* Now read the remaining data from the source. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-          "    PARTIAL READ FROM SOURCE (offset: %" PRId64 ", len: %lu)", hole->off,
-          source_partial_read_len);
+          "    PARTIAL READ FROM SOURCE (offset: %" PRIu64 ", len: %" PRIu64 ")",
+          (uint64_t)hole->off, (uint64_t)source_partial_read_len);
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, source_partial_read_len,
           read_data + dest_partial_read_len));
     } else {
@@ -841,8 +846,8 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finis
     }
 
     __wt_verbose_debug3(session, WT_VERB_FILEOPS,
-      "Found hole in %s at %" PRId64 "-%" PRId64 " during background migration. ", fh->name,
-      hole->off, WT_EXTENT_END(hole));
+      "Found hole in %s at %" PRIu64 "-%" PRIu64 " during background migration. ", fh->name,
+      (uint64_t)hole->off, (uint64_t)WT_EXTENT_END(hole));
 
     /*
      * When encountering a large hole, break the read into small chunks. Split the hole into n
@@ -853,8 +858,8 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finis
      */
     char buf[WT_LIVE_RESTORE_READ_SIZE];
     size_t read_size = WT_MIN(hole->len, (size_t)WT_LIVE_RESTORE_READ_SIZE);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    BACKGROUND READ %s : %" PRId64 ", %lu",
-      lr_fh->iface.name, hole->off, read_size);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    BACKGROUND READ %s : %" PRIu64 ", %" PRIu64,
+      lr_fh->iface.name, (uint64_t)hole->off, (uint64_t)read_size);
     WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
     return (__live_restore_fh_write_int(fh, wt_session, hole->off, read_size, buf));
 }
@@ -971,7 +976,8 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
         return (0);
 
     __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
-      "truncating file %s from %" PRId64 " to %" PRId64, fh->name, old_len, len);
+      "truncating file %s from %" PRIu64 " to %" PRIu64, fh->name, (uint64_t)old_len,
+      (uint64_t)len);
 
     /*
      * Truncate can be used to shorten a file or to extend it. In both cases the truncated/extended
@@ -1048,7 +1054,7 @@ __live_restore_fh_find_holes_in_dest_file(
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
     WT_ERR(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %" PRId64, file_size);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %" PRIu64, (uint64_t)file_size);
 
     if (file_size > 0)
         /*
@@ -1074,7 +1080,8 @@ __live_restore_fh_find_holes_in_dest_file(
         WT_ASSERT(session, data_end_offset > data_offset - 1);
 
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-          "File: %s, has data from %" PRId64 "-%" PRId64, filename, data_offset, data_end_offset);
+          "File: %s, has data from %" PRIu64 "-%" PRIu64, filename, (uint64_t)data_offset,
+          (uint64_t)data_end_offset);
         WT_ERR(__live_restore_remove_extlist_hole(
           lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
     }
@@ -1254,10 +1261,9 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
 
                 WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-                  "Creating destination file backed by source file. Copying size (%" PRId64
-                  ") from source "
-                  "file",
-                  source_size);
+                  "Creating destination file backed by source file. Copying size (%" PRIu64
+                  ") from source file",
+                  (uint64_t)source_size);
 
                 /*
                  * Set size by truncating. This is a positive length truncate so it actually extends
