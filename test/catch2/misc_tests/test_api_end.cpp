@@ -32,7 +32,6 @@ api_call_with_error(
     SESSION_API_CALL_NOCONF(session_impl, log_printf);
 
     ret = err;
-    session_impl->api_call_no_errs = false;
     WT_IGNORE_RET(__wt_session_set_last_error(session_impl, err, sub_level_err, err_msg_content));
 err:
     API_END_RET(session_impl, ret);
@@ -58,7 +57,6 @@ txn_api_call_with_error(
     WT_UNUSED(cfg);
 
     ret = err;
-    session_impl->api_call_no_errs = false;
     WT_IGNORE_RET(__wt_session_set_last_error(session_impl, err, sub_level_err, err_msg_content));
 err:
     TXN_API_END(session_impl, ret, false);

@@ -178,10 +178,6 @@ __wt_session_set_last_error(
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
 
-    /* Make sure this error is not overwritten after the API call ends. */
-    if (err != 0)
-        session->api_call_no_errs = false;
-
 err:
     __wt_scr_free(session, &buf);
     return (ret);

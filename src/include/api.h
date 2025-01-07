@@ -81,8 +81,7 @@
     WT_SINGLE_THREAD_CHECK_START(s);                                    \
     WT_TRACK_OP_INIT(s);                                                \
     if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) \
-        (s)->api_call_no_errs = true;                                   \
-    __wt_op_timer_start(s);                                             \
+        __wt_op_timer_start(s);                                         \
     /* Reset wait time if this isn't an API reentry. */                 \
     if ((s)->api_call_counter == 1)                                     \
         (s)->cache_wait_us = 0;                                         \
@@ -119,8 +118,10 @@
         if ((ret) != 0 && __set_err)                                                       \
             __wt_txn_err_set(s, (ret));                                                    \
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL)) {              \
-            if ((s)->api_call_no_errs)                                                     \
+            if ((ret) == 0)                                                                \
                 WT_IGNORE_RET(__wt_session_set_last_api_call_success(s));                  \
+            else                                                                           \
+                (s)->err_info.err = ret;                                                   \
             __wt_op_timer_stop(s);                                                         \
         }                                                                                  \
         /*                                                                                 \
