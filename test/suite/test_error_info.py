@@ -97,4 +97,4 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.assertEqual(err, errno.EINVAL)
         self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
         self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
-        
+
