@@ -889,7 +889,6 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 static int
 __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
-    WT_DECL_RET;
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
 
@@ -900,8 +899,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     if (lr_fh->destination.fh != NULL) {
         if (FLD_ISSET(lr_fh->destination.back_pointer->debug_flags,
               WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE))
-            WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
-              session, lr_fh, ret = __wti_live_restore_fs_fill_holes(fh, wt_session));
+            WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
 
         lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
 
