@@ -1183,10 +1183,10 @@ err:
 
 /*
  * __live_restore_setup_lr_fh_directory --
- *     Populate a live restore file handle. Directories have special handling. If they don't exist
- *     in the destination they'll be created immediately (but not their contents) and immediately
- *     marked as complete. WiredTiger will never create or destroy a directory so we don't need to
- *     think about tombstones.
+ *     Populate a live restore file handle for a directory. Directories have special handling. If
+ *     they don't exist in the destination they'll be created immediately (but not their contents)
+ *     and immediately marked as complete. WiredTiger will never create or destroy a directory so we
+ *     don't need to think about tombstones.
  */
 static int
 __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
@@ -1202,31 +1202,27 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
       __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
 
     if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
-        WT_RET_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
+        WT_RET_MSG(session, ENOENT, "Directory %s does not exist in source or destination", name);
 
     if (!dest_exist) {
-        if (source_exist) {
-            WT_FILE_HANDLE *fh;
+        /* The directory doesn't exist in the destination yet. We need to create it in all cases. */
 
-            WT_RET(__live_restore_create_file_path(
-              session, &lr_fs->destination, (char *)name, &dest_folder_path));
+        WT_RET(__live_restore_create_file_path(
+          session, &lr_fs->destination, (char *)name, &dest_folder_path));
 
-            /*
-             * FIXME-WT-13971 - We can't create directories with a WT_FS_OPEN_CREATE call. Instead
-             * do it manually. Defaulting to permissions 0755. Should we copy the perms from the
-             * source?
-             */
-            mkdir(dest_folder_path, 0755);
+        /*
+         * We can't create directories with a WT_FS_OPEN_CREATE call. Instead we do it manually.
+         *
+         * FIXME-WT-13971 Defaulting to permissions 0755. If the folder exists in the source should
+         * we copy the permissions from the source?
+         */
+        mkdir(dest_folder_path, 0755);
 
-            WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-              dest_folder_path, lr_fhp->file_type, flags, &fh));
+        WT_FILE_HANDLE *fh;
+        WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
+          dest_folder_path, lr_fhp->file_type, flags, &fh));
 
-            lr_fhp->destination.fh = fh;
-        } else if (LF_ISSET(WT_FS_OPEN_CREATE)) {
-            WT_ERR(__live_restore_create_file_path(
-              session, &lr_fs->destination, (char *)name, &dest_folder_path));
-            mkdir(dest_folder_path, 0755);
-        }
+        lr_fhp->destination.fh = fh;
     }
 
     lr_fhp->destination.complete = true;
@@ -1239,13 +1235,12 @@ err:
 
 /*
  * __live_restore_setup_lr_fh_file --
- *     Populate a live restore file handle. Specific to regular (non-directory) files.
+ *     Populate a live restore file handle for a normal (non-directory) file.
  */
 static int
 __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
   const char *name, uint32_t flags, WT_LIVE_RESTORE_FILE_HANDLE *lr_fhp)
 {
-
     bool dest_exist = false, source_exist = false, have_tombstone = false;
     WT_SESSION *wt_session = (WT_SESSION *)session;
 
@@ -1253,14 +1248,17 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
+    WT_RET(__dest_has_tombstone(lr_fs, (char *)name, session, &have_tombstone));
 
     if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
 
+    if (!dest_exist && have_tombstone && !LF_ISSET(WT_FS_OPEN_CREATE))
+        WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
+
     /* Open it in the destination layer. */
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fhp, name, flags, !dest_exist));
 
-    WT_RET(__dest_has_tombstone(lr_fs, lr_fhp->destination.fh->name, session, &have_tombstone));
     if (have_tombstone) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
