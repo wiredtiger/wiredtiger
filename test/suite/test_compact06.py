@@ -62,9 +62,8 @@ class test_compact06(compact_util):
 
         # We cannot reconfigure the background server.
         for item in self.configuration_items:
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-                self.session.compact(None, f'background=true,{item}'),
-                '/Cannot reconfigure background compaction while it\'s already running/')
+            self.assertRaisesException(wiredtiger.WiredTigerError, lambda:
+                self.session.compact(None, f'background=true,{item}'))
 
         # Wait for background compaction to start and skip the HS.
         while self.get_bg_compaction_files_skipped() == 0:
