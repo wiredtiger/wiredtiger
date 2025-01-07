@@ -53,7 +53,7 @@
         __wt_err(session, ret, __VA_ARGS__); \
         goto err;                            \
     } while (0)
-#define WT_ERR_VERBOSE_MSG(session, v, sub_v, ...)                                  \
+#define WT_ERR_SUB(session, v, sub_v, ...)                                          \
     do {                                                                            \
         ret = (v);                                                                  \
         WT_IGNORE_RET(__wt_session_set_last_error(session, v, sub_v, __VA_ARGS__)); \
@@ -94,7 +94,7 @@
         __wt_err(session, __ret, __VA_ARGS__); \
         return (__ret);                        \
     } while (0)
-#define WT_RET_VERBOSE_MSG(session, v, sub_v, ...)                                  \
+#define WT_RET_SUB(session, v, sub_v, ...)                                          \
     do {                                                                            \
         int __ret = (v);                                                            \
         WT_IGNORE_RET(__wt_session_set_last_error(session, v, sub_v, __VA_ARGS__)); \
