@@ -1,7 +1,7 @@
 # Checkpoint
 
 ### Overview
-Checkpoint is responsible for ensuring that all data is durable at a point in time. WiredTiger can recover from this point in the event of an unexpected shutdown or crash. A checkpoint is performed within the context of snapshot isolation transaction as such the checkpoint has a consistent view of the database from beginning to end. See [arch-checkpoint.dox](../docs/arch-checkpoint.dox#10) for more information on snapshot isolation and timestamps.  The checkpoint process handles data both in memory and on disk and is therefore not in self contained module. The responsibilities are shared across the btree, block, metadata, and checkpoint modules. The checkpoint module directory is an entry point for all other parts of the checkpoint process. The role of the other modules during checkpoint can briefly be described as:
+Checkpoint is responsible for ensuring that all data is durable at a point in time. WiredTiger can recover from this point in the event of an unexpected shutdown or crash. A checkpoint is performed within the context of snapshot isolation transaction as such the checkpoint has a consistent view of the database from beginning to end. See [arch-checkpoint.dox](../docs/arch-checkpoint.dox#10) for more information on snapshot isolation and timestamps.  The checkpoint process handles data both in memory and on disk and is therefore not a self-contained module. The responsibilities are shared across the btree, block, metadata, and checkpoint modules. The checkpoint module directory is an entry point for all other parts of the checkpoint process. The role of the other modules during checkpoint can briefly be described as:
 #### [bt_sync.c](../btree/bt_sync.c)
 - Walk the btree and flush all dirty pages to disk.
 
