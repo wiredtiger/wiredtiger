@@ -53,6 +53,7 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, WT_FS_OPEN_CREATE);
         REQUIRE(testutil_exists(".", env.dest_file_path(file_1).c_str()));
         testutil_remove(env.dest_file_path(file_1).c_str());
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
 
         // If the file only exists in the destination open is successful.
         create_file(env.dest_file_path(file_1));
@@ -93,6 +94,7 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, WT_FS_OPEN_CREATE);
         REQUIRE(testutil_exists(".", env.dest_file_path(subfolder).c_str()));
         testutil_remove(env.dest_file_path(subfolder).c_str());
+        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
 
         // If the folder only exists in the destination open is successful.
         testutil_mkdir(env.dest_file_path(subfolder).c_str());
@@ -117,27 +119,5 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
         // We don't consider tombstones for directories. WiredTiger will never delete a folder.
 
         WT_UNUSED(lr_fh);
-    }
-
-    SECTION("fs_close - File")
-    {
-        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-
-        // Open this file once. The contents of source and destination don't matter for testing file
-        // close.
-        create_file(env.dest_file_path(file_1));
-        lr_fh = open_file(env, file_1, WT_FS_OPEN_FILE_TYPE_REGULAR);
-        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
-    }
-
-    SECTION("fs_close - Directory")
-    {
-        WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-
-        // Open this folder once. The contents of source and destination don't matter for testing
-        // file close.
-        create_file(env.dest_file_path(subfolder));
-        lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_REGULAR);
-        lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
     }
 }
