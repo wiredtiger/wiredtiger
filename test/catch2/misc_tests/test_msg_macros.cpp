@@ -32,19 +32,17 @@ err:
 
 TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
 {
-    WT_CONNECTION *conn;
-    WT_SESSION *session;
-    WT_SESSION_IMPL *session_impl;
-    const char *err_msg_content;
-
     connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-    conn = conn_wrapper.get_wt_connection();
+    WT_CONNECTION *conn = conn_wrapper.get_wt_connection();
+
+    WT_SESSION *session;
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
-    session_impl = (WT_SESSION_IMPL *)session;
+
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
 
     SECTION("Test WT_RET_MSG with initial values")
     {
-        err_msg_content = "";
+        const char *err_msg_content = "";
         REQUIRE(test_wt_ret_msg(session_impl, 0, err_msg_content) == 0);
         CHECK(session_impl->err_info.err == 0);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
@@ -53,7 +51,7 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
 
     SECTION("Test WT_ERR_MSG with initial values")
     {
-        err_msg_content = "";
+        const char *err_msg_content = "";
         REQUIRE(test_wt_err_msg(session_impl, 0, err_msg_content) == 0);
         CHECK(session_impl->err_info.err == 0);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
@@ -62,7 +60,7 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
 
     SECTION("Test WT_RET_MSG with EINVAL error")
     {
-        err_msg_content = "Some EINVAL error";
+        const char *err_msg_content = "Some EINVAL error";
         REQUIRE(test_wt_ret_msg(session_impl, EINVAL, err_msg_content) == EINVAL);
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
@@ -71,7 +69,7 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
 
     SECTION("Test WT_ERR_MSG with EINVAL error")
     {
-        err_msg_content = "Some EINVAL error";
+        const char *err_msg_content = "Some EINVAL error";
         REQUIRE(test_wt_err_msg(session_impl, EINVAL, err_msg_content) == EINVAL);
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_NONE);
