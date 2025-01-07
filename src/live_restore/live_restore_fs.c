@@ -1225,6 +1225,9 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
         lr_fhp->destination.fh = fh;
     }
 
+    /* There's no need for a hole list. The directory has already been fully copied */
+    lr_fhp->destination.hole_list_head = NULL;
+    lr_fhp->destination.back_pointer = lr_fs;
     lr_fhp->destination.complete = true;
 
 err:
