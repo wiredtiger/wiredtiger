@@ -255,8 +255,8 @@ __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
     __wt_page_header_byteswap(buf->mem);
 
     endp = addr;
-    WT_RET(__wt_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->checkpoint_id,
-      block_meta->reconciliation_id, size, checksum));
+    WT_RET(__wt_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->disagg_lsn,
+      block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);

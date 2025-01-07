@@ -48,7 +48,8 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
         WT_RET(__wt_block_disagg_write_internal(
           session, block_disagg, root_image, block_meta, &size, &checksum, true, true));
         WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
-          block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
+          block_meta->disagg_lsn, block_meta->checkpoint_id, block_meta->reconciliation_id, size,
+          checksum));
         ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
     }
 
@@ -247,7 +248,7 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
 {
     WT_BLOCK_DISAGG *block_disagg;
     unsigned i;
-    uint64_t checkpoint_id, reconciliation_id, root_id;
+    uint64_t checkpoint_id, lsn, reconciliation_id, root_id;
     uint32_t root_size, root_checksum;
     uint8_t *endp;
 
@@ -262,15 +263,15 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
     if (addr == NULL || addr_size == 0)
         return (0);
 
-    WT_RET(__wt_block_disagg_ckpt_unpack(block_disagg, addr, addr_size, &root_id, &checkpoint_id,
-      &reconciliation_id, &root_size, &root_checksum));
+    WT_RET(__wt_block_disagg_ckpt_unpack(block_disagg, addr, addr_size, &root_id, &lsn,
+      &checkpoint_id, &reconciliation_id, &root_size, &root_checksum));
 
     /*
      * Read root page address.
      */
     endp = root_addr;
     WT_RET(__wt_block_disagg_addr_pack(
-      &endp, root_id, checkpoint_id, reconciliation_id, root_size, root_checksum));
+      &endp, root_id, lsn, checkpoint_id, reconciliation_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
     fprintf(stderr, "[%s] __wt_block_disagg_checkpoint_load(): 0x", S2C(session)->home);
