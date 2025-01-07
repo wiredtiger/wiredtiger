@@ -1180,75 +1180,48 @@ err:
 }
 
 /*
- * __live_restore_fs_open_file --
- *     Open a live restore file handle. This will: - If the file exists in the source, open it in
- *     both. - If it doesn't exist it'll only open it in the destination.
+ * __live_restore_populate_lr_fh_regular_file --
+ *     Populate a live restore file handle. Specific to regular (non-directory) files.
  */
 static int
-__live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name,
-  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
+__live_restore_populate_lr_fh_regular_file(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
+  const char *name, uint32_t flags, WT_LIVE_RESTORE_FILE_HANDLE *lr_fhp)
 {
-    WT_DECL_RET;
-    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_LIVE_RESTORE_FS *lr_fs;
-    WT_LIVE_RESTORE_FS_LAYER_TYPE which;
-    WT_SESSION_IMPL *session;
-    bool dest_exist, source_exist, have_tombstone, readonly;
 
-    session = (WT_SESSION_IMPL *)wt_session;
-    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
-
-    dest_exist = source_exist = false;
-    lr_fh = NULL;
-    have_tombstone = false;
-    WT_UNUSED(have_tombstone);
-    readonly = LF_ISSET(WT_FS_OPEN_READONLY);
-    WT_UNUSED(readonly);
-    WT_UNUSED(which);
-
-    /* FIXME-WT-13808 Handle WT_FS_OPEN_FILE_TYPE_DIRECTORY */
-
-    /* Set up the file handle. */
-    WT_ERR(__wt_calloc_one(session, &lr_fh));
-    WT_ERR(__wt_strdup(session, name, &lr_fh->iface.name));
-    lr_fh->iface.file_system = fs;
-    lr_fh->file_type = file_type;
-
-    WT_ERR(__wt_rwlock_init(session, &lr_fh->ext_lock));
-
-    /* FIXME-WT-13823 Handle the exclusive flag and other flags */
+    bool dest_exist = false, source_exist = false, have_tombstone = false;
+    WT_SESSION *wt_session = (WT_SESSION *)session;
 
     // Check file exists
-    WT_ERR_NOTFOUND_OK(
-      __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist), true);
-    WT_ERR_NOTFOUND_OK(
-      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist), true);
+    WT_RET_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
+    WT_RET_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
 
     if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
-        WT_ERR_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
+        WT_RET_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
 
     /* Open it in the destination layer. */
-    WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
+    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fhp, name, flags, !dest_exist));
 
-    WT_ERR(__dest_has_tombstone(lr_fs, lr_fh->destination.fh->name, session, &have_tombstone));
+    WT_RET(__dest_has_tombstone(lr_fs, lr_fhp->destination.fh->name, session, &have_tombstone));
     if (have_tombstone) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
          * source. Therefore the destination must be complete.
          */
-        lr_fh->destination.complete = true;
+        lr_fhp->destination.complete = true;
         /* Opening files is single threaded but the remove extlist free requires the lock. */
         WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
-          session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
+          session, lr_fhp, __live_restore_fs_free_extent_list(session, lr_fhp));
     } else {
         /*
          * If it exists in the source, open it. If it doesn't exist in the source then by definition
          * the destination file is complete.
          */
-        WT_ERR_NOTFOUND_OK(
-          __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist), true);
+        WT_RET_NOTFOUND_OK(
+          __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
         if (source_exist) {
-            WT_ERR(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
+            WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fhp, flags));
 
             if (!dest_exist) {
                 /*
@@ -1258,7 +1231,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  */
                 wt_off_t source_size;
 
-                WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
+                WT_RET(lr_fhp->source->fh_size(lr_fhp->source, wt_session, &source_size));
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
                   "Creating destination file backed by source file. Copying size (%" PRId64
                   ") from source "
@@ -1272,20 +1245,53 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  */
                 // FIXME - Do we need to copy across file metadata? What are the odds a file has
                 // unusual permissions?
-                WT_ERR(lr_fh->destination.fh->fh_truncate(
-                  lr_fh->destination.fh, wt_session, source_size));
+                WT_RET(lr_fhp->destination.fh->fh_truncate(
+                  lr_fhp->destination.fh, wt_session, source_size));
 
                 /*
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */
-                WT_ASSERT(session, lr_fh->destination.hole_list_head == NULL);
-                WT_ERR(__live_restore_alloc_extent(
-                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list_head));
+                WT_ASSERT(session, lr_fhp->destination.hole_list_head == NULL);
+                WT_RET(__live_restore_alloc_extent(
+                  session, 0, (size_t)source_size, NULL, &lr_fhp->destination.hole_list_head));
             }
         } else
-            lr_fh->destination.complete = true;
+            lr_fhp->destination.complete = true;
     }
+
+    return (0);
+}
+
+/*
+ * __live_restore_fs_open_file --
+ *     Open a live restore file handle. This will: - If the file exists in the source, open it in
+ *     both. - If it doesn't exist it'll only open it in the destination.
+ */
+static int
+__live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *name,
+  WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
+{
+    WT_DECL_RET;
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
+    WT_LIVE_RESTORE_FS *lr_fs;
+    WT_LIVE_RESTORE_FS_LAYER_TYPE which;
+    WT_SESSION_IMPL *session;
+    bool readonly;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
+
+    lr_fh = NULL;
+    readonly = LF_ISSET(WT_FS_OPEN_READONLY);
+    WT_UNUSED(readonly);
+    WT_UNUSED(which);
+
+    /* Set up the file handle. */
+    WT_ERR(__wt_calloc_one(session, &lr_fh));
+    WT_ERR(__wt_strdup(session, name, &lr_fh->iface.name));
+    lr_fh->iface.file_system = fs;
+    lr_fh->file_type = file_type;
 
     /* Initialize the jump table. */
     lr_fh->iface.close = __live_restore_fh_close;
@@ -1305,6 +1311,12 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     lr_fh->iface.fh_map = NULL;
     lr_fh->iface.fh_extend = NULL;
     lr_fh->iface.fh_extend_nolock = NULL;
+
+    WT_ERR(__wt_rwlock_init(session, &lr_fh->ext_lock));
+
+    /* FIXME-WT-13823 Handle the exclusive flag and other flags */
+
+    WT_ERR(__live_restore_populate_lr_fh_regular_file(session, lr_fs, name, flags, lr_fh));
 
     *file_handlep = (WT_FILE_HANDLE *)lr_fh;
 
