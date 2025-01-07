@@ -1218,8 +1218,9 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
 
     if (!dest_exist) {
         /*
-         * The directory doesn't exist in the destination yet. We need to create it in all cases. We
-         * can't create directories with a WT_FS_OPEN_CREATE call. Instead we do it manually.
+         * The directory doesn't exist in the destination yet. We need to create it in all cases.
+         * Our underlying posix file system doesn't support creating folders via WT_FS_OPEN_CREATE
+         * so we create it manually.
          *
          * FIXME-WT-13971 Defaulting to permissions 0755. If the folder exists in the source should
          * we copy the permissions from the source?
