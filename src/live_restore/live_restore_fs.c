@@ -1240,8 +1240,7 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_F
     lr_fhp->destination.complete = true;
 
 err:
-    if (dest_folder_path != NULL)
-        __wt_free(session, dest_folder_path);
+    __wt_free(session, dest_folder_path);
     return (ret);
 }
 
