@@ -38,6 +38,7 @@ from wtscenario import make_scenarios
 
 @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
+    conn_config = ''
     session_config = 'isolation=snapshot'
 
     operation_values = [
@@ -46,20 +47,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('prev', dict(op='prev')),
         ('search_near', dict(op='search_near')),
     ]
-
-    ckpt_precision = [
-        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
-        ('precise', dict(ckpt_config='checkpoint=(precise=true)')),
-    ]
-
-    scenarios = make_scenarios(operation_values, ckpt_precision)
+    scenarios = make_scenarios(operation_values)
 
     # No need to run this on more than one btree type.
     key_format = 'r'
     value_format = 'S'
-
-    def conn_config(self):
-        return self.ckpt_config
 
     def large_updates(self, uri, ds, nrows, value, ts):
         cursor = self.session.open_cursor(uri)

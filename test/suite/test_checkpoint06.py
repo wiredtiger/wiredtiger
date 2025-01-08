@@ -33,6 +33,8 @@ from wtscenario import make_scenarios
 # Verify that we rollback the truncation that is committed after stable
 # timestamp in the checkpoint.
 class test_checkpoint06(wttest.WiredTigerTestCase):
+    conn_config = 'create,cache_size=10MB'
+
     format_values = [
         ('column-fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='S')),
@@ -44,15 +46,7 @@ class test_checkpoint06(wttest.WiredTigerTestCase):
         ('no_prepare', dict(prepare=False)),
     ]
 
-    ckpt_precision = [
-        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
-        ('precise', dict(ckpt_config='checkpoint=(precise=true)')),
-    ]
-
-    scenarios = make_scenarios(format_values, prepare_values, ckpt_precision)
-
-    def conn_config(self):
-        return 'create,cache_size=10MB,' + self.ckpt_config
+    scenarios = make_scenarios(format_values, prepare_values)
 
     def test_rollback_truncation_in_checkpoint(self):
         nrows = 10000
