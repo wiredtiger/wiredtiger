@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from wtscenario import make_scenarios
 import wiredtiger, wttest
 
 # test_checkpoint29.py
@@ -33,6 +34,15 @@ import wiredtiger, wttest
 # Test opening a checkpoint cursor after bulk operations.
 @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
+        ('precise', dict(ckpt_config='checkpoint=(precise=true)')),
+    ]
+
+    scenarios = make_scenarios(ckpt_precision)
+
+    def conn_config(self):
+        return self.ckpt_config
 
     def test_checkpoint(self):
         uri = 'table:checkpoint29'
