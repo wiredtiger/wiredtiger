@@ -52,7 +52,7 @@ class test_error_info(compact_util):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.compact(None, f'background=true,free_space_target=10MB'))
 
         # Expect error code, sub-error code and error message to reflect compaction already running.
-        self.check_error(errno.EINVAL, wiredtiger.WT_COMPACTION_ALREADY_RUNNING, "Cannot reconfigure background compaction while it's already running.")
+        self.check_error(errno.EINVAL, wiredtiger.WT_BACKGROUND_COMPACT_ALREADY_RUNNING, "Cannot reconfigure background compaction while it's already running.")
 
     def test_uncommitted_data(self):
         # Create a simple table.

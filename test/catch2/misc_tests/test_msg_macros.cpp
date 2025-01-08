@@ -62,21 +62,25 @@ TEST_CASE("Test WT_RET_SUB, WT_ERR_SUB macros", "[message_macros]")
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
     }
 
-    SECTION("Test WT_RET_SUB with EINVAL error WT_COMPACTION_ALREADY_RUNNING sub_level_error")
+    SECTION(
+      "Test WT_RET_SUB with EINVAL error WT_BACKGROUND_COMPACT_ALREADY_RUNNING sub_level_error")
     {
         err_msg_content = "Some EINVAL error";
-        test_wt_ret_sub(session_impl, EINVAL, WT_COMPACTION_ALREADY_RUNNING, err_msg_content);
+        test_wt_ret_sub(
+          session_impl, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content);
         CHECK(session_impl->err_info.err == EINVAL);
-        CHECK(session_impl->err_info.sub_level_err == WT_COMPACTION_ALREADY_RUNNING);
+        CHECK(session_impl->err_info.sub_level_err == WT_BACKGROUND_COMPACT_ALREADY_RUNNING);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
     }
 
-    SECTION("Test WT_ERR_SUB with EINVAL error WT_COMPACTION_ALREADY_RUNNING sub_level_error")
+    SECTION(
+      "Test WT_ERR_SUB with EINVAL error WT_BACKGROUND_COMPACT_ALREADY_RUNNING sub_level_error")
     {
         err_msg_content = "Some EINVAL error";
-        test_wt_err_sub(session_impl, EINVAL, WT_COMPACTION_ALREADY_RUNNING, err_msg_content);
+        test_wt_err_sub(
+          session_impl, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content);
         CHECK(session_impl->err_info.err == EINVAL);
-        CHECK(session_impl->err_info.sub_level_err == WT_COMPACTION_ALREADY_RUNNING);
+        CHECK(session_impl->err_info.sub_level_err == WT_BACKGROUND_COMPACT_ALREADY_RUNNING);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
     }
 }
