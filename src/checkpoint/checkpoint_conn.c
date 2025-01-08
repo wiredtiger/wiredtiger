@@ -229,9 +229,12 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
     return (ret);
 }
 
-/*
+/* !!!
  * __wt_checkpoint_signal --
  *     Signal the checkpoint thread if sufficient log has been written.
+ *
+ *     Input parameter:
+ *       `logsize`: The size of log written.
  */
 void
 __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize)
