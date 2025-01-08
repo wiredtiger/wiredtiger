@@ -37,6 +37,7 @@ import unittest
 #   Test that the placeholder get_last_error() session API returns placeholder error values.
 class test_error_info(compact_util):
     table_name1 = 'table:test_error'
+    default_rollback_msg = "/conflict between concurrent operations/"
 
     def check_error(self, error, sub_level_error, error_msg):
         err, sub_level_err, err_msg = self.session.get_last_error()
@@ -53,6 +54,95 @@ class test_error_info(compact_util):
 
         # Expect error code, sub-error code and error message to reflect compaction already running.
         self.check_error(errno.EINVAL, wiredtiger.WT_BACKGROUND_COMPACT_ALREADY_RUNNING, "Cannot reconfigure background compaction while it's already running.")
+
+    def test_cache_overflow(self):
+        # Configure the connection with an unrealistically small cache_max_wait_ms value and
+        # a very low eviction trigger threshold.
+        self.conn.reconfigure('cache_max_wait_ms=1,eviction_dirty_target=1,eviction_dirty_trigger=2')
+
+        # Create a very basic table.
+        ds = SimpleDataSet(self, self.table_name1, 10, key_format='S', value_format='S')
+        ds.populate()
+
+        # Open a session and cursor.
+        cursor = self.session.open_cursor(self.table_name1)
+
+        # Start a transaction and insert a value large enough to trigger eviction app worker threads.
+        self.session.begin_transaction()
+        cursor.set_key(ds.key(1))
+        cursor.set_value("a"*1024*5000)
+        cursor.update()
+        self.session.commit_transaction()
+
+        # Start a new transaction and attempt to insert a value. The very low cache_max_wait_ms
+        # value should cause the eviction thread to time out.
+        self.session.begin_transaction()
+        cursor.set_key(ds.key(3))
+        cursor.set_value("b")
+
+        # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update(), self.default_rollback_msg)
+
+        # Expect the get_last_error reason to give us the true reason for the rollback.
+        self.check_error(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
+
+        self.ignoreStdoutPatternIfExists("transaction rolled back because of cache overflow")
+
+    def test_write_conflict(self):
+        # Create a very basic table.
+        ds = SimpleDataSet(self, self.table_name1, 10, key_format='S', value_format='S')
+        ds.populate()
+
+        # Update key 5 in the first session.
+        session1 = self.session
+        cursor1 = session1.open_cursor(self.table_name1)
+        session1.begin_transaction()
+        cursor1[ds.key(5)] = "aaa"
+
+        # Update the same key in the second session, expect a conflict error to be produced.
+        session2 = self.conn.open_session()
+        cursor2 = session2.open_cursor(self.table_name1)
+        session2.begin_transaction()
+        cursor2.set_key(ds.key(5))
+        cursor2.set_value("bbb")
+
+        # Catch the default reason for WT_ROLLBACK errors.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update(), self.default_rollback_msg)
+
+        # Expect the get_last_error reason to give us the true reason for the rollback.
+        # The error will be set in the second session.
+        self.session = session2
+        self.check_error(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
+
+    def test_oldest_for_eviction(self):
+        # Configure the connection with the min cache size.
+        self.conn.reconfigure('cache_size=1MB')
+
+        # Create a very basic table.
+        ds = SimpleDataSet(self, self.table_name1, 10, key_format='S', value_format='S')
+        ds.populate()
+
+        cursor = self.session.open_cursor(self.table_name1)
+
+        # Start a new transaction and insert a value far too large for cache.
+        self.session.begin_transaction()
+        cursor.set_key(ds.key(1))
+        cursor.set_value("a"*1024*5000)
+        self.assertEqual(0, cursor.update())
+
+        # Let WiredTiger's accounting catch up.
+        time.sleep(2)
+
+        # Attempt to insert another value with the same transaction. This will result in the
+        # application thread being pulled into eviction and getting rolled back.
+        cursor.set_key(ds.key(2))
+        cursor.set_value("b"*1024)
+
+        # Catch the default reason for WT_ROLLBACK errors.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update(), self.default_rollback_msg)
+
+        # Expect the get_last_error reason to give us the true reason for the rollback.
+        self.check_error(wiredtiger.WT_ROLLBACK, wiredtiger.WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID")
 
     def test_uncommitted_data(self):
         # Create a simple table.

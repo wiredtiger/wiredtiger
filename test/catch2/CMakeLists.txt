@@ -11,6 +11,7 @@ else()
         misc_tests/test_session_set_last_error.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
+        misc_tests/test_compact.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_error.cpp
         misc_tests/test_fnv.cpp
@@ -22,6 +23,7 @@ else()
         misc_tests/test_msg_macros.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_reconciliation_tracking.cpp
+        misc_tests/test_rollback.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_session_get_last_error.cpp
