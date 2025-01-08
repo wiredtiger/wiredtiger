@@ -64,8 +64,8 @@
 typedef struct PAGE_KEY {
     uint64_t table_id;
     uint64_t page_id;
+    uint64_t lsn;
     uint64_t checkpoint_id;
-    uint64_t revision;
     uint32_t is_delta;
 
     /*
@@ -102,23 +102,26 @@ swap_page_key(const PAGE_KEY *src, PAGE_KEY *dest)
      */
     dest->table_id = __wt_bswap64(src->table_id);
     dest->page_id = __wt_bswap64(src->page_id);
+    dest->lsn = __wt_bswap64(src->lsn);
     dest->checkpoint_id = __wt_bswap64(src->checkpoint_id);
-    dest->revision = __wt_bswap64(src->revision);
     dest->is_delta = __wt_bswap32(src->is_delta);
 }
 
 /*
- * True if and only if the result matches the table and page and is materialized.
+ * True if and only if the result matches the table, and page and is materialized, and the page's
+ * version is LTE the given checkpoint.
  */
-#define RESULT_MATCH(result_key, _table_id, _page_id, _now)                          \
+#define RESULT_MATCH(result_key, _table_id, _page_id, _lsn, _checkpoint_id, _now)    \
     ((result_key)->table_id == (_table_id) && (result_key)->page_id == (_page_id) && \
-      _now > (result_key)->timestamp_materialized_us)
+      ((_checkpoint_id) == 0 || (result_key)->checkpoint_id <= (_checkpoint_id)) &&  \
+      ((_lsn) == 0 || (result_key)->lsn <= (_lsn)) &&                                \
+      (_now) > (result_key)->timestamp_materialized_us)
 
 #ifdef PALM_KV_DEBUG
 /* Show the contents of the PAGE_KEY to stderr.  This can be useful for debugging. */
 #define SHOW_PAGE_KEY(pk, label)                                                                   \
-    fprintf(stderr, "  %s:  t=%" PRIu64 ", p=%" PRIu64 ", c=%" PRIu64 ", r=%" PRIu64 ", isd=%d\n", \
-      label, pk->table_id, pk->page_id, pk->checkpoint_id, pk->revision, (int)pk->is_delta)
+    fprintf(stderr, "  %s:  t=%" PRIu64 ", p=%" PRIu64 ", l=%" PRIu64 ", c=%" PRIu64 ", isd=%d\n", \
+      label, pk->table_id, pk->page_id, pk->lsn, pk->checkpoint_id, (int)pk->is_delta)
 
 /*
  * Return a string representing the current match value. Can only be used in single threaded code!
@@ -297,9 +300,9 @@ palm_kv_get_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t *v
 }
 
 int
-palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
-  uint64_t checkpoint_id, uint64_t revision, bool is_delta, uint64_t backlink, uint64_t base,
-  uint32_t flags, const WT_ITEM *buf)
+palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, uint64_t lsn,
+  uint64_t checkpoint_id, bool is_delta, uint64_t backlink, uint64_t base, uint32_t flags,
+  const WT_ITEM *buf)
 {
     MDB_val kval;
     MDB_val vval;
@@ -309,8 +312,8 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
     memset(&vval, 0, sizeof(kval));
     page_key.table_id = table_id;
     page_key.page_id = page_id;
+    page_key.lsn = lsn;
     page_key.checkpoint_id = checkpoint_id;
-    page_key.revision = revision;
     page_key.is_delta = is_delta;
     page_key.backlink = backlink;
     page_key.base = base;
@@ -327,7 +330,7 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
 
 int
 palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id,
-  uint64_t checkpoint_id, PALM_KV_PAGE_MATCHES *matches)
+  uint64_t lsn, uint64_t checkpoint_id, PALM_KV_PAGE_MATCHES *matches)
 {
     MDB_val kval;
     MDB_val vval;
@@ -336,6 +339,10 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     PAGE_KEY *readonly_result_key;
     uint64_t now;
     int ret;
+
+    /* Ensure that either LSN or the checkpoint ID is specified. */
+    if (lsn == 0 && checkpoint_id == 0)
+        return (EINVAL);
 
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(vval));
@@ -346,12 +353,13 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
 
     matches->table_id = table_id;
     matches->page_id = page_id;
+    matches->lsn = lsn;
     matches->checkpoint_id = checkpoint_id;
 
     page_key.table_id = table_id;
     page_key.page_id = page_id;
-    page_key.checkpoint_id = checkpoint_id;
-    page_key.revision = UINT64_MAX;
+    page_key.lsn = lsn != 0 ? lsn : UINT64_MAX;
+    page_key.checkpoint_id = UINT64_MAX;
     swap_page_key(&page_key, &page_key);
     kval.mv_size = sizeof(page_key);
     kval.mv_data = &page_key;
@@ -373,9 +381,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * Now back up until we get a match. This will be the last valid record that matches the
      * table/page.
      */
-    while (ret == 0 &&
-      (!RESULT_MATCH(&result_key, table_id, page_id, now) ||
-        result_key.checkpoint_id > checkpoint_id)) {
+    while (ret == 0 && !RESULT_MATCH(&result_key, table_id, page_id, lsn, checkpoint_id, now)) {
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
         readonly_result_key = (PAGE_KEY *)kval.mv_data;
         swap_page_key(readonly_result_key, &result_key);
@@ -384,9 +390,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * Now back up until we find the most recent full page that does not have a checkpoint more
      * recent than asked for.
      */
-    while (ret == 0 && RESULT_MATCH(&result_key, table_id, page_id, now) &&
-      result_key.checkpoint_id <= checkpoint_id) {
-
+    while (ret == 0 && RESULT_MATCH(&result_key, table_id, page_id, lsn, checkpoint_id, now)) {
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
         if (result_key.is_delta == false) {
             matches->size = vval.mv_size;
@@ -442,11 +446,10 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
         readonly_page_key = (PAGE_KEY *)kval.mv_data;
         swap_page_key(readonly_page_key, &page_key);
 
-        if (RESULT_MATCH(&page_key, matches->table_id, matches->page_id, now) &&
-          page_key.checkpoint_id <= matches->checkpoint_id) {
+        if (RESULT_MATCH(&page_key, matches->table_id, matches->page_id, matches->lsn,
+              matches->checkpoint_id, now)) {
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
-            matches->revision = page_key.revision;
             matches->backlink = page_key.backlink;
             matches->base = page_key.base;
             matches->flags = page_key.flags;
