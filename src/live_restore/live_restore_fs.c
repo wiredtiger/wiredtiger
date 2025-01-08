@@ -900,13 +900,8 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
-    /*
-     * We cannot queue the turtle file in the live restore queue as we cannot open a cursor on it.
-     * But it is critical that we ensure all gaps in it are migrated across. Thus the turtle file is
-     * the one file we intentionally fill holes on close for. This is relatively cheap given how
-     * small it is.
-     */
-    if (strstr(fh->name, WT_METADATA_TURTLE) != NULL)
+    if (FLD_ISSET(
+          lr_fh->destination.back_pointer->debug_flags, WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE))
         WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
 
     lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
@@ -1523,6 +1518,11 @@ __wt_os_live_restore_fs(
     /* Configure the background thread count maximum. */
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
     lr_fs->background_threads_max = (uint8_t)cval.val;
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets(session, cfg, "live_restore.debug.fill_holes_on_close", &cval), false);
+    if (cval.val != 0)
+        FLD_SET(lr_fs->debug_flags, WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE);
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS,
       "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
