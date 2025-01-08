@@ -51,7 +51,7 @@ The checkpoint operation goes through five stages:
 - Flush to disk
 - Metadata checkpoint
 
-Each stage is described in details in [arch-checkpoint.dox](../docs/arch-checkpoint.dox).
+Each stage is described in detail in [arch-checkpoint.dox](../docs/arch-checkpoint.dox).
 
 ## APIs for Checkpoint
 
