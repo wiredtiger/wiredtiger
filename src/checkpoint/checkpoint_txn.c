@@ -2083,7 +2083,7 @@ __checkpoint_lock_dirty_tree(
      * appended to the list.
      */
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
-        WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt) {
+        WTI_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt) {
             /* Checkpoint(s) to be added are always at the end of the list. */
             WT_ASSERT(session, !seen_ckpt_add || F_ISSET(ckpt, WT_CKPT_ADD));
             if (F_ISSET(ckpt, WT_CKPT_ADD)) {

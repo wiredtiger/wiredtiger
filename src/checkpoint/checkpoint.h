@@ -132,8 +132,6 @@ struct __wt_ckpt_block_mods {
  */
 #define WT_CHECKPOINT "WiredTigerCheckpoint"
 #define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
-#define WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt) \
-    for ((ckpt) = (ckptbase); (ckpt)->name != NULL || (ckpt)->order != 0; ++(ckpt))
 
 struct __wt_ckpt {
     char *name; /* Name or NULL */
