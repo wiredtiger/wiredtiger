@@ -2220,9 +2220,12 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
     return (0);
 }
 
-/*
+/* !!!
  * __wt_checkpoint_tree_reconcile_update --
  *     Update a checkpoint based on reconciliation results.
+ *
+ *     Input parameter:
+ *       `ta`: The time aggregate updated by the reconciliation process.
  */
 void
 __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
