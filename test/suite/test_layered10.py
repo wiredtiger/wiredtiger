@@ -27,10 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
+from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from wtscenario import make_scenarios
 
 # test_layered10.py
 #    Additional layered table & cursor methods.
-class test_layered10(wttest.WiredTigerTestCase):
+class test_layered10(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 100_000
 
     conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
@@ -39,12 +41,14 @@ class test_layered10(wttest.WiredTigerTestCase):
 
     uri = "layered:test_layered10"
 
-    # Load the directory store extension, which has object storage support
+    disagg_storages = gen_disagg_storages('test_layered15', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
+
+    # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm', configs=['cache_size_mb=2000'])
-        self.pr(f"{extlist=}")
+        DisaggConfigMixin.conn_extensions(self, extlist)
 
     # Custom test case setup
     def early_setup(self):
@@ -92,7 +96,7 @@ class test_layered10(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         # Ensure that all data makes it to the follower
-        conn_follow.reconfigure('disaggregated=(checkpoint_id=1)') # TODO Use a real checkpoint ID
+        self.disagg_advance_checkpoint(conn_follow)
 
         # Check the largest key at the follower
         cursor_follow = session_follow.open_cursor(self.uri, None, None)

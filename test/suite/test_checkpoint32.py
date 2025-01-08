@@ -44,7 +44,15 @@ class test_checkpoint32(wttest.WiredTigerTestCase):
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
 
-    scenarios = make_scenarios(format_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
+        ('precise', dict(ckpt_config='checkpoint=(precise=true)')),
+    ]
+
+    scenarios = make_scenarios(format_values, ckpt_precision)
+
+    def conn_config(self):
+        return self.ckpt_config
 
     def check(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)

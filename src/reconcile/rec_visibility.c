@@ -654,6 +654,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * first checkpoint with the precise mode.
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+          r->rec_start_pinned_stable_ts != WT_TS_NONE &&
           upd->durable_ts > r->rec_start_pinned_stable_ts) {
             WT_ASSERT(session, !is_hs_page);
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
