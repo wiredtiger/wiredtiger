@@ -2126,13 +2126,14 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     /*
      * The max length of a delta:
      * 1 header byte
+     * 2 transaction ids
      * 4 timestamps (4 * 9)
      * key size (5)
      * value size (5)
      * key
      * value
      */
-    max_packed_size = 1 + 4 * 9 + 2 * 5 + key->size + value.size;
+    max_packed_size = 1 + 2 * 9 + 4 * 9 + 2 * 5 + key->size + value.size;
 
     if (r->delta.size + max_packed_size > r->delta.memsize)
         WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
