@@ -120,10 +120,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         __wt_spin_unlock(session, &server->queue_lock);
         return (0);
     }
-
-    WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
-
-    work_item = TAILQ_FIRST(&server->work_queue);
+    WT_LIVE_RESTORE_WORK_ITEM *work_item = TAILQ_FIRST(&server->work_queue);
     WT_ASSERT(session, work_item != NULL);
     TAILQ_REMOVE(&server->work_queue, work_item, q);
     __wt_verbose_debug2(
@@ -132,7 +129,6 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     WT_CURSOR *cursor;
     WT_SESSION *wt_session = (WT_SESSION *)session;
-
     /*
      * Open a cursor so no one can get exclusive access on the object. This prevents concurrent
      * schema operations like drop. Even if this object is a log file it can have a cursor opened
@@ -143,7 +139,10 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      */
     ret = wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor);
     if (ret == ENOENT) {
-        /* Free the work item. */
+        /*
+         * If we get ENOENT then the file was removed concurrently, swallow that error, free the
+         * work item and exit.
+         */
         __live_restore_free_work_item(session, &work_item);
         return (0);
     }
@@ -161,15 +160,51 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore worker: Filling holes in %s", work_item->uri);
-    ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
+    ret = (__wti_live_restore_fs_fill_holes(fh, wt_session));
     __wt_verbose_debug2(session, WT_VERB_FILEOPS,
       "Live restore worker: Finished finished filling holes in %s", work_item->uri);
-
-    /* Free the work item. */
     __live_restore_free_work_item(session, &work_item);
     WT_STAT_CONN_SET(
       session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
     WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
+ * __insert_queue_item --
+ *     Insert an item into the live restore queue, if it's a log prepend log: to it.
+ */
+static int
+__insert_queue_item(WT_SESSION_IMPL *session, char *uri, uint64_t *work_count, bool log)
+{
+    WT_DECL_RET;
+
+    __wt_verbose_debug1(
+      session, WT_VERB_FILEOPS, "Live restore server: Adding an %s to the work queue", uri);
+
+    WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
+    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
+    WT_DECL_ITEM(buf);
+    WT_CLEAR(buf);
+
+    WT_ERR(__wt_calloc_one(session, &work_item));
+    if (log) {
+        WT_ERR(__wt_buf_fmt(session, buf, "log:%s", uri));
+        WT_ERR(__wt_strdup(session, buf->data, &work_item->uri));
+        __wt_buf_free(session, buf);
+    } else
+        WT_ERR(__wt_strdup(session, uri, &work_item->uri));
+    TAILQ_INSERT_HEAD(&server->work_queue, work_item, q);
+    (*work_count)++;
+
+    if (0) {
+err:
+        if (log)
+            __wt_buf_free(session, buf);
+        __wt_free(session, work_item->uri);
+        __wt_free(session, work_item);
+    }
+
     return (ret);
 }
 
@@ -181,48 +216,67 @@ static int
 __live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
 {
     WT_DECL_RET;
-    WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_LIVE_RESTORE_SERVER *server = conn->live_restore_server;
 
+    /* Initialize the work queue. */
     TAILQ_INIT(&server->work_queue);
-    /*
-     * Open a metadata cursor to gather the list of objects. The metadata file is built from the
-     * WiredTiger.backup file, during __wt_turtle_init. Thus this function must be run after that
-     * function.
-     */
-
-    /*
-     * FIXME-WT-13888: Add logic to queue log files first, then the history store. This will use a
-     * directory list call.
-     */
-    WT_CURSOR *cursor;
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-    WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "%s", "Live restore server: Initializing the work queue");
 
+    /*
+     * The work queuing algorithm is as follows, note all items are queued at the head:
+     *     - First we walk the metadata file to gather a list of file: objects. This will include
+     *     the history store file. We don't define any special ordering for it.
+     *     - If logging is enabled all the log files are found and queued.
+     *     - If we are not restoring from a backup, which is possible with live restore we queue
+     *     the metadata file.
+     */
+
+    WT_CURSOR *cursor;
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    /* Early declaration because of WT_ERR usage. */
+    char **files = NULL;
+    u_int count = 0;
     *work_count = 0;
+
     while ((ret = cursor->next(cursor)) == 0) {
-        const char *uri = NULL;
+        char *uri = NULL;
         WT_ERR(cursor->get_key(cursor, &uri));
-        if (WT_PREFIX_MATCH(uri, "file:")) {
-            __wt_verbose_debug2(
-              session, WT_VERB_FILEOPS, "Live restore server: Adding an %s to the work queue", uri);
-            WT_ERR(__wt_calloc_one(session, &work_item));
-            WT_ERR(__wt_strdup(session, uri, &work_item->uri));
-            TAILQ_INSERT_HEAD(&server->work_queue, work_item, q);
-            (*work_count)++;
-        }
+        if (WT_PREFIX_MATCH(uri, "file:"))
+            WT_ERR(__insert_queue_item(session, uri, work_count, false));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
+    /* Queue the metadata file if we're not restoring from a backup. */
+    if (!F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
+        WT_ERR(__insert_queue_item(session, (char *)("file:" WT_METAFILE), work_count, false));
+
+    /* Only queue log files if the logging system is enabled. */
+    if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED)) {
+        /*
+         * Get a list of log files. The log manager file path that we depend on here has already
+         * been configured.
+         */
+        WT_ERR(
+          __wt_fs_directory_list(session, conn->log_mgr.log_path, WT_LOG_FILENAME, &files, &count));
+        for (u_int i = 0; i < count; i++) {
+            WT_ERR(__insert_queue_item(session, files[i], work_count, true));
+        }
+        WT_ERR(__wt_fs_directory_list_free(session, &files, count));
+        count = 0;
+    }
+
     if (0) {
 err:
-        /* The queue insert cannot fail so whatever we've put into it is guaranteed to be there. */
+        /*
+         * We're in the error path so we don't need to be exact, but we know that if this value is
+         * non-zero we didn't free the directory list yet.
+         */
+        if (count > 0)
+            WT_IGNORE_RET(__wt_fs_directory_list_free(session, &files, count));
+        /* Something broke, drain the queue. */
         __live_restore_work_queue_drain(session);
-
-        /* Free the various items. */
-        __wt_free(session, work_item->uri);
-        __wt_free(session, work_item);
     }
     return (ret);
 }
