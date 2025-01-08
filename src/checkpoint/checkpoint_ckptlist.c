@@ -8,9 +8,12 @@
 
 #include "wt_internal.h"
 
-/*
+/* !!!
  * __wt_ckptlist_free --
  *     Discard the checkpoint array.
+ *
+ *     Input parameter:
+ *       `ckptbasep`: The checkpoint list to discard.
  */
 void
 __wt_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
