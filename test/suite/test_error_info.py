@@ -45,9 +45,6 @@ class test_error_info(compact_util):
         self.assertEqual(err_msg, error_msg)
 
     def test_compaction_already_running(self):
-        # Create a basic large table.
-        SimpleDataSet(self, self.table_name1, 1000, key_format='S', value_format='S').populate()
-
         # Enable the background compaction server.
         self.turn_on_bg_compact()
 
