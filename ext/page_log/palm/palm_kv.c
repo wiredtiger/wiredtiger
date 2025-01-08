@@ -55,7 +55,7 @@
  * LMDB requires the number of tables to be known at startup. If we add any more tables, we need to
  * increment this.
  */
-#define PALM_MAX_DBI 3
+#define PALM_MAX_DBI 4
 
 /*
  * The PAGE_KEY is the on disk format for the key of the pages table. The value is a set of bytes,
@@ -80,7 +80,7 @@ typedef struct PAGE_KEY {
     uint64_t timestamp_materialized_us;
 } PAGE_KEY;
 
-static bool need_swap = true; /* TODO: derive this */
+extern bool palm_need_swap;
 
 /*
  * Byte swap a page key so that it sorts in the expected order.
@@ -88,7 +88,7 @@ static bool need_swap = true; /* TODO: derive this */
 static void
 swap_page_key(const PAGE_KEY *src, PAGE_KEY *dest)
 {
-    if (!need_swap)
+    if (!palm_need_swap)
         return;
 
     if (dest != src)
@@ -204,6 +204,10 @@ palm_kv_env_open(PALM_KV_ENV *env, const char *homedir)
         return (ret);
     }
     if ((ret = mdb_dbi_open(txn, "pages", MDB_CREATE, &env->lmdb_pages_dbi)) != 0) {
+        mdb_txn_abort(txn);
+        return (ret);
+    }
+    if ((ret = mdb_dbi_open(txn, "checkpoints", MDB_CREATE, &env->lmdb_ckpt_dbi)) != 0) {
         mdb_txn_abort(txn);
         return (ret);
     }

@@ -37,6 +37,7 @@
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
+#include <swap.h> /* for __wt_bswap64 */
 #include "queue.h"
 
 #include "palm_kv.h"
@@ -131,6 +132,43 @@ typedef struct palm_handle {
 
     TAILQ_ENTRY(palm_handle) q; /* Queue of handles */
 } PALM_HANDLE;
+
+/*
+ * The CKPT_KEY is the on disk format for the checkpoints.
+ */
+typedef struct CKPT_KEY {
+    uint64_t lsn;
+
+    /*
+     * These are not really things we key on, but they are more convenient to store in the key
+     * rather than the data.
+     */
+    uint64_t checkpoint_id;
+} CKPT_KEY;
+
+extern bool palm_need_swap;
+bool palm_need_swap = true; /* TODO: derive this */
+
+/*
+ * Byte swap a checkpoint key so that it sorts in the expected order.
+ */
+static void
+swap_ckpt_key(const CKPT_KEY *src, CKPT_KEY *dest)
+{
+    if (!palm_need_swap)
+        return;
+
+    if (dest != src)
+        /* Copy all values by default. */
+        *dest = *src;
+
+    /*
+     * We don't need to swap all the fields in the key, only the ones that we use in comparisons.
+     * Other fields in the key that we don't swap are more like data fields, but they are more
+     * convenient to keep in the key.
+     */
+    dest->lsn = __wt_bswap64(src->lsn);
+}
 
 /*
  * Forward function declarations for internal functions
@@ -434,16 +472,24 @@ err:
 }
 
 /*
- * palm_complete_checkpoint --
+ * palm_complete_checkpoint_ext --
  *     Complete a checkpoint.
  */
 static int
-palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id)
+palm_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id,
+  const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
 {
+    CKPT_KEY ckpt_key;
+    MDB_val kval;
+    MDB_val vval;
     PALM *palm;
     PALM_KV_CONTEXT context;
-    uint64_t completed_checkpoint, started_checkpoint;
+    uint64_t completed_checkpoint, lsn, started_checkpoint;
     int ret;
+
+    memset(&ckpt_key, 0, sizeof(ckpt_key));
+    memset(&kval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(kval));
 
     palm = (PALM *)page_log;
     palm_init_context(palm, &context);
@@ -458,20 +504,49 @@ palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t ch
         ret = 0;
     }
     PALM_KV_ERR(palm, session, ret);
+    ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &lsn);
+    if (ret == MDB_NOTFOUND) {
+        lsn = 1;
+        ret = 0;
+    }
+    PALM_KV_ERR(palm, session, ret);
 
     if (completed_checkpoint >= started_checkpoint)
         return (palm_err(palm, session, EINVAL, "complete checkpoint id that was never begun"));
 
+    ckpt_key.lsn = lsn;
+    ckpt_key.checkpoint_id = checkpoint_id;
+    swap_ckpt_key(&ckpt_key, &ckpt_key);
+    kval.mv_size = sizeof(ckpt_key);
+    kval.mv_data = &ckpt_key;
+    vval.mv_size = checkpoint_metadata == NULL ? 0 : checkpoint_metadata->size;
+    vval.mv_data = checkpoint_metadata == NULL ? (void *)"" : (void *)checkpoint_metadata->data;
+    PALM_KV_ERR(
+      palm, session, mdb_put(context.lmdb_txn, context.env->lmdb_ckpt_dbi, &kval, &vval, 0));
+
+    PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, 0));
     PALM_KV_ERR(palm, session,
       palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_COMPLETED, checkpoint_id));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
+    if (lsnp != NULL)
+        *lsnp = lsn;
     return (0);
 
 err:
     palm_kv_rollback_transaction(&context);
     return (ret);
+}
+
+/*
+ * palm_complete_checkpoint --
+ *     Complete a checkpoint.
+ */
+static int
+palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id)
+{
+    return (palm_complete_checkpoint_ext(page_log, session, checkpoint_id, NULL, NULL));
 }
 
 /*
@@ -501,6 +576,70 @@ palm_get_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
     return (0);
 
 err:
+    palm_kv_rollback_transaction(&context);
+    return (ret);
+}
+
+/*
+ * palm_get_complete_checkpoint_ext --
+ *     Get information about the most recently completed checkpoint.
+ */
+static int
+palm_get_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session,
+  uint64_t *checkpoint_id, uint64_t *checkpoint_lsn, WT_ITEM *checkpoint_metadata)
+{
+    CKPT_KEY ckpt_key;
+    MDB_cursor *cursor;
+    MDB_val kval;
+    MDB_val vval;
+    PALM *palm;
+    PALM_KV_CONTEXT context;
+    int ret;
+
+    if (checkpoint_id != NULL)
+        *checkpoint_id = 0;
+    if (checkpoint_lsn != NULL)
+        *checkpoint_lsn = 0;
+    if (checkpoint_metadata != NULL)
+        memset(checkpoint_metadata, 0, sizeof(WT_ITEM));
+
+    cursor = NULL;
+    memset(&ckpt_key, 0, sizeof(ckpt_key));
+    memset(&kval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(vval));
+
+    palm = (PALM *)page_log;
+    palm_init_context(palm, &context);
+
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, true));
+    PALM_KV_ERR(
+      palm, session, mdb_cursor_open(context.lmdb_txn, context.env->lmdb_ckpt_dbi, &cursor));
+    PALM_KV_ERR(palm, session, mdb_cursor_get(cursor, &kval, &vval, MDB_LAST));
+    if (kval.mv_size != sizeof(CKPT_KEY))
+        PALM_KV_ERR(palm, session, EINVAL);
+
+    ckpt_key = *(CKPT_KEY *)kval.mv_data;
+    swap_ckpt_key(&ckpt_key, &ckpt_key);
+
+    if (checkpoint_metadata != NULL) {
+        PALM_KV_ERR(palm, session, palm_resize_item(checkpoint_metadata, vval.mv_size));
+        memcpy(checkpoint_metadata->mem, vval.mv_data, vval.mv_size);
+    }
+
+    mdb_cursor_close(cursor);
+    cursor = NULL;
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+
+    if (checkpoint_id != NULL)
+        *checkpoint_id = ckpt_key.checkpoint_id;
+    if (checkpoint_lsn != NULL)
+        *checkpoint_lsn = ckpt_key.lsn;
+
+    return (0);
+
+err:
+    if (cursor != NULL)
+        mdb_cursor_close(cursor);
     palm_kv_rollback_transaction(&context);
     return (ret);
 }
@@ -775,7 +914,9 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_add_reference = palm_add_reference;
     palm->page_log.pl_begin_checkpoint = palm_begin_checkpoint;
     palm->page_log.pl_complete_checkpoint = palm_complete_checkpoint;
+    palm->page_log.pl_complete_checkpoint_ext = palm_complete_checkpoint_ext;
     palm->page_log.pl_get_complete_checkpoint = palm_get_complete_checkpoint;
+    palm->page_log.pl_get_complete_checkpoint_ext = palm_get_complete_checkpoint_ext;
     palm->page_log.pl_get_open_checkpoint = palm_get_open_checkpoint;
     palm->page_log.pl_open_handle = palm_open_handle;
     palm->page_log.terminate = palm_terminate;

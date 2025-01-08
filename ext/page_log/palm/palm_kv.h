@@ -49,6 +49,7 @@ typedef struct PALM_KV_ENV {
     MDB_dbi lmdb_globals_dbi;
     MDB_dbi lmdb_tables_dbi;
     MDB_dbi lmdb_pages_dbi;
+    MDB_dbi lmdb_ckpt_dbi;
 } PALM_KV_ENV;
 
 typedef struct PALM_KV_CONTEXT {
