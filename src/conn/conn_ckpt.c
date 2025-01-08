@@ -26,6 +26,10 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
     conn = S2C(session);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint.precise", &cval));
+    /*
+     * TODO: Disaggregated storage should only supports precise checkpoint but mongod is not ready
+     * for that yet. Enable precise checkpoint automatically for disagg in the future.
+     */
     if (cval.val)
         F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
     else
