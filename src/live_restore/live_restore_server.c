@@ -185,13 +185,13 @@ __insert_queue_item(WT_SESSION_IMPL *session, char *uri, uint64_t *work_count, b
     WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
     WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
     WT_DECL_ITEM(buf);
-    WT_CLEAR(buf);
 
     WT_ERR(__wt_calloc_one(session, &work_item));
     if (log) {
+        WT_ERR(__wt_scr_alloc(session, 0, &buf));
         WT_ERR(__wt_buf_fmt(session, buf, "log:%s", uri));
         WT_ERR(__wt_strdup(session, buf->data, &work_item->uri));
-        __wt_buf_free(session, buf);
+        __wt_scr_free(session, &buf);
     } else
         WT_ERR(__wt_strdup(session, uri, &work_item->uri));
     TAILQ_INSERT_HEAD(&server->work_queue, work_item, q);
@@ -200,7 +200,8 @@ __insert_queue_item(WT_SESSION_IMPL *session, char *uri, uint64_t *work_count, b
     if (0) {
 err:
         if (log)
-            __wt_buf_free(session, buf);
+            __wt_scr_free(session, &buf);
+
         __wt_free(session, work_item->uri);
         __wt_free(session, work_item);
     }
