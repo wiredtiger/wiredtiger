@@ -15,14 +15,8 @@
  * Tests that successful API calls are recorded as "successful" in the session error_info struct.
  */
 
-int
-api_call_with_no_error(WT_SESSION_IMPL *session_impl)
-{
-    WT_DECL_RET;
-    SESSION_API_CALL_NOCONF(session_impl, log_printf);
-err:
-    API_END_RET(session_impl, ret);
-}
+#define ERR_MSG_EMPTY ""
+#define ERR_MSG_SUCCESS "last API call was successful"
 
 int
 api_call_with_error(
@@ -32,20 +26,17 @@ api_call_with_error(
     SESSION_API_CALL_NOCONF(session_impl, log_printf);
 
     ret = err;
-    WT_IGNORE_RET(__wt_session_set_last_error(session_impl, err, sub_level_err, err_msg_content));
+    if (err != 0 && err_msg_content != NULL)
+        WT_IGNORE_RET(
+          __wt_session_set_last_error(session_impl, err, sub_level_err, err_msg_content));
 err:
     API_END_RET(session_impl, ret);
 }
 
 int
-txn_api_call_with_no_error(WT_SESSION_IMPL *session_impl)
+api_call_with_no_error(WT_SESSION_IMPL *session_impl)
 {
-    WT_DECL_RET;
-    SESSION_TXN_API_CALL(session_impl, ret, log_printf, NULL, cfg);
-    WT_UNUSED(cfg);
-err:
-    TXN_API_END(session_impl, ret, false);
-    return (ret);
+    return (api_call_with_error(session_impl, 0, WT_NONE, NULL));
 }
 
 int
@@ -57,66 +48,73 @@ txn_api_call_with_error(
     WT_UNUSED(cfg);
 
     ret = err;
-    WT_IGNORE_RET(__wt_session_set_last_error(session_impl, err, sub_level_err, err_msg_content));
+    if (err != 0 && err_msg_content != NULL)
+        WT_IGNORE_RET(
+          __wt_session_set_last_error(session_impl, err, sub_level_err, err_msg_content));
 err:
     TXN_API_END(session_impl, ret, false);
     return (ret);
 }
 
+int
+txn_api_call_with_no_error(WT_SESSION_IMPL *session_impl)
+{
+    return (txn_api_call_with_error(session_impl, 0, WT_NONE, NULL));
+}
+
+void
+check_err_info(WT_ERROR_INFO err_info, int err, int sub_level_err, const char *err_msg_content)
+{
+    CHECK(err_info.err == err);
+    CHECK(err_info.sub_level_err == sub_level_err);
+    CHECK(strcmp(err_info.err_msg, err_msg_content) == 0);
+}
+
 TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", "[api_end]")
 {
-    WT_CONNECTION *conn;
     WT_SESSION *session;
-    WT_SESSION_IMPL *session_impl;
-
-    const char *err_msg_content;
 
     connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-    conn = conn_wrapper.get_wt_connection();
+    WT_CONNECTION *conn = conn_wrapper.get_wt_connection();
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
-    session_impl = (WT_SESSION_IMPL *)session;
+
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
 
     SECTION("Test API_END_RET with no error")
     {
-        err_msg_content = "last API call was successful";
-
         CHECK(api_call_with_no_error(session_impl) == 0);
-
-        CHECK(session_impl->err_info.err == 0);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
+        check_err_info(session_impl->err_info, 0, WT_NONE, ERR_MSG_SUCCESS);
     }
 
-    SECTION("Test API_END_RET with EINVAL")
+    SECTION("Test API_END_RET with EINVAL (no message)")
     {
-        err_msg_content = "Some EINVAL error";
+        CHECK(api_call_with_error(session_impl, EINVAL, WT_NONE, NULL) == EINVAL);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, ERR_MSG_EMPTY);
+    }
 
+    SECTION("Test API_END_RET with EINVAL (with message)")
+    {
+        const char *err_msg_content = "Some EINVAL error";
         CHECK(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
-
-        CHECK(session_impl->err_info.err == EINVAL);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
     }
 
     SECTION("Test TXN_API_END with no error")
     {
-        err_msg_content = "last API call was successful";
-
         CHECK(txn_api_call_with_no_error(session_impl) == 0);
-
-        CHECK(session_impl->err_info.err == 0);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
+        check_err_info(session_impl->err_info, 0, WT_NONE, ERR_MSG_SUCCESS);
     }
 
-    SECTION("Test TXN_API_END with EINVAL")
+    SECTION("Test TXN_API_END with EINVAL (no message)")
     {
-        err_msg_content = "Some EINVAL error";
+        CHECK(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, NULL) == EINVAL);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, ERR_MSG_EMPTY);
+    }
 
+    SECTION("Test TXN_API_END with EINVAL (with message)")
+    {
+        const char *err_msg_content = "Some EINVAL error";
         CHECK(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
-
-        CHECK(session_impl->err_info.err == EINVAL);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
     }
 }
