@@ -1843,8 +1843,8 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
          * of WiredTiger checkpoints dropped per checkpoint.
          */
         if (is_wt_ckpt)
-#define WT_MAX_CHECKPOINT_DROP 4
-            if (++max_ckpt_drop >= WT_MAX_CHECKPOINT_DROP)
+#define WTI_MAX_CHECKPOINT_DROP 4
+            if (++max_ckpt_drop >= WTI_MAX_CHECKPOINT_DROP)
                 F_CLR(ckpt, WT_CKPT_DELETE);
     }
 
