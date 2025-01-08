@@ -26,8 +26,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
     conn = S2C(session);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint.precise", &cval));
-    /* Disaggregated storage only supports precise checkpoint. */
-    if (__wt_conn_is_disagg(session) || cval.val)
+    if (cval.val)
         F_SET(conn, WT_CONN_PRECISE_CHECKPOINT);
     else
         F_CLR(conn, WT_CONN_PRECISE_CHECKPOINT);
