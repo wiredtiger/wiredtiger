@@ -116,7 +116,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     if (TAILQ_EMPTY(&server->work_queue)) {
         /* Stop our thread from running. This will call the stop_func and trigger state cleanup. */
         F_CLR(ctx, WT_THREAD_RUN);
-        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "%s", "Live restore worker terminating");
+        __wt_verbose_debug1(session, WT_VERB_FILEOPS, "%s", "Live restore worker terminating");
         __wt_spin_unlock(session, &server->queue_lock);
         return (0);
     }
@@ -127,12 +127,12 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
       session, WT_VERB_FILEOPS, "Live restore worker taking queue item: %s", work_item->uri);
     __wt_spin_unlock(session, &server->queue_lock);
 
-    WT_CURSOR *cursor;
-    WT_SESSION *wt_session = (WT_SESSION *)session;
     /*
      * Open a cursor so no one can get exclusive access on the object. This prevents concurrent
      * schema operations like drop. If the file no longer exists don't error out.
      */
+    WT_CURSOR *cursor;
+    WT_SESSION *wt_session = (WT_SESSION *)session;
     ret = wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor);
     if (ret == ENOENT) {
         /* Free the work item. */
@@ -151,10 +151,10 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     /* FIXME-WT-13897 Replace this with an API call into the block manager. */
     WT_FILE_HANDLE *fh = bm->block->fh->handle;
 
-    __wt_verbose_debug2(
+    __wt_verbose_debug3(
       session, WT_VERB_FILEOPS, "Live restore worker: Filling holes in %s", work_item->uri);
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS,
+    __wt_verbose_debug3(session, WT_VERB_FILEOPS,
       "Live restore worker: Finished finished filling holes in %s", work_item->uri);
 
     /* Free the work item. */
@@ -174,8 +174,8 @@ __insert_queue_item(WT_SESSION_IMPL *session, char *uri, uint64_t *work_count)
 {
     WT_DECL_RET;
 
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "Live restore server: Adding an %s to the work queue", uri);
+    __wt_verbose_debug2(
+      session, WT_VERB_FILEOPS, "Live restore server: Adding %s to the work queue", uri);
 
     WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
     WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
