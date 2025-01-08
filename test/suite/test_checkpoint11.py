@@ -40,7 +40,6 @@ from wtscenario import make_scenarios
 
 @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
-    conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
 
     format_values = [
@@ -70,8 +69,15 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('named_reopen', dict(second_checkpoint='second_checkpoint', do_reopen=True)),
         ('unnamed', dict(second_checkpoint=None, do_reopen=False, long_only=True)),
     ]
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
+        ('precise', dict(ckpt_config='checkpoint=(precise=true)')),
+    ]
     scenarios = make_scenarios(format_values,
-        overlap_values, stable_ts_values, advance_values, name_values)
+        overlap_values, stable_ts_values, advance_values, name_values, ckpt_precision)
+
+    def conn_config(self):
+        return 'statistics=(all),timing_stress_for_test=[checkpoint_slow],' + self.ckpt_config
 
     def large_updates(self, uri, ds, nrows, value, ts):
         cursor = self.session.open_cursor(uri)

@@ -33,9 +33,18 @@
 
 import time
 import wttest
+from wtscenario import make_scenarios
 
 class test_checkpoint05(wttest.WiredTigerTestCase):
-    conn_config = 'create,cache_size=100MB,log=(enabled=true,file_max=100K,remove=false)'
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
+        ('precise', dict(ckpt_config='checkpoint=(precise=true)')),
+    ]
+
+    scenarios = make_scenarios(ckpt_precision)
+
+    def conn_config(self):
+        return 'create,cache_size=100MB,log=(enabled=true,file_max=100K,remove=false),' + self.ckpt_config
 
     def count_checkpoints(self):
         metadata_cursor = self.session.open_cursor('metadata:', None, None)
