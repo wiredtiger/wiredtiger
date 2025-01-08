@@ -1528,6 +1528,7 @@ __wt_os_live_restore_fs(
       "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
       lr_fs->source.home, destination);
 
+    /* FIXME-WT-13982: Copy log files across from source to destination so log replay is fast. */
     /* Update the callers pointer. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
 

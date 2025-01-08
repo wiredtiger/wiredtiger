@@ -210,11 +210,11 @@ err:
 }
 
 /*
- * __live_restore_populate_queue --
+ * __live_restore_init_work_queue --
  *     Populate the live restore work queue. Free all objects on failure.
  */
 static int
-__live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
+__live_restore_init_work_queue(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -225,57 +225,26 @@ __live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "%s", "Live restore server: Initializing the work queue");
 
-    /*
-     * The work queuing algorithm is as follows, note all items are queued at the head:
-     *     - First we walk the metadata file to gather a list of file: objects. This will include
-     *     the history store file. We don't define any special ordering for it.
-     *     - If logging is enabled all the log files are found and queued.
-     *     - If we are not restoring from a backup, which is possible with live restore we queue
-     *     the metadata file.
-     */
-
     WT_CURSOR *cursor;
     WT_RET(__wt_metadata_cursor(session, &cursor));
-    /* Early declaration because of WT_ERR usage. */
-    char **files = NULL;
-    u_int count = 0;
-    *work_count = 0;
-
+    uint64_t work_count = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         char *uri = NULL;
         WT_ERR(cursor->get_key(cursor, &uri));
         if (WT_PREFIX_MATCH(uri, "file:"))
-            WT_ERR(__insert_queue_item(session, uri, work_count, false));
+            WT_ERR(__insert_queue_item(session, uri, &work_count, false));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Queue the metadata file if we're not restoring from a backup. */
     if (!F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
-        WT_ERR(__insert_queue_item(session, (char *)("file:" WT_METAFILE), work_count, false));
+        WT_ERR(__insert_queue_item(session, (char *)("file:" WT_METAFILE), &work_count, false));
 
-    /* Only queue log files if the logging system is enabled. */
-    if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED)) {
-        /*
-         * Get a list of log files. The log manager file path that we depend on here has already
-         * been configured.
-         */
-        WT_ERR(
-          __wt_fs_directory_list(session, conn->log_mgr.log_path, WT_LOG_FILENAME, &files, &count));
-        for (u_int i = 0; i < count; i++) {
-            WT_ERR(__insert_queue_item(session, files[i], work_count, true));
-        }
-        WT_ERR(__wt_fs_directory_list_free(session, &files, count));
-        count = 0;
-    }
+    WT_STAT_CONN_SET(session, live_restore_queue_length, work_count);
+    __wt_atomic_store64(&conn->live_restore_server->work_items_remaining, work_count);
 
     if (0) {
 err:
-        /*
-         * We're in the error path so we don't need to be exact, but we know that if this value is
-         * non-zero we didn't free the directory list yet.
-         */
-        if (count > 0)
-            WT_IGNORE_RET(__wt_fs_directory_list_free(session, &files, count));
         /* Something broke, drain the queue. */
         __live_restore_work_queue_drain(session);
     }
@@ -320,10 +289,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Even if we start from an empty database the history store file will exist before we get here
      * which means there will always be at least one item in the queue.
      */
-    uint64_t work_count;
-    WT_ERR(__live_restore_populate_queue(session, &work_count));
-    WT_STAT_CONN_SET(session, live_restore_queue_length, work_count);
-    __wt_atomic_store64(&conn->live_restore_server->work_items_remaining, work_count);
+    WT_ERR(__live_restore_init_work_queue(session));
 
     /* Set this value before the threads start up in case they immediately decrement it. */
     conn->live_restore_server->threads_working = (uint32_t)cval.val;
@@ -379,9 +345,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
          * further items. Given we are in a failure state this is okay.
          */
         WT_RET(__wt_thread_group_destroy(session, &server->threads));
-
         __live_restore_work_queue_drain(session);
-
         __wt_spin_destroy(session, &server->queue_lock);
     }
     __wt_free(session, server);
