@@ -86,7 +86,7 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
         check_err_info(session_impl->err_info, 0, WT_NONE, ERR_MSG_SUCCESS);
     }
 
-    SECTION("Test API_END_RET with EINVAL (no message)")
+    SECTION("Test API_END_RET with EINVAL (error code only)")
     {
         CHECK(api_call_with_error(session_impl, EINVAL, WT_NONE, NULL) == EINVAL);
         check_err_info(session_impl->err_info, EINVAL, WT_NONE, ERR_MSG_EMPTY);
@@ -105,7 +105,7 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
         check_err_info(session_impl->err_info, 0, WT_NONE, ERR_MSG_SUCCESS);
     }
 
-    SECTION("Test TXN_API_END with EINVAL (no message)")
+    SECTION("Test TXN_API_END with EINVAL (error code only)")
     {
         CHECK(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, NULL) == EINVAL);
         check_err_info(session_impl->err_info, EINVAL, WT_NONE, ERR_MSG_EMPTY);
