@@ -150,7 +150,7 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
     WT_SESSION_IMPL *session;
     uint64_t granularity;
     uint32_t index, opsize, optype;
-    char lsn_str[WTI_MAX_LSN_STRING];
+    char lsn_str[WT_MAX_LSN_STRING];
     const char *id_str;
 
     session = r->session;
@@ -244,7 +244,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     size_t max_memsize;
     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
     uint32_t fileid, mode, opsize, optype;
-    char lsn_str[WTI_MAX_LSN_STRING];
+    char lsn_str[WT_MAX_LSN_STRING];
 
     session = r->session;
     cursor = NULL;
@@ -714,7 +714,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     WT_DECL_RET;
     WT_LSN lsn;
     uint32_t fileid, lsnfile, lsnoffset;
-    char lsn_str[WTI_MAX_LSN_STRING];
+    char lsn_str[WT_MAX_LSN_STRING];
 
     WT_RET(__wt_config_getones(r->session, config, "id", &cval));
     fileid = (uint32_t)cval.val;
@@ -931,7 +931,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RECOVERY_FILE *metafile;
     WT_TIMER checkpoint_timer, rts_timer, timer;
     wt_off_t hs_size;
-    char ckpt_lsn_str[WTI_MAX_LSN_STRING], max_rec_lsn_str[WTI_MAX_LSN_STRING];
+    char ckpt_lsn_str[WT_MAX_LSN_STRING], max_rec_lsn_str[WT_MAX_LSN_STRING];
     char *config;
     char conn_rts_cfg[16];
     char ts_string[2][WT_TS_INT_STRING_SIZE];

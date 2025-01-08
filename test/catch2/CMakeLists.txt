@@ -8,6 +8,7 @@ else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
         misc_tests/test_strerror.cpp
+        misc_tests/test_session_set_last_error.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
@@ -46,6 +47,7 @@ endif()
 
 # Live restore is not supported on Windows
 if(NOT WT_WIN)
+    set(unittests live_restore/api/test_live_restore_fs_directory_list.cpp ${unittests})
     set(unittests live_restore/unit/test_live_restore_extent_list.cpp ${unittests})
 endif()
 

@@ -669,7 +669,7 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     uint32_t fileid, lsnfile, lsnoffset, rectype;
     int32_t start;
     const uint8_t *end, *p;
-    char lsn_str[WTI_MAX_LSN_STRING];
+    char lsn_str[WT_MAX_LSN_STRING];
     const char *msg;
     bool compressed;
 

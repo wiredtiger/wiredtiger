@@ -69,7 +69,7 @@ __wt_log_cmp(WT_LSN *lsn1, WT_LSN *lsn2)
 static WT_INLINE int
 __wt_lsn_string(WT_LSN *lsn, size_t len, char *buf)
 {
-    WT_ASSERT(NULL, len >= WTI_MAX_LSN_STRING);
+    WT_ASSERT(NULL, len >= WT_MAX_LSN_STRING);
     return (
       __wt_snprintf(buf, len, "%" PRIu32 ",%" PRIu32, __wt_lsn_file(lsn), __wt_lsn_offset(lsn)));
 }
