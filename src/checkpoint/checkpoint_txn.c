@@ -1263,7 +1263,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
         conn->txn_global.checkpoint_running_hs = true;
         WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_HS);
 
-        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
+        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_file(session, cfg));
 
         conn->txn_global.checkpoint_running_hs = false;
         WT_ERR(ret);
@@ -1387,7 +1387,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     session->meta_track_next = NULL;
     WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_META_CKPT);
     WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
-      WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint(session, cfg)));
+      WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
     session->meta_track_next = saved_meta_next;
     WT_ERR(ret);
 
@@ -2565,11 +2565,11 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_checkpoint --
+ * __wt_checkpoint_file --
  *     Checkpoint a file.
  */
 int
-__wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
