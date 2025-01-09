@@ -135,6 +135,22 @@ class DisaggConfigMixin:
         self.assertEquals(ret, 0)
         return n
 
+    # Get the information about the last completed checkpoint: ID, LSN, and metadata
+    def disagg_get_complete_checkpoint_ext(self, conn=None):
+        if conn is None:
+            conn = self.conn
+        page_log = conn.get_page_log('palm')
+
+        session = conn.open_session('')
+        r = page_log.pl_get_complete_checkpoint_ext(session)
+        session.close()
+        return r
+
+    # Get the metadata about the last completed checkpoint
+    def disagg_get_complete_checkpoint_meta(self, conn=None):
+        (_, _, m) = self.disagg_get_complete_checkpoint_ext(conn)
+        return m
+
     # Get the currently open checkpoint
     def disagg_get_open_checkpoint(self, conn=None):
         if conn is None:
@@ -150,9 +166,8 @@ class DisaggConfigMixin:
 
     # Let the follower pick up the latest checkpoint
     def disagg_advance_checkpoint(self, conn_follower, conn_leader=None):
-        n = self.disagg_get_complete_checkpoint(conn_leader)
-        self.assertGreater(n, 0)
-        conn_follower.reconfigure(f'disaggregated=(checkpoint_id={n})')
+        m = self.disagg_get_complete_checkpoint_meta(conn_leader)
+        conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{m}")')
 
     # Switch the leader and the follower
     def disagg_switch_follower_and_leader(self, conn_follower, conn_leader=None):
@@ -162,7 +177,7 @@ class DisaggConfigMixin:
         # Leader step down
         conn_leader.reconfigure(f'disaggregated=(role="follower")')
 
-        complete_id = self.disagg_get_complete_checkpoint(conn_leader)
+        (complete_id, _, meta) = self.disagg_get_complete_checkpoint_ext(conn_leader)
         self.assertGreater(complete_id, 0)
         open_id = self.disagg_get_open_checkpoint(conn_leader)
         if open_id == 0:
@@ -172,5 +187,5 @@ class DisaggConfigMixin:
             next_id = open_id + 1
 
         # Follower step up, including picking up the last complete checkpoint
-        conn_follower.reconfigure(f'disaggregated=(checkpoint_id={complete_id},' +\
+        conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{meta}",' +\
                                   f'next_checkpoint_id={next_id},role="leader")')

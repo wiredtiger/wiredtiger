@@ -678,10 +678,10 @@ extern int __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_su
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_begin_checkpoint(WT_SESSION_IMPL *session, uint64_t next_checkpoint_id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_disagg_get_meta(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t checkpoint_id,
-  WT_ITEM *item) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_disagg_get_meta(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t lsn,
+  uint64_t checkpoint_id, WT_ITEM *item) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_disagg_put_meta(WT_SESSION_IMPL *session, uint64_t page_id, uint64_t checkpoint_id,
-  WT_ITEM *item) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  const WT_ITEM *item, uint64_t *lsnp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_encrypt(WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t skip,
   WT_ITEM *in, WT_ITEM *out) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,

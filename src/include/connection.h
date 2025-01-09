@@ -177,8 +177,9 @@ struct __wt_disaggregated_storage {
     char *stable_prefix;
     char *storage_source;
 
-    wt_shared uint64_t global_checkpoint_id; /* The ID of the currenty opened checkpoint. */
-                                             /* Updates are protected by the checkpoint lock. */
+    wt_shared uint64_t global_checkpoint_id;     /* The ID of the currenty opened checkpoint. */
+                                                 /* Updates are protected by the checkpoint lock. */
+    wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
 
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;
