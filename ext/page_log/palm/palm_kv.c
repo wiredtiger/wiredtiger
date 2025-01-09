@@ -352,6 +352,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     memset(&vval, 0, sizeof(vval));
     memset(matches, 0, sizeof(*matches));
     memset(&page_key, 0, sizeof(page_key));
+    memset(&result_key, 0, sizeof(result_key));
     readonly_result_key = NULL;
     now = palm_kv_timestamp_us();
 
