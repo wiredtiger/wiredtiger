@@ -242,8 +242,8 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta, siz
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
-    char *meta_buf;
     uint64_t checkpoint_id, metadata_lsn;
+    char *meta_buf;
 
     /* Need to ensure that the meta argument is NUL-terminated. */
     WT_ERR(__wt_calloc_def(session, len + 1, &meta_buf));
