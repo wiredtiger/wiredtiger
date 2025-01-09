@@ -1340,7 +1340,7 @@ struct __wt_ref {
     WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
     uint64_t histoff;
 #endif
-    
+
     wt_shared volatile uint8_t ref_changes;
 };
 
