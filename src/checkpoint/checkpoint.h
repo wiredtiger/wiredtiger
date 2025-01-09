@@ -14,8 +14,6 @@
  *     Per-session checkpoint information.
  */
 struct __wt_ckpt_session {
-    WT_SPINLOCK lock; /* Checkpoint spinlock */
-
     uint64_t write_gen; /* Write generation override, during checkpoint cursor ops */
 
     /* Checkpoint handles */
