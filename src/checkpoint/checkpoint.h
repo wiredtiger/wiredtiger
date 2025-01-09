@@ -14,8 +14,6 @@
  *     Per-session checkpoint information.
  */
 struct __wt_ckpt_session {
-    WT_SPINLOCK lock; /* Checkpoint spinlock */
-
     uint64_t write_gen; /* Write generation override, during checkpoint cursor ops */
 
     /* Checkpoint handles */
@@ -132,8 +130,6 @@ struct __wt_ckpt_block_mods {
  */
 #define WT_CHECKPOINT "WiredTigerCheckpoint"
 #define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
-#define WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt) \
-    for ((ckpt) = (ckptbase); (ckpt)->name != NULL || (ckpt)->order != 0; ++(ckpt))
 
 struct __wt_ckpt {
     char *name; /* Name or NULL */
@@ -230,9 +226,11 @@ struct __wt_checkpoint_cleanup {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
-extern int __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -241,8 +239,6 @@ extern int __wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *c
 extern int __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt);
 extern void __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing);
