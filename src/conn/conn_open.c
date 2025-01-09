@@ -128,7 +128,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
      */
     if (ret == 0 && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) &&
       F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DONE))
-        WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
+        WT_TRET(__wt_checkpoint_txn_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
 
     /* Free memory for collators, compressors, data sources. */
