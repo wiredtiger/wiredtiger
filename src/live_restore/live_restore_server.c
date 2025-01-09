@@ -129,7 +129,8 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     /*
      * Open a cursor so no one can get exclusive access on the object. This prevents concurrent
-     * schema operations like drop. If the file no longer exists don't error out.
+     * schema operations like drop. If the file no longer exists we don't need to copy anything and
+     * can return a success.
      */
     WT_CURSOR *cursor;
     WT_SESSION *wt_session = (WT_SESSION *)session;
@@ -221,7 +222,11 @@ __live_restore_init_work_queue(WT_SESSION_IMPL *session)
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    /* Queue the metadata file if we're not restoring from a backup. */
+    /*
+     * The first step on restoration from a backup is to rebuild the metadata file. Thus if we are
+     * restoring from a backup we don't need to queue it. Otherwise we need to ensure we transfer it
+     * over.
+     */
     if (!F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
         WT_ERR(__insert_queue_item(session, (char *)("file:" WT_METAFILE), &work_count));
 

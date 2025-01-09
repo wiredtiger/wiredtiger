@@ -907,12 +907,15 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     if (lr_fh->destination.fh != NULL) {
         /*
          * We cannot queue the turtle file in the live restore queue as we cannot open a cursor on
-         * it. But it is critical that we ensure all gaps in it are migrated across. Thus the turtle
+         * it, but it is critical that we ensure all gaps in it are migrated across. Thus the turtle
          * file is the one file we intentionally fill holes on close for. This is relatively cheap
          * given how small it is.
          */
-        if (strstr(fh->name, WT_METADATA_TURTLE) != NULL)
+        if (WT_SUFFIX_MATCH(fh->name, WT_METADATA_TURTLE)) {
+            __wt_verbose_debug2(
+              session, WT_VERB_FILEOPS, "%s", "LIVE_RESTORE_FS: Filling holes for turtle file.");
             WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
+        }
 
         lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     }
