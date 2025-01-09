@@ -82,6 +82,7 @@ class test_error_info(compact_util):
         self.assertEqual(self.session.commit_transaction(), 0)
         cursor.close()
 
+        # Give time for the oldest id to update.
         time.sleep(1)
 
         # Attempt to drop the table without performing a checkpoint.
