@@ -178,8 +178,8 @@ __insert_queue_item(WT_SESSION_IMPL *session, char *uri, uint64_t *work_count)
     __wt_verbose_debug2(
       session, WT_VERB_FILEOPS, "Live restore server: Adding %s to the work queue", uri);
 
-    WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
     WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
+    WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
 
     WT_ERR(__wt_calloc_one(session, &work_item));
     WT_ERR(__wt_strdup(session, uri, &work_item->uri));
@@ -202,8 +202,8 @@ err:
 static int
 __live_restore_init_work_queue(WT_SESSION_IMPL *session)
 {
-    WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DECL_RET;
     WT_LIVE_RESTORE_SERVER *server = conn->live_restore_server;
 
     /* Initialize the work queue. */

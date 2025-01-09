@@ -240,7 +240,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifndef _MSC_VER
     /*
-     * If we're performing a live restore start the server. This is intentionally placed _after_
+     * If we're performing a live restore start the server. This is intentionally placed after
      * recovery finishes as we depend on the metadata file containing the list of objects that need
      * live restoration.
      */
