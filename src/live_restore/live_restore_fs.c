@@ -898,7 +898,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
+    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s", fh->name);
 
     /*
      * If we hit an error during file handle creation we'll call this function to free the partially
