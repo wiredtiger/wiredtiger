@@ -96,7 +96,7 @@ This sub-level error code is returned by default and indicates that no further c
 necessary.
 
 @par \c WT_BACKGROUND_COMPACT_ALREADY_RUNNING
-This sub-level error returns when the user tries to reconfigure the background compaction while it
+This sub-level error returns when the user tries to reconfigure background compaction while it
 is already running.
 
 @par \c WT_SESSION_MAX
