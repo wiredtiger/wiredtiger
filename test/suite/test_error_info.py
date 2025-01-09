@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import errno
+import time
 import wiredtiger
 from compact_util import compact_util
 
@@ -60,7 +61,7 @@ class test_error_info(compact_util):
         self.session.begin_transaction()
         cursor.set_key('key')
         cursor.set_value('value')
-        self.assertEqual(cursor.update(), 0)
+        cursor.insert()
         cursor.close()
 
         # Attempt to drop the table without committing the transaction.
