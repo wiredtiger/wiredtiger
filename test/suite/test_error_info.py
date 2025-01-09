@@ -27,11 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import errno
-import wiredtiger, wttest, time
-from wtdataset import SimpleDataSet
+import wiredtiger
 from compact_util import compact_util
-
-import unittest
 
 # test_error_info.py
 #   Test that the placeholder get_last_error() session API returns placeholder error values.
