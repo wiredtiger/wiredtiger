@@ -2441,16 +2441,21 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (build_delta) {
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
+        WT_ASSERT(session, block_meta->checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
         multi->block_meta = *block_meta;
         WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
             WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
+            WT_ASSERT(session, multi->base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
             /* Delta reuse the previous base checkpoint id. */
             multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
             multi->block_meta.checkpoint_id = checkpoint_id;
             multi->block_meta.reconciliation_id = 0;
-        } else
+        } else {
+            WT_ASSERT(session, multi->base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+            WT_ASSERT(session, multi->backlink_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
             ++multi->block_meta.reconciliation_id;
+        }
         ++multi->block_meta.delta_count;
 
         /* Get the checkpoint ID. */
