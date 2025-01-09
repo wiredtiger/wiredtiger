@@ -1515,11 +1515,11 @@ err:
 }
 
 /*
- * __checkpoint_wrapper --
+ * __checkpoint_db_wrapper --
  *     Checkpoint wrapper.
  */
 static int
-__checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
+__checkpoint_db_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1617,9 +1617,9 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      * here to ensure we don't get into trouble.
      */
     if (waiting)
-        WT_WITH_CHECKPOINT_LOCK(session, ret = __checkpoint_wrapper(session, cfg));
+        WT_WITH_CHECKPOINT_LOCK(session, ret = __checkpoint_db_wrapper(session, cfg));
     else
-        WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret, ret = __checkpoint_wrapper(session, cfg));
+        WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret, ret = __checkpoint_db_wrapper(session, cfg));
     /*
      * If this checkpoint is flushing objects, a failure can leave a tree's block manager pointing
      * to incorrect blocks. Currently we can not recover from this situation. Panic!
