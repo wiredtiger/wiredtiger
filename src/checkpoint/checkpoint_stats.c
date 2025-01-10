@@ -38,7 +38,7 @@ __wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION 
 
 /*
  * __wt_checkpoint_set_handle_stats --
- *     Reset handle-related stats.
+ *     Set handle-related stats.
  */
 void
 __wt_checkpoint_set_handle_stats(
