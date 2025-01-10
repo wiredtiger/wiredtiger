@@ -1341,7 +1341,7 @@ struct __wt_ref {
     uint64_t histoff;
 #endif
 
-    wt_shared volatile uint8_t ref_changes;
+    wt_shared volatile uint16_t ref_changes;
 };
 
 #ifdef HAVE_REF_TRACK
