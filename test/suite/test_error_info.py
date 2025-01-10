@@ -39,36 +39,25 @@ class test_error_info(wttest.WiredTigerTestCase):
     table_name3 = 'table:test_error_infoc.wt'
 
     repeat_call = False
-    empty_message = ""
-    success_message = "last API call was successful"
+    ERROR_INFO_EMPTY = ""
+    ERROR_INFO_SUCCESS = "last API call was successful"
     EINVAL_message = "unknown configuration key 'expect_this_error'"
-
-    def create_table(self, tablename):
-        format = 'key_format=S,value_format=S'
-        extra_params = ',allocation_size=512,' +\
-            'internal_page_max=16384,leaf_page_max=131072'
-        self.pr('create_table')
-        self.session.create(tablename, format + extra_params)
 
     def cursor_s(self, tablename, key):
         cursor = self.session.open_cursor(tablename, None, None)
         cursor.set_key(key)
         return cursor
 
-    def cursor_ss(self, tablename, key, val):
-        cursor = self.cursor_s(tablename, key)
-        cursor.set_value(val)
-        return cursor
-
     def api_call_with_success(self):
         """
         Create a table, add a key, get it back
         """
-        self.create_table(self.table_name2)
-        inscursor = self.cursor_ss(self.table_name2, 'key1', 'value1')
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
+        inscursor = self.cursor_s(self.table_name1, 'key1')
+        inscursor.set_value('value1')
         inscursor.insert()
         inscursor.close()
-        getcursor = self.cursor_s(self.table_name2, 'key1')
+        getcursor = self.cursor_s(self.table_name1, 'key1')
         getcursor.search()
         getcursor.close()
 
@@ -76,7 +65,7 @@ class test_error_info(wttest.WiredTigerTestCase):
         expectMessage = 'unknown configuration key'
         with self.expectedStderrPattern(expectMessage):
             try:
-                self.session.create(self.table_name1, 'expect_this_error,okay?')
+                self.session.create(self.table_name2, 'expect_this_error,okay?')
             except wiredtiger.WiredTigerError as e:
                 self.assertTrue(str(e).find('nvalid argument') >= 0)
 
@@ -108,14 +97,14 @@ class test_error_info(wttest.WiredTigerTestCase):
 
     def test_api_call_with_EBUSY(self):
         self.api_call_with_EBUSY()
-        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_NONE, self.empty_message)
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_NONE, self.ERROR_INFO_EMPTY)
 
     def test_api_call_with_success(self):
         self.api_call_with_success()
-        self.assert_error_equal(0, wiredtiger.WT_NONE, self.success_message)
+        self.assert_error_equal(0, wiredtiger.WT_NONE, self.ERROR_INFO_SUCCESS)
 
     def test_api_call_alternating(self):
-        self.assert_error_equal(0, wiredtiger.WT_NONE, self.empty_message)
+        self.assert_error_equal(0, wiredtiger.WT_NONE, self.ERROR_INFO_EMPTY)
         self.test_api_call_with_success()
         self.test_api_call_with_EINVAL()
         self.test_api_call_with_EBUSY()
@@ -125,7 +114,7 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.test_api_call_with_success()
 
     def test_api_call_doubling(self):
-        self.assert_error_equal(0, wiredtiger.WT_NONE, self.empty_message)
+        self.assert_error_equal(0, wiredtiger.WT_NONE, self.ERROR_INFO_EMPTY)
         self.test_api_call_with_success()
         self.test_api_call_with_success()
         self.test_api_call_with_EINVAL()
