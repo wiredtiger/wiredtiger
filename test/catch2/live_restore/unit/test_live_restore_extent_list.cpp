@@ -131,8 +131,11 @@ TEST_CASE("Live Restore Extent Lists: Creation", "[live_restore],[live_restore_e
 
         // Migrate the first 4KB by reading and writing them. Live restore will read from the source
         // and write back to the destination.
-        lr_fh->iface.fh_read(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session, 0, 4096, buf);
-        lr_fh->iface.fh_write(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session, 0, 4096, buf);
+
+        // Change the write size to 100 bytes. If fiemap reads actual write sizes and isn't upscaled
+        // to the FS block size this test will now fail (which it doesn't).
+        lr_fh->iface.fh_read(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session, 0, 100, buf);
+        lr_fh->iface.fh_write(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session, 0, 100, buf);
 
         // Close the file and reopen it to generate the extent list from holes in the dest file
         lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session);
