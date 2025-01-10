@@ -94,3 +94,23 @@ class test_error_info(compact_util):
 
     def test_error_info(self):
         self.check_error(0, wiredtiger.WT_NONE, "")
+
+    def test_error_info(self):
+        err, sub_level_err, err_msg = self.session.get_last_error()
+        self.assertEqual(err, 0)
+        self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
+        self.assertEqual(err_msg, "")
+
+    def test_invalid_config(self):
+        expectMessage = 'unknown configuration key'
+        with self.expectedStderrPattern(expectMessage):
+            try:
+                self.session.create('table:' + self.table_name1,
+                                    'expect_this_error,okay?')
+            except wiredtiger.WiredTigerError as e:
+                self.assertTrue(str(e).find('nvalid argument') >= 0)
+
+        err, sub_level_err, err_msg = self.session.get_last_error()
+        self.assertEqual(err, errno.EINVAL)
+        self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
+        self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
