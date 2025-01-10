@@ -1352,6 +1352,7 @@ struct __wt_ref {
      * that these modifications are included.
      */
     wt_shared volatile uint16_t ref_changes;
+    char pad[6]; /* Padding */
 };
 
 #ifdef HAVE_REF_TRACK
