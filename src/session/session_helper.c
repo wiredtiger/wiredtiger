@@ -180,8 +180,9 @@ __wt_session_set_last_error(
             goto err;
     }
 
-    /* Free the last error message string if it was dynamically allocated. */
-    if (err_info->err != 0 && strcmp(err_info->err_msg, WT_ERROR_INFO_EMPTY) != 0)
+    /* Free the last saved error message string if it was dynamically allocated. */
+    if (err_info->err != 0 && err_info->err_msg != NULL &&
+      strcmp(err_info->err_msg, WT_ERROR_INFO_EMPTY) != 0)
         __wt_free(session, err_info->err_msg);
 
     /* Load error codes and message into err_info. */

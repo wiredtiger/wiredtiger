@@ -391,6 +391,14 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
         __wt_free(session, session->optrack_buf);
     }
 
+    /*
+     * Free the last saved error message string if it was dynamically allocated. err_msg should
+     * never be NULL at this point, but check just in case.
+     */
+    if (session->err_info.err != 0 && session->err_info.err_msg != NULL &&
+      strcmp(session->err_info.err_msg, WT_ERROR_INFO_EMPTY) != 0)
+        __wt_free(session, session->err_info.err_msg);
+
     /* Release common session resources. */
     WT_TRET(__wt_session_release_resources(session));
 
@@ -402,10 +410,6 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * RTS looks at it.
      */
     __wt_txn_destroy(session);
-
-    /* Free the last saved error message string if it was dynamically allocated. */
-    if (session->err_info.err != 0 && strcmp(session->err_info.err_msg, WT_ERROR_INFO_EMPTY) != 0)
-        __wt_free(session, session->err_info.err_msg);
 
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
