@@ -27,8 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import errno
-import wiredtiger, wttest, time
-from wtdataset import SimpleDataSet
+import wiredtiger, time
 from compact_util import compact_util
 
 import unittest
@@ -61,15 +60,14 @@ class test_error_info(compact_util):
         self.conn.reconfigure('cache_max_wait_ms=1,eviction_dirty_target=1,eviction_dirty_trigger=2')
 
         # Create a very basic table.
-        ds = SimpleDataSet(self, self.table_name1, 10, key_format='S', value_format='S')
-        ds.populate()
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
 
         # Open a session and cursor.
         cursor = self.session.open_cursor(self.table_name1)
 
         # Start a transaction and insert a value large enough to trigger eviction app worker threads.
         self.session.begin_transaction()
-        cursor.set_key(ds.key(1))
+        cursor.set_key("key_a")
         cursor.set_value("a"*1024*5000)
         cursor.update()
         self.session.commit_transaction()
@@ -77,7 +75,7 @@ class test_error_info(compact_util):
         # Start a new transaction and attempt to insert a value. The very low cache_max_wait_ms
         # value should cause the eviction thread to time out.
         self.session.begin_transaction()
-        cursor.set_key(ds.key(3))
+        cursor.set_key("key_b")
         cursor.set_value("b")
 
         # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
@@ -90,20 +88,29 @@ class test_error_info(compact_util):
 
     def test_write_conflict(self):
         # Create a very basic table.
-        ds = SimpleDataSet(self, self.table_name1, 10, key_format='S', value_format='S')
-        ds.populate()
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
 
-        # Update key 5 in the first session.
+        # Insert a key and value.
+        cursor = self.session.open_cursor(self.table_name1)
+        self.session.begin_transaction()
+        cursor.set_key("key")
+        cursor.set_value("value")
+        cursor.update()
+        self.session.commit_transaction()
+        self.session.checkpoint()
+        cursor.close()
+
+        # Update the key in the first session.
         session1 = self.session
         cursor1 = session1.open_cursor(self.table_name1)
         session1.begin_transaction()
-        cursor1[ds.key(5)] = "aaa"
+        cursor1["key"] = "aaa"
 
-        # Update the same key in the second session, expect a conflict error to be produced.
+        # Insert the same key in the second session, expect a conflict error to be produced.
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(self.table_name1)
         session2.begin_transaction()
-        cursor2.set_key(ds.key(5))
+        cursor2.set_key("key")
         cursor2.set_value("bbb")
 
         # Catch the default reason for WT_ROLLBACK errors.
@@ -119,14 +126,13 @@ class test_error_info(compact_util):
         self.conn.reconfigure('cache_size=1MB')
 
         # Create a very basic table.
-        ds = SimpleDataSet(self, self.table_name1, 10, key_format='S', value_format='S')
-        ds.populate()
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
 
         cursor = self.session.open_cursor(self.table_name1)
 
         # Start a new transaction and insert a value far too large for cache.
         self.session.begin_transaction()
-        cursor.set_key(ds.key(1))
+        cursor.set_key("key_a")
         cursor.set_value("a"*1024*5000)
         self.assertEqual(0, cursor.update())
 
@@ -135,7 +141,7 @@ class test_error_info(compact_util):
 
         # Attempt to insert another value with the same transaction. This will result in the
         # application thread being pulled into eviction and getting rolled back.
-        cursor.set_key(ds.key(2))
+        cursor.set_key("key_b")
         cursor.set_value("b"*1024)
 
         # Catch the default reason for WT_ROLLBACK errors.
