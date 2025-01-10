@@ -1341,11 +1341,11 @@ struct __wt_ref {
     uint64_t histoff;
 #endif
 
-    /* 
+    /*
      * A counter used to track how many times a ref has changed during internal page reconciliation.
      * The value is compared and swapped to 0 for each internal page reconciliation. If the counter
      * has a value greater than zero, this implies that the ref has been changed concurrently and
-     * that the ref is dirty.
+     * that the ref remains dirty after internal page reconciliation.
      */
     wt_shared volatile uint16_t ref_changes;
 };
