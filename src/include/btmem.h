@@ -1345,7 +1345,11 @@ struct __wt_ref {
      * A counter used to track how many times a ref has changed during internal page reconciliation.
      * The value is compared and swapped to 0 for each internal page reconciliation. If the counter
      * has a value greater than zero, this implies that the ref has been changed concurrently and
-     * that the ref remains dirty after internal page reconciliation.
+     * that the ref remains dirty after internal page reconciliation. It is possible for other
+     * operations such as page splits and fast-truncate to concurrently write new values to the ref,
+     * but depending on timing or race conditions, it cannot be guaranteed that these new values are
+     * included as part of the reconciliation. The page would need to be reconciled again to ensure
+     * that these modifications are included.
      */
     wt_shared volatile uint16_t ref_changes;
 };
