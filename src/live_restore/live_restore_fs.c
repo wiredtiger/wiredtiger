@@ -654,8 +654,10 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
         } else if (read_begins_in_hole && !read_ends_in_hole) {
             /* A partial read should never begin in a hole. */
             WT_ASSERT_ALWAYS(session, false,
-              "Read (offset: %ld, len: %lu) begins in a hole but does not end in one (offset: %ld, "
-              "len: %lu)",
+              "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT
+              ") begins in a hole but does not end in one (offset: %" PRId64
+              ", "
+              "len: %" WT_SIZET_FMT ")",
               offset, len, hole->off, hole->len);
         }
 
@@ -688,7 +690,7 @@ __live_restore_fh_write_int(
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
     __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "WRITE %s: %" PRId64 ", %lu", fh->name, offset, len);
+      session, WT_VERB_FILEOPS, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT, fh->name, offset, len);
 
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
     return (__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
@@ -731,7 +733,7 @@ __live_restore_fh_read(
     session = (WT_SESSION_IMPL *)wt_session;
 
     __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "READ %s : %" PRId64 ", %lu", fh->name, offset, len);
+      session, WT_VERB_FILEOPS, "READ %s : %" PRId64 ", %" WT_SIZET_FMT, fh->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -780,13 +782,14 @@ __live_restore_fh_read(
 
         /* First read the serviceable portion from the destination. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-          "    PARTIAL READ FROM DEST (offset: %ld, len: %lu)", offset, dest_partial_read_len);
+          "    PARTIAL READ FROM DEST (offset: %" PRId64 ", len: %" WT_SIZET_FMT ")", offset,
+          dest_partial_read_len);
         WT_ERR(lr_fh->destination.fh->fh_read(
           lr_fh->destination.fh, wt_session, offset, dest_partial_read_len, read_data));
 
         /* Now read the remaining data from the source. */
         __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-          "    PARTIAL READ FROM SOURCE (offset: %ld, len: %lu)", hole->off,
+          "    PARTIAL READ FROM SOURCE (offset: %" PRId64 ", len: %" WT_SIZET_FMT ")", hole->off,
           source_partial_read_len);
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, source_partial_read_len,
           read_data + dest_partial_read_len));
@@ -850,8 +853,9 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finis
      */
     char buf[WT_LIVE_RESTORE_READ_SIZE];
     size_t read_size = WT_MIN(hole->len, (size_t)WT_LIVE_RESTORE_READ_SIZE);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    BACKGROUND READ %s : %" PRId64 ", %lu",
-      lr_fh->iface.name, hole->off, read_size);
+    __wt_verbose_debug2(session, WT_VERB_FILEOPS,
+      "    BACKGROUND READ %s : %" PRId64 ", %" WT_SIZET_FMT, lr_fh->iface.name, hole->off,
+      read_size);
     WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
     return (__live_restore_fh_write_int(fh, wt_session, hole->off, read_size, buf));
 }
@@ -896,11 +900,17 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
-    if (FLD_ISSET(
-          lr_fh->destination.back_pointer->debug_flags, WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE))
-        WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
+    /*
+     * If we hit an error during file handle creation we'll call this function to free the partially
+     * created handle. At this point fields may be uninitialized so we check for null pointers.
+     */
+    if (lr_fh->destination.fh != NULL) {
+        if (FLD_ISSET(lr_fh->destination.back_pointer->debug_flags,
+              WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE))
+            WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
 
-    lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
+        lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
+    }
 
     WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
       session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
@@ -953,7 +963,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    wt_off_t old_len, truncate_start, truncate_end;
+    wt_off_t old_len, truncate_end, truncate_start;
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     old_len = 0;
@@ -1154,6 +1164,10 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
     WT_FILE_HANDLE *fh;
     char *path;
 
+    /* This function is only called for files. Directories are handled separately. */
+    WT_ASSERT_ALWAYS(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY,
+      "Open in destination should not be called on directories");
+
     path = NULL;
 
     if (create)
@@ -1168,13 +1182,151 @@ __live_restore_fs_open_in_destination(WT_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL
     lr_fh->destination.back_pointer = lr_fs;
 
     /* Get the list of holes of the file that need copying across from the source directory. */
-    WT_ASSERT(session, lr_fh->file_type != WT_FS_OPEN_FILE_TYPE_DIRECTORY);
     WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
     WT_ERR(__live_restore_handle_verify_hole_list(session, lr_fs, lr_fh, name));
 
 err:
     __wt_free(session, path);
     return (ret);
+}
+
+/*
+ * __live_restore_setup_lr_fh_directory --
+ *     Populate a live restore file handle for a directory. Directories have special handling. If
+ *     they don't exist in the destination they'll be created immediately (but not their contents)
+ *     and immediately marked as complete. WiredTiger will never create or destroy a directory so we
+ *     don't need to think about tombstones.
+ */
+static int
+__live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
+  const char *name, uint32_t flags, WT_LIVE_RESTORE_FILE_HANDLE *lr_fhp)
+{
+    WT_DECL_RET;
+    char *dest_folder_path = NULL;
+    bool dest_exist = false, source_exist = false;
+
+    WT_RET_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
+    WT_RET_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
+
+    if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
+        WT_RET_MSG(session, ENOENT, "Directory %s does not exist in source or destination", name);
+
+    WT_RET(__live_restore_create_file_path(
+      session, &lr_fs->destination, (char *)name, &dest_folder_path));
+
+    if (!dest_exist) {
+        /*
+         * The directory doesn't exist in the destination yet. We need to create it in all cases.
+         * Our underlying posix file system doesn't support creating folders via WT_FS_OPEN_CREATE
+         * so we create it manually.
+         *
+         * FIXME-WT-13971 Defaulting to permissions 0755. If the folder exists in the source should
+         * we copy the permissions from the source?
+         */
+        mkdir(dest_folder_path, 0755);
+    }
+
+    WT_FILE_HANDLE *fh;
+    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
+      dest_folder_path, lr_fhp->file_type, flags, &fh));
+
+    lr_fhp->destination.fh = fh;
+
+    /* There's no need for a hole list. The directory has already been fully copied */
+    lr_fhp->destination.hole_list_head = NULL;
+    lr_fhp->destination.back_pointer = lr_fs;
+    lr_fhp->destination.complete = true;
+
+err:
+    __wt_free(session, dest_folder_path);
+    return (ret);
+}
+
+/*
+ * __live_restore_setup_lr_fh_file --
+ *     Populate a live restore file handle for a normal (non-directory) file.
+ */
+static int
+__live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr_fs,
+  const char *name, uint32_t flags, WT_LIVE_RESTORE_FILE_HANDLE *lr_fhp)
+{
+    bool dest_exist = false, source_exist = false, have_tombstone = false;
+    WT_SESSION *wt_session = (WT_SESSION *)session;
+
+    WT_RET_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
+    WT_RET_NOTFOUND_OK(
+      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
+    WT_RET(__dest_has_tombstone(lr_fs, (char *)name, session, &have_tombstone));
+
+    if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
+        WT_RET_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
+
+    if (!dest_exist && have_tombstone && !LF_ISSET(WT_FS_OPEN_CREATE))
+        WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
+
+    /* Open it in the destination layer. */
+    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fhp, name, flags, !dest_exist));
+
+    if (have_tombstone) {
+        /*
+         * Set the complete flag, we know that if there is a tombstone we should never look in the
+         * source. Therefore the destination must be complete.
+         */
+        lr_fhp->destination.complete = true;
+        /* Opening files is single threaded but the remove extlist free requires the lock. */
+        WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+          session, lr_fhp, __live_restore_fs_free_extent_list(session, lr_fhp));
+    } else {
+        /*
+         * If it exists in the source, open it. If it doesn't exist in the source then by definition
+         * the destination file is complete.
+         */
+        WT_RET_NOTFOUND_OK(
+          __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
+        if (source_exist) {
+            WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fhp, flags));
+
+            if (!dest_exist) {
+                /*
+                 * We're creating a new destination file which is backed by a source file. It
+                 * currently has a length of zero, but we want its length to be the same as the
+                 * source file.
+                 */
+                wt_off_t source_size;
+
+                /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
+
+                WT_RET(lr_fhp->source->fh_size(lr_fhp->source, wt_session, &source_size));
+                __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+                  "Creating destination file backed by source file. Copying size (%" PRId64
+                  ") from source "
+                  "file",
+                  source_size);
+
+                /*
+                 * Set size by truncating. This is a positive length truncate so it actually extends
+                 * the file. We're bypassing the live_restore layer so we don't try to modify the
+                 * extents in hole_list_head.
+                 */
+                WT_RET(lr_fhp->destination.fh->fh_truncate(
+                  lr_fhp->destination.fh, wt_session, source_size));
+
+                /*
+                 * Initialize the extent as one hole covering the entire file. We need to read
+                 * everything from source.
+                 */
+                WT_ASSERT(session, lr_fhp->destination.hole_list_head == NULL);
+                WT_RET(__live_restore_alloc_extent(
+                  session, 0, (size_t)source_size, NULL, &lr_fhp->destination.hole_list_head));
+            }
+        } else
+            lr_fhp->destination.complete = true;
+    }
+
+    return (0);
 }
 
 /*
@@ -1187,94 +1339,15 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
   WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
 {
     WT_DECL_RET;
-    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_LIVE_RESTORE_FS *lr_fs;
-    WT_LIVE_RESTORE_FS_LAYER_TYPE which;
-    WT_SESSION_IMPL *session;
-    bool dest_exist, source_exist, have_tombstone, readonly;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    lr_fs = (WT_LIVE_RESTORE_FS *)fs;
-
-    dest_exist = source_exist = false;
-    lr_fh = NULL;
-    have_tombstone = false;
-    WT_UNUSED(have_tombstone);
-    readonly = LF_ISSET(WT_FS_OPEN_READONLY);
-    WT_UNUSED(readonly);
-    WT_UNUSED(which);
-
-    /* FIXME-WT-13808 Handle WT_FS_OPEN_FILE_TYPE_DIRECTORY */
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
+    WT_LIVE_RESTORE_FS *lr_fs = (WT_LIVE_RESTORE_FS *)fs;
 
     /* Set up the file handle. */
+    WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = NULL;
     WT_ERR(__wt_calloc_one(session, &lr_fh));
     WT_ERR(__wt_strdup(session, name, &lr_fh->iface.name));
     lr_fh->iface.file_system = fs;
     lr_fh->file_type = file_type;
-
-    WT_ERR(__wt_rwlock_init(session, &lr_fh->ext_lock));
-
-    /* FIXME-WT-13823 Handle the exclusive flag and other flags */
-
-    /* Open it in the destination layer. */
-    WT_ERR_NOTFOUND_OK(
-      __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist), true);
-    WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
-
-    WT_ERR(__dest_has_tombstone(lr_fs, lr_fh->destination.fh->name, session, &have_tombstone));
-    if (have_tombstone) {
-        /*
-         * Set the complete flag, we know that if there is a tombstone we should never look in the
-         * source. Therefore the destination must be complete.
-         */
-        lr_fh->destination.complete = true;
-        /* Opening files is single threaded but the remove extlist free requires the lock. */
-        WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
-          session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
-    } else {
-        /*
-         * If it exists in the source, open it. If it doesn't exist in the source then by definition
-         * the destination file is complete.
-         */
-        WT_ERR_NOTFOUND_OK(
-          __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist), true);
-        if (source_exist) {
-            WT_ERR(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
-
-            if (!dest_exist) {
-                /*
-                 * We're creating a new destination file which is backed by a source file. It
-                 * currently has a length of zero, but we want its length to be the same as the
-                 * source file.
-                 */
-                wt_off_t source_size;
-
-                WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
-                __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-                  "Creating destination file backed by source file. Copying size (%" PRId64
-                  ") from source "
-                  "file",
-                  source_size);
-
-                /*
-                 * Set size by truncating. This is a positive length truncate so it actually extends
-                 * the file. We're bypassing the live_restore layer so we don't try to modify the
-                 * extents in hole_list_head.
-                 */
-                WT_ERR(lr_fh->destination.fh->fh_truncate(
-                  lr_fh->destination.fh, wt_session, source_size));
-
-                /*
-                 * Initialize the extent as one hole covering the entire file. We need to read
-                 * everything from source.
-                 */
-                WT_ASSERT(session, lr_fh->destination.hole_list_head == NULL);
-                WT_ERR(__live_restore_alloc_extent(
-                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list_head));
-            }
-        } else
-            lr_fh->destination.complete = true;
-    }
 
     /* Initialize the jump table. */
     lr_fh->iface.close = __live_restore_fh_close;
@@ -1294,6 +1367,15 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     lr_fh->iface.fh_map = NULL;
     lr_fh->iface.fh_extend = NULL;
     lr_fh->iface.fh_extend_nolock = NULL;
+
+    WT_ERR(__wt_rwlock_init(session, &lr_fh->ext_lock));
+
+    /* FIXME-WT-13823 Handle the exclusive flag and other flags */
+
+    if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY)
+        WT_ERR(__live_restore_setup_lr_fh_directory(session, lr_fs, name, flags, lr_fh));
+    else
+        WT_ERR(__live_restore_setup_lr_fh_file(session, lr_fs, name, flags, lr_fh));
 
     *file_handlep = (WT_FILE_HANDLE *)lr_fh;
 

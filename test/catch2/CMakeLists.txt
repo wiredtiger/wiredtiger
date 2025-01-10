@@ -19,6 +19,7 @@ else()
         misc_tests/test_mock_session.cpp
         misc_tests/test_msg_macros.cpp
         misc_tests/test_pow.cpp
+        misc_tests/test_msg_macros.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_session_config.cpp
@@ -50,6 +51,7 @@ endif()
 # Live restore is not supported on Windows
 if(NOT WT_WIN)
     set(unittests live_restore/api/test_live_restore_fs_directory_list.cpp ${unittests})
+    set(unittests live_restore/api/test_live_restore_fs_open_file.cpp ${unittests})
     set(unittests live_restore/unit/test_live_restore_extent_list.cpp ${unittests})
 endif()
 
