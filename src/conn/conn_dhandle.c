@@ -713,12 +713,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
         time_start = 0;
         if (WT_SESSION_IS_CHECKPOINT(session)) {
             time_start = __wt_clock(session);
-            conn->ckpt.handle_stats.apply = conn->ckpt.handle_stats.drop =
-              conn->ckpt.handle_stats.lock = conn->ckpt.handle_stats.meta_check =
-                conn->ckpt.handle_stats.skip = 0;
-            conn->ckpt.handle_stats.apply_time = conn->ckpt.handle_stats.drop_time =
-              conn->ckpt.handle_stats.lock_time = conn->ckpt.handle_stats.meta_check_time =
-                conn->ckpt.handle_stats.skip_time = 0;
+            __wt_checkpoint_reset_handle_stats(session, &conn->ckpt);
             F_SET(conn, WT_CONN_CKPT_GATHER);
         }
         for (dhandle = NULL;;) {
