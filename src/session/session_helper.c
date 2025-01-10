@@ -146,6 +146,7 @@ __wt_session_set_last_error(
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     const char *err_msg_content;
+    bool new_msg_is_empty;
     WT_ERROR_INFO *err_info = &(session->err_info);
 
     /* Ensure arguments are valid. */
@@ -159,24 +160,43 @@ __wt_session_set_last_error(
     if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS))
         return (0);
 
-    /* Format the error message string. */
-    WT_RET(__wt_scr_alloc(session, 0, &buf));
-    WT_VA_ARGS_BUF_FORMAT(session, buf, fmt, false);
-    err_msg_content = buf->data;
+    /*
+     * If the error code is 0, we don't bother allocating memory for the message, as we have static
+     * buffers for the two possible success messages (WT_ERROR_INFO_EMPTY/WT_ERROR_INFO_SUCCESS).
+     *
+     * Otherwise, if the error message is the empty string, we also use the static buffer
+     * WT_ERROR_INFO_EMPTY rather than allocating.
+     */
+    if (!((new_msg_is_empty = strcmp(fmt, WT_ERROR_INFO_EMPTY) == 0) || err == 0)) {
 
-    /* Only set the error if it results in a change. */
-    if (err_info->err == err && err_info->sub_level_err == sub_level_err &&
-      err_info->err_msg != NULL && strcmp(err_info->err_msg, err_msg_content) == 0)
-        goto err;
+        /* Format the error message string. */
+        WT_RET(__wt_scr_alloc(session, 0, &buf));
+        WT_VA_ARGS_BUF_FORMAT(session, buf, fmt, false);
+        err_msg_content = buf->data;
 
-    /* Free the last error message string. */
-    __wt_free(session, err_info->err_msg);
+        /* Return early if the new error is identical to the previously stored error. */
+        if (err_info->err == err && err_info->sub_level_err == sub_level_err &&
+          err_info->err_msg != NULL && strcmp(err_info->err_msg, err_msg_content) == 0)
+            goto err;
+    }
 
-    /* Load error codes and message content into err_info. */
-    WT_ERR(__wt_calloc(session, buf->size + 1, 1, &(err_info->err_msg)));
-    WT_ERR(__wt_snprintf(err_info->err_msg, buf->size + 1, "%s", err_msg_content));
+    /* Free the last error message string if it was dynamically allocated. */
+    if (err_info->err != 0 && strcmp(err_info->err_msg, WT_ERROR_INFO_EMPTY) != 0)
+        __wt_free(session, err_info->err_msg);
+
+    /* Load error codes and message into err_info. */
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
+    if (new_msg_is_empty) {
+        err_info->err_msg = WT_ERROR_INFO_EMPTY;
+    } else if (err == 0) {
+        err_info->err_msg = WT_ERROR_INFO_SUCCESS;
+    } else {
+        char *temp_msg;
+        WT_ERR(__wt_calloc(session, buf->size + 1, 1, &temp_msg));
+        WT_ERR(__wt_snprintf(temp_msg, buf->size + 1, "%s", err_msg_content));
+        err_info->err_msg = temp_msg;
+    }
 
 err:
     __wt_scr_free(session, &buf);

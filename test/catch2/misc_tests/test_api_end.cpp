@@ -15,9 +15,6 @@
  * Tests that successful API calls are recorded as "successful" in the session error_info struct.
  */
 
-#define ERR_MSG_EMPTY ""
-#define ERR_MSG_SUCCESS "last API call was successful"
-
 int
 api_call_with_error(
   WT_SESSION_IMPL *session_impl, int err, int sub_level_err, const char *err_msg_content)
@@ -83,13 +80,13 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
     SECTION("Test API_END_RET with no error")
     {
         CHECK(api_call_with_no_error(session_impl) == 0);
-        check_err_info(session_impl->err_info, 0, WT_NONE, ERR_MSG_SUCCESS);
+        check_err_info(session_impl->err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test API_END_RET with EINVAL (error code only)")
     {
         CHECK(api_call_with_error(session_impl, EINVAL, WT_NONE, NULL) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, ERR_MSG_EMPTY);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
 
     SECTION("Test API_END_RET with EINVAL (with message)")
@@ -102,13 +99,13 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
     SECTION("Test TXN_API_END with no error")
     {
         CHECK(txn_api_call_with_no_error(session_impl) == 0);
-        check_err_info(session_impl->err_info, 0, WT_NONE, ERR_MSG_SUCCESS);
+        check_err_info(session_impl->err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test TXN_API_END with EINVAL (error code only)")
     {
         CHECK(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, NULL) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, ERR_MSG_EMPTY);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
 
     SECTION("Test TXN_API_END with EINVAL (with message)")

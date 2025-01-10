@@ -403,8 +403,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      */
     __wt_txn_destroy(session);
 
-    /* Free the last stored error information. */
-    __wt_free(session, session->err_info.err_msg);
+    /* Free the last saved error message string if it was dynamically allocated. */
+    if (session->err_info.err != 0 && strcmp(session->err_info.err_msg, WT_ERROR_INFO_EMPTY) != 0)
+        __wt_free(session, session->err_info.err_msg);
 
     /* Decrement the count of open sessions. */
     WT_STAT_CONN_DECR(session, session_open);
@@ -2404,9 +2405,6 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     WT_ERR(__wt_spin_init(session, &session_ret->scratch_lock, "scratch buffer lock"));
 
-    /* Initialize the error info struct. */
-    WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, ""));
-
     /*
      * Initialize the pseudo random number generator. We're not seeding it, so all of the sessions
      * initialize to the same value and proceed in lock step for the session's life. That's not a
@@ -2488,19 +2486,16 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     if (config != NULL)
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
 
-    /* Ensure error info struct is still empty, in case it was overwritten since initialization. */
-    WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, ""));
+    /* Initialize the default error info. */
+    F_SET(session_ret, WT_SESSION_SAVE_ERRORS);
+    session_ret->err_info.err_msg = NULL;
+    WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, WT_ERROR_INFO_EMPTY));
 
     /*
      * Release write to ensure structure fields are set before any other thread will consider the
      * session.
      */
     WT_RELEASE_WRITE_WITH_BARRIER(session_ret->active, 1);
-
-    /* Initialize the default error info. */
-    F_SET(session_ret, WT_SESSION_SAVE_ERRORS);
-    session_ret->err_info.err_msg = NULL;
-    WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, ""));
 
     *sessionp = session_ret;
 
