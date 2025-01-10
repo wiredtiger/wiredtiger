@@ -208,8 +208,13 @@ reread:
                     block_meta->page_id = page_id;
                     block_meta->checkpoint_id = checkpoint_id;
                     block_meta->reconciliation_id = reconciliation_id;
-                    block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
-                    block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
+                    if (get_args.delta_count > 0) {
+                        block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
+                        block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
+                    } else {
+                        block_meta->backlink_checkpoint_id = checkpoint_id;
+                        block_meta->base_checkpoint_id = checkpoint_id;
+                    }
                     block_meta->disagg_lsn = get_args.lsn;
                     block_meta->delta_count = get_args.delta_count;
                     block_meta->checksum = checksum;
