@@ -235,33 +235,22 @@ err:
 
 /*
  * __disagg_pick_up_checkpoint_meta --
- *     Pick up a new checkpoint from a metadata string.
+ *     Pick up a new checkpoint from metadata config.
  */
 static int
-__disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, const char *meta, size_t len)
+__disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *meta_item)
 {
     WT_CONFIG_ITEM cval;
-    WT_DECL_RET;
     uint64_t checkpoint_id, metadata_lsn;
-    char *meta_buf;
-
-    /* Need to ensure that the meta argument is NUL-terminated. */
-    WT_ERR(__wt_calloc_def(session, len + 1, &meta_buf));
-    memcpy(meta_buf, meta, len);
-    meta_buf[len] = '\0';
 
     /* Extract the arguments. */
-    WT_ERR(__wt_config_getones(session, meta_buf, "id", &cval));
+    WT_RET(__wt_config_subgets(session, meta_item, "id", &cval));
     checkpoint_id = (uint64_t)cval.val;
-    WT_ERR(__wt_config_getones(session, meta_buf, "metadata_lsn", &cval));
+    WT_RET(__wt_config_subgets(session, meta_item, "metadata_lsn", &cval));
     metadata_lsn = (uint64_t)cval.val;
 
     /* Now actually pick up the checkpoint. */
-    WT_ERR(__disagg_pick_up_checkpoint(session, metadata_lsn, checkpoint_id));
-
-err:
-    __wt_free(session, meta_buf);
-    return (ret);
+    return (__disagg_pick_up_checkpoint(session, metadata_lsn, checkpoint_id));
 }
 
 /*
@@ -1024,7 +1013,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                 WT_ERR(EINVAL); /* Leaders can't pick up new checkpoints. */
             else {
                 WT_WITH_CHECKPOINT_LOCK(
-                  session, ret = __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len));
+                  session, ret = __disagg_pick_up_checkpoint_meta(session, &cval));
                 WT_ERR(ret);
             }
         } else {
@@ -1113,7 +1102,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval));
         if (cval.len > 0) {
             WT_WITH_CHECKPOINT_LOCK(
-              session, ret = __disagg_pick_up_checkpoint_meta(session, cval.str, cval.len));
+              session, ret = __disagg_pick_up_checkpoint_meta(session, &cval));
             WT_ERR(ret);
 
             /* Get back the startup checkpoint ID (yes, this is a hack). */

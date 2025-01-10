@@ -80,7 +80,20 @@ typedef struct PAGE_KEY {
     uint64_t timestamp_materialized_us;
 } PAGE_KEY;
 
-extern bool palm_need_swap;
+/*
+ * The CKPT_KEY is the on disk format for the checkpoints.
+ */
+typedef struct CKPT_KEY {
+    uint64_t lsn;
+
+    /*
+     * These are not really things we key on, but they are more convenient to store in the key
+     * rather than the data.
+     */
+    uint64_t checkpoint_id;
+} CKPT_KEY;
+
+static bool palm_need_swap = true; /* TODO: derive this */
 
 /*
  * Byte swap a page key so that it sorts in the expected order.
@@ -105,6 +118,27 @@ swap_page_key(const PAGE_KEY *src, PAGE_KEY *dest)
     dest->lsn = __wt_bswap64(src->lsn);
     dest->checkpoint_id = __wt_bswap64(src->checkpoint_id);
     dest->is_delta = __wt_bswap32(src->is_delta);
+}
+
+/*
+ * Byte swap a checkpoint key so that it sorts in the expected order.
+ */
+static void
+swap_ckpt_key(const CKPT_KEY *src, CKPT_KEY *dest)
+{
+    if (!palm_need_swap)
+        return;
+
+    if (dest != src)
+        /* Copy all values by default. */
+        *dest = *src;
+
+    /*
+     * We don't need to swap all the fields in the key, only the ones that we use in comparisons.
+     * Other fields in the key that we don't swap are more like data fields, but they are more
+     * convenient to keep in the key.
+     */
+    dest->lsn = __wt_bswap64(src->lsn);
 }
 
 /*
@@ -468,4 +502,67 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
     if (ret != MDB_NOTFOUND)
         matches->error = ret;
     return (false);
+}
+
+int
+palm_kv_put_checkpoint(PALM_KV_CONTEXT *context, uint64_t checkpoint_lsn, uint64_t checkpoint_id,
+  const WT_ITEM *checkpoint_metadata)
+{
+    CKPT_KEY ckpt_key;
+    MDB_val kval;
+    MDB_val vval;
+
+    memset(&ckpt_key, 0, sizeof(ckpt_key));
+    memset(&kval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(kval));
+
+    ckpt_key.lsn = checkpoint_lsn;
+    ckpt_key.checkpoint_id = checkpoint_id;
+    swap_ckpt_key(&ckpt_key, &ckpt_key);
+
+    kval.mv_size = sizeof(ckpt_key);
+    kval.mv_data = &ckpt_key;
+    vval.mv_size = checkpoint_metadata == NULL ? 0 : checkpoint_metadata->size;
+    vval.mv_data = checkpoint_metadata == NULL ? (void *)"" : (void *)checkpoint_metadata->data;
+    return (mdb_put(context->lmdb_txn, context->env->lmdb_ckpt_dbi, &kval, &vval, 0));
+}
+
+int
+palm_kv_get_last_checkpoint(PALM_KV_CONTEXT *context, uint64_t *checkpoint_lsn,
+  uint64_t *checkpoint_id, void **checkpoint_metadata, size_t *checkpoint_metadata_size)
+{
+    CKPT_KEY ckpt_key;
+    MDB_cursor *cursor;
+    MDB_val kval;
+    MDB_val vval;
+    int ret;
+
+    cursor = NULL;
+    memset(&ckpt_key, 0, sizeof(ckpt_key));
+    memset(&kval, 0, sizeof(kval));
+    memset(&vval, 0, sizeof(vval));
+
+    if ((ret = mdb_cursor_open(context->lmdb_txn, context->env->lmdb_ckpt_dbi, &cursor)) != 0)
+        return (ret);
+    ret = mdb_cursor_get(cursor, &kval, &vval, MDB_LAST);
+    mdb_cursor_close(cursor);
+    if (ret != 0)
+        return (ret);
+
+    if (kval.mv_size != sizeof(CKPT_KEY))
+        return (EINVAL);
+    ckpt_key = *(CKPT_KEY *)kval.mv_data;
+    swap_ckpt_key(&ckpt_key, &ckpt_key);
+
+    if (checkpoint_id != NULL)
+        *checkpoint_id = ckpt_key.checkpoint_id;
+    if (checkpoint_lsn != NULL)
+        *checkpoint_lsn = ckpt_key.lsn;
+    if (checkpoint_metadata != NULL)
+        *checkpoint_metadata = vval.mv_data;
+    if (checkpoint_metadata_size != NULL)
+        *checkpoint_metadata_size = vval.mv_size;
+
+    mdb_cursor_close(cursor);
+    return (0);
 }

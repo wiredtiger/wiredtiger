@@ -5604,12 +5604,12 @@ struct __wt_page_log {
      *
      * @param page_log the WT_PAGE_LOG
      * @param session the current WiredTiger session
-     * @param checkpoint_id the checkpoint ID
      * @param checkpoint_lsn the checkpoint LSN
+     * @param checkpoint_id the checkpoint ID
      * @param checkpoint_metadata the checkpoint metadata
      */
-    int (*pl_get_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_id,
-        uint64_t *checkpoint_lsn, WT_ITEM *checkpoint_metadata);
+    int (*pl_get_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_lsn,
+        uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata);
 
     /*!
      * Get the most recently opened checkpoint number.

@@ -247,11 +247,11 @@ from packing import pack, unpack
  * The local variables will be used in the matching argout typemap.
  * Code in this typemap appears before the call to the API function.
  */
-%typemap(in,numinputs=0) (uint64_t *checkpoint_id, uint64_t *checkpoint_lsn, WT_ITEM *checkpoint_metadata)
-  (uint64_t id, uint64_t lsn, WT_ITEM metadata) {
+%typemap(in,numinputs=0) (uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata)
+  (uint64_t lsn, uint64_t id, WT_ITEM metadata) {
     memset(&metadata, 0, sizeof(metadata));
-    $1 = &id;
-    $2 = &lsn;
+    $1 = &lsn;
+    $2 = &id;
     $3 = &metadata;
  }
 
@@ -261,7 +261,7 @@ from packing import pack, unpack
  * Using the local variables set up previously, and used in the call to
  * pl_get_complete_checkpoint_ext now are converted to a python tuple.
  */
-%typemap(argout)(uint64_t *checkpoint_id, uint64_t *checkpoint_lsn, WT_ITEM *checkpoint_metadata) {
+%typemap(argout)(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata) {
     PyBytesObject *pbo;
     WT_ITEM *checkpoint_metadata;
 
@@ -1224,8 +1224,8 @@ SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
   (self, session, checkpoint_id))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint_ext,
-  (WT_SESSION *session, uint64_t *checkpoint_id, uint64_t *checkpoint_lsn, WT_ITEM *checkpoint_metadata),
-  (self, session, checkpoint_id, checkpoint_lsn, checkpoint_metadata))
+  (WT_SESSION *session, uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata),
+  (self, session, checkpoint_lsn, checkpoint_id, checkpoint_metadata))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_open_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),

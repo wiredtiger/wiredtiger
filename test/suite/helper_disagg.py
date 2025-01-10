@@ -177,7 +177,7 @@ class DisaggConfigMixin:
         # Leader step down
         conn_leader.reconfigure(f'disaggregated=(role="follower")')
 
-        (complete_id, _, meta) = self.disagg_get_complete_checkpoint_ext(conn_leader)
+        (_, complete_id, meta) = self.disagg_get_complete_checkpoint_ext(conn_leader)
         self.assertGreater(complete_id, 0)
         open_id = self.disagg_get_open_checkpoint(conn_leader)
         if open_id == 0:
