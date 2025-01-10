@@ -198,17 +198,15 @@ reread:
 
                 if (result == last && block_meta != NULL) {
                     WT_ASSERT(session, get_args.lsn > 0);
-                    WT_ASSERT(session,
-                      get_args.delta_count == 0 ||
-                        get_args.backlink_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-                    WT_ASSERT(session,
-                      get_args.delta_count == 0 ||
-                        get_args.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
                     /* Set the other metadata returned by the Page Service. */
                     block_meta->page_id = page_id;
                     block_meta->checkpoint_id = checkpoint_id;
                     block_meta->reconciliation_id = reconciliation_id;
                     if (get_args.delta_count > 0) {
+                        WT_ASSERT(session,
+                          get_args.backlink_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+                        WT_ASSERT(
+                          session, get_args.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
                         block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
                         block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
                     } else {
