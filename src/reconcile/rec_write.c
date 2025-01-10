@@ -2446,14 +2446,17 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
             WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
-            WT_ASSERT(session, multi->base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+            WT_ASSERT(
+              session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
             /* Delta reuse the previous base checkpoint id. */
             multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
             multi->block_meta.checkpoint_id = checkpoint_id;
             multi->block_meta.reconciliation_id = 0;
         } else {
-            WT_ASSERT(session, multi->base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-            WT_ASSERT(session, multi->backlink_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+            WT_ASSERT(
+              session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+            WT_ASSERT(
+              session, multi->block_meta.backlink_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
             ++multi->block_meta.reconciliation_id;
         }
         ++multi->block_meta.delta_count;
