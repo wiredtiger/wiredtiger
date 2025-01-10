@@ -32,23 +32,6 @@ struct __wt_ckpt_session {
 };
 
 /*
- * WT_CKPT_HANDLE_STATS --
- *     Statistics related to handles.
- */
-struct __wt_ckpt_handle_stats {
-    uint64_t apply;           /* handles applied */
-    uint64_t apply_time;      /* applied handles gather time */
-    uint64_t drop;            /* handles dropped */
-    uint64_t drop_time;       /* handles dropped time */
-    uint64_t lock;            /* handles locked */
-    uint64_t lock_time;       /* handles locked time */
-    uint64_t meta_check;      /* handles metadata check */
-    uint64_t meta_check_time; /* handles metadata check time */
-    uint64_t skip;            /* handles skipped */
-    uint64_t skip_time;       /* skipped handles gather time */
-};
-
-/*
  * WT_CKPT_THREAD --
  *     Checkpoint server information.
  */
@@ -83,7 +66,7 @@ struct __wt_ckpt_timer {
 struct __wt_ckpt_connection {
 
     /* Handle-related stats. */
-    WT_CKPT_HANDLE_STATS handle_stats;
+    WTI_CKPT_HANDLE_STATS handle_stats;
 
     /* Checkpoint thread. */
     WT_CKPT_THREAD server;
