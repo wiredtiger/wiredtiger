@@ -133,7 +133,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
-        checkpoint_id = self.disagg_get_complete_checkpoint()
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
 
         # Ensure that the shared metadata table has all the expected URIs
         self.check_shared_metadata(self.all_uris)
@@ -149,7 +149,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.check_metadata_cursor([], self.all_uris)
 
         # Pick up the checkpoint
-        self.conn.reconfigure(f'disaggregated=(checkpoint_id={checkpoint_id})')
+        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
 
         # Ensure that the shared metadata table has all the expected URIs
         self.check_shared_metadata(self.all_uris)
@@ -166,8 +166,8 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value_prefix + str(i))
             cursor.close()
 
-        # Become the leader (skip a few extra checkpoint IDs just in case)
-        self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
+        # Become the leader
+        self.conn.reconfigure(f'disaggregated=(role="leader")')
 
         # Check tables again after stepping up
         for uri in self.all_uris:
@@ -208,7 +208,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
-        checkpoint_id = self.disagg_get_complete_checkpoint()
+        (_, checkpoint_id, checkpoint_meta) = self.disagg_get_complete_checkpoint_ext()
 
         # Ensure that the shared metadata table has all the expected URIs after the checkpoint
         self.check_shared_metadata(self.all_uris)
@@ -241,11 +241,13 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Reopen the connection
         self.restart_without_local_files()
 
-        # Pick up the checkpoint
+        # Pick up the checkpoint using its ID to ensure it still works until we deprecate it
         self.conn.reconfigure(f'disaggregated=(checkpoint_id={checkpoint_id})')
+        # After the deprecation, replace it with:
+        #   self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
 
-        # Become the leader (skip a few extra checkpoint IDs just in case)
-        self.conn.reconfigure(f'disaggregated=(role="leader",next_checkpoint_id={checkpoint_id+2})')
+        # Become the leader
+        self.conn.reconfigure(f'disaggregated=(role="leader")')
 
         # Ensure that the shared metadata table has all the expected URIs
         self.check_shared_metadata(self.all_uris)

@@ -5559,7 +5559,7 @@ struct __wt_page_log {
 
     /*!
      * Complete checkpointing using the given checkpoint_id. This implies that other
-     * nodes can now use the given checkpoint_id.
+     * nodes can now use the given checkpoint_id. (Do not use - will be deprecated.)
      *
      * @errors
      *
@@ -5571,6 +5571,22 @@ struct __wt_page_log {
     int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id);
 
     /*!
+     * Complete checkpointing using the given checkpoint_id. This implies that other
+     * nodes can now use the given checkpoint_id.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param checkpoint_id the checkpoint id to use. Must be greater than any other
+     *        checkpoint_id used with this call.
+     * @param checkpoint_metadata the buffer with checkpoint metadata
+     * @param lsnp an optional output argument for the checkpoint completion record's LSN
+     */
+    int (*pl_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id,
+         const WT_ITEM *checkpoint_metadata, uint64_t *lsnp);
+
+    /*!
      * Get the most recent completed checkpoint number.
      *
      * @errors
@@ -5580,6 +5596,20 @@ struct __wt_page_log {
      * @param checkpoint_id the checkpoint id returned
      */
     int (*pl_get_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_id);
+
+    /*!
+     * Get information about the most recently completed checkpoint.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param checkpoint_lsn the checkpoint LSN
+     * @param checkpoint_id the checkpoint ID
+     * @param checkpoint_metadata the checkpoint metadata
+     */
+    int (*pl_get_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_lsn,
+        uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata);
 
     /*!
      * Get the most recently opened checkpoint number.

@@ -128,7 +128,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t len;
-    uint64_t checkpoint_id;
+    uint64_t checkpoint_id, lsn;
     char *entry, *md_key;
     const char *md_value;
 
@@ -172,7 +172,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
         WT_ERR(__wt_scr_alloc(session, len, &buf));
         memcpy(buf->mem, entry, len);
         buf->size = len - 1;
-        WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf));
+        WT_ERR(
+          __wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf, &lsn));
+        WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_meta_lsn, lsn);
     } else {
         /* Keep all metadata for regular tables. */
         WT_SAVE_DHANDLE(

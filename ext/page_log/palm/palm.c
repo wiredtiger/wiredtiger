@@ -37,6 +37,7 @@
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
+#include <swap.h> /* for __wt_bswap64 */
 #include "queue.h"
 
 #include "palm_kv.h"
@@ -434,15 +435,16 @@ err:
 }
 
 /*
- * palm_complete_checkpoint --
+ * palm_complete_checkpoint_ext --
  *     Complete a checkpoint.
  */
 static int
-palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id)
+palm_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id,
+  const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
-    uint64_t completed_checkpoint, started_checkpoint;
+    uint64_t completed_checkpoint, lsn, started_checkpoint;
     int ret;
 
     palm = (PALM *)page_log;
@@ -458,20 +460,43 @@ palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t ch
         ret = 0;
     }
     PALM_KV_ERR(palm, session, ret);
+    ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &lsn);
+    if (ret == MDB_NOTFOUND) {
+        lsn = 1;
+        ret = 0;
+    }
+    PALM_KV_ERR(palm, session, ret);
 
-    if (completed_checkpoint >= started_checkpoint)
-        return (palm_err(palm, session, EINVAL, "complete checkpoint id that was never begun"));
+    if (completed_checkpoint >= started_checkpoint) {
+        ret = palm_err(palm, session, EINVAL, "complete checkpoint id that was never begun");
+        goto err;
+    }
 
+    PALM_KV_ERR(
+      palm, session, palm_kv_put_checkpoint(&context, lsn, checkpoint_id, checkpoint_metadata));
+    PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, 0));
     PALM_KV_ERR(palm, session,
       palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_COMPLETED, checkpoint_id));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
+    if (lsnp != NULL)
+        *lsnp = lsn;
     return (0);
 
 err:
     palm_kv_rollback_transaction(&context);
     return (ret);
+}
+
+/*
+ * palm_complete_checkpoint --
+ *     Complete a checkpoint.
+ */
+static int
+palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id)
+{
+    return (palm_complete_checkpoint_ext(page_log, session, checkpoint_id, NULL, NULL));
 }
 
 /*
@@ -498,6 +523,50 @@ palm_get_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
 
     *checkpoint_id = kv_checkpoint;
 
+    return (0);
+
+err:
+    palm_kv_rollback_transaction(&context);
+    return (ret);
+}
+
+/*
+ * palm_get_complete_checkpoint_ext --
+ *     Get information about the most recently completed checkpoint.
+ */
+static int
+palm_get_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session,
+  uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata)
+{
+    PALM *palm;
+    PALM_KV_CONTEXT context;
+    void *metadata;
+    size_t metadata_len;
+    int ret;
+
+    metadata = NULL;
+    metadata_len = 0;
+    if (checkpoint_id != NULL)
+        *checkpoint_id = 0;
+    if (checkpoint_lsn != NULL)
+        *checkpoint_lsn = 0;
+    if (checkpoint_metadata != NULL)
+        memset(checkpoint_metadata, 0, sizeof(WT_ITEM));
+
+    palm = (PALM *)page_log;
+    palm_init_context(palm, &context);
+
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, true));
+
+    PALM_KV_ERR(palm, session,
+      palm_kv_get_last_checkpoint(
+        &context, checkpoint_lsn, checkpoint_id, &metadata, &metadata_len));
+    if (checkpoint_metadata != NULL) {
+        PALM_KV_ERR(palm, session, palm_resize_item(checkpoint_metadata, metadata_len));
+        memcpy(checkpoint_metadata->mem, metadata, metadata_len);
+    }
+
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
     return (0);
 
 err:
@@ -774,7 +843,9 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_add_reference = palm_add_reference;
     palm->page_log.pl_begin_checkpoint = palm_begin_checkpoint;
     palm->page_log.pl_complete_checkpoint = palm_complete_checkpoint;
+    palm->page_log.pl_complete_checkpoint_ext = palm_complete_checkpoint_ext;
     palm->page_log.pl_get_complete_checkpoint = palm_get_complete_checkpoint;
+    palm->page_log.pl_get_complete_checkpoint_ext = palm_get_complete_checkpoint_ext;
     palm->page_log.pl_get_open_checkpoint = palm_get_open_checkpoint;
     palm->page_log.pl_open_handle = palm_open_handle;
     palm->page_log.terminate = palm_terminate;

@@ -81,7 +81,7 @@ class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
         import time
         time.sleep(1.0)
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 

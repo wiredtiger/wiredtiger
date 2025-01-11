@@ -112,6 +112,9 @@ connection_disaggregated_config_common = [
     Config('checkpoint_id', '-1', r'''
         The checkpoint ID from which to start (or restart) the node''',
         min='-1', type='int', undoc=True),
+    Config('checkpoint_meta', '', r'''
+        The checkpoint metadata from which to start (or restart) the node''',
+        undoc=True),
     Config('next_checkpoint_id', '-1', r'''
         The next checkpoint ID to open when starting (or restarting) the node''',
         min='-1', type='int', undoc=True),
