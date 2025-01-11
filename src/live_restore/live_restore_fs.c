@@ -340,7 +340,11 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
              * list.
              */
             bool add_source_file = false;
-
+            if (WT_SUFFIX_MATCH(*namep, WT_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+                /* It isn't impossible for tombstones to exist in the source directory. Ignore
+                 * them.*/
+                continue;
+            }
             if (!dest_folder_exists)
                 add_source_file = true;
             else {
@@ -815,19 +819,12 @@ err:
 }
 
 /*
- * Holes can be large, potentially the size of an entire file. When we find a large hole we'll read
- * it in 4KB chunks. This function will take the extent list writelock. The caller should *not* hold
- * the lock when calling.
- */
-#define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
-
-/*
  * __live_restore_fill_hole --
  *     Fill a single hole in the destination file. If the hole list is empty indicate using the
  *     finished parameter. Must be called while holding the extent list write lock.
  */
 static int
-__live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finishedp)
+__live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, WT_ITEM *buf, bool *finishedp)
 {
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     WT_LIVE_RESTORE_HOLE_NODE *hole = lr_fh->destination.hole_list_head;
@@ -851,13 +848,12 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finis
      * shrinking the hole in the stack below us. This is why we always read from the start at the
      * beginning of the loop.
      */
-    char buf[WT_LIVE_RESTORE_READ_SIZE];
-    size_t read_size = WT_MIN(hole->len, (size_t)WT_LIVE_RESTORE_READ_SIZE);
+    size_t read_size = WT_MIN(hole->len, lr_fh->destination.back_pointer->read_size);
     __wt_verbose_debug2(session, WT_VERB_FILEOPS,
       "    BACKGROUND READ %s : %" PRId64 ", %" WT_SIZET_FMT, lr_fh->iface.name, hole->off,
       read_size);
-    WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
-    return (__live_restore_fh_write_int(fh, wt_session, hole->off, read_size, buf));
+    WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf->mem));
+    return (__live_restore_fh_write_int(fh, wt_session, hole->off, read_size, buf->mem));
 }
 
 /*
@@ -874,16 +870,24 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
     WT_DECL_RET;
     bool finished = false;
+    WT_ITEM buf;
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
+    WT_CLEAR(buf);
+
+    WT_RET(
+      __wt_buf_grow(session, &buf, ((WT_LIVE_RESTORE_FS *)S2C(session)->file_system)->read_size));
 
     while (!finished) {
-        WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK((WT_SESSION_IMPL *)wt_session,
-          (WT_LIVE_RESTORE_FILE_HANDLE *)fh,
-          ret = __live_restore_fill_hole(fh, wt_session, &finished));
-        WT_RET(ret);
-        WT_RET(WT_SESSION_CHECK_PANIC(wt_session));
+        WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, (WT_LIVE_RESTORE_FILE_HANDLE *)fh,
+          ret = __live_restore_fill_hole(fh, wt_session, &buf, &finished));
+        WT_ERR(ret);
+        WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
     }
 
-    return (0);
+err:
+    __wt_buf_free(session, &buf);
+
+    return (ret);
 }
 
 /*
@@ -1566,6 +1570,38 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 }
 
 /*
+ * __wt_live_restore_fs_log_copy --
+ *     Copy the log files from the source to the destination prior to recovery. If there are none or
+ *     if logging is disabled return. This needs to happen after __wt_logmgr_config to ensure the
+ *     relevant logging configuration has been parsed.
+ */
+int
+__wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_DECL_RET;
+    if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED))
+        return (0);
+
+    u_int logcount = 0;
+    char **logfiles = NULL;
+    WT_RET(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    if (logfiles == 0)
+        return (0);
+    for (u_int i = 0; i < logcount; i++) {
+        WT_FH *fh = NULL;
+        WT_ERR(__wt_open(session, logfiles[i], WT_FS_OPEN_ACCESS_SEQ, 0, &fh));
+        ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
+        WT_TRET(__wt_close(session, &fh));
+        WT_ERR(ret);
+    }
+
+err:
+    WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
+    return (ret);
+}
+
+/*
  * __wt_os_live_restore_fs --
  *     Initialize a live restore file system configuration.
  */
@@ -1606,9 +1642,14 @@ __wt_os_live_restore_fs(
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
     lr_fs->background_threads_max = (uint8_t)cval.val;
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-      "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
-      lr_fs->source.home, destination);
+    /* Configure the read size. */
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.read_size", &cval));
+    lr_fs->read_size = (uint64_t)cval.val;
+
+    printf(
+      "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s. The "
+      "configured read size is %" WT_SIZET_FMT " bytes",
+      lr_fs->source.home, destination, lr_fs->read_size);
 
     /* FIXME-WT-13982: Copy log files across from source to destination so log replay is fast. */
     /* Update the callers pointer. */

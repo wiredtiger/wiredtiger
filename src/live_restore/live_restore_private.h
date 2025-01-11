@@ -95,6 +95,7 @@ struct __wt_live_restore_fs {
     WT_LIVE_RESTORE_FS_LAYER source;
 
     uint8_t background_threads_max;
+    size_t read_size;
 };
 
 /*

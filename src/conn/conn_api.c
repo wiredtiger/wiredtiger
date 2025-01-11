@@ -3126,6 +3126,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_logmgr_config(session, cfg, false));
     WT_ERR(__conn_version_verify(session));
+    if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
+        WT_ERR(__wt_live_restore_fs_log_copy(session));
 
     /*
      * Configuration completed; optionally write a base configuration file.
