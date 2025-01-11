@@ -563,6 +563,5 @@ palm_kv_get_last_checkpoint(PALM_KV_CONTEXT *context, uint64_t *checkpoint_lsn,
     if (checkpoint_metadata_size != NULL)
         *checkpoint_metadata_size = vval.mv_size;
 
-    mdb_cursor_close(cursor);
     return (0);
 }
