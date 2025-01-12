@@ -79,11 +79,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     retry = 0;
 
-    /*
-     * Disaggregated storage only supports up to a fixed number of items. We shouldn't ask for more.
-     */
-    WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT);
-
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
     if (block_meta != NULL)

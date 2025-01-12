@@ -151,6 +151,9 @@ file_disaggregated_config = [
                 Conversely, if the delta came to 21 bytes, reconciliation would not emit a
                 delta. Deltas larger than full pages are permitted for measurement and testing
                 reasons, and may be disallowed in future.''', min='1', max='1000'),
+            Config('max_consecutive_delta', '32', r'''
+                the max consecutive deltas allowed for a single page.
+                ''', min='1', max='32')
         ]
     ),
 ]
