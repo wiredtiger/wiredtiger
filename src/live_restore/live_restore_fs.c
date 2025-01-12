@@ -63,7 +63,7 @@ __live_restore_fs_backing_filename(WTI_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_
       "Provided name '%s' does not start with the destination home folder path '%s'", name,
       dest_home);
 
-    if (layer->which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
+    if (layer->which == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_RET(__wt_strdup(session, filename, pathp));
     } else {
         /*
@@ -261,7 +261,7 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
     if (*existp) {
         /* The file exists in the destination we don't need to look any further. */
         if (whichp != NULL)
-            *whichp = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
+            *whichp = WTI_LIVE_RESTORE_FS_LAYER_DESTINATION;
         return (0);
     }
 
@@ -269,7 +269,7 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
     if (*existp) {
         /* The file exists in the source we don't need to look any further. */
         if (whichp != NULL)
-            *whichp = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
+            *whichp = WTI_LIVE_RESTORE_FS_LAYER_SOURCE;
     }
 
     return (0);
@@ -1416,7 +1416,7 @@ __live_restore_fs_remove(
      * It's possible to call remove on a file that hasn't yet been created in the destination. In
      * these cases we only need to create the tombstone.
      */
-    if (layer == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
+    if (layer == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(
           &lr_fs->destination, session, lr_fs->destination.home, name, &path));
         lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, path, flags);
@@ -1467,7 +1467,7 @@ __live_restore_fs_rename(
     if (!exist)
         WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", from);
 
-    if (which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
+    if (which == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(
           &lr_fs->destination, session, lr_fs->destination.home, from, &path_from));
         WT_ERR(__live_restore_fs_backing_filename(
@@ -1512,7 +1512,7 @@ __live_restore_fs_size(
         WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", name);
 
     /* The file will always exist in the destination. This the is authoritative file size. */
-    WT_ASSERT(session, which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION);
+    WT_ASSERT(session, which == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION);
     WT_RET(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, name, &path));
     ret = lr_fs->os_file_system->fs_size(lr_fs->os_file_system, wt_session, path, sizep);
@@ -1584,7 +1584,7 @@ __wt_os_live_restore_fs(
 
     /* Initialize the layers. */
     lr_fs->destination.home = destination;
-    lr_fs->destination.which = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
+    lr_fs->destination.which = WTI_LIVE_RESTORE_FS_LAYER_DESTINATION;
 
     WT_CONFIG_ITEM cval;
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.path", &cval));
@@ -1592,7 +1592,7 @@ __wt_os_live_restore_fs(
 
     WT_ERR(__validate_live_restore_path(lr_fs->os_file_system, session, lr_fs->source.home));
 
-    lr_fs->source.which = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
+    lr_fs->source.which = WTI_LIVE_RESTORE_FS_LAYER_SOURCE;
 
     /* Configure the background thread count maximum. */
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));

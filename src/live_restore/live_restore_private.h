@@ -70,8 +70,8 @@ struct __wti_live_restore_file_handle {
     } while (0)
 
 typedef enum {
-    WT_LIVE_RESTORE_FS_LAYER_DESTINATION,
-    WT_LIVE_RESTORE_FS_LAYER_SOURCE
+    WTI_LIVE_RESTORE_FS_LAYER_DESTINATION,
+    WTI_LIVE_RESTORE_FS_LAYER_SOURCE
 } WTI_LIVE_RESTORE_FS_LAYER_TYPE;
 
 /*
@@ -122,7 +122,7 @@ struct __wti_live_restore_server {
     WT_SPINLOCK queue_lock;
     uint64_t work_items_remaining;
 
-    TAILQ_HEAD(__wt_live_restore_work_queue, __wti_live_restore_work_item) work_queue;
+    TAILQ_HEAD(__wti_live_restore_work_queue, __wti_live_restore_work_item) work_queue;
 };
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
