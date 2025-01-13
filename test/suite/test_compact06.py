@@ -67,7 +67,7 @@ class test_compact06(compact_util):
                 self.session.compact(None, f'background=true,{item}'))
             err, sub_level_err, err_msg = self.session.get_last_error()
             self.assertEqual(err, errno.EINVAL)
-            self.assertEqual(sub_level_err, wiredtiger.WT_COMPACTION_ALREADY_RUNNING)
+            self.assertEqual(sub_level_err, wiredtiger.WT_BACKGROUND_COMPACT_ALREADY_RUNNING)
             self.assertEqual(err_msg, "Cannot reconfigure background compaction while it's already running.")
 
         # Wait for background compaction to start and skip the HS.

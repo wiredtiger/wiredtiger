@@ -324,7 +324,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
           "Assert failure: session: %s: btree->max_upd_txn == WT_TXN_ABORTED", session->name);
         if (check_visibility && !__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
             WT_RET_SUB(session, EBUSY, WT_UNCOMMITTED_DATA,
-              "the table has uncommitted data and can not be dropped yet");
+              "the table has uncommitted data and cannot be dropped yet");
 
         /* Turn off eviction. */
         WT_RET(__wt_evict_file_exclusive_on(session));
