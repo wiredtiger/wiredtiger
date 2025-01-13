@@ -37,7 +37,8 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
     {
         WT_CURSOR *cursor;
 
-        // Set eviction trigger, cache max wait and cache size to low values.
+        // Turn on eviction server and set eviction trigger, cache max wait and cache size to low
+        // values.
         conn_impl->evict_server_running = true;
         conn_impl->evict->cache_max_wait_us = 1;
         conn_impl->evict->eviction_trigger = 1;
@@ -71,8 +72,11 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         WT_UPDATE *upd;
         REQUIRE(__wt_upd_alloc(session_impl, NULL, 2, &upd, NULL) == 0);
 
-        // Transaction must be invisible, so we say that the session have a transaction snapshot
-        // and the transaction id is greater than the max snap transaction id.
+        /*
+         * Transaction must be invisible, so we say that the session has a transaction snapshot and
+         * that the transaction id is greater than the max snap transaction id. The update type must
+         * not be WT_TXN_ABORTED (2), so we set it to 1.
+         */
         F_SET(session_impl->txn, WT_TXN_HAS_SNAPSHOT);
         session_impl->txn->snapshot_data.snap_max = 0;
         upd->txnid = 1;
@@ -88,13 +92,11 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
 
     SECTION("Test __wt_txn_is_blocking")
     {
-        // Allow rollbacks.
+        // Say that we have 1 change to make and set transaction running to true.
         session_impl->txn->mod_count = 1;
-        session_impl->operation_start_us = 1;
-        session_impl->operation_timeout_us = 1;
         F_SET(session_impl, WT_TXN_RUNNING);
 
-        // Set transaction id and oldest pinned id to be the same.
+        // Set transaction id and oldest pinned id for eviction to be the same.
         WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session_impl);
         txn_shared->id = 2;
         txn_shared->pinned_id = 2;
@@ -105,8 +107,6 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
 
         // Reset back to the initial values.
         session_impl->txn->mod_count = 0;
-        session_impl->operation_start_us = 0;
-        session_impl->operation_timeout_us = 0;
         F_CLR(session_impl, WT_TXN_RUNNING);
 
         txn_shared->id = 0;
