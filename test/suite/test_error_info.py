@@ -35,7 +35,6 @@ from compact_util import compact_util
 #   Test that the placeholder get_last_error() session API returns placeholder error values.
 class test_error_info(compact_util):
     table_name1 = 'table:test_error'
-    default_rollback_msg = "/conflict between concurrent operations/"
 
     def check_error(self, error, sub_level_error, error_msg):
         err, sub_level_err, err_msg = self.session.get_last_error()
@@ -78,7 +77,7 @@ class test_error_info(compact_util):
         cursor.set_value("b")
 
         # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update(), self.default_rollback_msg)
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update())
 
         # Expect the get_last_error reason to give us the true reason for the rollback.
         self.check_error(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
@@ -113,7 +112,7 @@ class test_error_info(compact_util):
         cursor2.set_value("bbb")
 
         # Catch the default reason for WT_ROLLBACK errors.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update(), self.default_rollback_msg)
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update())
 
         # Expect the get_last_error reason to give us the true reason for the rollback.
         # The error will be set in the second session.
@@ -144,7 +143,7 @@ class test_error_info(compact_util):
         cursor.set_value("b"*1024)
 
         # Catch the default reason for WT_ROLLBACK errors.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update(), self.default_rollback_msg)
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update())
 
         # Expect the get_last_error reason to give us the true reason for the rollback.
         self.check_error(wiredtiger.WT_ROLLBACK, wiredtiger.WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID")

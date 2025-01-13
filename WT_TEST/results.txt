@@ -1,0 +1,30 @@
+    test_error_info.test_error_info.test_cache_overflow: Exception raised shown as string: "WT_ROLLBACK: conflict between concurrent operations"
+    test_error_info.test_error_info.test_cache_overflow: finishing
+    test_error_info.test_error_info.test_cache_overflow: passed=True
+    test_error_info.test_error_info.test_cache_overflow: skipped=False
+    test_error_info.test_error_info.test_compaction_already_running: Exception raised shown as string: "Invalid argument"
+    test_error_info.test_error_info.test_compaction_already_running: finishing
+    test_error_info.test_error_info.test_compaction_already_running: passed=True
+    test_error_info.test_error_info.test_compaction_already_running: skipped=False
+    test_error_info.test_error_info.test_dirty_data: Exception raised shown as string: "Device or resource busy"
+    test_error_info.test_error_info.test_dirty_data: finishing
+    test_error_info.test_error_info.test_dirty_data: passed=True
+    test_error_info.test_error_info.test_dirty_data: skipped=False
+    test_error_info.test_error_info.test_error_info: finishing
+    test_error_info.test_error_info.test_error_info: passed=True
+    test_error_info.test_error_info.test_error_info: skipped=False
+    test_error_info.test_error_info.test_invalid_config: finishing
+    test_error_info.test_error_info.test_invalid_config: passed=True
+    test_error_info.test_error_info.test_invalid_config: skipped=False
+    test_error_info.test_error_info.test_oldest_for_eviction: Exception raised shown as string: "WT_ROLLBACK: conflict between concurrent operations"
+    test_error_info.test_error_info.test_oldest_for_eviction: finishing
+    test_error_info.test_error_info.test_oldest_for_eviction: passed=True
+    test_error_info.test_error_info.test_oldest_for_eviction: skipped=False
+    test_error_info.test_error_info.test_uncommitted_data: Exception raised shown as string: "Device or resource busy"
+    test_error_info.test_error_info.test_uncommitted_data: finishing
+    test_error_info.test_error_info.test_uncommitted_data: passed=True
+    test_error_info.test_error_info.test_uncommitted_data: skipped=False
+    test_error_info.test_error_info.test_write_conflict: Exception raised shown as string: "WT_ROLLBACK: conflict between concurrent operations"
+    test_error_info.test_error_info.test_write_conflict: finishing
+    test_error_info.test_error_info.test_write_conflict: passed=True
+    test_error_info.test_error_info.test_write_conflict: skipped=False
