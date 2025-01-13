@@ -1086,7 +1086,7 @@ conn_dsrc_stats = [
     CacheStat('cache_read_checkpoint', 'pages read into cache by checkpoint'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
-    CacheStat('cache_read_delta', 'pages read into cache as deltas'),
+    CacheStat('cache_read_delta', 'number of pages read that had deltas attached'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_reverse_splits', 'reverse splits performed'),
     CacheStat('cache_reverse_splits_skipped_vlcs', 'reverse splits skipped because of VLCS namespace gap restrictions'),

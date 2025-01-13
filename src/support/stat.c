@@ -124,6 +124,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
+  "cache: number of pages read that had deltas attached",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
@@ -131,7 +132,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
-  "cache: pages read into cache as deltas",
   "cache: pages read into cache by checkpoint",
   "cache: pages requested from the cache",
   "cache: pages requested from the cache due to pre-fetch",
@@ -498,6 +498,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
+    stats->cache_read_delta = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
@@ -505,7 +506,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
-    stats->cache_read_delta = 0;
     stats->cache_read_checkpoint = 0;
     stats->cache_pages_requested = 0;
     stats->cache_pages_prefetch = 0;
@@ -857,6 +857,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += from->cache_eviction_dirty;
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
+    to->cache_read_delta += from->cache_read_delta;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_deepen += from->cache_eviction_deepen;
@@ -864,7 +865,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_read += from->cache_read;
     to->cache_read_deleted += from->cache_read_deleted;
     to->cache_read_deleted_prepared += from->cache_read_deleted_prepared;
-    to->cache_read_delta += from->cache_read_delta;
     to->cache_read_checkpoint += from->cache_read_checkpoint;
     to->cache_pages_requested += from->cache_pages_requested;
     to->cache_pages_prefetch += from->cache_pages_prefetch;
@@ -1229,6 +1229,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += WT_STAT_DSRC_READ(from, cache_eviction_dirty);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
+    to->cache_read_delta += WT_STAT_DSRC_READ(from, cache_read_delta);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
@@ -1237,7 +1238,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read += WT_STAT_DSRC_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_DSRC_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_DSRC_READ(from, cache_read_deleted_prepared);
-    to->cache_read_delta += WT_STAT_DSRC_READ(from, cache_read_delta);
     to->cache_read_checkpoint += WT_STAT_DSRC_READ(from, cache_read_checkpoint);
     to->cache_pages_requested += WT_STAT_DSRC_READ(from, cache_pages_requested);
     to->cache_pages_prefetch += WT_STAT_DSRC_READ(from, cache_pages_prefetch);
@@ -1686,6 +1686,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: modified pages evicted",
   "cache: modified pages evicted by application threads",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
+  "cache: number of pages read that had deltas attached",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -1703,7 +1704,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
-  "cache: pages read into cache as deltas",
   "cache: pages read into cache by checkpoint",
   "cache: pages removed from the ordinary queue to be queued for urgent eviction",
   "cache: pages requested from the cache",
@@ -2480,6 +2480,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_app_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
+    stats->cache_read_delta = 0;
     stats->cache_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -2497,7 +2498,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
-    stats->cache_read_delta = 0;
     stats->cache_read_checkpoint = 0;
     stats->cache_eviction_clear_ordinary = 0;
     stats->cache_pages_requested = 0;
@@ -3289,6 +3289,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_app_dirty += WT_STAT_CONN_READ(from, cache_eviction_app_dirty);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
+    to->cache_read_delta += WT_STAT_CONN_READ(from, cache_read_delta);
     to->cache_timed_out_ops += WT_STAT_CONN_READ(from, cache_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_overflow_keys);
@@ -3313,7 +3314,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read += WT_STAT_CONN_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_CONN_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_CONN_READ(from, cache_read_deleted_prepared);
-    to->cache_read_delta += WT_STAT_CONN_READ(from, cache_read_delta);
     to->cache_read_checkpoint += WT_STAT_CONN_READ(from, cache_read_checkpoint);
     to->cache_eviction_clear_ordinary += WT_STAT_CONN_READ(from, cache_eviction_clear_ordinary);
     to->cache_pages_requested += WT_STAT_CONN_READ(from, cache_pages_requested);
