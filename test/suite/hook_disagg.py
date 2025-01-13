@@ -219,7 +219,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     return ret
 
 # Called to replace Session.open_cursor.  We skip calls that do backup
-# layered table data sources, as that is not yet supported.
+# as that is not yet supported in disaggregated storage.
 def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dupcursor, config):
     if uri != None and uri.startswith("backup:"):
         skip_test("backup on disagg tables not yet implemented")
