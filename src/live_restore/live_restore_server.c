@@ -138,7 +138,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > server->msg_count) {
         __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
           "Live restore has been running for %" PRIu64 " milliseconds and has processed %" PRIu64
-          " file of %" PRIu64,
+          " files of %" PRIu64,
           time_diff_ms, server->work_items_remaining, server->work_count);
         server->msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
     }
