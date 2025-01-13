@@ -114,7 +114,7 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value2)
             else:
                 self.assertEquals(cursor[str(i)], value1)
-        
+
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         read_delta = stat_cursor[stat.conn.cache_read_delta][2]
         self.assertEquals(read_delta, 0)
