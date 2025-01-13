@@ -68,19 +68,16 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST);
         REQUIRE(__wt_conn_dhandle_alloc(session_impl, "table:rollback", NULL) == 0);
 
-        // Allocate update.
+        // Allocate update. The update type must not be WT_TXN_ABORTED (2), so we set it to
+        // WT_UPDATE_TOMBSTONE (4).
         WT_UPDATE *upd;
-        REQUIRE(__wt_upd_alloc(session_impl, NULL, 2, &upd, NULL) == 0);
+        REQUIRE(__wt_upd_alloc(session_impl, NULL, WT_UPDATE_TOMBSTONE, &upd, NULL) == 0);
 
-        /*
-         * Transaction must be invisible, so we say that the session has a transaction snapshot and
-         * that the transaction ID is greater than the max snap transaction ID. The update type must
-         * not be WT_TXN_ABORTED (2), so we set it to 1.
-         */
+        // Transaction must be invisible, so we say that the session has a transaction snapshot and
+        // that the transaction ID is greater than the max snap transaction ID.
         F_SET(session_impl->txn, WT_TXN_HAS_SNAPSHOT);
         session_impl->txn->snapshot_data.snap_max = 0;
         upd->txnid = 1;
-        upd->type = 1;
         CHECK(__txn_modify_block(session_impl, NULL, upd, NULL));
         check_error(session_impl, WT_ROLLBACK, WT_WRITE_CONFLICT,
           "Write conflict between concurrent operations");
