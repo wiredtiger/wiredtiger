@@ -29,6 +29,7 @@ TEST_CASE("Test functions for compaction", "[compact]")
 
     SECTION("Test __wt_background_compact_signal")
     {
+        // Set background compaction running to true and make the configuration to an empty string.
         conn_impl->background_compact.running = true;
         conn_impl->background_compact.config = "";
 
@@ -39,6 +40,7 @@ TEST_CASE("Test functions for compaction", "[compact]")
         CHECK(session_impl->err_info.sub_level_err == WT_BACKGROUND_COMPACT_ALREADY_RUNNING);
         CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
 
+        // Reset back to the initial values.
         conn_impl->background_compact.running = false;
         conn_impl->background_compact.config = NULL;
     }

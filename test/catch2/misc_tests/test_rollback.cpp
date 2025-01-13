@@ -33,7 +33,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
 
-    SECTION("Test __wti_evict_app_assist_worker")
+    SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker")
     {
         WT_CURSOR *cursor;
 
@@ -61,7 +61,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         session->drop(session, "table:rollback", NULL);
     }
 
-    SECTION("Test __txn_modify_block")
+    SECTION("Test WT_WRITE_CONFLICT in __txn_modify_block")
     {
         // Create a table so session can have a set dhandle.
         REQUIRE(session->create(session, "table:rollback", "key_format=S,value_format=S") == 0);
@@ -90,7 +90,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         session->drop(session, "table:rollback", NULL);
     }
 
-    SECTION("Test __wt_txn_is_blocking")
+    SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking")
     {
         // Say that we have 1 change to make and set transaction running to true.
         session_impl->txn->mod_count = 1;
