@@ -440,7 +440,7 @@ err:
  */
 static int
 palm_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id,
-  const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
+  uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *lsnp)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
@@ -472,8 +472,9 @@ palm_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
         goto err;
     }
 
-    PALM_KV_ERR(
-      palm, session, palm_kv_put_checkpoint(&context, lsn, checkpoint_id, checkpoint_metadata));
+    PALM_KV_ERR(palm, session,
+      palm_kv_put_checkpoint(
+        &context, lsn, checkpoint_id, checkpoint_timestamp, checkpoint_metadata));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_CHECKPOINT_STARTED, 0));
     PALM_KV_ERR(palm, session,
@@ -496,7 +497,7 @@ err:
 static int
 palm_complete_checkpoint(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id)
 {
-    return (palm_complete_checkpoint_ext(page_log, session, checkpoint_id, NULL, NULL));
+    return (palm_complete_checkpoint_ext(page_log, session, checkpoint_id, 0, NULL, NULL));
 }
 
 /*

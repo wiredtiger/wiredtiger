@@ -98,6 +98,6 @@ int palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64
   uint64_t lsn, uint64_t checkpoint_id, PALM_KV_PAGE_MATCHES *matchesp);
 bool palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches);
 int palm_kv_put_checkpoint(PALM_KV_CONTEXT *context, uint64_t checkpoint_lsn,
-  uint64_t checkpoint_id, const WT_ITEM *checkpoint_metadata);
+  uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata);
 int palm_kv_get_last_checkpoint(PALM_KV_CONTEXT *context, uint64_t *checkpoint_lsn,
   uint64_t *checkpoint_id, void **checkpoint_metadata, size_t *checkpoint_metadata_size);

@@ -91,6 +91,7 @@ typedef struct CKPT_KEY {
      * rather than the data.
      */
     uint64_t checkpoint_id;
+    uint64_t checkpoint_timestamp;
 } CKPT_KEY;
 
 static bool palm_need_swap = true; /* TODO: derive this */
@@ -506,7 +507,7 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
 
 int
 palm_kv_put_checkpoint(PALM_KV_CONTEXT *context, uint64_t checkpoint_lsn, uint64_t checkpoint_id,
-  const WT_ITEM *checkpoint_metadata)
+  uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata)
 {
     CKPT_KEY ckpt_key;
     MDB_val kval;
@@ -518,6 +519,7 @@ palm_kv_put_checkpoint(PALM_KV_CONTEXT *context, uint64_t checkpoint_lsn, uint64
 
     ckpt_key.lsn = checkpoint_lsn;
     ckpt_key.checkpoint_id = checkpoint_id;
+    ckpt_key.checkpoint_timestamp = checkpoint_timestamp;
     swap_ckpt_key(&ckpt_key, &ckpt_key);
 
     kval.mv_size = sizeof(ckpt_key);

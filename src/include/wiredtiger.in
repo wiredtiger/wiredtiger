@@ -5584,11 +5584,12 @@ struct __wt_page_log {
      * @param session the current WiredTiger session
      * @param checkpoint_id the checkpoint id to use. Must be greater than any other
      *        checkpoint_id used with this call.
+     * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
      * @param checkpoint_metadata the buffer with checkpoint metadata
      * @param lsnp an optional output argument for the checkpoint completion record's LSN
      */
     int (*pl_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id,
-         const WT_ITEM *checkpoint_metadata, uint64_t *lsnp);
+        uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata, uint64_t *lsnp);
 
     /*!
      * Get the most recent completed checkpoint number.
