@@ -68,7 +68,7 @@ class test_error_info(compact_util):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
 
         # Expect error code, sub-error code and error message to reflect uncommitted data.
-        self.check_error(errno.EBUSY, wiredtiger.WT_UNCOMMITTED_DATA, "the table has uncommitted data and can not be dropped yet")
+        self.check_error(errno.EBUSY, wiredtiger.WT_UNCOMMITTED_DATA, "the table has uncommitted data and cannot be dropped yet")
 
     def test_dirty_data(self):
         # Create a simple table.
