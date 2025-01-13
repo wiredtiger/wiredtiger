@@ -188,11 +188,11 @@ __wt_session_set_last_error(
     /* Load error codes and message into err_info. */
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
-    if (new_msg_is_empty) {
+    if (new_msg_is_empty)
         err_info->err_msg = WT_ERROR_INFO_EMPTY;
-    } else if (err == 0) {
+    else if (err == 0)
         err_info->err_msg = WT_ERROR_INFO_SUCCESS;
-    } else {
+    else {
         char *temp_msg;
         WT_ERR(__wt_calloc(session, buf->size + 1, 1, &temp_msg));
         WT_ERR(__wt_snprintf(temp_msg, buf->size + 1, "%s", err_msg_content));
