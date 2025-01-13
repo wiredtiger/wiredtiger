@@ -1378,7 +1378,10 @@ err:
 
 /*
  * __clayered_modify --
- *     WT_CURSOR->modify method for the layered cursor type.
+ *     WT_CURSOR->modify method for the layered cursor type. This function assumes the modify will
+ *     be done on the btree that we originally calculate the diff from. Currently, we only allow
+ *     writes to the stable table so the assumption holds. TODO: revisit this when we enable writing
+ *     to the ingest table.
  */
 static int
 __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
