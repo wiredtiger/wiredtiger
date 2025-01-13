@@ -8,20 +8,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_checkpoint_apply_handle_stats --
- *     Update the apply handle-related stats.
- */
-void
-__wt_checkpoint_apply_handle_stats(
-  WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt, uint64_t time_us)
-{
-    WT_UNUSED(session);
-
-    ++ckpt->handle_stats.apply;
-    ckpt->handle_stats.apply_time += time_us;
-}
-
-/*
  * __wt_checkpoint_reset_handle_stats --
  *     Reset handle-related stats.
  */
@@ -59,15 +45,18 @@ __wt_checkpoint_set_handle_stats(
 }
 
 /*
- * __wt_checkpoint_skip_handle_stats --
- *     Update the skip handle-related stats.
+ * __wt_checkpoint_update_handle_stats --
+ *     Update the apply handle-related stats.
  */
 void
-__wt_checkpoint_skip_handle_stats(
+__wt_checkpoint_update_handle_stats(
   WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt, uint64_t time_us)
 {
-    WT_UNUSED(session);
-
-    ++ckpt->handle_stats.skip;
-    ckpt->handle_stats.skip_time += time_us;
+    if (F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT)) {
+        ++ckpt->handle_stats.skip;
+        ckpt->handle_stats.skip_time += time_us;
+    } else {
+        ++ckpt->handle_stats.apply;
+        ckpt->handle_stats.apply_time += time_us;
+    }
 }
