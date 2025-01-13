@@ -10,7 +10,6 @@
 #include "log_private.h"
 
 static int __log_newfile(WT_SESSION_IMPL *, bool, bool *);
-static int __log_openfile(WT_SESSION_IMPL *, uint32_t, uint32_t, WT_FH **);
 static int __log_truncate(WT_SESSION_IMPL *, WT_LSN *, bool, bool);
 static int __log_write_internal(WT_SESSION_IMPL *, WT_ITEM *, WT_LSN *, uint32_t);
 
@@ -274,7 +273,7 @@ __log_fsync_file(WT_SESSION_IMPL *session, WT_LSN *min_lsn, const char *method, 
          * different file than we want.
          */
         if (use_own_fh)
-            WT_ERR(__log_openfile(session, min_lsn->l.file, 0, &log_fh));
+            WT_ERR(__wt_log_openfile(session, min_lsn->l.file, 0, &log_fh));
         else
             log_fh = log->log_fh;
         __wt_verbose(session, WT_VERB_LOG, "%s: sync %s to LSN %" PRIu32 "/%" PRIu32, method,
@@ -847,11 +846,11 @@ err:
 }
 
 /*
- * __log_openfile --
+ * __wt_log_openfile --
  *     Open a log file with the given log file number and return the WT_FH.
  */
-static int
-__log_openfile(WT_SESSION_IMPL *session, uint32_t id, uint32_t flags, WT_FH **fhp)
+int
+__wt_log_openfile(WT_SESSION_IMPL *session, uint32_t id, uint32_t flags, WT_FH **fhp)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -917,7 +916,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
     /*
      * Read in the log file header and verify it.
      */
-    WT_ERR(__log_openfile(session, id, 0, &fh));
+    WT_ERR(__wt_log_openfile(session, id, 0, &fh));
     WT_ERR(__log_fs_read(session, fh, 0, allocsize, buf->mem));
     logrec = (WT_LOG_RECORD *)buf->mem;
     __wti_log_record_byteswap(logrec);
@@ -1454,7 +1453,7 @@ __log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log, bool salvag
      * out every time. Check before doing work, and if there's a not-supported error, turn off
      * future truncates.
      */
-    WT_ERR(__log_openfile(session, lsn->l.file, 0, &log_fh));
+    WT_ERR(__wt_log_openfile(session, lsn->l.file, 0, &log_fh));
     WT_ERR(__log_truncate_file(session, log_fh, __wt_lsn_offset(lsn)));
     WT_ERR(__wt_fsync(session, log_fh, true));
     WT_ERR(__wt_close(session, &log_fh));
@@ -1492,7 +1491,7 @@ __log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log, bool salvag
                 salvage_last = lognum;
             }
             if (!opened)
-                WT_ERR(__log_openfile(session, lognum, 0, &log_fh));
+                WT_ERR(__wt_log_openfile(session, lognum, 0, &log_fh));
             /*
              * If there are intervening files pre-allocated, truncate them to the end of the log
              * file header.
@@ -1553,7 +1552,7 @@ __wti_log_allocfile(WT_SESSION_IMPL *session, uint32_t lognum, const char *dest)
     /*
      * Set up the temporary file.
      */
-    WT_ERR(__log_openfile(session, tmp_id, WT_LOG_OPEN_CREATE_OK, &log_fh));
+    WT_ERR(__wt_log_openfile(session, tmp_id, WT_LOG_OPEN_CREATE_OK, &log_fh));
     WT_ERR(__log_file_header(session, log_fh, NULL, true));
     WT_ERR(__log_prealloc(session, log_fh));
     WT_ERR(__wt_fsync(session, log_fh, true));

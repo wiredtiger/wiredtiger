@@ -1590,7 +1590,9 @@ __wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
         return (0);
     for (u_int i = 0; i < logcount; i++) {
         WT_FH *fh = NULL;
-        WT_ERR(__wt_open(session, logfiles[i], WT_FS_OPEN_ACCESS_SEQ, 0, &fh));
+        uint32_t lognum;
+        WT_ERR(__wti_log_extract_lognum(session, logfiles[i], &lognum));
+        WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
         ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
