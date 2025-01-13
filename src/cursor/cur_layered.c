@@ -989,6 +989,8 @@ __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, con
     else
         c = clayered->ingest_cursor;
 
+    clayered->current_cursor = c;
+
     c->set_key(c, key);
     WT_RET(c->modify(c, entries, nentries));
 
