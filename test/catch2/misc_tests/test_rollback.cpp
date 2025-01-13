@@ -63,7 +63,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
 
     SECTION("Test WT_WRITE_CONFLICT in __txn_modify_block")
     {
-        // Create a table so session can have a set dhandle.
+        // Create a table and place a lock on it so session can have a set dhandle.
         REQUIRE(session->create(session, "table:rollback", "key_format=S,value_format=S") == 0);
         FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST);
         REQUIRE(__wt_conn_dhandle_alloc(session_impl, "table:rollback", NULL) == 0);
@@ -74,7 +74,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
 
         /*
          * Transaction must be invisible, so we say that the session has a transaction snapshot and
-         * that the transaction id is greater than the max snap transaction id. The update type must
+         * that the transaction ID is greater than the max snap transaction ID. The update type must
          * not be WT_TXN_ABORTED (2), so we set it to 1.
          */
         F_SET(session_impl->txn, WT_TXN_HAS_SNAPSHOT);
@@ -85,6 +85,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         check_error(session_impl, WT_ROLLBACK, WT_WRITE_CONFLICT,
           "Write conflict between concurrent operations");
 
+        // Free update.
         __wt_free(session_impl, upd);
 
         // Clear lock so the table can be dropped.
@@ -98,10 +99,9 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         session_impl->txn->mod_count = 1;
         F_SET(session_impl, WT_TXN_RUNNING);
 
-        // Set transaction id and oldest pinned id for eviction to be the same.
+        // Set transaction's ID and pinned ID to be equal to the oldest transaction ID.
         WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session_impl);
-        txn_shared->id = 2;
-        txn_shared->pinned_id = 2;
+        txn_shared->id = txn_shared->pinned_id = S2C(session)->txn_global.oldest_id;
 
         CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
         check_error(session_impl, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
