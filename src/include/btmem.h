@@ -167,9 +167,9 @@ struct __wt_delta_header {
 
 /*
  * The number of deltas for a base page must be strictly less than or equal to WT_DELTA_LIMIT.
- * Though we have made the value adjustable, 32 remains the maximum value we support. Changes past
- * that point are reflected by making a new base page. Thus WT_DELTA_LIMIT can be used to size
- * arrays that contain the base page plus all associated deltas.
+ * Though we have made the number of consecutive deltas adjustable through the max_consecutive_delta
+ * config, 32 remains the maximum value we support. Thus WT_DELTA_LIMIT can be used to size arrays
+ * that contain the base page plus all associated deltas.
  */
 #define WT_DELTA_LIMIT 32
 
