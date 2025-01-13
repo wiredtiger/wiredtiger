@@ -52,4 +52,13 @@ rolling back any active transaction and closing the cursors that are still open.
 @section arch_session_thread Multithreading
 A session is always executed as a single thread, see @ref threads for more details.
 
+@section arch_session_error Errors and Sub-level Errors
+Every session API call (except WT_SESSION::get_last_error) will be completed with a refreshed
+error_info struct containing an error code, a sub-level error code, and an error message. These are
+extracted by using WT_SESSION::get_last_error. The codes and message are used to indicate the
+general type of error, and a more specific sub-level error and error message to provide additional
+context, or an indication that the last API call was successful. The error code will be the same as
+the return from the last API call. The string will be owned by the session and will be invalidated
+after the next API call. See @ref error_handling handling for details.
+
 */
