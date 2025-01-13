@@ -40,24 +40,6 @@ TEST_CASE("Test WT_RET_MSG and WT_ERR_MSG", "[message_macros]")
 
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
 
-    SECTION("Test WT_RET_MSG with initial values")
-    {
-        const char *err_msg_content = "";
-        REQUIRE(test_wt_ret_msg(session_impl, 0, err_msg_content) == 0);
-        CHECK(session_impl->err_info.err == 0);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
-    }
-
-    SECTION("Test WT_ERR_MSG with initial values")
-    {
-        const char *err_msg_content = "";
-        REQUIRE(test_wt_err_msg(session_impl, 0, err_msg_content) == 0);
-        CHECK(session_impl->err_info.err == 0);
-        CHECK(session_impl->err_info.sub_level_err == WT_NONE);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
-    }
-
     SECTION("Test WT_RET_MSG with EINVAL error")
     {
         const char *err_msg_content = "Some EINVAL error";

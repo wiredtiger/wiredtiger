@@ -29,7 +29,7 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
 
     SECTION("Test with initial values")
     {
-        const char *err_msg_content = "";
+        const char *err_msg_content = WT_ERROR_INFO_EMPTY;
         REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, err_msg_content) == 0);
         CHECK(err_info->err == 0);
         CHECK(err_info->sub_level_err == WT_NONE);
