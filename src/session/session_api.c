@@ -346,6 +346,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
         WT_TRET(__wt_call_log_close_session(session));
 #endif
 
+    /* Make sure no memory is allocated for storing error messages during the close call. */
+    F_CLR(session, WT_SESSION_SAVE_ERRORS);
+
     /* Close all open cursors while the cursor cache is disabled. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
 

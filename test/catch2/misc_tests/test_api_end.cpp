@@ -9,6 +9,7 @@
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
 #include "../wrappers/connection_wrapper.h"
+#include "../utils.h"
 
 /*
  * [api_end]: test_api_end.cpp
@@ -59,14 +60,6 @@ txn_api_call_with_no_error(WT_SESSION_IMPL *session_impl)
     return (txn_api_call_with_error(session_impl, 0, WT_NONE, NULL));
 }
 
-void
-check_err_info(WT_ERROR_INFO err_info, int err, int sub_level_err, const char *err_msg_content)
-{
-    CHECK(err_info.err == err);
-    CHECK(err_info.sub_level_err == sub_level_err);
-    CHECK(strcmp(err_info.err_msg, err_msg_content) == 0);
-}
-
 TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", "[api_end]")
 {
     WT_SESSION *session;
@@ -76,33 +69,34 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
 
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_ERROR_INFO *err_info = &(session_impl->err_info);
 
     SECTION("Test API_END_RET with no error")
     {
         REQUIRE(api_call_with_no_error(session_impl) == 0);
-        check_err_info(session_impl->err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test API_END_RET with EINVAL (error code only)")
     {
         REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, NULL) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
 
     SECTION("Test API_END_RET with EINVAL (with message)")
     {
         const char *err_msg_content = "Some EINVAL error";
         REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
     }
 
     SECTION("Test API_END_RET with EINVAL (with repeated message)")
     {
         const char *err_msg_content = "Some EINVAL error";
         REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
         REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
     }
 
     SECTION("Test API_END_RET with EINVAL (with different messages)")
@@ -110,9 +104,9 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
         const char *err_msg_content_a = "Some EINVAL error";
         const char *err_msg_content_b = "Some other EINVAL error";
         REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content_a) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content_a);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content_a);
         REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content_b) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content_b);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content_b);
     }
 
     SECTION("Test API_END_RET with EBUSY (with different sub-level errors and messages)")
@@ -121,40 +115,40 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
         const char *err_msg_content_b = "Some other EBUSY error";
         REQUIRE(api_call_with_error(session_impl, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_a) ==
           EBUSY);
-        check_err_info(session_impl->err_info, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_a);
+        utils::check_error_info(err_info, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_a);
         REQUIRE(
           api_call_with_error(session_impl, EBUSY, WT_DIRTY_DATA, err_msg_content_a) == EBUSY);
-        check_err_info(session_impl->err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_a);
+        utils::check_error_info(err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_a);
         REQUIRE(
           api_call_with_error(session_impl, EBUSY, WT_DIRTY_DATA, err_msg_content_b) == EBUSY);
-        check_err_info(session_impl->err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_b);
+        utils::check_error_info(err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_b);
     }
 
     SECTION("Test TXN_API_END with no error")
     {
         REQUIRE(txn_api_call_with_no_error(session_impl) == 0);
-        check_err_info(session_impl->err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test TXN_API_END with EINVAL (error code only)")
     {
         REQUIRE(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, NULL) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
 
     SECTION("Test TXN_API_END with EINVAL (with message)")
     {
         const char *err_msg_content = "Some EINVAL error";
         REQUIRE(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
     }
 
     SECTION("Test TXN_API_END with EINVAL (with repeated message)")
     {
         const char *err_msg_content = "Some EINVAL error";
         REQUIRE(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
         REQUIRE(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
-        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
     }
 }
