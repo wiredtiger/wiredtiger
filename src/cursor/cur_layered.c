@@ -927,7 +927,7 @@ __layered_modify_check(WT_SESSION_IMPL *session)
 
 /*
  * __clayered_put --
- *     Put an entry into the desirabled tree.
+ *     Put an entry into the desired tree.
  */
 static WT_INLINE int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
