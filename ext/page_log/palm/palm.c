@@ -632,10 +632,11 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_put(plh=%p, table_id=%" PRIx64 ", page_id=%" PRIx64 ", lsn=%" PRIx64
-      ", checkpoint_id=%" PRIx64 ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64
+      ", checkpoint_id=%" PRIx64 ", backlink_lsn=%" PRIx64 ", base_lsn=%" PRIx64
+      ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64
       ", is_delta=%d, buf=\n%s)\n",
-      (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id,
-      put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, is_delta,
+      (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, put_args->backlink_lsn,
+      put_args->base_lsn, put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, is_delta,
       palm_verbose_item(buf));
 
     PALM_KV_ERR(palm, session,

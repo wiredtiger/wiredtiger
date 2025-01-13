@@ -196,6 +196,8 @@ reread:
                     block_meta->page_id = page_id;
                     block_meta->checkpoint_id = checkpoint_id;
                     block_meta->reconciliation_id = reconciliation_id;
+                    block_meta->backlink_lsn = get_args.backlink_lsn;
+                    block_meta->base_lsn = get_args.base_lsn;
                     block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
                     block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
                     block_meta->disagg_lsn = get_args.lsn;
