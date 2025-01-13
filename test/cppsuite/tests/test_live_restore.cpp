@@ -455,7 +455,7 @@ main(int argc, char *argv[])
     // Get the recovery config.
     auto recovery = option_exists("-r", argc, argv);
     logger::log_msg(LOG_INFO, "Recovery: " + std::string(recovery ? "Y" : "N"));
-    if (it_count > 1) {
+    if (recovery && it_count > 1) {
         logger::log_msg(LOG_ERROR, "Recovery is only possible for 1 iteration at the moment.");
         return EXIT_FAILURE;
     }
