@@ -531,7 +531,8 @@ palm_kv_put_checkpoint(PALM_KV_CONTEXT *context, uint64_t checkpoint_lsn, uint64
 
 int
 palm_kv_get_last_checkpoint(PALM_KV_CONTEXT *context, uint64_t *checkpoint_lsn,
-  uint64_t *checkpoint_id, void **checkpoint_metadata, size_t *checkpoint_metadata_size)
+  uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp, void **checkpoint_metadata,
+  size_t *checkpoint_metadata_size)
 {
     CKPT_KEY ckpt_key;
     MDB_cursor *cursor;
@@ -556,10 +557,12 @@ palm_kv_get_last_checkpoint(PALM_KV_CONTEXT *context, uint64_t *checkpoint_lsn,
     ckpt_key = *(CKPT_KEY *)kval.mv_data;
     swap_ckpt_key(&ckpt_key, &ckpt_key);
 
-    if (checkpoint_id != NULL)
-        *checkpoint_id = ckpt_key.checkpoint_id;
     if (checkpoint_lsn != NULL)
         *checkpoint_lsn = ckpt_key.lsn;
+    if (checkpoint_id != NULL)
+        *checkpoint_id = ckpt_key.checkpoint_id;
+    if (checkpoint_timestamp != NULL)
+        *checkpoint_timestamp = ckpt_key.checkpoint_timestamp;
     if (checkpoint_metadata != NULL)
         *checkpoint_metadata = vval.mv_data;
     if (checkpoint_metadata_size != NULL)

@@ -537,7 +537,8 @@ err:
  */
 static int
 palm_get_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session,
-  uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata)
+  uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp,
+  WT_ITEM *checkpoint_metadata)
 {
     PALM *palm;
     PALM_KV_CONTEXT context;
@@ -547,10 +548,12 @@ palm_get_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session,
 
     metadata = NULL;
     metadata_len = 0;
-    if (checkpoint_id != NULL)
-        *checkpoint_id = 0;
     if (checkpoint_lsn != NULL)
         *checkpoint_lsn = 0;
+    if (checkpoint_id != NULL)
+        *checkpoint_id = 0;
+    if (checkpoint_timestamp != NULL)
+        *checkpoint_timestamp = 0;
     if (checkpoint_metadata != NULL)
         memset(checkpoint_metadata, 0, sizeof(WT_ITEM));
 
@@ -561,7 +564,7 @@ palm_get_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session,
 
     PALM_KV_ERR(palm, session,
       palm_kv_get_last_checkpoint(
-        &context, checkpoint_lsn, checkpoint_id, &metadata, &metadata_len));
+        &context, checkpoint_lsn, checkpoint_id, checkpoint_timestamp, &metadata, &metadata_len));
     if (checkpoint_metadata != NULL) {
         PALM_KV_ERR(palm, session, palm_resize_item(checkpoint_metadata, metadata_len));
         memcpy(checkpoint_metadata->mem, metadata, metadata_len);

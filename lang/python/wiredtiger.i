@@ -247,12 +247,14 @@ from packing import pack, unpack
  * The local variables will be used in the matching argout typemap.
  * Code in this typemap appears before the call to the API function.
  */
-%typemap(in,numinputs=0) (uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata)
-  (uint64_t lsn, uint64_t id, WT_ITEM metadata) {
+%typemap(in,numinputs=0) (uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
+  uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata)
+  (uint64_t lsn, uint64_t id, uint64_t timestamp, WT_ITEM metadata) {
     memset(&metadata, 0, sizeof(metadata));
     $1 = &lsn;
     $2 = &id;
-    $3 = &metadata;
+    $3 = &timestamp;
+    $4 = &metadata;
  }
 
 /*
@@ -261,11 +263,12 @@ from packing import pack, unpack
  * Using the local variables set up previously, and used in the call to
  * pl_get_complete_checkpoint_ext now are converted to a python tuple.
  */
-%typemap(argout)(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata) {
+%typemap(argout)(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp,
+  WT_ITEM *checkpoint_metadata) {
     PyBytesObject *pbo;
     WT_ITEM *checkpoint_metadata;
 
-    checkpoint_metadata = $3;
+    checkpoint_metadata = $4;
 
     if (checkpoint_metadata->data != NULL) {
         pbo = PyUnicode_FromStringAndSize(checkpoint_metadata->data, checkpoint_metadata->size);
@@ -273,10 +276,11 @@ from packing import pack, unpack
     } else
         pbo = PyUnicode_FromStringAndSize("", 0);
 
-    $result = PyTuple_New(3);
+    $result = PyTuple_New(4);
     PyTuple_SetItem($result, 0, PyLong_FromUnsignedLongLong(*$1));
     PyTuple_SetItem($result, 1, PyLong_FromUnsignedLongLong(*$2));
-    PyTuple_SetItem($result, 2, pbo);
+    PyTuple_SetItem($result, 2, PyLong_FromUnsignedLongLong(*$3));
+    PyTuple_SetItem($result, 3, pbo);
 }
 
 %typemap(in,numinputs=0) (char ***dirlist, int *countp) (char **list, uint32_t nentries) {
@@ -1228,8 +1232,9 @@ SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint,
   (self, session, checkpoint_id))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint_ext,
-  (WT_SESSION *session, uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata),
-  (self, session, checkpoint_lsn, checkpoint_id, checkpoint_metadata))
+  (WT_SESSION *session, uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
+    uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata),
+  (self, session, checkpoint_lsn, checkpoint_id, checkpoint_timestamp, checkpoint_metadata))
 
 SIDESTEP_METHOD(__wt_page_log, pl_get_open_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),

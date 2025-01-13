@@ -100,4 +100,5 @@ bool palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches);
 int palm_kv_put_checkpoint(PALM_KV_CONTEXT *context, uint64_t checkpoint_lsn,
   uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata);
 int palm_kv_get_last_checkpoint(PALM_KV_CONTEXT *context, uint64_t *checkpoint_lsn,
-  uint64_t *checkpoint_id, void **checkpoint_metadata, size_t *checkpoint_metadata_size);
+  uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp, void **checkpoint_metadata,
+  size_t *checkpoint_metadata_size);
