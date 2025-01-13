@@ -146,7 +146,7 @@ def mark_as_layered(uri):
 def marked_as_non_layered(uri):
     testcase = WiredTigerTestCase.currentTestCase()
     return uri in testcase.non_layered_uris
-    
+
 def is_layered(uri):
     testcase = WiredTigerTestCase.currentTestCase()
     return uri in testcase.layered_uris
@@ -200,7 +200,7 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     # there's nothing we can do to "fix" it.  Currently "index:foo" is hardwired to
     # link up with "table:foo", and there is not a "table:foo", only a "layered:foo".
     WiredTigerTestCase.verbose(None, 1, f'    Creating "{uri}" with config = "{config}"')
-    
+
     if uri.startswith("index:"):
         # URI is index:base_name:index_name
         last_colon = uri.rfind(':')
@@ -406,7 +406,7 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
 
     def getDisaggService(self):
         return self.disagg_service
-        
+
     def getDisaggConfig(self):
         return self.disagg_config
 
