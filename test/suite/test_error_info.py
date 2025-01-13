@@ -43,6 +43,13 @@ class test_error_info(compact_util):
     ERROR_INFO_EMPTY = ""
     ERROR_INFO_SUCCESS = "last API call was successful"
     EINVAL_message = "unknown configuration key 'expect_this_error'"
+    EBUSY_message = "the table has uncommitted data and cannot be dropped yet"
+
+    def assert_error_equal(self, err_val, sub_level_err_val, err_msg_val):
+        err, sub_level_err, err_msg = self.session.get_last_error()
+        self.assertEqual(err, err_val)
+        self.assertEqual(sub_level_err, sub_level_err_val)
+        self.assertEqual(err_msg, err_msg_val)
 
     def cursor_s(self, tablename, key):
         cursor = self.session.open_cursor(tablename, None, None)
@@ -86,19 +93,13 @@ class test_error_info(compact_util):
         cursor.close()
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name3, None))
 
-    def assert_error_equal(self, err_val, sub_level_err_val, err_msg_val):
-        err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, err_val)
-        self.assertEqual(sub_level_err, sub_level_err_val)
-        self.assertEqual(err_msg, err_msg_val)
-
     def test_api_call_with_EINVAL(self):
         self.api_call_with_EINVAL()
         self.assert_error_equal(errno.EINVAL, wiredtiger.WT_NONE, self.EINVAL_message)
 
     def test_api_call_with_EBUSY(self):
         self.api_call_with_EBUSY()
-        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_NONE, self.ERROR_INFO_EMPTY)
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_UNCOMMITTED_DATA, self.EBUSY_message)
 
     def test_api_call_with_success(self):
         self.api_call_with_success()

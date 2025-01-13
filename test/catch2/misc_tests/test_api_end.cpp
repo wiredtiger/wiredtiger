@@ -105,6 +105,31 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
         check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
     }
 
+    SECTION("Test API_END_RET with EINVAL (with different messages)")
+    {
+        const char *err_msg_content_a = "Some EINVAL error";
+        const char *err_msg_content_b = "Some other EINVAL error";
+        REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content_a) == EINVAL);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content_a);
+        REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content_b) == EINVAL);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content_b);
+    }
+
+    SECTION("Test API_END_RET with EBUSY (with different sub-level errors and messages)")
+    {
+        const char *err_msg_content_a = "Some EBUSY error";
+        const char *err_msg_content_b = "Some other EBUSY error";
+        REQUIRE(api_call_with_error(session_impl, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_a) ==
+          EBUSY);
+        check_err_info(session_impl->err_info, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_a);
+        REQUIRE(
+          api_call_with_error(session_impl, EBUSY, WT_DIRTY_DATA, err_msg_content_a) == EBUSY);
+        check_err_info(session_impl->err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_a);
+        REQUIRE(
+          api_call_with_error(session_impl, EBUSY, WT_DIRTY_DATA, err_msg_content_b) == EBUSY);
+        check_err_info(session_impl->err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_b);
+    }
+
     SECTION("Test TXN_API_END with no error")
     {
         REQUIRE(txn_api_call_with_no_error(session_impl) == 0);

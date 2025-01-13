@@ -77,7 +77,7 @@ TEST_CASE("Test WT_RET_SUB, WT_ERR_SUB, WT_RET_MSG, WT_ERR_MSG", "[message_macro
         CHECK(session_impl->err_info.err == EINVAL);
         CHECK(session_impl->err_info.sub_level_err == WT_BACKGROUND_COMPACT_ALREADY_RUNNING);
     }
-  
+
     SECTION("Test WT_RET_MSG with EINVAL error")
     {
         const char *err_msg_content = "Some EINVAL error";
