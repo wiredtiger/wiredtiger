@@ -85,6 +85,8 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         check_error(session_impl, WT_ROLLBACK, WT_WRITE_CONFLICT,
           "Write conflict between concurrent operations");
 
+        __wt_free(session_impl, upd);
+
         // Clear lock so the table can be dropped.
         FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST);
         session->drop(session, "table:rollback", NULL);
