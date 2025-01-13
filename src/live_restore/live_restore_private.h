@@ -117,6 +117,7 @@ struct __wt_live_restore_server {
     wt_shared uint32_t threads_working;
     WT_SPINLOCK queue_lock;
     WT_TIMER msg_timer;
+    WT_TIMER start_timer;
     uint64_t msg_count;
     uint64_t work_count;
     uint64_t work_items_remaining;

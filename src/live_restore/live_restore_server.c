@@ -42,8 +42,12 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * complete.
          */
         if (TAILQ_EMPTY(&server->work_queue)) {
+            uint64_t time_diff_ms;
             WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
-            __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "%s", "Live restore finished");
+            __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
+            __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+              "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
+              S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
         }
         /*
          * Future proofing: in general unless the conn is closing the queue must be empty if there
@@ -305,6 +309,10 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * without some adjustments to either the live restore server or the thread group code itself.
      */
     __wt_timer_start(session, &conn->live_restore_server->msg_timer);
+    conn->live_restore_server->start_timer = conn->live_restore_server->msg_timer;
+    __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+      "Starting %" PRId64 " threads to restore %" PRIu64 " files", cval.val,
+      conn->live_restore_server->work_count);
     WT_ERR(__wt_thread_group_create(session, &conn->live_restore_server->threads,
       "live_restore_workers", (uint32_t)cval.val, (uint32_t)cval.val, 0,
       __live_restore_worker_check, __live_restore_worker_run, __live_restore_worker_stop));
