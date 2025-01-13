@@ -79,7 +79,7 @@ __live_restore_fs_backing_filename(WT_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_I
         WT_ERR(__wt_snprintf(buf, len, "%s%s", layer->home, filename));
 
         *pathp = buf;
-        __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Generated SOURCE path: %s\n layer->home = %s, name = %s\n", buf, layer->home, name);
     }
 
@@ -105,7 +105,7 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
     bool list_valid;
 
     __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "Dumping extent list for %s\n", lr_fh->iface.name);
+      session, WT_VERB_LIVE_RESTORE, "Dumping extent list for %s\n", lr_fh->iface.name);
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
 
@@ -118,15 +118,15 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_
         /* Sanity check. This hole doesn't overlap with the previous hole */
         if (prev != NULL) {
             if (WT_EXTENT_END(prev) >= hole->off) {
-                __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+                __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
                   "Error: Holes overlap prev: %" PRId64 "-%" PRId64 ", hole: %" PRId64 "-%" PRId64
                   "\n",
                   prev->off, WT_EXTENT_END(prev), hole->off, WT_EXTENT_END(hole));
                 list_valid = false;
             }
         }
-        __wt_verbose_debug1(
-          session, WT_VERB_FILEOPS, "Hole: %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
+        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "Hole: %" PRId64 "-%" PRId64, hole->off,
+          WT_EXTENT_END(hole));
 
         prev = hole;
         hole = hole->next;
@@ -185,7 +185,7 @@ __live_restore_fs_create_tombstone(
       WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
     WT_ERR(fh->close(fh, &session->iface));
 
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "Creating tombstone: %s", path_marker);
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "Creating tombstone: %s", path_marker);
 
 err:
     __wt_free(session, path);
@@ -212,7 +212,7 @@ __dest_has_tombstone(WT_LIVE_RESTORE_FS *lr_fs, char *name, WT_SESSION_IMPL *ses
     lr_fs->os_file_system->fs_exist(
       lr_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
     __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
+      session, WT_VERB_LIVE_RESTORE, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
 
 err:
     __wt_free(session, path_marker);
@@ -298,8 +298,8 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
     path_dest = path_src = temp_path = NULL;
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "DIRECTORY LIST %s (single ? %s) : ", directory,
-      single ? "YES" : "NO");
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+      "DIRECTORY LIST %s (single ? %s) : ", directory, single ? "YES" : "NO");
 
     /* Get files from destination. */
     WT_ERR(__live_restore_fs_backing_filename(
@@ -519,22 +519,20 @@ __live_restore_remove_extlist_hole(
 
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
       lr_fh->iface.name, offset, WT_OFFSET_END(offset, len));
 
     write_end = WT_OFFSET_END(offset, len);
     hole = lr_fh->destination.hole_list_head;
     prev_hole = NULL;
     while (hole != NULL) {
-
-        if (write_end < hole->off) {
+        if (write_end < hole->off)
             /* We won't find any more overlapping holes. Stop searching. */
             break;
-        }
 
         if (offset <= hole->off && write_end >= WT_EXTENT_END(hole)) {
             /* The write fully overlaps a hole. Delete it. */
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "Fully overlaps hole %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
 
             tmp = hole;
@@ -545,11 +543,10 @@ __live_restore_remove_extlist_hole(
             hole = hole->next;
             __wt_free(session, tmp);
             continue;
-
         } else if (offset > hole->off && write_end < WT_EXTENT_END(hole)) {
             /* The write is entirely within the hole. Split the hole in two. */
 
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "Fully contained by hole %" PRId64 "-%" PRId64, hole->off, WT_EXTENT_END(hole));
 
             /* First create the hole to the right of the write. */
@@ -562,23 +559,20 @@ __live_restore_remove_extlist_hole(
              */
             hole->len = (size_t)(offset - hole->off);
             hole->next = new;
-
         } else if (offset <= hole->off && WT_OFFSET_IN_EXTENT(write_end, hole)) {
             /* The write starts before the hole and ends within it. Shrink the hole. */
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "Partial overlap to the left of hole %" PRId64 "-%" PRId64, hole->off,
               WT_EXTENT_END(hole));
 
             hole->len = (size_t)(WT_EXTENT_END(hole) - write_end);
             hole->off = write_end + 1;
-
         } else if (WT_OFFSET_IN_EXTENT(offset, hole) && write_end >= WT_EXTENT_END(hole)) {
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "Partial overlap to the right of hole %" PRId64 "-%" PRId64, hole->off,
               WT_EXTENT_END(hole));
             /* The write starts within the hole and ends after it. Shrink the hole. */
             hole->len = (size_t)(offset - hole->off);
-
         } else
             /* No overlap. Safety check */
             WT_ASSERT(session, write_end < hole->off || offset > WT_EXTENT_END(hole));
@@ -630,7 +624,7 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
         read_ends_in_hole = WT_OFFSET_IN_EXTENT(read_end, hole);
         if (read_begins_in_hole && read_ends_in_hole) {
             /* Our read is entirely within a hole */
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "CANNOT SERVICE %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
               "-%" PRId64,
               lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
@@ -645,7 +639,7 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
              * thread reads the first part of a page and then we read that page before the remainder
              * is migrated.
              */
-            __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "PARTIAL READ %s: Reading from hole. Read: %" PRId64 "-%" PRId64 ", hole: %" PRId64
               "-%" PRId64,
               lr_fh->iface.name, offset, read_end, hole->off, WT_EXTENT_END(hole));
@@ -669,7 +663,7 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
      */
 done:
     __wt_verbose_debug3(
-      session, WT_VERB_FILEOPS, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
+      session, WT_VERB_LIVE_RESTORE, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
     return (FULL);
 }
 
@@ -689,8 +683,8 @@ __live_restore_fh_write_int(
 
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT, fh->name, offset, len);
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT,
+      fh->name, offset, len);
 
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
     return (__live_restore_remove_extlist_hole(lr_fh, session, offset, len));
@@ -732,8 +726,8 @@ __live_restore_fh_read(
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "READ %s : %" PRId64 ", %" WT_SIZET_FMT, fh->name, offset, len);
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "READ %s : %" PRId64 ", %" WT_SIZET_FMT,
+      fh->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -754,7 +748,7 @@ __live_restore_fh_read(
     WT_LIVE_RESTORE_SERVICE_STATE read_state =
       __live_restore_can_service_read(lr_fh, session, offset, len, &hole);
     if (read_state == FULL) {
-        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM DEST (src is NULL? %s)",
+        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    READ FROM DEST (src is NULL? %s)",
           lr_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
         WT_ERR(lr_fh->destination.fh->fh_read(
@@ -781,21 +775,21 @@ __live_restore_fh_read(
         size_t source_partial_read_len = len - dest_partial_read_len;
 
         /* First read the serviceable portion from the destination. */
-        __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
           "    PARTIAL READ FROM DEST (offset: %" PRId64 ", len: %" WT_SIZET_FMT ")", offset,
           dest_partial_read_len);
         WT_ERR(lr_fh->destination.fh->fh_read(
           lr_fh->destination.fh, wt_session, offset, dest_partial_read_len, read_data));
 
         /* Now read the remaining data from the source. */
-        __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
           "    PARTIAL READ FROM SOURCE (offset: %" PRId64 ", len: %" WT_SIZET_FMT ")", hole->off,
           source_partial_read_len);
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, source_partial_read_len,
           read_data + dest_partial_read_len));
     } else {
         /* Interestingly you cannot not have a format in verbose. */
-        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    READ FROM %s", "SOURCE");
+        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    READ FROM %s", "SOURCE");
         /* Read the full read from the source. */
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
     }
@@ -827,7 +821,8 @@ err:
  *     finished parameter. Must be called while holding the extent list write lock.
  */
 static int
-__live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finishedp)
+__live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, WT_TIMER *start_timer,
+  uint64_t *msg_count, bool *finishedp)
 {
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     WT_LIVE_RESTORE_HOLE_NODE *hole = lr_fh->destination.hole_list_head;
@@ -840,22 +835,33 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool *finis
         return (0);
     }
 
-    __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
       "Found hole in %s at %" PRId64 "-%" PRId64 " during background migration. ", fh->name,
       hole->off, WT_EXTENT_END(hole));
 
     /*
      * When encountering a large hole, break the read into small chunks. Split the hole into n
      * chunks: the first n - 1 chunks will read a full WT_LIVE_RESTORE_READ_SIZE buffer, and the
-     * last chunk reads the remaining data. This loop is a not obvious, effectively the read is
+     * last chunk reads the remaining data. This loop is not obvious, effectively the read is
      * shrinking the hole in the stack below us. This is why we always read from the start at the
      * beginning of the loop.
      */
     char buf[WT_LIVE_RESTORE_READ_SIZE];
     size_t read_size = WT_MIN(hole->len, (size_t)WT_LIVE_RESTORE_READ_SIZE);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS,
+    uint64_t time_diff_ms;
+
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
       "    BACKGROUND READ %s : %" PRId64 ", %" WT_SIZET_FMT, lr_fh->iface.name, hole->off,
       read_size);
+    __wt_timer_evaluate_ms(session, start_timer, &time_diff_ms);
+    if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *msg_count) {
+        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+          "Live restore running on %s for %" PRIu64
+          " milliseconds. Currently "
+          "copying offset %" PRId64 " of size %" WT_SIZET_FMT,
+          fh->name, time_diff_ms, hole->off, lr_fh->source_size);
+        *msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
+    }
     WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
     return (__live_restore_fh_write_int(fh, wt_session, hole->off, read_size, buf));
 }
@@ -873,12 +879,15 @@ int
 __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
     WT_DECL_RET;
+    WT_TIMER timer;
+    uint64_t msg_count = 0;
     bool finished = false;
 
+    __wt_timer_start((WT_SESSION_IMPL *)wt_session, &timer);
     while (!finished) {
         WT_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK((WT_SESSION_IMPL *)wt_session,
           (WT_LIVE_RESTORE_FILE_HANDLE *)fh,
-          ret = __live_restore_fill_hole(fh, wt_session, &finished));
+          ret = __live_restore_fill_hole(fh, wt_session, &timer, &msg_count, &finished));
         WT_RET(ret);
         WT_RET(WT_SESSION_CHECK_PANIC(wt_session));
     }
@@ -898,7 +907,8 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
+    __wt_verbose_debug1(
+      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
     /*
      * If we hit an error during file handle creation we'll call this function to free the partially
@@ -977,7 +987,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
         /* Sometimes we call truncate but don't change the length. Ignore */
         return (0);
 
-    __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
+    __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_LIVE_RESTORE,
       "truncating file %s from %" PRId64 " to %" PRId64, fh->name, old_len, len);
 
     /*
@@ -1054,8 +1064,8 @@ __live_restore_fh_find_holes_in_dest_file(
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
     WT_ERR(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "File: %s", filename);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS, "    len: %" PRId64, file_size);
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "File: %s", filename);
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    len: %" PRId64, file_size);
 
     if (file_size > 0)
         /*
@@ -1080,7 +1090,7 @@ __live_restore_fh_find_holes_in_dest_file(
         WT_ASSERT(session, data_end_offset != -1);
         WT_ASSERT(session, data_end_offset > data_offset - 1);
 
-        __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
           "File: %s, has data from %" PRId64 "-%" PRId64, filename, data_offset, data_end_offset);
         WT_ERR(__live_restore_remove_extlist_hole(
           lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
@@ -1129,7 +1139,7 @@ __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE
             final_hole = final_hole->next;
 
         if (WT_EXTENT_END(final_hole) >= source_size) {
-            __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+            __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
               "Error: Hole list for %s has holes beyond the the end of the source file!", name);
             __live_restore_debug_dump_extent_list(session, lr_fh);
             __wt_readunlock(session, &lr_fh->ext_lock);
@@ -1300,10 +1310,9 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FS *lr
                 /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
 
                 WT_RET(lr_fhp->source->fh_size(lr_fhp->source, wt_session, &source_size));
-                __wt_verbose_debug1(session, WT_VERB_FILEOPS,
+                __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
                   "Creating destination file backed by source file. Copying size (%" PRId64
-                  ") from source "
-                  "file",
+                  ") from source file",
                   source_size);
 
                 /*
@@ -1462,7 +1471,7 @@ __live_restore_fs_rename(
      */
 
     __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "LIVE_RESTORE: Renaming file from: %s to %s\n", from, to);
+      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE: Renaming file from: %s to %s\n", from, to);
     WT_RET(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
     if (!exist)
         WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", from);
@@ -1603,8 +1612,8 @@ __wt_os_live_restore_fs(
     if (cval.val != 0)
         FLD_SET(lr_fs->debug_flags, WT_LIVE_RESTORE_DEBUG_FILL_HOLES_ON_CLOSE);
 
-    __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-      "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+      "WiredTiger started in live restore mode. Source path is: %s, Destination path is %s",
       lr_fs->source.home, destination);
 
     /* Update the callers pointer. */

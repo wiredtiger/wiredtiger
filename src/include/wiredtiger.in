@@ -8052,6 +8052,8 @@ typedef enum {
     WT_VERB_HANDLEOPS,
     WT_VERB_HS,                   /*!< History store messages. */
     WT_VERB_HS_ACTIVITY,          /*!< History store activity messages. */
+    WT_VERB_LIVE_RESTORE,
+    WT_VERB_LIVE_RESTORE_PROGRESS,
     WT_VERB_LOG,                  /*!< Log messages. */
     WT_VERB_MUTEX,
     WT_VERB_METADATA,             /*!< Metadata messages. */

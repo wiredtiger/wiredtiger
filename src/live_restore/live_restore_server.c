@@ -43,7 +43,7 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          */
         if (TAILQ_EMPTY(&server->work_queue)) {
             WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
-            __wt_verbose_debug1(session, WT_VERB_FILEOPS, "%s", "Live restore finished");
+            __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "%s", "Live restore finished");
         }
         /*
          * Future proofing: in general unless the conn is closing the queue must be empty if there
@@ -104,19 +104,20 @@ __live_restore_work_queue_drain(WT_SESSION_IMPL *session)
 /*
  * __live_restore_worker_run --
  *     Entry function for a live restore thread. This is called repeatedly from the thread group
- *     code so it does not need to loop itself.
+ *     code so it does not need to loop itself. Each run will fill the holes for a single file.
  */
 static int
 __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
+    uint64_t time_diff_ms;
 
     __wt_spin_lock(session, &server->queue_lock);
     if (TAILQ_EMPTY(&server->work_queue)) {
         /* Stop our thread from running. This will call the stop_func and trigger state cleanup. */
         F_CLR(ctx, WT_THREAD_RUN);
-        __wt_verbose_debug2(session, WT_VERB_FILEOPS, "%s", "Live restore worker terminating");
+        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "%s", "Live restore worker terminating");
         __wt_spin_unlock(session, &server->queue_lock);
         return (0);
     }
@@ -127,9 +128,21 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_ASSERT(session, work_item != NULL);
     TAILQ_REMOVE(&server->work_queue, work_item, q);
     __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "Live restore worker taking queue item: %s", work_item->uri);
-    __wt_spin_unlock(session, &server->queue_lock);
+      session, WT_VERB_LIVE_RESTORE, "Live restore worker taking queue item: %s", work_item->uri);
+    WT_STAT_CONN_SET(
+      session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
+    __wt_timer_evaluate_ms(session, &server->msg_timer, &time_diff_ms);
 
+    /* Print out a progress message periodically. */
+    if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > server->msg_count) {
+        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+          "Live restore has been running for %" PRIu64 " milliseconds and has processed %" PRIu64
+          " file of %" PRIu64,
+          time_diff_ms, server->work_items_remaining, server->work_count);
+        server->msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
+    }
+
+    __wt_spin_unlock(session, &server->queue_lock);
     WT_CURSOR *cursor;
     WT_SESSION *wt_session = (WT_SESSION *)session;
 
@@ -159,16 +172,14 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     /* FIXME-WT-13897 Replace this with an API call into the block manager. */
     WT_FILE_HANDLE *fh = bm->block->fh->handle;
 
-    __wt_verbose_debug2(
-      session, WT_VERB_FILEOPS, "Live restore worker: Filling holes in %s", work_item->uri);
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+      "Live restore worker: %s: Start filling holes", work_item->uri);
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
-    __wt_verbose_debug2(session, WT_VERB_FILEOPS,
-      "Live restore worker: Finished finished filling holes in %s", work_item->uri);
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+      "Live restore worker: %s: Finished finished filling holes", work_item->uri);
 
     /* Free the work item. */
     __live_restore_free_work_item(session, &work_item);
-    WT_STAT_CONN_SET(
-      session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
     WT_TRET(cursor->close(cursor));
     return (ret);
 }
@@ -198,15 +209,15 @@ __live_restore_populate_queue(WT_SESSION_IMPL *session, uint64_t *work_count)
     WT_RET(__wt_metadata_cursor(session, &cursor));
     WT_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
     __wt_verbose_debug1(
-      session, WT_VERB_FILEOPS, "%s", "Live restore server: Initializing the work queue");
+      session, WT_VERB_LIVE_RESTORE, "%s", "Live restore server: Initializing the work queue");
 
     *work_count = 0;
     while ((ret = cursor->next(cursor)) == 0) {
         const char *uri = NULL;
         WT_ERR(cursor->get_key(cursor, &uri));
         if (WT_PREFIX_MATCH(uri, "file:")) {
-            __wt_verbose_debug2(
-              session, WT_VERB_FILEOPS, "Live restore server: Adding an %s to the work queue", uri);
+            __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+              "Live restore server: Adding an %s to the work queue", uri);
             WT_ERR(__wt_calloc_one(session, &work_item));
             WT_ERR(__wt_strdup(session, uri, &work_item->uri));
             TAILQ_INSERT_HEAD(&server->work_queue, work_item, q);
@@ -268,6 +279,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t work_count;
     WT_ERR(__live_restore_populate_queue(session, &work_count));
     WT_STAT_CONN_SET(session, live_restore_queue_length, work_count);
+    __wt_atomic_store64(&conn->live_restore_server->work_count, work_count);
     __wt_atomic_store64(&conn->live_restore_server->work_items_remaining, work_count);
 
     /* Set this value before the threads start up in case they immediately decrement it. */
@@ -281,6 +293,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Furthermore because our threads terminate themselves the scaling logic may not be possible
      * without some adjustments to either the live restore server or the thread group code itself.
      */
+    __wt_timer_start(session, &conn->live_restore_server->msg_timer);
     WT_ERR(__wt_thread_group_create(session, &conn->live_restore_server->threads,
       "live_restore_workers", (uint32_t)cval.val, (uint32_t)cval.val, 0,
       __live_restore_worker_check, __live_restore_worker_run, __live_restore_worker_stop));
