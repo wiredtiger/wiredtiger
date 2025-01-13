@@ -627,8 +627,9 @@ __live_restore_can_service_read(WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_I
             break;
 
         WT_ASSERT_ALWAYS(session, !(offset < hole->off && WT_EXTENT_END(hole) < read_end),
-          "Read (offset: %ld, len: %lu) encompasses a hole (offset: %ld, len: %lu)", offset, len,
-          hole->off, hole->len);
+          "Read (offset: %" PRId64 ", len: %" PRIu64 ") encompasses a hole (offset: %" PRId64
+          ", len: %" PRIu64 ")",
+          offset, len, hole->off, hole->len);
 
         read_begins_in_hole = WT_OFFSET_IN_EXTENT(offset, hole);
         read_ends_in_hole = WT_OFFSET_IN_EXTENT(read_end, hole);
