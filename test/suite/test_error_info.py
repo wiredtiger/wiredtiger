@@ -27,12 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import errno
-import wiredtiger, wttest, time
-from wtdataset import SimpleDataSet
+import time
+import wiredtiger
+from compact_util import compact_util
 
 # test_error_info.py
 #   Test that the placeholder get_last_error() session API returns placeholder error values.
-class test_error_info(wttest.WiredTigerTestCase):
+class test_error_info(compact_util):
 
     table_name1 = 'table:test_error_infoa.wt'
     table_name2 = 'table:test_error_infob.wt'
@@ -121,3 +122,53 @@ class test_error_info(wttest.WiredTigerTestCase):
         self.test_api_call_with_EINVAL()
         self.test_api_call_with_EBUSY()
         self.test_api_call_with_EBUSY()
+
+    def test_compaction_already_running(self):
+        # Enable the background compaction server.
+        self.turn_on_bg_compact()
+
+        # Attempt to reconfigure.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.compact(None, f'background=true,free_space_target=10MB'))
+
+        # Expect error code, sub-error code and error message to reflect compaction already running.
+        self.assert_error_equal(errno.EINVAL, wiredtiger.WT_BACKGROUND_COMPACT_ALREADY_RUNNING, "Cannot reconfigure background compaction while it's already running.")
+
+    def test_uncommitted_data(self):
+        # Create a simple table.
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.table_name1)
+
+        # Start a transaction and insert a key and value.
+        self.session.begin_transaction()
+        cursor.set_key('key')
+        cursor.set_value('value')
+        cursor.insert()
+        cursor.close()
+
+        # Attempt to drop the table without committing the transaction.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
+
+        # Expect error code, sub-error code and error message to reflect uncommitted data.
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_UNCOMMITTED_DATA, "the table has uncommitted data and cannot be dropped yet")
+
+    def test_dirty_data(self):
+        # Create a simple table.
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(self.table_name1)
+
+        # Start a transaction, insert a key and value, and commit the transaction.
+        self.session.begin_transaction()
+        cursor.set_key('key')
+        cursor.set_value('value')
+        self.assertEqual(cursor.update(), 0)
+        self.assertEqual(self.session.commit_transaction(), 0)
+        cursor.close()
+
+        # Give time for the oldest id to update.
+        time.sleep(1)
+
+        # Attempt to drop the table without performing a checkpoint.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
+
+        # Expect error code, sub-error code and error message to reflect dirty data.
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_DIRTY_DATA, "the table has dirty data and can not be dropped yet")
