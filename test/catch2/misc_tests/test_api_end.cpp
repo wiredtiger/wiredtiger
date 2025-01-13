@@ -96,6 +96,15 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
         check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
     }
 
+    SECTION("Test API_END_RET with EINVAL (with repeated message)")
+    {
+        const char *err_msg_content = "Some EINVAL error";
+        REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+        REQUIRE(api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+    }
+
     SECTION("Test TXN_API_END with no error")
     {
         REQUIRE(txn_api_call_with_no_error(session_impl) == 0);
@@ -111,6 +120,15 @@ TEST_CASE("API_END_RET/TXN_API_END - test that the API call result is stored.", 
     SECTION("Test TXN_API_END with EINVAL (with message)")
     {
         const char *err_msg_content = "Some EINVAL error";
+        REQUIRE(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
+    }
+
+    SECTION("Test TXN_API_END with EINVAL (with repeated message)")
+    {
+        const char *err_msg_content = "Some EINVAL error";
+        REQUIRE(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
+        check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
         REQUIRE(txn_api_call_with_error(session_impl, EINVAL, WT_NONE, err_msg_content) == EINVAL);
         check_err_info(session_impl->err_info, EINVAL, WT_NONE, err_msg_content);
     }

@@ -145,8 +145,8 @@ __wt_session_set_last_error(
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    const char *err_msg_content;
     bool new_msg_is_empty;
+    const char *err_msg_content = NULL;
     WT_ERROR_INFO *err_info = &(session->err_info);
 
     /* Ensure arguments are valid. */
