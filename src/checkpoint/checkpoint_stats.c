@@ -23,6 +23,20 @@ __wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION 
 }
 
 /*
+ * __wt_checkpoint_reset_time_stats --
+ *     Reset time-related stats.
+ */
+void
+__wt_checkpoint_reset_time_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt)
+{
+    WT_UNUSED(session);
+
+    ckpt->prepare.min = UINT64_MAX;
+    ckpt->ckpt_api.min = UINT64_MAX;
+    ckpt->scrub.min = UINT64_MAX;
+}
+
+/*
  * __wt_checkpoint_set_handle_stats --
  *     Set handle-related stats.
  */

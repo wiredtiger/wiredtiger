@@ -227,6 +227,7 @@ extern int __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
 extern void __wt_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt);
 extern void __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing);
 extern void __wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt);
+extern void __wt_checkpoint_reset_time_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt);
 extern void __wt_checkpoint_set_handle_stats(
   WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt, uint64_t gathering_handles_time_us);
 extern void __wt_checkpoint_set_time_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt);
