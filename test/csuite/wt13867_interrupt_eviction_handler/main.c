@@ -31,7 +31,7 @@
 #include <signal.h>
 
 /*
- * This test verifies that eviction can be iunterrupted.
+ * This test verifies that eviction can be interrupted.
  */
 #define NUM_RECORDS (10000)
 #define WRITE_CYCLES (40000)
@@ -77,59 +77,45 @@ handle_general(WT_EVENT_HANDLER *handler, WT_CONNECTION *conn, WT_SESSION *sessi
 }
 
 static WT_EVENT_HANDLER event_handler = {
-  NULL, NULL,            /* Message handlers */
-  NULL,                  /* Progress handler */
-  NULL,                  /* Close handler */
-  handle_general         /* General handler */
+  NULL, NULL,    /* Message handlers */
+  NULL,          /* Progress handler */
+  NULL,          /* Close handler */
+  handle_general /* General handler */
 };
 
-#define GET_STAT(KEY, VARIABLE) do { \
-    const char *desc, *pvalue; \
-    stat->set_key(stat, KEY); \
-    testutil_check(stat->search(stat)); \
-    testutil_check(stat->get_value(stat, &desc, &pvalue, &VARIABLE)); \
-    printf("%s = %" PRId64 "\n", #KEY, VARIABLE); \
-} while (0)
+#define GET_STAT(KEY, VARIABLE)                                           \
+    do {                                                                  \
+        const char *desc, *pvalue;                                        \
+        stat->set_key(stat, KEY);                                         \
+        testutil_check(stat->search(stat));                               \
+        testutil_check(stat->get_value(stat, &desc, &pvalue, &VARIABLE)); \
+        printf("%s = %" PRId64 "\n", #KEY, VARIABLE);                     \
+    } while (0)
 
-#define GET_STATS( \
-    CACHE_OPS_VAR, \
-    CACHE_TIME_VAR, \
-    CACHE_BUSY_OPS_VAR, \
-    CACHE_BUSY_TIME_VAR, \
-    CACHE_IDLE_OPS_VAR, \
-    CACHE_IDLE_TIME_VAR, \
-    BYTES_MAX_VAR, \
-    BYTES_INUSE_VAR \
-) do { \
-    WT_CURSOR *stat; \
-    testutil_check(session->open_cursor(session, "statistics:", NULL, NULL, &stat)); \
-    GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_OPS, CACHE_OPS_VAR); \
-    GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_TIME, CACHE_TIME_VAR); \
-    GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_BUSY_OPS, CACHE_BUSY_OPS_VAR); \
-    GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_BUSY_TIME, CACHE_BUSY_TIME_VAR); \
-    GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_IDLE_OPS, CACHE_IDLE_OPS_VAR); \
-    GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_IDLE_TIME, CACHE_IDLE_TIME_VAR); \
-    GET_STAT(WT_STAT_CONN_CACHE_BYTES_MAX, BYTES_MAX_VAR); \
-    GET_STAT(WT_STAT_CONN_CACHE_BYTES_INUSE, BYTES_INUSE_VAR); \
-    testutil_check(stat->close(stat)); \
-} while (0)
+#define GET_STATS(CACHE_OPS_VAR, CACHE_TIME_VAR, CACHE_BUSY_OPS_VAR, CACHE_BUSY_TIME_VAR, \
+  CACHE_IDLE_OPS_VAR, CACHE_IDLE_TIME_VAR, BYTES_MAX_VAR, BYTES_INUSE_VAR)                \
+    do {                                                                                  \
+        WT_CURSOR *stat;                                                                  \
+        testutil_check(session->open_cursor(session, "statistics:", NULL, NULL, &stat));  \
+        GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_OPS, CACHE_OPS_VAR);                      \
+        GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_TIME, CACHE_TIME_VAR);                    \
+        GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_BUSY_OPS, CACHE_BUSY_OPS_VAR);            \
+        GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_BUSY_TIME, CACHE_BUSY_TIME_VAR);          \
+        GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_IDLE_OPS, CACHE_IDLE_OPS_VAR);            \
+        GET_STAT(WT_STAT_CONN_APPLICATION_CACHE_IDLE_TIME, CACHE_IDLE_TIME_VAR);          \
+        GET_STAT(WT_STAT_CONN_CACHE_BYTES_MAX, BYTES_MAX_VAR);                            \
+        GET_STAT(WT_STAT_CONN_CACHE_BYTES_INUSE, BYTES_INUSE_VAR);                        \
+        testutil_check(stat->close(stat));                                                \
+    } while (0)
 
-#define GET_ALL_STATS(IDX) \
-    printf("  Stats for cycle %d:\n", IDX); \
-    int64_t cache_ops##IDX, cache_time##IDX; \
-    int64_t cache_busy_ops##IDX, cache_busy_time##IDX; \
-    int64_t cache_idle_ops##IDX, cache_idle_time##IDX; \
-    int64_t cache_bytes_max##IDX, cache_bytes_inuse##IDX; \
-    GET_STATS( \
-        cache_ops##IDX, \
-        cache_time##IDX, \
-        cache_busy_ops##IDX, \
-        cache_busy_time##IDX, \
-        cache_idle_ops##IDX, \
-        cache_idle_time##IDX, \
-        cache_bytes_max##IDX, \
-        cache_bytes_inuse##IDX \
-    )
+#define GET_ALL_STATS(IDX)                                                                \
+    printf("  Stats for cycle %d:\n", IDX);                                               \
+    int64_t cache_ops##IDX, cache_time##IDX;                                              \
+    int64_t cache_busy_ops##IDX, cache_busy_time##IDX;                                    \
+    int64_t cache_idle_ops##IDX, cache_idle_time##IDX;                                    \
+    int64_t cache_bytes_max##IDX, cache_bytes_inuse##IDX;                                 \
+    GET_STATS(cache_ops##IDX, cache_time##IDX, cache_busy_ops##IDX, cache_busy_time##IDX, \
+      cache_idle_ops##IDX, cache_idle_time##IDX, cache_bytes_max##IDX, cache_bytes_inuse##IDX)
 
 /*
  * populate --
