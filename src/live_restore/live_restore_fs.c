@@ -1224,7 +1224,7 @@ err:
  */
 static int
 __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
-  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fhp)
+  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     WT_DECL_RET;
     char *dest_folder_path = NULL;
@@ -1255,14 +1255,14 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
 
     WT_FILE_HANDLE *fh;
     WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-      dest_folder_path, lr_fhp->file_type, flags, &fh));
+      dest_folder_path, lr_fh->file_type, flags, &fh));
 
-    lr_fhp->destination.fh = fh;
+    lr_fh->destination.fh = fh;
 
     /* There's no need for a hole list. The directory has already been fully copied */
-    lr_fhp->destination.hole_list_head = NULL;
-    lr_fhp->destination.back_pointer = lr_fs;
-    lr_fhp->destination.complete = true;
+    lr_fh->destination.hole_list_head = NULL;
+    lr_fh->destination.back_pointer = lr_fs;
+    lr_fh->destination.complete = true;
 
 err:
     __wt_free(session, dest_folder_path);
@@ -1275,7 +1275,7 @@ err:
  */
 static int
 __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
-  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fhp)
+  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     bool dest_exist = false, source_exist = false, have_tombstone = false;
     WT_SESSION *wt_session = (WT_SESSION *)session;
@@ -1293,17 +1293,17 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
         WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
 
     /* Open it in the destination layer. */
-    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fhp, name, flags, !dest_exist));
+    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
 
     if (have_tombstone) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
          * source. Therefore the destination must be complete.
          */
-        lr_fhp->destination.complete = true;
+        lr_fh->destination.complete = true;
         /* Opening files is single threaded but the remove extlist free requires the lock. */
         WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
-          session, lr_fhp, __live_restore_fs_free_extent_list(session, lr_fhp));
+          session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
     } else {
         /*
          * If it exists in the source, open it. If it doesn't exist in the source then by definition
@@ -1312,7 +1312,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
         WT_RET_NOTFOUND_OK(
           __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
         if (source_exist) {
-            WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fhp, flags));
+            WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
 
             if (!dest_exist) {
                 /*
@@ -1324,30 +1324,31 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
 
                 /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
 
-                WT_RET(lr_fhp->source->fh_size(lr_fhp->source, wt_session, &source_size));
+                WT_RET(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
                 __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
                   "Creating destination file backed by source file. Copying size (%" PRId64
                   ") from source file",
                   source_size);
+                lr_fh->source_size = (size_t)source_size;
 
                 /*
                  * Set size by truncating. This is a positive length truncate so it actually extends
                  * the file. We're bypassing the live_restore layer so we don't try to modify the
                  * extents in hole_list_head.
                  */
-                WT_RET(lr_fhp->destination.fh->fh_truncate(
-                  lr_fhp->destination.fh, wt_session, source_size));
+                WT_RET(lr_fh->destination.fh->fh_truncate(
+                  lr_fh->destination.fh, wt_session, source_size));
 
                 /*
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */
-                WT_ASSERT(session, lr_fhp->destination.hole_list_head == NULL);
+                WT_ASSERT(session, lr_fh->destination.hole_list_head == NULL);
                 WT_RET(__live_restore_alloc_extent(
-                  session, 0, (size_t)source_size, NULL, &lr_fhp->destination.hole_list_head));
+                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list_head));
             }
         } else
-            lr_fhp->destination.complete = true;
+            lr_fh->destination.complete = true;
     }
 
     return (0);
