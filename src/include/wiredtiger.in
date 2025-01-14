@@ -5669,6 +5669,8 @@ struct __wt_page_log_put_args {
        /*
         * Input arguments
         */
+       uint64_t backlink_lsn;
+       uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
 
@@ -5697,6 +5699,8 @@ struct __wt_page_log_get_args {
        /*
         * Output arguments, returned by the call
         */
+       uint64_t backlink_lsn;
+       uint64_t base_lsn;
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
        uint32_t delta_count;

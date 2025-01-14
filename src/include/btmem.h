@@ -326,6 +326,8 @@ struct __wt_page_block_meta {
     uint64_t checkpoint_id;
     uint64_t reconciliation_id;
 
+    uint64_t backlink_lsn;
+    uint64_t base_lsn;
     uint64_t backlink_checkpoint_id;
     uint64_t base_checkpoint_id;
     uint32_t delta_count;

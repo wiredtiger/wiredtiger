@@ -636,15 +636,17 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_put(plh=%p, table_id=%" PRIx64 ", page_id=%" PRIx64 ", lsn=%" PRIx64
-      ", checkpoint_id=%" PRIx64 ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64
+      ", checkpoint_id=%" PRIx64 ", backlink_lsn=%" PRIx64 ", base_lsn=%" PRIx64
+      ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64
       ", is_delta=%d, buf=\n%s)\n",
-      (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id,
-      put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, is_delta,
+      (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, put_args->backlink_lsn,
+      put_args->base_lsn, put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, is_delta,
       palm_verbose_item(buf));
 
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
-        put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, put_args->flags, buf));
+        put_args->backlink_lsn, put_args->base_lsn, put_args->backlink_checkpoint_id,
+        put_args->base_checkpoint_id, put_args->flags, buf));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
     put_args->lsn = lsn;
@@ -670,10 +672,12 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM_HANDLE *palm_handle;
     PALM_KV_PAGE_MATCHES matches;
     uint32_t count, i;
-    uint64_t lsn;
+    uint64_t last_checkpoint_id, last_lsn, lsn;
     int ret;
 
     count = 0;
+    last_checkpoint_id = 0;
+    last_lsn = 0;
     lsn = get_args->lsn;
     palm_handle = (PALM_HANDLE *)plh;
     palm = palm_handle->palm;
@@ -698,6 +702,39 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         memset(&results_array[count], 0, sizeof(WT_ITEM));
         PALM_KV_ERR(palm, session, palm_resize_item(&results_array[count], matches.size));
         memcpy(results_array[count].mem, matches.data, matches.size);
+
+        /* FIXME-SLS-950: Fix the sporadic failure in test_layered06. */
+#if 0
+        /* Validate backlinks. */
+        if (count > 0) {
+            if (matches.backlink_lsn != last_lsn)
+                PALM_KV_ERR(palm, session, EINVAL);
+            if (matches.backlink_checkpoint_id != last_checkpoint_id)
+                PALM_KV_ERR(palm, session, EINVAL);
+        }
+
+        /* Validate base. */
+        if (count == 1) {
+            if (matches.base_lsn != last_lsn)
+                PALM_KV_ERR(palm, session, EINVAL);
+            if (matches.base_checkpoint_id != last_checkpoint_id)
+                PALM_KV_ERR(palm, session, EINVAL);
+        } else if (count > 1) {
+            if (matches.base_lsn != get_args->base_lsn)
+                PALM_KV_ERR(palm, session, EINVAL);
+            if (matches.base_checkpoint_id != get_args->base_checkpoint_id)
+                PALM_KV_ERR(palm, session, EINVAL);
+        }
+#endif
+        (void)last_lsn;
+        (void)last_checkpoint_id;
+
+        last_lsn = matches.lsn;
+        last_checkpoint_id = matches.checkpoint_id;
+        get_args->backlink_lsn = matches.backlink_lsn;
+        get_args->base_lsn = matches.base_lsn;
+        get_args->backlink_checkpoint_id = matches.backlink_checkpoint_id;
+        get_args->base_checkpoint_id = matches.base_checkpoint_id;
     }
     /* Did the caller give us enough output entries to hold all the results? */
     if (count == *results_count && palm_kv_next_page_match(&matches))
@@ -716,6 +753,11 @@ err:
         for (i = 0; i < count; ++i)
             PALM_VERBOSE_PRINT(
               palm_handle->palm, "   part %d: %s\n", (int)i, palm_verbose_item(&results_array[i]));
+        PALM_VERBOSE_PRINT(palm_handle->palm,
+          "   metadata: backlink_lsn=%" PRIx64 ", base_lsn=%" PRIx64
+          ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64 "\n",
+          get_args->backlink_lsn, get_args->base_lsn, get_args->backlink_checkpoint_id,
+          get_args->base_checkpoint_id);
     }
     return (ret);
 }

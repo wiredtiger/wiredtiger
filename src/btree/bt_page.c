@@ -47,7 +47,11 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     meta->checkpoint_id = checkpoint_id;
     meta->backlink_checkpoint_id = checkpoint_id;
     meta->base_checkpoint_id = checkpoint_id;
+
+    meta->backlink_lsn = 0;
+    meta->base_lsn = 0;
     meta->disagg_lsn = 0;
+
     /*
      * 0 means there is no delta written for this page yet. We always write a full page for a new
      * page.
