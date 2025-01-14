@@ -59,12 +59,18 @@ __wt_checkpoint_set_handle_stats(
 }
 
 /*
- * __wt_checkpoint_set_time_stats --
- *     Set time-related stats.
+ * __wt_checkpoint_stats_time_update --
+ *     Update time-related stats.
  */
 void
-__wt_checkpoint_set_time_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt)
+__wt_checkpoint_stats_time_update(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_CKPT_CONNECTION *ckpt;
+
+    conn = S2C(session);
+    ckpt = &conn->ckpt;
+
     WT_STAT_CONN_SET(session, checkpoint_scrub_max, ckpt->scrub.max);
     if (ckpt->scrub.min != UINT64_MAX)
         WT_STAT_CONN_SET(session, checkpoint_scrub_min, ckpt->scrub.min);
