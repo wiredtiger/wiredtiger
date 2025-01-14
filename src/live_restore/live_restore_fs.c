@@ -1585,14 +1585,25 @@ __wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
 
     u_int logcount = 0;
     char **logfiles = NULL;
-    WT_RET(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
-    if (logfiles == 0)
-        return (0);
+    WT_DECL_ITEM(filename);
+    WT_FH *fh = NULL;
+    uint32_t lognum;
+    WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+
     for (u_int i = 0; i < logcount; i++) {
-        WT_FH *fh = NULL;
-        uint32_t lognum;
         WT_ERR(__wti_log_extract_lognum(session, logfiles[i], &lognum));
         WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
+        ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
+        WT_TRET(__wt_close(session, &fh));
+        WT_ERR(ret);
+    }
+    WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
+    WT_ERR(__wt_log_get_files(session, WTI_LOG_PREPNAME, &logfiles, &logcount));
+    for (u_int i = 0; i < logcount; i++) {
+        WT_ERR(__wt_scr_alloc(session, 0, &filename));
+        WT_ERR(__wti_log_extract_lognum(session, logfiles[i], &lognum));
+        WT_ERR(__wt_log_filename(session, lognum, WTI_LOG_PREPNAME, filename));
+        WT_ERR(__wt_open(session, (char *)filename->data, WT_FS_OPEN_ACCESS_SEQ, 0, &fh));
         ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
@@ -1600,6 +1611,7 @@ __wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
 
 err:
     WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
+    __wt_scr_free(session, &filename);
     return (ret);
 }
 
