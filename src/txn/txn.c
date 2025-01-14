@@ -2748,9 +2748,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_TIMER timer;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
-    bool use_timestamp;
+    bool conn_is_disagg, use_timestamp;
 
     conn = S2C(session);
+    conn_is_disagg = __wt_conn_is_disagg(session);
     use_timestamp = false;
 
     /*
@@ -2772,7 +2773,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (use_timestamp && !__wt_conn_is_disagg(session)) {
+        if (use_timestamp && !conn_is_disagg) {
             const char *rts_cfg[] = {
               WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
             __wt_timer_start(session, &timer);
@@ -2793,7 +2794,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
                   "shutdown rollback to stable has successfully finished and ran for %" PRIu64
                   " milliseconds",
                   conn->shutdown_timeline.rts_ms);
-        } else if (__wt_conn_is_disagg(session))
+        } else if (conn_is_disagg)
             __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg");
 
         s = NULL;
