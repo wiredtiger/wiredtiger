@@ -982,8 +982,6 @@ __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, con
      */
     WT_RET(__clayered_reset_cursors(clayered, true));
 
-    WT_RET(__layered_modify_check(session));
-
     if (S2C(session)->layered_table_manager.leader)
         c = clayered->stable_cursor;
     else

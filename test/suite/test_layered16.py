@@ -38,7 +38,7 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    disagg_storages = gen_disagg_storages('test_layered15', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered16', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
     num_restarts = 0
@@ -58,7 +58,6 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Insert a full value.
         self.session.begin_transaction()
         cursor[str(1)] = value1
-        cursor
         self.session.commit_transaction()
 
         # Insert a modify
