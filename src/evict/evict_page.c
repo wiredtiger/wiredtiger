@@ -306,10 +306,11 @@ done:
 /*
  * __wt_evict_one --
  *     Evict a single page from a given tree following the priority order.
- */
+ *
 bool
 __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag) {
 
+	WT_EVICT_HANDLE *evict_handle;
 	WT_EVICT_BUCKET *bucket;
 	WT_EVICT_BUCKETSET *bucketset;
 	WT_REF *ref;
@@ -328,7 +329,7 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
 	 * In each bucketset we iterate over the buckets starting with the smallest, because
 	 * smaller buckets will have pages with smaller read generations.
 	 *
-	 */
+	 *
 	for (i = WT_EVICT_LEVEL_CLEAN_LEAF; i <=  WT_EVICT_LEVEL_INTERNAL; i++) {
 		bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
 		for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
@@ -342,7 +343,7 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
 			 * How do avoid iterating forever given that I can put back the reference
 			 * that I remove? Solution: don't remove the reference until we perform
 			 * evict_review.
-			 */
+			 *
 			TAILQ_FOREACH_SAFE(ref, &bucket->evict_queue, evict_q
 			ref =  TAILQ_FIRST(&bucket->evict_queue);
 			if (ref != NULL)
@@ -351,7 +352,7 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
 			if (ref != NULL) {
 				/*
 				 * Get exclusive access to the page if our caller doesn't have the tree locked down.
-				 */
+				 *
 				if (!closing) {
 					if (__evict_exclusive(session, ref) != 0)
 						continue;
@@ -359,7 +360,7 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
 				WT_WITH_BTREE(session, dhandle->btree, ret = __evict_review(session, ref, flags,
 																			&inmem_split));
 				if (ret != 0)
-					continue; /* XXX -- put the ref back before continuing */
+					continue; /* XXX -- put the ref back before continuing *
 				WT_REF_LOCK(session, ref, &previous_state);
 				ref->page->evict->bucket = NULL;
 				WT_REF_UNLOCK(ref, &previous_state);
@@ -380,7 +381,7 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
 
 	tree_dead = F_ISSET(dhandle, WT_DHANDLE_DEAD);
 
-	/* As re-entry into eviction is possible, only clear the statistics on the first entry. */
+	/* As re-entry into eviction is possible, only clear the statistics on the first entry. *
 	if (__wt_session_gen((session), (WT_GEN_EVICT)) == 0) {
 		WT_CLEAR(session->evict_timeline);
 		session->evict_timeline.evict_start = __wt_clock(session);
@@ -393,21 +394,21 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
      * Enter the eviction and split generation. If we re-enter eviction, leave the previous
      * generation (eviction or split) generation (which must be as low as the current generation),
      * untouched.
-     */
+     *
     WT_ENTER_GENERATION(session, WT_GEN_EVICT);
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
 
 	/*
      * Immediately increment the forcible eviction counter, we might do an in-memory split and not
      * an eviction, which skips the other statistics.
-     */
+     *
     if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
         FLD_SET(stats_flags, WT_EVICT_STATS_URGENT);
         WT_STAT_CONN_INCR(session, eviction_force);
 
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
-         */
+         *
         if (session->hs_cursor_counter > 0 && WT_IS_HS(dhandle)) {
             FLD_SET(stats_flags, WT_EVICT_STATS_FORCE_HS);
             WT_STAT_CONN_INCR(session, eviction_force_hs);
@@ -417,7 +418,7 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
 	/*
      * If we decide to do an in-memory split. Do it now. If an in-memory split completes, the page
      * stays in memory and the tree is left in the desired state: avoid the usual cleanup.
-     */
+     *
     if (inmem_split) {
         WT_ERR(__wt_split_insert(session, ref));
         goto done;
@@ -429,6 +430,7 @@ __wt_evict_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint32_t flag)
 
 	return (ref != NULL);
 }
+*/
 
 /*
  * __evict_delete_ref --

@@ -8,6 +8,40 @@
 
 #include "wt_internal.h"
 
+#define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
+
+/*
+ * __evict_lock_handle_list --
+ *     Try to get the handle list lock, with yield and sleep back off. Keep timing statistics
+ *     overall.
+ */
+static int
+__evict_lock_handle_list(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_EVICT *evict;
+    WT_RWLOCK *dh_lock;
+    u_int spins;
+
+    conn = S2C(session);
+    evict = conn->evict;
+    dh_lock = &conn->dhandle_lock;
+
+    /*
+     * Use a custom lock acquisition back off loop so the eviction server notices any interrupt
+     * quickly.
+     */
+    for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
+         __wt_atomic_loadv32(&evict->pass_intr) == 0;
+         spins++) {
+        if (spins < WT_THOUSAND)
+            __wt_yield();
+        else
+            __wt_sleep(0, WT_THOUSAND);
+    }
+    return (ret);
+}
 
 /*
  * __evict_thread_run --
@@ -276,42 +310,6 @@ void
 __wt_evict_priority_clear(WT_SESSION_IMPL *session)
 {
     S2BT(session)->evict_priority = 0;
-}
-
-/* !!!
- * __wt_evict_server_wake --
- *     Wake up the eviction server thread. The eviction server typically sleeps for some time when
- *     cache usage is below the target thresholds. When the cache is expected to exceed these
- *     thresholds, callers can nudge the eviction server to wake up and resume its work.
- *
- *     This function is called in situations where pages are queued for urgent eviction or when
- *     application threads request eviction assistance.
- */
-void
-__wt_evict_server_wake(WT_SESSION_IMPL *session)
-{
-    WT_CACHE *cache;
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    cache = conn->cache;
-
-    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_2)) {
-        uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
-
-        bytes_inuse = __wt_cache_bytes_inuse(cache);
-        bytes_max = conn->cache_size;
-        bytes_dirty = __wt_cache_dirty_inuse(cache);
-        bytes_updates = __wt_cache_bytes_updates(cache);
-        __wt_verbose_debug2(session, WT_VERB_EVICTION,
-          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB), bytes dirty %" PRIu64
-          "(bytes), bytes updates %" PRIu64 "(bytes)",
-          bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
-          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE, bytes_dirty,
-          bytes_updates);
-    }
-
-    __wt_cond_signal(session, conn->evict->evict_cond);
 }
 
 /*
@@ -756,9 +754,6 @@ __evict_update_work(WT_SESSION_IMPL *session)
         return (false);
     }
 
-    if (!__evict_queue_empty(evict->evict_urgent_queue, false))
-        LF_SET(WT_EVICT_CACHE_URGENT);
-
     /*
      * TODO: We are caching the cache usage values associated with the history store because the
      * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
@@ -802,7 +797,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
     /*
      * Scrub dirty pages and keep them in cache if we are less than half way to the clean, dirty or
-     * updates triggers.
+     * updates triggers. TODO: why these thresholds? Shall we always keep scrubbed pages?
      */
     if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
         if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
@@ -848,26 +843,19 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
 
-	/*
-	 * Return if there is no work to do
-	 */
-	 if (!__evict_update_work(session))
-		 return (0);
-
     /*
      * Reconcile and discard some pages: EBUSY is returned if a page fails eviction because it's
      * unavailable, continue in that case.
      */
-    while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && ret == 0)
+    while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && __evict_update_work(session) && ret == 0)
         if ((ret = __evict_page(session)) == EBUSY)
             ret = 0;
 
     /* If any resources are pinned, release them now. */
     WT_TRET(__wt_session_release_resources(session));
 
-    /* If a worker thread found the queue empty, pause. */
-    if (ret == WT_NOTFOUND && !is_server && F_ISSET(conn, WT_CONN_EVICTION_RUN))
-        __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
+    /* A worker kept evicting until eviction was no longer needed. Pause. */
+	__wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
 
     WT_TRACK_OP_END(session);
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -1100,9 +1088,7 @@ __wt_evict_init_ref(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *r
 
 	WT_ASSERT(session, ref->page != NULL);
 	__evict_enqueue_page(session, dhandle, ref);
-
 }
-
 
 /*
  * __evict_lock_handle_list --
@@ -1158,7 +1144,7 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
 	dhandle = TAILQ_FIRST(&conn->dhqh);
 	for (int i = 0; i < conn->dhandle_count; i++) {
 #ifdef EVICT_MAX_FOOTPRINT
-		if (__wt_bytes_inmem(dhandle) > 	max_cache_footprint) {
+		if (__wt_bytes_inmem(dhandle) > max_cache_footprint) {
 			best_dhandle = dhandle;
 			max_cache_footprint = __wt_bytes_inmem(dhandle);
 		}
@@ -1305,7 +1291,7 @@ __evict_page(WT_SESSION_IMPL *session)
     page_is_modified = false;
 
     /*
-     * An internal session flags either the server itself or an eviction worker thread.
+     * Was the page evicted by an eviction worker on an application thread?
      */
 	if (F_ISSET(session, WT_SESSION_INTERNAL))
         WT_STAT_CONN_INCR(session, eviction_worker_evict_attempt);
@@ -1338,9 +1324,7 @@ __evict_page(WT_SESSION_IMPL *session)
     }
 
     if (WT_UNLIKELY(ret != 0)) {
-        if (is_server)
-            WT_STAT_CONN_INCR(session, eviction_server_evict_fail);
-        else if (F_ISSET(session, WT_SESSION_INTERNAL))
+        if (F_ISSET(session, WT_SESSION_INTERNAL))
             WT_STAT_CONN_INCR(session, eviction_worker_evict_fail);
         else {
             if (page_is_modified)
