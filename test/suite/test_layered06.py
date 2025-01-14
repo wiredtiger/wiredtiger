@@ -46,6 +46,10 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # TODO do Python tests expect a field named uri?
     uri = "layered:test_layered06"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':

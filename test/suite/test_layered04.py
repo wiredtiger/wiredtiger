@@ -40,6 +40,10 @@ class test_layered04(wttest.WiredTigerTestCase):
 
     uri = "layered:" + uri_base
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     # Load the directory store extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
