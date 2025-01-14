@@ -192,6 +192,8 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
       /* TODO - WT_BLOCK_COMPRESS_SKIP may not be the right thing */
       __wt_checksum(buf->mem, data_checksum ? buf->size : WT_BLOCK_COMPRESS_SKIP);
 
+    put_args.backlink_lsn = block_meta->backlink_lsn;
+    put_args.base_lsn = block_meta->base_lsn;
     put_args.backlink_checkpoint_id = block_meta->backlink_checkpoint_id;
     put_args.base_checkpoint_id = block_meta->base_checkpoint_id;
 
@@ -216,6 +218,11 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 
     /* Some extra data is set by the put interface, and must be returned up the chain. */
     block_meta->disagg_lsn = put_args.lsn;
+    WT_ASSERT(session, put_args.lsn > 0);
+    if (block_meta->delta_count == 0) {
+        block_meta->base_lsn = put_args.lsn;
+        block_meta->backlink_lsn = put_args.lsn;
+    }
     block_meta->checksum = checksum;
 
     *sizep = WT_STORE_SIZE(buf->size);

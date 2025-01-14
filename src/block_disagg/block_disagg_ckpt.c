@@ -128,15 +128,14 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t len;
-    uint64_t checkpoint_id;
-    char *entry, *md_key;
+    uint64_t checkpoint_id, checkpoint_timestamp, lsn;
+    char *md_key;
     const char *md_value;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     conn = S2C(session);
 
     buf = NULL;
-    entry = NULL;
     md_cursor = NULL;
     md_key = NULL;
 
@@ -164,15 +163,14 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     if (strcmp(block_disagg->name, WT_DISAGG_METADATA_FILE) == 0) {
         /* Get the config we want to print to the metadata file */
         WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
+        checkpoint_timestamp = conn->disaggregated_storage.cur_checkpoint_timestamp;
 
-        len = cval.len + 1; /* +1 for the last byte */
-        WT_ERR(__wt_calloc_def(session, len, &entry));
-        WT_ERR(__wt_snprintf(entry, len, "%.*s", (int)cval.len, cval.str));
-
-        WT_ERR(__wt_scr_alloc(session, len, &buf));
-        memcpy(buf->mem, entry, len);
-        buf->size = len - 1;
-        WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf));
+        WT_ERR(__wt_scr_alloc(session, 0, &buf));
+        WT_ERR(__wt_buf_fmt(
+          session, buf, "%.*s\ntimestamp=%" PRIx64, (int)cval.len, cval.str, checkpoint_timestamp));
+        WT_ERR(
+          __wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf, &lsn));
+        WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_meta_lsn, lsn);
     } else {
         /* Keep all metadata for regular tables. */
         WT_SAVE_DHANDLE(
@@ -230,7 +228,6 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 err:
     __wt_scr_free(session, &buf);
     __wt_free(session, md_key);
-    __wt_free(session, entry); /* TODO may not have been allocated */
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
 

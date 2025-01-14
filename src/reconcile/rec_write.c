@@ -2430,7 +2430,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     }
 
     if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
-      block_meta->delta_count < WT_DELTA_LIMIT) {
+      block_meta->delta_count < btree->max_consecutive_delta) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
         if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct)
@@ -2448,7 +2448,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
             WT_ASSERT(
               session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-            /* Delta reuse the previous base checkpoint id. */
+            WT_ASSERT(session, multi->block_meta.base_lsn >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+            /*
+             * The first delta needs to explicitly initialize the base LSN. The base checkpoint ID
+             * would be already filled out when we constructed the full page image.
+             */
+            if (multi->block_meta.delta_count == 0)
+                multi->block_meta.base_lsn = block_meta->disagg_lsn;
+            multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
             multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
             multi->block_meta.checkpoint_id = checkpoint_id;
             multi->block_meta.reconciliation_id = 0;
@@ -2485,6 +2492,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
           &multi->block_meta, addr, &addr_size, &compressed_size, false,
           F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
+
 #ifdef HAVE_DIAGNOSTIC
         verify_image = true;
 #endif

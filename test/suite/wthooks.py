@@ -290,11 +290,11 @@ class WiredTigerHookCreator(ABC):
         return False
 
 class WiredTigerHookPlatformAPI(object):
-    def setUp(self):
+    def setUp(self, testcase):
         """Called at the beginning of a test case"""
         pass
 
-    def tearDown(self):
+    def tearDown(self, testcase):
         """Called at the termination of a test case"""
         pass
 
@@ -377,15 +377,15 @@ class MultiPlatformAPI(WiredTigerHookPlatformAPI):
     def __init__(self, platform_apis):
         self.apis = platform_apis
 
-    def setUp(self):
+    def setUp(self, testcase):
         """Called at the beginning of a test case"""
         for api in self.apis:
-            api.setUp()
+            api.setUp(testcase)
 
-    def tearDown(self):
+    def tearDown(self, testcase):
         """Called at the termination of a test case"""
         for api in self.apis:
-            api.tearDown()
+            api.tearDown(testcase)
 
     def tableExists(self, name):
         """Return boolean if local files exist for the table with the given base name"""

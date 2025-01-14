@@ -59,6 +59,10 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     nitems = 1000
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def session_create_config(self):
         # The delta percentage of 200 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
@@ -106,7 +110,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -151,7 +155,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -192,7 +196,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -232,7 +236,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -277,7 +281,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -325,7 +329,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
@@ -375,7 +379,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_id={self.disagg_get_complete_checkpoint()})'
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 

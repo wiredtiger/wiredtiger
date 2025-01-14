@@ -112,6 +112,9 @@ connection_disaggregated_config_common = [
     Config('checkpoint_id', '-1', r'''
         The checkpoint ID from which to start (or restart) the node''',
         min='-1', type='int', undoc=True),
+    Config('checkpoint_meta', '', r'''
+        The checkpoint metadata from which to start (or restart) the node''',
+        undoc=True),
     Config('next_checkpoint_id', '-1', r'''
         The next checkpoint ID to open when starting (or restarting) the node''',
         min='-1', type='int', undoc=True),
@@ -148,6 +151,10 @@ file_disaggregated_config = [
                 Conversely, if the delta came to 21 bytes, reconciliation would not emit a
                 delta. Deltas larger than full pages are permitted for measurement and testing
                 reasons, and may be disallowed in future.''', min='1', max='1000'),
+            Config('max_consecutive_delta', '32', r'''
+                the max consecutive deltas allowed for a single page. The maximum value is set
+                at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
+                as well.''', min='1', max='32')
         ]
     ),
 ]

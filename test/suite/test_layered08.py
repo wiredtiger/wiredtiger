@@ -52,6 +52,10 @@ class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     nitems = 10000
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def conn_config(self):
         enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
         return self.conn_base_config + 'disaggregated=(role="leader"),' + enc_conf

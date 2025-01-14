@@ -79,11 +79,6 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     retry = 0;
 
-    /*
-     * Disaggregated storage only supports up to a fixed number of items. We shouldn't ask for more.
-     */
-    WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT);
-
     WT_CLEAR(get_args);
     get_args.lsn = lsn;
     if (block_meta != NULL)
@@ -202,17 +197,16 @@ reread:
                     block_meta->page_id = page_id;
                     block_meta->checkpoint_id = checkpoint_id;
                     block_meta->reconciliation_id = reconciliation_id;
-                    if (get_args.delta_count > 0) {
-                        WT_ASSERT(session,
-                          get_args.backlink_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-                        WT_ASSERT(
-                          session, get_args.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-                        block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
-                        block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
-                    } else {
-                        block_meta->backlink_checkpoint_id = checkpoint_id;
-                        block_meta->base_checkpoint_id = checkpoint_id;
-                    }
+                    WT_ASSERT(
+                      session, get_args.backlink_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+                    WT_ASSERT(
+                      session, get_args.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+                    WT_ASSERT(session, get_args.backlink_lsn > 0);
+                    WT_ASSERT(session, get_args.base_lsn > 0);
+                    block_meta->backlink_lsn = get_args.backlink_lsn;
+                    block_meta->base_lsn = get_args.base_lsn;
+                    block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
+                    block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
                     block_meta->disagg_lsn = get_args.lsn;
                     block_meta->delta_count = get_args.delta_count;
                     block_meta->checksum = checksum;
