@@ -72,8 +72,10 @@ typedef struct PAGE_KEY {
      * These are not really things we key on, but they are more convenient to store in the key
      * rather than the data.
      */
-    uint64_t backlink;
-    uint64_t base;
+    uint64_t backlink_lsn;
+    uint64_t base_lsn;
+    uint64_t backlink_checkpoint_id;
+    uint64_t base_checkpoint_id;
     uint32_t flags;
 
     /* To simulate materialization delays, this is the timestamp this record becomes available. */
@@ -339,8 +341,8 @@ palm_kv_get_global(PALM_KV_CONTEXT *context, PALM_KV_GLOBAL_KEY key, uint64_t *v
 
 int
 palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, uint64_t lsn,
-  uint64_t checkpoint_id, bool is_delta, uint64_t backlink, uint64_t base, uint32_t flags,
-  const WT_ITEM *buf)
+  uint64_t checkpoint_id, bool is_delta, uint64_t backlink_lsn, uint64_t base_lsn,
+  uint64_t backlink_checkpoint_id, uint64_t base_checkpoint_id, uint32_t flags, const WT_ITEM *buf)
 {
     MDB_val kval;
     MDB_val vval;
@@ -348,13 +350,16 @@ palm_kv_put_page(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t page_id, 
 
     memset(&kval, 0, sizeof(kval));
     memset(&vval, 0, sizeof(kval));
+    memset(&page_key, 0, sizeof(page_key));
     page_key.table_id = table_id;
     page_key.page_id = page_id;
     page_key.lsn = lsn;
     page_key.checkpoint_id = checkpoint_id;
     page_key.is_delta = is_delta;
-    page_key.backlink = backlink;
-    page_key.base = base;
+    page_key.backlink_lsn = backlink_lsn;
+    page_key.base_lsn = base_lsn;
+    page_key.backlink_checkpoint_id = backlink_checkpoint_id;
+    page_key.base_checkpoint_id = base_checkpoint_id;
     page_key.flags = flags;
     page_key.timestamp_materialized_us = palm_kv_timestamp_us() + context->materialization_delay_us;
     swap_page_key(&page_key, &page_key);
@@ -392,8 +397,8 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
 
     matches->table_id = table_id;
     matches->page_id = page_id;
-    matches->lsn = lsn;
-    matches->checkpoint_id = checkpoint_id;
+    matches->query_lsn = lsn;
+    matches->query_checkpoint_id = checkpoint_id;
 
     page_key.table_id = table_id;
     page_key.page_id = page_id;
@@ -432,8 +437,14 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     while (ret == 0 && RESULT_MATCH(&result_key, table_id, page_id, lsn, checkpoint_id, now)) {
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
         if (result_key.is_delta == false) {
+            matches->lsn = result_key.lsn;
+            matches->checkpoint_id = result_key.checkpoint_id;
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
+            matches->backlink_lsn = page_key.backlink_lsn;
+            matches->base_lsn = page_key.base_lsn;
+            matches->backlink_checkpoint_id = page_key.backlink_checkpoint_id;
+            matches->base_checkpoint_id = page_key.base_checkpoint_id;
             matches->first = true;
             return (0);
         }
@@ -485,12 +496,16 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
         readonly_page_key = (PAGE_KEY *)kval.mv_data;
         swap_page_key(readonly_page_key, &page_key);
 
-        if (RESULT_MATCH(&page_key, matches->table_id, matches->page_id, matches->lsn,
-              matches->checkpoint_id, now)) {
+        if (RESULT_MATCH(&page_key, matches->table_id, matches->page_id, matches->query_lsn,
+              matches->query_checkpoint_id, now)) {
+            matches->lsn = page_key.lsn;
+            matches->checkpoint_id = page_key.checkpoint_id;
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
-            matches->backlink = page_key.backlink;
-            matches->base = page_key.base;
+            matches->backlink_lsn = page_key.backlink_lsn;
+            matches->base_lsn = page_key.base_lsn;
+            matches->backlink_checkpoint_id = page_key.backlink_checkpoint_id;
+            matches->base_checkpoint_id = page_key.base_checkpoint_id;
             matches->flags = page_key.flags;
             return (true);
         }

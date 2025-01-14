@@ -128,7 +128,7 @@ u8 = '([0-9a-f][0-9a-f])'
 
 # e.g. 0000000000000003 00000000000000d2 0000000000000001 000000000000007e 00000000 00000000 0100000000000000 0100000000000000 0000000000000000 4223dc35bd260600
 def palm_dump_key(opts, kstr):
-    keypat = '^' + u64 + u64 + u64 + u64 + u32 + u32 + u64 + u64 + u64 + u64 + '$'
+    keypat = '^' + u64 + u64 + u64 + u64 + u32 + u32 + u64 + u64 + u64 + u64 + u64 + u64 + '$'
     columns = [ None,
                 { 'name' : 'table_id' },
                 { 'name' : 'page_id' },
@@ -136,8 +136,10 @@ def palm_dump_key(opts, kstr):
                 { 'name' : 'checkpoint_id' },
                 { 'name' : 'is_delta' },
                 { 'name' : 'PADDING' },
-                { 'name' : 'backlink', 'swap' : True },
-                { 'name' : 'base', 'swap' : True },
+                { 'name' : 'backlink_lsn', 'swap' : True },
+                { 'name' : 'base_lsn', 'swap' : True },
+                { 'name' : 'backlink_checkpoint_id', 'swap' : True },
+                { 'name' : 'base_checkpoint_id', 'swap' : True },
                 { 'name' : 'flags', 'swap' : True },
                 { 'name' : 'timestamp_materialized_us', 'swap' : True }
                ]
@@ -149,7 +151,7 @@ def palm_dump_key(opts, kstr):
     page_id = dehex(m.group(2))
     is_delta = dehex(m.group(5))
 
-    print(f'KEY: {cp.get(1)}{cp.get(2)}{cp.get(3)}{cp.get(4)}{cp.get(5)}{cp.get(7)}{cp.get(8)}{cp.get(9)}{cp.get(10)}')
+    print(f'KEY: {cp.get(1)}{cp.get(2)}{cp.get(3)}{cp.get(4)}{cp.get(5)}{cp.get(7)}{cp.get(8)}{cp.get(9)}{cp.get(10)}{cp.get(11)}{cp.get(12)}')
     if m.group(6) != '00000000':
         print('  WARNING: gap between is_Delta and backlink is not zero')
     if is_delta < 0 or is_delta > 1:
@@ -275,7 +277,7 @@ def palm_command_line_args():
     parser.add_argument('-r', '--raw', help="show raw bytes for value", action='store_true')
     parser.add_argument('-t', '--tableid', help="table id to decode", type=check_pos_int)
     parser.add_argument('-V', '--version', help="print version number of this program", action='store_true')
-    parser.add_argument('directory', help="home directory for LMDB kv-store (often <WT_HOME>/kv-store")
+    parser.add_argument('directory', help="home directory for LMDB kv-store (often <WT_HOME>/kv-store)")
     return parser.parse_args()
 
 opts = palm_command_line_args()
