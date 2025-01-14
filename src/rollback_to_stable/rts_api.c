@@ -115,10 +115,6 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
-    /* Check this nice and early, before we do any prep work. */
-    if (__wt_conn_is_disagg(session))
-        return (0);
-
     /*
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the
      * entire table sequentially.

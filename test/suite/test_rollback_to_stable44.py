@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wttest
+from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
 
 # test_rollback_to_stable44.py
@@ -65,7 +66,8 @@ class test_rollback_to_stable44(wttest.WiredTigerTestCase):
 
         # Set stable to 20 and rollback.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
-        self.conn.rollback_to_stable()
+        self.session.checkpoint()
+        simulate_crash_restart(self, ".", "RESTART")
 
         c = self.session.open_cursor(uri, None)
         self.assertEquals(c[ds.key(10)], ds.value(100))

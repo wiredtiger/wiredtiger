@@ -2772,7 +2772,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (use_timestamp) {
+        if (use_timestamp && !__wt_conn_is_disagg(session)) {
             const char *rts_cfg[] = {
               WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
             __wt_timer_start(session, &timer);
@@ -2793,6 +2793,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
                   "shutdown rollback to stable has successfully finished and ran for %" PRIu64
                   " milliseconds",
                   conn->shutdown_timeline.rts_ms);
+        } else if (__wt_conn_is_disagg(session)) {
+            /* __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg"); */
         }
 
         s = NULL;

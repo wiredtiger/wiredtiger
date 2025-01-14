@@ -224,6 +224,8 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
 int
 __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CONFIG_ITEM cval;
+
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
@@ -237,8 +239,16 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
      * Recovery must run before the history store table is created (because recovery will update the
      * metadata, and set the maximum file id seen), and before eviction is started for real.
+     *
+     * TODO: the disagg config check is a giant hack. Ideally, we'd have a single top-level disagg
+     * config item that can be checked, and set a variable elsewhere so we could gate this on a call
+     * like __wt_conn_is_disagg.
+     *
+     * As it stands, __wt_conn_is_disagg only works after we have metadata access, which depends on
+     * having run recovery, so the config hack is the simplest way to break that dependency.
      */
-    WT_RET(__wt_txn_recover(session, cfg));
+    WT_RET(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    WT_RET(__wt_txn_recover(session, cfg, cval.len != 0));
 
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));
