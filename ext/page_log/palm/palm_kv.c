@@ -441,10 +441,10 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
             matches->checkpoint_id = result_key.checkpoint_id;
             matches->size = vval.mv_size;
             matches->data = vval.mv_data;
-            matches->backlink_lsn = page_key.backlink_lsn;
-            matches->base_lsn = page_key.base_lsn;
-            matches->backlink_checkpoint_id = page_key.backlink_checkpoint_id;
-            matches->base_checkpoint_id = page_key.base_checkpoint_id;
+            matches->backlink_lsn = result_key.backlink_lsn;
+            matches->base_lsn = result_key.base_lsn;
+            matches->backlink_checkpoint_id = result_key.backlink_checkpoint_id;
+            matches->base_checkpoint_id = result_key.base_checkpoint_id;
             matches->first = true;
             return (0);
         }

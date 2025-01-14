@@ -2446,13 +2446,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
             WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
             /*
-             * The first delta needs to explicitly initialize the base checkpoint ID and base LSN to
-             * that of the full image. Future deltas then reuse them.
+             * The first delta needs to explicitly initialize the base LSN. The base checkpoint ID
+             * would be already filled out when we constructed the full page image.
              */
-            if (multi->block_meta.delta_count == 0) {
+            if (multi->block_meta.delta_count == 0)
                 multi->block_meta.base_lsn = block_meta->disagg_lsn;
-                multi->block_meta.base_checkpoint_id = block_meta->checkpoint_id;
-            }
             multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
             multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
             multi->block_meta.checkpoint_id = checkpoint_id;
