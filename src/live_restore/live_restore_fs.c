@@ -1472,21 +1472,25 @@ __live_restore_fs_rename(
      * WiredTiger frequently renames the turtle file, and some other files. This function is more
      * critical than it may seem at first.
      */
-
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "LIVE_RESTORE: Renaming file from: %s to %s\n", from, to);
     WT_RET(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
     if (!exist)
         WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", from);
 
-    if (which == WT_LIVE_RESTORE_FS_LAYER_DESTINATION) {
-        WT_ERR(__live_restore_fs_backing_filename(
-          &lr_fs->destination, session, lr_fs->destination.home, from, &path_from));
-        WT_ERR(__live_restore_fs_backing_filename(
-          &lr_fs->destination, session, lr_fs->destination.home, to, &path_to));
-        WT_ERR(lr_fs->os_file_system->fs_rename(
-          lr_fs->os_file_system, wt_session, path_from, path_to, flags));
-    }
+    /*
+     * Any call to rename should succeed from WiredTiger's perspective thus if the file can't be
+     * renamed as it does not exist in the destination that means something doesn't add up.
+     */
+    if (which != WT_LIVE_RESTORE_FS_LAYER_DESTINATION)
+        WT_RET_MSG(session, EINVAL, "Rename failed as file does not exist in destination");
+
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, from, &path_from));
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, to, &path_to));
+    WT_ERR(lr_fs->os_file_system->fs_rename(
+      lr_fs->os_file_system, wt_session, path_from, path_to, flags));
 
     /* Even if we don't modify a backing file we need to update metadata. */
     WT_ERR(__live_restore_fs_create_tombstone(fs, session, to, flags));
