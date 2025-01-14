@@ -130,15 +130,13 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     TAILQ_REMOVE(&server->work_queue, work_item, q);
     __wt_verbose_debug2(
       session, WT_VERB_LIVE_RESTORE, "Live restore worker taking queue item: %s", work_item->uri);
-    WT_STAT_CONN_SET(
-      session, live_restore_queue_length, __wt_atomic_sub64(&server->work_items_remaining, 1));
     __wt_timer_evaluate_ms(session, &server->msg_timer, &time_diff_ms);
 
     /* Print out a progress message periodically. */
     if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > server->msg_count) {
         __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-          "Live restore has been running for %" PRIu64 " milliseconds and has processed %" PRIu64
-          " files of %" PRIu64,
+          "Live restore has been running for %" PRIu64 " milliseconds and has %" PRIu64
+          " files of %" PRIu64 " left to process",
           time_diff_ms, server->work_items_remaining, server->work_count);
         server->msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
     }
@@ -170,7 +168,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     /* FIXME-WT-13897 Replace this with an API call into the block manager. */
     WT_FILE_HANDLE *fh = bm->block->fh->handle;
 
-    __wt_verbose_debug1(
+    __wt_verbose_debug2(
       session, WT_VERB_LIVE_RESTORE, "Live restore worker: Filling holes in %s", work_item->uri);
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
@@ -178,6 +176,8 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     /* Free the work item. */
     __live_restore_free_work_item(session, &work_item);
+    WT_STAT_CONN_SET(
+      session, live_restore_work_remaining, __wt_atomic_sub64(&server->work_items_remaining, 1));
     WT_TRET(cursor->close(cursor));
     return (ret);
 }
@@ -246,7 +246,7 @@ __live_restore_init_work_queue(WT_SESSION_IMPL *session)
     if (!F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
         WT_ERR(__insert_queue_item(session, (char *)("file:" WT_METAFILE), &work_count));
 
-    WT_STAT_CONN_SET(session, live_restore_queue_length, work_count);
+    WT_STAT_CONN_SET(session, live_restore_work_remaining, work_count);
     __wt_atomic_store64(&conn->live_restore_server->work_count, work_count);
     __wt_atomic_store64(&conn->live_restore_server->work_items_remaining, work_count);
 

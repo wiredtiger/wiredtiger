@@ -519,7 +519,7 @@ __live_restore_remove_extlist_hole(
 
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
       lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
 
     write_end = WTI_OFFSET_END(offset, len);
@@ -688,7 +688,7 @@ __live_restore_fh_write_int(
 
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
-    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT,
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT,
       fh->name, offset, len);
 
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
@@ -731,7 +731,7 @@ __live_restore_fh_read(
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "READ %s : %" PRId64 ", %" WT_SIZET_FMT,
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "READ %s : %" PRId64 ", %" WT_SIZET_FMT,
       fh->name, offset, len);
 
     read_data = (char *)buf;
@@ -753,7 +753,7 @@ __live_restore_fh_read(
     WT_LIVE_RESTORE_SERVICE_STATE read_state =
       __live_restore_can_service_read(lr_fh, session, offset, len, &hole);
     if (read_state == FULL) {
-        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    READ FROM DEST (src is NULL? %s)",
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "    READ FROM DEST (src is NULL? %s)",
           lr_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
         WT_ERR(lr_fh->destination.fh->fh_read(
@@ -794,7 +794,7 @@ __live_restore_fh_read(
           read_data + dest_partial_read_len));
     } else {
         /* Interestingly you cannot not have a format in verbose. */
-        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    READ FROM %s", "SOURCE");
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "    READ FROM %s", "SOURCE");
         /* Read the full read from the source. */
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
     }
@@ -855,7 +855,7 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, WT_TIMER *s
     size_t read_size = WT_MIN(hole->len, (size_t)WT_LIVE_RESTORE_READ_SIZE);
     uint64_t time_diff_ms;
 
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
       "    BACKGROUND READ %s : %" PRId64 ", %" WT_SIZET_FMT, lr_fh->iface.name, hole->off,
       read_size);
     __wt_timer_evaluate_ms(session, start_timer, &time_diff_ms);
@@ -912,7 +912,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
-    __wt_verbose_debug1(
+    __wt_verbose_debug2(
       session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
 
     /*
@@ -1070,6 +1070,8 @@ __live_restore_fh_find_holes_in_dest_file(
     int fd;
 
     data_end_offset = 0;
+    __wt_verbose_debug2(
+      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Opening file: %s\n", filename);
     WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
     if (ret != 0)
         WT_RET_MSG(session, ret, "Failed to open file descriptor on %s", filename);
@@ -1103,7 +1105,7 @@ __live_restore_fh_find_holes_in_dest_file(
         WT_ASSERT(session, data_end_offset != -1);
         WT_ASSERT(session, data_end_offset > data_offset - 1);
 
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
           "File: %s, has data from %" PRId64 "-%" PRId64, filename, data_offset, data_end_offset);
         WT_ERR(__live_restore_remove_extlist_hole(
           lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
