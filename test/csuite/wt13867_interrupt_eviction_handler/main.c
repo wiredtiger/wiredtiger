@@ -207,7 +207,7 @@ redo1:
 redo2:
     do_interrupt_eviction = true;
     handle_general_called = false;
-    populate(session, WRITE_CYCLES);
+    populate(session, WRITE_CYCLES * cycle);
 
     GET_ALL_STATS(2);
     if (cache_busy_ops2 - cache_busy_ops1 < MIN_CACHE_OPS) {
