@@ -1293,10 +1293,10 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     if (ret == EBUSY) {
         if (!got_schema_lock)
             WT_ERR_SUB(session, EBUSY, WT_CONFLICT_SCHEMA_LOCK,
-              "Another thread is currently performing a schema operation on the table");
+              "another thread is currently performing a schema operation on the table");
         else if (!got_table_lock)
             WT_ERR_SUB(session, EBUSY, WT_CONFLICT_TABLE_LOCK,
-              "Another thread is currently accessing the table");
+              "another thread is currently accessing the table");
     }
 
 err:

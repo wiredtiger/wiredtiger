@@ -28,7 +28,9 @@
 
 import errno
 import time
-import wiredtiger
+import wiredtiger, threading, wtthread, time
+from wiredtiger import stat
+from wttest import open_cursor
 from compact_util import compact_util
 
 # test_error_info.py
@@ -204,3 +206,10 @@ class test_error_info(compact_util):
         self.assertEqual(err, errno.EINVAL)
         self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
         self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
+
+    def test_conflict_backup(self):
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor('backup:', None, None)
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
+        self.check_error(errno.EBUSY, wiredtiger.WT_CONFLICT_BACKUP, "the table is currently performing backup and cannot be dropped")
+        cursor.close()
