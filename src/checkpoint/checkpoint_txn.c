@@ -1567,6 +1567,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     uint32_t orig_flags;
     bool checkpoint_cleanup, flush, flush_sync;
 
+    WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_ACTIVE);
     /*
      * Reset open cursors. Do this explicitly, even though it will happen implicitly in the call to
      * begin_transaction for the checkpoint, the checkpoint code will acquire the schema lock before
