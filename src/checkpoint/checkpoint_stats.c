@@ -37,13 +37,18 @@ __wt_checkpoint_reset_time_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *c
 }
 
 /*
- * __wt_checkpoint_set_handle_stats --
- *     Set handle-related stats.
+ * __wt_checkpoint_stats_handle_update --
+ *     Update handle-related stats.
  */
 void
-__wt_checkpoint_set_handle_stats(
-  WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt, uint64_t gathering_handles_time_us)
+__wt_checkpoint_stats_handle_update(WT_SESSION_IMPL *session, uint64_t gathering_handles_time_us)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_CKPT_CONNECTION *ckpt;
+
+    conn = S2C(session);
+    ckpt = &conn->ckpt;
+
     WT_STAT_CONN_SET(session, checkpoint_handle_applied, ckpt->handle_stats.apply);
     WT_STAT_CONN_SET(session, checkpoint_handle_apply_duration, ckpt->handle_stats.apply_time);
     WT_STAT_CONN_SET(session, checkpoint_handle_drop_duration, ckpt->handle_stats.drop_time);

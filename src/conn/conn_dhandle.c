@@ -728,7 +728,7 @@ done:
             F_CLR(conn, WT_CONN_CKPT_GATHER);
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-            __wt_checkpoint_set_handle_stats(session, &conn->ckpt, time_diff);
+            __wt_checkpoint_stats_handle_update(session, time_diff);
             WT_STAT_CONN_SET(session, checkpoint_handle_walked, conn->dhandle_count);
         }
         return (0);
