@@ -1571,9 +1571,9 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 
 /*
  * __wt_live_restore_fs_log_copy --
- *     Copy the log files from the source to the destination prior to recovery. If there are none or
- *     if logging is disabled return. This needs to happen after __wt_logmgr_config to ensure the
- *     relevant logging configuration has been parsed.
+ *     Copy the log files from the source to the destination prior to recovery. We also need to copy
+ *     over prep log files as logging will expect these are available to be used. This needs to
+ *     happen after __wt_logmgr_config to ensure the relevant logging configuration has been parsed.
  */
 int
 __wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
@@ -1588,20 +1588,25 @@ __wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(filename);
     WT_FH *fh = NULL;
     uint32_t lognum;
-    WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
 
+    /* Get a list of actual log files. */
+    WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
     for (u_int i = 0; i < logcount; i++) {
-        WT_ERR(__wti_log_extract_lognum(session, logfiles[i], &lognum));
+        WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+        /* Call log open file to generate the full path to the log file. */
         WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
         ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
     }
     WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
+
+    /* Get a list of prep log files. */
     WT_ERR(__wt_log_get_files(session, WTI_LOG_PREPNAME, &logfiles, &logcount));
     for (u_int i = 0; i < logcount; i++) {
         WT_ERR(__wt_scr_alloc(session, 0, &filename));
-        WT_ERR(__wti_log_extract_lognum(session, logfiles[i], &lognum));
+        WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+        /* We cannot utilize the log open file code as it doesn't support prep logs. */
         WT_ERR(__wt_log_filename(session, lognum, WTI_LOG_PREPNAME, filename));
         WT_ERR(__wt_open(session, (char *)filename->data, WT_FS_OPEN_ACCESS_SEQ, 0, &fh));
         ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
@@ -1665,7 +1670,6 @@ __wt_os_live_restore_fs(
       "configured read size is %" WT_SIZET_FMT " bytes",
       lr_fs->source.home, destination, lr_fs->read_size);
 
-    /* FIXME-WT-13982: Copy log files across from source to destination so log replay is fast. */
     /* Update the callers pointer. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
 
