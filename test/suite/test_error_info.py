@@ -52,7 +52,7 @@ class test_error_info(compact_util):
         # Expect error code, sub-error code and error message to reflect compaction already running.
         self.check_error(errno.EINVAL, wiredtiger.WT_BACKGROUND_COMPACT_ALREADY_RUNNING, "Cannot reconfigure background compaction while it's already running.")
 
-    def test_cache_overflow(self):
+    def test_rollback_cache_overflow(self):
         # Configure the connection with an unrealistically small cache_max_wait_ms value and
         # a very low eviction trigger threshold.
         self.conn.reconfigure('cache_max_wait_ms=1,eviction_dirty_target=1,eviction_dirty_trigger=2')
@@ -84,7 +84,7 @@ class test_error_info(compact_util):
 
         self.ignoreStdoutPatternIfExists("transaction rolled back because of cache overflow")
 
-    def test_write_conflict(self):
+    def test_rollback_write_conflict(self):
         # Create a very basic table.
         self.session.create(self.table_name1, 'key_format=S,value_format=S')
 
@@ -119,7 +119,7 @@ class test_error_info(compact_util):
         self.session = session2
         self.check_error(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
-    def test_oldest_for_eviction(self):
+    def test_rollback_oldest_for_eviction(self):
         # Configure the connection with the min cache size.
         self.conn.reconfigure('cache_size=1MB')
 

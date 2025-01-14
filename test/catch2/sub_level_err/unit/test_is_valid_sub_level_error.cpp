@@ -8,7 +8,8 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../wrappers/mock_session.h"
+#include "../../wrappers/connection_wrapper.h"
+
 /*
  * [is_valid_sub_level_error]: test_is_valid_sub_level_error.c
  * This unit test file tests that the helper function __wt_is_valid_sub_level_error correctly
@@ -18,7 +19,7 @@
 TEST_CASE(
   "Test that helper function __wt_is_valid_sub_level_error validates sub level error codes "
   "correctly",
-  "[is_valid_sub_level_error]")
+  "[is_valid_sub_level_error],[sub_level_error]")
 {
 
     /* Ensure no normal error codes are mistaken for sub level error codes. */

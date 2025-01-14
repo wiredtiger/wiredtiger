@@ -8,16 +8,20 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../wrappers/connection_wrapper.h"
+#include "../../wrappers/connection_wrapper.h"
+#include "../utils_sub_level_err.h"
 #include <thread>
 #include <chrono>
 
 /*
- * [wt_compact]: test_compact.cpp
+ * [wt_compact]: test_compact_err_msg.cpp
  * Tests the error handling for compact workflows.
  */
 
-TEST_CASE("Test functions for compaction", "[compact]")
+using namespace utils;
+
+TEST_CASE("Test functions for error handling in compaction workflows",
+  "[compact_err_msg],[sub_level_error]")
 {
     WT_SESSION *session;
 
@@ -26,6 +30,7 @@ TEST_CASE("Test functions for compaction", "[compact]")
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
+    WT_ERROR_INFO *err_info = &(session_impl->err_info);
 
     SECTION("Test __wt_background_compact_signal")
     {
@@ -34,11 +39,8 @@ TEST_CASE("Test functions for compaction", "[compact]")
         conn_impl->background_compact.config = "";
 
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == EINVAL);
-        const char *err_msg_content =
-          "Cannot reconfigure background compaction while it's already running.";
-        CHECK(session_impl->err_info.err == EINVAL);
-        CHECK(session_impl->err_info.sub_level_err == WT_BACKGROUND_COMPACT_ALREADY_RUNNING);
-        CHECK(strcmp(session_impl->err_info.err_msg, err_msg_content) == 0);
+        check_error_info(err_info, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING,
+          "Cannot reconfigure background compaction while it's already running.");
 
         // Reset back to the initial values.
         conn_impl->background_compact.running = false;

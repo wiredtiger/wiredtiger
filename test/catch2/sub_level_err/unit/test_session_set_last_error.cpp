@@ -8,15 +8,18 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../wrappers/connection_wrapper.h"
+#include "../../wrappers/connection_wrapper.h"
+#include "../utils_sub_level_err.h"
 
 /*
  * [session_set_last_error]: test_session_set_last_error.cpp
  * Tests the function for storing verbose information about the last error of the session.
  */
 
+using namespace utils;
+
 TEST_CASE("Session set last error - test storing verbose info about the last error in the session",
-  "[session_set_last_error]")
+  "[session_set_last_error],[sub_level_error]")
 {
     WT_SESSION *session;
 
@@ -31,17 +34,13 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
     {
         const char *err_msg_content = "";
         REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, err_msg_content) == 0);
-        CHECK(err_info->err == 0);
-        CHECK(err_info->sub_level_err == WT_NONE);
-        CHECK(strcmp(err_info->err_msg, err_msg_content) == 0);
+        check_error_info(err_info, 0, WT_NONE, err_msg_content);
     }
 
     SECTION("Test with EINVAL error")
     {
         const char *err_msg_content = "Some EINVAL error";
         REQUIRE(__wt_session_set_last_error(session_impl, EINVAL, WT_NONE, err_msg_content) == 0);
-        CHECK(err_info->err == EINVAL);
-        CHECK(err_info->sub_level_err == WT_NONE);
-        CHECK(strcmp(err_info->err_msg, err_msg_content) == 0);
+        check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
     }
 }

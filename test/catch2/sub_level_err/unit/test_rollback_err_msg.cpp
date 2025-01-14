@@ -8,22 +8,18 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../wrappers/connection_wrapper.h"
+#include "../../wrappers/connection_wrapper.h"
+#include "../utils_sub_level_err.h"
 
 /*
- * [wt_rollback]: test_rollback.cpp
+ * [wt_rollback]: test_rollback_err_msg.cpp
  * Tests the error handling for rollback workflows.
  */
 
-void
-check_error(WT_SESSION_IMPL *session, int error, int sub_level_error, std::string error_msg_content)
-{
-    CHECK(session->err_info.err == error);
-    CHECK(session->err_info.sub_level_err == sub_level_error);
-    CHECK(session->err_info.err_msg == error_msg_content);
-}
+using namespace utils;
 
-TEST_CASE("Test functions for rollback workflows", "[rollback]")
+TEST_CASE(
+  "Test functions for error handling in rollback workflows", "[rollback_err_msg],[sub_level_error]")
 {
     WT_SESSION *session;
 
@@ -32,6 +28,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
     WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WT_ERROR_INFO *err_info = &(session_impl->err_info);
 
     SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker")
     {
@@ -55,7 +52,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         cursor->close(cursor);
 
         CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == WT_ROLLBACK);
-        check_error(session_impl, WT_ROLLBACK, WT_CACHE_OVERFLOW, "Cache capacity has overflown");
+        check_error_info(err_info, WT_ROLLBACK, WT_CACHE_OVERFLOW, "Cache capacity has overflown");
 
         // Drop the table.
         session->drop(session, "table:rollback", NULL);
@@ -79,8 +76,8 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         session_impl->txn->snapshot_data.snap_max = 0;
         upd->txnid = 1;
         CHECK(__txn_modify_block(session_impl, NULL, upd, NULL));
-        check_error(session_impl, WT_ROLLBACK, WT_WRITE_CONFLICT,
-          "Write conflict between concurrent operations");
+        check_error_info(
+          err_info, WT_ROLLBACK, WT_WRITE_CONFLICT, "Write conflict between concurrent operations");
 
         // Free update.
         __wt_free(session_impl, upd);
@@ -101,7 +98,7 @@ TEST_CASE("Test functions for rollback workflows", "[rollback]")
         txn_shared->id = txn_shared->pinned_id = S2C(session)->txn_global.oldest_id;
 
         CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
-        check_error(session_impl, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
+        check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
           "Transaction has the oldest pinned transaction ID");
 
         // Reset back to the initial values.

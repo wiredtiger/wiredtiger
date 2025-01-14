@@ -7,26 +7,19 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
-        misc_tests/test_strerror.cpp
-        misc_tests/test_session_set_last_error.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
-        misc_tests/test_compact.cpp
         misc_tests/test_crc32.cpp
         misc_tests/test_error.cpp
         misc_tests/test_fnv.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_mock_session.cpp
-        misc_tests/test_is_valid_sub_level_error.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_pow.cpp
-        misc_tests/test_msg_macros.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_reconciliation_tracking.cpp
-        misc_tests/test_rollback.cpp
         misc_tests/test_session_config.cpp
         misc_tests/test_string_match.cpp
-        misc_tests/test_session_get_last_error.cpp
         misc_tests/test_tailq.cpp
         block/api/test_block_api_misc.cpp
         block/api/test_block_api_write.cpp
@@ -45,6 +38,13 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        sub_level_err/api/test_session_get_last_error.cpp
+        sub_level_err/api/test_strerror.cpp
+        sub_level_err/unit/test_compact_err_msg.cpp
+        sub_level_err/unit/test_is_valid_sub_level_error.cpp
+        sub_level_err/unit/test_msg_macros.cpp
+        sub_level_err/unit/test_rollback_err_msg.cpp
+        sub_level_err/unit/test_session_set_last_error.cpp
     )
 endif()
 
@@ -60,6 +60,7 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
+    sub_level_err/utils_sub_level_err.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
     wrappers/connection_wrapper.cpp
