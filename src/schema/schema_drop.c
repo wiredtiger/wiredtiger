@@ -27,7 +27,11 @@ __drop_file(
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
 
-    WT_RET(__wti_schema_backup_check(session, filename));
+    if ((ret = __wti_schema_backup_check(session, filename)) == EBUSY)
+        WT_RET_SUB(session, ret, WT_CONFLICT_BACKUP,
+          "The table is currently performing backup and cannot be dropped");
+    WT_RET(ret);
+
     /* Close all btree handles associated with this file. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
@@ -210,7 +214,10 @@ __drop_tiered(
 
     name = NULL;
     /* Get the tiered data handle. */
-    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    if ((ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE)) == EBUSY)
+        WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE,
+          "Another thread is currently holding the data handle of the table");
+    WT_RET(ret);
     got_dhandle = true;
     tiered = (WT_TIERED *)session->dhandle;
     /*
