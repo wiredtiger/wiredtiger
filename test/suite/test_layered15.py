@@ -208,7 +208,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
-        (_, checkpoint_id, checkpoint_meta) = self.disagg_get_complete_checkpoint_ext()
+        (_, checkpoint_id, _, checkpoint_meta) = self.disagg_get_complete_checkpoint_ext()
 
         # Ensure that the shared metadata table has all the expected URIs after the checkpoint
         self.check_shared_metadata(self.all_uris)

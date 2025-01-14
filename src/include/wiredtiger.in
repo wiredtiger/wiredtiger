@@ -5572,7 +5572,8 @@ struct __wt_page_log {
      * @param checkpoint_id the checkpoint id to use. Must be greater than any other
      *        checkpoint_id used with this call.
      */
-    int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id);
+    int (*pl_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
+        uint64_t checkpoint_id);
 
     /*!
      * Complete checkpointing using the given checkpoint_id. This implies that other
@@ -5584,11 +5585,13 @@ struct __wt_page_log {
      * @param session the current WiredTiger session
      * @param checkpoint_id the checkpoint id to use. Must be greater than any other
      *        checkpoint_id used with this call.
+     * @param checkpoint_timestamp the stable timestamp associated with the checkpoint
      * @param checkpoint_metadata the buffer with checkpoint metadata
      * @param lsnp an optional output argument for the checkpoint completion record's LSN
      */
-    int (*pl_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t checkpoint_id,
-         const WT_ITEM *checkpoint_metadata, uint64_t *lsnp);
+    int (*pl_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session,
+        uint64_t checkpoint_id, uint64_t checkpoint_timestamp, const WT_ITEM *checkpoint_metadata,
+        uint64_t *lsnp);
 
     /*!
      * Get the most recent completed checkpoint number.
@@ -5599,7 +5602,8 @@ struct __wt_page_log {
      * @param session the current WiredTiger session
      * @param checkpoint_id the checkpoint id returned
      */
-    int (*pl_get_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_id);
+    int (*pl_get_complete_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
+        uint64_t *checkpoint_id);
 
     /*!
      * Get information about the most recently completed checkpoint.
@@ -5610,10 +5614,12 @@ struct __wt_page_log {
      * @param session the current WiredTiger session
      * @param checkpoint_lsn the checkpoint LSN
      * @param checkpoint_id the checkpoint ID
+     * @param checkpoint_timestamp the checkpoint timestamp
      * @param checkpoint_metadata the checkpoint metadata
      */
-    int (*pl_get_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_lsn,
-        uint64_t *checkpoint_id, WT_ITEM *checkpoint_metadata);
+    int (*pl_get_complete_checkpoint_ext)(WT_PAGE_LOG *page_log, WT_SESSION *session,
+        uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp,
+        WT_ITEM *checkpoint_metadata);
 
     /*!
      * Get the most recently opened checkpoint number.
@@ -5624,7 +5630,8 @@ struct __wt_page_log {
      * @param session the current WiredTiger session
      * @param checkpoint_id the checkpoint id returned
      */
-    int (*pl_get_open_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *checkpoint_id);
+    int (*pl_get_open_checkpoint)(WT_PAGE_LOG *page_log, WT_SESSION *session,
+        uint64_t *checkpoint_id);
 
     /*!
      * Open a handle for further operations on a table.
@@ -5636,7 +5643,8 @@ struct __wt_page_log {
      * @param table_id the unique table id for the given table
      * @param plh the returned handle
      */
-    int (*pl_open_handle)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id, WT_PAGE_LOG_HANDLE **plh);
+    int (*pl_open_handle)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id,
+        WT_PAGE_LOG_HANDLE **plh);
 
     /*!
      * A callback performed when the page log service or reference is closed

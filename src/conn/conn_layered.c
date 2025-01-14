@@ -52,8 +52,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
-    uint64_t global_checkpoint_id;
-    char *buf, *cfg_ret, *metadata_value_cfg, *layered_ingest_uri;
+    uint64_t checkpoint_timestamp, global_checkpoint_id;
+    char *buf, *cfg_ret, *checkpoint_config, *metadata_value_cfg, *layered_ingest_uri;
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
@@ -92,10 +92,24 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
 
     /* Add the terminating zero byte to the end of the buffer. */
     len = item->size + 1;
-    WT_ERR(__wt_calloc_def(session, len, &buf));
+    WT_ERR(__wt_calloc_def(session, len, &buf)); /* This already zeroes out the buffer. */
     memcpy(buf, item->data, item->size);
-    buf[item->size] = '\0';
 
+    /* Parse out the checkpoint config string. */
+    checkpoint_config = strchr(buf, '\n');
+    if (checkpoint_config == NULL)
+        WT_ERR_MSG(session, EINVAL, "Invalid checkpoint metadata: No checkpoint config string");
+    *checkpoint_config = '\0';
+    checkpoint_config++;
+
+    /* Parse the checkpoint config. */
+    WT_ERR(__wt_config_getones(session, checkpoint_config, "timestamp", &cval));
+    if (cval.len > 0 && cval.val == 0)
+        checkpoint_timestamp = WT_TS_NONE;
+    else
+        WT_ERR(__wt_txn_parse_timestamp(session, "checkpoint", &checkpoint_timestamp, &cval));
+
+    /* Save the metadata key-value pair. */
     metadata_key = WT_DISAGG_METADATA_URI;
     metadata_value = buf;
 
@@ -213,6 +227,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
      * are protected by the checkpoint lock.
      */
     WT_RELEASE_WRITE(conn->disaggregated_storage.global_checkpoint_id, checkpoint_id + 1);
+
+    /* Update the checkpoint timestamp. */
+    WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
 
 err:
     if (cursor != NULL)
@@ -1299,6 +1316,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
     WT_DECL_ITEM(meta);
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *disagg;
+    wt_timestamp_t checkpoint_timestamp;
     uint64_t checkpoint_id, meta_lsn;
 
     conn = S2C(session);
@@ -1313,6 +1331,7 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
 
     WT_ACQUIRE_READ(meta_lsn, conn->disaggregated_storage.last_checkpoint_meta_lsn);
     WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+    WT_ACQUIRE_READ(checkpoint_timestamp, conn->disaggregated_storage.cur_checkpoint_timestamp);
     WT_ASSERT(session, meta_lsn > 0); /* The metadata page should be written by now. */
     WT_ASSERT(session, checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
 
@@ -1328,9 +1347,12 @@ __wt_disagg_advance_checkpoint(WT_SESSION_IMPL *session, bool ckpt_success)
              */
             WT_ERR(__wt_buf_fmt(
               session, meta, "id=%" PRIu64 ",metadata_lsn=%" PRIu64, checkpoint_id, meta_lsn));
-            WT_ERR(disagg->npage_log->page_log->pl_complete_checkpoint_ext(
-              disagg->npage_log->page_log, &session->iface, checkpoint_id, meta, NULL));
+            WT_ERR(
+              disagg->npage_log->page_log->pl_complete_checkpoint_ext(disagg->npage_log->page_log,
+                &session->iface, checkpoint_id, (uint64_t)checkpoint_timestamp, meta, NULL));
         }
+        WT_RELEASE_WRITE(
+          conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
     }
 
     WT_ERR(__wt_disagg_begin_checkpoint(session, checkpoint_id + 1));
