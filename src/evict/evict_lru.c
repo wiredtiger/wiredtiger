@@ -2928,6 +2928,15 @@ err:
         WT_STAT_CONN_INCR(session, application_cache_ops);
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
+        if (busy) {
+            WT_STAT_CONN_INCR(session, application_cache_busy_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_busy_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_busy, elapsed);
+        } else {
+            WT_STAT_CONN_INCR(session, application_cache_idle_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_idle_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_idle, elapsed);
+        }
         session->cache_wait_us += elapsed;
         /*
          * Check if a rollback is required only if there has not been an error. Returning an error
