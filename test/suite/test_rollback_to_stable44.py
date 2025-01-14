@@ -37,7 +37,9 @@ class test_rollback_to_stable44(wttest.WiredTigerTestCase):
         + 'disaggregated=(stable_prefix=.,page_log=palm),' \
         + 'disaggregated=(role="leader")'
 
-    uri = "layered:test_rollback_to_stable44"
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     def conn_extensions(self, extlist):
         if os.name == 'nt':
@@ -64,12 +66,22 @@ class test_rollback_to_stable44(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=30')
         c.close()
 
-        # Set stable to 20 and rollback.
+        # Set stable to 20 and crash.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         self.session.checkpoint()
         simulate_crash_restart(self, ".", "RESTART")
 
+        # Check that recovery didn't roll us back.
         c = self.session.open_cursor(uri, None)
         self.assertEquals(c[ds.key(10)], ds.value(100))
         self.assertEquals(c[ds.key(11)], ds.value(101))
         self.assertEquals(c[ds.key(12)], ds.value(102))
+        c.close()
+
+        # Runtime RTS should still work.
+        self.conn.rollback_to_stable()
+        c = self.session.open_cursor(uri, None)
+        self.assertEquals(c[ds.key(10)], ds.value(10))
+        self.assertEquals(c[ds.key(11)], ds.value(11))
+        self.assertEquals(c[ds.key(12)], ds.value(12))
+        c.close()

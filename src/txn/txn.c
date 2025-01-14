@@ -2793,9 +2793,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
                   "shutdown rollback to stable has successfully finished and ran for %" PRIu64
                   " milliseconds",
                   conn->shutdown_timeline.rts_ms);
-        } else if (__wt_conn_is_disagg(session)) {
-            /* __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg"); */
-        }
+        } else if (__wt_conn_is_disagg(session))
+            __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg");
 
         s = NULL;
         WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
