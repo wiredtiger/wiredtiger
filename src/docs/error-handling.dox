@@ -29,6 +29,21 @@ and it's unspecified when or even if exclusive access to the object will be
 granted. Generally, applications will not call WiredTiger methods requiring
 exclusive access when the objects might be in active use by other threads.
 
+@section error_sub_level Sub-level errors
+
+Calls within the session API will complete with an error code, a sub-level error code, and
+an error message, which are extracted by calling the WT_SESSION::get_last_error method. All calls
+to the session API (except for WT_SESSION::get_last_error) will refresh these fields. The error
+code from WT_SESSION::get_last_error will be the same as the value returned from the last API call.
+The error  message string is owned by the session, and is invalidated after each session API call
+(except for WT_SESSION::get_last_error).
+
+If no other call has been made, WT_SESSION::get_last_error will give the error code as 0, sub-level
+error code as WT_NONE, and the error message as "".
+
+If the last API call was successful, WT_SESSION::get_last_error will give the error code as 0,
+sub-level error code as WT_NONE and the error message as "last API call was successful".
+
 @section error_list WiredTiger-specific errors
 
 WiredTiger-specific error codes are allocated from -31,800 to -31,999,
