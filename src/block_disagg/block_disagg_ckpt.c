@@ -167,7 +167,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
         WT_ERR(__wt_scr_alloc(session, 0, &buf));
         WT_ERR(__wt_buf_fmt(
-          session, buf, "%.*s\ntimestamp=%" PRIu64, (int)cval.len, cval.str, checkpoint_timestamp));
+          session, buf, "%.*s\ntimestamp=%" PRIx64, (int)cval.len, cval.str, checkpoint_timestamp));
         WT_ERR(
           __wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf, &lsn));
         WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_meta_lsn, lsn);
