@@ -59,6 +59,10 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     nitems = 1000
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def session_create_config(self):
         # The delta percentage of 200 is an arbitrary large value, intended to produce
         # deltas a lot of the time.

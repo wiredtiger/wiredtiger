@@ -44,6 +44,10 @@ class test_layered10(wttest.WiredTigerTestCase, DisaggConfigMixin):
     disagg_storages = gen_disagg_storages('test_layered10', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':

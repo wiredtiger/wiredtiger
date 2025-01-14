@@ -42,6 +42,10 @@ class test_layered12(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri = "layered:test_layered12"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':

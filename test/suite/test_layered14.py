@@ -43,6 +43,10 @@ class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     scenarios = make_scenarios(disagg_storages)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'
 
