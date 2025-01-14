@@ -355,6 +355,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         for (i = 0; i < count - 1; ++i)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
+
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_delta);
     }
 
     __wt_free(session, tmp);
