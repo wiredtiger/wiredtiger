@@ -45,6 +45,32 @@ __wt_checkpoint_set_handle_stats(
 }
 
 /*
+ * __wt_checkpoint_set_time_stats --
+ *     Set time-related stats.
+ */
+void
+__wt_checkpoint_set_time_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt)
+{
+    WT_STAT_CONN_SET(session, checkpoint_scrub_max, ckpt->scrub.max);
+    if (ckpt->scrub.min != UINT64_MAX)
+        WT_STAT_CONN_SET(session, checkpoint_scrub_min, ckpt->scrub.min);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_recent, ckpt->scrub.recent);
+    WT_STAT_CONN_SET(session, checkpoint_scrub_total, ckpt->scrub.total);
+
+    WT_STAT_CONN_SET(session, checkpoint_prep_max, ckpt->prepare.max);
+    if (ckpt->prepare.min != UINT64_MAX)
+        WT_STAT_CONN_SET(session, checkpoint_prep_min, ckpt->prepare.min);
+    WT_STAT_CONN_SET(session, checkpoint_prep_recent, ckpt->prepare.recent);
+    WT_STAT_CONN_SET(session, checkpoint_prep_total, ckpt->prepare.total);
+
+    WT_STAT_CONN_SET(session, checkpoint_time_max, ckpt->ckpt_api.max);
+    if (ckpt->ckpt_api.min != UINT64_MAX)
+        WT_STAT_CONN_SET(session, checkpoint_time_min, ckpt->ckpt_api.min);
+    WT_STAT_CONN_SET(session, checkpoint_time_recent, ckpt->ckpt_api.recent);
+    WT_STAT_CONN_SET(session, checkpoint_time_total, ckpt->ckpt_api.total);
+}
+
+/*
  * __wt_checkpoint_update_handle_stats --
  *     Update the apply handle-related stats.
  */
