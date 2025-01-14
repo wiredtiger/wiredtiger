@@ -861,10 +861,9 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, WT_TIMER *s
     __wt_timer_evaluate_ms(session, start_timer, &time_diff_ms);
     if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *msg_count) {
         __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-          "Live restore running on %s for %" PRIu64
-          " milliseconds. Currently "
-          "copying offset %" PRId64 " of size %" WT_SIZET_FMT,
-          fh->name, time_diff_ms, hole->off, lr_fh->source_size);
+          "Live restore running on %s for %" PRIu64 " seconds. Currently copying offset %" PRId64
+          " of size %" WT_SIZET_FMT,
+          fh->name, time_diff_ms / WT_THOUSAND, hole->off, lr_fh->source_size);
         *msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
     }
     WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
