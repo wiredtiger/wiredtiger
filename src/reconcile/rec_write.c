@@ -2470,9 +2470,17 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             multi->block_meta = *block_meta;
+            if (multi->block_meta.delta_count > 0) {
+                WT_ASSERT(
+                  session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+                WT_ASSERT(session, multi->block_meta.base_lsn > 0);
+                multi->block_meta.backlink_checkpoint_id = multi->block_meta.base_checkpoint_id;
+                multi->block_meta.backlink_lsn = multi->block_meta.base_lsn;
+            } else {
+                multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
+                multi->block_meta.backlink_lsn = multi->block_meta.disagg_lsn;
+            }
             multi->block_meta.delta_count = 0;
-            multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
-            multi->block_meta.backlink_lsn = multi->block_meta.disagg_lsn;
             multi->block_meta.base_lsn = 0;
             multi->block_meta.base_checkpoint_id = 0;
             WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
