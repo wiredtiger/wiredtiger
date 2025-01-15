@@ -1596,16 +1596,24 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 }
 
 /*
- * __wt_live_restore_fs_log_copy --
- *     Copy the log files from the source to the destination prior to recovery. We also need to copy
- *     over prep log files as logging will expect these are available to be used. This needs to
- *     happen after __wt_logmgr_config to ensure the relevant logging configuration has been parsed.
+ * __wt_live_restore_setup_recovery --
+ *     Perform necessary setup steps prior to recovery running, this is largely copying log files
+ *     from the source to the destination. We also need to copy over prep log files as logging will
+ *     expect these are available to be used. This needs to happen after __wt_logmgr_config to
+ *     ensure the relevant logging configuration has been parsed.
  */
 int
-__wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
+__wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_DECL_RET;
+
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
+    __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+      "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s. The "
+      "configured read size is %" WT_SIZET_FMT " bytes\n",
+      lr_fs->source.home, lr_fs->destination.home, lr_fs->read_size);
+
     if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED))
         return (0);
 
@@ -1698,11 +1706,6 @@ __wt_os_live_restore_fs(
     lr_fs->read_size = (uint64_t)cval.val;
     if (!__wt_ispo2(lr_fs->read_size))
         WT_ERR_MSG(session, EINVAL, "the live restore read size must be a power of two");
-
-    printf(
-      "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s. The "
-      "configured read size is %" WT_SIZET_FMT " bytes\n",
-      lr_fs->source.home, destination, lr_fs->read_size);
 
     /* Update the callers pointer. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
