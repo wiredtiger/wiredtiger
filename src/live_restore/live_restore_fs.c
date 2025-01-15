@@ -1612,7 +1612,8 @@ __wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
         WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
         /* We cannot utilize the log open file code as it doesn't support prep logs. */
         WT_ERR(__wt_log_filename(session, lognum, WTI_LOG_PREPNAME, filename));
-        WT_ERR(__wt_open(session, (char *)filename->data, WT_FS_OPEN_ACCESS_SEQ, 0, &fh));
+        WT_ERR(__wt_open(
+          session, (char *)filename->data, WT_FS_OPEN_FILE_TYPE_LOG, WT_FS_OPEN_ACCESS_SEQ, &fh));
         ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
