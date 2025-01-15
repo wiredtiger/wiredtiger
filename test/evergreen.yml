@@ -2207,6 +2207,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
+          # The absolute minimum test to make sure that the hook works.
           unit_test_args: -v 2 --hook disagg base01
 
   - name: unit-test-hook-tiered
