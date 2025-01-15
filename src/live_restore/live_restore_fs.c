@@ -343,8 +343,9 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
             if (WT_SUFFIX_MATCH(*namep, WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
                 /*
                  * It is possible for tombstones to exist in the source directory. Currently those
-                 * files are not cleaned up on completion so if a "snapshot" backup is taken after a
-                 * live restore tombstones will be included in said backup.
+                 * files are not cleaned up on completion. If a backup is taken after a live
+                 * restore, and the user takes a snapshot of the directory instead of walking the
+                 * backup cursor, then the tombstone files will be included in the backup.
                  */
                 continue;
             }
@@ -855,7 +856,7 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, char *buf,
     uint64_t time_diff_ms;
 
     __wt_timer_evaluate_ms(session, start_timer, &time_diff_ms);
-    __wt_verbose_debug3(session, WT_VERB_FILEOPS,
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
       "    BACKGROUND READ %s : %" PRId64 ", %" WT_SIZET_FMT, lr_fh->iface.name, hole->off,
       read_size);
     if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *msg_count) {
@@ -895,6 +896,11 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, (WTI_LIVE_RESTORE_FILE_HANDLE *)fh,
           ret = __live_restore_fill_hole(fh, wt_session, buf, &timer, &msg_count, &finished));
         WT_ERR(ret);
+
+        /*
+         * Because this loop can run for a very long time ensure the system has not entered a panic
+         * state in the meantime.
+         */
         WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
     }
 
