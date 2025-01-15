@@ -735,6 +735,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         get_args->base_lsn = matches.base_lsn;
         get_args->backlink_checkpoint_id = matches.backlink_checkpoint_id;
         get_args->base_checkpoint_id = matches.base_checkpoint_id;
+        get_args->delta_count = count;
     }
     /* Did the caller give us enough output entries to hold all the results? */
     if (count == *results_count && palm_kv_next_page_match(&matches))
