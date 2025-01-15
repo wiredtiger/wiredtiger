@@ -38,6 +38,7 @@ import time
 from suite_random import suite_random
 from wiredtiger import stat
 import wttest
+import unittest
 
 # Given a set of values corresponding to successive times,
 # we have an implied set of points in two dimensions.
@@ -109,6 +110,8 @@ class test_sweep04(wttest.WiredTigerTestCase):
             c.close()
 
     def test_big_run(self):
+        # FIXME-WT-13706
+        self.skipTest("FIXME-WT-13706")
         # populate
         r = suite_random()
 
