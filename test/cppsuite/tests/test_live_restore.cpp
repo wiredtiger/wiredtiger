@@ -492,8 +492,8 @@ main(int argc, char *argv[])
         // Recreate the home directory on startup every time.
         testutil_recreate_dir(home_path.c_str());
     } else {
-        // Assuming this run is following a -d "death" run then the SOURCE_PATH will be the home
-        // path.
+        // Assuming this run is following a -d "death" run then the previous home path will be the
+        // source path.
         testutil_remove(SOURCE_PATH);
         testutil_move(HOME_PATH, SOURCE_PATH);
         testutil_recreate_dir(HOME_PATH);
