@@ -891,14 +891,14 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     WT_RET(
       __wt_malloc(session, ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system)->read_size, &buf));
 
-    __wt_timer_start((WT_SESSION_IMPL *)wt_session, &timer);
+    __wt_timer_start(session, &timer);
     while (!finished) {
         WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, (WTI_LIVE_RESTORE_FILE_HANDLE *)fh,
           ret = __live_restore_fill_hole(fh, wt_session, buf, &timer, &msg_count, &finished));
         WT_ERR(ret);
 
         /*
-         * Because this loop can run for a very long time ensure the system has not entered a panic
+         * Because this loop can run for a very long time, ensure the system has not entered a panic
          * state in the meantime.
          */
         WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
