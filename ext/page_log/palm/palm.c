@@ -643,17 +643,10 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
       put_args->base_lsn, put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, is_delta,
       palm_verbose_item(buf));
 
-    if (!is_delta) {
-        backlink_lsn = lsn;
-        base_lsn = lsn;
-    } else {
-        backlink_lsn = put_args->backlink_lsn;
-        base_lsn = put_args->base_lsn;
-    }
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
-        backlink_lsn, base_lsn, put_args->backlink_checkpoint_id, put_args->base_checkpoint_id,
-        put_args->flags, buf));
+        put_args->backlink_lsn, put_args->base_lsn, put_args->backlink_checkpoint_id,
+        put_args->base_checkpoint_id, put_args->flags, buf));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
     put_args->lsn = lsn;
