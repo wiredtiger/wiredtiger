@@ -289,7 +289,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
     size_t dirallocsz = 0;
     uint32_t count_dest = 0, count_src = 0;
-    char **dirlist_dest, **dirlist_src, **entries, **namep, *path_dest, *path_src, *temp_path;
+    char **dirlist_dest, **dirlist_src, **entries, *path_dest, *path_src, *temp_path;
     bool dest_exist = false, have_tombstone = false;
     bool dest_folder_exists = false, source_folder_exists = false;
     uint32_t num_src_files = 0, num_dest_files = 0;
@@ -311,10 +311,10 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
         WT_ERR(lr_fs->os_file_system->fs_directory_list(
           lr_fs->os_file_system, wt_session, path_dest, prefix, &dirlist_dest, &num_dest_files));
 
-        for (namep = dirlist_dest; namep != NULL && *namep != NULL; namep++)
-            if (!WT_SUFFIX_MATCH(*namep, WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+        for (uint32_t i = 0; i < num_dest_files; ++i)
+            if (!WT_SUFFIX_MATCH(dirlist_dest[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
                 WT_ERR(__wt_realloc_def(session, &dirallocsz, count_dest + 1, &entries));
-                WT_ERR(__wt_strdup(session, *namep, &entries[count_dest]));
+                WT_ERR(__wt_strdup(session, dirlist_dest[i], &entries[count_dest]));
                 ++count_dest;
 
                 if (single)
@@ -333,13 +333,13 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
         WT_ERR(lr_fs->os_file_system->fs_directory_list(
           lr_fs->os_file_system, wt_session, path_src, prefix, &dirlist_src, &num_src_files));
 
-        for (namep = dirlist_src; namep != NULL && *namep != NULL; namep++) {
+        for (uint32_t i = 0; i < num_src_files; ++i) {
             /*
              * If a file in source hasn't been background migrated yet we need to add it to the
              * list.
              */
             bool add_source_file = false;
-            if (WT_SUFFIX_MATCH(*namep, WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+            if (WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
                 /*
                  * It is possible for tombstones to exist in the source directory. Currently those
                  * files are not cleaned up on completion. If a backup is taken after a live
@@ -356,7 +356,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
                  * destination, so create the file path to the backing destination file.
                  */
                 WT_ERR(__live_restore_create_file_path(
-                  session, &lr_fs->destination, *namep, &temp_path));
+                  session, &lr_fs->destination, dirlist_src[i], &temp_path));
                 WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(
                                      lr_fs, &lr_fs->destination, session, temp_path, &dest_exist),
                   false);
@@ -369,7 +369,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
             if (add_source_file) {
                 WT_ERR(
                   __wt_realloc_def(session, &dirallocsz, count_dest + count_src + 1, &entries));
-                WT_ERR(__wt_strdup(session, *namep, &entries[count_dest + count_src]));
+                WT_ERR(__wt_strdup(session, dirlist_src[i], &entries[count_dest + count_src]));
                 ++count_src;
             }
 
