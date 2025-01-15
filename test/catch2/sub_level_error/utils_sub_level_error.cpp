@@ -7,7 +7,7 @@
  */
 
 #include <catch2/catch.hpp>
-#include "utils_sub_level_err.h"
+#include "utils_sub_level_error.h"
 
 namespace utils {
 

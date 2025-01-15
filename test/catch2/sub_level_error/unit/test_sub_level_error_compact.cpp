@@ -9,19 +9,19 @@
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
 #include "../../wrappers/connection_wrapper.h"
-#include "../utils_sub_level_err.h"
+#include "../utils_sub_level_error.h"
 #include <thread>
 #include <chrono>
 
 /*
- * [wt_compact]: test_compact_err_msg.cpp
+ * [sub_level_error_compact]: test_sub_level_error_compact.cpp
  * Tests the error handling for compact workflows.
  */
 
 using namespace utils;
 
 TEST_CASE("Test functions for error handling in compaction workflows",
-  "[compact_err_msg],[sub_level_error]")
+  "[sub_level_error_compact],[sub_level_error]")
 {
     WT_SESSION *session;
 

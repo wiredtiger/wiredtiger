@@ -38,13 +38,13 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
-        sub_level_err/api/test_session_get_last_error.cpp
-        sub_level_err/api/test_strerror.cpp
-        sub_level_err/unit/test_compact_err_msg.cpp
-        sub_level_err/unit/test_is_valid_sub_level_error.cpp
-        sub_level_err/unit/test_msg_macros.cpp
-        sub_level_err/unit/test_rollback_err_msg.cpp
-        sub_level_err/unit/test_session_set_last_error.cpp
+        sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
+        sub_level_error/api/test_sub_level_error_strerror.cpp
+        sub_level_error/unit/test_sub_level_error_compact.cpp
+        sub_level_error/unit/test_sub_level_error_is_valid_sub_level_error.cpp
+        sub_level_error/unit/test_sub_level_error_msg_macros.cpp
+        sub_level_error/unit/test_sub_level_error_rollback.cpp
+        sub_level_error/unit/test_sub_level_error_session_set_last_error.cpp
     )
 endif()
 
@@ -60,7 +60,7 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
-    sub_level_err/utils_sub_level_err.cpp
+    sub_level_error/utils_sub_level_error.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
     wrappers/connection_wrapper.cpp

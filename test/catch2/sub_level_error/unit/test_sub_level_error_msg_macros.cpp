@@ -9,10 +9,10 @@
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
 #include "../../wrappers/connection_wrapper.h"
-#include "../utils_sub_level_err.h"
+#include "../utils_sub_level_error.h"
 
 /*
- * [wt_msg]: test_msg_macros.cpp
+ * [sub_level_error_message_macros]: test_sub_level_error_msg_macros.cpp
  * Tests the macros for storing verbose information about the last error of the session.
  */
 
@@ -50,8 +50,8 @@ err:
 
 using namespace utils;
 
-TEST_CASE(
-  "Test WT_RET_SUB, WT_ERR_SUB, WT_RET_MSG, WT_ERR_MSG", "[message_macros],[sub_level_error]")
+TEST_CASE("Test WT_RET_SUB, WT_ERR_SUB, WT_RET_MSG, WT_ERR_MSG",
+  "[sub_level_error_message_macros],[sub_level_error]")
 {
     connection_wrapper conn_wrapper = connection_wrapper(".", "create");
     WT_CONNECTION *conn = conn_wrapper.get_wt_connection();

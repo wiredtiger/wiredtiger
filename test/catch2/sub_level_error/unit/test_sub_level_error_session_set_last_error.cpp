@@ -9,17 +9,17 @@
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
 #include "../../wrappers/connection_wrapper.h"
-#include "../utils_sub_level_err.h"
+#include "../utils_sub_level_error.h"
 
 /*
- * [session_set_last_error]: test_session_set_last_error.cpp
+ * [sub_level_error_session_set_last_error]: test_sub_level_error_session_set_last_error.cpp
  * Tests the function for storing verbose information about the last error of the session.
  */
 
 using namespace utils;
 
 TEST_CASE("Session set last error - test storing verbose info about the last error in the session",
-  "[session_set_last_error],[sub_level_error]")
+  "[sub_level_error_session_set_last_error],[sub_level_error]")
 {
     WT_SESSION *session;
 

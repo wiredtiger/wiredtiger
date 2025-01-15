@@ -9,17 +9,17 @@
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
 #include "../../wrappers/connection_wrapper.h"
-#include "../utils_sub_level_err.h"
+#include "../utils_sub_level_error.h"
 
 /*
- * [wt_rollback]: test_rollback_err_msg.cpp
+ * [sub_level_error_rollback]: test_sub_level_error_rollback.cpp
  * Tests the error handling for rollback workflows.
  */
 
 using namespace utils;
 
-TEST_CASE(
-  "Test functions for error handling in rollback workflows", "[rollback_err_msg],[sub_level_error]")
+TEST_CASE("Test functions for error handling in rollback workflows",
+  "[sub_level_error_rollback],[sub_level_error]")
 {
     WT_SESSION *session;
 
