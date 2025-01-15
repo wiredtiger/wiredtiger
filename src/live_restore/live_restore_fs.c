@@ -882,17 +882,19 @@ int
 __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
     WT_DECL_RET;
-    WT_TIMER timer;
-    uint64_t msg_count = 0;
-    bool finished = false;
-    char *buf = NULL;
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
+    WT_TIMER timer;
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+    uint64_t msg_count = 0;
+    char *buf = NULL;
+    bool finished = false;
+
     WT_RET(
-      __wt_malloc(session, ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system)->read_size, &buf));
+      __wt_calloc(session, 1, ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system)->read_size, &buf));
 
     __wt_timer_start(session, &timer);
     while (!finished) {
-        WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, (WTI_LIVE_RESTORE_FILE_HANDLE *)fh,
+        WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, lr_fh,
           ret = __live_restore_fill_hole(fh, wt_session, buf, &timer, &msg_count, &finished));
         WT_ERR(ret);
 
@@ -902,6 +904,14 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
          */
         WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
     }
+
+    /*
+     * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
+     * data from source to destination should be safe. If the write doesn't complete then a hole
+     * should remain and the same write will be performed on the startup. To avoid depending on that
+     * property we choose to sync then file over anyway.
+     */
+    WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
 
 err:
     __wt_free(session, buf);
@@ -1597,7 +1607,7 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 
 /*
  * __wt_live_restore_setup_recovery --
- *     Perform necessary setup steps prior to recovery running, this is largely copying log files
+ *     Perform necessary setup steps prior to recovery running. This is largely copying log files
  *     from the source to the destination. We also need to copy over prep log files as logging will
  *     expect these are available to be used. This needs to happen after __wt_logmgr_config to
  *     ensure the relevant logging configuration has been parsed.
@@ -1610,7 +1620,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
 
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
     __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
-      "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s. The "
+      "WiredTiger started in live restore mode. Source path is: %s, Destination path is %s. The "
       "configured read size is %" WT_SIZET_FMT " bytes\n",
       lr_fs->source.home, lr_fs->destination.home, lr_fs->read_size);
 
