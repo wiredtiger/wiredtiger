@@ -595,14 +595,6 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     size_t size;
 
     /*
-     * If a ref has been concurrently changed during reconciliation, it is not guaranteed that its
-     * newest value has been reconciled. This would lead to data corruption. The system should not
-     * land in this state.
-     */
-    WT_ASSERT_ALWAYS(session, ref->ref_changes == 0,
-      "Attempting to discard a ref that may not have been reconciled");
-
-    /*
      * Row-store trees where the old version of the page is being discarded: the previous parent
      * page's key for this child page may have been an on-page overflow key. In that case, if the
      * key hasn't been deleted, delete it now, including its backing blocks. We are exchanging the
@@ -706,7 +698,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * unless we update the internal page's start recno on the fly and restart the search,
              * which seems like asking for trouble.) Don't discard any ref has the prefetch flag,
              * the prefetch thread would crash if it sees a freed ref.
-             */
+             */      
+            if (next_ref->ref_changes != 0)
+                continue;
+
             if (next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
