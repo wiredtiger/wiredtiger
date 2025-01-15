@@ -498,7 +498,7 @@ main(int argc, char *argv[])
     bool background_thread_mode_enabled = (!first && background_thread_debug_mode);
     int death_it = -1;
     if (death_mode) {
-        death_it = 1; // random_generator::instance().generate_integer(0, (int)it_count - 1);
+        death_it = random_generator::instance().generate_integer(0, (int)it_count - 1);
         logger::log_msg(LOG_INFO, "Dying on iteration " + std::to_string(death_it));
     }
     for (int i = 0; i < it_count; i++) {
