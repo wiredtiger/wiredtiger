@@ -44,6 +44,16 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __evict_thread_chk --
+ *     Check to decide if the eviction thread should continue running.
+ */
+static bool
+__evict_thread_chk(WT_SESSION_IMPL *session)
+{
+    return (F_ISSET(S2C(session), WT_CONN_EVICTION_RUN));
+}
+
+/*
  * __evict_thread_run --
  *     Entry function for an eviction thread. This is called repeatedly from the thread group code
  *     so it does not need to loop itself.
@@ -113,15 +123,6 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     return (ret);
 }
 
-/*
- * __evict_thread_chk --
- *     Check to decide if the eviction thread should continue running.
- */
-static bool
-__evict_thread_chk(WT_SESSION_IMPL *session)
-{
-    return (F_ISSET(S2C(session), WT_CONN_EVICTION_RUN));
-}
 
 
 /* !!!
@@ -145,7 +146,7 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
     uint32_t session_flags;
 
     conn = S2C(session);
-
+	__wt_verbose_info(session, WT_VERB_EVICTION, "%s", "starting eviction threads");
 
     /*
      * In case recovery has allocated some transaction IDs, bump to the current state. This will
@@ -230,19 +231,58 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
  *     `__wt_evict_file`. It does this by incrementing the `evict_disabled` counter for a
  *     tree, which disables all other means of eviction (except file eviction).
  *
- *     For the incremented `evict_disabled` value, the eviction server skips walking this tree for
+ *     For the incremented `evict_disabled` value, the eviction workers skip this tree for
  *     eviction candidates, and force-evicting or queuing pages from this tree is not allowed.
  *
  *     It is called from multiple places in the code base, such as when initiating file eviction
  *     `__wt_evict_file` or when opening or closing trees.
  *
- *     Return an error code if unable to acquire necessary locks or clear the eviction queues.
+ *     Return an error code if unable to acquire necessary locks.
  */
 int
-__wt_evict_file_exclusive_on(WT_SESSION_IMPL *session) {
+__wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
+{
+	WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_EVICT *evict;
+    WT_EVICT_ENTRY *evict_entry;
+    u_int elem, i, q;
 
-	(void)session;
-	return 0;
+    btree = S2BT(session);
+    evict = S2C(session)->evict;
+
+    /* Hold the exclusive lock to turn off eviction. */
+    __wt_spin_lock(session, &evict->evict_exclusive_lock);
+    if (++btree->evict_disabled > 1) {
+        __wt_spin_unlock(session, &evict->evict_exclusive_lock);
+        return (0);
+    }
+
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
+      btree->dhandle->name);
+
+    /*
+     * Special operations don't enable eviction, however the underlying command (e.g. verify) may
+     * choose to turn on eviction. This falls outside of the typical eviction flow, and here
+     * eviction may forcibly remove pages from the cache. Consequently, we may end up evicting
+     * internal pages which still have child pages present on the pre-fetch queue. Remove any refs
+     * still present on the pre-fetch queue so that they are not accidentally accessed in an invalid
+     * way later on.
+     */
+    WT_ERR(__wt_conn_prefetch_clear_tree(session, false));
+
+	/*
+     * We have disabled further eviction: wait for concurrent LRU eviction activity to drain.
+     */
+    while (btree->evict_busy > 0)
+        __wt_yield();
+
+    if (0) {
+err:
+        --btree->evict_disabled;
+    }
+    __wt_spin_unlock(session, &evict->evict_exclusive_lock);
+    return (ret);
 }
 
 /* !!!
@@ -256,9 +296,195 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session) {
 void
 __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 {
-	(void)session;
+    WT_BTREE *btree;
 
+    btree = S2BT(session);
+	evict = S2C(session)->evict;
+
+    /*
+     * We have seen subtle bugs with multiple threads racing to turn eviction on/off. Make races
+     * more likely in diagnostic builds.
+     */
+    WT_DIAGNOSTIC_YIELD;
+
+	__wt_spin_lock(session, &evict->evict_exclusive_lock);
+	--btree->evict_disabled;
+#if defined(HAVE_DIAGNOSTIC)
+	WT_ASSERT(session, btree->evict_disabled >=0);
+#endif
+	__wt_spin_unlock(session, &evict->evict_exclusive_lock);
+    __wt_verbose_debug1(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
+						btree->dhandle->name);
 }
+
+
+#define EVICT_TUNE_BATCH 1 /* Max workers to add each period */
+                           /*
+                            * Data points needed before deciding if we should keep adding workers or
+                            * settle on an earlier value.
+                            */
+#define EVICT_TUNE_DATAPT_MIN 8
+#define EVICT_TUNE_PERIOD 60 /* Tune period in milliseconds */
+
+/*
+ * We will do a fresh re-tune every that many milliseconds to adjust to significant phase changes.
+ */
+#define EVICT_FORCE_RETUNE (25 * WT_THOUSAND)
+
+/*
+ * __evict_tune_workers --
+ *     Find the right number of eviction workers. Gradually ramp up the number of workers increasing
+ *     the number in batches indicated by the setting above. Store the number of workers that gave
+ *     us the best throughput so far and the number of data points we have tried. Every once in a
+ *     while when we have the minimum number of data points we check whether the eviction throughput
+ *     achieved with the current number of workers is the best we have seen so far. If so, we will
+ *     keep increasing the number of workers. If not, we are past the infliction point on the
+ *     eviction throughput curve. In that case, we will set the number of workers to the best
+ *     observed so far and settle into a stable state.
+ */
+static void
+__evict_tune_workers(WT_SESSION_IMPL *session)
+{
+    struct timespec current_time;
+    WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
+    uint64_t delta_msec, delta_pages;
+    uint64_t eviction_progress, eviction_progress_rate, time_diff;
+    uint32_t current_threads;
+    int32_t cur_threads, i, target_threads, thread_surplus;
+
+    conn = S2C(session);
+    evict = conn->evict;
+
+    /*
+     * If we have a fixed number of eviction threads, there is no value in calculating if we should
+     * do any tuning.
+     */
+    if (conn->evict_threads_max == conn->evict_threads_min)
+        return;
+
+    __wt_epoch(session, &current_time);
+    time_diff = WT_TIMEDIFF_MS(current_time, evict->evict_tune_last_time);
+
+    /*
+     * If we have reached the stable state and have not run long enough to surpass the forced
+     * re-tuning threshold, return.
+     */
+    if (evict->evict_tune_stable) {
+        if (time_diff < EVICT_FORCE_RETUNE)
+            return;
+
+        /*
+         * Stable state was reached a long time ago. Let's re-tune. Reset all the state.
+         */
+        evict->evict_tune_stable = false;
+        evict->evict_tune_last_action_time.tv_sec = 0;
+        evict->evict_tune_progress_last = 0;
+        evict->evict_tune_num_points = 0;
+        evict->evict_tune_progress_rate_max = 0;
+
+        /* Reduce the number of eviction workers by one */
+        thread_surplus = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads) -
+          (int32_t)conn->evict_threads_min;
+
+        if (thread_surplus > 0)
+            __wt_thread_group_stop_one(session, &conn->evict_threads);
+
+    } else if (time_diff < EVICT_TUNE_PERIOD)
+        /*
+         * If we have not reached stable state, don't do anything unless enough time has passed
+         * since the last time we have taken any action in this function.
+         */
+        return;
+
+    /*
+     * Measure the evicted progress so far. Eviction rate correlates to performance, so this is our
+     * metric of success.
+     */
+    eviction_progress = __wt_atomic_loadv64(&evict->eviction_progress);
+
+    /*
+     * If we have recorded the number of pages evicted at the end of the previous measurement
+     * interval, we can compute the eviction rate in evicted pages per second achieved during the
+     * current measurement interval. Otherwise, we just record the number of evicted pages and
+     * return.
+     */
+    if (evict->evict_tune_progress_last == 0)
+        goto done;
+
+    delta_msec = WT_TIMEDIFF_MS(current_time, evict->evict_tune_last_time);
+    delta_pages = eviction_progress - evict->evict_tune_progress_last;
+    eviction_progress_rate = (delta_pages * WT_THOUSAND) / delta_msec;
+    evict->evict_tune_num_points++;
+
+    /*
+     * Keep track of the maximum eviction throughput seen and the number of workers corresponding to
+     * that throughput.
+     */
+    if (eviction_progress_rate > evict->evict_tune_progress_rate_max) {
+        evict->evict_tune_progress_rate_max = eviction_progress_rate;
+        evict->evict_tune_workers_best = __wt_atomic_load32(&conn->evict_threads.current_threads);
+    }
+
+    /*
+     * Compare the current number of data points with the number needed variable. If they are equal,
+     * we will check whether we are still going up on the performance curve, in which case we will
+     * increase the number of needed data points, to provide opportunity for further increasing the
+     * number of workers. Or we are past the inflection point on the curve, in which case we will go
+     * back to the best observed number of workers and settle into a stable state.
+     */
+    if (evict->evict_tune_num_points >= evict->evict_tune_datapts_needed) {
+        current_threads = __wt_atomic_load32(&conn->evict_threads.current_threads);
+        if (evict->evict_tune_workers_best == current_threads &&
+          current_threads < conn->evict_threads_max) {
+            /*
+             * Keep adding workers. We will check again at the next check point.
+             */
+            evict->evict_tune_datapts_needed += WT_MIN(EVICT_TUNE_DATAPT_MIN,
+              (conn->evict_threads_max - current_threads) / EVICT_TUNE_BATCH);
+        } else {
+            /*
+             * We are past the inflection point. Choose the best number of eviction workers observed
+             * and settle into a stable state.
+             */
+            thread_surplus = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads) -
+              (int32_t)evict->evict_tune_workers_best;
+
+            for (i = 0; i < thread_surplus; i++)
+                __wt_thread_group_stop_one(session, &conn->evict_threads);
+
+            evict->evict_tune_stable = true;
+            goto done;
+        }
+    }
+
+    /*
+     * If we have not added any worker threads in the past, we set the number of data points needed
+     * equal to the number of data points that we must accumulate before deciding if we should keep
+     * adding workers or settle on a previously tried stable number of workers.
+     */
+    if (evict->evict_tune_last_action_time.tv_sec == 0)
+        evict->evict_tune_datapts_needed = EVICT_TUNE_DATAPT_MIN;
+
+    if (F_ISSET(evict, WT_EVICT_CACHE_ALL)) {
+        cur_threads = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads);
+        target_threads = WT_MIN(cur_threads + EVICT_TUNE_BATCH, (int32_t)conn->evict_threads_max);
+        /*
+         * Start the new threads.
+         */
+        for (i = cur_threads; i < target_threads; ++i) {
+            __wt_thread_group_start_one(session, &conn->evict_threads, false);
+            __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "added worker thread");
+        }
+        evict->evict_tune_last_action_time = current_time;
+    }
+
+done:
+    evict->evict_tune_last_time = current_time;
+    evict->evict_tune_progress_last = eviction_progress;
+}
+
+
 
 /* !!!
  * __wt_evict_page_urgent --
