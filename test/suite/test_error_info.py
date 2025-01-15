@@ -94,7 +94,7 @@ class test_error_info(compact_util):
 
     def test_error_info(self):
         self.check_error(0, wiredtiger.WT_NONE, "")
-    
+
     def test_invalid_config(self):
         expectMessage = 'unknown configuration key'
         with self.expectedStderrPattern(expectMessage):
