@@ -826,7 +826,7 @@ err:
  *     finished parameter. Must be called while holding the extent list write lock.
  */
 static int
-__live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, WT_ITEM *buf,
+__live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, char *buf,
   WT_TIMER *start_timer, uint64_t *msg_count, bool *finishedp)
 {
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
@@ -865,8 +865,8 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, WT_ITEM *bu
           fh->name, time_diff_ms / WT_THOUSAND, hole->off, lr_fh->source_size);
         *msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
     }
-    WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf->mem));
-    return (__live_restore_fh_write_int(fh, wt_session, hole->off, read_size, buf->mem));
+    WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, hole->off, read_size, buf));
+    return (__live_restore_fh_write_int(fh, wt_session, hole->off, read_size, buf));
 }
 
 /*
@@ -885,23 +885,21 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     WT_TIMER timer;
     uint64_t msg_count = 0;
     bool finished = false;
-    WT_ITEM buf;
+    char *buf = NULL;
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
-    WT_CLEAR(buf);
-
     WT_RET(
-      __wt_buf_grow(session, &buf, ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system)->read_size));
+      __wt_malloc(session, ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system)->read_size, &buf));
 
     __wt_timer_start((WT_SESSION_IMPL *)wt_session, &timer);
     while (!finished) {
         WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, (WTI_LIVE_RESTORE_FILE_HANDLE *)fh,
-          ret = __live_restore_fill_hole(fh, wt_session, &buf, &timer, &msg_count, &finished));
+          ret = __live_restore_fill_hole(fh, wt_session, buf, &timer, &msg_count, &finished));
         WT_ERR(ret);
         WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
     }
 
 err:
-    __wt_buf_free(session, &buf);
+    __wt_free(session, buf);
 
     return (ret);
 }
