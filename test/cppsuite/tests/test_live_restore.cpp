@@ -333,7 +333,8 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string verbose_string = verbose_level == 0 ?
       "" :
-      "verbose=[recovery:1,recovery_progress:1,fileops:" + std::to_string(verbose_level) + "]";
+      "verbose=[recovery:1,recovery_progress:1,live_restore_progress,live_restore:" +
+        std::to_string(verbose_level) + "]";
     const std::string conn_config = CONNECTION_CREATE +
       ",live_restore=(enabled=true,read_size=2MB,threads_max=" + std::to_string(thread_count) +
       ",path=\"" + source + "\"),cache_size=5GB," + verbose_string +
