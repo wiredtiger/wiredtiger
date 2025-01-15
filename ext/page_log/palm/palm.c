@@ -614,7 +614,7 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM *palm;
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
-    uint64_t lsn, backlink_lsn, base_lsn;
+    uint64_t lsn;
     int ret;
     bool is_delta;
 
