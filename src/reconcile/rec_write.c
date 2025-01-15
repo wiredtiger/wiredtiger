@@ -2444,7 +2444,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_ASSERT(session, block_meta->checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
         multi->block_meta = *block_meta;
         WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
-        WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
         /* The first delta needs to explicitly initialize the base LSN and checkpoint id. */
         if (multi->block_meta.delta_count == 0) {
             multi->block_meta.base_lsn = multi->block_meta->disagg_lsn;
@@ -2455,6 +2454,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
         multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
+            WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
             multi->block_meta.checkpoint_id = checkpoint_id;
             multi->block_meta.reconciliation_id = 0;
         } else
