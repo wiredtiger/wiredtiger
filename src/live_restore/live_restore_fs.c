@@ -80,7 +80,7 @@ __live_restore_fs_backing_filename(WTI_LIVE_RESTORE_FS_LAYER *layer, WT_SESSION_
 
         *pathp = buf;
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-          "Generated SOURCE path: %s\n layer->home = %s, name = %s\n", buf, layer->home, name);
+          "Generated SOURCE path: %s. layer->home = %s, name = %s", buf, layer->home, name);
     }
 
     if (0) {
@@ -105,7 +105,7 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE
     bool list_valid;
 
     __wt_verbose_debug1(
-      session, WT_VERB_LIVE_RESTORE, "Dumping extent list for %s\n", lr_fh->iface.name);
+      session, WT_VERB_LIVE_RESTORE, "Dumping extent list for %s", lr_fh->iface.name);
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
 
@@ -119,8 +119,7 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE
         if (prev != NULL) {
             if (WTI_EXTENT_END(prev) >= hole->off) {
                 __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-                  "Error: Holes overlap prev: %" PRId64 "-%" PRId64 ", hole: %" PRId64 "-%" PRId64
-                  "\n",
+                  "Error: Holes overlap prev: %" PRId64 "-%" PRId64 ", hole: %" PRId64 "-%" PRId64,
                   prev->off, WTI_EXTENT_END(prev), hole->off, WTI_EXTENT_END(hole));
                 list_valid = false;
             }
@@ -923,7 +922,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Closing file: %s\n", fh->name);
+      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Closing file: %s", fh->name);
 
     /*
      * If we hit an error during file handle creation we'll call this function to free the partially
@@ -1081,7 +1080,7 @@ __live_restore_fh_find_holes_in_dest_file(
 
     data_end_offset = 0;
     __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Opening file: %s\n", filename);
+      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Opening file: %s", filename);
     WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
     if (ret != 0)
         WT_RET_MSG(session, ret, "Failed to open file descriptor on %s", filename);
@@ -1496,7 +1495,7 @@ __live_restore_fs_rename(
      * critical than it may seem at first.
      */
     __wt_verbose_debug1(
-      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE: Renaming file from: %s to %s\n", from, to);
+      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE: Renaming file from: %s to %s", from, to);
     WT_RET(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
     if (!exist)
         WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", from);
