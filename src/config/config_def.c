@@ -2403,8 +2403,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_live_restore_subconfigs[] =
     INT64_MAX, NULL},
   {"path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 232, INT64_MIN,
     INT64_MAX, NULL},
-  {"read_size", "int", NULL, "min=1MB,max=16MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 279,
-    1LL * WT_MEGABYTE, 16LL * WT_MEGABYTE, NULL},
+  {"read_size", "int", NULL, "min=512B,max=16MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 279,
+    512, 16LL * WT_MEGABYTE, NULL},
   {"threads_max", "int", NULL, "min=0,max=12", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 198, 0,
     12, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
