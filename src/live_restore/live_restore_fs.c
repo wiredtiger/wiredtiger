@@ -341,8 +341,11 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
              */
             bool add_source_file = false;
             if (WT_SUFFIX_MATCH(*namep, WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
-                /* It isn't impossible for tombstones to exist in the source directory. Ignore
-                 * them.*/
+                /*
+                 * It is possible for tombstones to exist in the source directory. Currently those
+                 * files are not cleaned up on completion so if a "snapshot" backup is taken after a
+                 * live restore tombstones will be included in said backup.
+                 */
                 continue;
             }
             if (!dest_folder_exists)
