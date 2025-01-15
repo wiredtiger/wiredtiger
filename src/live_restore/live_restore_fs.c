@@ -1616,6 +1616,11 @@ __wt_live_restore_fs_log_copy(WT_SESSION_IMPL *session)
         WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
         /* Call log open file to generate the full path to the log file. */
         WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
+        /*
+         * We intentionally do not call the WiredTiger copy and sync function as we are copying
+         * between layers and that function copies between two paths. This is the same "path" from
+         * the perspective of a function higher in the stack.
+         */
         ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
