@@ -485,13 +485,19 @@ main(int argc, char *argv[])
         home_path = HOME_PATH;
     logger::log_msg(LOG_INFO, "Home path: " + home_path);
 
-    // Delete any existing source dir.
-    if (!recovery)
+    if (!recovery) {
+        // Delete any existing source dir.
         testutil_recreate_dir(SOURCE_PATH);
-    logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
-
-    // Recreate the home directory on startup every time.
-    testutil_recreate_dir(home_path.c_str());
+        logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
+        // Recreate the home directory on startup every time.
+        testutil_recreate_dir(home_path.c_str());
+    } else {
+        // Assuming this run is following a -d "death" run then the SOURCE_PATH will be the home
+        // path.
+        testutil_remove(SOURCE_PATH);
+        testutil_move(HOME_PATH, SOURCE_PATH);
+        testutil_recreate_dir(HOME_PATH);
+    }
 
     bool first = recovery == false;
     /* When setting up the database we don't want to wait for the background threads to complete. */
