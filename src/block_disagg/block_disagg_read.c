@@ -192,6 +192,7 @@ reread:
                 }
 
                 if (result == last && block_meta != NULL) {
+                    WT_ASSERT(session, get_args.lsn > 0);
                     /* Set the other metadata returned by the Page Service. */
                     block_meta->page_id = page_id;
                     block_meta->checkpoint_id = checkpoint_id;
@@ -203,6 +204,14 @@ reread:
                     block_meta->disagg_lsn = get_args.lsn;
                     block_meta->delta_count = get_args.delta_count;
                     block_meta->checksum = checksum;
+                    if (block_meta->delta_count > 0) {
+                        WT_ASSERT(
+                          session, get_args.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+                        WT_ASSERT(session, get_args.base_lsn > 0);
+                    } else {
+                        WT_ASSERT(session, get_args.base_checkpoint_id == 0);
+                        WT_ASSERT(session, get_args.base_lsn == 0);
+                    }
                 }
 
                 /*

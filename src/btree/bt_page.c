@@ -45,8 +45,8 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
     WT_ACQUIRE_READ(checkpoint_id, S2C(session)->disaggregated_storage.global_checkpoint_id);
     /* For a new page, everything starts with the current checkpoint id. */
     meta->checkpoint_id = checkpoint_id;
-    meta->backlink_checkpoint_id = checkpoint_id;
-    meta->base_checkpoint_id = checkpoint_id;
+    meta->backlink_checkpoint_id = 0;
+    meta->base_checkpoint_id = 0;
 
     meta->backlink_lsn = 0;
     meta->base_lsn = 0;

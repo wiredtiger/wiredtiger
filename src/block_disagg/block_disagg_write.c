@@ -218,6 +218,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 
     /* Some extra data is set by the put interface, and must be returned up the chain. */
     block_meta->disagg_lsn = put_args.lsn;
+    WT_ASSERT(session, put_args.lsn > 0);
     block_meta->checksum = checksum;
 
     *sizep = WT_STORE_SIZE(buf->size);
