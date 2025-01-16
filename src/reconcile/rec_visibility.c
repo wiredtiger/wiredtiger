@@ -567,8 +567,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
-        /* Give up if the update is from this transaction and on the metadata file or disaggregated
-         * shared metadata file.*/
+        /*
+         * Give up if the update is from this transaction and on the metadata file or disaggregated
+         * shared metadata file.
+         */
         if ((WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) &&
           txnid != WT_TXN_NONE && txnid == session_txnid)
             return (__wt_set_return(session, EBUSY));
