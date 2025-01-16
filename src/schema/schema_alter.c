@@ -447,8 +447,8 @@ __wt_schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[
     /* Add a 2 second wait to simulate session alter slowness. */
     tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
-    printf("stressing\n");
     __wt_timing_stress(session, WT_TIMING_STRESS_SESSION_ALTER_SLOW, &tsp);
+
     WT_RET(__wti_schema_internal_session(session, &int_session));
     WT_ERR(__wt_meta_track_on(int_session));
     ret = __schema_alter(int_session, uri, newcfg);

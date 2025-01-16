@@ -30,14 +30,12 @@
 # connection_api
 # [END_TAGS]
 
-import errno
-import time
-import wttest
-import wiredtiger
+import wttest, time
 from threading import Thread
 
 # test_timing_stress_for_test01.py
-#   Test that the config for timing_stress_for_test delays the relase of the schema lock.
+#   Test that the session_alter_slow connection configuration for timing_stress_for_test delays
+#   the release of the schema lock in session alter.
 class test_timing_stress_for_test01(wttest.WiredTigerTestCase):
     uri = 'table:timing_stress_for_test'
     conn_config = 'timing_stress_for_test=[session_alter_slow]'
@@ -49,10 +47,12 @@ class test_timing_stress_for_test01(wttest.WiredTigerTestCase):
 
     def drop_table(self):
         start_time = time.time()
+
         # Start a second session.
         session2 = self.conn.open_session()
-        # Drop the table.
+        # Drop the table in the second session.
         self.assertEqual(session2.drop(self.uri, None), 0)
+
         end_time = time.time()
 
         # Expect delay to be 2 seconds.
