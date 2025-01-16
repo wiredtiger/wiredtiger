@@ -2489,6 +2489,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     /* Initialize the default error info. */
     F_SET(session_ret, WT_SESSION_SAVE_ERRORS);
     session_ret->err_info.err_msg = NULL;
+    session_ret->err_info.err_msg_buf = NULL;
     WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, WT_ERROR_INFO_EMPTY));
 
     /*
