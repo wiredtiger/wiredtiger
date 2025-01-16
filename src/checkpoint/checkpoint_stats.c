@@ -23,11 +23,11 @@ __wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_checkpoint_reset_time_stats --
- *     Reset time-related stats.
+ * __wt_checkpoint_reset_timer_stats --
+ *     Reset timer-related stats.
  */
 void
-__wt_checkpoint_reset_time_stats(WT_SESSION_IMPL *session)
+__wt_checkpoint_reset_timer_stats(WT_SESSION_IMPL *session)
 {
     WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
 
