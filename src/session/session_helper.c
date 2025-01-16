@@ -143,7 +143,6 @@ int
 __wt_session_set_last_error(
   WT_SESSION_IMPL *session, int err, int sub_level_err, const char *fmt, ...)
 {
-    WT_DECL_ITEM(new_err_msg_buf);
     WT_DECL_RET;
     WT_ERROR_INFO *err_info = &(session->err_info);
     WT_ITEM *old_err_msg_buf = err_info->err_msg_buf;
@@ -173,6 +172,7 @@ __wt_session_set_last_error(
         err_info->err_msg = WT_ERROR_INFO_SUCCESS;
         err_info->err_msg_buf = NULL;
     } else {
+        WT_DECL_ITEM(new_err_msg_buf);
         WT_RET(__wt_scr_alloc(session, 0, &new_err_msg_buf));
         WT_VA_ARGS_BUF_FORMAT(session, new_err_msg_buf, fmt, false);
         err_info->err_msg = new_err_msg_buf->data;
