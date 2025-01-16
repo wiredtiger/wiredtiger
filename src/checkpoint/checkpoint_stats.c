@@ -12,9 +12,9 @@
  *     Reset handle-related stats.
  */
 void
-__wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt)
+__wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session)
 {
-    WT_UNUSED(session);
+    WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
 
     ckpt->handle_stats.apply = ckpt->handle_stats.drop = ckpt->handle_stats.lock =
       ckpt->handle_stats.meta_check = ckpt->handle_stats.skip = 0;
@@ -27,9 +27,9 @@ __wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION 
  *     Reset time-related stats.
  */
 void
-__wt_checkpoint_reset_time_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt)
+__wt_checkpoint_reset_time_stats(WT_SESSION_IMPL *session)
 {
-    WT_UNUSED(session);
+    WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
 
     ckpt->prepare.min = UINT64_MAX;
     ckpt->ckpt_api.min = UINT64_MAX;
@@ -43,11 +43,7 @@ __wt_checkpoint_reset_time_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *c
 void
 __wt_checkpoint_stats_handle_update(WT_SESSION_IMPL *session, uint64_t gathering_handles_time_us)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_CKPT_CONNECTION *ckpt;
-
-    conn = S2C(session);
-    ckpt = &conn->ckpt;
+    WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
 
     WT_STAT_CONN_SET(session, checkpoint_handle_applied, ckpt->handle_stats.apply);
     WT_STAT_CONN_SET(session, checkpoint_handle_apply_duration, ckpt->handle_stats.apply_time);
@@ -70,11 +66,7 @@ __wt_checkpoint_stats_handle_update(WT_SESSION_IMPL *session, uint64_t gathering
 void
 __wt_checkpoint_stats_time_update(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_CKPT_CONNECTION *ckpt;
-
-    conn = S2C(session);
-    ckpt = &conn->ckpt;
+    WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
 
     WT_STAT_CONN_SET(session, checkpoint_scrub_max, ckpt->scrub.max);
     if (ckpt->scrub.min != UINT64_MAX)
@@ -100,9 +92,9 @@ __wt_checkpoint_stats_time_update(WT_SESSION_IMPL *session)
  *     Update the apply handle-related stats.
  */
 void
-__wt_checkpoint_update_handle_stats(
-  WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt, uint64_t time_us)
+__wt_checkpoint_update_handle_stats(WT_SESSION_IMPL *session, uint64_t time_us)
 {
+    WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
     if (F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT)) {
         ++ckpt->handle_stats.skip;
         ckpt->handle_stats.skip_time += time_us;

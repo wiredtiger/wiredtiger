@@ -73,7 +73,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->block_lock, "block manager"));
     TAILQ_INIT(&conn->blockqh); /* Block manager list */
 
-    __wt_checkpoint_reset_time_stats(session, &conn->ckpt);
+    __wt_checkpoint_reset_time_stats(session);
 
 err:
     return (ret);
