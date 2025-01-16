@@ -606,7 +606,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    double dirty_target, target, trigger, updates_target;
+    double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
     uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
     uint32_t flags;
 
@@ -614,9 +614,11 @@ __evict_update_work(WT_SESSION_IMPL *session)
     cache = conn->cache;
 
     dirty_target = __wt_eviction_dirty_target(cache);
+    dirty_trigger = cache->eviction_dirty_trigger;
     target = cache->eviction_target;
     trigger = cache->eviction_trigger;
     updates_target = cache->eviction_updates_target;
+    updates_trigger = cache->eviction_updates_trigger;
 
     /* Build up the new state. */
     flags = 0;
@@ -671,11 +673,20 @@ __evict_update_work(WT_SESSION_IMPL *session)
         LF_SET(WT_CACHE_EVICT_DIRTY);
 
     /*
-     * Scrub dirty pages and keep them in cache if we are less than half way to the clean, dirty or
+     * Configure scrub - which reinstates clean equivalents of reconciled dirty pages. This is
+     * useful because an evicted dirty page isn't necessarily a good proxy for knowing if the
+     * page will be accessed again soon. Be more aggressive about scrubbing in disaggregated
+     * storage because the cost of retrieving a recently reconciled page is higher in that
+     * configuration.
+     * In the local storage case use scrub if we are less than half way to the clean, dirty or
      * updates triggers.
      */
-    if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 150) {
+    if (__wt_conn_is_disagg(session) && bytes_inuse < (uint64_t)(trigger * bytes_max) / 100)
         LF_SET(WT_CACHE_EVICT_SCRUB);
+    else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
+        if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
+          bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200)
+            LF_SET(WT_CACHE_EVICT_SCRUB);
     } else
         LF_SET(WT_CACHE_EVICT_NOKEEP);
 
