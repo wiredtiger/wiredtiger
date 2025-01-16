@@ -606,7 +606,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
+    double dirty_target, target, trigger, updates_target;
     uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
     uint32_t flags;
 
@@ -614,11 +614,9 @@ __evict_update_work(WT_SESSION_IMPL *session)
     cache = conn->cache;
 
     dirty_target = __wt_eviction_dirty_target(cache);
-    dirty_trigger = cache->eviction_dirty_trigger;
     target = cache->eviction_target;
     trigger = cache->eviction_trigger;
     updates_target = cache->eviction_updates_target;
-    updates_trigger = cache->eviction_updates_trigger;
 
     /* Build up the new state. */
     flags = 0;
@@ -676,10 +674,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * Scrub dirty pages and keep them in cache if we are less than half way to the clean, dirty or
      * updates triggers.
      */
-    if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
-        if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
-          bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200)
-            LF_SET(WT_CACHE_EVICT_SCRUB);
+    if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 150) {
+        LF_SET(WT_CACHE_EVICT_SCRUB);
     } else
         LF_SET(WT_CACHE_EVICT_NOKEEP);
 
