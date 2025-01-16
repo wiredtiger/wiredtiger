@@ -1334,7 +1334,8 @@ variables:
       - name: make-check-test
       # Use a special version of unit-test for macOS that checks for Python version consistency.
       - name: unit-test-macos
-      - name: fops
+      # FIXME-WT-13951 Re-enable MacOS testing on the Evergreen waterfall - switch back to the 'fops' task.
+      - name: fops-macos
       - name: memory-model-test-mac
         batchtime: 40320 # 28 days
 
@@ -2591,6 +2592,22 @@ tasks:
             else
               ./test_fops
             fi
+
+  # FIXME-WT-13951 Re-enable MacOS testing on the Evergreen waterfall - remove this task.
+  - name: fops-macos
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/test/fops"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ./test_fops
 
   - name: bench-tiered-push-pull-s3
     commands:
