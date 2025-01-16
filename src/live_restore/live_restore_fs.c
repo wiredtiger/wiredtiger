@@ -12,14 +12,6 @@
 /* This is where basename comes from. */
 #include <libgen.h>
 
-/* The struct fiemap. */
-#include <linux/fiemap.h>
-/* FS_IOS_FIEMAP. */
-#include <linux/fs.h>
-/* The ioctl() call. */
-#include <sys/ioctl.h>
-#include <unistd.h>
-
 static int __live_restore_fs_directory_list_free(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count);
 
@@ -1061,6 +1053,14 @@ err:
     __wt_free(session, path);
     return (ret);
 }
+
+/* The struct fiemap. */
+#include <linux/fiemap.h>
+/* FS_IOS_FIEMAP. */
+#include <linux/fs.h>
+/* The ioctl() call. */
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 /*
  * __live_restore_fh_find_holes_in_dest_file --
