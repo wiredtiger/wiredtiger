@@ -49,7 +49,7 @@ __block_disagg_read_checksum_err(WT_SESSION_IMPL *session, const char *name, uin
       "%s: read checksum error for %" PRIu32
       "B block at "
       "page %" PRIu64 ", ckpt %" PRIu64 ": %s of %" PRIu32 " (%" PRIu64
-      ") doesn't match expected checksum of %" PRIu32 " (%" PRIu64 ")",
+      ") doesn't match expected checksum of %" PRIx32 " (%" PRIu64 ")",
       name, size, page_id, checkpoint_id, context_msg, checksum, rec_id, expected_checksum,
       expected_rec_id);
 }
@@ -86,7 +86,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
 
     __wt_verbose(session, WT_VERB_READ,
       "page_id %" PRIu64 ", lsn %" PRIu64 ", checkpoint_id %" PRIu64 ", reconciliation_id %" PRIu64
-      ", size %" PRIu32 ", checksum %" PRIu32,
+      ", size %" PRIu32 ", checksum %" PRIx32,
       page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
 
     WT_STAT_CONN_INCR(session, disagg_block_get);
@@ -103,7 +103,7 @@ reread:
          */
         __wt_verbose_notice(session, WT_VERB_READ,
           "retry #%" PRIu32 " for page_id %" PRIu64 ", checkpoint_id %" PRIu64
-          ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIu32,
+          ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
           retry, page_id, checkpoint_id, reconciliation_id, size, checksum);
         __wt_sleep(0, 10000 + retry * 5000);
         memset(results_array, 0, *results_count * sizeof(results_array[0]));
