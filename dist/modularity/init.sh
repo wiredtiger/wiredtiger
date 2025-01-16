@@ -36,6 +36,6 @@ want_update() {
 }
 
 if want_update; then
-    pip3 -q --disable-pip-version-check install git+"$REPO_URL@$BRANCH"
+    pip3 -q --disable-pip-version-check install --force-reinstall git+"$REPO_URL@$BRANCH"
     echo "$REMOTE_HASH" > "$HASH_FILE"
 fi
