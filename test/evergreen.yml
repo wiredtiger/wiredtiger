@@ -2595,7 +2595,6 @@ tasks:
 
   # FIXME-WT-13951 Re-enable MacOS testing on the Evergreen waterfall - remove this task.
   - name: fops-macos
-    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
