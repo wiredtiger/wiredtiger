@@ -184,8 +184,10 @@ __wt_session_set_last_error(
 
 err:
     /* Free the old message, if one was allocated. */
-    if (old_err_msg_buf != NULL)
+    if (old_err_msg_buf != NULL) {
+        __wt_free(session, old_err_msg_buf->mem);
         __wt_free(session, old_err_msg_buf);
+    }
 
     return (ret);
 }
