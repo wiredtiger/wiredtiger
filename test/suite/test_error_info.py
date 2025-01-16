@@ -36,10 +36,7 @@ from compact_util import compact_util
 #   Test that the get_last_error() session API returns the last error to occur in the session.
 class test_error_info(compact_util):
 
-    table_success = 'table:test_error_infoa.wt'
-    table_invalid_config = 'table:test_error_infob.wt'
-    table_uncommitted_data = 'table:test_error_infoc.wt'
-    table_dirty_data = 'table:test_error_infod.wt'
+    uri = "table:test_error_info.wt"
 
     def assert_error_equal(self, err_val, sub_level_err_val, err_msg_val):
         err, sub_level_err, err_msg = self.session.get_last_error()
@@ -51,16 +48,16 @@ class test_error_info(compact_util):
         """
         Create a table, add a key, get it back.
         """
-        self.session.create(self.table_success, 'key_format=S,value_format=S')
-        with open_cursor(self.session, self.table_success) as inscursor:
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        with open_cursor(self.session, self.uri) as inscursor:
             inscursor.set_key('key1')
             inscursor.set_value('value1')
             inscursor.insert()
-        with open_cursor(self.session, self.table_success) as getcursor:
+        with open_cursor(self.session, self.uri) as getcursor:
             getcursor.set_key('key1')
             getcursor.search()
 
-    def api_call_with_EINVAL_WT_BACKGROUND_COMPACT_ALREADY_RUNNING(self):
+    def api_call_with_einval_wt_background_compaction_already_running(self):
         """
         Try to reconfigure background compaction while the bg compaction server is running.
         """
@@ -68,24 +65,24 @@ class test_error_info(compact_util):
         self.turn_on_bg_compact()
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.compact(None, new_bg_config))
 
-    def api_call_with_EBUSY_WT_UNCOMMITTED_DATA(self):
+    def api_call_with_ebusy_wt_uncommitted_data(self):
         """
         Try to drop a table while it still has uncommitted data.
         """
-        self.session.create(self.table_uncommitted_data, 'key_format=S,value_format=S')
-        with open_cursor(self.session, self.table_uncommitted_data) as cursor:
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        with open_cursor(self.session, self.uri) as cursor:
             self.session.begin_transaction()
             cursor.set_key('key')
             cursor.set_value('value')
             self.assertEqual(cursor.update(), 0)
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_uncommitted_data, None))
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.uri, None))
 
-    def api_call_with_EBUSY_WT_DIRTY_DATA(self):
+    def api_call_with_ebusy_wt_dirty_data(self):
         """
         Try to drop a table without first performing a checkpoint.
         """
-        self.session.create(self.table_dirty_data, 'key_format=S,value_format=S')
-        with open_cursor(self.session, self.table_dirty_data) as cursor:
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        with open_cursor(self.session, self.uri) as cursor:
             self.session.begin_transaction()
             cursor.set_key('key')
             cursor.set_value('value')
@@ -94,53 +91,48 @@ class test_error_info(compact_util):
 
         # Give time for the oldest id to update before dropping the table.
         time.sleep(1)
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_dirty_data, None))
-
-
-    """
-    ===== TESTS START HERE =====
-    """
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.uri, None))
 
     def test_success(self):
         self.api_call_with_success()
         self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
 
-    def test_EINVAL_WT_BACKGROUND_COMPACT_ALREADY_RUNNING(self):
-        self.api_call_with_EINVAL_WT_BACKGROUND_COMPACT_ALREADY_RUNNING()
+    def test_einval_wt_background_compaction_already_running(self):
+        self.api_call_with_einval_wt_background_compaction_already_running()
         self.assert_error_equal(errno.EINVAL, wiredtiger.WT_BACKGROUND_COMPACT_ALREADY_RUNNING, "Cannot reconfigure background compaction while it's already running.")
 
-    def test_EBUSY_WT_UNCOMMITTED_DATA(self):
-        self.api_call_with_EBUSY_WT_UNCOMMITTED_DATA()
+    def test_ebusy_wt_uncommitted_data(self):
+        self.api_call_with_ebusy_wt_uncommitted_data()
         self.assert_error_equal(errno.EBUSY, wiredtiger.WT_UNCOMMITTED_DATA, "the table has uncommitted data and cannot be dropped yet")
         self.assertEqual(self.session.rollback_transaction(), 0)
         self.assertEqual(self.session.checkpoint(), 0)
-        self.assertEqual(self.session.drop(self.table_uncommitted_data, None), 0)
+        self.assertEqual(self.session.drop(self.uri, None), 0)
 
-    def test_EBUSY_WT_DIRTY_DATA(self):
-        self.api_call_with_EBUSY_WT_DIRTY_DATA()
+    def test_ebusy_wt_dirty_data(self):
+        self.api_call_with_ebusy_wt_dirty_data()
         self.assert_error_equal(errno.EBUSY, wiredtiger.WT_DIRTY_DATA, "the table has dirty data and can not be dropped yet")
         self.assertEqual(self.session.checkpoint(), 0)
-        self.assertEqual(self.session.drop(self.table_dirty_data, None), 0)
+        self.assertEqual(self.session.drop(self.uri, None), 0)
 
     def test_api_call_alternating(self):
         self.assert_error_equal(0, wiredtiger.WT_NONE, "")
         self.test_success()
-        self.test_EINVAL_WT_BACKGROUND_COMPACT_ALREADY_RUNNING()
-        self.test_EBUSY_WT_UNCOMMITTED_DATA()
-        self.test_EBUSY_WT_DIRTY_DATA()
+        self.test_einval_wt_background_compaction_already_running()
+        self.test_ebusy_wt_uncommitted_data()
+        self.test_ebusy_wt_dirty_data()
         self.test_success()
-        self.test_EBUSY_WT_DIRTY_DATA()
-        self.test_EBUSY_WT_UNCOMMITTED_DATA()
-        self.test_EINVAL_WT_BACKGROUND_COMPACT_ALREADY_RUNNING()
+        self.test_ebusy_wt_dirty_data()
+        self.test_ebusy_wt_uncommitted_data()
+        self.test_einval_wt_background_compaction_already_running()
         self.test_success()
 
     def test_api_call_doubling(self):
         self.assert_error_equal(0, wiredtiger.WT_NONE, "")
         self.test_success()
         self.test_success()
-        self.test_EINVAL_WT_BACKGROUND_COMPACT_ALREADY_RUNNING()
-        self.test_EINVAL_WT_BACKGROUND_COMPACT_ALREADY_RUNNING()
-        self.test_EBUSY_WT_UNCOMMITTED_DATA()
-        self.test_EBUSY_WT_UNCOMMITTED_DATA()
-        self.test_EBUSY_WT_DIRTY_DATA()
-        self.test_EBUSY_WT_DIRTY_DATA()
+        self.test_einval_wt_background_compaction_already_running()
+        self.test_einval_wt_background_compaction_already_running()
+        self.test_ebusy_wt_uncommitted_data()
+        self.test_ebusy_wt_uncommitted_data()
+        self.test_ebusy_wt_dirty_data()
+        self.test_ebusy_wt_dirty_data()
