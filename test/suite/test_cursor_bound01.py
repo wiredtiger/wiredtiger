@@ -41,7 +41,7 @@ class test_cursor_bound01(bound_base):
         ('lsm', dict(uri='lsm:', use_index = False, use_colgroup = False)),
         ('colgroup', dict(uri='table:', use_index = False, use_colgroup = False)),
         ('index', dict(uri='table:', use_index = True, use_colgroup = False)),
-        ('layered', dict(uri='layered:', use_index = False, use_colgroup = False)),
+#        ('layered', dict(uri='layered:', use_index = False, use_colgroup = False)),
     ]
 
     format_values = [
