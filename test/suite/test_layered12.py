@@ -27,10 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin
+from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_layered12.py
 #    Pick up different checkpoints.
+@disagg_test_class
 class test_layered12(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
@@ -41,10 +42,6 @@ class test_layered12(wttest.WiredTigerTestCase, DisaggConfigMixin):
     create_session_config = 'key_format=S,value_format=S'
 
     uri = "layered:test_layered12"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):

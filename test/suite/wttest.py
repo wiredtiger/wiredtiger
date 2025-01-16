@@ -498,6 +498,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
     def ignoreStdoutPattern(self, pattern, re_flags = 0):
         self.ignore_regex = re.compile(pattern, re_flags)
+        if hasattr(self, 'captureout'):
+            self.captureout.setIgnorePattern(self.ignore_regex)
 
     def readyDirectoryForRemoval(self, directory):
         # Make sure any read-only files or directories left behind

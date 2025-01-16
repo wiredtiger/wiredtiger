@@ -27,9 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
+from helper_disagg import disagg_test_class
 
 # test_layered02.py
 #    Basic layered tree cursor creation
+@disagg_test_class
 class test_layered02(wttest.WiredTigerTestCase):
 
     uri_base = "test_layered02"
@@ -37,10 +39,6 @@ class test_layered02(wttest.WiredTigerTestCase):
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
     uri = "layered:" + uri_base
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):

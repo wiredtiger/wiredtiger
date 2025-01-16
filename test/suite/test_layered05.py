@@ -27,11 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
+from helper_disagg import disagg_test_class
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_layered05.py
 #    Add enough content to trigger a checkpoint in the stable table.
+@disagg_test_class
 class test_layered05(wttest.WiredTigerTestCase):
     nitems = 100000
     uri_base = "test_layered05"
@@ -40,10 +42,6 @@ class test_layered05(wttest.WiredTigerTestCase):
     conn_config = base_conn_config + 'disaggregated=(role="leader"),'
 
     uri = "layered:" + uri_base
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
