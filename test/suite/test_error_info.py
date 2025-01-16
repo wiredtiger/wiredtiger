@@ -229,22 +229,3 @@ class test_error_info(compact_util):
                         "was expecting drop call to fail with EBUSY")
 
         self.check_error(errno.EBUSY, wiredtiger.WT_CONFLICT_DHANDLE, "another thread is currently holding the data handle of the table")
-
-
-    def test_conflict_schema_lock(self):
-
-        self.session.create(self.table_name1, 'key_format=S,value_format=S')
-        done = threading.Event()
-        ckpt = wtthread.checkpoint_thread(self.conn, done)
-        try:
-            ckpt.start()
-            ckpt_started = 0
-            while not ckpt_started:
-                stat_cursor = self.session.open_cursor('statistics:', None, None)
-                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
-                stat_cursor.close()
-
-            self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, "lock_wait=false"))
-        finally:
-            done.set()
-            ckpt.join()

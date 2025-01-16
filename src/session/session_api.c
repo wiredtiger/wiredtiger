@@ -1239,7 +1239,7 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool checkpoint_wait, lock_wait, got_schema_lock, got_table_lock;
+    bool checkpoint_wait, lock_wait;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, drop, config, cfg);
@@ -1253,12 +1253,6 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
     lock_wait = cval.val != 0;
 
     /*
-     * If we're willing to wait to acquire schema/table locks, we should eventually get them.
-     * Otherwise, initialize both to false in case we fail with EBUSY.
-     */
-    got_schema_lock = got_table_lock = lock_wait;
-
-    /*
      * Take the checkpoint lock if there is a need to prevent the drop operation from failing with
      * EBUSY due to an ongoing checkpoint.
      */
@@ -1269,34 +1263,18 @@ __session_drop(WT_SESSION *wt_session, const char *uri, const char *config)
                 WT_WITH_TABLE_WRITE_LOCK(
                   session, ret = __wt_schema_drop(session, uri, cfg, true))));
         else
-            WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret, WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, {
-                got_schema_lock = true;
-                WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret, {
-                    got_table_lock = true;
-                    ret = __wt_schema_drop(session, uri, cfg, true);
-                });
-            }));
+            WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret,
+              WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
+                WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
+                  session, ret, ret = __wt_schema_drop(session, uri, cfg, true))));
     } else {
         if (lock_wait)
             WT_WITH_SCHEMA_LOCK(session,
               WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_drop(session, uri, cfg, true)));
         else
-            WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, {
-                got_schema_lock = true;
-                WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret, {
-                    got_table_lock = true;
-                    ret = __wt_schema_drop(session, uri, cfg, true);
-                });
-            });
-    }
-
-    if (ret == EBUSY) {
-        if (!got_schema_lock)
-            WT_ERR_SUB(session, EBUSY, WT_CONFLICT_SCHEMA_LOCK,
-              "another thread is currently performing a schema operation on the table");
-        else if (!got_table_lock)
-            WT_ERR_SUB(session, EBUSY, WT_CONFLICT_TABLE_LOCK,
-              "another thread is currently accessing the table");
+            WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret,
+              WT_WITH_TABLE_WRITE_LOCK_NOWAIT(
+                session, ret, ret = __wt_schema_drop(session, uri, cfg, true)));
     }
 
 err:
