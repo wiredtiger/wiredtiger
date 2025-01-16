@@ -88,13 +88,14 @@ __wt_checkpoint_stats_timer_update(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_checkpoint_update_handle_stats --
- *     Update the apply handle-related stats.
+ * __wt_checkpoint_apply_or_skip_handle_update --
+ *     Update the apply or skip handle-related stats.
  */
 void
-__wt_checkpoint_update_handle_stats(WT_SESSION_IMPL *session, uint64_t time_us)
+__wt_checkpoint_apply_or_skip_handle_update(WT_SESSION_IMPL *session, uint64_t time_us)
 {
     WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
+
     if (F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT)) {
         ++ckpt->handle_stats.skip;
         ckpt->handle_stats.skip_time += time_us;
