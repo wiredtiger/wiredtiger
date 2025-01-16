@@ -1421,9 +1421,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
 
         /*
-         * Checkpoint the shared metadata table last, as it could have changed. Checkpoint it after
-         * we have released the checkpoint transaction. Otherwise, we may evict it and the
-         * checkpoint transaction cannot commit in this case as the updates have gone from memory.
+         * Checkpoint the shared metadata table last, as it could have changed. Also checkpoint it
+         * after we have released the checkpoint transaction. Otherwise, during the checkpoint, we
+         * have reconciled the pages on the tree and may have cleaned them (checkpoint can see its
+         * own uncommitted updates). In that case, we may evict it and the checkpoint transaction
+         * cannot commit as the updates have gone from memory.
          */
         if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
             WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
