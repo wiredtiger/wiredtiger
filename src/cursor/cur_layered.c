@@ -201,7 +201,10 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
-    const char *ckpt_cfg[3];
+    u_int cfg_pos;
+    const char *ckpt_cfg[4];
+    char random_config[1024];
+    bool leader;
 
     c = &clayered->iface;
     session = CUR2S(clayered);
@@ -243,10 +246,10 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     }
 
     if (clayered->stable_cursor == NULL) {
-        if (!S2C(session)->layered_table_manager.leader) {
-            ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-            ckpt_cfg[1] = ",raw,checkpoint_use_history=false,force=true";
-            ckpt_cfg[2] = NULL;
+        cfg_pos = 0;
+        leader = S2C(session)->layered_table_manager.leader;
+        ckpt_cfg[cfg_pos++] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+        if (!leader)
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
              * cursor on stable without a checkpoint. It will never return an invalid result (it's
@@ -254,21 +257,28 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * efficient, and also not an accurate reflection of what we want in terms of sharing
              * checkpoint across different WiredTiger instances eventually.
              */
+            ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false,force=true";
+
+        if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
+            WT_RET(__wt_snprintf(random_config, sizeof(random_config),
+              "next_random=true,next_random_unrestricted,next_random_seed=%" PRId64 ",next_random_sample_size=%ud",
+              clayered->next_random_seed, clayered->next_random_sample_size));
+            ckpt_cfg[cfg_pos++] = random_config;
+        }
+        ckpt_cfg[cfg_pos] = NULL;
+        ret = __wt_open_cursor(
+          session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
+
+        if (ret == WT_NOTFOUND && !leader) {
+            ckpt_cfg[1] = "";
             ret = __wt_open_cursor(
               session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
-        } else
-            ret = __wt_open_cursor(
-              session, layered->stable_uri, &clayered->iface, NULL, &clayered->stable_cursor);
-
-        if (ret == WT_NOTFOUND) {
-            ret = __wt_open_cursor(
-              session, layered->stable_uri, &clayered->iface, NULL, &clayered->stable_cursor);
-            if (ret == WT_NOTFOUND)
-                WT_RET(
-                  __wt_panic(session, WT_PANIC, "Layered table could not access stable table"));
             if (ret == 0)
                 F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
         }
+        if (ret == WT_NOTFOUND)
+            WT_RET(__wt_panic(session, WT_PANIC, "Layered table could not access stable table"));
+
         WT_RET(ret);
         if (clayered->stable_cursor != NULL)
             F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
@@ -1419,8 +1429,15 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
     WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
     if (cval.val != 0) {
+        F_SET(clayered, WT_CLAYERED_RANDOM);
         __wt_cursor_set_notsup(cursor);
         cursor->next = __clayered_next_random;
+
+        WT_ERR(__wt_config_gets_def(session, cfg, "next_random_seed", 0, &cval));
+        clayered->next_random_seed = cval.val;
+
+        WT_ERR(__wt_config_gets_def(session, cfg, "next_random_sample_size", 0, &cval));
+        clayered->next_random_sample_size = cval.val;
     }
 
     if (0) {

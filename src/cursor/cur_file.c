@@ -1043,7 +1043,13 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
             WT_ERR_MSG(
               session, ENOTSUP, "next_random configuration not supported for column-store objects");
 
-        __wt_cursor_set_notsup(cursor);
+        /*
+         * If next_random is allowed to be unrestricted, we allow all other methods.
+         */
+        WT_ERR(__wt_config_gets_def(session, cfg, "next_random_unrestricted", 0, &cval));
+        if (cval.val == 0)
+            __wt_cursor_set_notsup(cursor);
+
         cursor->next = __wt_curfile_next_random;
         cursor->reset = __curfile_reset;
 
