@@ -145,7 +145,6 @@ __wt_session_set_last_error(
 {
     WT_DECL_RET;
     WT_ERROR_INFO *err_info = &(session->err_info);
-    WT_ITEM *old_err_msg_buf = err_info->err_msg_buf;
 
     /* Ensure arguments are valid. */
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
@@ -160,34 +159,19 @@ __wt_session_set_last_error(
 
     /*
      * Load error codes and message into err_info. If the message is empty or is the success
-     * message, use static string buffers. Otherwise, format the message into heap memory.
+     * message, use static string buffers. Otherwise, format the message into the buffer.
      */
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
-    if (strlen(fmt) == 0) {
+    if (strlen(fmt) == 0)
         err_info->err_msg = WT_ERROR_INFO_EMPTY;
-        err_info->err_msg_buf = NULL;
-    } else if (err == 0) {
+    else if (err == 0)
         err_info->err_msg = WT_ERROR_INFO_SUCCESS;
-        err_info->err_msg_buf = NULL;
-    } else {
-        /* Start with 128 bytes, the format macro will extend the buffer if we need more space. */
-        size_t size = 128;
-        WT_DECL_ITEM(new_err_msg_buf);
-        WT_ERR(__wt_calloc_one(session, &new_err_msg_buf));
-        WT_ERR(__wt_buf_init(session, new_err_msg_buf, size));
-        F_SET(new_err_msg_buf, WT_ITEM_INUSE);
-        WT_VA_ARGS_BUF_FORMAT(session, new_err_msg_buf, fmt, false);
-        err_info->err_msg = new_err_msg_buf->data;
-        err_info->err_msg_buf = new_err_msg_buf;
+    else {
+        WT_VA_ARGS_BUF_FORMAT(session, err_info->err_msg_buf, fmt, false);
+        err_info->err_msg = err_info->err_msg_buf->data;
     }
 
 err:
-    /* Free the old message, if one was allocated. */
-    if (old_err_msg_buf != NULL) {
-        __wt_free(session, old_err_msg_buf->mem);
-        __wt_free(session, old_err_msg_buf);
-    }
-
     return (ret);
 }
