@@ -50,12 +50,12 @@ from __future__ import print_function
 
 import os, re, unittest, wthooks, wttest
 from wttest import WiredTigerTestCase
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, gen_disagg_storages, disagg_ignore_expected_output
 
 # These are the hook functions that are run when particular APIs are called.
 
 # Add the local storage extension whenever we call wiredtiger_open
-def wiredtiger_open_disagg(ignored_self, args):
+def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
 
     disagg_storage_sources = gen_disagg_storages()
     testcase = WiredTigerTestCase.currentTestCase()
@@ -70,9 +70,6 @@ def wiredtiger_open_disagg(ignored_self, args):
 
     if valid_storage_source == False:
         raise AssertionError('Invalid storage source passed in the argument.')
-
-    curconfig = args[-1]
-    homedir = args[0]
 
     # If there is already disagg storage enabled, we shouldn't enable it here.
     # We might attempt to let the wiredtiger_open complete without alteration,
@@ -119,13 +116,16 @@ def wiredtiger_open_disagg(ignored_self, args):
 
     disagg_config += ',' + ext_string + ',%s]' % ext_lib
 
-    args = list(args)           # convert from a readonly tuple to a writeable list
-    args[-1] += disagg_config   # Modify the list
+    config = curconfig + disagg_config
 
-    WiredTigerTestCase.verbose(None, 3,
-        '    Calling wiredtiger_open with config = \'{}\''.format(args))
+    WiredTigerTestCase.verbose(None, 3, f'    Calling wiredtiger_open({homedir}, {config})')
 
-    return args
+    result = orig_wiredtiger_open(homedir, config)
+
+    # Disaggregated storage generates some extra verbose output which must be ignored.
+    disagg_ignore_expected_output(testcase)
+
+    return result
 
 def testcase_has_failed():
     testcase = WiredTigerTestCase.currentTestCase()
@@ -329,7 +329,9 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
         self.Session['verify'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_verify_replace(orig_session_verify, s, uri, config))
 
-        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_disagg)
+        orig_wiredtiger_open = self.wiredtiger['wiredtiger_open']
+        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_REPLACE, lambda homedir, config:
+                                              wiredtiger_open_replace(orig_wiredtiger_open, homedir, config))
 
 # Strip matching parens, which act as a quoting mechanism.
 def strip_matching_parens(s):

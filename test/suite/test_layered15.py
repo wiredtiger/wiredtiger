@@ -27,11 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, os.path, shutil, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered15.py
 #    Start without local files.
+@disagg_test_class
 class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
@@ -52,10 +53,6 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     scenarios = make_scenarios(disagg_storages)
 
     num_restarts = 0
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):

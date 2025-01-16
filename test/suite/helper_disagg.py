@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import datetime, inspect, os, random, wiredtiger
+import datetime, functools, inspect, os, random, wiredtiger
 
 # These routines help run the various page log sources used by disaggregated storage.
 # They are required to manage the generation of disaggregated storage specific configurations.
@@ -55,6 +55,19 @@ def gen_disagg_storages(test_name='', disagg_only = False):
         return disagg_storages[:-1]
 
     return disagg_storages
+
+# For disaggregated test cases, we generally want to ignore verbose warnings about RTS at shutdown.
+def disagg_ignore_expected_output(testcase):
+    testcase.ignoreStdoutPattern('WT_VERB_RTS')
+
+# A decorator for a disaggregated test class, that ignores verbose warnings about RTS at shutdown.
+def disagg_test_class(cls):
+    class DisaggTestCaseClass(cls):
+        @functools.wraps(cls, updated=())
+        def __init__(self, *args, **kwargs):
+            super(DisaggTestCaseClass, self).__init__(*args, **kwargs)
+            disagg_ignore_expected_output(self)
+    return DisaggTestCaseClass
 
 # This mixin class provides disaggregated storage configuration methods.
 class DisaggConfigMixin:

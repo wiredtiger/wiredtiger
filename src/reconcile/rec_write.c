@@ -2441,18 +2441,20 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (build_delta) {
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
+        WT_ASSERT(session, block_meta->checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
         multi->block_meta = *block_meta;
         WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+        /* The first delta needs to explicitly initialize the base LSN and checkpoint id. */
+        if (multi->block_meta.delta_count == 0) {
+            multi->block_meta.base_lsn = multi->block_meta.disagg_lsn;
+            multi->block_meta.base_checkpoint_id = multi->block_meta.checkpoint_id;
+        }
+        WT_ASSERT(session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+        WT_ASSERT(session, multi->block_meta.base_lsn >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+        multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
+        multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
             WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
-            /*
-             * The first delta needs to explicitly initialize the base LSN. The base checkpoint ID
-             * would be already filled out when we constructed the full page image.
-             */
-            if (multi->block_meta.delta_count == 0)
-                multi->block_meta.base_lsn = block_meta->disagg_lsn;
-            multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
-            multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
             multi->block_meta.checkpoint_id = checkpoint_id;
             multi->block_meta.reconciliation_id = 0;
         } else
@@ -2468,15 +2470,27 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             multi->block_meta = *block_meta;
+            /*
+             * Full page's backlink is the previous full page. If the previous page is a delta, use
+             * the base as the new backlink. Otherwise, use the previous page as the backlink.
+             */
+            if (multi->block_meta.delta_count > 0) {
+                WT_ASSERT(
+                  session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+                WT_ASSERT(session, multi->block_meta.base_lsn > 0);
+                multi->block_meta.backlink_checkpoint_id = multi->block_meta.base_checkpoint_id;
+                multi->block_meta.backlink_lsn = multi->block_meta.base_lsn;
+            } else {
+                multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
+                multi->block_meta.backlink_lsn = multi->block_meta.disagg_lsn;
+            }
             multi->block_meta.delta_count = 0;
+            multi->block_meta.base_lsn = 0;
+            multi->block_meta.base_checkpoint_id = 0;
             WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
             if (checkpoint_id != multi->block_meta.checkpoint_id) {
                 WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
-                multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
-                multi->block_meta.base_lsn = block_meta->disagg_lsn;
-                multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
                 multi->block_meta.checkpoint_id = checkpoint_id;
-                multi->block_meta.base_checkpoint_id = checkpoint_id;
                 multi->block_meta.reconciliation_id = 0;
             } else
                 ++multi->block_meta.reconciliation_id;

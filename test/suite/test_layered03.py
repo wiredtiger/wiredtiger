@@ -27,11 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
+from helper_disagg import disagg_test_class
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_layered03.py
 #    Basic layered tree cursor insert and read
+@disagg_test_class
 class test_layered03(wttest.WiredTigerTestCase):
 
     uri_base = "test_layered03"
@@ -39,10 +41,6 @@ class test_layered03(wttest.WiredTigerTestCase):
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
     uri = "layered:" + uri_base
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):

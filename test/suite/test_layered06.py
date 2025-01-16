@@ -27,11 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin
+from helper_disagg import DisaggConfigMixin, disagg_test_class
 from wtscenario import make_scenarios
 
 # test_layered06.py
 #    Start a second WT that shares the stable content with the first.
+@disagg_test_class
 class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
@@ -45,10 +46,6 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # TODO do Python tests expect a field named uri?
     uri = "layered:test_layered06"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
