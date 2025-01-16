@@ -218,15 +218,18 @@ struct __wt_import_list {
                 WT_SESSION_LOCKED_TABLE));                                                    \
         WT_WITH_LOCK_WAIT(session, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op); \
     } while (0)
-#define WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op)                               \
-    do {                                                                           \
-        WT_ASSERT(session,                                                         \
-          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||              \
-            !FLD_ISSET(session->lock_flags,                                        \
-              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |          \
-                WT_SESSION_LOCKED_TABLE));                                         \
-        WT_WITH_LOCK_NOWAIT(                                                       \
-          session, ret, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op); \
+#define WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op)                                     \
+    do {                                                                                 \
+        WT_ASSERT(session,                                                               \
+          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||                    \
+            !FLD_ISSET(session->lock_flags,                                              \
+              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                \
+                WT_SESSION_LOCKED_TABLE));                                               \
+        WT_WITH_LOCK_NOWAIT(                                                             \
+          session, ret, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);       \
+        if (ret == EBUSY)                                                                \
+            WT_ERR_SUB(session, ret, WT_CONFLICT_SCHEMA_LOCK,                            \
+              "another thread is currently performing a schema operation on the table"); \
     } while (0)
 
 /*
@@ -283,6 +286,9 @@ struct __wt_import_list {
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE);                           \
             __wt_writeunlock(session, &S2C(session)->table_lock);                                  \
         }                                                                                          \
+        if (ret == EBUSY)                                                                          \
+            WT_ERR_SUB(session, EBUSY, WT_CONFLICT_TABLE_LOCK,                                     \
+              "another thread is currently accessing the table");                                  \
     } while (0)
 
 /*

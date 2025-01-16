@@ -128,7 +128,11 @@ __drop_table(
      * Temporarily getting the table exclusively serves the purpose of ensuring that cursors on the
      * table that are already open must at least be closed before this call proceeds.
      */
-    WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
+    if ((ret = __wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table)) ==
+      EBUSY)
+        WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE,
+          "another thread is currently holding the data handle of the table");
+    WT_ERR(ret);
     WT_ERR(__wti_schema_release_table_gen(session, &table, true));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
 

@@ -29,6 +29,7 @@
 import errno
 import time
 import wiredtiger, threading, wtthread, time
+from wtdataset import SimpleIndexDataSet
 from wiredtiger import stat
 from wttest import open_cursor
 from compact_util import compact_util
@@ -213,3 +214,37 @@ class test_error_info(compact_util):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
         self.check_error(errno.EBUSY, wiredtiger.WT_CONFLICT_BACKUP, "the table is currently performing backup and cannot be dropped")
         cursor.close()
+
+    def test_conflict_dhandle(self):
+        uri = self.table_name1
+        ds = SimpleIndexDataSet(self, uri, 10, config='')
+
+        self.session.begin_transaction()
+        ds.populate()
+        self.session.commit_transaction(),
+
+        self.session.begin_transaction()
+        cursor = self.session.open_cursor(uri, None, None)
+        self.assertTrue(self.raisesBusy(lambda: self.session.drop(uri, None)),
+                        "was expecting drop call to fail with EBUSY")
+
+        self.check_error(errno.EBUSY, wiredtiger.WT_CONFLICT_DHANDLE, "another thread is currently holding the data handle of the table")
+
+
+    def test_conflict_schema_lock(self):
+
+        self.session.create(self.table_name1, 'key_format=S,value_format=S')
+        done = threading.Event()
+        ckpt = wtthread.checkpoint_thread(self.conn, done)
+        try:
+            ckpt.start()
+            ckpt_started = 0
+            while not ckpt_started:
+                stat_cursor = self.session.open_cursor('statistics:', None, None)
+                ckpt_started = stat_cursor[stat.conn.checkpoint_state][2] != 0
+                stat_cursor.close()
+
+            self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, "lock_wait=false"))
+        finally:
+            done.set()
+            ckpt.join()
