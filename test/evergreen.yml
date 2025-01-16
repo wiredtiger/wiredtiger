@@ -1331,11 +1331,10 @@ variables:
     tasks:
       # FIXME-WT-13951 Re-enable MacOS testing on the Evergreen waterfall - switch back to the 'compile' task.
       - name: compile-no-upload
-      # FIXME-WT-13951 Re-enable MacOS testing on the Evergreen waterfall - enable these tests again.
-      #- name: make-check-test
+      - name: make-check-test
       # Use a special version of unit-test for macOS that checks for Python version consistency.
-      #- name: unit-test-macos
-      #- name: fops
+      - name: unit-test-macos
+      - name: fops
       - name: memory-model-test-mac
         batchtime: 40320 # 28 days
 
@@ -2076,10 +2075,14 @@ tasks:
 
   - name: unit-test-macos
     tags: ["python"]
-    depends_on:
-      - name: compile
+    # FIXME-WT-13951 - Put back the dependency on the compile task.
+    # depends_on:
+    #   - name: compile
     commands:
-      - func: "fetch artifacts"
+    # FIXME-WT-13951 - Fetch the artifacts instead of getting the project and compiling again.
+      # - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
       - func: "python config check"
       - func: "unit test"
 
