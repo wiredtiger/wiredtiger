@@ -1079,7 +1079,7 @@ __live_restore_fh_find_holes_in_dest_file(
     WTI_FIEMAP_EXTENT *fiemap_extent_list;
 
     __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "\nLIVE_RESTORE_FS: Opening file: %s\n", filename);
+      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Opening file: %s\n", filename);
     WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
     if (ret != 0)
         WT_RET_MSG(session, ret, "Failed to open file descriptor on %s", filename);
