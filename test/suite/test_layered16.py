@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 # test_layered16.py
 #    Test layered table modify
 class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm,role="leader"),'
 
     create_session_config = 'key_format=S,value_format=S'

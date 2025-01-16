@@ -27,7 +27,7 @@ __layered_create_missing_ingest_table(
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
     WT_ERR(__wt_buf_fmt(session, ingest_config,
       "key_format=\"%.*s\",value_format=\"%.*s\","
-      "layered_table_log=(enabled=true,layered_constituent=true),in_memory=true,"
+      "in_memory=true,"
       "disaggregated=(page_log=none,storage_source=none)",
       (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
 
@@ -618,8 +618,8 @@ __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD
     WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
 
     /*
-     * For now the layered table manager is simple - it just ensures that checkpoints are created
-     * in constituent tables regularly.
+     * For now the layered table manager is simple - it just ensures that checkpoints are created in
+     * constituent tables regularly.
      */
     WT_RET(__layered_table_manager_checkpoint_one(session));
 
@@ -728,8 +728,8 @@ __disagg_metadata_table_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     WT_ERR(__wt_open_internal_session(conn, "disagg-init", false, 0, 0, &internal_session));
-    WT_ERR(__wt_session_create(internal_session, WT_DISAGG_METADATA_URI,
-      "key_format=S,value_format=S,log=(enabled=false),layered_table_log=(enabled=false)"));
+    WT_ERR(__wt_session_create(
+      internal_session, WT_DISAGG_METADATA_URI, "key_format=S,value_format=S,log=(enabled=false)"));
 
 err:
     if (internal_session != NULL)

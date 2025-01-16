@@ -3303,7 +3303,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * we may need the log path and encryption and compression settings.
      */
     WT_ERR(__wti_logmgr_config(session, cfg, false));
-    WT_ERR(__wt_layered_table_logmgr_config(session, cfg, false));
     WT_ERR(__conn_version_verify(session));
 
     /*

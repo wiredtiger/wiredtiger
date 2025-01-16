@@ -1087,7 +1087,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
     const char *layered_cfg[5] = {WT_CONFIG_BASE(session, layered_meta), "", config, NULL, NULL};
-    const char *stable_cfg[5] = {WT_CONFIG_BASE(session, table_meta), "", config, NULL, NULL};
+    const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
 
     conn = S2C(session);
     tablecfg = NULL;
@@ -1153,7 +1153,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * regular logging. That logging will allow for write ahead log replay into the stable table.
      */
     WT_ERR(__wt_buf_fmt(session, tmp,
-      "layered_table_log=(enabled=true,layered_constituent=true),in_memory=true,"
+      "in_memory=true,"
       "disaggregated=(page_log=none)"));
     ingest_cfg[2] = tmp->data;
 
@@ -1166,8 +1166,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
 
     stable_cfg[1] = disagg_config->data;
-    WT_ERR(__wt_buf_fmt(session, tmp, "layered_table_log=(enabled=false)"));
-    stable_cfg[3] = tmp->data;
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
 #if 0

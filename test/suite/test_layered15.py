@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
-    conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm,role="follower"),'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -121,7 +121,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.all_uris:
             cfg = self.create_session_config
             if not uri.startswith('layered'):
-                cfg += ',block_manager=disagg,layered_table_log=(enabled=false),log=(enabled=false)'
+                cfg += ',block_manager=disagg,log=(enabled=false)'
             self.session.create(uri, cfg)
 
         # Put data to tables

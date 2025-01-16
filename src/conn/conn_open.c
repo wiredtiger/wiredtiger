@@ -130,7 +130,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
       FLD_ISSET(conn->log_info.log_flags, WT_CONN_LOG_RECOVER_DONE))
         WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wti_logmgr_destroy(session));
-    WT_TRET(__wt_layered_table_logmgr_destroy(session));
 
     /* Shut down disaggregated storage. */
     WT_TRET(__wti_disagg_destroy(session));
@@ -233,7 +232,6 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_statlog_create(session, cfg));
     WT_RET(__wti_tiered_storage_create(session));
     WT_RET(__wti_logmgr_create(session));
-    WT_RET(__wt_layered_table_logmgr_create(session));
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
@@ -269,7 +267,6 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * started before any operation that can commit, or the commit can block.
      */
     WT_RET(__wti_logmgr_open(session));
-    WT_RET(__wt_layered_table_logmgr_open(session));
 
     /*
      * Start eviction threads. NOTE: Eviction must be started after the history store table is
