@@ -159,9 +159,8 @@ __wt_session_set_last_error(
         return (0);
 
     /*
-     * Load error codes and message into err_info. If the code equals success, or the message is
-     * empty, use static string buffers. Otherwise, use a scratch buffer, and keep track of it so we
-     * can free it later.
+     * Load error codes and message into err_info. If the message is empty or is the success
+     * message, use static string buffers. Otherwise, format the message into heap memory.
      */
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
@@ -172,16 +171,18 @@ __wt_session_set_last_error(
         err_info->err_msg = WT_ERROR_INFO_SUCCESS;
         err_info->err_msg_buf = NULL;
     } else {
+        /* Start with 128 bytes, the format macro will extend the buffer if we need more space. */
         WT_DECL_ITEM(new_err_msg_buf);
-        WT_RET(__wt_scr_alloc(session, 0, &new_err_msg_buf));
+        WT_ERR(__wt_calloc(session, 128, 1, &new_err_msg_buf));
         WT_VA_ARGS_BUF_FORMAT(session, new_err_msg_buf, fmt, false);
         err_info->err_msg = new_err_msg_buf->data;
         err_info->err_msg_buf = new_err_msg_buf;
     }
 
 err:
-    /* Free the old scratch buffer, if one was used. */
-    if (old_err_msg_buf != NULL && strlen(old_err_msg_buf->data) != 0)
-        __wt_scr_free(session, &old_err_msg_buf);
+    /* Free the old message, if one was allocated. */
+    if (old_err_msg_buf != NULL)
+        __wt_buf_free(session, old_err_msg_buf);
+
     return (ret);
 }
