@@ -27,10 +27,11 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin
+from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_layered11.py
 #    Create an artificial delay in materializing pages from the page service.
+@disagg_test_class
 class test_layered11(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 5000
     uri_base = "test_layered11"
@@ -39,10 +40,6 @@ class test_layered11(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_config = conn_base_config + 'disaggregated=(role="leader"),'
 
     uri = "layered:" + uri_base
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):

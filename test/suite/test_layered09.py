@@ -28,12 +28,13 @@
 
 import wttest
 import wiredtiger
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered09.py
 # Simple read write testing for leaf page delta
 
+@disagg_test_class
 class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
@@ -58,10 +59,6 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris)
 
     nitems = 1000
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     def session_create_config(self):
         # The delta percentage of 200 is an arbitrary large value, intended to produce
