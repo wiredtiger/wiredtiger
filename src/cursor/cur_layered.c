@@ -689,8 +689,6 @@ __clayered_copy_constituent_bound(WT_CURSOR_LAYERED *clayered, WT_CURSOR *consti
     if (constituent == NULL)
         return (0);
 
-    /* Copy across all the bound configurations */
-    F_SET(constituent, F_MASK(base_cursor, WT_CURSTD_BOUND_ALL));
     /* Note that the inclusive flag is additive to upper/lower, so no need to check it as well */
     if (F_ISSET(base_cursor, WT_CURSTD_BOUND_UPPER))
         WT_RET(__wt_buf_dup(session, &constituent->upper_bound, &base_cursor->upper_bound));
@@ -704,6 +702,8 @@ __clayered_copy_constituent_bound(WT_CURSOR_LAYERED *clayered, WT_CURSOR *consti
         __wt_buf_free(session, &constituent->lower_bound);
         WT_CLEAR(constituent->lower_bound);
     }
+    /* Copy across all the bound configurations */
+    F_SET(constituent, F_MASK(base_cursor, WT_CURSTD_BOUND_ALL));
     return (0);
 }
 
