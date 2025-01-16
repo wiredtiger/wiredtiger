@@ -938,6 +938,34 @@ err:
 }
 
 /*
+ * __curfile_bound --
+ *     WT_CURSOR->bound implementation for file cursors.
+ */
+static int
+__curfile_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_COLLATOR *btree_collator;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+
+    CURSOR_API_CALL(cursor, session, ret, bound, NULL);
+
+    if (CUR2BT(cursor)->type == BTREE_COL_FIX)
+        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with fixed column store");
+    /* TODO: limit this to cases where a bound is being set, not cleared */
+    if (WT_CURSOR_IS_POSITIONED(cbt))
+        WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
+    btree_collator = CUR2BT(cursor)->collator;
+
+    WT_ERR(__wti_cursor_bound(cursor, config, btree_collator));
+err:
+    API_END_RET_STAT(session, ret, cursor_bound);
+}
+
+/*
  * __curfile_create --
  *     Open a cursor for a given btree handle.
  */
@@ -964,7 +992,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_reserve,                              /* reserve */
       __wt_cursor_reconfigure,                        /* reconfigure */
       __wti_cursor_largest_key,                       /* largest_key */
-      __wti_cursor_bound,                             /* bound */
+      __curfile_bound,                                /* bound */
       __curfile_cache,                                /* cache */
       __curfile_reopen,                               /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */

@@ -89,6 +89,24 @@ __wt_buf_set(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *data, size_t si
 }
 
 /*
+ * __wt_buf_dup --
+ *     Duplicate the contents of one item into another
+ */
+static WT_INLINE int
+__wt_buf_dup(WT_SESSION_IMPL *session, WT_ITEM *dest, WT_ITEM *src)
+{
+    /* Clear the destination item structure it may have been created on the stack. */
+    memset(dest, 0, sizeof(WT_ITEM));
+
+    /* Copy across a reference to the source item contents */
+    dest->data = src->data;
+    dest->size = src->size;
+
+    /* The buffer grow function will replace the reference with a copy of the referenced data */
+    return (__wt_buf_grow(session, dest, src->size));
+}
+
+/*
  * __wt_buf_setstr --
  *     Set the contents of the buffer to a NUL-terminated string.
  */
