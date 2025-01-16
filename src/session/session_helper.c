@@ -172,8 +172,9 @@ __wt_session_set_last_error(
         err_info->err_msg_buf = NULL;
     } else {
         /* Start with 128 bytes, the format macro will extend the buffer if we need more space. */
+        size_t buf_size = 128;
         WT_DECL_ITEM(new_err_msg_buf);
-        WT_ERR(__wt_calloc(session, 128, 1, &new_err_msg_buf));
+        WT_ERR(__wt_calloc(session, 1, buf_size, &new_err_msg_buf));
         WT_VA_ARGS_BUF_FORMAT(session, new_err_msg_buf, fmt, false);
         err_info->err_msg = new_err_msg_buf->data;
         err_info->err_msg_buf = new_err_msg_buf;
