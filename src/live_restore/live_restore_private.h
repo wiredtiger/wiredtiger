@@ -8,6 +8,9 @@
 
 #pragma once
 
+typedef struct fiemap WTI_FIEMAP;
+typedef struct fiemap_extent WTI_FIEMAP_EXTENT;
+
 #define WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX ".deleted"
 
 /*

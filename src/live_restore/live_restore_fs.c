@@ -1069,12 +1069,14 @@ __live_restore_fh_find_holes_in_dest_file(
   WT_SESSION_IMPL *session, char *filename, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     WT_DECL_RET;
-    wt_off_t data_end_offset, file_size;
+    wt_off_t file_size;
     int fd;
+    unsigned int num_extents;
+    WTI_FIEMAP *fiemap, *fiemap_fetch_extent_num;
+    WTI_FIEMAP_EXTENT *fiemap_extent_list;
 
-    data_end_offset = 0;
     __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Opening file: %s\n", filename);
+      session, WT_VERB_LIVE_RESTORE, "\nLIVE_RESTORE_FS: Opening file: %s\n", filename);
     WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
     if (ret != 0)
         WT_RET_MSG(session, ret, "Failed to open file descriptor on %s", filename);
@@ -1082,118 +1084,94 @@ __live_restore_fh_find_holes_in_dest_file(
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
     WT_ERR(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "File: %s", filename);
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    len: %" PRId64, file_size);
+    __wt_verbose_debug2(
+      session, WT_VERB_LIVE_RESTORE, "File: %s    len: %" PRId64 "", filename, file_size);
 
     if (file_size > 0)
         /*
-         * Initialize the file as one big hole. We'll then lseek the file to find data blocks and
+         * Initialize the file as one big hole. We'll then fiemap the file to find data blocks and
          * remove those ranges from the hole list.
          */
         WT_ERR(__live_restore_alloc_extent(
           session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list_head));
 
-    // /*
-    //  * Find the next data block. data_end_offset is initialized to zero so we start from the
-    //  * beginning of the file. lseek will find a block when it starts already positioned on the
-    //  * block, so starting at zero ensures we'll find data blocks at the beginning of the file.
-    //  This
-    //  * logic is single threaded but removing holes from the extent list requires the lock.
-    //  */
     __wt_writelock(session, &lr_fh->ext_lock);
-    // wt_off_t data_offset;
-    // while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
+    /*
+     * 1. Run fiemap ioctl with fm_extent_count set to zero. Instead of returning
+     * a list of extents it'll tell us how many extents are in the file.
+     */
+    WT_ERR(__wt_calloc_one(session, &fiemap_fetch_extent_num));
 
-    //     data_end_offset = lseek(fd, data_offset, SEEK_HOLE);
-    //     /* All data must be followed by a hole */
-    //     WT_ASSERT(session, data_end_offset != -1);
-    //     WT_ASSERT(session, data_end_offset > data_offset - 1);
-
-    //     __wt_verbose_debug1(session, WT_VERB_FILEOPS,
-    //       "File: %s, has data from %" PRId64 "-%" PRId64, filename, data_offset,
-    //       data_end_offset);
-    //     WT_ERR(__live_restore_remove_extlist_hole(
-    //       lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
-    // }
-
-    struct fiemap *fiemap_fetch_extent_num, *fiemap;
-    unsigned int num_extents;
-    bool fiemap_last_flag_set;
-    struct fiemap_extent *fiemap_extent_list;
-
-    /////////////////////////////////////////////////////////////////////////////
-    // 1. Run fiemap ioctl with fm_extent_count set to zero. Instead of returning
-    // a list of extents it'll tell us how many extents are in the file.
-    // TODO - how to confirm this doesn't change after we've read the value?
-    //        I think we're safe as no one else would be writing to the file(???)
-    /////////////////////////////////////////////////////////////////////////////
-    fiemap_fetch_extent_num = malloc(sizeof(struct fiemap));
-    memset(fiemap_fetch_extent_num, 0, sizeof(struct fiemap));
-
-    fiemap_fetch_extent_num->fm_start = 0; // Start from the beginning of the file
-    fiemap_fetch_extent_num->fm_length = (unsigned long long)file_size; // Get the entire file
-    fiemap_fetch_extent_num->fm_flags = 0;                              // TODO - flags?
-    fiemap_fetch_extent_num->fm_extent_count =
-      0; // Set zero. this means the call returns the number of fiemap_extent_list in the file
+    /*
+     * Set fm_flags to 0 to get all extents within the range [fm_start, fm_start + fm_length).
+     * Set fm_extent_count to 0, so the fiemap call will store the number of extent in the file to
+     * fm_mapped_extents.
+     */
+    fiemap_fetch_extent_num->fm_start = 0;
+    fiemap_fetch_extent_num->fm_length = (unsigned long long)file_size;
+    fiemap_fetch_extent_num->fm_flags = 0;
+    fiemap_fetch_extent_num->fm_extent_count = 0;
 
     ioctl(fd, FS_IOC_FIEMAP, fiemap_fetch_extent_num);
     num_extents = fiemap_fetch_extent_num->fm_mapped_extents;
 
-    printf("\nFile: %s\n", filename);
-    printf("    len: %llu\n", (unsigned long long)file_size);
-    printf("    num_extents: %u\n", num_extents);
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+      "\nFile: %s\n    len: %" PRId64 "\n    num_extents: %u\n", filename, file_size, num_extents);
 
-    /////////////////////////////////////////////////////////////////////////////
-    // 2. Now we know the number of extents in the file call fiemap again with this number and parse
-    // the extents
-    /////////////////////////////////////////////////////////////////////////////
+    /*
+     * 2. Now we know the number of extents in the file call fiemap again with this number and parse
+     * the extents.
+     */
+    WT_ERR(__wt_calloc(
+      session, 1, sizeof(WTI_FIEMAP) + sizeof(WTI_FIEMAP_EXTENT) * (num_extents), &fiemap));
 
-    fiemap = malloc(sizeof(struct fiemap) + sizeof(struct fiemap_extent) * (num_extents));
-    memset(fiemap, 0, sizeof(struct fiemap));
-
-    fiemap->fm_start = 0;                              // Start from the beginning of the file
-    fiemap->fm_length = (unsigned long long)file_size; // Get the entire file
-    fiemap->fm_flags = 0;                              // TODO - flags?
+    /*
+     * Set fm_extent_count to num_extents, so the fiemap call will request this number of extents
+     * in the file.
+     */
+    // TODO: Confirm the number of extents doesn't change after we've read the value.
+    fiemap_fetch_extent_num->fm_start = 0;
+    fiemap->fm_length = (unsigned long long)file_size;
+    fiemap->fm_flags = 0;
     fiemap->fm_extent_count = num_extents;
 
     ioctl(fd, FS_IOC_FIEMAP, fiemap);
 
-    // We early exit when the file len is zero. This shouldn't be possible
-    // WT_ASSERT_ALWAYS(session, num_extents > 0, "Zero extents in %s", filename);
-
-    /////////////////////////////////////////////////////////////////////////////
-    // 3. Using the returned fiemap info re-build the extent lists
-    // TODO - Using a custom extent list instead of the WT impl?
-    /////////////////////////////////////////////////////////////////////////////
-
-    // fiemap_extent_list lives in an array at the end of the fiemap
-    fiemap_extent_list = (struct fiemap_extent *)(fiemap + 1);
+    /*
+     * 3. Using the returned fiemap info re-build the extent lists.
+     * fiemap_extent_list lives in an array at the end of the fiemap.
+     */
+    fiemap_extent_list = (WTI_FIEMAP_EXTENT *)(fiemap + 1);
     for (unsigned int i = 0; i < num_extents; i++) {
-        printf(">       Extent %u: offset: %llu, length: %llu, flags: %u\n", i,
-          (unsigned long long)fiemap_extent_list[i].fe_logical,
-          (unsigned long long)fiemap_extent_list[i].fe_length, fiemap_extent_list[i].fe_flags);
-
+        unsigned int fiemap_flags = fiemap_extent_list[i].fe_flags;
         unsigned long long offset = fiemap_extent_list[i].fe_logical;
         unsigned long long len = fiemap_extent_list[i].fe_length;
 
-        // TODO - len check before cast? We're 64 bit so files would need to be crazy large
         __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-          "File: %s, has data from %" PRId64 "-%" PRId64, filename, (wt_off_t)offset,
-          (wt_off_t)offset + (wt_off_t)len - 1);
+          ">       Extent %u: offset: %llu, length: %llu, flags: %u\n", i, offset, len,
+          fiemap_flags);
+
+        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "File: %s, has data from %llu-%llu",
+          filename, offset, offset + len - 1);
+        // TODO - size check before cast?
         WT_ERR(__live_restore_remove_extlist_hole(lr_fh, session, (wt_off_t)offset, (size_t)len));
 
-        // Sanity check we've read all extents in the file
-        if (i == num_extents - 1) {
-            fiemap_last_flag_set = (fiemap_extent_list[i].fe_flags & FIEMAP_EXTENT_LAST) != 0;
-            WT_ASSERT_ALWAYS(
-              session, fiemap_last_flag_set == true, "Last extent but FIEMAP_EXTENT_LAST not set!");
-        }
+        /* Sanity check we've read all extents in the file. */
+        WT_ASSERT_ALWAYS(session, !FLD_ISSET(fiemap_flags, FIEMAP_EXTENT_UNKNOWN),
+          "FIEMAP_EXTENT_UNKNOWN is set!");
+        WT_ASSERT_ALWAYS(session, !FLD_ISSET(fiemap_flags, FIEMAP_EXTENT_DELALLOC),
+          "FIEMAP_EXTENT_DELALLOC is set!");
+        WT_ASSERT_ALWAYS(session, !FLD_ISSET(fiemap_flags, FIEMAP_EXTENT_UNWRITTEN),
+          "FIEMAP_EXTENT_UNWRITTEN is set!");
+        WT_ASSERT_ALWAYS(session, !FLD_ISSET(fiemap_flags, FIEMAP_EXTENT_NOT_ALIGNED),
+          "FIEMAP_EXTENT_NOT_ALIGNED is set!");
+        if (i == num_extents - 1)
+            WT_ASSERT_ALWAYS(session, FLD_ISSET(fiemap_flags, FIEMAP_EXTENT_LAST),
+              "Last extent but FIEMAP_EXTENT_LAST not set!");
     }
-    printf("\n");
-    free(fiemap);
-    free(fiemap_fetch_extent_num);
-
 err:
+    __wt_free(session, fiemap);
+    __wt_free(session, fiemap_fetch_extent_num);
     __wt_writeunlock(session, &lr_fh->ext_lock);
     WT_SYSCALL_TRET(close(fd), ret);
     return (ret);
