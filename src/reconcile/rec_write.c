@@ -638,10 +638,10 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
-     * can move beyond the checkpoint transaction id. When reconciling the metadata, we have to take
-     * checkpoints into account.
+     * can move beyond the checkpoint transaction id. When reconciling the metadata or disaggregated
+     * shared metadata, we have to take checkpoints into account.
      */
-    if (WT_IS_METADATA(session->dhandle)) {
+    if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
