@@ -48,6 +48,9 @@ class test_truncate_base(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
+    
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
@@ -62,9 +65,6 @@ class test_truncate_arguments(test_truncate_base):
         ('table', dict(type='table:')),
         ('layered', dict(type='layered:'))
     ])
-
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Test truncation without URI or cursors specified, or with a URI and
     # either cursor specified, expect errors.
@@ -110,9 +110,6 @@ class test_truncate_uri(test_truncate_base):
         ('layered', dict(type='layered:'))
     ])
 
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
-
     # Populate an object, truncate it by URI, and confirm it's empty.
     def test_truncate_uri(self):
         uri = self.type + self.name
@@ -151,9 +148,6 @@ class test_truncate_cursor_order(test_truncate_base):
     ]
     scenarios = make_scenarios(test_truncate_base.disagg_storages, types, keyfmt)
 
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
-
     # Test an illegal order, then confirm that equal cursors works.
     def test_truncate_cursor_order(self):
         if self.type == 'layered:' and self.keyfmt == 'r':
@@ -189,9 +183,6 @@ class test_truncate_cursor_end(test_truncate_base):
         ('string', dict(keyfmt='S')),
     ]
     scenarios = make_scenarios(test_truncate_base.disagg_storages, types, keyfmt)
-
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Test truncation of cursors past the end of the object.
     def test_truncate_cursor_order(self):
@@ -243,9 +234,6 @@ class test_truncate_empty(test_truncate_base):
     ]
     scenarios = make_scenarios(test_truncate_base.disagg_storages, types, keyfmt)
 
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
-
     # Test truncation of empty objects using a cursor
     def test_truncate_empty_cursor(self):
         if self.type == 'layered:' and self.keyfmt == 'r':
@@ -273,7 +261,6 @@ class test_truncate_empty(test_truncate_base):
 # Test truncation timestamp handling.
 class test_truncate_timestamp(test_truncate_base):
     name = 'test_truncate'
-    conn_config = 'log=(enabled=true)'
 
     scenarios = make_scenarios(test_truncate_base.disagg_storages, [
         ('file', dict(type='file:')),
@@ -282,7 +269,7 @@ class test_truncate_timestamp(test_truncate_base):
     ])
 
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
+        return self.conn_base_config + 'disaggregated=(role="leader"),log=(enabled=true),'
 
     # Prevent these from running under a hook that will cause truncate to use a slow path.
     # Test truncation of an object without a timestamp, expect success.
@@ -340,9 +327,6 @@ class test_truncate_cursor(test_truncate_base):
 
     scenarios = make_scenarios(test_truncate_base.disagg_storages, types, keyfmt, size, reopen,
         prune=10, prunelong=1000)
-
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Set a cursor key.
     def cursorKey(self, ds, uri, key):
