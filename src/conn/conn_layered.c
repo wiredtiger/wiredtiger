@@ -952,7 +952,7 @@ __wt_disagg_get_meta(
             count = 1;
             WT_RET(disagg->page_log_meta->plh_get(disagg->page_log_meta, &session->iface, page_id,
               checkpoint_id, &get_args, item, &count));
-            WT_ASSERT(session, count <= 1 && get_args.delta_count == 0); /* TODO: corrupt data */
+            WT_ASSERT(session, count <= 1); /* TODO: corrupt data */
 
             /* Found the data. */
             if (count == 1)
