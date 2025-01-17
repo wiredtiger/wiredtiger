@@ -168,8 +168,8 @@ __wt_session_set_last_error(
     else if (err == 0)
         err_info->err_msg = WT_ERROR_INFO_SUCCESS;
     else {
-        WT_VA_ARGS_BUF_FORMAT(session, err_info->err_msg_buf, fmt, false);
-        err_info->err_msg = err_info->err_msg_buf->data;
+        WT_VA_ARGS_BUF_FORMAT(session, &(err_info->err_msg_buf), fmt, false);
+        err_info->err_msg = err_info->err_msg_buf.data;
     }
 
 err:

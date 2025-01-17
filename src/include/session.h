@@ -67,7 +67,7 @@ struct __wt_error_info {
     int err;
     int sub_level_err;
     const char *err_msg;
-    WT_ITEM *err_msg_buf;
+    WT_ITEM err_msg_buf;
 };
 
 #define WT_ERROR_INFO_EMPTY ""

@@ -346,9 +346,8 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
         WT_TRET(__wt_call_log_close_session(session));
 #endif
 
-    /* Free the old error message. */
-    __wt_free(session, session->err_info.err_msg_buf->mem);
-    __wt_free(session, session->err_info.err_msg_buf);
+    /* Free the memory allocated to the error message buffer. */
+    __wt_free(session, session->err_info.err_msg_buf.mem);
 
     /* Make sure no new error messages are saved during the close call. */
     memset(&(session->err_info), 0, sizeof(WT_ERROR_INFO));
@@ -2362,7 +2361,6 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session_ret = NULL;
 
     size_t err_msg_buf_size = 128;
-    WT_DECL_ITEM(err_msg_buf);
 
     __wt_spin_lock(session, &conn->api_lock);
 
@@ -2493,12 +2491,9 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         WT_ERR(__session_reconfigure((WT_SESSION *)session_ret, config));
 
     /* Initialize the default error info, including a buffer for the error message. */
-    WT_ERR(__wt_calloc_one(session, &err_msg_buf));
-    WT_ERR(__wt_buf_init(session, err_msg_buf, err_msg_buf_size));
-
-    session_ret->err_info.err_msg = NULL;
-    session_ret->err_info.err_msg_buf = err_msg_buf;
     F_SET(session_ret, WT_SESSION_SAVE_ERRORS);
+    session_ret->err_info.err_msg = NULL;
+    WT_ERR(__wt_buf_init(session, &(session_ret->err_info.err_msg_buf), err_msg_buf_size));
     WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, WT_ERROR_INFO_EMPTY));
 
     /*
