@@ -202,7 +202,8 @@ reread:
                     block_meta->backlink_checkpoint_id = get_args.backlink_checkpoint_id;
                     block_meta->base_checkpoint_id = get_args.base_checkpoint_id;
                     block_meta->disagg_lsn = get_args.lsn;
-                    block_meta->delta_count = get_args.delta_count;
+                    block_meta->delta_count =
+                      get_args.delta_count == 0 ? *results_count - 1 : get_args.delta_count;
                     block_meta->checksum = checksum;
                     if (block_meta->delta_count > 0) {
                         WT_ASSERT(
