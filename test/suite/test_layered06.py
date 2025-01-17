@@ -27,14 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin
+from helper_disagg import DisaggConfigMixin, disagg_test_class
 from wtscenario import make_scenarios
 
 # test_layered06.py
 #    Start a second WT that shares the stable content with the first.
+@disagg_test_class
 class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 

@@ -27,14 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin
+from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_layered07.py
 #    Start a second WT that becomes leader and checke that content appears in the first.
+@disagg_test_class
 class test_layered07(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
-    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 

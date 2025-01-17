@@ -451,7 +451,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         self._connections = []
         self._failed = None   # set to True/False during teardown.
 
-        self.platform_api.setUp()
+        self.platform_api.setUp(self)
         self.origcwd = os.getcwd()
         shutil.rmtree(self.testdir, ignore_errors=True)
         if os.path.exists(self.testdir):
@@ -498,6 +498,8 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
 
     def ignoreStdoutPattern(self, pattern, re_flags = 0):
         self.ignore_regex = re.compile(pattern, re_flags)
+        if hasattr(self, 'captureout'):
+            self.captureout.setIgnorePattern(self.ignore_regex)
 
     def readyDirectoryForRemoval(self, directory):
         # Make sure any read-only files or directories left behind
@@ -536,7 +538,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         passed = not (self.failed() or teardown_failed)
 
         try:
-            self.platform_api.tearDown()
+            self.platform_api.tearDown(self)
         except:
             self.pr('ERROR: failed to tear down the platform API')
             self.prexception(sys.exc_info())

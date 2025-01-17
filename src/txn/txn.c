@@ -704,27 +704,6 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
     if (cval.val == 0)
         txn->txn_log.txn_logsync = 0;
 
-    /*
-     * The default layered table sync setting is inherited from the connection, but can be
-     * overridden by an explicit "layered_table_sync" setting for this transaction.
-     *
-     * We want to distinguish between inheriting implicitly and explicitly.
-     */
-    F_CLR(txn, WT_TXN_LAYERED_TABLE_SYNC_SET);
-    WT_ERR(__wt_conf_gets_def(session, conf, layered_table_sync, (int)UINT_MAX, &cval));
-    if (cval.val == 0 || cval.val == 1)
-        /*
-         * This is an explicit setting of sync. Set the flag so that we know not to overwrite it in
-         * commit_transaction.
-         */
-        F_SET(txn, WT_TXN_LAYERED_TABLE_SYNC_SET);
-
-    /*
-     * If layered table sync is turned off explicitly, clear the transaction's sync field.
-     */
-    if (cval.val == 0)
-        txn->txn_layered_table_log.txn_logsync = 0;
-
     /* Check if prepared updates should be ignored during reads. */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_prepare, 0, &cval));
     if (cval.len > 0 && WT_CONF_STRING_MATCH(force, cval))
@@ -831,8 +810,6 @@ __txn_release(WT_SESSION_IMPL *session)
 
     __wti_txn_clear_durable_timestamp(session);
 
-    /* Free the scratch buffer allocated for logging. */
-    __wt_layered_table_logrec_free(session, &txn->txn_layered_table_log.logrec);
     /* Free the scratch buffer allocated for logging. */
     __wt_logrec_free(session, &txn->txn_log.logrec);
 
@@ -1818,57 +1795,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* If we are logging, write a commit log record. */
-    if (txn->txn_layered_table_log.logrec != NULL) {
-        /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
-        WT_ASSERT(session,
-          !F_ISSET(conn, WT_CONN_RECOVERING) &&
-            FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_ENABLED));
-
-        /*
-         * The default layered table sync setting is inherited from the connection, but can be
-         * overridden by an explicit "layered_table_sync" setting for this transaction.
-         */
-        WT_ERR(__wt_config_gets_def(session, cfg, "layered_table_sync", 0, &cval));
-
-        /*
-         * If the user chose the default setting, check whether sync is enabled for this transaction
-         * (either inherited or via begin_transaction). If sync is disabled, clear the field to
-         * avoid the log write being flushed.
-         *
-         * Otherwise check for specific settings. We don't need to check for "on" because that is
-         * the default inherited from the connection. If the user set anything in begin_transaction,
-         * we only override with an explicit setting.
-         */
-        if (cval.len == 0) {
-            if (!FLD_ISSET(txn->txn_layered_table_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
-              !F_ISSET(txn, WT_TXN_LAYERED_TABLE_SYNC_SET))
-                txn->txn_layered_table_log.txn_logsync = 0;
-        } else {
-            /*
-             * If the caller already set layered table sync on begin_transaction then they should
-             * not be using layered_table_sync on commit_transaction. Flag that as an error.
-             */
-            if (F_ISSET(txn, WT_TXN_LAYERED_TABLE_SYNC_SET))
-                WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
-            if (WT_CONFIG_LIT_MATCH("off", cval))
-                txn->txn_layered_table_log.txn_logsync = 0;
-            /*
-             * We don't need to check for "on" here because that is the default to inherit from the
-             * connection setting.
-             */
-        }
-
-        /*
-         * We hold the visibility lock for reading from the time we write our log record until the
-         * time we release our transaction so that the LSN any checkpoint gets will always reflect
-         * visible data.
-         */
-        __wt_readlock(session, &txn_global->visibility_rwlock);
-        locked = true;
-        WT_ERR(__wt_txn_layered_table_log_commit(session, cfg));
-    }
-
-    /* If we are logging, write a commit log record. */
     if (txn->txn_log.logrec != NULL) {
         /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
         WT_ASSERT(session,
@@ -1914,10 +1840,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          * time we release our transaction so that the LSN any checkpoint gets will always reflect
          * visible data.
          */
-        if (!locked) {
-            __wt_readlock(session, &txn_global->visibility_rwlock);
-            locked = true;
-        }
+        __wt_readlock(session, &txn_global->visibility_rwlock);
+        locked = true;
         WT_ERR(__wt_txn_log_commit(session, cfg));
     }
 
@@ -2175,10 +2099,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
-
-    /* A transaction should not have updated any of the layered logged tables */
-    if (txn->txn_layered_table_log.logrec != NULL)
-        WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a layered logged table");
 
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
@@ -2748,9 +2668,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_TIMER timer;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
-    bool use_timestamp;
+    bool conn_is_disagg, use_timestamp;
 
     conn = S2C(session);
+    conn_is_disagg = __wt_conn_is_disagg(session);
     use_timestamp = false;
 
     /*
@@ -2772,7 +2693,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (use_timestamp) {
+        if (use_timestamp && !conn_is_disagg) {
             const char *rts_cfg[] = {
               WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
             __wt_timer_start(session, &timer);
@@ -2793,7 +2714,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
                   "shutdown rollback to stable has successfully finished and ran for %" PRIu64
                   " milliseconds",
                   conn->shutdown_timeline.rts_ms);
-        }
+        } else if (conn_is_disagg)
+            __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg");
 
         s = NULL;
         WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));

@@ -246,7 +246,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
             d += '.' + time.strftime('%Y%m%d-%H%M%S', time.localtime())
         if removeAtStart:
             shutil.rmtree(d, ignore_errors=True)
-        os.makedirs(d)
+        os.makedirs(d, exist_ok=True)
         AbstractWiredTigerTestCase._origcwd = os.getcwd()
         AbstractWiredTigerTestCase._parentTestdir = os.path.abspath(d)
         AbstractWiredTigerTestCase._preserveFiles = preserveFiles

@@ -192,6 +192,8 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
       /* TODO - WT_BLOCK_COMPRESS_SKIP may not be the right thing */
       __wt_checksum(buf->mem, data_checksum ? buf->size : WT_BLOCK_COMPRESS_SKIP);
 
+    put_args.backlink_lsn = block_meta->backlink_lsn;
+    put_args.base_lsn = block_meta->base_lsn;
     put_args.backlink_checkpoint_id = block_meta->backlink_checkpoint_id;
     put_args.base_checkpoint_id = block_meta->base_checkpoint_id;
 
@@ -216,6 +218,7 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 
     /* Some extra data is set by the put interface, and must be returned up the chain. */
     block_meta->disagg_lsn = put_args.lsn;
+    WT_ASSERT(session, put_args.lsn > 0);
     block_meta->checksum = checksum;
 
     *sizep = WT_STORE_SIZE(buf->size);
@@ -255,8 +258,8 @@ __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
     __wt_page_header_byteswap(buf->mem);
 
     endp = addr;
-    WT_RET(__wt_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->checkpoint_id,
-      block_meta->reconciliation_id, size, checksum));
+    WT_RET(__wt_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->disagg_lsn,
+      block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);

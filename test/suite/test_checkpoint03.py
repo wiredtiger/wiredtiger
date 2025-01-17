@@ -41,7 +41,6 @@ from wtscenario import make_scenarios
 
 class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_checkpoint03'
-    conn_config = 'statistics=(all)'
     uri = 'table:' + tablename
 
     format_values = [
@@ -50,7 +49,15 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
         ('row_integer', dict(key_format='i', value_format='i')),
     ]
 
-    scenarios = make_scenarios(format_values)
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
+        ('precise', dict(ckpt_config='checkpoint=(precise=true)')),
+    ]
+
+    scenarios = make_scenarios(format_values, ckpt_precision)
+
+    def conn_config(self):
+        return 'statistics=(all),' + self.ckpt_config
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')

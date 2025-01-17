@@ -934,7 +934,7 @@ __layered_modify_check(WT_SESSION_IMPL *session)
 
 /*
  * __clayered_put --
- *     Put an entry into the ingest tree, and make sure it's available for replay into stable.
+ *     Put an entry into the desired tree.
  */
 static WT_INLINE int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
@@ -967,6 +967,37 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     if (func != c->reserve)
         c->set_value(c, value);
     WT_RET(func(c));
+
+    /* TODO: Need something to add a log record? */
+
+    return (0);
+}
+
+/*
+ * __clayered_modify_int --
+ *     Put an modiy into the desired tree.
+ */
+static WT_INLINE int
+__clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
+  WT_MODIFY *entries, int nentries)
+{
+    WT_CURSOR *c;
+
+    /*
+     * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
+     * anyway.
+     */
+    WT_RET(__clayered_reset_cursors(clayered, true));
+
+    if (S2C(session)->layered_table_manager.leader)
+        c = clayered->stable_cursor;
+    else
+        c = clayered->ingest_cursor;
+
+    clayered->current_cursor = c;
+
+    c->set_key(c, key);
+    WT_RET(c->modify(c, entries, nentries));
 
     /* TODO: Need something to add a log record? */
 
@@ -1351,6 +1382,57 @@ err:
 }
 
 /*
+ * __clayered_modify --
+ *     WT_CURSOR->modify method for the layered cursor type. This function assumes the modify will
+ *     be done on the btree that we originally calculate the diff from. Currently, we only allow
+ *     writes to the stable table so the assumption holds. TODO: revisit this when we enable writing
+ *     to the ingest table.
+ */
+static int
+__clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+{
+    WT_CURSOR_LAYERED *clayered;
+    WT_DECL_RET;
+    WT_ITEM value;
+    WT_SESSION_IMPL *session;
+
+    clayered = (WT_CURSOR_LAYERED *)cursor;
+
+    CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
+    WT_ERR(__layered_modify_check(session));
+    WT_ERR(__cursor_needkey(cursor));
+    WT_ERR(__clayered_enter(clayered, false, true));
+
+    if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+        WT_ERR(__clayered_lookup(clayered, &value));
+        /*
+         * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
+         * have landed on.
+         */
+        WT_ERR(__cursor_needkey(cursor));
+    }
+    WT_ERR(__clayered_modify_int(session, clayered, &cursor->key, entries, nentries));
+
+    /*
+     * Set the cursor to reference the internal key/value of the positioned cursor.
+     */
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+    WT_ASSERT(
+      session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+    F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
+
+err:
+    __clayered_leave(clayered);
+    CURSOR_UPDATE_API_END(session, ret);
+    return (ret);
+}
+
+/*
  * __wt_clayered_open --
  *     WT_SESSION->open_cursor method for layered cursors.
  */
@@ -1372,7 +1454,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __clayered_search,                              /* search */
       __clayered_search_near,                         /* search-near */
       __clayered_insert,                              /* insert */
-      __wt_cursor_modify_value_format_notsup,         /* modify */
+      __clayered_modify,                              /* modify */
       __clayered_update,                              /* update */
       __clayered_remove,                              /* remove */
       __clayered_reserve,                             /* reserve */

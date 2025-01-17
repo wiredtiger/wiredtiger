@@ -27,13 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
+from helper_disagg import disagg_test_class
 
 # test_layered02.py
 #    Basic layered tree cursor creation
+@disagg_test_class
 class test_layered02(wttest.WiredTigerTestCase):
 
     uri_base = "test_layered02"
-    conn_config = 'layered_table_log=(enabled),verbose=[layered],disaggregated=(role="leader"),' \
+    conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
     uri = "layered:" + uri_base

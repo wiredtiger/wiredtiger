@@ -27,16 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
+from helper_disagg import disagg_test_class
 
 # test_layered04.py
 #    Add enough content to trigger a checkpoint in the stable table.
+@disagg_test_class
 class test_layered04(wttest.WiredTigerTestCase):
     nitems = 50000
     uri_base = "test_layered04"
-    # conn_config = 'log=(enabled),verbose=[layered:5]'
-    conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
+    conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    # conn_config = 'log=(enabled)'
 
     uri = "layered:" + uri_base
 
