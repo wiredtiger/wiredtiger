@@ -690,19 +690,26 @@ __clayered_copy_constituent_bound(WT_CURSOR_LAYERED *clayered, WT_CURSOR *consti
         return (0);
 
     /* Note that the inclusive flag is additive to upper/lower, so no need to check it as well */
-    if (F_ISSET(base_cursor, WT_CURSTD_BOUND_UPPER))
-        WT_RET(__wt_buf_dup(session, &constituent->upper_bound, &base_cursor->upper_bound));
-    else {
+    if (F_ISSET(base_cursor, WT_CURSTD_BOUND_UPPER)) {
+        WT_ASSERT_ALWAYS(session, constituent->upper_bound.size == 0,
+          "Setting up a bound in a layered cursor expects no configured constituent bounds");
+        WT_RET(__wt_buf_set(session, &constituent->upper_bound, base_cursor->upper_bound.data,
+          base_cursor->upper_bound.size));
+    } else {
         __wt_buf_free(session, &constituent->upper_bound);
         WT_CLEAR(constituent->upper_bound);
     }
-    if (F_ISSET(base_cursor, WT_CURSTD_BOUND_LOWER))
-        WT_RET(__wt_buf_dup(session, &constituent->lower_bound, &base_cursor->lower_bound));
-    else {
+    if (F_ISSET(base_cursor, WT_CURSTD_BOUND_LOWER)) {
+        WT_ASSERT_ALWAYS(session, constituent->lower_bound.size == 0,
+          "Setting up a bound in a layered cursor expects no configured constituent bounds");
+        WT_RET(__wt_buf_set(session, &constituent->lower_bound, base_cursor->lower_bound.data,
+          base_cursor->lower_bound.size));
+    } else {
         __wt_buf_free(session, &constituent->lower_bound);
         WT_CLEAR(constituent->lower_bound);
     }
     /* Copy across all the bound configurations */
+    F_CLR(constituent, WT_CURSTD_BOUND_ALL);
     F_SET(constituent, F_MASK(base_cursor, WT_CURSTD_BOUND_ALL));
     return (0);
 }
@@ -733,15 +740,37 @@ __clayered_bound(WT_CURSOR *cursor, const char *config)
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
+    /*
+     * The bound interface operates on an unpositioned cursor, so skip entering the layered cursor
+     * for this API.
+     */
     CURSOR_API_CALL(cursor, session, ret, bound, clayered->dhandle);
+
     __clayered_get_collator(clayered, &collator);
     /* Setup bounds on this top level cursor */
     WT_ERR(__wti_cursor_bound(cursor, config, collator));
-    /* Copy those bounds into the constituents */
+    /*
+     * Copy those bounds into the constituents. Note that the constituent cursors may not be open
+     * yet, and that would be fine, the layered cursor open interface handles setting up configured
+     * bounds as well.
+     */
     WT_ERR(__clayered_copy_bounds(clayered));
 
 err:
-    __clayered_leave(clayered);
+    if (ret != 0) {
+        /* Free any bounds we set on the top level cursor before the error */
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
+            __wt_buf_free(session, &cursor->upper_bound);
+            WT_CLEAR(cursor->upper_bound);
+        }
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
+            __wt_buf_free(session, &cursor->lower_bound);
+            WT_CLEAR(cursor->lower_bound);
+        }
+        F_CLR(cursor, WT_CURSTD_BOUND_ALL);
+        /* Ensure the bounds are cleaned up on any constituents */
+        WT_TRET(__clayered_copy_bounds(clayered));
+    }
     API_END_RET(session, ret);
 }
 
