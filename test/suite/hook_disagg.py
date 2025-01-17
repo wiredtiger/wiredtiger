@@ -96,7 +96,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     if len(extension_libs) == 0:
         raise Exception(extension_name + ' storage source extension not found')
 
-    disagg_config = ',layered_table_log=(enabled),verbose=[layered]' \
+    disagg_config = ',verbose=[layered]' \
         + ',disaggregated=(role="leader",stable_prefix=.,page_log=palm)'
 
     # Build the extension strings, we'll need to merge it with any extensions
