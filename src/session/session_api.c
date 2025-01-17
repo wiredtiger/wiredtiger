@@ -2360,8 +2360,6 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     session = conn->default_session;
     session_ret = NULL;
 
-    size_t err_msg_buf_size = 128;
-
     __wt_spin_lock(session, &conn->api_lock);
 
     /*
@@ -2493,7 +2491,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     /* Initialize the default error info, including a buffer for the error message. */
     F_SET(session_ret, WT_SESSION_SAVE_ERRORS);
     session_ret->err_info.err_msg = NULL;
-    WT_ERR(__wt_buf_init(session, &(session_ret->err_info.err_msg_buf), err_msg_buf_size));
+    WT_ERR(__wt_buf_initsize(session, &(session_ret->err_info.err_msg_buf), 128));
     WT_ERR(__wt_session_set_last_error(session_ret, 0, WT_NONE, WT_ERROR_INFO_EMPTY));
 
     /*
