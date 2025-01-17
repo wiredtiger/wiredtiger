@@ -115,9 +115,11 @@ class ColumnParser:
         if 'swap' in self.columns[n]:
             swap = self.columns[n]['swap']
         if swap:
-            val = dehex(swapstr(self.match.group(n)))
+            val = swapstr(self.match.group(n))
         else:
-            val = dehex(self.match.group(n))
+            val = self.match.group(n)
+        if 'hex' not in self.columns[n]:
+            val = dehex(val)
         return f'{nm}={val}{trail}'
 
 # Patterns to match and group ints of specified lengths
@@ -208,8 +210,8 @@ def palm_dump_block_header(vstr):
                 { 'name' : 'version' },
                 { 'name' : 'compatible_version' },
                 { 'name' : 'header_size' },
-                { 'name' : 'checksum', 'swap' : True  },
-                { 'name' : 'previous_checksum', 'swap' : True  },
+                { 'name' : 'checksum', 'hex' : True, 'swap' : True },
+                { 'name' : 'previous_checksum', 'hex' : True, 'swap' : True  },
                 { 'name' : 'reconciliation_id' },
                 { 'name' : 'flags' },
                 { 'name' : 'PADDING' },
