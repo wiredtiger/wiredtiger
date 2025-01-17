@@ -440,6 +440,16 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         return self.module_file().replace('.py', '')
 
+    @staticmethod
+    def simplify_name(name):
+        # Remove unnecessary information from the ID, such as the helper names.
+        name = re.sub(r'^helper_[^.]*\.', '', name)
+        name = name.replace('.<locals>', '')
+        return name
+
+    def id(self):
+        return self.simplify_name(super().id())
+
     def current_test_id(self):
         '''
         Return a test ID. Use this instead of the actual id() function, because we lose its context
@@ -479,7 +489,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
             methodName = self._savedTestMethodName
         else:
             methodName = self._testMethodName
-        return "%s.%s.%s" %  (self.__module__, self.class_name(), methodName)
+        return self.simplify_name("%s.%s.%s" %  (self.__module__, self.class_name(), methodName))
 
     #
     # Debugging

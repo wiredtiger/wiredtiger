@@ -62,12 +62,12 @@ def disagg_ignore_expected_output(testcase):
 
 # A decorator for a disaggregated test class, that ignores verbose warnings about RTS at shutdown.
 def disagg_test_class(cls):
-    class DisaggTestCaseClass(cls):
+    class disagg_test_case_class(cls):
         @functools.wraps(cls, updated=())
         def __init__(self, *args, **kwargs):
-            super(DisaggTestCaseClass, self).__init__(*args, **kwargs)
+            super(disagg_test_case_class, self).__init__(*args, **kwargs)
             disagg_ignore_expected_output(self)
-    return DisaggTestCaseClass
+    return disagg_test_case_class
 
 # This mixin class provides disaggregated storage configuration methods.
 class DisaggConfigMixin:
