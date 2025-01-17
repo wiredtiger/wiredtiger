@@ -33,10 +33,8 @@ import os, time, wiredtiger, wttest
 class test_layered04(wttest.WiredTigerTestCase):
     nitems = 50000
     uri_base = "test_layered04"
-    # conn_config = 'log=(enabled),verbose=[layered:5]'
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    # conn_config = 'log=(enabled)'
 
     uri = "layered:" + uri_base
 
