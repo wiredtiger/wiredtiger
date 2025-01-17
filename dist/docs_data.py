@@ -69,7 +69,7 @@ arch_doc_pages = [
     ArchDocPage('arch-disagg-layered',
         ['WT_CURSOR_LAYERED', 'WT_LAYERED_TABLE', 'WT_LAYERED_TABLE_MANAGER'],
         ['src/include/cursor.h', 'src/conn/conn_layered.c',
-         'src/cursor/cur_layered.c', 'src/txn/txn_layered_table_log.c']),
+         'src/cursor/cur_layered.c']),
     ArchDocPage('arch-eviction',
         ['WT_EVICT_ENTRY', 'WT_EVICT_QUEUE'],
         ['src/include/cache.h',

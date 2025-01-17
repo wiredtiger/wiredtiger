@@ -33,8 +33,7 @@ from wtdataset import SimpleDataSet
 # test_rollback_to_stable44.py
 #    Make sure RTS does nothing in a disaggregated storage context.
 class test_rollback_to_stable44(wttest.WiredTigerTestCase):
-    conn_config = 'layered_table_log=(enabled),' \
-        + 'disaggregated=(stable_prefix=.,page_log=palm),' \
+    conn_config = 'disaggregated=(stable_prefix=.,page_log=palm),' \
         + 'disaggregated=(role="leader")'
 
     def __init__(self, *args, **kwargs):

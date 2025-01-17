@@ -47,14 +47,6 @@ union __wt_lsn {
 #define WT_LOG_PREPNAME "WiredTigerPreplog" /* Log pre-allocated name */
 #define WT_LOG_TMPNAME "WiredTigerTmplog"   /* Log temporary name */
 
-#define WT_LAYERED_TABLE_LOG_FILENAME                          \
-    "WiredTigerLayeredTableLog" /* Layered table log file name \
-                                 */
-#define WT_LAYERED_TABLE_LOG_PREPNAME \
-    "WiredTigerPrepLayeredTableLog" /* Layered table log pre-allocated name */
-#define WT_LAYERED_TABLE_LOG_TMPNAME \
-    "WiredTigerTmpLayeredTableLog" /* Layered table log temporary name */
-
 /* Logging subsystem declarations. */
 #define WT_LOG_ALIGN 128
 
@@ -228,13 +220,6 @@ struct __wt_logslot {
     do {                                                                               \
         WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));   \
         WT_WITH_LOCK_WAIT(session, &(log)->log_slot_lock, WT_SESSION_LOCKED_SLOT, op); \
-    } while (0)
-
-#define WT_WITH_LAYERED_TABLE_SLOT_LOCK(session, log, op)                                          \
-    do {                                                                                           \
-        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_LAYERED_TABLE_SLOT)); \
-        WT_WITH_LOCK_WAIT(                                                                         \
-          session, &(log)->log_slot_lock, WT_SESSION_LOCKED_LAYERED_TABLE_SLOT, op);               \
     } while (0)
 
 struct __wt_myslot {

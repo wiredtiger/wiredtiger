@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 class test_layered13(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
-    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
@@ -67,7 +67,7 @@ class test_layered13(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.layered_uris + self.other_uris:
             cfg = self.create_session_config
             if not uri.startswith('layered'):
-                cfg += ',block_manager=disagg,layered_table_log=(enabled=false),log=(enabled=false)'
+                cfg += ',block_manager=disagg,log=(enabled=false)'
             self.session.create(uri, cfg)
 
         # Create the follower
