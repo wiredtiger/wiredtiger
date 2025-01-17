@@ -111,7 +111,7 @@ reread:
         ++retry;
     }
     /*
-     * Output buffers do not need to be preallocated, the PALI interface does that.
+     * Output buffers do not need to be pre-allocated, the PALI interface does that.
      */
     WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id,
       checkpoint_id, &get_args, results_array, results_count));
@@ -178,7 +178,7 @@ reread:
                       block_disagg->name, size, page_id, checkpoint_id, swap.magic, expected_magic);
                     goto corrupt;
                 }
-                /* TODO: workaround MACOS build failure when passing macro to a string format. */
+                /* TODO: workaround MacOS build failure when passing macro to a string format. */
                 compatible_version = WT_BLOCK_DISAGG_COMPATIBLE_VERSION;
                 if (swap.compatible_version > compatible_version) {
                     __wt_errx(session,

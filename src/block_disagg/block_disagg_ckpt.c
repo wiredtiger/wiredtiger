@@ -166,8 +166,10 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
         checkpoint_timestamp = conn->disaggregated_storage.cur_checkpoint_timestamp;
 
         WT_ERR(__wt_scr_alloc(session, 0, &buf));
-        WT_ERR(__wt_buf_fmt(
-          session, buf, "%.*s\ntimestamp=%" PRIx64, (int)cval.len, cval.str, checkpoint_timestamp));
+        WT_ERR(__wt_buf_fmt(session, buf,
+          "%.*s\n"
+          "timestamp=%" PRIx64,
+          (int)cval.len, cval.str, checkpoint_timestamp));
         WT_ERR(
           __wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf, &lsn));
         WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_meta_lsn, lsn);
@@ -179,7 +181,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
         /* Check if we need to include any other metadata keys. */
         if (WT_SUFFIX_MATCH(block_disagg->name, ".wt")) {
-            /* TODO: Less hacky way of finding related metadata. */
+            /* TODO: Change this hack to a nicer way of finding related metadata. */
 
             WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", block_disagg->name));
             md_key[strlen(md_key) - 3] = '\0'; /* Remove the .wt suffix */
@@ -208,7 +210,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
         /* Check if we need to include any other metadata keys for layered tables. */
         if (WT_SUFFIX_MATCH(block_disagg->name, ".wt_stable")) {
-            /* TODO: Less hacky way of finding related metadata. */
+            /* TODO: Change this hack to a nicer way of finding related metadata. */
 
             WT_ERR(__wt_snprintf(md_key, len, "layered:%s", block_disagg->name));
             md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */

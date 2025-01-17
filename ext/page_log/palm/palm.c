@@ -345,8 +345,8 @@ palm_kv_err(PALM *palm, WT_SESSION *session, int ret, const char *format, ...)
     if (vsnprintf(buf, sizeof(buf), format, ap) >= (int)sizeof(buf))
         wt_api->err_printf(wt_api, session, "palm: error overflow");
     lmdb_error = mdb_strerror(ret);
-    wt_api->err_printf(wt_api, session, "palm lmdb: %s: %s", lmdb_error, buf);
-    PALM_VERBOSE_PRINT(palm, "palm lmdb: %s: %s\n", lmdb_error, buf);
+    wt_api->err_printf(wt_api, session, "palm LMDB: %s: %s", lmdb_error, buf);
+    PALM_VERBOSE_PRINT(palm, "palm LMDB: %s: %s\n", lmdb_error, buf);
     va_end(ap);
 
     return (WT_ERROR);
@@ -705,7 +705,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
         /* FIXME-SLS-950: Fix the sporadic failure in test_layered06. */
 #if 0
-        /* Validate backlinks. */
+        /* Validate back links. */
         if (count > 0) {
             if (matches.backlink_lsn != last_lsn)
                 PALM_KV_ERR(palm, session, EINVAL);
@@ -909,7 +909,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     PALM_KV_ERR(palm, NULL, connection->add_page_log(connection, "palm", &palm->page_log, NULL));
     PALM_KV_ERR(palm, NULL, palm_kv_env_create(&palm->kv_env, palm->cache_size_mb));
 
-    /* Build the lmdb home string. */
+    /* Build the LMDB home string. */
     home = connection->get_home(connection);
     len = strlen(home) + 20;
     palm->kv_home = malloc(len);
@@ -920,7 +920,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     strncpy(palm->kv_home, home, len);
     strncat(palm->kv_home, "/kv_home", len);
 
-    /* Create the lmdb home, or if it exists, use what is already there. */
+    /* Create the LMDB home, or if it exists, use what is already there. */
     ret = mkdir(palm->kv_home, 0777);
     if (ret != 0) {
         ret = errno;
@@ -932,7 +932,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         }
     }
 
-    /* Open the lmdb environment. */
+    /* Open the LMDB environment. */
     PALM_KV_ERR(palm, NULL, palm_kv_env_open(palm->kv_env, palm->kv_home));
 
 err:
