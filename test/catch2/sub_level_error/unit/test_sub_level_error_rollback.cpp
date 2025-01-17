@@ -89,13 +89,54 @@ TEST_CASE("Test functions for error handling in rollback workflows",
 
     SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking")
     {
-        // Say that we have 1 change to make and set transaction running to true.
+        // Set transaction as prepared.
+        F_SET(session_impl->txn, WT_TXN_PREPARE);
+
+        // Check is transaction is prepared
+        CHECK(__wt_txn_is_blocking(session_impl) == 0);
+        check_error_info(err_info, 0, WT_NONE, "");
+        // Clear flag.
+        F_CLR(session_impl->txn, WT_TXN_PREPARE);
+
+        // Check if there are no updates, the thread operation did not time
+        // out and the operation is not running in a transaction.
+        CHECK(__wt_txn_is_blocking(session_impl) == 0);
+        check_error_info(err_info, 0, WT_NONE, "");
+
+        // Say that we have 1 modification.
         session_impl->txn->mod_count = 1;
+
+        CHECK(__wt_txn_is_blocking(session_impl) == 0);
+        check_error_info(err_info, 0, WT_NONE, "");
+
+        // Set operations timers to low value.
+        session_impl->operation_start_us = session_impl->operation_timeout_us = 1;
+        CHECK(__wt_txn_is_blocking(session_impl) == 0);
+        check_error_info(err_info, 0, WT_NONE, "");
+        // Reset values.
+        session_impl->operation_start_us = session_impl->operation_timeout_us = 0;
+
+        CHECK(__wt_txn_is_blocking(session_impl) == 0);
+        check_error_info(err_info, 0, WT_NONE, "");
+
+        // Set transaction running to true.
         F_SET(session_impl, WT_TXN_RUNNING);
 
-        // Set transaction's ID and pinned ID to be equal to the oldest transaction ID.
+        // Checking IDs
+        CHECK(__wt_txn_is_blocking(session_impl) == 0);
+        check_error_info(err_info, 0, WT_NONE, "");
+
+        // Set transaction's ID to be equal to the oldest transaction ID.
         WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session_impl);
-        txn_shared->id = txn_shared->pinned_id = S2C(session)->txn_global.oldest_id;
+        txn_shared->id = S2C(session)->txn_global.oldest_id;
+
+        CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
+        check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
+          "Transaction has the oldest pinned transaction ID");
+
+        // Set pinned ID to be equal to the oldest transaction ID.
+        txn_shared->id = 0;
+        txn_shared->pinned_id = S2C(session)->txn_global.oldest_id;
 
         CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
