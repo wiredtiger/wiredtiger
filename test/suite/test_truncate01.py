@@ -48,7 +48,7 @@ class test_truncate_base(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ignoreStdoutPattern('WT_VERB_RTS')
-    
+
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader"),'
 
