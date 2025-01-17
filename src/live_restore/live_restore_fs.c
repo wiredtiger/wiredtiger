@@ -171,6 +171,13 @@ __live_restore_fs_create_tombstone(
     lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
 
+    /*
+     * TODO: This is a big old race where we set this flag outside a lock and therefore have no idea
+     * if we will actually create a tombstone after we clear the tombstones.
+     */
+    if (lr_fs->finished)
+        return(0);
+
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, name, &path));
     WT_ERR(__live_restore_create_tombstone_path(
@@ -916,6 +923,60 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 err:
     __wt_free(session, buf);
 
+    return (ret);
+}
+
+/*
+ * __wti_live_restore_cleanup_tombstones --
+ *     Remove all tombstone files from the database.
+ */
+int
+__wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WTI_LIVE_RESTORE_FS *fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
+    WT_FILE_SYSTEM *os_fs = fs->os_file_system;
+    WT_SESSION *wt_session = (WT_SESSION *)session;
+
+    char **files;
+    char *logpath, *filepath;
+    uint32_t count = 0;
+    WT_DECL_ITEM(buf);
+
+    fs->finished = true;
+
+    /* Remove tombstones in the destination directory. */
+    WT_RET(os_fs->fs_directory_list(os_fs, wt_session, fs->destination.home, NULL, &files, &count));
+    for (uint32_t i = 0; i < count; i++) {
+        if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+            WT_ERR(__live_restore_create_file_path(session, &fs->destination, files[i], &filepath));
+            __wt_verbose_info(
+              session, WT_VERB_LIVE_RESTORE, "Removing tombstone file %s", filepath);
+            WT_ERR(os_fs->fs_remove(os_fs, wt_session, filepath, 0));
+        }
+    }
+    if (F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
+        WT_ERR(__wt_scr_alloc(session, 1024, &buf));
+
+        WT_ERR(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
+
+        /* Remove tombstones in the log path. */
+        WT_ERR(__live_restore_create_file_path(session, &fs->destination, (char*)conn->log_mgr.log_path, &logpath));
+        WT_ERR(os_fs->fs_directory_list(
+          os_fs, wt_session, logpath, NULL, &files, &count));
+        for (uint32_t i = 0; i < count; i++) {
+            if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+                WT_ERR(__wt_buf_fmt(session, buf, "%s/%s", logpath, files[i]));
+                __wt_verbose_info(
+                  session, WT_VERB_LIVE_RESTORE, "Removing log directory tombstone file %s", (char*)buf->data);
+                WT_ERR(os_fs->fs_remove(os_fs, wt_session, buf->data, 0));
+            }
+        }
+    }
+err:
+    WT_TRET(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
+    __wt_scr_free(session, &buf);
     return (ret);
 }
 
