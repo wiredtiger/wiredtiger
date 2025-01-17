@@ -56,4 +56,20 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
         REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, WT_ERROR_INFO_SUCCESS) == 0);
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
+
+    SECTION("Test with large error message")
+    {
+        const char *err_msg_content =
+          "WiredTiger is a production quality, high performance, scalable, NoSQL, Open Source "
+          "extensible platform for data management. WiredTiger is developed and maintained by "
+          "MongoDB, Inc., where it is the principal database storage engine. WiredTiger supports "
+          "row-oriented storage (where all columns of a row are stored together), and "
+          "column-oriented storage (where columns are stored in groups, allowing for more "
+          "efficient access and storage of column subsets). WiredTiger includes ACID transactions "
+          "with standard isolation levels and durability at both checkpoint and commit-level "
+          "granularity. WiredTiger can be used as a simple key/value store, but also has a "
+          "complete schema layer, including indices and projections.";
+        REQUIRE(__wt_session_set_last_error(session_impl, EINVAL, WT_NONE, err_msg_content) == 0);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
+    }
 }
