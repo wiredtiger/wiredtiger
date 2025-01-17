@@ -1030,31 +1030,6 @@ log_configuration_common = [
         type='boolean')
 ]
 
-# wiredtiger_open and WT_CONNECTION.reconfigure layered table log configurations.
-layered_table_log_configuration_common = [
-    Config('archive', 'true', r'''
-        automatically remove unneeded layered table log files (deprecated)''',
-        type='boolean', undoc=True),
-    Config('os_cache_dirty_pct', '0', r'''
-        maximum dirty system buffer cache usage, as a percentage of the layered table log's \c file_max.
-        If non-zero, schedule writes for dirty blocks belonging to the log in the system buffer
-        cache after that percentage of the log has been written into the buffer cache without
-        an intervening file sync.''',
-        min='0', max='100'),
-    Config('prealloc', 'true', r'''
-        pre-allocate layered table log files''',
-        type='boolean'),
-    Config('prealloc_init_count', '1', r'''
-        initial number of pre-allocated layered table log files''',
-        min='1', max='500'),
-    Config('remove', 'true', r'''
-        automatically remove unneeded layered table log files''',
-        type='boolean'),
-    Config('zero_fill', 'false', r'''
-        manually write zeroes into layered table log files''',
-        type='boolean')
-]
-
 connection_reconfigure_log_configuration = [
     Config('log', '', r'''
         enable logging. Enabling logging uses three sessions from the configured session_max''',
