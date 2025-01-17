@@ -624,7 +624,7 @@ __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD
 
     WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
 
-    return (ret);
+    return (0);
 }
 
 /*
