@@ -749,7 +749,6 @@ __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC
 int
 __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-    WT_ASSERT(session, false);
     WT_RET_MSG(session, ENOTSUP, "unsupported object operation: %s", uri);
 }
 
