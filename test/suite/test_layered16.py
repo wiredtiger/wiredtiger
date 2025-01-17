@@ -30,6 +30,12 @@ import os, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 
+# We support using the reset operation to pick up the latest checkpoint for layered: URIs.
+# In milestone 4, however, layered URIs are not used, and the way we pick up the latest checkpoint
+# is a bit hacky.  We still want to verify that this technique works, at least for a while.
+# The milestone 4 specific code is marked by this variable:
+test_milestone4 = True
+
 # test_layered16.py
 #    Extra tests for follower picking up new checkpoints.
 class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
@@ -42,10 +48,10 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
     create_session_config = 'key_format=S,value_format=S'
 
     layered_uris = ["layered:test_layered16a", "layered:test_layered16b"]
-    #layered_uris = ["layered:test_layered16a"]
-    other_uris = ["file:test_layered16c", "table:test_layered16d"]
-    other_uris = []
-    all_uris = layered_uris + other_uris
+    all_uris = layered_uris
+    if test_milestone4:
+        other_uris = ["file:test_layered16c", "table:test_layered16d"]
+        all_uris += other_uris
 
     disagg_storages = gen_disagg_storages('test_layered16', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
@@ -62,6 +68,33 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Create the home directory for the PALM k/v store, and share it with the follower.
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
+
+    # Open a cursor on the follower.  Generally, the test will open a layered: uri.
+    # But we want to temporarily support a world in M4 where we must directly open the
+    # stable table, using a file: or table: . This is needed because in this world we don't
+    # pre-create the ingest tables needed to use a layered: uri.
+    def open_follow_cursor(self, session, uri):
+        config = None
+        if test_milestone4:
+            if uri.startswith('table:') or uri.startswith('file:'):
+                #self.tty(f'\n\n**** OPENING FOLLOW CURSOR {uri} with force=true ****\n')
+                config = 'force=true'
+        return session.open_cursor(uri, None, config)
+
+    # Reset a cursor on the follower.  Generally, the test will open a layered: uri,
+    # and a reset is a signal have the cursor move to the next checkpoint. This works
+    # for layered cursors but not cursors in general.  In the m4 milestone where we don't
+    # use a layered cursor, to get similar behavior, we need to reopen the cursor.
+    def reset_follow_cursor(self, cursor):
+        if test_milestone4:
+            uri = cursor.uri
+            if uri.startswith('table:') or uri.startswith('file:'):
+                #self.tty(f'\n\n**** INSTEAD OF RESET, REOPEN FOLLOW CURSOR {uri} with force=true ****\n')
+                session = cursor.session
+                cursor = session.open_cursor(uri, None, 'force=true')
+                return cursor
+        cursor.reset()
+        return cursor
 
     # Test more than one table.
     def test_layered16(self):
@@ -98,7 +131,7 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Check data in the follower
         self.disagg_advance_checkpoint(conn_follow)
         for uri in self.all_uris:
-            cursor = session_follow.open_cursor(uri, None, None)
+            cursor = self.open_follow_cursor(session_follow, uri)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix0 + str(i))
             cursor.close()
@@ -121,30 +154,11 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
         time.sleep(1)
 
-        mcur = session_follow.open_cursor("metadata:")
-        oldmeta = dict()
-        for (k, v) in mcur:
-            self.tty(f'Metadata: {k} => {v}')
-            oldmeta[k] = v
-        mcur.close()
-
         # Check data in the follower
         self.disagg_advance_checkpoint(conn_follow)
-        self.tty(f'\n\n*****  ADVANCE CHECKPOiNT TO {self.disagg_get_complete_checkpoint(None)}\n\n')
-        self.tty('')
-        mcur = session_follow.open_cursor("metadata:")
-        newmeta = dict()
-        for (k, v) in mcur:
-            self.tty(f'Metadata: {k} => {v}')
-            newmeta[k] = v
-        mcur.close()
-        for k in oldmeta:
-            if newmeta[k] != oldmeta[k]:
-                self.tty(f' Diff: {k} => {oldmeta[k]}, {newmeta[k]}')
-
         for uri in self.all_uris:
             self.pr(f'{uri}: Open a cursor')
-            cursor = session_follow.open_cursor(uri, None, None)
+            cursor = self.open_follow_cursor(session_follow, uri)
             follower_cursors[uri] = cursor
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
@@ -168,14 +182,12 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1)
 
         # Check data in the follower
-        self.tty(f'\n\n*****  ADVANCE CHECKPOiNT TO {self.disagg_get_complete_checkpoint(None)}\n\n')
-        self.tty('')
         self.disagg_advance_checkpoint(conn_follow)
         for uri in self.all_uris:
             self.pr(f'{uri}: Close and reopen the cursor')
             if uri in follower_cursors:
                 follower_cursors[uri].close()
-            cursor = session_follow.open_cursor(uri, None, None)
+            cursor = self.open_follow_cursor(session_follow, uri)
             follower_cursors[uri] = cursor
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
@@ -203,14 +215,7 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.all_uris:
             self.pr(f'{uri}: Reset and reuse the cursor')
             cursor = follower_cursors[uri]
-
-            #####
-            #cursor.close()
-            #cursor = self.session.open_cursor(uri, None, None)
-            #follower_cursors[uri] = cursor
-            #####
-
-            cursor.reset()
+            cursor = self.reset_follow_cursor(cursor)
             for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value_prefix3 + str(i))
 
