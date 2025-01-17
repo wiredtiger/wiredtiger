@@ -2199,6 +2199,17 @@ tasks:
         vars:
           unit_test_args: -v 2 -R cursor13 join02 join07 schema03 timestamp22
 
+  - name: unit-test-hook-disagg
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # The absolute minimum test to make sure that the hook works.
+          unit_test_args: -v 2 --hook disagg base01
+
   - name: unit-test-hook-tiered
     tags: ["python"]
     depends_on:
@@ -5555,6 +5566,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
+    - name: unit-test-hook-disagg
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp

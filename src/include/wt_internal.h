@@ -602,7 +602,6 @@ typedef uint64_t wt_timestamp_t;
 #include "column_inline.h"
 #include "conf_inline.h"
 #include "cursor_inline.h"
-#include "layered_table_log_inline.h"
 #include "log_inline.h"
 #include "os_fhandle_inline.h"
 #include "os_fs_inline.h"

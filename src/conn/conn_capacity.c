@@ -378,12 +378,6 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
         WT_STAT_CONN_INCRV(session, capacity_bytes_evict, bytes);
         WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
         break;
-    case WT_THROTTLE_LAYERED_TABLE_LOG:
-        capacity = cap->layered_table_log;
-        reservation = &cap->reservation_layered_table_log;
-        WT_STAT_CONN_INCRV(session, capacity_bytes_layered_table_log, bytes);
-        WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
-        break;
     case WT_THROTTLE_LOG:
         capacity = cap->log;
         reservation = &cap->reservation_log;
@@ -505,9 +499,6 @@ again:
                 break;
             case WT_THROTTLE_EVICT:
                 WT_STAT_CONN_INCRV(session, capacity_time_evict, sleep_us);
-                break;
-            case WT_THROTTLE_LAYERED_TABLE_LOG:
-                WT_STAT_CONN_INCRV(session, capacity_time_layered_table_log, sleep_us);
                 break;
             case WT_THROTTLE_LOG:
                 WT_STAT_CONN_INCRV(session, capacity_time_log, sleep_us);

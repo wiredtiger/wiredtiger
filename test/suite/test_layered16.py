@@ -27,13 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, os.path, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered16.py
 #    Test layered table modify
+@disagg_test_class
 class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm,role="leader"),'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -42,6 +43,10 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
     scenarios = make_scenarios(disagg_storages)
 
     num_restarts = 0
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):

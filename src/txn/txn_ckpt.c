@@ -1328,13 +1328,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
     }
 
-    /* Checkpoint the shared metadata table last, as it could have changed. */
-    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
-        if (S2BT(session)->modified)
-            WT_ERR(__wt_checkpoint(session, cfg));
-    }
-
     /*
      * As part of recovery, rollback to stable may have left out clearing stale transaction ids.
      * Update the connection base write generation based on the latest checkpoint write generations
@@ -1426,6 +1419,20 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (full || !logging) {
         session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
+
+        /*
+         * Checkpoint the shared metadata table last, as it could have changed. Also checkpoint it
+         * after we have released the checkpoint transaction. Otherwise, during the checkpoint, we
+         * have reconciled the pages on the tree and may have cleaned them (checkpoint can see its
+         * own uncommitted updates). In that case, we may evict it and the checkpoint transaction
+         * cannot commit as the updates have gone from memory.
+         */
+        if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+            WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
+            if (S2BT(session)->modified)
+                WT_ERR(__wt_checkpoint(session, cfg));
+        }
+
         /* Disable metadata tracking during the metadata checkpoint. */
         saved_meta_next = session->meta_track_next;
         session->meta_track_next = NULL;

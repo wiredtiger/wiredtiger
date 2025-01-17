@@ -28,12 +28,13 @@
 
 import wttest
 import wiredtiger
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered09.py
 # Simple read write testing for leaf page delta
 
+@disagg_test_class
 class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
@@ -50,7 +51,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('btree', dict(uri='file:test_layered09')),
     ]
 
-    conn_base_config = 'layered_table_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered09', disagg_only = True)
 
@@ -59,16 +60,12 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     nitems = 1000
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
-
     def session_create_config(self):
         # The delta percentage of 200 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
         cfg = 'disaggregated=(delta_pct=20),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
-            cfg += ',block_manager=disagg,layered_table_log=(enabled=false)'
+            cfg += ',block_manager=disagg'
         return cfg
 
     def conn_config(self):

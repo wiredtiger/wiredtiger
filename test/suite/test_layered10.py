@@ -27,15 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered10.py
 #    Additional layered table & cursor methods.
+@disagg_test_class
 class test_layered10(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 100_000
 
-    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
@@ -43,10 +44,6 @@ class test_layered10(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     disagg_storages = gen_disagg_storages('test_layered10', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):

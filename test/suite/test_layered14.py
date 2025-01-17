@@ -28,24 +28,21 @@
 
 import wttest
 import wiredtiger
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered14.py
 # Simple testing for layered random cursor
+@disagg_test_class
 class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
-    conn_base_config = 'layered_table_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered14', disagg_only = True)
     uri = "layered:test_layered13"
     nitems = 1000
 
     scenarios = make_scenarios(disagg_storages)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     def conn_config(self):
         return self.conn_base_config + 'disaggregated=(role="leader")'

@@ -27,12 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered08.py
 # Simple read write testing using the page log API
 
+@disagg_test_class
 class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
@@ -44,17 +45,13 @@ class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('snappy', dict(block_compress='snappy')),
     ]
 
-    conn_base_config = 'layered_table_log=(enabled),transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered08', disagg_only = True)
 
     scenarios = make_scenarios(encrypt, compress, disagg_storages)
 
     nitems = 10000
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     def conn_config(self):
         enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)

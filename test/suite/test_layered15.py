@@ -27,15 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, os.path, shutil, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered15.py
 #    Start without local files.
+@disagg_test_class
 class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
-    conn_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm,role="follower"),'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -52,10 +53,6 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     scenarios = make_scenarios(disagg_storages)
 
     num_restarts = 0
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -121,7 +118,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.all_uris:
             cfg = self.create_session_config
             if not uri.startswith('layered'):
-                cfg += ',block_manager=disagg,layered_table_log=(enabled=false),log=(enabled=false)'
+                cfg += ',block_manager=disagg,log=(enabled=false)'
             self.session.create(uri, cfg)
 
         # Put data to tables

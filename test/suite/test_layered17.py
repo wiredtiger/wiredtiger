@@ -27,15 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, os.path, shutil, time, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered17.py
 #    Check timestamps.
+@disagg_test_class
 class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
-    conn_base_config = 'layered_table_log=(enabled),statistics=(all),' \
+    conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'checkpoint=(precise=true),disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
@@ -74,7 +75,7 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.uri = self.prefix + self.table_name
         table_config = self.create_session_config
         if not self.uri.startswith('layered'):
-            table_config += ',block_manager=disagg,layered_table_log=(enabled=false),log=(enabled=false)'
+            table_config += ',block_manager=disagg,log=(enabled=false)'
         self.session.create(self.uri, table_config)
 
         #
