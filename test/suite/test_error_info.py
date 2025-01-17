@@ -115,6 +115,11 @@ class test_error_info(compact_util):
         self.assertEqual(self.session.drop(self.uri, None), 0)
 
     def test_api_call_alternating(self):
+        """
+        Test that successive API calls correctly set the error codes and message. The stored
+        codes/message should reflect the result of the most recent API call, regardless of whether
+        it failed or succeeded.
+        """
         self.assert_error_equal(0, wiredtiger.WT_NONE, "")
         self.test_success()
         self.test_einval_wt_background_compaction_already_running()
@@ -127,6 +132,10 @@ class test_error_info(compact_util):
         self.test_success()
 
     def test_api_call_doubling(self):
+        """
+        Test that successive API calls with the same outcome result in the same error codes and
+        message being stored. The codes/message should only change when the result changes.
+        """
         self.assert_error_equal(0, wiredtiger.WT_NONE, "")
         self.test_success()
         self.test_success()

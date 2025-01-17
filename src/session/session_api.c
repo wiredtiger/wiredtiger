@@ -351,7 +351,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     __wt_free(session, session->err_info.err_msg_buf);
 
     /* Make sure no new error messages are saved during the close call. */
-    WT_TRET(__wt_session_set_last_error(session, 0, WT_NONE, WT_ERROR_INFO_EMPTY));
+    memset(&(session->err_info), 0, sizeof(WT_ERROR_INFO));
     F_CLR(session, WT_SESSION_SAVE_ERRORS);
 
     /* Close all open cursors while the cursor cache is disabled. */
@@ -2495,7 +2495,6 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     /* Initialize the default error info, including a buffer for the error message. */
     WT_ERR(__wt_calloc_one(session, &err_msg_buf));
     WT_ERR(__wt_buf_init(session, err_msg_buf, err_msg_buf_size));
-    F_SET(err_msg_buf, WT_ITEM_INUSE);
 
     session_ret->err_info.err_msg = NULL;
     session_ret->err_info.err_msg_buf = err_msg_buf;
