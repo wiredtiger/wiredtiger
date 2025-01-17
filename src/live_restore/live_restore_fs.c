@@ -22,14 +22,14 @@ static int __live_restore_fs_directory_list_free(
  */
 static int
 __live_restore_create_file_path(
-  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS_LAYER *layer, char *name, char **filepathp)
+  WT_SESSION_IMPL *session, const char *directory, char *name, char **filepathp)
 {
     char *base_name = basename(name);
     /* +1 for the path separator, +1 for the null terminator. */
-    size_t len = strlen(layer->home) + 1 + strlen(base_name) + 1;
+    size_t len = strlen(directory) + 1 + strlen(base_name) + 1;
 
     WT_RET(__wt_calloc(session, 1, len, filepathp));
-    WT_RET(__wt_snprintf(*filepathp, len, "%s%s%s", layer->home, __wt_path_separator(), base_name));
+    WT_RET(__wt_snprintf(*filepathp, len, "%s%s%s", directory, __wt_path_separator(), base_name));
 
     return (0);
 }
@@ -176,7 +176,9 @@ __live_restore_fs_create_tombstone(
      * if we will actually create a tombstone after we clear the tombstones.
      */
     if (lr_fs->finished)
-        return(0);
+        return (0);
+
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "Creating tombstone: %s", path_marker);
 
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, name, &path));
@@ -190,8 +192,6 @@ __live_restore_fs_create_tombstone(
     WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, &session->iface, path_marker,
       WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
     WT_ERR(fh->close(fh, &session->iface));
-
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "Creating tombstone: %s", path_marker);
 
 err:
     __wt_free(session, path);
@@ -362,8 +362,8 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
                  * We're iterating files in the source, but we want to check if they exist in the
                  * destination, so create the file path to the backing destination file.
                  */
-                WT_ERR(__live_restore_create_file_path(
-                  session, &lr_fs->destination, dirlist_src[i], &temp_path));
+                WT_ERR(
+                  __live_restore_create_file_path(session, directory, dirlist_src[i], &temp_path));
                 WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(
                                      lr_fs, &lr_fs->destination, session, temp_path, &dest_exist),
                   false);
@@ -950,7 +950,8 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
     WT_RET(os_fs->fs_directory_list(os_fs, wt_session, fs->destination.home, NULL, &files, &count));
     for (uint32_t i = 0; i < count; i++) {
         if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
-            WT_ERR(__live_restore_create_file_path(session, &fs->destination, files[i], &filepath));
+            WT_ERR(
+              __live_restore_create_file_path(session, fs->destination.home, files[i], &filepath));
             __wt_verbose_info(
               session, WT_VERB_LIVE_RESTORE, "Removing tombstone file %s", filepath);
             WT_ERR(os_fs->fs_remove(os_fs, wt_session, filepath, 0));
@@ -962,14 +963,14 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
         WT_ERR(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
 
         /* Remove tombstones in the log path. */
-        WT_ERR(__live_restore_create_file_path(session, &fs->destination, (char*)conn->log_mgr.log_path, &logpath));
-        WT_ERR(os_fs->fs_directory_list(
-          os_fs, wt_session, logpath, NULL, &files, &count));
+        WT_ERR(__live_restore_create_file_path(
+          session, fs->destination.home, (char *)conn->log_mgr.log_path, &logpath));
+        WT_ERR(os_fs->fs_directory_list(os_fs, wt_session, logpath, NULL, &files, &count));
         for (uint32_t i = 0; i < count; i++) {
             if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
                 WT_ERR(__wt_buf_fmt(session, buf, "%s/%s", logpath, files[i]));
-                __wt_verbose_info(
-                  session, WT_VERB_LIVE_RESTORE, "Removing log directory tombstone file %s", (char*)buf->data);
+                __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+                  "Removing log directory tombstone file %s", (char *)buf->data);
                 WT_ERR(os_fs->fs_remove(os_fs, wt_session, buf->data, 0));
             }
         }
@@ -1319,7 +1320,7 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
         WT_RET_MSG(session, ENOENT, "Directory %s does not exist in source or destination", name);
 
     WT_RET(__live_restore_create_file_path(
-      session, &lr_fs->destination, (char *)name, &dest_folder_path));
+      session, lr_fs->destination.home, (char *)name, &dest_folder_path));
 
     if (!dest_exist) {
         /*
