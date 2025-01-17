@@ -329,6 +329,9 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
             }
     }
 
+    if (lr_fs->finished)
+        goto done;
+
     /* Get files from source. */
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->source, session, lr_fs->destination.home, directory, &path_src));
@@ -1568,6 +1571,7 @@ __live_restore_fs_rename(
      */
     __wt_verbose_debug1(
       session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE: Renaming file from: %s to %s", from, to);
+
     WT_RET(__live_restore_fs_find_layer(fs, session, from, &which, &exist));
     if (!exist)
         WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", from);
@@ -1701,6 +1705,8 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
         WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
         /* Call log open file to generate the full path to the log file. */
         WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
+        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+            "Transferring log file from source to dest: %s\n", fh->name);
         /*
          * We intentionally do not call the WiredTiger copy and sync function as we are copying
          * between layers and that function copies between two paths. This is the same "path" from
@@ -1719,6 +1725,8 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
         WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
         /* We cannot utilize the log open file code as it doesn't support prep logs. */
         WT_ERR(__wt_log_filename(session, lognum, WTI_LOG_PREPNAME, filename));
+        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+            "Transferring preplog file from source to dest: %s\n", (char*)filename->data);
         WT_ERR(__wt_open(
           session, (char *)filename->data, WT_FS_OPEN_FILE_TYPE_LOG, WT_FS_OPEN_ACCESS_SEQ, &fh));
         ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
