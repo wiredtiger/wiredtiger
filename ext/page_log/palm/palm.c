@@ -662,6 +662,19 @@ err:
     return (ret);
 }
 
+#define PALM_GET_VERIFY_EQUAL(a, b)                                                                \
+    {                                                                                              \
+        if ((a) != (b)) {                                                                          \
+            ret = palm_kv_err(palm, session, EINVAL,                                               \
+              "%s:%d: Delta chain validation failed at position %" PRIu32                          \
+              ": %s != %s. Page details: table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64  \
+              ", %s=%" PRIu64 ", %s=%" PRIu64,                                                     \
+              __func__, __LINE__, count, #a, #b, palm_handle->table_id, page_id, lsn, #a, (a), #b, \
+              (b));                                                                                \
+            goto err;                                                                              \
+        }                                                                                          \
+    }
+
 static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
@@ -703,31 +716,20 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         PALM_KV_ERR(palm, session, palm_resize_item(&results_array[count], matches.size));
         memcpy(results_array[count].mem, matches.data, matches.size);
 
-        /* FIXME-SLS-950: Fix the sporadic failure in test_layered06. */
-#if 0
         /* Validate backlinks. */
         if (count > 0) {
-            if (matches.backlink_lsn != last_lsn)
-                PALM_KV_ERR(palm, session, EINVAL);
-            if (matches.backlink_checkpoint_id != last_checkpoint_id)
-                PALM_KV_ERR(palm, session, EINVAL);
+            PALM_GET_VERIFY_EQUAL(matches.backlink_lsn, last_lsn);
+            PALM_GET_VERIFY_EQUAL(matches.backlink_checkpoint_id, last_checkpoint_id);
         }
 
         /* Validate base. */
         if (count == 1) {
-            if (matches.base_lsn != last_lsn)
-                PALM_KV_ERR(palm, session, EINVAL);
-            if (matches.base_checkpoint_id != last_checkpoint_id)
-                PALM_KV_ERR(palm, session, EINVAL);
+            PALM_GET_VERIFY_EQUAL(matches.base_lsn, last_lsn);
+            PALM_GET_VERIFY_EQUAL(matches.base_checkpoint_id, last_checkpoint_id);
         } else if (count > 1) {
-            if (matches.base_lsn != get_args->base_lsn)
-                PALM_KV_ERR(palm, session, EINVAL);
-            if (matches.base_checkpoint_id != get_args->base_checkpoint_id)
-                PALM_KV_ERR(palm, session, EINVAL);
+            PALM_GET_VERIFY_EQUAL(matches.base_lsn, get_args->base_lsn);
+            PALM_GET_VERIFY_EQUAL(matches.base_checkpoint_id, get_args->base_checkpoint_id);
         }
-#endif
-        (void)last_lsn;
-        (void)last_checkpoint_id;
 
         last_lsn = matches.lsn;
         last_checkpoint_id = matches.checkpoint_id;
