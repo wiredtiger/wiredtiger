@@ -749,6 +749,7 @@ __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC
 int
 __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
+    WT_ASSERT(session, false);
     WT_RET_MSG(session, ENOTSUP, "unsupported object operation: %s", uri);
 }
 
@@ -764,7 +765,7 @@ __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTR
       WT_PREFIX_MATCH(uri, "index:") || WT_PREFIX_MATCH(uri, "log:") ||
       WT_PREFIX_MATCH(uri, "lsm:") || WT_PREFIX_MATCH(uri, "object:") ||
       WT_PREFIX_MATCH(uri, "statistics:") || WT_PREFIX_MATCH(uri, "table:") ||
-      WT_PREFIX_MATCH(uri, "tiered:"))
+      WT_PREFIX_MATCH(uri, "tiered:") || WT_PREFIX_MATCH(uri, "layered:"))
         return (__wt_object_unsupported(session, uri));
 
     WT_RET_MSG(session, ENOTSUP, "unknown object type: %s", uri);

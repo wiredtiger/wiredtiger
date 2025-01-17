@@ -36,17 +36,35 @@
 
 import wiredtiger, wttest
 from helper import confirm_empty
+from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtdataset import SimpleDataSet, ComplexDataSet, simple_key
 from wtscenario import make_scenarios
 
+class test_truncate_base(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+    disagg_storages = gen_disagg_storages('test_truncate', disagg_only = True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
+    # Load the storage store extension.
+    def conn_extensions(self, extlist):
+        DisaggConfigMixin.conn_extensions(self, extlist)
+
 # Test truncation arguments.
-class test_truncate_arguments(wttest.WiredTigerTestCase):
+class test_truncate_arguments(test_truncate_base):
     name = 'test_truncate'
 
-    scenarios = make_scenarios([
+    scenarios = make_scenarios(test_truncate_base.disagg_storages, [
         ('file', dict(type='file:')),
-        ('table', dict(type='table:'))
+        ('table', dict(type='table:')),
+        ('layered', dict(type='layered:'))
     ])
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Test truncation without URI or cursors specified, or with a URI and
     # either cursor specified, expect errors.
@@ -83,12 +101,17 @@ class test_truncate_arguments(wttest.WiredTigerTestCase):
         c2.close()
 
 # Test truncation of an object using its URI.
-class test_truncate_uri(wttest.WiredTigerTestCase):
+class test_truncate_uri(test_truncate_base):
     name = 'test_truncate'
-    scenarios = make_scenarios([
+
+    scenarios = make_scenarios(test_truncate_base.disagg_storages, [
         ('file', dict(type='file:')),
-        ('table', dict(type='table:'))
+        ('table', dict(type='table:')),
+        ('layered', dict(type='layered:'))
     ])
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Populate an object, truncate it by URI, and confirm it's empty.
     def test_truncate_uri(self):
@@ -100,7 +123,10 @@ class test_truncate_uri(wttest.WiredTigerTestCase):
 
         ds.truncate(uri, None, None, None)
         confirm_empty(self, uri)
-        self.dropUntilSuccess(self.session, uri)
+
+        # TODO: layered table drop not supported yet.
+        if self.type != "layered:":
+            self.dropUntilSuccess(self.session, uri)
 
         if self.type == "table:":
             cds = ComplexDataSet(self, uri, 100)
@@ -110,22 +136,29 @@ class test_truncate_uri(wttest.WiredTigerTestCase):
             self.dropUntilSuccess(self.session, uri)
 
 # Test truncation of cursors in an illegal order.
-class test_truncate_cursor_order(wttest.WiredTigerTestCase):
+class test_truncate_cursor_order(test_truncate_base):
     name = 'test_truncate'
 
     types = [
         ('file', dict(type='file:')),
-        ('table', dict(type='table:'))
+        ('table', dict(type='table:')),
+        ('layered', dict(type='layered:'))
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
         ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
-    scenarios = make_scenarios(types, keyfmt)
+    scenarios = make_scenarios(test_truncate_base.disagg_storages, types, keyfmt)
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Test an illegal order, then confirm that equal cursors works.
     def test_truncate_cursor_order(self):
+        if self.type == 'layered:' and self.keyfmt == 'r':
+            return
+
         uri = self.type + self.name
         ds = SimpleDataSet(self, uri, 100, key_format=self.keyfmt)
         ds.populate()
@@ -142,22 +175,29 @@ class test_truncate_cursor_order(wttest.WiredTigerTestCase):
         ds.truncate(None, c1, c2, None)
 
 # Test truncation of cursors past the end of the object.
-class test_truncate_cursor_end(wttest.WiredTigerTestCase):
+class test_truncate_cursor_end(test_truncate_base):
     name = 'test_truncate'
 
     types = [
         ('file', dict(type='file:')),
-        ('table', dict(type='table:'))
+        ('table', dict(type='table:')),
+        ('layered', dict(type='layered:'))
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
         ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
-    scenarios = make_scenarios(types, keyfmt)
+    scenarios = make_scenarios(test_truncate_base.disagg_storages, types, keyfmt)
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Test truncation of cursors past the end of the object.
     def test_truncate_cursor_order(self):
+        if self.type == 'layered:' and self.keyfmt == 'r':
+            return
+
         uri = self.type + self.name
 
         # A simple, one-file file or table object.
@@ -170,7 +210,10 @@ class test_truncate_cursor_end(wttest.WiredTigerTestCase):
         ds.truncate(None, c1, c2, None)
         self.assertEqual(c1.close(), 0)
         self.assertEqual(c2.close(), 0)
-        self.dropUntilSuccess(self.session, uri)
+
+        # TODO: layered table drop not supported yet.
+        if self.type != "layered:":
+            self.dropUntilSuccess(self.session, uri)
 
         if self.type == "table:":
             ds = ComplexDataSet(self, uri, 100, key_format=self.keyfmt)
@@ -185,22 +228,29 @@ class test_truncate_cursor_end(wttest.WiredTigerTestCase):
             self.dropUntilSuccess(self.session, uri)
 
 # Test truncation of empty objects.
-class test_truncate_empty(wttest.WiredTigerTestCase):
+class test_truncate_empty(test_truncate_base):
     name = 'test_truncate_empty'
 
     types = [
         ('file', dict(type='file:')),
-        ('table', dict(type='table:'))
+        ('table', dict(type='table:')),
+        ('layered', dict(type='layered:'))
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
         ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
-    scenarios = make_scenarios(types, keyfmt)
+    scenarios = make_scenarios(test_truncate_base.disagg_storages, types, keyfmt)
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Test truncation of empty objects using a cursor
     def test_truncate_empty_cursor(self):
+        if self.type == 'layered:' and self.keyfmt == 'r':
+            return
+
         uri = self.type + self.name
         self.session.create(uri,
             ',key_format=' + self.keyfmt + ',value_format=S')
@@ -212,20 +262,27 @@ class test_truncate_empty(wttest.WiredTigerTestCase):
 
     # Test truncation of empty objects using a URI
     def test_truncate_empty_uri(self):
+        if self.type == 'layered:' and self.keyfmt == 'r':
+            return
+
         uri = self.type + self.name
         self.session.create(uri,
             ',key_format=' + self.keyfmt + ',value_format=S')
         self.assertEqual(self.session.truncate(uri, None, None, None), 0)
 
 # Test truncation timestamp handling.
-class test_truncate_timestamp(wttest.WiredTigerTestCase):
+class test_truncate_timestamp(test_truncate_base):
     name = 'test_truncate'
     conn_config = 'log=(enabled=true)'
 
-    scenarios = make_scenarios([
+    scenarios = make_scenarios(test_truncate_base.disagg_storages, [
         ('file', dict(type='file:')),
-        ('table', dict(type='table:'))
+        ('table', dict(type='table:')),
+        ('layered', dict(type='layered:'))
     ])
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Prevent these from running under a hook that will cause truncate to use a slow path.
     # Test truncation of an object without a timestamp, expect success.
@@ -251,7 +308,7 @@ class test_truncate_timestamp(wttest.WiredTigerTestCase):
         ds.truncate(uri, None, None, None)
 
 # Test session.truncate.
-class test_truncate_cursor(wttest.WiredTigerTestCase):
+class test_truncate_cursor(test_truncate_base):
     name = 'test_truncate'
 
     # Use a small page size because we want to create lots of pages.
@@ -264,6 +321,8 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
             config='allocation_size=512,leaf_page_max=512', P=0.25)),
         ('table', dict(type='table:', valuefmt='S',
             config='allocation_size=512,leaf_page_max=512', P=0.5)),
+        ('layered', dict(type='layered:', valuefmt='S',
+            config='allocation_size=512,leaf_page_max=512', P=0.25)),
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
@@ -279,8 +338,11 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
         ('big', dict(nentries=1000,skip=37)),
     ]
 
-    scenarios = make_scenarios(types, keyfmt, size, reopen,
+    scenarios = make_scenarios(test_truncate_base.disagg_storages, types, keyfmt, size, reopen,
         prune=10, prunelong=1000)
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Set a cursor key.
     def cursorKey(self, ds, uri, key):
@@ -292,6 +354,9 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
 
     # Truncate a range using cursors, and check the results.
     def truncateRangeAndCheck(self, ds, uri, begin, end, expected):
+        if self.type == 'layered:' and self.keyfmt == 'r':
+            return
+
         self.pr('truncateRangeAndCheck: ' + str(begin) + ',' + str(end))
         cur1 = self.cursorKey(ds, uri, begin)
         cur2 = self.cursorKey(ds, uri, end)
@@ -329,6 +394,9 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
 
     # Test truncation of files and simple tables using cursors.
     def test_truncate_simple(self):
+        if self.type == 'layered:' and self.keyfmt == 'r':
+            return
+
         uri = self.type + self.name
 
         # layout:
@@ -474,7 +542,7 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
     def test_truncate_complex(self):
 
         # We only care about tables.
-        if self.type == 'file:':
+        if self.type != 'table:':
                 return
 
         uri = self.type + self.name
