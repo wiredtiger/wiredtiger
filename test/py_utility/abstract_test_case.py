@@ -442,9 +442,18 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
 
     @staticmethod
     def simplify_name(name):
-        # Remove unnecessary information from the ID, such as the helper names.
+        '''
+        Remove unnecessary information from the ID, such as the helper names and decorators.
+        '''
+        # Remove helpers and <locals>.
         name = re.sub(r'^helper_[^.]*\.', '', name)
         name = name.replace('.<locals>', '')
+
+        # Remove parts of the name that come before the module, e.g., decorators.
+        parts = name.split('.')
+        while len(parts) > 1 and parts[0] not in sys.modules:
+            parts = parts[1:]
+        name = '.'.join(parts)
         return name
 
     def id(self):
