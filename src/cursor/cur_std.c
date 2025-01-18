@@ -1288,10 +1288,9 @@ err:
  *     WT_CURSOR->bound implementation shared between table cursors and layered cursors.
  */
 int
-__wti_cursor_bound(WT_CURSOR *cursor, const char *config, WT_COLLATOR *collator)
+__wti_cursor_bound(WT_CURSOR *cursor, WT_CONF *conf, WT_COLLATOR *collator)
 {
     WT_CONFIG_ITEM cval;
-    WT_DECL_CONF(WT_CURSOR, bound, conf);
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     int exact;
@@ -1300,9 +1299,6 @@ __wti_cursor_bound(WT_CURSOR *cursor, const char *config, WT_COLLATOR *collator)
     session = CUR2S(cursor);
     exact = 0;
     inclusive = true;
-
-    WT_RET(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
-      WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
 
     /* Action is default to "set". */
     WT_RET(__wt_conf_gets(session, conf, action, &cval));

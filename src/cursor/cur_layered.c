@@ -735,6 +735,7 @@ __clayered_bound(WT_CURSOR *cursor, const char *config)
 {
     WT_COLLATOR *collator;
     WT_CURSOR_LAYERED *clayered;
+    WT_DECL_CONF(WT_CURSOR, bound, conf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
@@ -746,9 +747,13 @@ __clayered_bound(WT_CURSOR *cursor, const char *config)
      */
     CURSOR_API_CALL(cursor, session, ret, bound, clayered->dhandle);
 
+    WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
+      WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
+
     __clayered_get_collator(clayered, &collator);
     /* Setup bounds on this top level cursor */
-    WT_ERR(__wti_cursor_bound(cursor, config, collator));
+    WT_ERR(__wti_cursor_bound(cursor, conf, collator));
+
     /*
      * Copy those bounds into the constituents. Note that the constituent cursors may not be open
      * yet, and that would be fine, the layered cursor open interface handles setting up configured

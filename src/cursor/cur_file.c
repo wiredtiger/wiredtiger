@@ -945,7 +945,9 @@ static int
 __curfile_bound(WT_CURSOR *cursor, const char *config)
 {
     WT_COLLATOR *btree_collator;
+    WT_CONFIG_ITEM cval;
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_CONF(WT_CURSOR, bound, conf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
@@ -953,14 +955,19 @@ __curfile_bound(WT_CURSOR *cursor, const char *config)
 
     CURSOR_API_CALL(cursor, session, ret, bound, NULL);
 
+    WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
+      WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
+
     if (CUR2BT(cursor)->type == BTREE_COL_FIX)
         WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with fixed column store");
-    /* TODO: limit this to cases where a bound is being set, not cleared */
-    if (WT_CURSOR_IS_POSITIONED(cbt))
+
+    /* It is illegal to set a bound on a positioned cursor (it's fine to clear one) */
+    WT_ERR(__wt_conf_gets(session, conf, action, &cval));
+    if (WT_CONF_STRING_MATCH(set, cval) && WT_CURSOR_IS_POSITIONED(cbt))
         WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
     btree_collator = CUR2BT(cursor)->collator;
 
-    WT_ERR(__wti_cursor_bound(cursor, config, btree_collator));
+    WT_ERR(__wti_cursor_bound(cursor, conf, btree_collator));
 err:
     API_END_RET_STAT(session, ret, cursor_bound);
 }
