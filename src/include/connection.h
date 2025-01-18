@@ -574,8 +574,8 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
     bool prefetch_auto_on;
     bool prefetch_available;
-#define WT_STATLOG_FILE "WiredTigerStat"
-#define WT_STATLOG_FILENAME WT_STATLOG_FILE ".%d.%H"
+
+#define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */
     wt_thread_t stat_tid;          /* Statistics log thread */
     bool stat_tid_set;             /* Statistics log thread set */
