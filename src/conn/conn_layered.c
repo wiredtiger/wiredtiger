@@ -545,7 +545,7 @@ __layered_table_manager_checkpoint_one(WT_SESSION_IMPL *session)
         if ((entry = manager->entries[i]) != NULL &&
           entry->accumulated_write_bytes > WT_LAYERED_TABLE_CHECKPOINT_THRESHOLD) {
             /*
-             * Retrieve the current tranasaction ID - ensure it actually gets read from the shared
+             * Retrieve the current transaction ID - ensure it actually gets read from the shared
              * variable here, it would lead to data loss if it was read later and included
              * transaction IDs that aren't included in the checkpoint. It's OK for it to miss IDs -
              * this requires an "at least as much" guarantee, not an exact match guarantee.
@@ -608,7 +608,6 @@ __layered_table_manager_checkpoint_one(WT_SESSION_IMPL *session)
 int
 __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
 {
-    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     WT_UNUSED(session_shared);
@@ -625,7 +624,7 @@ __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD
 
     WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
 
-    return (ret);
+    return (0);
 }
 
 /*
@@ -755,7 +754,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     leader = was_leader = conn->layered_table_manager.leader;
     npage_log = NULL;
 
-    /* Reconfig-only settings. */
+    /* Reconfigure-only settings. */
     if (reconfig) {
 
         /* Pick up a new checkpoint (followers only). */
@@ -1236,7 +1235,7 @@ err:
     return (ret);
 }
 
-/* TODO: use this function to drain the inges table */
+/* TODO: use this function to drain the ingest table */
 #ifdef __linux__
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *) __attribute__((unused));
 #endif

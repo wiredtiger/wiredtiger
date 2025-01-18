@@ -269,7 +269,7 @@ palm_kv_begin_transaction(PALM_KV_CONTEXT *context, PALM_KV_ENV *env, bool reado
 {
     context->env = env;
     context->lmdb_txn = NULL;
-    // TODO: report failures?  For all these funcs
+    /* TODO: report failures?  For all these functions */
     return (mdb_txn_begin(env->lmdb_env, NULL, readonly ? MDB_RDONLY : 0, &context->lmdb_txn));
 }
 

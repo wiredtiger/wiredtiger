@@ -968,7 +968,7 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
 
 /*
  * __clayered_modify_int --
- *     Put an modiy into the desired tree.
+ *     Put an modify into the desired tree.
  */
 static WT_INLINE int
 __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,

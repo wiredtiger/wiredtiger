@@ -900,41 +900,6 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
     return (0);
 }
 
-// /*
-//  * __btree_preload --
-//  *     Pre-load internal pages.
-//  */
-// static int
-// __btree_preload(WT_SESSION_IMPL *session)
-// {
-//     WT_ADDR_COPY addr;
-//     WT_BTREE *btree;
-//     WT_DECL_ITEM(tmp);
-//     WT_DECL_RET;
-//     WT_REF *ref;
-//     uint64_t block_preload;
-
-//     btree = S2BT(session);
-//     block_preload = 0;
-
-//     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-
-//     /* Pre-load the second-level internal pages. */
-//     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
-//         if (__wt_ref_addr_copy(session, ref, &addr)) {
-//             WT_ERR(
-//               __wt_blkcache_read(session, tmp, NULL, addr.block_cookie, addr.block_cookie_size));
-//             ++block_preload;
-//         }
-//     WT_INTL_FOREACH_END;
-
-// err:
-//     __wt_scr_free(session, &tmp);
-
-//     WT_STAT_CONN_INCRV(session, block_preload, block_preload);
-//     return (ret);
-// }
-
 /*
  * __btree_get_last_recno --
  *     Set the last record number for a column-store. Note that this is used to handle appending to

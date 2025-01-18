@@ -403,7 +403,7 @@ __curversion_next_int(WT_CURSOR *cursor)
                 if (version_cursor->start_timestamp != WT_TS_NONE) {
                     if (WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
                         /*
-                         * We are done if we have an on-disk stop durable timstamp that is smaller
+                         * We are done if we have an on-disk stop durable timestamp that is smaller
                          * than or equal to the end timestamp.
                          */
                         if (cbt->upd_value->tw.durable_stop_ts <= version_cursor->start_timestamp)
