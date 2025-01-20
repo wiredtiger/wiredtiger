@@ -866,7 +866,8 @@ struct __wt_session {
      * default \c true.}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default value will be the global
-     * setting of the connection config., an integer greater than or equal to \c 0; default \c 0.}
+     * setting of the connection config.  0 will wait forever.  1 will never wait., an integer
+     * greater than or equal to \c 0; default \c 0.}
      * @config{debug = (, configure debug specific behavior on a session.  Generally only used for
      * internal testing purposes., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_fail_before_turtle_update, Fail before writing a
@@ -2070,8 +2071,8 @@ struct __wt_connection {
      * empty.}
      * @config{ ),,}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
-     * for space to be available in cache before giving up.  Default will wait forever., an integer
-     * greater than or equal to \c 0; default \c 0.}
+     * for space to be available in cache before giving up.  Default or 0 will wait forever.  1 will
+     * never wait., an integer greater than or equal to \c 0; default \c 0.}
      * @config{cache_overhead, assume the heap allocator overhead is the specified percentage\, and
      * adjust the cache usage by that amount (for example\, if there is 10GB of data in cache\, a
      * percentage of 10 means WiredTiger treats this as 11GB). This value is configurable because
@@ -2498,7 +2499,8 @@ struct __wt_connection {
      * default \c true.}
      * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait
      * for space to be available in cache before giving up.  Default value will be the global
-     * setting of the connection config., an integer greater than or equal to \c 0; default \c 0.}
+     * setting of the connection config.  0 will wait forever.  1 will never wait., an integer
+     * greater than or equal to \c 0; default \c 0.}
      * @config{debug = (, configure debug specific behavior on a session.  Generally only used for
      * internal testing purposes., a set of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_fail_before_turtle_update, Fail before writing a
@@ -2856,8 +2858,8 @@ struct __wt_connection {
  * sessions created\, and can be overridden in configuring \c cache_cursors in
  * WT_CONNECTION.open_session., a boolean flag; default \c true.}
  * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait for
- * space to be available in cache before giving up.  Default will wait forever., an integer greater
- * than or equal to \c 0; default \c 0.}
+ * space to be available in cache before giving up.  Default or 0 will wait forever.  1 will never
+ * wait., an integer greater than or equal to \c 0; default \c 0.}
  * @config{cache_overhead, assume the heap allocator overhead is the specified percentage\, and
  * adjust the cache usage by that amount (for example\, if there is 10GB of data in cache\, a
  * percentage of 10 means WiredTiger treats this as 11GB). This value is configurable because
