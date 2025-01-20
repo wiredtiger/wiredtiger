@@ -31,18 +31,18 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered18.py
+# test_layered19.py
 # Test adjustable consecutive deltas
 
-class test_layered18(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered19(wttest.WiredTigerTestCase, DisaggConfigMixin):
     uris = [
-        ('layered', dict(uri='layered:test_layered18')),
-        ('btree', dict(uri='file:test_layered18')),
+        ('layered', dict(uri='layered:test_layered19')),
+        ('btree', dict(uri='file:test_layered19')),
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    disagg_storages = gen_disagg_storages('test_layered18', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered19', disagg_only = True)
 
     nitems = 1000
 
