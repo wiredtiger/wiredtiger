@@ -142,8 +142,10 @@ class test_truncate_fast_delete(test_truncate_base):
                 cursor.update()
             cursor.close()
 
+        # TODO: disaggregated storage cannot handle checkpoint id after restart.
+        if self.type != 'layered:':
         # Close and re-open it so we get a disk image, not an insert skiplist.
-        self.reopen_conn()
+            self.reopen_conn()
 
         # Optionally read/write a few rows before truncation.
         if self.readbefore or self.writebefore:
