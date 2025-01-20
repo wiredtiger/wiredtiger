@@ -467,7 +467,7 @@ palm_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_
     }
     PALM_KV_ERR(palm, session, ret);
 
-    if (completed_checkpoint > started_checkpoint) {
+    if (completed_checkpoint >= started_checkpoint) {
         ret = palm_err(palm, session, EINVAL, "complete checkpoint id that was never begun");
         goto err;
     }
