@@ -2898,10 +2898,9 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
             (__wt_atomic_loadv64(&evict->eviction_progress) > initial_progress + max_progress)))
             goto err;
 
-        if (!__evict_check_user_ok_with_eviction(session, busy)) {
-            ret = 0; /* This is a no-error exit. */
+        if (!__evict_check_user_ok_with_eviction(session, busy))
+            /* At this point ret can only be 0, so it's a clean exit from the loop. */
             goto err;
-        }
 
         /* Evict a page. */
         switch (ret = __evict_page(session, false)) {
