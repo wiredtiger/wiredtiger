@@ -128,8 +128,9 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update)
          *   - an update operation with a ingest cursor, or
          *   - a read operation and the cursor is open for reading.
          */
-        if ((update && clayered->ingest_cursor != NULL) ||
-          (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
+        if (clayered->stable_cursor != NULL &&
+          ((update && clayered->ingest_cursor != NULL) ||
+            (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))))
             break;
 
         WT_WITH_SCHEMA_LOCK(session, ret = __clayered_open_cursors(clayered, update));
@@ -621,9 +622,15 @@ __clayered_reset_cursors(WT_CURSOR_LAYERED *clayered, bool skip_ingest)
       !F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV))
         return (0);
 
+    /*
+     * After a reset, the stable cursor should closed so it is re-opened on the next use. This is
+     * the easiest way to ensure that we're tracking the latest checkpoint for the stable table.
+     */
     c = clayered->stable_cursor;
-    if (c != NULL && F_ISSET(c, WT_CURSTD_KEY_INT))
-        WT_TRET(c->reset(c));
+    if (c != NULL) {
+        WT_TRET(c->close(c));
+        clayered->stable_cursor = NULL;
+    }
 
     c = clayered->ingest_cursor;
     if (!skip_ingest && F_ISSET(c, WT_CURSTD_KEY_INT))
