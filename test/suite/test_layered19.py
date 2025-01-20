@@ -49,12 +49,16 @@ class test_layered19(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(disagg_storages, uris)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
     def session_create_config(self):
         # The delta percentage of 200 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
         cfg = 'disaggregated=(max_consecutive_delta=1),key_format=S,value_format=S'
         if self.uri.startswith('file'):
-            cfg += ',block_manager=disagg,layered_table_log=(enabled=false)'
+            cfg += ',block_manager=disagg'
         return cfg
 
     def conn_config(self):
