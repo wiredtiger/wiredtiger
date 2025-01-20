@@ -1379,7 +1379,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
     /* Open it in the destination layer. */
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
 
-    if (have_tombstone) {
+    if (have_tombstone || lr_fs->finished) {
         /*
          * Set the complete flag, we know that if there is a tombstone we should never look in the
          * source. Therefore the destination must be complete.
