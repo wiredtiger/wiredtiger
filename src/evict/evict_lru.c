@@ -2899,7 +2899,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
             goto err;
 
         if (!__evict_check_user_ok_with_eviction(session, busy)) {
-            ret = WT_ERROR; /* Prevent from requesting a rollback in the err handler. */
+            ret = 0; /* This is a no-error exit. */
             goto err;
         }
 

@@ -599,9 +599,10 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool busy)
     if (busy || F_ISSET(session, WT_SESSION_INTERNAL))
         return (true);
 
-    if (session->event_handler->handle_general != NULL &&
-      session->event_handler->handle_general(session->event_handler, &S2C(session)->iface,
-        &session->iface, WT_EVENT_EVICTION, NULL) != 0)
+    WT_EVENT_HANDLER *event_handler = session->event_handler;
+    if (event_handler->handle_general != NULL &&
+      event_handler->handle_general(
+        event_handler, &S2C(session)->iface, &session->iface, WT_EVENT_EVICTION, NULL) != 0)
         return (false);
 
     return (true);
