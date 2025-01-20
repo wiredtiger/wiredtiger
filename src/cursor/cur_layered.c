@@ -373,9 +373,6 @@ __clayered_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     if (strcmp(a->uri, b->uri) != 0)
         WT_ERR_MSG(session, EINVAL, "comparison method cursors must reference the same object");
 
-    WT_ERR(__cursor_needkey(a));
-    WT_ERR(__cursor_needkey(b));
-
     /* Both cursors are from the same tree - they share the same collator */
     __clayered_get_collator(clayered, &collator);
 
