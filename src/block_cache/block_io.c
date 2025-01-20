@@ -447,7 +447,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      */
     for (i = 1; i < count; i++) {
         ip = &results[i];
-        /* TODO in principle we should end up not caring about which block mananger is backing the
+        /* TODO in principle we should end up not caring about which block manager is backing the
          * file. */
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
 
