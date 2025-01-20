@@ -118,8 +118,10 @@
         WT_SINGLE_THREAD_CHECK_STOP(s);                                                       \
         if ((ret) != 0 && __set_err)                                                          \
             __wt_txn_err_set(s, (ret));                                                       \
-        if ((ret) != 0 && (ret) != (s)->err_info.err)                                         \
+        if ((ret) != 0 && (ret) != (s)->err_info.err) {                                       \
+            WT_ASSERT(s, (s)->err_info.err == 0);                                             \
             WT_IGNORE_RET(__wt_session_set_last_error(s, ret, WT_NONE, WT_ERROR_INFO_EMPTY)); \
+        }                                                                                     \
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                   \
             __wt_op_timer_stop(s);                                                            \
         /*                                                                                    \
