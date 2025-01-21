@@ -203,8 +203,8 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
     u_int cfg_pos;
-    const char *ckpt_cfg[4];
     char random_config[1024];
+    const char *ckpt_cfg[4];
     bool leader;
 
     c = &clayered->iface;
@@ -238,8 +238,9 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
      */
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
         WT_RET(__wt_snprintf(random_config, sizeof(random_config),
-            "next_random=true,next_random_unrestricted,next_random_seed=%" PRId64 ",next_random_sample_size=%ud",
-            clayered->next_random_seed, clayered->next_random_sample_size));
+          "next_random=true,next_random_unrestricted,next_random_seed=%" PRId64
+          ",next_random_sample_size=%" PRIu64,
+          clayered->next_random_seed, (uint64_t)clayered->next_random_sample_size));
         ckpt_cfg[cfg_pos++] = random_config;
     }
 
@@ -1475,7 +1476,7 @@ __clayered_next_random(WT_CURSOR *cursor)
         c = clayered->stable_cursor;
         /*
          * This call to next_random on the layered table can potentially end in WT_NOTFOUND if the
-         * layered table is empty.  When that happens, use the ingest table.
+         * layered table is empty. When that happens, use the ingest table.
          */
         WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
         if (ret == WT_NOTFOUND) {
