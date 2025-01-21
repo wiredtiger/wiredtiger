@@ -53,7 +53,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     ts = [
         ('ts', dict(ts=True)),
-        ('non-ts', dict(ts=True)),
+        ('non-ts', dict(ts=False)),
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
