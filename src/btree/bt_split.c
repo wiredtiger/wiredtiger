@@ -1747,6 +1747,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         F_SET(ref, WT_REF_FLAG_INTERNAL);
+        __wt_atomic_addv16(&ref->ref_changes, 1);
         break;
     default:
         F_SET(ref, WT_REF_FLAG_LEAF);
@@ -2338,6 +2339,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     /* Swap the new page into place. */
     ref->page = new->page;
+    __wt_atomic_addv16(&ref->ref_changes, 1);
 
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 
