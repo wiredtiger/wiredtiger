@@ -51,12 +51,17 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('btree', dict(uri='file:test_layered09')),
     ]
 
+    ts = [
+        ('ts', dict(ts=True)),
+        ('non-ts', dict(ts=True)),
+    ]
+
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered09', disagg_only = True)
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris)
+    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
 
     nitems = 1000
 
@@ -87,7 +92,12 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         value2 = "bbbb"
 
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
@@ -98,7 +108,12 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         for i in range(self.nitems):
             if i % 10 == 0:
+                self.session.begin_transaction()
                 cursor[str(i)] = value2
+                if self.ts:
+                    self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
+                else:
+                    self.session.commit_transaction()
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
@@ -113,11 +128,21 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
+
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
         for i in range(self.nitems):
             if i % 10 == 0:
                 self.assertEquals(cursor[str(i)], value2)
             else:
                 self.assertEquals(cursor[str(i)], value1)
+        if self.ts:
+            self.session.rollback_transaction()
 
     def test_layered_read_modify(self):
         self.pr('CREATING')
@@ -128,7 +153,12 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         value2 = "abaa"
 
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
@@ -143,6 +173,130 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 cursor.set_key(str(i))
                 mods = [wiredtiger.Modify('b', 1, 1)]
                 self.assertEqual(cursor.modify(mods), 0)
+                if self.ts:
+                    self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
+                else:
+                    self.session.commit_transaction()
+
+        # XXX
+        # Inserted timing delays around reopen, apparently needed because of the
+        # layered table watcher implementation
+        import time
+        time.sleep(1.0)
+        self.session.checkpoint()
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+        self.reopen_conn(config = follower_config)
+        time.sleep(1.0)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
+
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                self.assertEquals(cursor[str(i)], value2)
+            else:
+                self.assertEquals(cursor[str(i)], value1)
+        if self.ts:
+            self.session.rollback_transaction()
+
+    def test_layered_read_delete(self):
+        self.pr('CREATING')
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "aaaa"
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
+
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # layered table watcher implementation
+        import time
+        time.sleep(1.0)
+        self.session.checkpoint()
+
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                self.session.begin_transaction()
+                cursor.set_key(str(i))
+                self.assertEqual(cursor.remove(), 0)
+                if self.ts:
+                    self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
+                else:
+                    self.session.commit_transaction()
+
+        # XXX
+        # Inserted timing delays around reopen, apparently needed because of the
+        # layered table watcher implementation
+        import time
+        time.sleep(1.0)
+        self.session.checkpoint()
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+        self.reopen_conn(config = follower_config)
+        time.sleep(1.0)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
+
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                cursor.set_key(str(i))
+                self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
+            else:
+                self.assertEquals(cursor[str(i)], value1)
+        if self.ts:
+            self.session.rollback_transaction()
+
+    def test_layered_read_insert(self):
+        self.pr('CREATING')
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "aaaa"
+
+        for i in range(self.nitems):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
+
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # layered table watcher implementation
+        import time
+        time.sleep(1.0)
+        self.session.checkpoint()
+
+        for i in range(self.nitems, self.nitems + 5):
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
+            else:
                 self.session.commit_transaction()
 
         # XXX
@@ -158,89 +312,22 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                self.assertEquals(cursor[str(i)], value2)
-            else:
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
+            for i in range(self.nitems):
                 self.assertEquals(cursor[str(i)], value1)
 
-    def test_layered_read_delete(self):
-        self.pr('CREATING')
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "aaaa"
-
-        for i in range(self.nitems):
-            cursor[str(i)] = value1
-
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
-        self.session.checkpoint()
-
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                cursor.set_key(str(i))
-                self.assertEqual(cursor.remove(), 0)
-
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
-        self.session.checkpoint()
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        for i in range(self.nitems):
-            if i % 10 == 0:
+            for i in range(self.nitems, self.nitems + 5):
                 cursor.set_key(str(i))
                 self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
-            else:
-                self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
 
-    def test_layered_read_insert(self):
-        self.pr('CREATING')
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "aaaa"
-
-        for i in range(self.nitems):
-            cursor[str(i)] = value1
-
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
-        self.session.checkpoint()
-
-        for i in range(self.nitems + 1, 5):
-                cursor[str(i)] = value1
-
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
-        self.session.checkpoint()
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        for i in range(self.nitems):
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
+        for i in range(self.nitems + 5):
             self.assertEquals(cursor[str(i)], value1)
+        if self.ts:
+            self.session.rollback_transaction()
 
     def test_layered_read_multiple_delta(self):
         self.pr('CREATING')
@@ -252,13 +339,23 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         value3 = "cccc"
 
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
 
         self.session.checkpoint()
 
         for i in range(self.nitems):
             if i % 10 == 0:
+                self.session.begin_transaction()
                 cursor[str(i)] = value2
+                if self.ts:
+                    self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
+                else:
+                    self.session.commit_transaction()
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
@@ -269,7 +366,12 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         for i in range(self.nitems):
             if i % 20 == 0:
+                self.session.begin_transaction()
                 cursor[str(i)] = value3
+                if self.ts:
+                    self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(15))
+                else:
+                    self.session.commit_transaction()
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
@@ -284,6 +386,22 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
+
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
+            for i in range(self.nitems):
+                if i % 10 == 0:
+                    self.assertEquals(cursor[str(i)], value2)
+                else:
+                    self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
+
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(15))
         for i in range(self.nitems):
             if i % 20 == 0:
                 self.assertEquals(cursor[str(i)], value3)
@@ -291,54 +409,8 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor[str(i)], value2)
             else:
                 self.assertEquals(cursor[str(i)], value1)
-
-    def test_layered_multiple_updates_delta(self):
-        self.pr('CREATING')
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "aaaa"
-        value2 = "bbbb"
-        value3 = "cccc"
-
-        for i in range(self.nitems):
-            cursor[str(i)] = value1
-
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
-        self.session.checkpoint()
-
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                cursor[str(i)] = value2
-
-        for i in range(self.nitems):
-            if i % 20 == 0:
-                cursor[str(i)] = value3
-
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
-        self.session.checkpoint()
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        for i in range(self.nitems):
-            if i % 20 == 0:
-                self.assertEquals(cursor[str(i)], value3)
-            elif i % 10 == 0:
-                self.assertEquals(cursor[str(i)], value2)
-            else:
-                self.assertEquals(cursor[str(i)], value1)
+        if self.ts:
+            self.session.rollback_transaction()
 
     def test_layered_read_delete_insert(self):
         self.pr('CREATING')
@@ -349,14 +421,24 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         value2 = "bbbb"
 
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
 
         self.session.checkpoint()
 
         for i in range(self.nitems):
             if i % 10 == 0:
+                self.session.begin_transaction()
                 cursor.set_key(str(i))
                 self.assertEqual(cursor.remove(), 0)
+                if self.ts:
+                    self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
+                else:
+                    self.session.commit_transaction()
 
         # XXX
         # Inserted timing delays before checkpoint, apparently needed because of the
@@ -367,7 +449,12 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         for i in range(self.nitems):
             if i % 20 == 0:
+                self.session.begin_transaction()
                 cursor[str(i)] = value2
+                if self.ts:
+                    self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(15))
+                else:
+                    self.session.commit_transaction()
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
@@ -382,6 +469,23 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
+
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
+            for i in range(self.nitems):
+                if i % 10 == 0:
+                    cursor.set_key(str(i))
+                    self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
+                else:
+                    self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
+
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(15))
         for i in range(self.nitems):
             if i % 20 == 0:
                 self.assertEquals(cursor[str(i)], value2)
@@ -390,3 +494,5 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
                 self.assertEquals(cursor[str(i)], value1)
+        if self.ts:
+            self.session.rollback_transaction()
