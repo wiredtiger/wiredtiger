@@ -229,6 +229,19 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL)
         return (0);
 
+    cfg_pos = 0;
+    ckpt_cfg[cfg_pos++] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+    /*
+     * If the layered cursor is configured with next_random, we'll need to open any subordinate
+     * cursors with the same configuration that is relevant for random cursors.
+     */
+    if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
+        WT_RET(__wt_snprintf(random_config, sizeof(random_config),
+            "next_random=true,next_random_unrestricted,next_random_seed=%" PRId64 ",next_random_sample_size=%ud",
+            clayered->next_random_seed, clayered->next_random_sample_size));
+        ckpt_cfg[cfg_pos++] = random_config;
+    }
+
     /*
      * If the key is pointing to memory that is pinned by a chunk cursor, take a copy before closing
      * cursors.
@@ -240,15 +253,14 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
     /* Always open both the ingest and stable cursors */
     if (clayered->ingest_cursor == NULL) {
+        ckpt_cfg[cfg_pos] = NULL;
         WT_RET(__wt_open_cursor(
-          session, layered->ingest_uri, &clayered->iface, NULL, &clayered->ingest_cursor));
+          session, layered->ingest_uri, &clayered->iface, ckpt_cfg, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
     }
 
     if (clayered->stable_cursor == NULL) {
-        cfg_pos = 0;
         leader = S2C(session)->layered_table_manager.leader;
-        ckpt_cfg[cfg_pos++] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
         if (!leader)
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
@@ -258,13 +270,6 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * checkpoint across different WiredTiger instances eventually.
              */
             ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false,force=true";
-
-        if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
-            WT_RET(__wt_snprintf(random_config, sizeof(random_config),
-              "next_random=true,next_random_unrestricted,next_random_seed=%" PRId64 ",next_random_sample_size=%ud",
-              clayered->next_random_seed, clayered->next_random_sample_size));
-            ckpt_cfg[cfg_pos++] = random_config;
-        }
         ckpt_cfg[cfg_pos] = NULL;
         ret = __wt_open_cursor(
           session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
@@ -1359,8 +1364,8 @@ __clayered_next_random(WT_CURSOR *cursor)
         /* TODO: consider the size of ingest table in the future. */
         c = clayered->stable_cursor;
         /*
-         * This call to next_random on the ingest table can potentially end in WT_NOTFOUND if the
-         * ingest table is empty.
+         * This call to next_random on the layered table can potentially end in WT_NOTFOUND if the
+         * layered table is empty.  When that happens, use the ingest table.
          */
         WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
         if (ret == WT_NOTFOUND) {
