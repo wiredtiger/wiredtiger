@@ -1857,9 +1857,9 @@ __txn_modify_block(
     WT_TXN *txn;
     uint32_t snap_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
-    bool ignore_prepare_set, rollback, tw_found, write_conflict;
+    bool ignore_prepare_set, rollback, tw_found;
 
-    rollback = tw_found = write_conflict = false;
+    rollback = tw_found = false;
     txn = session->txn;
 
     /*
@@ -1931,7 +1931,6 @@ __txn_modify_block(
 
         WT_STAT_CONN_DSRC_INCR(session, txn_update_conflict);
         ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CONFLICT);
-        write_conflict = true;
     }
 
     /*
@@ -1952,9 +1951,6 @@ __txn_modify_block(
 
 err:
     __wt_scr_free(session, &buf);
-
-    if (ret == WT_ROLLBACK && write_conflict)
-        WT_RET_SUB(session, ret, WT_WRITE_CONFLICT, "Write conflict between concurrent operations");
 
     return (ret);
 }
