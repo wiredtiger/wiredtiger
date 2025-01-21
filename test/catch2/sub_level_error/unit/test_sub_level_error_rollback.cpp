@@ -113,7 +113,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         F_SET(session_impl->txn, WT_TXN_HAS_SNAPSHOT);
         session_impl->txn->snapshot_data.snap_max = 0;
         upd->txnid = 1;
-        CHECK(__txn_modify_block(session_impl, NULL, upd, NULL));
+        CHECK(__txn_modify_block(session_impl, NULL, upd, NULL) == WT_ROLLBACK);
         check_error_info(
           err_info, WT_ROLLBACK, WT_WRITE_CONFLICT, "Write conflict between concurrent operations");
 
