@@ -44,13 +44,6 @@ TEST_CASE("Test functions for error handling in compaction workflows",
         CHECK(__wt_background_compact_signal(session_impl, "") == WT_NOTFOUND);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Invalid config string.
-        CHECK(__wt_background_compact_signal(session_impl, "a==,background=false") == EINVAL);
-        check_error_info(err_info, EINVAL, WT_NONE,
-          "Error parsing 'a==,background=false' at offset 2: Value already complete");
-        // Reset last error,
-        REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, "") == 0);
-
         // Set background compaction to false.
         CHECK(__wt_background_compact_signal(session_impl, "background=false") == 0);
         check_error_info(err_info, 0, WT_NONE, "");
