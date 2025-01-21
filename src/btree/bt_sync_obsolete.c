@@ -282,6 +282,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
       (void *)parent->page);
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
+    __wt_atomic_addv16(&parent->ref_changes, 1);
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 

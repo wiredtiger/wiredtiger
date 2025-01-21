@@ -297,6 +297,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     btree = S2BT(session);
     child = NULL;
+    ref = NULL;
     WT_TIME_AGGREGATE_INIT_MERGE(&ft_ta);
 
     key = &r->k;
@@ -464,7 +465,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_INTL_FOREACH_END;
 
     /* Write the remnant page. */
-    return (__wti_rec_split_finish(session, r));
+    ret = __wti_rec_split_finish(session, r);
+    /*
+     * Set the ref_changes state to zero if there were no concurrent changes while reconciling the
+     * internal page.
+     */
+    __wt_atomic_casv16(&ref->ref_changes, 0, 0);
 
 err:
     WT_CHILD_RELEASE(session, cms.hazard, ref);

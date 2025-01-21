@@ -2943,6 +2943,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
               "Attempting a 1-for-1 page swap when there are still updates to write");
+            __wt_atomic_addv16(&ref->ref_changes, 1);
             goto split;
         }
 
@@ -2970,9 +2971,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         mod->rec_result = WT_PM_REC_REPLACE;
         break;
     default: /* Page split */
-        if (WT_PAGE_IS_INTERNAL(page))
+        if (WT_PAGE_IS_INTERNAL(page)) {
+            __wt_atomic_addv16(&ref->ref_changes, 1);
             WT_STAT_DSRC_INCR(session, rec_multiblock_internal);
-        else
+        } else
             WT_STAT_DSRC_INCR(session, rec_multiblock_leaf);
 
         /* Optionally display the actual split keys in verbose mode. */

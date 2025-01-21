@@ -207,6 +207,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /* Set the page to its new state. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
+    __wt_atomic_addv16(&ref->ref_changes, 1);
+
     return (0);
 
 err:
