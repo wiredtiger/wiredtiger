@@ -60,7 +60,7 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
         REQUIRE(__wt_session_set_last_error(
                   session_impl, EBUSY, WT_DIRTY_DATA, err_msg_content_EBUSY) == 0);
         utils::check_error_info(err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_EBUSY);
-        REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, WT_ERROR_INFO_SUCCESS) == 0);
+        REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, NULL) == 0);
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
