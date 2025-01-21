@@ -27,38 +27,67 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-import wiredtiger
-from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
+from wiredtiger import stat
 
-# test_layered14.py
-# Simple testing for layered random cursor
-@disagg_test_class
-class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
+# test_layered19.py
+# Test adjustable consecutive deltas
+
+class test_layered19(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    uris = [
+        ('layered', dict(uri='layered:test_layered19')),
+        ('btree', dict(uri='file:test_layered19')),
+    ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
-    disagg_storages = gen_disagg_storages('test_layered14', disagg_only = True)
-    uri = "layered:test_layered13"
+    disagg_storages = gen_disagg_storages('test_layered19', disagg_only = True)
+
     nitems = 1000
 
-    scenarios = make_scenarios(disagg_storages)
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(disagg_storages, uris)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
+    def session_create_config(self):
+        # The delta percentage of 200 is an arbitrary large value, intended to produce
+        # deltas a lot of the time.
+        cfg = 'disaggregated=(max_consecutive_delta=1),key_format=S,value_format=S'
+        if self.uri.startswith('file'):
+            cfg += ',block_manager=disagg'
+        return cfg
 
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader")'
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_layered_random_cursor(self):
-        self.session.create(self.uri, "key_format=S,value_format=S")
+    def test_layered_read_write(self):
+        self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
         value1 = "aaaa"
+        value2 = "bbbb"
 
         for i in range(self.nitems):
             cursor[str(i)] = value1
+
+        # XXX
+        # Inserted timing delays before checkpoint, apparently needed because of the
+        # layered table watcher implementation
+        import time
+        time.sleep(1.0)
+        self.session.checkpoint()
+
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                cursor[str(i)] = value2
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
@@ -67,33 +96,30 @@ class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
         self.session.checkpoint()
 
-        for i in range(self.nitems, 2 * self.nitems):
-            cursor[str(i)] = value1
-
-        cursor.close()
-
-        random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
-        self.assertEquals(random_cursor.next(), 0)
-        random_cursor.close()
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                cursor[str(i)] = value2
 
         # XXX
         # Inserted timing delays around reopen, apparently needed because of the
         # layered table watcher implementation
-        import time
         time.sleep(1.0)
+        self.session.checkpoint()
+
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        random_cursor = self.session.open_cursor(self.uri, None, "next_random=true,force=true")
-        self.assertEquals(random_cursor.next(), 0)
-        random_cursor.close()
+        cursor = self.session.open_cursor(self.uri, None, None)
 
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                self.assertEquals(cursor[str(i)], value2)
+            else:
+                self.assertEquals(cursor[str(i)], value1)
 
-    def test_empty_table(self):
-        self.session.create(self.uri, "key_format=S,value_format=S")
-
-        random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
-        self.assertEquals(random_cursor.next(), wiredtiger.WT_NOTFOUND)
-        random_cursor.close()
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        read_delta = stat_cursor[stat.conn.cache_read_delta][2]
+        self.assertEquals(read_delta, 0)
+        stat_cursor.close()

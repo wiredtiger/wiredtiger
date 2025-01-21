@@ -301,17 +301,6 @@ file_runtime_config = common_runtime_config + [
             if false, this object has checkpoint-level durability''',
             type='boolean'),
         ]),
-    Config('layered_table_log', '', r'''
-        the transaction layered table log configuration for this object. Only valid if \c
-        layered_table_log is enabled in ::wiredtiger_open''',
-        type='category', subconfig=[
-        Config('enabled', 'true', r'''
-            if false, this object has checkpoint-level durability''',
-            type='boolean'),
-        Config('layered_constituent', 'false', r'''
-            this is a layered constituent table that requires runtime log replay''',
-            type='boolean', undoc=True),
-        ]),
     Config('os_cache_max', '0', r'''
         maximum system buffer cache usage, in bytes. If non-zero, evict object blocks from
         the system buffer cache after that many bytes from this object are read or written into
@@ -1041,38 +1030,10 @@ log_configuration_common = [
         type='boolean')
 ]
 
-# wiredtiger_open and WT_CONNECTION.reconfigure layered table log configurations.
-layered_table_log_configuration_common = [
-    Config('archive', 'true', r'''
-        automatically remove unneeded layered table log files (deprecated)''',
-        type='boolean', undoc=True),
-    Config('os_cache_dirty_pct', '0', r'''
-        maximum dirty system buffer cache usage, as a percentage of the layered table log's \c file_max.
-        If non-zero, schedule writes for dirty blocks belonging to the log in the system buffer
-        cache after that percentage of the log has been written into the buffer cache without
-        an intervening file sync.''',
-        min='0', max='100'),
-    Config('prealloc', 'true', r'''
-        pre-allocate layered table log files''',
-        type='boolean'),
-    Config('prealloc_init_count', '1', r'''
-        initial number of pre-allocated layered table log files''',
-        min='1', max='500'),
-    Config('remove', 'true', r'''
-        automatically remove unneeded layered table log files''',
-        type='boolean'),
-    Config('zero_fill', 'false', r'''
-        manually write zeroes into layered table log files''',
-        type='boolean')
-]
-
 connection_reconfigure_log_configuration = [
     Config('log', '', r'''
         enable logging. Enabling logging uses three sessions from the configured session_max''',
         type='category', subconfig=log_configuration_common),
-    Config('layered_table_log', '', r'''
-        enable layered table logging. This will use three sessions from the configured session_max''',
-        type='category', subconfig=layered_table_log_configuration_common)
 ]
 wiredtiger_open_log_configuration = [
     Config('log', '', r'''
@@ -1098,36 +1059,6 @@ wiredtiger_open_log_configuration = [
             min='1', max='60', undoc=True),
         Config('path', '"."', r'''
             the name of a directory into which log files are written. The directory must already
-            exist. If the value is not an absolute path, the path is relative to the database
-            home (see @ref absolute_path for more information)'''),
-        Config('recover', 'on', r'''
-            run recovery or fail with an error if recovery needs to run after an unclean
-            shutdown''',
-            choices=['error', 'on'])
-    ]),
-    Config('layered_table_log', '', r'''
-        enable layered table logging. This will use three sessions from the configured session_max''',
-        type='category', subconfig=
-        layered_table_log_configuration_common + [
-        Config('enabled', 'false', r'''
-            enable layered table logging subsystem''',
-            type='boolean'),
-        Config('compressor', 'none', r'''
-            configure a compressor for layered table log records. Permitted values are \c "none" or a custom
-            compression engine name created with WT_CONNECTION::add_compressor. If WiredTiger
-            has builtin support for \c "lz4", \c "snappy", \c "zlib" or \c "zstd" compression,
-            these names are also available. See @ref compression for more information'''),
-        Config('file_max', '100MB', r'''
-            the maximum size of layered table log files''',
-            min='100KB',    # !!! Must match WT_LOG_FILE_MIN
-            max='2GB'),    # !!! Must match WT_LOG_FILE_MAX
-        Config('force_write_wait', '0', r'''
-            enable code that interrupts the usual timing of flushing the layered table log from the internal
-            layered table log server thread with a goal of uncovering race conditions. This option is intended
-            for use with internal stress testing of WiredTiger.''',
-            min='1', max='60', undoc=True),
-        Config('path', '"."', r'''
-            the name of a directory into which layered table log files are written. The directory must already
             exist. If the value is not an absolute path, the path is relative to the database
             home (see @ref absolute_path for more information)'''),
         Config('recover', 'on', r'''
@@ -1451,18 +1382,6 @@ wiredtiger_open_common =\
             for more information''',
             choices=['dsync', 'fsync', 'none']),
         ]),
-    Config('transaction_layered_table_sync', '', r'''
-        how to sync layered table log records when the transaction commits''',
-        type='category', subconfig=[
-        Config('enabled', 'false', r'''
-            whether to sync the layered table log on every commit by default, can be overridden by the \c
-            sync setting to WT_SESSION::commit_transaction''',
-            type='boolean'),
-        Config('method', 'fsync', r'''
-            the method used to ensure layered table log records are stable on disk, see @ref tune_durability
-            for more information''',
-            choices=['dsync', 'fsync', 'none']),
-        ]),
     Config('verify_metadata', 'false', r'''
         open connection and verify any WiredTiger metadata. Not supported when opening a
         connection from a backup. This API allows verification and detection of corruption in
@@ -1694,11 +1613,6 @@ methods = {
 'WT_SESSION.log_flush' : Method([
     Config('sync', 'on', r'''
         forcibly flush the log and wait for it to achieve the synchronization level specified.
-        The \c off setting forces any buffered log records to be written to the file system.
-        The \c on setting forces log records to be written to the storage device''',
-        choices=['off', 'on']),
-    Config('layered_table_sync', 'on', r'''
-        forcibly flush the layered table log and wait for it to achieve the synchronization level specified.
         The \c off setting forces any buffered log records to be written to the file system.
         The \c on setting forces log records to be written to the storage device''',
         choices=['off', 'on']),
@@ -1994,10 +1908,6 @@ methods = {
         whether to sync log records when the transaction commits, inherited from ::wiredtiger_open
         \c transaction_sync''',
         type='boolean'),
-    Config('layered_table_sync', '', r'''
-        whether to sync layered table log records when the transaction commits, inherited from ::wiredtiger_open
-        \c transaction_layered_table_sync''',
-        type='boolean')
 ], compilable=True),
 
 'WT_SESSION.commit_transaction' : Method([
@@ -2023,12 +1933,6 @@ methods = {
     Config('sync', '', r'''
         override whether to sync log records when the transaction commits. The default is inherited
         from ::wiredtiger_open \c transaction_sync. The \c off setting does not wait for records
-        to be written or synchronized. The \c on setting forces log records to be written to
-        the storage device''',
-        choices=['off', 'on']),
-    Config('layered_table_sync', '', r'''
-        override whether to sync layered table log records when the transaction commits. The default is inherited
-        from ::wiredtiger_open \c transaction_layered_table_sync. The \c off setting does not wait for records
         to be written or synchronized. The \c on setting forces log records to be written to
         the storage device''',
         choices=['off', 'on']),

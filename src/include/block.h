@@ -483,7 +483,7 @@ struct __wt_block_disagg_header {
      * page, which must match the checksum found in this header. The checksum of the previous delta
      * or base page is stored in this block header, that must in turn match the checksum found in
      * the block header for the previous one. This is how we can verify that we have every expected
-     * delta and that each delta is uncorrupted.
+     * delta and that each delta is not corrupted.
      */
     uint32_t checksum;          /* 04-07: checksum */
     uint32_t previous_checksum; /* 08-11: checksum for previous delta or page */
@@ -491,7 +491,7 @@ struct __wt_block_disagg_header {
     /*
      * The reconciliation id tracks the "version" of a page or delta within a checkpoint. The first
      * write of a page at a checkpoint has id 0, the second has id 1. We use this number as a
-     * diagnostic to detect the kind of discrepency that occured when there is a checksum error.
+     * diagnostic to detect the kind of discrepancy that occurred when there is a checksum error.
      * Thus, overflowing a byte is not a cause for concern. Besides, overflows should be exceedingly
      * rare. It means checkpointing is much less frequent than the number of times a page needed to
      * be reconciled.

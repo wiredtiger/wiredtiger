@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 class test_layered10(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 100_000
 
-    conn_base_config = 'layered_table_log=(enabled),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 

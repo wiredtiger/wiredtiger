@@ -90,9 +90,12 @@ Crummey
 CustomersPhone
 Cygwin
 DAX
+DBI
 DESC
 DHANDLE
 DIRECTIO
+DISAGG
+DISAGGREGATED
 DNE
 DONTNEED
 DS
@@ -100,6 +103,7 @@ DUPLICATEV
 Decrypt
 DeleteFileW
 Deterministically
+Disaggregated
 Dk
 DmpRvXx
 Dxxx
@@ -207,6 +211,7 @@ Kounavis
 LANGID
 LF
 LLVMFuzzerTestOneInput
+LMDB
 LOGOP
 LOGREC
 LOGSCAN
@@ -230,6 +235,7 @@ LogSink
 LogSystemInterface
 MADV
 MALLOC
+MDB
 MEM
 MEMALIGN
 MERCHANTABILITY
@@ -281,6 +287,7 @@ OVFL
 ObWgfvgw
 Optane
 Outfmt
+PALI
 PDEATHSIG
 PFX
 PID
@@ -338,10 +345,12 @@ Readonly
 Realloc
 RedHat
 Redistributions
+Reentrancy
 Rogerio
 Runtime
 SDK
 SIMD
+SLS
 SLVG
 SMT
 SPINLOCK
@@ -447,6 +456,7 @@ WiredTigerHS
 WiredTigerLAS
 WiredTigerLog
 WiredTigerPreplog
+WiredTigerShared
 WiredTigerTmplog
 WithSeeds
 Wmissing
@@ -498,6 +508,7 @@ auximage
 auxincr
 aws
 bInheritHandle
+backlink
 backoff
 bal
 basecfg
@@ -522,6 +533,7 @@ blkincr
 blkmod
 blkmods
 bm
+bmd
 bmp
 bnd
 bool
@@ -583,6 +595,7 @@ ckpt
 ckptfrag
 ckptlist
 cksum
+clayered
 cloexec
 closedir
 clsm
@@ -606,6 +619,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -658,10 +672,10 @@ dbar
 dbs
 dcalloc
 ddd
-debuggable
 decile
 deciles
 decl
+decompressor
 decr
 decrementing
 decrypt
@@ -675,6 +689,7 @@ del
 dequeued
 der
 dereference
+dereferencing
 desc
 designator
 dest
@@ -688,6 +703,8 @@ difftime
 dir
 directio
 dirlist
+disagg
+disaggregated
 disjunction
 disproportionally
 dlclose
@@ -818,6 +835,7 @@ gettimeofday
 getv
 ggg
 github
+globals
 globfree
 gobare
 goesc
@@ -891,6 +909,7 @@ isalnum
 isalpha
 isascii
 isb
+isd
 isdigit
 ish
 ishld
@@ -970,6 +989,7 @@ lru
 lseek
 lsm
 lsn
+lsnp
 lt
 lte
 lu
@@ -1035,6 +1055,7 @@ needvalue
 negint
 nentries
 nentriesp
+ness
 newbar
 newfile
 newuri
@@ -1043,6 +1064,7 @@ nextprev
 nf
 nfilename
 nhex
+nilly
 nlohmann
 nlpo
 nocase
@@ -1105,9 +1127,10 @@ patchp
 pathname
 pathnames
 perf
-performant
 pfx
 pid
+plh
+pluggable
 pmem
 poptable
 popthreads
@@ -1297,6 +1320,7 @@ sumv
 sunique
 sunused
 supd
+supercalafragalisticexpialadoshus
 superset
 sw
 sys

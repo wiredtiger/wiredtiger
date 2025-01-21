@@ -638,10 +638,11 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
-     * can move beyond the checkpoint transaction id. When reconciling the metadata, we have to take
-     * checkpoints into account.
+     * can move beyond the checkpoint transaction id. When reconciling the metadata or disaggregated
+     * shared metadata, we have to take checkpoints into account. Otherwise, eviction may evict the
+     * uncommitted checkpoint updates.
      */
-    if (WT_IS_METADATA(session->dhandle)) {
+    if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
@@ -2393,7 +2394,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint_compressed = true;
         }
         /*
-         * We need to assign a new page id for the root everytime. We don't support delta for
+         * We need to assign a new page id for the root every time. We don't support delta for
          * internal page yet.
          */
         __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
@@ -2754,7 +2755,7 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 
 /*
  * __rec_set_updates_durable --
- *     Set the updates druable. This must be called when the reconciliation can no longer fail.
+ *     Set the updates durable. This must be called when the reconciliation can no longer fail.
  */
 static WT_INLINE void
 __rec_set_updates_durable(WT_RECONCILE *r)

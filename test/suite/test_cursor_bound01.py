@@ -41,6 +41,7 @@ class test_cursor_bound01(bound_base):
         ('lsm', dict(uri='lsm:', use_index = False, use_colgroup = False)),
         ('colgroup', dict(uri='table:', use_index = False, use_colgroup = False)),
         ('index', dict(uri='table:', use_index = True, use_colgroup = False)),
+        ('layered', dict(uri='layered:', use_index = False, use_colgroup = False)),
     ]
 
     format_values = [
@@ -53,7 +54,7 @@ class test_cursor_bound01(bound_base):
 
     def test_bound_api(self):
         # LSM doesn't support column store type, therefore we can just return early here.
-        if (self.key_format == 'r' and self.uri == 'lsm:'):
+        if (self.key_format == 'r' and (self.uri == 'lsm:' or self.uri == 'layered:')):
             return
 
         uri = self.uri + self.file_name
@@ -113,10 +114,11 @@ class test_cursor_bound01(bound_base):
             return
 
         # Check that largest key doesn't work with bounded cursors.
-        cursor.set_key(self.gen_key(1))
-        cursor.bound("action=set,bound=lower")
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
-            '/setting bounds is not compatible with cursor largest key/')
+        if (self.uri != 'layered:'):
+            cursor.set_key(self.gen_key(1))
+            cursor.bound("action=set,bound=lower")
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
+                '/setting bounds is not compatible with cursor largest key/')
 
         # Check edge cases with bounds config
         cursor.set_key(self.gen_key(1))

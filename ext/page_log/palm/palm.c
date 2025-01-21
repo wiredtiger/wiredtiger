@@ -345,8 +345,8 @@ palm_kv_err(PALM *palm, WT_SESSION *session, int ret, const char *format, ...)
     if (vsnprintf(buf, sizeof(buf), format, ap) >= (int)sizeof(buf))
         wt_api->err_printf(wt_api, session, "palm: error overflow");
     lmdb_error = mdb_strerror(ret);
-    wt_api->err_printf(wt_api, session, "palm lmdb: %s: %s", lmdb_error, buf);
-    PALM_VERBOSE_PRINT(palm, "palm lmdb: %s: %s\n", lmdb_error, buf);
+    wt_api->err_printf(wt_api, session, "palm LMDB: %s: %s", lmdb_error, buf);
+    PALM_VERBOSE_PRINT(palm, "palm LMDB: %s: %s\n", lmdb_error, buf);
     va_end(ap);
 
     return (WT_ERROR);
@@ -635,9 +635,9 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM_KV_ERR(palm, session, ret);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
-      "palm_handle_put(plh=%p, table_id=%" PRIx64 ", page_id=%" PRIx64 ", lsn=%" PRIx64
-      ", checkpoint_id=%" PRIx64 ", backlink_lsn=%" PRIx64 ", base_lsn=%" PRIx64
-      ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64
+      "palm_handle_put(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+      ", checkpoint_id=%" PRIu64 ", backlink_lsn=%" PRIu64 ", base_lsn=%" PRIu64
+      ", backlink_checkpoint_id=%" PRIu64 ", base_checkpoint_id=%" PRIu64
       ", is_delta=%d, buf=\n%s)\n",
       (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, put_args->backlink_lsn,
       put_args->base_lsn, put_args->backlink_checkpoint_id, put_args->base_checkpoint_id, is_delta,
@@ -656,11 +656,24 @@ err:
     palm_kv_rollback_transaction(&context);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
-      "palm_handle_put(plh=%p, table_id=%" PRIx64 ", page_id=%" PRIx64 ", lsn=%" PRIx64
-      ", checkpoint_id=%" PRIx64 ", is_delta=%d) returned %d\n",
+      "palm_handle_put(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+      ", checkpoint_id=%" PRIu64 ", is_delta=%d) returned %d\n",
       (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta, ret);
     return (ret);
 }
+
+#define PALM_GET_VERIFY_EQUAL(a, b)                                                                \
+    {                                                                                              \
+        if ((a) != (b)) {                                                                          \
+            ret = palm_kv_err(palm, session, EINVAL,                                               \
+              "%s:%d: Delta chain validation failed at position %" PRIu32                          \
+              ": %s != %s. Page details: table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64  \
+              ", %s=%" PRIu64 ", %s=%" PRIu64,                                                     \
+              __func__, __LINE__, count, #a, #b, palm_handle->table_id, page_id, lsn, #a, (a), #b, \
+              (b));                                                                                \
+            goto err;                                                                              \
+        }                                                                                          \
+    }
 
 static int
 palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
@@ -689,8 +702,8 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm_init_context(palm, &context);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
-      "palm_handle_get(plh=%p, table_id=%" PRIx64 ", page_id=%" PRIx64 ", lsn=%" PRIx64
-      ", checkpoint_id=%" PRIx64 ")...\n",
+      "palm_handle_get(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+      ", checkpoint_id=%" PRIu64 ")...\n",
       (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id);
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     PALM_KV_ERR(palm, session,
@@ -703,31 +716,20 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         PALM_KV_ERR(palm, session, palm_resize_item(&results_array[count], matches.size));
         memcpy(results_array[count].mem, matches.data, matches.size);
 
-        /* FIXME-SLS-950: Fix the sporadic failure in test_layered06. */
-#if 0
-        /* Validate backlinks. */
+        /* Validate back links. */
         if (count > 0) {
-            if (matches.backlink_lsn != last_lsn)
-                PALM_KV_ERR(palm, session, EINVAL);
-            if (matches.backlink_checkpoint_id != last_checkpoint_id)
-                PALM_KV_ERR(palm, session, EINVAL);
+            PALM_GET_VERIFY_EQUAL(matches.backlink_lsn, last_lsn);
+            PALM_GET_VERIFY_EQUAL(matches.backlink_checkpoint_id, last_checkpoint_id);
         }
 
         /* Validate base. */
         if (count == 1) {
-            if (matches.base_lsn != last_lsn)
-                PALM_KV_ERR(palm, session, EINVAL);
-            if (matches.base_checkpoint_id != last_checkpoint_id)
-                PALM_KV_ERR(palm, session, EINVAL);
+            PALM_GET_VERIFY_EQUAL(matches.base_lsn, last_lsn);
+            PALM_GET_VERIFY_EQUAL(matches.base_checkpoint_id, last_checkpoint_id);
         } else if (count > 1) {
-            if (matches.base_lsn != get_args->base_lsn)
-                PALM_KV_ERR(palm, session, EINVAL);
-            if (matches.base_checkpoint_id != get_args->base_checkpoint_id)
-                PALM_KV_ERR(palm, session, EINVAL);
+            PALM_GET_VERIFY_EQUAL(matches.base_lsn, get_args->base_lsn);
+            PALM_GET_VERIFY_EQUAL(matches.base_checkpoint_id, get_args->base_checkpoint_id);
         }
-#endif
-        (void)last_lsn;
-        (void)last_checkpoint_id;
 
         last_lsn = matches.lsn;
         last_checkpoint_id = matches.checkpoint_id;
@@ -747,16 +749,16 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 err:
     palm_kv_rollback_transaction(&context);
     PALM_VERBOSE_PRINT(palm_handle->palm,
-      "palm_handle_get(plh=%p, table_id=%" PRIx64 ", page_id=%" PRIx64 ", lsn=%" PRIx64
-      ", checkpoint_id=%" PRIx64 ") returns %d (in %d parts)\n",
+      "palm_handle_get(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+      ", checkpoint_id=%" PRIu64 ") returns %d (in %d parts)\n",
       (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, ret, (int)count);
     if (ret == 0) {
         for (i = 0; i < count; ++i)
             PALM_VERBOSE_PRINT(
               palm_handle->palm, "   part %d: %s\n", (int)i, palm_verbose_item(&results_array[i]));
         PALM_VERBOSE_PRINT(palm_handle->palm,
-          "   metadata: backlink_lsn=%" PRIx64 ", base_lsn=%" PRIx64
-          ", backlink_checkpoint_id=%" PRIx64 ", base_checkpoint_id=%" PRIx64 "\n",
+          "   metadata: backlink_lsn=%" PRIu64 ", base_lsn=%" PRIu64
+          ", backlink_checkpoint_id=%" PRIu64 ", base_checkpoint_id=%" PRIu64 "\n",
           get_args->backlink_lsn, get_args->base_lsn, get_args->backlink_checkpoint_id,
           get_args->base_checkpoint_id);
     }
@@ -909,7 +911,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     PALM_KV_ERR(palm, NULL, connection->add_page_log(connection, "palm", &palm->page_log, NULL));
     PALM_KV_ERR(palm, NULL, palm_kv_env_create(&palm->kv_env, palm->cache_size_mb));
 
-    /* Build the lmdb home string. */
+    /* Build the LMDB home string. */
     home = connection->get_home(connection);
     len = strlen(home) + 20;
     palm->kv_home = malloc(len);
@@ -920,7 +922,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     strncpy(palm->kv_home, home, len);
     strncat(palm->kv_home, "/kv_home", len);
 
-    /* Create the lmdb home, or if it exists, use what is already there. */
+    /* Create the LMDB home, or if it exists, use what is already there. */
     ret = mkdir(palm->kv_home, 0777);
     if (ret != 0) {
         ret = errno;
@@ -932,7 +934,7 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         }
     }
 
-    /* Open the lmdb environment. */
+    /* Open the LMDB environment. */
     PALM_KV_ERR(palm, NULL, palm_kv_env_open(palm->kv_env, palm->kv_home));
 
 err:
