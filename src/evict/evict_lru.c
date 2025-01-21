@@ -721,7 +721,10 @@ __evict_get_ref(WT_SESSION_IMPL *session, WT_BTREE **btreep, WT_REF **refp,
     *previous_statep = WT_REF_MEM;
     *refp = NULL;
 
-	/* Pick a dhandle from which to evict. */
+	/*
+	 * Pick a dhandle from which to evict.
+	 * The function picking the handle dictates the priority order for eviction.
+	 */
 	int loop_count = 0;
 	while (loop_count++ < conn->dhandle_count) {
 		/* We're done if shutting down or reconfiguring. */
@@ -751,8 +754,11 @@ __evict_get_ref(WT_SESSION_IMPL *session, WT_BTREE **btreep, WT_REF **refp,
 		(void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
 
     /*
-	 * We iterate over bucket sets in a fixed order: first we try the clean leaf page bucket,
-	 * then dirty leaf page bucket, then internal page bucket.
+	 * We iterate over bucket sets in eviction priority order:
+	 * The highest priority for eviction are the clean leaf pages,
+	 * then the dirty leaf pages, then the internal pages.
+	 *
+	 * The iteration order of the bucket sets can change to enforce a different priority.
 	 *
 	 * In each bucketset we iterate over the buckets starting with the smallest, because
 	 * smaller buckets will have pages with smaller read generations.
@@ -767,13 +773,12 @@ __evict_get_ref(WT_SESSION_IMPL *session, WT_BTREE **btreep, WT_REF **refp,
 				continue;
 			wt_spin_lock(session, &bucket->evict_queue_lock);
 			/*
-			 * XXX: iterate over the queue here.
-			 * How do avoid iterating forever given that I can put back the reference
-			 * that I remove? Solution: don't remove the reference until we perform
-			 * evict_review.
+			 * Iterate over the pages in the bucket until we find one that's not locked.
 			 */
 			TAILQ_FOREACH(ref, &bucket->evict_queue, evict_q) {
-				/* If the reference is locked, someone might be evicting it. Skip it */
+				/*
+				 * Try to lock the reference. If it's already locked, skip it.
+				 */
 				if ((previous_state = WT_REF_GET_STATE(ref)) != WT_REF_MEM ||
 					!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
 					continue;
@@ -799,57 +804,68 @@ __evict_get_ref(WT_SESSION_IMPL *session, WT_BTREE **btreep, WT_REF **refp,
 
 }
 
-
-/* !!!
- * __wt_evict_page_urgent --
- *     Push a page into the urgent eviction queue.
- *
- *     It is called by the eviction server if pages require immediate eviction or by the application
- *     threads as part of forced eviction when directly evicting pages is not feasible.
- *
- *     Input parameters:
- *       `ref`: A reference to the page that is being added to the urgent eviction queue.
- *
- *     Return `true` if the page has been successfully added to the urgent queue, or `false` is
- *     already marked for eviction.
- */
-bool
-__wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref) {
-
-	(void)session;
-	(void)ref;
-
-	return false;
-}
-
-/* !!!
- * __wt_evict_priority_set --
- *     Set a tree's eviction priority. A higher priority indicates less likelihood for the tree to
- *     be considered for eviction. The eviction server skips the eviction of trees with a non-zero
- *     priority unless eviction is in an aggressive state and the Btree is significantly utilizing
- *     the cache.
- *
- *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
- *     to be retained in the cache.
- *
- *     Input parameter:
- *       `v`: An integer that denotes the priority level.
- */
-void
-__wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v)
-{
-    S2BT(session)->evict_priority = v;
-}
-
 /*
- * __wt_evict_priority_clear --
- *     Clear a tree's eviction priority to zero. It is called during the closure of the
- *     dhandle/btree.
+ * __evict_page --
+ *     Called by both eviction and application threads to evict a page.
  */
-void
-__wt_evict_priority_clear(WT_SESSION_IMPL *session)
+static int
+__evict_page(WT_SESSION_IMPL *session)
 {
-    S2BT(session)->evict_priority = 0;
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_REF *ref;
+    WT_REF_STATE previous_state;
+    WT_TRACK_OP_DECL;
+    uint64_t time_start, time_stop;
+    uint32_t flags;
+    bool page_is_modified;
+
+    WT_TRACK_OP_INIT(session);
+
+    WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
+    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+
+    time_start = 0;
+
+    flags = 0;
+    page_is_modified = false;
+
+    /*
+     * Was the page evicted by an eviction worker on an application thread?
+     */
+	if (F_ISSET(session, WT_SESSION_INTERNAL))
+        WT_STAT_CONN_INCR(session, eviction_worker_evict_attempt);
+    else {
+        if (__wt_page_is_modified(ref->page)) {
+            page_is_modified = true;
+            WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
+        }
+        WT_STAT_CONN_INCR(session, eviction_app_attempt);
+        S2C(session)->evict->app_evicts++;
+        time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
+    }
+
+    WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));
+
+    (void)__wt_atomic_subv32(&btree->evict_busy, 1);
+
+    if (time_start != 0) {
+        time_stop = __wt_clock(session);
+        WT_STAT_CONN_INCRV(session, eviction_app_time, WT_CLOCKDIFF_US(time_stop, time_start));
+    }
+
+    if (WT_UNLIKELY(ret != 0)) {
+        if (F_ISSET(session, WT_SESSION_INTERNAL))
+            WT_STAT_CONN_INCR(session, eviction_worker_evict_fail);
+        else {
+            if (page_is_modified)
+                WT_STAT_CONN_INCR(session, eviction_app_dirty_fail);
+            WT_STAT_CONN_INCR(session, eviction_app_fail);
+        }
+    }
+
+    WT_TRACK_OP_END(session);
+    return (ret);
 }
 
 /*
@@ -1013,6 +1029,49 @@ done:
     return (ret);
 }
 
+/* !!!
+ * __wt_evict_page_urgent --
+ *     Push a page into the urgent eviction queue.
+ *
+ *     It is called by the btree code releasing the reference to the page.
+ */
+void
+__wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref) {
+
+	WT_ASSERT(session->dhanlde != NULL);
+	__wt_evict_touch_page(session, session->dhandle, ref, false, true /* won't need */);
+}
+
+/* !!!
+ * __wt_evict_priority_set --
+ *     Set a tree's eviction priority. A higher priority indicates less likelihood for the tree to
+ *     be considered for eviction. The eviction server skips the eviction of trees with a non-zero
+ *     priority unless eviction is in an aggressive state and the Btree is significantly utilizing
+ *     the cache.
+ *
+ *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
+ *     to be retained in the cache.
+ *
+ *     Input parameter:
+ *       `v`: An integer that denotes the priority level.
+ *     XXX update dhandle selection logic to consider
+ */
+void
+__wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v)
+{
+    S2BT(session)->evict_priority = v;
+}
+
+/*
+ * __wt_evict_priority_clear --
+ *     Clear a tree's eviction priority to zero. It is called during the closure of the
+ *     dhandle/btree.
+ */
+void
+__wt_evict_priority_clear(WT_SESSION_IMPL *session)
+{
+    S2BT(session)->evict_priority = 0;
+}
 
 /*
  * __verbose_dump_cache_single --
@@ -1235,7 +1294,12 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session)
 	btree = dhandle->handle;
 	evict_handle = &btree->evict_handle;
 
-	for (i = 0; i < WT_EVICT_LEVELS; i++) { /* Bucket Set. Then iterate over buckets... */
+	/*
+	 * We have a few bucket sets organized by eviction priority. Lower numbered bucket set
+	 * means higher eviction priority. Typically clean leaf pages are the lowest bucket set.
+	 * Within each bucket set we iterate over buckets.
+	 */
+	for (i = 0; i < WT_EVICT_LEVELS; i++) {
 		bucketset = &evict_handle->evict_bucketset[i];
 		for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
 			bucket = &bucketset->buckets[j];
@@ -1286,7 +1350,7 @@ __evict_bucket_range(WT_EVICT_BUCKET *bucket, uint64_t *min_range, uint64_t *max
 
 /*
  * __wt_evict_remove --
- *     Remove the page from its evict queue.
+ *     Remove the page from its evict bucket.
  */
 bool
 __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
@@ -1323,9 +1387,11 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref) {
 
 /*
  * __evict_renumber_buckets --
- *     Atomically increases the lowest bucket upper bound. Upper bounds of the
- *     remaining buckets are automatically derived from the upper bound of the
- *     lowest bucket, so that's all that we need to update.
+ *     Atomically increase the lowest bucket upper bound.
+ *     Upper bounds of higher buckets are implicitly derived from that of the lowest bucket,
+ *     so as a result the upper bounds of all buckets are shifted up.
+ *     We need to renumber the buckets every time there is a read generation that’s larger
+ *     than the range accepted by the highest bucket.
  */
 static inline int
 __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset) {
@@ -1342,6 +1408,10 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset) {
 	__wt_atomic_casv64(&bucketset->lowest_bucket_upper_range, prev, new)
 }
 
+/*
+ * __evict_enqueue_page --
+ *     Put the page into the evict bucket corresponding to its read generation.
+ */
 static void
 __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref) {
 
@@ -1499,8 +1569,7 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
      * quickly.
      */
     for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
-         __wt_atomic_loadv32(&evict->pass_intr) == 0;
-         spins++) {
+         __wt_atomic_loadv32(&evict->pass_intr) == 0; spins++) {
         if (spins < WT_THOUSAND)
             __wt_yield();
         else
@@ -1548,75 +1617,4 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
 
 
 
-/*
- * __evict_page --
- *     Called by both eviction and application threads to evict a page.
- */
-static int
-__evict_page(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_DECL_RET;
-    WT_REF *ref;
-    WT_REF_STATE previous_state;
-    WT_TRACK_OP_DECL;
-    uint64_t time_start, time_stop;
-    uint32_t flags;
-    bool page_is_modified;
 
-    WT_TRACK_OP_INIT(session);
-
-    WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
-    WT_ASSERT(session, WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
-
-    time_start = 0;
-
-    flags = 0;
-    page_is_modified = false;
-
-    /*
-     * Was the page evicted by an eviction worker on an application thread?
-     */
-	if (F_ISSET(session, WT_SESSION_INTERNAL))
-        WT_STAT_CONN_INCR(session, eviction_worker_evict_attempt);
-    else {
-        if (__wt_page_is_modified(ref->page)) {
-            page_is_modified = true;
-            WT_STAT_CONN_INCR(session, eviction_app_dirty_attempt);
-        }
-        WT_STAT_CONN_INCR(session, eviction_app_attempt);
-        S2C(session)->evict->app_evicts++;
-        time_start = WT_STAT_ENABLED(session) ? __wt_clock(session) : 0;
-    }
-
-    /*
-     * In case something goes wrong, don't pick the same set of pages every time.
-     *
-     * We used to bump the page's read generation only if eviction failed, but that isn't safe: at
-     * that point, eviction has already unlocked the page and some other thread may have evicted it
-     * by the time we look at it.
-     */
-    __wti_evict_read_gen_bump(session, ref->page);
-
-    WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, previous_state, flags));
-
-    (void)__wt_atomic_subv32(&btree->evict_busy, 1);
-
-    if (time_start != 0) {
-        time_stop = __wt_clock(session);
-        WT_STAT_CONN_INCRV(session, eviction_app_time, WT_CLOCKDIFF_US(time_stop, time_start));
-    }
-
-    if (WT_UNLIKELY(ret != 0)) {
-        if (F_ISSET(session, WT_SESSION_INTERNAL))
-            WT_STAT_CONN_INCR(session, eviction_worker_evict_fail);
-        else {
-            if (page_is_modified)
-                WT_STAT_CONN_INCR(session, eviction_app_dirty_fail);
-            WT_STAT_CONN_INCR(session, eviction_app_fail);
-        }
-    }
-
-    WT_TRACK_OP_END(session);
-    return (ret);
-}
