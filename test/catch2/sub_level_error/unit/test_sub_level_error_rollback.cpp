@@ -30,74 +30,69 @@ TEST_CASE("Test functions for error handling in rollback workflows",
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     WT_ERROR_INFO *err_info = &(session_impl->err_info);
 
-    SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker")
+    SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - pre-fetch threads")
     {
-        WT_CURSOR *cursor;
-
-        // if (F_ISSET(session, WT_SESSION_PREFETCH_THREAD))
         F_SET(session_impl, WT_SESSION_PREFETCH_THREAD);
         CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
-        F_CLR(session_impl, WT_SESSION_PREFETCH_THREAD);
+    }
 
-        // if (!__wt_atomic_loadbool(&conn->evict_server_running) || (busy && pct_full < 100.0))
-        CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
-
-        conn_impl->evict_server_running = true;
-
+    SECTION(
+      "Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - eviction server threads aren't "
+      "setup yet")
+    {
         CHECK(__wti_evict_app_assist_worker(session_impl, true, false, 100) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
         CHECK(__wti_evict_app_assist_worker(session_impl, true, false, 99) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
+        conn_impl->evict_server_running = true;
+
         CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
+    }
 
-        // if (app_thread)
-        F_SET(session_impl, WT_SESSION_INTERNAL);
-        CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
-        F_CLR(session_impl, WT_SESSION_INTERNAL);
-
-        // if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
+    SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - different rollback error")
+    {
+        // Set the eviction cache as stuck.
         conn_impl->evict->evict_aggressive_score = WT_EVICT_SCORE_MAX;
         F_SET(conn_impl->evict, WT_EVICT_CACHE_HARD);
 
-        // if (ret == WT_ROLLBACK) {
-        WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session_impl);
+        // Set transaction's update amount to 1 and ID to be equal to the oldest transaction ID.
         session_impl->txn->mod_count = 1;
-        txn_shared->id = txn_shared->pinned_id = S2C(session)->txn_global.oldest_id;
+        WT_SESSION_TXN_SHARED(session_impl)->id = S2C(session)->txn_global.oldest_id;
         CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
           "Transaction has the oldest pinned transaction ID");
+
+        // Reset updates to the initial value.
         session_impl->txn->mod_count = 0;
-        txn_shared->id = txn_shared->pinned_id = 0;
+    }
 
-        conn_impl->evict->evict_aggressive_score = 0;
-        F_CLR(conn_impl->evict, WT_EVICT_CACHE_HARD);
-        REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, "") == 0);
+    SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - cache max wait")
+    {
+        WT_CURSOR *cursor;
 
-        // Turn on eviction server and set eviction trigger, cache max wait and cache size to low
-        // values.
-        conn_impl->evict->cache_max_wait_us = 1;
-        conn_impl->evict->eviction_trigger = 1;
+        // Set the cache size and cache max wait to low values. This is required so that the thread
+        // think eviction is needed and to time out the eviction thread.
         conn_impl->cache_size = 1;
+        conn_impl->evict->cache_max_wait_us = 1;
 
-        // Insert key and value to create a page to evict.
+        // Create a table and insert key and value to create a page to evict. This is required so
+        // that the time taken doing eviction exceeds the cache max wait time.
         REQUIRE(session->create(session, "table:rollback", "key_format=S,value_format=S") == 0);
         session->open_cursor(session, "table:rollback", NULL, NULL, &cursor);
         session->begin_transaction(session, NULL);
         cursor->set_key(cursor, "key");
         cursor->set_value(cursor, "value");
         cursor->update(cursor);
-        session->commit_transaction(session, NULL);
         cursor->close(cursor);
 
         CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_CACHE_OVERFLOW, "Cache capacity has overflown");
 
+        // Drop the table.
         session->drop(session, "table:rollback", NULL);
     }
 
@@ -130,19 +125,21 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         session->drop(session, "table:rollback", NULL);
     }
 
-    SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking")
+    SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - prepared transaction")
     {
         // Set transaction as prepared.
         F_SET(session_impl->txn, WT_TXN_PREPARE);
-
-        // Check is transaction is prepared
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
-        // Clear flag.
-        F_CLR(session_impl->txn, WT_TXN_PREPARE);
+    }
 
+    SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - rollback can't be handled")
+    {
         // Check if there are no updates, the thread operation did not time
         // out and the operation is not running in a transaction.
+
+        // Say we have 1 update.
+        session_impl->txn->mod_count = 1;
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
@@ -156,33 +153,35 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Say that we have 1 modification.
+        // Set updates to 0.
+        session_impl->txn->mod_count = 0;
+        CHECK(__wt_txn_is_blocking(session_impl) == 0);
+        check_error_info(err_info, 0, WT_NONE, "");
+    }
+
+    SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - transaction ID")
+    {
+        // Say that we have 1 update.
         session_impl->txn->mod_count = 1;
+
+        // Check if the transaction's ID or its pinned ID is equal to the oldest transaction ID.
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Set transaction's ID to be equal to the oldest transaction ID.
+        // Set transaction's pinned ID to be equal to the oldest transaction ID.
         WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session_impl);
-        txn_shared->id = S2C(session)->txn_global.oldest_id;
-
-        CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
-        check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
-          "Transaction has the oldest pinned transaction ID");
-
-        // Set pinned ID to be equal to the oldest transaction ID.
-        txn_shared->id = 0;
         txn_shared->pinned_id = S2C(session)->txn_global.oldest_id;
-
         CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
           "Transaction has the oldest pinned transaction ID");
 
-        // Reset back to the initial values.
-        F_CLR(session_impl->txn, WT_TXN_RUNNING);
-        session_impl->operation_start_us = session_impl->operation_timeout_us = 0;
-        session_impl->txn->mod_count = 0;
+        // Set transaction's ID to be equal to the oldest transaction ID.
+        txn_shared->id = S2C(session)->txn_global.oldest_id;
+        CHECK(__wt_txn_is_blocking(session_impl) == WT_ROLLBACK);
+        check_error_info(err_info, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION,
+          "Transaction has the oldest pinned transaction ID");
 
-        txn_shared->id = 0;
-        txn_shared->pinned_id = 0;
+        // Reset updates to the initial value.
+        session_impl->txn->mod_count = 0;
     }
 }

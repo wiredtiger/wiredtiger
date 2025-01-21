@@ -31,37 +31,45 @@ TEST_CASE("Test functions for error handling in compaction workflows",
     WT_CONNECTION_IMPL *conn_impl = (WT_CONNECTION_IMPL *)conn;
     WT_ERROR_INFO *err_info = &(session_impl->err_info);
 
-    SECTION("Test __wt_background_compact_signal")
+    SECTION("Test __wt_background_compact_signal - in-memory or readonly database")
     {
         // Set database as in-memory and readonly.
         F_SET(conn_impl, WT_CONN_IN_MEMORY | WT_CONN_READONLY);
         CHECK(__wt_background_compact_signal(session_impl, NULL) == ENOTSUP);
         check_error_info(err_info, 0, WT_NONE, "");
-        // Clear flags.
         F_CLR(conn_impl, WT_CONN_IN_MEMORY | WT_CONN_READONLY);
+    }
 
+    SECTION("Test __wt_background_compact_signal - spin lock")
+    {
+        CHECK(__wt_background_compact_signal(session_impl, "background=true") == 0);
+        check_error_info(err_info, 0, WT_NONE, "");
+
+        CHECK(__wt_background_compact_signal(session_impl, NULL) == EBUSY);
+        check_error_info(
+          err_info, EBUSY, WT_NONE, "Background compact is busy processing a previous command");
+    }
+
+    SECTION("Test __wt_background_compact_signal - invalid config string")
+    {
         // Config string doesn't contain background key.
         CHECK(__wt_background_compact_signal(session_impl, "") == WT_NOTFOUND);
         check_error_info(err_info, 0, WT_NONE, "");
+    }
 
-        // Set background compaction to false.
+    SECTION("Test __wt_background_compact_signal - compact configuration")
+    {
+        // Set background compaction config string to false.
         CHECK(__wt_background_compact_signal(session_impl, "background=false") == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Set background compaction to true.
+        // Set background compaction config string to true.
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == 0);
         check_error_info(err_info, 0, WT_NONE, "");
         __wt_free(session_impl, conn_impl->background_compact.config);
         conn_impl->background_compact.config = "";
-
-        // Because enable != running, background compaction server is run once, and the
-        // running this call again should have a conflict between locks.
-        CHECK(__wt_background_compact_signal(session_impl, "background=true") == EBUSY);
-        check_error_info(
-          err_info, EBUSY, WT_NONE, "Background compact is busy processing a previous command");
-        // Give time for lock to be released.
+        // Wait for lock on background compaction to be released.
         __wt_sleep(0, 100);
-        REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, "") == 0);
 
         // Set background compaction running to true and background compaction config to match
         // the base config.
