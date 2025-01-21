@@ -18,7 +18,7 @@
 |Checkpoint|Recovery|[test_bug029.py](../test/suite/test_bug029.py)
 |Compression||[test_dictionary01.py](../test/suite/test_dictionary01.py), [test_dictionary02.py](../test/suite/test_dictionary02.py), [test_dictionary03.py](../test/suite/test_dictionary03.py), [test_dictionary04.py](../test/suite/test_dictionary04.py)
 |Config Api||[test_base02.py](../test/suite/test_base02.py), [test_config02.py](../test/suite/test_config02.py)
-|Connection Api||[test_timing_stress_for_test01.py](../test/suite/test_timing_stress_for_test01.py), [test_version.py](../test/suite/test_version.py)
+|Connection Api||[test_version.py](../test/suite/test_version.py)
 |Connection Api|Reconfigure|[test_reconfig01.py](../test/suite/test_reconfig01.py), [test_reconfig02.py](../test/suite/test_reconfig02.py)
 |Connection Api|Turtle File|[test_bug024.py](../test/suite/test_bug024.py)
 |Connection Api|Wiredtiger Open|[test_config02.py](../test/suite/test_config02.py)
