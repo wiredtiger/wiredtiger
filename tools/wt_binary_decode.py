@@ -590,16 +590,24 @@ def extlist_decode(p, b, pagehead, blockhead, pagestats):
                 if off % multiple != 0:
                     extra_stuff = f'  # ERROR: offset is not a multiple of {multiple}'
                     okay = False
-                if size % multiple != 0:
-                    extra_stuff = f'  # ERROR: offset is not a multiple of {multiple}'
+                if off != 0 and size % multiple != 0:
+                    extra_stuff = f'  # ERROR: size is not a multiple of {multiple}'
                     okay = False
+
+            # A zero offset is written as an end of list marker,
+            # in that case, the size is a version number.
+            # For version 0, this is truly the end of the list.
+            # For version 1, additional entries may be appended to this (avail) list.
+            #
+            # See __wti_block_extlist_write() in block_ext.c, and calls
+            # to that function in block_ckpt.c.
             if off == 0:
-                # Corresponds to code in block_ext.c
                 extra_stuff += '  # end of list'
                 if size == 0:
-                    extra_stuff += ', not a final checkpoint'
+                    extra_stuff += ', version 0'
                 elif size == 1:
-                    extra_stuff += ', final checkpoint'
+                    extra_stuff += ', version 1,' + \
+                    ' any following entries are not yet in this (incomplete) checkpoint'
                 else:
                     extra_stuff += f' -- ERROR unexpected size={size} has no meaning here'
                     okay = False
