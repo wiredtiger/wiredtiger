@@ -62,7 +62,6 @@ class test_error_info(compact_util):
         """
         new_bg_config = 'background=true,free_space_target=10MB'
         self.turn_on_bg_compact()
-
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.compact(None, new_bg_config))
 
     def api_call_with_wt_rollback_wt_cache_overflow(self):

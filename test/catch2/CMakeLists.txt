@@ -13,7 +13,6 @@ else()
         misc_tests/test_error.cpp
         misc_tests/test_fnv.cpp
         misc_tests/test_futex.cpp
-        misc_tests/test_mock_session.cpp
         misc_tests/test_intpack.cpp
         misc_tests/test_mock_session.cpp
         misc_tests/test_pow.cpp
