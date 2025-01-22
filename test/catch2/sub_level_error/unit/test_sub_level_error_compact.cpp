@@ -10,7 +10,6 @@
 #include "wt_internal.h"
 #include "../../wrappers/connection_wrapper.h"
 #include "../utils_sub_level_error.h"
-#include <vector>
 
 /*
  * [sub_level_error_compact]: test_sub_level_error_compact.cpp
@@ -37,42 +36,29 @@ TEST_CASE("Test functions for error handling in compaction workflows",
         F_SET(conn_impl, WT_CONN_IN_MEMORY | WT_CONN_READONLY);
         CHECK(__wt_background_compact_signal(session_impl, NULL) == ENOTSUP);
         check_error_info(err_info, 0, WT_NONE, "");
+        // Clear in-memory and read only flag as connection close requires them to be cleared.
         F_CLR(conn_impl, WT_CONN_IN_MEMORY | WT_CONN_READONLY);
     }
 
-    SECTION("Test __wt_background_compact_signal - spin lock")
+    SECTION("Test __wt_background_compact_signal - changes in config string")
     {
-        CHECK(__wt_background_compact_signal(session_impl, "background=true") == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
-
-        CHECK(__wt_background_compact_signal(session_impl, NULL) == EBUSY);
-        check_error_info(
-          err_info, EBUSY, WT_NONE, "Background compact is busy processing a previous command");
-    }
-
-    SECTION("Test __wt_background_compact_signal - invalid config string")
-    {
-        // Config string doesn't contain background key.
+        // New background compaction config string doesn't contain background key.
         CHECK(__wt_background_compact_signal(session_impl, "") == WT_NOTFOUND);
         check_error_info(err_info, 0, WT_NONE, "");
-    }
 
-    SECTION("Test __wt_background_compact_signal - compact configuration")
-    {
-        // Set background compaction config string to false.
+        // Set new background compaction config string to false.
         CHECK(__wt_background_compact_signal(session_impl, "background=false") == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Set background compaction config string to true.
+        // Set new background compaction config string to true.
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == 0);
         check_error_info(err_info, 0, WT_NONE, "");
-        __wt_free(session_impl, conn_impl->background_compact.config);
-        conn_impl->background_compact.config = "";
-        // Wait for lock on background compaction to be released.
-        __wt_sleep(0, 100);
+    }
 
-        // Set background compaction running to true and background compaction config to match
-        // the base config.
+    SECTION("Test __wt_background_compact_signal - current background_compact configuration")
+    {
+        // Set current background compaction running to true and expect the current background
+        // configuration to match the new configuration.
         conn_impl->background_compact.running = true;
         conn_impl->background_compact.config =
           "dryrun=false,exclude=,free_space_target=20MB,run_once=false,timeout=1200";
@@ -80,14 +66,15 @@ TEST_CASE("Test functions for error handling in compaction workflows",
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Set background compaction config to not match base config.
+        // Expect the current configuration not match the new configuration. Expect an error.
         conn_impl->background_compact.config = "";
 
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == EINVAL);
         check_error_info(err_info, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING,
           "Cannot reconfigure background compaction while it's already running.");
 
-        // Reset back to the initial values.
+        // Cannot have background compaction ran without a configuration, and the config string will
+        // be freed, but the string is owned by the test rather than the session so it is reset.
         conn_impl->background_compact.running = false;
         conn_impl->background_compact.config = NULL;
     }

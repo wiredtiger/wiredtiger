@@ -79,20 +79,19 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         conn_impl->cache_size = 1;
         conn_impl->evict->cache_max_wait_us = 1;
 
-        // Create a table and insert key and value to create a page to evict. This is required so
+        // Create a table and set a key and value to create a page to evict. This is required so
         // that the time taken doing eviction exceeds the cache max wait time.
         REQUIRE(session->create(session, "table:rollback", "key_format=S,value_format=S") == 0);
         session->open_cursor(session, "table:rollback", NULL, NULL, &cursor);
         session->begin_transaction(session, NULL);
         cursor->set_key(cursor, "key");
         cursor->set_value(cursor, "value");
-        cursor->update(cursor);
-        cursor->close(cursor);
 
         CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == WT_ROLLBACK);
         check_error_info(err_info, WT_ROLLBACK, WT_CACHE_OVERFLOW, "Cache capacity has overflown");
 
         // Drop the table.
+        cursor->close(cursor);
         session->drop(session, "table:rollback", NULL);
     }
 
