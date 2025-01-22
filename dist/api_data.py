@@ -1742,10 +1742,6 @@ methods = {
     Config('next_random_seed', '0', r'''
         configure the cursor to set an initial random seed when using \c next_random configuration.
         This is used for testing purposes only. See @ref cursor_random for details'''),
-    Config('next_random_unrestricted', 'false', r'''
-        for cursors configured with \c next_random, allow methods other than WT_CURSOR::next
-        to be called''',
-           type='boolean', undoc=True),
     Config('raw', 'false', r'''
         ignore the encodings for the key and value, manage data as if the formats were \c "u".
         See @ref cursor_raw for details''',

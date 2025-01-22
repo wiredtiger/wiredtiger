@@ -334,11 +334,11 @@ err:
 }
 
 /*
- * __curfile_search_near --
+ * __wti_curfile_search_near --
  *     WT_CURSOR->search_near method for the btree cursor type.
  */
-static int
-__curfile_search_near(WT_CURSOR *cursor, int *exact)
+int
+__wti_curfile_search_near(WT_CURSOR *cursor, int *exact)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -991,7 +991,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_prev,                                 /* prev */
       __curfile_reset,                                /* reset */
       __curfile_search,                               /* search */
-      __curfile_search_near,                          /* search-near */
+      __wti_curfile_search_near,                      /* search-near */
       __curfile_insert,                               /* insert */
       __wt_cursor_modify_value_format_notsup,         /* modify */
       __curfile_update,                               /* update */
@@ -1078,13 +1078,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
             WT_ERR_MSG(
               session, ENOTSUP, "next_random configuration not supported for column-store objects");
 
-        /*
-         * If next_random is allowed to be unrestricted, we allow all other methods.
-         */
-        WT_ERR(__wt_config_gets_def(session, cfg, "next_random_unrestricted", 0, &cval));
-        if (cval.val == 0)
-            __wt_cursor_set_notsup(cursor);
-
+        __wt_cursor_set_notsup(cursor);
         cursor->next = __wt_curfile_next_random;
         cursor->reset = __curfile_reset;
 

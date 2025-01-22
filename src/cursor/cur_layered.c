@@ -238,8 +238,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
      */
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
         WT_RET(__wt_snprintf(random_config, sizeof(random_config),
-          "next_random=true,next_random_unrestricted,next_random_seed=%" PRId64
-          ",next_random_sample_size=%" PRIu64,
+          "next_random=true,next_random_seed=%" PRId64 ",next_random_sample_size=%" PRIu64,
           clayered->next_random_seed, (uint64_t)clayered->next_random_sample_size));
         ckpt_cfg[cfg_pos++] = random_config;
     }
@@ -290,6 +289,19 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
         if (clayered->stable_cursor != NULL)
             F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
     }
+
+    if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
+        /*
+         * Cursors configured with next_random only allow the next method to be called. But our
+         * implementation of random requires search_near to be called on the two subordinate
+         * cursors, so explicitly allow that here.
+         */
+        WT_ASSERT(session, WT_PREFIX_MATCH(clayered->ingest_cursor->uri, "file:"));
+        WT_ASSERT(session, WT_PREFIX_MATCH(clayered->stable_cursor->uri, "file:"));
+        clayered->ingest_cursor->search_near = __wti_curfile_search_near;
+        clayered->stable_cursor->search_near = __wti_curfile_search_near;
+    }
+
     WT_RET(__clayered_copy_bounds(clayered));
 
     return (ret);
