@@ -95,7 +95,7 @@ class test_error_info(compact_util):
         time.sleep(1)
 
         # Attempt to drop the table without performing a checkpoint.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.uri, None))
 
     def test_success(self):
         self.api_call_with_success()
@@ -149,7 +149,7 @@ class test_error_info(compact_util):
         self.test_ebusy_wt_uncommitted_data()
         self.test_ebusy_wt_dirty_data()
         self.test_ebusy_wt_dirty_data()
-    
+
     def test_conflict_backup(self):
         """
         Open a backup cursor on a new table, then attempt to drop the table.
