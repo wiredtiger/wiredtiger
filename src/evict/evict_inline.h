@@ -8,45 +8,6 @@
 
 #pragma once
 
-/* !!!
- * __wt_evict_aggressive --
- *     Check whether eviction is unable to make any progress for some amount of time.
- *
- *     As eviction continues to struggle, let the caller know that eviction has become inefficient
- *     (or made no progress). This helps determine if eviction strategies need to be more
- *     forceful due to ongoing inefficiencies. Additionally, it serves as a useful indicator of
- *     the health of the eviction process which callers can use to inform their behavior.
- */
-static WT_INLINE bool
-__wt_evict_aggressive(WT_SESSION_IMPL *session)
-{
-    return (
-      __wt_atomic_load32(&S2C(session)->evict->evict_aggressive_score) >= WT_EVICT_SCORE_CUTOFF);
-}
-
-/* !!!
- * __wt_evict_cache_stuck --
- *     Check whether eviction has remained inefficient (or made no progress) for a significant
- *     period and that the cache has crossed the trigger thresholds even after significant
- *     efforts towards forceful eviction.
- *
- *     This function represents a more severe state compared to aggressive eviction and servers as a
- *     useful indicator of eviction's health, based on which callers may make certain choices to
- *     reduce cache pressure.
- */
-static WT_INLINE bool
-__wt_evict_cache_stuck(WT_SESSION_IMPL *session)
-{
-    WT_EVICT *evict;
-    uint32_t tmp_evict_aggressive_score;
-
-    evict = S2C(session)->evict;
-    tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score);
-    WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
-    return (
-      tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(evict, WT_EVICT_CACHE_HARD));
-}
-
 /*
  * __evict_read_gen --
  *     Get the current read generation number.
@@ -151,30 +112,6 @@ __wt_evict_page_is_soon(WT_PAGE *page)
     return (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON);
 }
 
-/* !!!
- * __wt_evict_page_soon --
- *     Mark the page to be evicted as soon as possible by setting the `WT_READGEN_EVICT_SOON`
- *     flag.
- *
- *     Once this flag is set, eviction threads aggressively prioritize evicting such pages
- *     by putting them in the urgent queue for immediate eviction. Furthermore, application
- *     threads that encounter these pages will either forcefully evict them or queue them
- *     for urgent eviction.
- *
- *     This function allows its callers to evict empty internal pages, pages exceeding a
- *     certain size, obsolete pages, pages with long skip list/update chains, among
- *     other similar cases.
- *
- *     Input parameter:
- *       `ref`: The reference to the page to be marked for soon eviction.
- */
-static WT_INLINE void
-__wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_UNUSED(session);
-
-    __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_EVICT_SOON);
-}
 
 /* !!!
  * __wt_evict_page_first_dirty --
@@ -653,13 +590,3 @@ __wt_evict_app_assist_worker_check(
     return (__wti_evict_app_assist_worker(session, busy, readonly, pct_full));
 }
 
-/*
- * __wt_evict_clear_npos --
- *     Clear saved eviction walk position.
- */
-static WT_INLINE void
-__wt_evict_clear_npos(WT_BTREE *btree)
-{
-    btree->evict_pos = WT_NPOS_INVALID;
-    btree->evict_saved_ref_check = 0;
-}

@@ -10,6 +10,7 @@
 
 #define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
 
+
 /*
  * __evict_lock_handle_list --
  *     Try to get the handle list lock, with yield and sleep back off. Keep timing statistics
@@ -1422,11 +1423,12 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 	WT_PAGE *page;
 	WT_REF_STATE previous_state;
 	bool must_unlock_ref;
-	uint64_t min_range, max_range, dst_bucket, read_gen;
+	uint64_t min_range, max_range, dst_bucket, read_gen, retries;
 
 	must_unlock_ref = false;
 	page = ref->page;
 	page->evict.dhandle = dhandle;
+	retries = 0;
 
 	if (__wt_ref_is_root(ref))
 		return;
@@ -1445,7 +1447,7 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 		__evict_bucket_range(bucket, &min_range, &max_range);
 		/* Is the page already in the right bucket? */
 		if ((read_gen = __wt_atomic_load64(&page->read_gen)) >= min_range && read_gen <= max_range)
-			return;
+			goto done;
 		else
 			__wt_evict_remove(session, ref);
 	}
@@ -1473,10 +1475,19 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 	else {
 		dst_bucket =
 			1 + (read_gen - bucketset->lowest_bucket_upper_range) / WT_EVICT_BUCKET_RANGE;
-		if (dst_bucket >= WT_EVICT_NUM_BUCKETS) {
+		if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries++ < MAX_RETRIES) {
 			__evict_renumber_buckets(bucketset);
 			S2C(session)->evict->evict_renumbered_buckets++;
 			goto retry;
+		} else if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries >= MAX_RETRIES) {
+			/*
+			 * We  are here if the page's read generation keeps increasing as we
+			 * are renumbering buckets. This is extremely unlikely to happen, but
+			 * we use this safety measure to not get stuck in this loop. We simply
+			 * place the page in the highest bucket and proceed. This is okay, because
+			 * all we care about is an approximate sorted order.
+			 */
+			dst_bucket = WT_EVICT_NUM_BUCKETS - 1;
 		}
 	}
 
@@ -1489,6 +1500,7 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 
 	page->bucket = bucket;
 
+  done:
 	if (must_unlock_ref)
 		WT_REF_UNLOCK(ref, previous_state);
 }
@@ -1496,12 +1508,11 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 /*
  * __wt_evict_touch_page --
  *     Update a page's eviction state (read generation) when it is accessed.
+ *     This function is called every time a page is touched in the cache.
  *
- *     A page that is recently read will have a higher read generation, indicating that it is less
+ *     A page that is recently read will have a higher read generation and will be less
  *     likely to be evicted. This mechanism helps eviction to prioritize the order in which pages
  *     are evicted.
- *
- *     This function is called every time a page is touched in the cache.
  *
  *     Input parameters:
  *       (1) `ref`: The reference to a page whose eviction state is being updated.
@@ -1546,36 +1557,25 @@ __wt_evict_init_ref(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *r
 	__evict_enqueue_page(session, dhandle, ref);
 }
 
-/*
- * __evict_lock_handle_list --
- *     Try to get the handle list lock, with yield and sleep back off. Keep timing statistics
- *     overall.
+/* !!!
+ * __wt_evict_page_soon --
+ *     Mark the page to be evicted as soon as possible by setting the `WT_READGEN_EVICT_SOON`
+ *     flag.
+ *
+ *     Once this flag is set, the page will be moved in the highest priorit bucket.
+ *
+ *     This function allows its callers to evict empty internal pages, pages exceeding a
+ *     certain size, obsolete pages, pages with long skip list/update chains, among
+ *     other similar cases.
+ *
+ *     Input parameter:
+ *       `ref`: The reference to the page to be marked for soon eviction.
  */
-static int
-__evict_lock_handle_list(WT_SESSION_IMPL *session)
+void
+__wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_EVICT *evict;
-    WT_RWLOCK *dh_lock;
-    u_int spins;
-
-    conn = S2C(session);
-    evict = conn->evict;
-    dh_lock = &conn->dhandle_lock;
-
-    /*
-     * Use a custom lock acquisition back off loop so the eviction server notices any interrupt
-     * quickly.
-     */
-    for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
-         __wt_atomic_loadv32(&evict->pass_intr) == 0; spins++) {
-        if (spins < WT_THOUSAND)
-            __wt_yield();
-        else
-            __wt_sleep(0, WT_THOUSAND);
-    }
-    return (ret);
+    __wt_atomic_store64(&ref->page->read_gen, WT_READGEN_EVICT_SOON);
+	__evict_enqueue_page(session, session->dhandle, ref);
 }
 
 /*
@@ -1592,7 +1592,7 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
 	best_dhandle = NULL;
     conn = S2C(session);
 	max_cache_footprint = 0;
-	min_readgen_size = WT_MAXINT; // TODO: fix this
+	min_readgen_size = ULONG_MAX;
 
     WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
 
@@ -1612,7 +1612,6 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
 		dhandle = TAILQ_NEXT(dhandle, q);
 	}
 	*dhandle_p = best_dhandle;
-	return;
 }
 
 
