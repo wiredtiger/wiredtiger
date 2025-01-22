@@ -233,7 +233,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     cfg_pos = 0;
     ckpt_cfg[cfg_pos++] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     /*
-     * If the layered cursor is configured with next_random, we'll need to open any subordinate
+     * If the layered cursor is configured with next_random, we'll need to open any constituent
      * cursors with the same configuration that is relevant for random cursors.
      */
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
@@ -293,7 +293,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
         /*
          * Cursors configured with next_random only allow the next method to be called. But our
-         * implementation of random requires search_near to be called on the two subordinate
+         * implementation of random requires search_near to be called on the two constituent
          * cursors, so explicitly allow that here.
          */
         WT_ASSERT(session, WT_PREFIX_MATCH(clayered->ingest_cursor->uri, "file:"));
