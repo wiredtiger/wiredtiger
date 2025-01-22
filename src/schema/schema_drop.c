@@ -35,6 +35,9 @@ __drop_file(
     /* Close all btree handles associated with this file. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
+    if (ret == EBUSY && session->err_info.err != EBUSY)
+        WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE,
+          "another thread is currently holding the data handle of the table");
     WT_RET(ret);
 
     /* Remove the metadata entry (ignore missing items). */
@@ -129,7 +132,8 @@ __drop_table(
      * table that are already open must at least be closed before this call proceeds.
      */
     if ((ret = __wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table)) ==
-      EBUSY)
+        EBUSY &&
+      session->err_info.err != EBUSY)
         WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE,
           "another thread is currently holding the data handle of the table");
     WT_ERR(ret);
@@ -218,7 +222,8 @@ __drop_tiered(
 
     name = NULL;
     /* Get the tiered data handle. */
-    if ((ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE)) == EBUSY)
+    if ((ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE)) == EBUSY &&
+      session->err_info.err != EBUSY)
         WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE,
           "another thread is currently holding the data handle of the table");
     WT_RET(ret);
@@ -246,6 +251,9 @@ __drop_tiered(
     got_dhandle = false;
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
+    if (ret == EBUSY && session->err_info.err != EBUSY)
+        WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE,
+          "another thread is currently holding the data handle of the table");
     WT_ERR(ret);
 
     /*
@@ -266,6 +274,9 @@ __drop_tiered(
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
+        if (ret == EBUSY && session->err_info.err != EBUSY)
+            WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE,
+              "another thread is currently holding the data handle of the table");
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
         if (remove_files) {
@@ -283,6 +294,9 @@ __drop_tiered(
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
+        if (ret == EBUSY && session->err_info.err != EBUSY)
+            WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE,
+              "another thread is currently holding the data handle of the table");
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
     } else

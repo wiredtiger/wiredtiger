@@ -45,20 +45,10 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
 
     SECTION("Test WT_CONFLICT_DHANDLE")
     {
-        /* Create a table and find its dhandle. */
+        /* Open a cursor on a new table, then attempt to drop the table. */
+        WT_CURSOR *cursor;
         REQUIRE(session->create(session, uri, cfg) == 0);
-        WT_WITH_HANDLE_LIST_READ_LOCK(
-          session_impl, REQUIRE(__wt_conn_dhandle_find(session_impl, uri, NULL) == 0));
-
-        /* Pretend the dhandle is open for a special operation (bulk update) by setting the flag. */
-        WT_BTREE btree;
-        btree.flags = WT_BTREE_BULK;
-        session_impl->dhandle->handle = &btree;
-
-        /*
-         * Try to drop while the handle is "open". This will cause __wt_session_lock_dhandle to fail
-         * with EBUSY, triggering a call to WT_ERR_SUB.
-         */
+        REQUIRE(session->open_cursor(session, uri, NULL, NULL, &cursor) == 0);
         REQUIRE(session->drop(session, uri, NULL) == EBUSY);
 
         /* Check that the proper error/sub-level error and message were stored. */
