@@ -408,7 +408,6 @@ __init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst, 
     return (ret);
 }
 
-
 /*
  * __curstat_layered_init --
  *     Initialize the statistics for a layered table.
@@ -431,12 +430,14 @@ __curstat_layered_init(
 
     /* Do the ingest table. */
     dhandle = layered->ingest;
-    WT_WITH_DHANDLE(session, dhandle, ret = __init_layered_constituent_stats(session, cst, &need_finalize));
+    WT_WITH_DHANDLE(
+      session, dhandle, ret = __init_layered_constituent_stats(session, cst, &need_finalize));
     WT_RET(ret);
 
     /* Now do the stable table. */
     dhandle = layered->stable;
-    WT_WITH_DHANDLE(session, dhandle, ret = __init_layered_constituent_stats(session, cst, &need_finalize));
+    WT_WITH_DHANDLE(
+      session, dhandle, ret = __init_layered_constituent_stats(session, cst, &need_finalize));
     WT_RET(ret);
 
     if (need_finalize)
