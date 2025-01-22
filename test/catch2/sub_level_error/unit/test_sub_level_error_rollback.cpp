@@ -42,15 +42,15 @@ TEST_CASE("Test functions for error handling in rollback workflows",
       "setup yet")
     {
         CHECK(__wti_evict_app_assist_worker(session_impl, true, false, 100) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         CHECK(__wti_evict_app_assist_worker(session_impl, true, false, 99) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         conn_impl->evict_server_running = true;
 
         CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - different rollback error")

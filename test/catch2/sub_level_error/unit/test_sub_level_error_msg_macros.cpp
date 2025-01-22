@@ -12,7 +12,7 @@
 #include "../utils_sub_level_error.h"
 
 /*
- * [sub_level_error_message_macros]: test_sub_level_error_msg_macros.cpp
+ * [sub_level_error_msg_macros]: test_sub_level_error_msg_macros.cpp
  * Tests the macros for storing verbose information about the last error of the session.
  */
 
@@ -51,7 +51,7 @@ err:
 using namespace utils;
 
 TEST_CASE("Test WT_RET_SUB, WT_ERR_SUB, WT_RET_MSG, WT_ERR_MSG",
-  "[sub_level_error_message_macros],[sub_level_error]")
+  "[sub_level_error_msg_macros],[sub_level_error]")
 {
     connection_wrapper conn_wrapper = connection_wrapper(".", "create");
     WT_CONNECTION *conn = conn_wrapper.get_wt_connection();
@@ -61,34 +61,6 @@ TEST_CASE("Test WT_RET_SUB, WT_ERR_SUB, WT_RET_MSG, WT_ERR_MSG",
 
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     WT_ERROR_INFO *err_info = &(session_impl->err_info);
-
-    SECTION("Test WT_RET_SUB with initial values")
-    {
-        const char *err_msg_content = "";
-        REQUIRE(test_wt_ret_sub(session_impl, 0, WT_NONE, err_msg_content) == 0);
-        check_error_info(err_info, 0, WT_NONE, err_msg_content);
-    }
-
-    SECTION("Test WT_ERR_SUB with initial values")
-    {
-        const char *err_msg_content = "";
-        REQUIRE(test_wt_err_sub(session_impl, 0, WT_NONE, err_msg_content) == 0);
-        check_error_info(err_info, 0, WT_NONE, err_msg_content);
-    }
-
-    SECTION("Test WT_RET_MSG with initial values")
-    {
-        const char *err_msg_content = "";
-        REQUIRE(test_wt_ret_msg(session_impl, 0, err_msg_content) == 0);
-        check_error_info(err_info, 0, WT_NONE, err_msg_content);
-    }
-
-    SECTION("Test WT_ERR_MSG with initial values")
-    {
-        const char *err_msg_content = "";
-        REQUIRE(test_wt_err_msg(session_impl, 0, err_msg_content) == 0);
-        check_error_info(err_info, 0, WT_NONE, err_msg_content);
-    }
 
     SECTION(
       "Test WT_RET_SUB with EINVAL error WT_BACKGROUND_COMPACT_ALREADY_RUNNING sub_level_error")

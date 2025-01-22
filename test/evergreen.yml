@@ -1329,13 +1329,11 @@ variables:
       # Must disable TCMALLOC as it may be picked up locally and its not on all hosts.
       ENABLE_TCMALLOC: 0
     tasks:
-      # FIXME-WT-13951 Re-enable MacOS testing on the Evergreen waterfall - switch back to the 'compile' task.
-      - name: compile-no-upload
-      # FIXME-WT-13951 Re-enable MacOS testing on the Evergreen waterfall - enable these tests again.
-      #- name: make-check-test
+      - name: compile
+      - name: make-check-test
       # Use a special version of unit-test for macOS that checks for Python version consistency.
-      #- name: unit-test-macos
-      #- name: fops
+      - name: unit-test-macos
+      - name: fops
       - name: memory-model-test-mac
         batchtime: 40320 # 28 days
 
@@ -1430,13 +1428,6 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "upload artifact"
-      - func: "cleanup"
-
-  # FIXME-WT-13951 Re-enable MacOS testing on the Evergreen waterfall - remove this task.
-  - name: compile-no-upload
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
       - func: "cleanup"
 
   # production build with --disable-shared
@@ -2080,6 +2071,8 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
       - func: "python config check"
       - func: "unit test"
 

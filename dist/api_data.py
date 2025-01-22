@@ -788,8 +788,9 @@ connection_runtime_config = [
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prefetch_1', 'prefetch_2',
         'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
-        'prepare_resolution_2', 'sleep_before_read_overflow_onpage','split_1', 'split_2',
-        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
+        'prepare_resolution_2', 'session_alter_slow', 'sleep_before_read_overflow_onpage',
+        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8',
+        'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -1025,6 +1026,9 @@ wiredtiger_open_live_restore_configuration = [
     behavior of WiredTiger when live restoring from a backup.''', type='category', subconfig = [
         Config('enabled', 'false', r'''whether live restore is enabled or not.''', type='boolean'),
         Config('path', '', r'''the path to the backup that will be restored from.'''),
+        Config('read_size', '1MB', r'''
+            the read size for data migration, in bytes, must be a power of two. This setting is a
+            best effort. It does not force every read to be this size.''', min='512B', max='16MB'),
         Config('threads_max', '8', r'''
             maximum number of threads WiredTiger will start to migrate data from the backup to the
             running WiredTiger database. Each worker thread uses a session handle from the

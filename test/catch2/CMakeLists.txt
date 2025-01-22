@@ -15,6 +15,7 @@ else()
         misc_tests/test_futex.cpp
         misc_tests/test_mock_session.cpp
         misc_tests/test_intpack.cpp
+        misc_tests/test_mock_session.cpp
         misc_tests/test_pow.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_reconciliation_tracking.cpp
@@ -40,6 +41,7 @@ else()
         cursors/unit/test_cursor_get_raw_key_value.cpp
         sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
         sub_level_error/api/test_sub_level_error_strerror.cpp
+        sub_level_error/unit/test_sub_level_error_api_end.cpp
         sub_level_error/unit/test_sub_level_error_compact.cpp
         sub_level_error/unit/test_sub_level_error_is_valid_sub_level_error.cpp
         sub_level_error/unit/test_sub_level_error_msg_macros.cpp
