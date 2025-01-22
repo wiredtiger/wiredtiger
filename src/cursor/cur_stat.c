@@ -388,7 +388,7 @@ __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
  *     For either an ingest or stable table, aggregate dhandle stats into a stat cursor.
  */
 static int
-__init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst, bool *stats_cleared)
+__init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 {
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
@@ -396,14 +396,6 @@ __init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst, 
     dhandle = session->dhandle;
 
     if ((ret = __wt_btree_stat_init(session, cst)) == 0) {
-        /*
-         * Only clear the aggregate stats if (1) we initialized this tree's stats, and (2) another
-         * constituent call didn't do it.
-         */
-        if (!*stats_cleared)
-            __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
-        *stats_cleared = true;
-
         __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
         if (F_ISSET(cst, WT_STAT_CLEAR))
             __wt_stat_dsrc_clear_all(dhandle->stats);
@@ -423,30 +415,27 @@ __curstat_layered_init(
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
-    bool stats_cleared;
-
-    stats_cleared = false;
 
     WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, 0, NULL, NULL));
     dhandle = session->dhandle;
     WT_ASSERT(session, dhandle->type == WT_DHANDLE_TYPE_LAYERED);
     layered = (WT_LAYERED_TABLE *)dhandle;
 
+    __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+
     /* Do the ingest table. */
     dhandle = layered->ingest;
-    WT_WITH_DHANDLE(
-      session, dhandle, ret = __init_layered_constituent_stats(session, cst, &stats_cleared));
-    WT_RET(ret);
+    WT_WITH_DHANDLE(session, dhandle, ret = __init_layered_constituent_stats(session, cst));
+    WT_ERR(ret);
 
     /* Now do the stable table. */
     dhandle = layered->stable;
-    WT_WITH_DHANDLE(
-      session, dhandle, ret = __init_layered_constituent_stats(session, cst, &stats_cleared));
-    WT_RET(ret);
+    WT_WITH_DHANDLE(session, dhandle, ret = __init_layered_constituent_stats(session, cst));
+    WT_ERR(ret);
 
-    if (stats_cleared)
-        __wt_curstat_dsrc_final(cst);
+    __wt_curstat_dsrc_final(cst);
 
+err:
     WT_TRET(__wt_session_release_dhandle(session));
 
     return (ret);
