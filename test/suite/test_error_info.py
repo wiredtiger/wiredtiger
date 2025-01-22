@@ -113,23 +113,18 @@ class test_error_info(compact_util):
         self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
 
     def test_conflict_backup(self):
+        # Open a backup cursor on a new table, then attempt to drop the table.
         self.session.create(self.table_name1, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor('backup:', None, None)
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.table_name1, None))
         self.check_error(errno.EBUSY, wiredtiger.WT_CONFLICT_BACKUP, "the table is currently performing backup and cannot be dropped")
-        cursor.close()
 
     def test_conflict_dhandle(self):
-        uri = self.table_name1
-        ds = SimpleIndexDataSet(self, uri, 10, config='')
-
-        self.session.begin_transaction()
+        ds = SimpleIndexDataSet(self, self.table_name1, 10, config='')
         ds.populate()
-        self.session.commit_transaction(),
 
-        self.session.begin_transaction()
-        cursor = self.session.open_cursor(uri, None, None)
-        self.assertTrue(self.raisesBusy(lambda: self.session.drop(uri, None)),
+        cursor = self.session.open_cursor(self.table_name1, None, None)
+        self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.table_name1, None)),
                         "was expecting drop call to fail with EBUSY")
 
         self.check_error(errno.EBUSY, wiredtiger.WT_CONFLICT_DHANDLE, "another thread is currently holding the data handle of the table")

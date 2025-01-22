@@ -1951,7 +1951,6 @@ __txn_modify_block(
 
 err:
     __wt_scr_free(session, &buf);
-
     return (ret);
 }
 

@@ -12,6 +12,7 @@ else()
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
+        misc_tests/test_drop_conflict.cpp
         misc_tests/test_error.cpp
         misc_tests/test_fnv.cpp
         misc_tests/test_futex.cpp
