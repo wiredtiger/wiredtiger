@@ -275,17 +275,13 @@ configure_debug_mode(char **p, size_t max)
 static void
 configure_eviction(char **p, size_t max)
 {
-    /* If no eviction configuration specified, skip the following actions. */
-    if (!GV(EVICTION_EVICT_USE_SOFTPTR) && !GV(CACHE_EVICT_MAX))
-        return;
-
     CONFIG_APPEND(*p, ",eviction=(");
 
     if (GV(CACHE_EVICT_MAX) != 0)
         CONFIG_APPEND(*p, ",threads_max=%" PRIu32 "", GV(CACHE_EVICT_MAX));
 
     if (GV(EVICTION_EVICT_USE_SOFTPTR))
-        CONFIG_APPEND(*p, ",evict_use_softptr=%u", GV(EVICTION_EVICT_USE_SOFTPTR));
+        CONFIG_APPEND(*p, ",evict_use_softptr=true");
 
     CONFIG_APPEND(*p, ")");
 }
