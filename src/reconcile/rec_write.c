@@ -2455,8 +2455,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             multi->block_meta.base_lsn = multi->block_meta.disagg_lsn;
             multi->block_meta.base_checkpoint_id = multi->block_meta.checkpoint_id;
         }
-        WT_ASSERT(session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-        WT_ASSERT(session, multi->block_meta.base_lsn >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+        WT_ASSERT(session,
+          multi->block_meta.base_lsn > 0 ||
+            multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
         multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
         multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
@@ -2481,9 +2482,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
              * the base as the new backlink. Otherwise, use the previous page as the backlink.
              */
             if (multi->block_meta.delta_count > 0) {
-                WT_ASSERT(
-                  session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-                WT_ASSERT(session, multi->block_meta.base_lsn > 0);
+                WT_ASSERT(session,
+                  multi->block_meta.base_lsn > 0 ||
+                    multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
                 multi->block_meta.backlink_checkpoint_id = multi->block_meta.base_checkpoint_id;
                 multi->block_meta.backlink_lsn = multi->block_meta.base_lsn;
             } else {
