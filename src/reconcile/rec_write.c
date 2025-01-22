@@ -2899,7 +2899,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
          * now.
          */
-        __wt_atomic_addv16(&ref->ref_changes, 1);
         ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
         /*
@@ -2944,7 +2943,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
               F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0),
               "Attempting a 1-for-1 page swap when there are still updates to write");
-            __wt_atomic_addv16(&ref->ref_changes, 1);
             goto split;
         }
 
@@ -2986,7 +2984,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * now. We may reconcile this page again. Force it to write a new page instead of reusing
          * the existing page id. Building deltas on the split page is a future thing.
          */
-        __wt_atomic_addv16(&ref->ref_changes, 1);
         r->ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
 split:
@@ -3004,6 +3001,8 @@ split:
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &multi->addr.ta);
         break;
     }
+
+    __wt_atomic_addv16(&ref->ref_changes, 1);
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this
