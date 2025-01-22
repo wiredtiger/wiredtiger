@@ -29,6 +29,7 @@ src/btree/bt_discard.c
 src/btree/bt_handle.c
 src/btree/bt_import.c
 src/btree/bt_misc.c
+src/btree/bt_npos.c
 src/btree/bt_ovfl.c
 src/btree/bt_page.c
 src/btree/bt_prefetch.c
@@ -49,6 +50,10 @@ src/btree/row_key.c
 src/btree/row_modify.c
 src/btree/row_srch.c
 src/call_log/call_log.c
+src/checkpoint/checkpoint_ckptlist.c
+src/checkpoint/checkpoint_conn.c
+src/checkpoint/checkpoint_stats.c
+src/checkpoint/checkpoint_txn.c
 src/checksum/arm64/crc32-arm64.c                ARM64_HOST
 src/checksum/loongarch64/crc32-loongarch64.c    LOONGARCH64_HOST
 src/checksum/power8/crc32_wrapper.c             POWERPC_HOST
@@ -58,7 +63,7 @@ src/checksum/software/checksum.c
 src/checksum/x86/crc32-x86-alt.c                X86_HOST
 src/checksum/x86/crc32-x86.c                    X86_HOST
 src/checksum/zseries/crc32-s390x.c              ZSERIES_HOST
-src/checksum/zseries/crc32le-vx.sx              ZSERIES_HOST
+src/checksum/zseries/crc32le-vx.S               ZSERIES_HOST
 src/conf/conf_bind.c
 src/conf/conf_compile.c
 src/conf/conf_get.c
@@ -77,11 +82,9 @@ src/conn/conn_cache.c
 src/conn/conn_cache_pool.c
 src/conn/conn_capacity.c
 src/conn/conn_chunkcache.c
-src/conn/conn_ckpt.c
 src/conn/conn_compact.c
 src/conn/conn_dhandle.c
 src/conn/conn_handle.c
-src/conn/conn_log.c
 src/conn/conn_open.c
 src/conn/conn_prefetch.c
 src/conn/conn_reconfig.c
@@ -97,14 +100,12 @@ src/cursor/cur_dump.c
 src/cursor/cur_file.c
 src/cursor/cur_hs.c
 src/cursor/cur_index.c
-src/cursor/cur_join.c
-src/cursor/cur_json.c
-src/cursor/cur_log.c
 src/cursor/cur_metadata.c
 src/cursor/cur_stat.c
 src/cursor/cur_std.c
 src/cursor/cur_table.c
 src/cursor/cur_version.c
+src/evict/evict_conn.c
 src/evict/evict_file.c
 src/evict/evict_lru.c
 src/evict/evict_page.c
@@ -113,19 +114,14 @@ src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_rec.c
 src/history/hs_verify.c
+src/live_restore/live_restore_fs.c       POSIX_HOST
+src/live_restore/live_restore_server.c       POSIX_HOST
 src/log/log.c
 src/log/log_auto.c
+src/log/log_cursor.c
+src/log/log_mgr.c
 src/log/log_slot.c
 src/log/log_sys.c
-src/lsm/lsm_cursor.c
-src/lsm/lsm_cursor_bulk.c
-src/lsm/lsm_manager.c
-src/lsm/lsm_merge.c
-src/lsm/lsm_meta.c
-src/lsm/lsm_stat.c
-src/lsm/lsm_tree.c
-src/lsm/lsm_work_unit.c
-src/lsm/lsm_worker.c
 src/meta/meta_apply.c
 src/meta/meta_ckpt.c
 src/meta/meta_ext.c
@@ -143,6 +139,9 @@ src/os_common/os_fstream.c
 src/os_common/os_fstream_stdio.c
 src/os_common/os_getopt.c
 src/os_common/os_strtouq.c
+src/os_darwin/os_futex.c         DARWIN_HOST
+src/os_linux/os_futex.c          LINUX_HOST
+src/os_win/os_futex.c            WINDOWS_HOST
 src/os_posix/os_dir.c            POSIX_HOST
 src/os_posix/os_dlopen.c         POSIX_HOST
 src/os_posix/os_fallocate.c      POSIX_HOST
@@ -195,7 +194,6 @@ src/schema/schema_list.c
 src/schema/schema_open.c
 src/schema/schema_plan.c
 src/schema/schema_project.c
-src/schema/schema_rename.c
 src/schema/schema_stat.c
 src/schema/schema_truncate.c
 src/schema/schema_util.c
@@ -220,6 +218,7 @@ src/support/hash_city.c
 src/support/hash_fnv.c
 src/support/hazard.c
 src/support/hex.c
+src/support/json.c
 src/support/lock_ext.c
 src/support/modify.c
 src/support/mtx_rw.c
@@ -234,7 +233,6 @@ src/tiered/tiered_config.c
 src/tiered/tiered_handle.c
 src/tiered/tiered_work.c
 src/txn/txn.c
-src/txn/txn_ckpt.c
 src/txn/txn_log.c
 src/txn/txn_recover.c
 src/txn/txn_timestamp.c

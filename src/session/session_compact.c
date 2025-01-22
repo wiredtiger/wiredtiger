@@ -139,14 +139,12 @@ __compact_end(WT_SESSION_IMPL *session)
 static int
 __compact_uri_analyze(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 {
+    WT_UNUSED(skipp);
+
     /*
-     * Add references to schema URI objects to the list of objects to be compacted. Skip over LSM
-     * trees or we will get false positives on the "file:" URIs for the chunks.
+     * Add references to schema URI objects to the list of objects to be compacted.
      */
-    if (WT_PREFIX_MATCH(uri, "lsm:")) {
-        session->compact->lsm_count++;
-        *skipp = true;
-    } else if (WT_PREFIX_MATCH(uri, "file:"))
+    if (WT_PREFIX_MATCH(uri, "file:"))
         session->compact->file_count++;
     if (WT_PREFIX_MATCH(uri, "tiered:"))
         WT_RET(ENOTSUP);
@@ -277,7 +275,7 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
     WT_RET(__wt_session_compact_check_interrupted(session));
 
     WT_STAT_CONN_INCR(session, checkpoints_compact);
-    return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
+    return (__wt_checkpoint_db(session, checkpoint_cfg, true));
 }
 
 /*
@@ -340,35 +338,12 @@ __compact_worker(WT_SESSION_IMPL *session)
                 continue;
             }
 
-            /*
-             * If compaction failed because checkpoint was running, continue with the next handle.
-             * We might continue to race with checkpoint on each handle, but that's OK, we'll step
-             * through all the handles, and then we'll block until a checkpoint completes.
-             *
-             * Just quit if eviction is the problem.
-             */
-            else if (ret == EBUSY) {
-                if (__wt_cache_stuck(session)) {
-                    WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
-                    WT_ERR_MSG(session, EBUSY,
-                      "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
-                      session->op_handle[i]->name);
-                }
-
-                WT_STAT_CONN_INCR(session, session_table_compact_conflicting_checkpoint);
-
-                __wt_verbose_info(session, WT_VERB_COMPACT,
-                  "The compaction of the data handle %s returned EBUSY due to an in-progress "
-                  "conflicting checkpoint.%s",
-                  session->op_handle[i]->name,
-                  background_compaction ? "" : " Compaction of this data handle will be retried.");
-
-                ret = 0;
-
-                /* Don't retry in the case of background compaction, move on. */
-                if (!background_compaction)
-                    another_pass = true;
-
+            /* Compact will return EBUSY if eviction is a problem. */
+            if (ret == EBUSY) {
+                WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
+                WT_ERR_MSG(session, EBUSY,
+                  "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
+                  session->op_handle[i]->name);
             }
 
             /* Compaction was interrupted internally. */
@@ -426,9 +401,6 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     u_int i;
-    bool ignore_cache_size_set;
-
-    ignore_cache_size_set = false;
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, compact, config, cfg);
@@ -479,15 +451,6 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
 
     __wt_verbose_debug1(session, WT_VERB_COMPACT, "Compacting %s", uri);
 
-    /*
-     * The compaction thread should not block when the cache is full: it is holding locks blocking
-     * checkpoints and once the cache is full, it can spend a long time doing eviction.
-     */
-    if (!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE)) {
-        ignore_cache_size_set = true;
-        F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
-    }
-
     /* In-memory ignores compaction operations. */
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         __wt_verbose_warning(
@@ -496,9 +459,8 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     }
 
     /*
-     * Non-LSM object compaction requires checkpoints, which are impossible in transactional
-     * contexts. Disallow in all contexts (there's no reason for LSM to allow this, possible or
-     * not), and check now so the error message isn't confusing.
+     * Object compaction requires checkpoints, which are impossible in transactional contexts.
+     * Disallow in all contexts, and check now so the error message isn't confusing.
      */
     WT_ERR(__wt_txn_context_check(session, false));
 
@@ -506,8 +468,8 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     WT_ERR(__wt_str_name_check(session, uri));
 
     if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
-      !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "lsm:") &&
-      !WT_PREFIX_MATCH(uri, "table:") && !WT_PREFIX_MATCH(uri, "tiered:")) {
+      !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "table:") &&
+      !WT_PREFIX_MATCH(uri, "tiered:")) {
         if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
             ret = dsrc->compact == NULL ?
               __wt_object_unsupported(session, uri) :
@@ -549,8 +511,6 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
           session, uri, __compact_handle_append, __compact_uri_analyze, cfg, 0)));
     WT_ERR(ret);
 
-    if (session->compact->lsm_count != 0)
-        WT_ERR(__wt_schema_worker(session, uri, NULL, __wt_lsm_compact, cfg, 0));
     if (session->compact->file_count != 0)
         WT_ERR(__compact_worker(session));
 
@@ -571,9 +531,6 @@ err:
      * reconciliation structures/memory).
      */
     WT_TRET(__wt_session_release_resources(session));
-
-    if (ignore_cache_size_set)
-        F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_compact_fail);

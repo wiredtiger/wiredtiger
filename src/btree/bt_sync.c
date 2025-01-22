@@ -22,30 +22,24 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
-    mod = ref->page->modify;
-    txn = session->txn;
+    /*
+     * If we got to this point and we are dealing with an internal page, this means at least one of
+     * its leaf pages has been reconciled and we need to process the internal page as well.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return (false);
 
     /*
-     * We can skip some dirty pages during a checkpoint. The requirements:
-     *
-     * 1. Not a history btree. As part of the checkpointing the data store, we will move the older
-     *    values into the history store without using any transactions. This led to representation
-     *    of all the modifications on the history store page with a transaction that is maximum than
-     *    the checkpoint snapshot. But these modifications are done by the checkpoint itself, so we
-     *    shouldn't ignore them for consistency.
-     * 2. they must be leaf pages,
-     * 3. there is a snapshot transaction active (which is the case in ordinary application
-     *    checkpoints but not all internal cases),
-     * 4. the first dirty update on the page is sufficiently recent the checkpoint transaction would
-     *     skip them,
-     * 5. there's already an address for every disk block involved.
+     * This is the history store btree. As part of the checkpointing the data store, we will move
+     * the older values into the history store without using any transactions, we shouldn't ignore
+     * them for consistency
      */
     if (WT_IS_HS(session->dhandle))
         return (false);
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        return (false);
-    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
-        return (false);
+
+    /* The checkpoint's snapshot includes the first dirty update on the page. */
+    txn = session->txn;
+    mod = ref->page->modify;
     if (!WT_TXNID_LT(txn->snapshot_data.snap_max, mod->first_dirty_txn))
         return (false);
 
@@ -63,6 +57,20 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
             if (multi->addr.addr == NULL)
                 return (false);
+
+    /* RTS, recovery or shutdown should not leave anything dirty behind. */
+    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+        return (false);
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
+        return (false);
+
+    /*
+     * There is no snapshot transaction active. Usually, there is one in ordinary application
+     * checkpoints but not all internal cases. Furthermore, this guarantees the metadata file is
+     * never skipped.
+     */
+    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+        return (false);
 
     return (true);
 }
@@ -142,7 +150,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     tried_eviction = false;
 
     /* Don't bump page read generations. */
-    flags = WT_READ_NO_GEN;
+    flags = WT_READ_INTERNAL_OP;
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
@@ -283,7 +291,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             dirty = __wt_page_is_modified(page);
             WT_ACQUIRE_BARRIER();
 
-            /* Skip clean pages, but always update the maximum transaction ID. */
+            /* Skip clean pages, but always update the maximum transaction ID and timestamp. */
             if (!dirty) {
                 mod = page->modify;
                 if (mod != NULL && mod->rec_max_txn > btree->rec_max_txn)
@@ -354,12 +362,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             /*
              * Update checkpoint IO tracking data if configured to log verbose progress messages.
              */
-            if (conn->ckpt_timer_start.tv_sec > 0) {
-                conn->ckpt_write_bytes += __wt_atomic_loadsize(&page->memory_footprint);
-                ++conn->ckpt_write_pages;
+            if (conn->ckpt.ckpt_api.timer_start.tv_sec > 0) {
+                conn->ckpt.write_bytes += __wt_atomic_loadsize(&page->memory_footprint);
+                ++conn->ckpt.write_pages;
 
                 /* Periodically log checkpoint progress. */
-                if (conn->ckpt_write_pages % (5 * WT_THOUSAND) == 0)
+                if (conn->ckpt.write_pages % (5 * WT_THOUSAND) == 0)
                     __wt_checkpoint_progress(session, false);
             }
         }
@@ -388,7 +396,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     if (time_start != 0) {
         time_stop = __wt_clock(session);
-        __wt_verbose(session, WT_VERB_CHECKPOINT,
+        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT,
           "__sync_file WT_SYNC_%s wrote: %" PRIu64 " leaf pages (%" PRIu64 "B), %" PRIu64
           " internal pages (%" PRIu64 "B), and took %" PRIu64 "ms",
           syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT", leaf_pages, leaf_bytes,

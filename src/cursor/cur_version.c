@@ -160,8 +160,9 @@ __curversion_next_int(WT_CURSOR *cursor)
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW *twp;
-    WT_UPDATE *first, *next_upd, *tombstone, *upd;
+    WT_UPDATE *first, *next_upd, *upd;
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
+    size_t max_memsize;
     uint64_t hs_upd_type, raw, stop_txn;
     uint8_t *p, version_prepare_state;
     bool upd_found;
@@ -174,7 +175,8 @@ __curversion_next_int(WT_CURSOR *cursor)
     page = cbt->ref->page;
     twp = NULL;
     upd_found = false;
-    first = tombstone = upd = NULL;
+    first = upd = NULL;
+    version_prepare_state = 0;
 
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
@@ -193,8 +195,6 @@ __curversion_next_int(WT_CURSOR *cursor)
             F_SET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED);
         } else {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
-                tombstone = upd;
-
                 /*
                  * If the update is a tombstone, we still want to record the stop information but we
                  * also need traverse to the next update to get the full value. If the tombstone was
@@ -203,6 +203,10 @@ __curversion_next_int(WT_CURSOR *cursor)
                 version_cursor->upd_stop_txnid = upd->txnid;
                 version_cursor->upd_durable_stop_ts = upd->durable_ts;
                 version_cursor->upd_stop_ts = upd->start_ts;
+
+                if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                  upd->prepare_state == WT_PREPARE_LOCKED)
+                    version_prepare_state = 1;
 
                 /* No need to check the next update if the tombstone is globally visible. */
                 if (__wt_txn_upd_visible_all(session, upd))
@@ -222,8 +226,6 @@ __curversion_next_int(WT_CURSOR *cursor)
                 if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
                   upd->prepare_state == WT_PREPARE_LOCKED)
                     version_prepare_state = 1;
-                else
-                    version_prepare_state = 0;
 
                 /*
                  * Copy the update value into the version cursor as we don't know the value format.
@@ -232,8 +234,8 @@ __curversion_next_int(WT_CURSOR *cursor)
                 if (upd->type != WT_UPDATE_MODIFY)
                     __wt_upd_value_assign(cbt->upd_value, upd);
                 else
-                    WT_ERR(
-                      __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+                    WT_ERR(__wt_modify_reconstruct_from_upd_list(
+                      session, cbt, upd, cbt->upd_value, WT_OPCTX_TRANSACTION));
 
                 /*
                  * Set the version cursor's value, which also contains all the record metadata for
@@ -332,11 +334,7 @@ __curversion_next_int(WT_CURSOR *cursor)
                 stop_txn = cbt->upd_value->tw.stop_txn;
             }
 
-            if (tombstone != NULL &&
-              (tombstone->prepare_state == WT_PREPARE_INPROGRESS ||
-                tombstone->prepare_state == WT_PREPARE_LOCKED))
-                version_prepare_state = 1;
-            else
+            if (version_prepare_state == 0)
                 version_prepare_state = cbt->upd_value->tw.prepare;
 
             WT_ERR(__curversion_set_value_with_format(cursor, WT_CURVERSION_METADATA_FORMAT,
@@ -393,6 +391,10 @@ __curversion_next_int(WT_CURSOR *cursor)
          * value.
          */
         if (hs_upd_type == WT_UPDATE_MODIFY) {
+            __wt_modify_max_memsize_format(
+              hs_value->data, file_cursor->value_format, cbt->upd_value->buf.size, &max_memsize);
+            WT_ERR(__wt_buf_set_and_grow(session, &cbt->upd_value->buf, cbt->upd_value->buf.data,
+              cbt->upd_value->buf.size, max_memsize));
             WT_ERR(__wt_modify_apply_item(
               session, file_cursor->value_format, &cbt->upd_value->buf, hs_value->data));
         } else {
@@ -610,9 +612,9 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
       __wt_cursor_notsup,                              /* prev */
       __curversion_reset,                              /* reset */
       __curversion_search,                             /* search */
-      __wti_cursor_search_near_notsup,                 /* search-near */
+      __wt_cursor_search_near_notsup,                  /* search-near */
       __wt_cursor_notsup,                              /* insert */
-      __wti_cursor_modify_notsup,                      /* modify */
+      __wt_cursor_modify_notsup,                       /* modify */
       __wt_cursor_notsup,                              /* update */
       __wt_cursor_notsup,                              /* remove */
       __wt_cursor_notsup,                              /* reserve */

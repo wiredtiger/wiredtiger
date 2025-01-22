@@ -566,7 +566,9 @@ __background_compact_server(void *arg)
                 full_iteration = false;
                 WT_ERR(__wt_buf_set(session, uri, WT_BACKGROUND_COMPACT_URI_PREFIX,
                   strlen(WT_BACKGROUND_COMPACT_URI_PREFIX) + 1));
-                __background_compact_list_cleanup(session, BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
+                __background_compact_list_cleanup(session,
+                  conn->background_compact.run_once ? BACKGROUND_COMPACT_CLEANUP_OFF :
+                                                      BACKGROUND_COMPACT_CLEANUP_STALE_STAT);
             }
 
             if (cache_pressure) {
@@ -620,7 +622,7 @@ __background_compact_server(void *arg)
          * - The cache content is almost at the eviction_trigger threshold.
          */
         cache_pressure =
-          __wt_eviction_dirty_needed(session, NULL) || __wt_eviction_clean_needed(session, NULL);
+          __wt_evict_dirty_needed(session, NULL) || __wt_evict_clean_needed(session, NULL);
         if (cache_pressure)
             continue;
 
@@ -659,7 +661,7 @@ __background_compact_server(void *arg)
             WT_STAT_CONN_INCR(session, background_compact_fail);
             /* The following errors are always silenced. */
             if (ret == EBUSY || ret == ENOENT || ret == ETIMEDOUT || ret == WT_ROLLBACK) {
-                if (ret == EBUSY && __wt_cache_stuck(session))
+                if (ret == EBUSY && __wt_evict_cache_stuck(session))
                     WT_STAT_CONN_INCR(session, background_compact_fail_cache_pressure);
                 else if (ret == ETIMEDOUT)
                     WT_STAT_CONN_INCR(session, background_compact_timeout);
@@ -728,9 +730,10 @@ __wti_background_compact_server_create(WT_SESSION_IMPL *session)
 
     /*
      * Compaction does enough I/O it may be called upon to perform slow operations for the block
-     * manager.
+     * manager. Don't let the background compaction thread be pulled into eviction to limit
+     * performance impacts.
      */
-    session_flags = WT_SESSION_CAN_WAIT;
+    session_flags = WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE;
     WT_RET(__wt_open_internal_session(
       conn, "compact-server", true, session_flags, 0, &conn->background_compact.session));
     session = conn->background_compact.session;
@@ -803,10 +806,8 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
 
     /* Wait for any previous signal to be processed first. */
     __wt_spin_lock(session, &conn->background_compact.lock);
-    if (conn->background_compact.signalled) {
-        ret = EBUSY;
-        goto err;
-    }
+    if (conn->background_compact.signalled)
+        WT_ERR_MSG(session, EBUSY, "Background compact is busy processing a previous command");
 
     running = __wt_atomic_loadbool(&conn->background_compact.running);
 
@@ -818,8 +819,8 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
 
     /* The background compact configuration cannot be changed while it's already running. */
     if (enable && running && strcmp(stripped_config, conn->background_compact.config) != 0)
-        WT_ERR_MSG(
-          session, EINVAL, "Cannot reconfigure background compaction while it's already running.");
+        WT_ERR_SUB(session, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING,
+          "Cannot reconfigure background compaction while it's already running.");
 
     /* If we haven't changed states, we're done. */
     if (enable == running)

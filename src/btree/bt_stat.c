@@ -41,6 +41,9 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     WT_STATP_DSRC_SET(session, stats, rec_multiblock_max, btree->rec_multiblock_max);
 
     WT_STATP_DSRC_SET(session, stats, cache_bytes_dirty, __wt_btree_dirty_inuse(session));
+    WT_STATP_DSRC_SET(session, stats, cache_bytes_dirty_leaf, __wt_btree_dirty_leaf_inuse(session));
+    WT_STATP_DSRC_SET(
+      session, stats, cache_bytes_dirty_internal, __wt_btree_dirty_intl_inuse(session));
     WT_STATP_DSRC_SET(session, stats, cache_bytes_dirty_total,
       __wt_cache_bytes_plus_overhead(
         S2C(session)->cache, __wt_atomic_load64(&btree->bytes_dirty_total)));
@@ -52,7 +55,7 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
       session, stats, compress_precomp_intl_max_page_size, btree->maxintlpage_precomp);
 
     if (F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK))
-        __wt_curstat_cache_walk(session);
+        __wt_evict_cache_stat_walk(session);
 
     if (F_ISSET(cst, WT_STAT_TYPE_TREE_WALK))
         WT_RET(__stat_tree_walk(session));
@@ -96,7 +99,7 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
      * Same as with compact.
      */
     while ((ret = __wt_tree_walk(session, &next_walk,
-              WT_READ_NO_GEN | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
+              WT_READ_INTERNAL_OP | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED)) == 0 &&
       next_walk != NULL) {
         WT_WITH_PAGE_INDEX(session, ret = __stat_page(session, next_walk->page, stats));
         WT_ERR(ret);

@@ -36,13 +36,15 @@
 static void __cache_pool_adjust(WT_SESSION_IMPL *, uint64_t, uint64_t, bool, bool *);
 static void __cache_pool_assess(WT_SESSION_IMPL *, uint64_t *);
 static void __cache_pool_balance(WT_SESSION_IMPL *, bool);
+static int __cache_pool_config(WT_SESSION_IMPL *, const char **);
+static int __conn_cache_pool_open(WT_SESSION_IMPL *);
 
 /*
- * __wti_cache_pool_config --
+ * __cache_pool_config --
  *     Parse and setup the cache pool options.
  */
-int
-__wti_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
+static int
+__cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CACHE_POOL *cp;
     WT_CONFIG_ITEM cval, cval_cache_size;
@@ -273,11 +275,11 @@ __cache_pool_server(void *arg)
 }
 
 /*
- * __wti_conn_cache_pool_open --
+ * __conn_cache_pool_open --
  *     Add a connection to the cache pool.
  */
-int
-__wti_conn_cache_pool_open(WT_SESSION_IMPL *session)
+static int
+__conn_cache_pool_open(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     WT_CACHE_POOL *cp;
@@ -319,6 +321,34 @@ __wti_conn_cache_pool_open(WT_SESSION_IMPL *session)
 
     /* Wake up the cache pool server to get our initial chunk. */
     __wt_cond_signal(session, cp->cache_pool_cond);
+
+    return (0);
+}
+
+/*
+ * __wti_conn_cache_pool_create --
+ *     Create shared cache.
+ */
+int
+__wti_conn_cache_pool_create(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    bool now_shared, was_shared;
+
+    conn = S2C(session);
+    WT_ASSERT(session, conn->cache != NULL);
+
+    WT_RET(__wt_config_gets_none(session, cfg, "shared_cache.name", &cval));
+    now_shared = cval.len != 0;
+    was_shared = F_ISSET(conn, WT_CONN_CACHE_POOL);
+
+    if (now_shared) {
+        WT_RET(__cache_pool_config(session, cfg));
+        WT_ASSERT(session, F_ISSET(conn, WT_CONN_CACHE_POOL));
+        if (!was_shared)
+            WT_RET(__conn_cache_pool_open(session));
+    }
 
     return (0);
 }
@@ -503,6 +533,7 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
     WT_CACHE *cache;
     WT_CACHE_POOL *cp;
     WT_CONNECTION_IMPL *entry;
+    WT_EVICT *evict;
     uint64_t app_evicts, app_waits, reads;
     uint64_t balanced_size, entries, highest, tmp;
 
@@ -524,6 +555,7 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
         if (entry->cache_size == 0 || entry->cache == NULL)
             continue;
         cache = entry->cache;
+        evict = entry->evict;
 
         /*
          * Figure out a delta since the last time we did an assessment for each metric we are
@@ -539,7 +571,7 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
         cache->cp_saved_read = tmp;
 
         /* Update the application eviction count information */
-        tmp = cache->app_evicts;
+        tmp = evict->app_evicts;
         if (tmp >= cache->cp_saved_app_evicts)
             app_evicts = tmp - cache->cp_saved_app_evicts;
         else
@@ -547,7 +579,7 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
         cache->cp_saved_app_evicts = tmp;
 
         /* Update the eviction wait information */
-        tmp = cache->app_waits;
+        tmp = evict->app_waits;
         if (tmp >= cache->cp_saved_app_waits)
             app_waits = tmp - cache->cp_saved_app_waits;
         else
@@ -591,6 +623,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
     WT_CACHE *cache;
     WT_CACHE_POOL *cp;
     WT_CONNECTION_IMPL *entry;
+    WT_EVICT *evict;
     double pct_full;
     uint64_t adjustment, highest_percentile, pressure, reserved, smallest;
     bool busy, decrease_ok, grow, pool_full;
@@ -619,6 +652,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
          entry != NULL;
          entry = forward ? TAILQ_NEXT(entry, cpq) : TAILQ_PREV(entry, __wt_cache_pool_qh, cpq)) {
         cache = entry->cache;
+        evict = entry->evict;
         reserved = cache->cp_reserved;
         adjustment = 0;
 
@@ -628,7 +662,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
          * the most active the more cache we should get assigned.
          */
         pressure = cache->cp_pass_pressure / highest_percentile;
-        busy = __wt_eviction_needed(entry->default_session, false, true, &pct_full);
+        busy = __wt_evict_needed(entry->default_session, false, true, &pct_full);
 
         __wt_verbose_debug2(session, WT_VERB_SHARED_CACHE,
           "\t%5" PRIu64 ", %3" PRIu64 ", %2" PRIu32 ", %d, %2.3f", entry->cache_size >> 20,
@@ -684,7 +718,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
              * connection, which is likely to lead to lower throughput and potentially a negative
              * feedback loop in the balance algorithm.
              */
-            smallest = (uint64_t)((100 * __wt_cache_bytes_inuse(cache)) / cache->eviction_trigger);
+            smallest = (uint64_t)((100 * __wt_cache_bytes_inuse(cache)) / evict->eviction_trigger);
             if (entry->cache_size > smallest)
                 adjustment = WT_MIN(cp->chunk, (entry->cache_size - smallest) / 2);
             adjustment = WT_MIN(adjustment, entry->cache_size - reserved);
@@ -700,7 +734,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
              *  - the pool is less than half distributed
              */
         } else if (!pool_full && (cache->cp_quota == 0 || entry->cache_size < cache->cp_quota) &&
-          __wt_cache_bytes_inuse(cache) >= (entry->cache_size * cache->eviction_target) / 100 &&
+          __wt_cache_bytes_inuse(cache) >= (entry->cache_size * evict->eviction_target) / 100 &&
           (pressure > bump_threshold || cp->currently_used < cp->size * 0.5)) {
             grow = true;
             adjustment = WT_MIN(WT_MIN(cp->chunk, cp->size - cp->currently_used),

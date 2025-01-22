@@ -25,14 +25,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET ex_backup_block
-    SOURCES ex_backup_block.c
-    DIR_NAME ex_backup_block
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_backup_block>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
     TARGET ex_call_center
     SOURCES ex_call_center.c
     DIR_NAME ex_call_center
@@ -88,13 +80,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET ex_extractor
-    SOURCES ex_extractor.c
-    DIR_NAME ex_extractor
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_extractor>/WT_HOME>
-)
-
-define_c_test(
     TARGET ex_extra_diagnostics
     SOURCES ex_extra_diagnostics.c
     DIR_NAME ex_extra_diagnostics
@@ -106,6 +91,13 @@ define_c_test(
     SOURCES ex_file_system.c
     DIR_NAME ex_file_system
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_file_system>/WT_HOME>
+)
+
+define_c_test(
+    TARGET ex_get_last_error
+    SOURCES ex_get_last_error.c
+    DIR_NAME ex_get_last_error
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:ex_get_last_error>/WT_HOME>
 )
 
 define_c_test(

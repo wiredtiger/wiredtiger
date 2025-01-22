@@ -56,16 +56,12 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     insert = 0.75;
     remove = 0.15;
     set_commit_timestamp = 0.05;
-    /*
-     * FIXME-WT-13232 Enable the eviction operator when we've determined how to handle prepare
-     * conflicts with keys adjacent to the truncation range. Set to 0.005.
-     */
-    truncate = 0.0;
+    truncate = 0.005;
 
     checkpoint = 0.02;
+    checkpoint_crash = 0.002;
     crash = 0.002;
-    /* FIXME-WT-12972 Enable the eviction operator when it is safe to do so. Set to 0.1. */
-    evict = 0.0;
+    evict = 0.1;
     restart = 0.002;
     rollback_to_stable = 0.005;
     set_oldest_timestamp = 0.1;
@@ -75,10 +71,22 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     update_existing = 0.1;
 
     prepared_transaction = 0.25;
+    max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
     use_set_commit_timestamp = 0.25;
     nonprepared_transaction_rollback = 0.1;
     prepared_transaction_rollback_after_prepare = 0.1;
     prepared_transaction_rollback_before_prepare = 0.1;
+
+    timing_stress_ckpt_slow = 0.1;
+    timing_stress_ckpt_evict_page = 0.1;
+    timing_stress_ckpt_handle = 0.1;
+    timing_stress_ckpt_stop = 0.1;
+    timing_stress_compact_slow = 0.1;
+    timing_stress_hs_ckpt_delay = 0.1;
+    timing_stress_hs_search = 0.1;
+    timing_stress_hs_sweep_race = 0.1;
+    timing_stress_prepare_ckpt_delay = 0.1;
+    timing_stress_commit_txn_slow = 0.1;
 }
 
 /*
@@ -317,6 +325,40 @@ kv_workload_generator::choose_table(kv_workload_sequence_ptr txn)
 }
 
 /*
+ * kv_workload_generator::generate_connection_config --
+ *     Generate random WiredTiger connection configurations.
+ */
+std::string
+kv_workload_generator::generate_connection_config()
+{
+    std::string wt_env_config;
+    probability_switch(_random.next_float())
+    {
+        probability_case(_spec.timing_stress_ckpt_slow) wt_env_config +=
+          "timing_stress_for_test=[checkpoint_slow]";
+        probability_case(_spec.timing_stress_ckpt_evict_page) wt_env_config +=
+          "timing_stress_for_test=[checkpoint_evict_page]";
+        probability_case(_spec.timing_stress_ckpt_handle) wt_env_config +=
+          "timing_stress_for_test=[checkpoint_handle]";
+        probability_case(_spec.timing_stress_ckpt_stop) wt_env_config +=
+          "timing_stress_for_test=[checkpoint_stop]";
+        probability_case(_spec.timing_stress_compact_slow) wt_env_config +=
+          "timing_stress_for_test=[compact_slow]";
+        probability_case(_spec.timing_stress_hs_ckpt_delay) wt_env_config +=
+          "timing_stress_for_test=[history_store_checkpoint_delay]";
+        probability_case(_spec.timing_stress_hs_search) wt_env_config +=
+          "timing_stress_for_test=[history_store_search]";
+        probability_case(_spec.timing_stress_hs_sweep_race) wt_env_config +=
+          "timing_stress_for_test=[history_store_sweep_race]";
+        probability_case(_spec.timing_stress_prepare_ckpt_delay) wt_env_config +=
+          "timing_stress_for_test=[prepare_checkpoint_delay]";
+        probability_case(_spec.timing_stress_commit_txn_slow) wt_env_config +=
+          "timing_stress_for_test=[commit_transaction_slow]";
+    }
+    return wt_env_config;
+}
+
+/*
  * kv_workload_generator::create_table --
  *     Create a table.
  */
@@ -390,6 +432,13 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                         txn << operation::rollback_transaction(txn_id);
                     else {
                         txn << operation::prepare_transaction(txn_id, k_timestamp_none);
+
+                        /* Add a delay before finishing the transaction. */
+                        size_t delay = _random.next_uint64(_spec.max_delay_after_prepare);
+                        for (size_t i = 0; i < delay; i++)
+                            txn << operation::nop();
+
+                        /* Finish the transaction. */
                         if (_random.next_float() <
                           _spec.prepared_transaction_rollback_after_prepare)
                             txn << operation::rollback_transaction(txn_id);
@@ -425,13 +474,15 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                 table_context_ptr table = choose_table(txn_ptr);
 
                 /*
-                 * Don't use truncate on FLCS tables, because a truncate on an FLCS table can
-                 * conflict with operations adjacent to the truncation range's key range. For
-                 * example, if a user wants to truncate range 10-12 on a table with keys [10, 11,
-                 * 12, 13, 14], a concurrent update to key 13 would result in a conflict (while an
-                 * update to 14 would be able proceed). This does not happen with the other table
-                 * types, which are implemented using bounded cursors; FLCS does not support bounded
-                 * cursors, so it uses a different implementation.
+                 * FIXME-WT-13232 Don't use truncate on FLCS tables, because a truncate on an FLCS
+                 * table can conflict with operations adjacent to the truncation range's key range.
+                 * For example, if a user wants to truncate range 10-12 on a table with keys [10,
+                 * 11, 12, 13, 14], a concurrent update to key 13 would result in a conflict (while
+                 * an update to 14 would be able proceed).
+                 *
+                 * FIXME-WT-13350 Similarly, truncating an implicitly created range of keys in an
+                 * FLCS table conflicts with a concurrent insert operation that caused this range of
+                 * keys to be created.
                  *
                  * The workload generator cannot currently account for this, so don't use truncate
                  * with FLCS tables for now.
@@ -498,6 +549,14 @@ kv_workload_generator::run()
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
                   _sequences.size(), kv_workload_sequence_type::checkpoint);
                 *p << operation::checkpoint();
+                _sequences.push_back(p);
+            }
+            probability_case(_spec.checkpoint_crash)
+            {
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
+                uint64_t random_number = _random.next_uint64(1000);
+                *p << operation::checkpoint_crash(random_number);
                 _sequences.push_back(p);
             }
             probability_case(_spec.crash)
@@ -620,6 +679,7 @@ kv_workload_generator::run()
                     ckpt_oldest = k_timestamp_none;
             }
             if (s->sequence->type() == kv_workload_sequence_type::crash ||
+              s->sequence->type() == kv_workload_sequence_type::checkpoint_crash ||
               s->sequence->type() == kv_workload_sequence_type::restart) {
                 oldest = ckpt_oldest;
                 stable = ckpt_stable;
@@ -657,10 +717,12 @@ kv_workload_generator::run()
         if (s->next_operation_index >= s->sequence->size())
             throw model_exception("Internal error: No more operations left in a sequence");
         const operation::any &op = (*s->sequence)[s->next_operation_index++];
-        _workload << kv_workload_operation(op, s->sequence->seq_no());
+        if (!std::holds_alternative<operation::nop>(op))
+            _workload << kv_workload_operation(op, s->sequence->seq_no());
 
         /* If the operation resulted in a database crash or restart, stop all started sequences. */
         if (std::holds_alternative<operation::crash>(op) ||
+          std::holds_alternative<operation::checkpoint_crash>(op) ||
           std::holds_alternative<operation::restart>(op)) {
             t.complete_all();
             continue;

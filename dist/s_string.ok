@@ -9,7 +9,6 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
-ANDed
 APIs
 AREALLSET
 ARG
@@ -55,7 +54,6 @@ CAS
 CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
-CET
 CHUNKCACHE
 CKPT
 CLOEXEC
@@ -65,7 +63,6 @@ CONFIG
 CPP
 CPUs
 CRC
-CSV
 CURSORs
 CURSTD
 CallsCustDate
@@ -90,10 +87,9 @@ Crt
 Crummey
 CustomersPhone
 Cygwin
-DAX
 DESC
+DEST
 DHANDLE
-DIRECTIO
 DNE
 DONTNEED
 DS
@@ -109,6 +105,7 @@ EB
 EBUSY
 EDC
 EEXIST
+EFAULT
 EINTR
 EINVAL
 EMail
@@ -123,8 +120,8 @@ EOF
 ERANGE
 ETIME
 ETIMEDOUT
-EVICTSERVER
 EXTLIST
+EXTLIST's
 EXTSUBPATH
 Encryptor
 Encryptors
@@ -140,7 +137,6 @@ FLD
 FLSv
 FLv
 FNV
-FORALL
 FOREACH
 FS
 FULLFSYNC
@@ -157,6 +153,7 @@ FreeBSD's
 FreeLibrary
 Fsync
 Fuerst
+Futex
 GBR
 GC
 GCP
@@ -212,6 +209,7 @@ LLVMFuzzerTestOneInput
 LOGOP
 LOGREC
 LOGSCAN
+LOGSLOT
 LRU
 LSB
 LSM
@@ -233,7 +231,6 @@ LogSystemInterface
 MADV
 MALLOC
 MEM
-MEMALIGN
 MERCHANTABILITY
 MONGODB
 MOVEFILE
@@ -275,6 +272,7 @@ NetBSD
 NoAddr
 Noll
 Nul
+OBJECTID
 ONDISK
 OOB
 OPLOG
@@ -290,6 +288,7 @@ POS
 POSIX
 PPC
 PREFETCH
+PREV
 PRId
 PRIu
 PRNG
@@ -303,6 +302,7 @@ Podir
 Posix
 PostgreSQL
 Pre
+Prealloc
 Precompiled
 Prefetch
 Preload
@@ -318,6 +318,7 @@ RCPC
 RCS
 RCpc
 RDNOLOCK
+READGEN
 READONLY
 REALLOC
 RECNO
@@ -341,6 +342,7 @@ Readonly
 Realloc
 RedHat
 Redistributions
+Reify
 Rogerio
 Runtime
 SDK
@@ -348,7 +350,6 @@ SIMD
 SLVG
 SMT
 SPINLOCK
-SSHH
 SSq
 STATP
 STR
@@ -382,6 +383,7 @@ TORTIOUS
 TRET
 TRYLOCK
 TSAN
+TSC
 TSO
 TSan
 TW
@@ -396,6 +398,7 @@ UDF
 UID
 UIDs
 UINT
+ULF
 ULINE
 UNC
 UNCOND
@@ -432,8 +435,10 @@ WILLNEED
 WIREDTIGER
 WRLSN
 WRNOLOCK
+WTI
 WTPERF
 WaitForSingleObject
+WaitOn
 Wconditional
 Wduplicated
 WeakHashLen
@@ -505,6 +510,7 @@ bInheritHandle
 backoff
 bal
 basecfg
+basename
 bb
 bba
 bbb
@@ -527,6 +533,7 @@ blkincr
 blkmod
 blkmods
 bm
+bms
 bnd
 bool
 boolean
@@ -590,7 +597,6 @@ ckptlist
 cksum
 cloexec
 closedir
-clsm
 cmd
 cmp
 cntvct
@@ -611,6 +617,7 @@ config
 configs
 conn
 connectionp
+const
 constantp
 consts
 cookiep
@@ -627,7 +634,6 @@ cryptobad
 cryptographic
 cstring
 csuite
-csv
 ctime
 ctype
 curbackup
@@ -635,11 +641,9 @@ curbt
 curbulk
 curconfig
 curdump
-curextract
 curfile
 curhs
 curindex
-curjoin
 curlog
 curmetadata
 cursoring
@@ -655,9 +659,12 @@ cv
 cval
 cx
 cxa
+dKB
 dT
+darwin
 data's
 datalen
+dataset
 datasource
 datastore
 dbar
@@ -689,11 +696,11 @@ dev
 dh
 dhandle
 dhandles
+didworkp
 difftime
 dir
 directio
 dirlist
-disjunction
 disproportionally
 dlclose
 dlh
@@ -738,7 +745,6 @@ ev
 evd
 eventv
 evictable
-evictserver
 exactp
 exe
 existp
@@ -754,14 +760,9 @@ fclose
 fcntl
 fd
 fdatasync
-fe
-feffff
 fextend
 ffc
 fff
-fffff
-ffffff
-ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -776,7 +777,6 @@ fileops
 filesize
 filesystem
 filesystems
-fillms
 firstfit
 fixup
 flcs
@@ -797,10 +797,10 @@ fseek
 fstat
 fstream
 fsync
-fsyncs
 ftruncate
 func
 funcid
+futex
 fuzzer
 fuzzutil
 fvisibility
@@ -809,7 +809,6 @@ gb
 gcc
 gcp
 gdb
-ge
 getenv
 getlasterror
 getline
@@ -836,12 +835,12 @@ gte
 handleops
 handlep
 hardcoded
+hashmap
 hashsize
 hashtable
 hashval
 havesize
 hdr
-hhh
 hijinx
 hpp
 hs
@@ -853,17 +852,13 @@ iS
 iSh
 iaa
 iaaInterface
-ibackup
 icount
-idlems
 idx
 ie
 iface
 ifdef's
 iiSii
 iiiS
-iiii
-iiu
 ikey
 im
 img
@@ -904,9 +899,7 @@ ishst
 islocked
 ispo
 isprint
-isrc
 isspace
-iter
 jjj
 js
 json
@@ -942,6 +935,7 @@ lexicographically
 lf
 libdatasource
 libmemkind
+libpthread
 libs
 libsodium
 libwiredtiger
@@ -993,7 +987,6 @@ mb
 mbll
 mbss
 mem
-memalign
 membar
 memcmp
 memcpy
@@ -1033,7 +1026,6 @@ nTemp
 namespace
 namespaces
 nbits
-nchunks
 nclr
 nd
 needkey
@@ -1043,7 +1035,6 @@ nentries
 nentriesp
 newbar
 newfile
-newuri
 newv
 nextprev
 nf
@@ -1055,9 +1046,11 @@ nocase
 noclear
 nocrypto
 noexcept
+noff
 nolock
 nonces
 nonliteral
+nonoverlapping
 nontransactionally
 noop
 nop
@@ -1068,6 +1061,7 @@ notsup
 novalue
 nowait
 np
+npos
 nrecs
 nsec
 nset
@@ -1076,7 +1070,9 @@ nullptr
 num
 numbare
 nvram
+objectid
 offpage
+offsetp
 ok
 oldv
 ondisk
@@ -1095,6 +1091,7 @@ optype
 ori
 origstartrecno
 os
+ostream
 oversized
 ovfl
 ownp
@@ -1104,7 +1101,6 @@ packv
 pageref
 pagesize
 param
-params
 pareto
 parserp
 patchp
@@ -1113,6 +1109,7 @@ pathnames
 perf
 pfx
 pid
+pindexp
 pmem
 poptable
 popthreads
@@ -1130,6 +1127,7 @@ precompilation
 precompiled
 precompiling
 prefetch
+prefetching
 preload
 prepend
 prepended
@@ -1168,6 +1166,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readdir
 readgen
 readlock
 readonly
@@ -1212,7 +1211,6 @@ runone
 runtime
 rw
 rwlock
-sH
 sHQ
 sXXXXXX
 sanitizer
@@ -1243,11 +1241,13 @@ skiplist
 skiplists
 skipp
 skippable
+slotp
 slvg
 sn
 snaplen
 snapsort
 snprintf
+softptr
 sortable
 sp
 spinlock
@@ -1258,6 +1258,7 @@ ss
 ssize
 statlog
 stb
+stdbool
 stderr
 stdin
 stdout
@@ -1288,6 +1289,8 @@ su
 subdir
 subdirectories
 subdirectory
+subfolder
+subfolders
 subget
 subgetraw
 subgets
@@ -1303,6 +1306,7 @@ sunused
 supd
 superset
 sw
+syncop
 sys
 syscall
 syscrypto
@@ -1311,7 +1315,6 @@ sz
 t's
 tIf
 tV
-tablename
 td
 teardown
 tempdir
@@ -1319,6 +1322,8 @@ testext
 testutil
 th
 tid
+timeslice
+timespec
 tinfo
 tlb
 tmp
@@ -1343,6 +1348,7 @@ truncations
 trylock
 tryrdlock
 trywrlock
+tsc
 tupdate
 tw
 txn
@@ -1352,11 +1358,12 @@ txt
 typedef
 typeof
 uS
-ui
 uint
 uintAny
+ulock
 umount
 unallocated
+unbacked
 unbare
 unbuffered
 uncached
@@ -1373,8 +1380,6 @@ uninstantiated
 unistd
 unlink
 unmap
-unmapping
-unmerged
 unmodify
 unmount
 unpackv
@@ -1397,6 +1402,7 @@ userbad
 usercfg
 usleep
 usr
+ut
 utf
 util
 utils

@@ -47,6 +47,7 @@ extern "C" {
 }
 
 #include "model/driver/kv_workload_generator.h"
+#include "model/driver/kv_workload_runner_wt.h"
 #include "model/test/util.h"
 #include "model/test/wiredtiger_util.h"
 #include "model/kv_database.h"
@@ -61,7 +62,7 @@ extern char *__wt_optarg;
 /*
  * Connection configuration.
  */
-#define ENV_CONFIG_BASE "create=true,log=(enabled=false)"
+#define DEFAULT_CONNECTION_CONFIG ""
 
 /*
  * Home (sub-)directory for counterexample reduction.
@@ -75,10 +76,10 @@ extern char *__wt_optarg;
 #define REDUCED_WORKLOAD_FILE "reduced.workload"
 
 /*
- * Table configuration: Use small pages to force WiredTiger to generate deeper trees with less
- * effort than we would have generated otherwise.
+ * Table configuration: Use small pages by default to force WiredTiger to generate deeper trees with
+ * less effort than we would have generated otherwise.
  */
-#define TABLE_CONFIG_BASE "leaf_page_max=4KB"
+#define DEFAULT_TABLE_CONFIG "leaf_page_max=4KB"
 
 /*
  * run_and_verify --
@@ -86,7 +87,7 @@ extern char *__wt_optarg;
  */
 static void
 run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &home,
-  const std::string &conn_config, const std::string &table_config)
+  const std::string &conn_config_override = "", const std::string &table_config_override = "")
 {
     /* Run the workload in the model. */
     model::kv_database database;
@@ -96,6 +97,10 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
 
         /* When we load the workload from WiredTiger, that would be after running recovery. */
         database.restart();
+    } catch (model::known_issue_exception &e) {
+        std::cerr << "Warning: Reproduced known WiredTiger issue " << e.issue()
+                  << " (skip the rest of the test)" << std::endl;
+        return;
     } catch (std::exception &e) {
         throw std::runtime_error(
           "Failed to run the workload in the model: " + std::string(e.what()));
@@ -116,8 +121,8 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
     /* Run the workload in WiredTiger. */
     std::vector<int> ret_wt;
     try {
-        ret_wt =
-          workload->run_in_wiredtiger(home.c_str(), conn_config.c_str(), table_config.c_str());
+        ret_wt = workload->run_in_wiredtiger(
+          home.c_str(), conn_config_override.c_str(), table_config_override.c_str());
     } catch (std::exception &e) {
         throw std::runtime_error(
           "Failed to run the workload in WiredTiger: " + std::string(e.what()));
@@ -138,8 +143,11 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
 
     /* Open the WiredTiger database to verify. */
     WT_CONNECTION *conn;
+    std::string conn_config_verify = model::kv_workload_runner_wt::k_config_base;
+    if (conn_config_override != "")
+        conn_config_verify += "," + conn_config_override;
     int ret =
-      wiredtiger_open(home.c_str(), nullptr /* event handler */, conn_config.c_str(), &conn);
+      wiredtiger_open(home.c_str(), nullptr /* event handler */, conn_config_verify.c_str(), &conn);
     if (ret != 0)
         throw std::runtime_error("Cannot open the database: " +
           std::string(wiredtiger_strerror(ret)) + " (" + std::to_string(ret) + ")");
@@ -214,6 +222,7 @@ update_spec(model::kv_workload_generator_spec &spec, std::string &conn_config,
         UPDATE_SPEC(update_existing, float);
 
         UPDATE_SPEC(prepared_transaction, float);
+        UPDATE_SPEC(max_delay_after_prepare, uint64);
         UPDATE_SPEC(nonprepared_transaction_rollback, float);
         UPDATE_SPEC(prepared_transaction_rollback_after_prepare, float);
         UPDATE_SPEC(prepared_transaction_rollback_before_prepare, float);
@@ -291,10 +300,10 @@ load_workload(const char *file)
  *     The context for counterexample reduction.
  */
 struct reduce_counterexample_context_t {
-    const std::string conn_config;
+    const std::string conn_config_override;
     const std::string main_home;
     const std::string reduce_home;
-    const std::string table_config;
+    const std::string table_config_override;
 
     size_t round;
 
@@ -303,9 +312,10 @@ struct reduce_counterexample_context_t {
      *     Initialize the context.
      */
     reduce_counterexample_context_t(const std::string &main_home, const std::string &reduce_home,
-      const std::string &conn_config, const std::string &table_config)
-        : main_home(main_home), reduce_home(reduce_home), conn_config(conn_config),
-          table_config(table_config), round(0)
+      const std::string &conn_config_override, const std::string &table_config_override)
+        : main_home(main_home), reduce_home(reduce_home),
+          conn_config_override(conn_config_override), table_config_override(table_config_override),
+          round(0)
     {
     }
 };
@@ -408,7 +418,8 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
         /* Try the reduced workload. */
         try {
             if (!skip)
-                run_and_verify(w, context.reduce_home, context.conn_config, context.table_config);
+                run_and_verify(w, context.reduce_home, context.conn_config_override,
+                  context.table_config_override);
             else
                 std::cout << "Counterexample reduction: Skip running a malformed workload"
                           << std::endl;
@@ -440,9 +451,11 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
  */
 static void
 reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::string &main_home,
-  const std::string &reduce_home, const std::string &conn_config, const std::string &table_config)
+  const std::string &reduce_home, const std::string &conn_config_override = "",
+  const std::string &table_config_override = "")
 {
-    reduce_counterexample_context_t context{main_home, reduce_home, conn_config, table_config};
+    reduce_counterexample_context_t context{
+      main_home, reduce_home, conn_config_override, table_config_override};
 
     /*
      * Turn off generating core dumps during the counterexample reduction. Each failed run could
@@ -596,6 +609,7 @@ usage(const char *progname)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -C CONFIG  specify WiredTiger's connection configuration\n");
     fprintf(stderr, "  -G CONFIG  specify the workload generator's configuration\n");
+    fprintf(stderr, "  -g         generate random timing stress configuration\n");
     fprintf(stderr, "  -h HOME    specify the database directory\n");
     fprintf(stderr, "  -I n       run the test for at least this many iterations\n");
     fprintf(stderr, "  -i FILE    load the generator's configuration from the file\n");
@@ -626,12 +640,13 @@ main(int argc, char *argv[])
     uint64_t min_runtime_s = 0;
     bool preserve = false;
     bool print_only = false;
+    bool generate_timing_stress_configurations = false;
     const char *progname = argv[0];
     bool reduce = true;
 
     std::vector<std::string> workload_files;
-    std::string conn_config = ENV_CONFIG_BASE;
-    std::string table_config = TABLE_CONFIG_BASE;
+    std::string conn_config;
+    std::string table_config;
 
     /*
      * Parse the command-line arguments.
@@ -641,14 +656,16 @@ main(int argc, char *argv[])
         int ch;
 
         __wt_optwt = 1;
-        while ((ch = __wt_getopt(progname, argc, argv, "C:G:h:I:i:l:M:npRS:T:t:w:?")) != EOF)
+        while ((ch = __wt_getopt(progname, argc, argv, "C:G:h:I:i:l:M:gnpRS:T:t:w:?")) != EOF)
             switch (ch) {
             case 'C':
-                conn_config += ",";
-                conn_config += __wt_optarg;
+                conn_config = model::join(conn_config, __wt_optarg);
                 break;
             case 'G':
                 update_spec(spec, conn_config, table_config, __wt_optarg);
+                break;
+            case 'g':
+                generate_timing_stress_configurations = true;
                 break;
             case 'h':
                 home = __wt_optarg;
@@ -686,8 +703,7 @@ main(int argc, char *argv[])
                 base_seed = parse_uint64(__wt_optarg);
                 break;
             case 'T':
-                table_config += ",";
-                table_config += __wt_optarg;
+                table_config = model::join(table_config, __wt_optarg);
                 break;
             case 't':
                 min_runtime_s = parse_uint64(__wt_optarg);
@@ -740,6 +756,7 @@ main(int argc, char *argv[])
 
             /* Run and verify the workload. */
             try {
+                /* Use the connection and table config arguments as configuration overrides. */
                 run_and_verify(workload, home, conn_config, table_config);
             } catch (std::exception &e) {
                 std::cerr << e.what() << std::endl;
@@ -755,10 +772,15 @@ main(int argc, char *argv[])
             }
         }
     else {
+        /* Incorporate default WiredTiger configurations. */
+        conn_config = model::join(DEFAULT_CONNECTION_CONFIG, conn_config);
+        table_config = model::join(DEFAULT_TABLE_CONFIG, table_config);
+
         /* Run the test, potentially many times. */
         uint64_t next_seed = base_seed;
         for (uint64_t iteration = 1;; iteration++) {
             uint64_t seed = next_seed;
+            std::string wt_conn_config = conn_config;
             next_seed = model::random::next_seed(next_seed);
 
             std::cout << "Iteration " << iteration << ", seed 0x" << std::hex << seed << std::dec
@@ -773,6 +795,20 @@ main(int argc, char *argv[])
                 return EXIT_FAILURE;
             }
 
+            /* Generate random timing stress configurations and add it to the WiredTiger config. */
+            if (generate_timing_stress_configurations) {
+                std::string rand_env_config;
+                rand_env_config = model::kv_workload_generator::generate_configurations(seed);
+                wt_conn_config = model::join(wt_conn_config, rand_env_config);
+            }
+
+            /* Add the connection and table configurations to the workload. */
+            if (!table_config.empty())
+                workload->prepend(std::move(model::operation::wt_config("table", table_config)));
+            if (!wt_conn_config.empty())
+                workload->prepend(
+                  std::move(model::operation::wt_config("connection", wt_conn_config)));
+
             /* If we only want to print the workload, then do so. */
             if (print_only) {
                 std::cout << *workload.get();
@@ -784,14 +820,13 @@ main(int argc, char *argv[])
 
             /* Run and verify the workload. */
             try {
-                run_and_verify(workload, home, conn_config, table_config);
+                run_and_verify(workload, home);
             } catch (std::exception &e) {
                 std::cerr << e.what() << std::endl;
                 if (reduce)
                     try {
                         std::string reduce_home = home + DIR_DELIM_STR + REDUCTION_HOME;
-                        reduce_counterexample(
-                          workload, home, reduce_home, conn_config, table_config);
+                        reduce_counterexample(workload, home, reduce_home);
                     } catch (std::exception &e) {
                         std::cerr << e.what() << std::endl;
                     }

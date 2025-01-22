@@ -50,6 +50,7 @@ func_ok()
         -e '/int __im_file_sync$/d' \
         -e '/int __im_fs_directory_list_free$/d' \
         -e '/int __im_fs_exist$/d' \
+        -e '/int __live_restore_worker_stop$/d' \
         -e '/int __log_record_verify$/d' \
         -e '/int __log_salvage_message$/d' \
         -e '/int __page_write_gen_wrapped_check$/d' \
@@ -74,13 +75,11 @@ func_ok()
         -e '/int __wt_buf_fmt$/d' \
         -e '/int __wt_count_birthmarks$/d' \
         -e '/int __wt_conn_prefetch_clear_tree$/d' \
-        -e '/int __wt_curjoin_joined$/d' \
         -e '/int __wti_cursor_noop$/d' \
         -e '/int __wt_epoch$/d' \
         -e '/int __wt_errno$/d' \
         -e '/int __wt_get_vm_pagesize$/d' \
         -e '/int __wt_lex_compare_skip$/d' \
-        -e '/int __wti_lsm_manager_pop_entry$/d' \
         -e '/int __wt_once$/d' \
         -e '/int __wti_posix_directory_list_free$/d' \
         -e '/int __wt_session_breakpoint$/d' \
@@ -89,7 +88,6 @@ func_ok()
         -e '/int __wt_spin_trylock$/d' \
         -e '/int __wt_stat_connection_desc$/d' \
         -e '/int __wt_stat_dsrc_desc$/d' \
-        -e '/int __wt_stat_join_desc$/d' \
         -e '/int __wt_stat_session_desc/d' \
         -e '/int __wt_txn_read_upd_list$/d' \
         -e '/int __wt_txn_rollback_required$/d' \
@@ -122,7 +120,6 @@ func_ok()
         -e '/int index_compare_S$/d' \
         -e '/int index_compare_primary$/d' \
         -e '/int index_compare_u$/d' \
-        -e '/int index_extractor_u$/d' \
         -e '/int iaa_error$/d' \
         -e '/int iaa_pre_size$/d' \
         -e '/int iaa_terminate$/d' \
@@ -186,6 +183,8 @@ func_ok()
         -e '/int __wt_struct_unpack_prev_lsn$/d' \
         -e '/int __wt_struct_unpack_backup_id$/d' \
         -e '/int __wt_struct_unpack_txn_timestamp$/d' \
+        -e '/int __wt_futex_wait/d' \
+        -e '/int __wt_futex_wake/d' \
         ;
 }
 

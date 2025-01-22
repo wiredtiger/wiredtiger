@@ -62,7 +62,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     size_t root_addr_size;
-    uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     bool creation, forced_salvage;
 
     btree = S2BT(session);
@@ -75,6 +75,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     WT_RET(__btree_clear(session));
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
+    __wt_evict_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
 
     /* Set the data handle first, our called functions reasonably use it. */
@@ -119,7 +120,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * !!!
      * As part of block-manager configuration, we need to return the maximum
      * sized address cookie that a block manager will ever return.  There's
-     * a limit of WT_BTREE_MAX_ADDR_COOKIE, but at 255B, it's too large for
+     * a limit of WT_ADDR_MAX_COOKIE, but at 255B, it's too large for
      * a Btree with 512B internal pages.  The default block manager packs
      * a wt_off_t and 2 uint32_t's into its cookie, so there's no problem
      * now, but when we create a block manager extension API, we need some
@@ -176,7 +177,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 err:
         WT_TRET(__wt_btree_close(session));
     }
-    __wt_meta_checkpoint_free(session, &ckpt);
+    __wt_checkpoint_free(session, &ckpt);
 
     __wt_scr_free(session, &tmp);
     return (ret);
@@ -216,7 +217,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
         (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree->dhandle)));
 
     /* Clear the saved checkpoint information. */
-    __wt_meta_saved_ckptlist_free(session);
+    __wt_ckptlist_saved_free(session);
 
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
@@ -390,7 +391,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * level durability and supported timestamps. In-memory configurations default to ignoring all
      * timestamps, and the application uses the logging configuration flag to turn on timestamps.
      */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+    if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED)) {
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (cval.val)
             F_SET(btree, WT_BTREE_LOGGED);
@@ -574,7 +575,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * checkpoint.
      */
     if ((!F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET(btree, WT_BTREE_LOGGED) ||
-          ckpt->run_write_gen < conn->last_ckpt_base_write_gen) &&
+          ckpt->run_write_gen < conn->ckpt.last_base_write_gen) &&
       !is_ckpt)
         btree->base_write_gen = btree->run_write_gen;
     else
@@ -923,15 +924,20 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     /*
      * Get the allocation size. Allocation sizes must be a power-of-two, nothing else makes sense.
      */
-    WT_RET(__wt_direct_io_size_check(session, cfg, "allocation_size", &btree->allocsize));
+    WT_RET(__wt_config_gets(session, cfg, "allocation_size", &cval));
+    btree->allocsize = (uint32_t)cval.val;
+
     if (!__wt_ispo2(btree->allocsize))
         WT_RET_MSG(session, EINVAL, "the allocation size must be a power of two");
 
     /*
      * Get the internal/leaf page sizes. All page sizes must be in units of the allocation size.
      */
-    WT_RET(__wt_direct_io_size_check(session, cfg, "internal_page_max", &btree->maxintlpage));
-    WT_RET(__wt_direct_io_size_check(session, cfg, "leaf_page_max", &btree->maxleafpage));
+    WT_RET(__wt_config_gets(session, cfg, "internal_page_max", &cval));
+    btree->maxintlpage = (uint32_t)cval.val;
+    WT_RET(__wt_config_gets(session, cfg, "leaf_page_max", &cval));
+    btree->maxleafpage = (uint32_t)cval.val;
+
     if (btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0 ||
       btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0)
         WT_RET_MSG(session, EINVAL,
@@ -983,7 +989,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 #define WT_MIN_PAGES 10
     if (!F_ISSET(conn, WT_CONN_CACHE_POOL) && (cache_size = conn->cache_size) > 0)
         btree->maxmempage = (uint64_t)WT_MIN(btree->maxmempage,
-          ((conn->cache->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
+          ((conn->evict->eviction_dirty_trigger * cache_size) / 100) / WT_MIN_PAGES);
 
     /* Enforce a lower bound of a single disk leaf page */
     btree->maxmempage = WT_MAX(btree->maxmempage, btree->maxleafpage);

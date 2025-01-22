@@ -134,3 +134,50 @@ err:
     __wt_scr_free(session, &buf);
     return (ret);
 }
+
+/*
+ * __wt_session_set_last_error --
+ *     Stores information about the last error to occur during this session.
+ */
+int
+__wt_session_set_last_error(
+  WT_SESSION_IMPL *session, int err, int sub_level_err, const char *fmt, ...)
+{
+    WT_DECL_RET;
+    WT_ERROR_INFO *err_info = &(session->err_info);
+
+    /* Validate the sub level error code. */
+    WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
+
+    /*
+     * Only update the error struct if an error occurs during a session API call, or if the error
+     * struct is being initialized.
+     */
+    if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+        return (0);
+
+    /*
+     * Load error codes and message into err_info. If the message is empty or is NULL (indicating
+     * success), use static string buffers. Otherwise, format the message into the buffer.
+     *
+     * If err == 0, either: we are opening the session and err_msg should be initialized to
+     * WT_ERROR_INFO_EMPTY; or we are at the start of an API call, in which case fmt should be NULL
+     * and err_msg should be set to WT_ERROR_INFO_SUCCESS. NULL implying success here saves us a
+     * strcmp to validate that we never set err = 0 with a custom message.
+     */
+    err_info->err = err;
+    err_info->sub_level_err = sub_level_err;
+    if (fmt != NULL && strlen(fmt) == 0)
+        err_info->err_msg = WT_ERROR_INFO_EMPTY;
+    else if (err == 0) {
+        WT_ASSERT(session, fmt == NULL);
+        err_info->err_msg = WT_ERROR_INFO_SUCCESS;
+    } else {
+        WT_ASSERT(session, fmt != NULL);
+        WT_VA_ARGS_BUF_FORMAT(session, &(err_info->err_msg_buf), fmt, false);
+        err_info->err_msg = err_info->err_msg_buf.data;
+    }
+
+err:
+    return (ret);
+}

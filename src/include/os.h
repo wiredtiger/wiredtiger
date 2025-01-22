@@ -37,6 +37,37 @@
             (ret) = __wt_errno();                                      \
     } while (0)
 
+#define WT_SYSCALL_TRET(call, ret)                                     \
+    do {                                                               \
+        int _ret;                                                      \
+        /*                                                             \
+         * A call returning 0 indicates success; any call where        \
+         * 0 is not the only successful return must provide an         \
+         * expression evaluating to 0 in all successful cases.         \
+         *                                                             \
+         * XXX                                                         \
+         * Casting the call's return to int is because CentOS 7.3.1611 \
+         * complains about syscall returning a long and the loss of    \
+         * integer precision in the assignment to ret. The cast should \
+         * be a no-op everywhere.                                      \
+         */                                                            \
+        if (((_ret) = (int)(call)) == 0)                               \
+            break;                                                     \
+        /*                                                             \
+         * The call's error was either returned by the call or         \
+         * is in errno, and there are cases where it depends on        \
+         * the software release as to which it is (for example,        \
+         * posix_fadvise on FreeBSD and OS X). Failing calls           \
+         * must either return a non-zero error value, or -1 if         \
+         * the error value is in errno. (The WiredTiger errno          \
+         * function returns WT_ERROR if errno is 0, which isn't        \
+         * ideal but won't discard the failure.)                       \
+         */                                                            \
+        if ((_ret) == -1)                                              \
+            (_ret) = __wt_errno();                                     \
+        WT_TRET(_ret);                                                 \
+    } while (0)
+
 #define WT_RETRY_MAX 10
 
 #define WT_SYSCALL_RETRY(call, ret)                            \
@@ -72,13 +103,6 @@
 #define WT_CLOCKDIFF_US(end, begin) (WT_CLOCKDIFF_NS(end, begin) / WT_THOUSAND)
 #define WT_CLOCKDIFF_MS(end, begin) (WT_CLOCKDIFF_NS(end, begin) / WT_MILLION)
 #define WT_CLOCKDIFF_SEC(end, begin) (WT_CLOCKDIFF_NS(end, begin) / WT_BILLION)
-
-#define WT_TIMECMP(t1, t2)                                              \
-    ((t1).tv_sec < (t2).tv_sec     ? -1 :                               \
-        (t1).tv_sec == (t2).tv_sec ? (t1).tv_nsec < (t2).tv_nsec ? -1 : \
-          (t1).tv_nsec == (t2).tv_nsec                           ? 0 :  \
-                                                                   1 :                            \
-                                     1)
 
 /*
  * Macros to ensure a file handle is inserted or removed from both the main and the hashed queue,
@@ -127,7 +151,6 @@ struct __wt_file_handle_win {
     HANDLE filehandle;           /* Windows file handle */
     HANDLE filehandle_secondary; /* Windows file handle
                                     for file size changes */
-    bool direct_io;              /* O_DIRECT configured */
     DWORD desired_access;        /* Read-only or read/write */
 };
 
@@ -140,8 +163,6 @@ struct __wt_file_handle_posix {
      * POSIX specific file handle fields
      */
     int fd; /* POSIX file handle */
-
-    bool direct_io; /* O_DIRECT configured */
 
     /* The memory buffer and variables if we use mmap for I/O */
     uint8_t *mmap_buf;

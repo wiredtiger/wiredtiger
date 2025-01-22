@@ -1,5 +1,7 @@
 #pragma once
 
+/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
 extern DWORD __wt_getlasterror(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_absolute_path(const char *path) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_has_priv(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -14,6 +16,10 @@ extern int __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_dlsym(WT_SESSION_IMPL *session, WT_DLH *dlh, const char *name, bool fail,
   void *sym_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_futex_wait(volatile WT_FUTEX_WORD *addr, WT_FUTEX_WORD expected, time_t usec,
+  WT_FUTEX_WORD *wake_valp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_futex_wake(volatile WT_FUTEX_WORD *addr, WT_FUTEX_WAKE wake, WT_FUTEX_WORD wake_val)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_get_vm_pagesize(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -65,3 +71,5 @@ extern void __wt_yield_no_barrier(void) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("
 #ifdef HAVE_UNITTEST
 
 #endif
+
+/* DO NOT EDIT: automatically built by prototypes.py: END */

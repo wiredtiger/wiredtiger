@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_checkpoint01.py
@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 # General checkpoint test: create an object containing sets of data associated
 # with a set of checkpoints, then confirm the checkpoint's values are correct,
 # including after other checkpoints are dropped.
-@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
         ('file', dict(uri='file:checkpoint',fmt='S')),
@@ -219,42 +219,6 @@ class test_checkpoint_target(wttest.WiredTigerTestCase):
         self.assertEqual(cursor[ds.key(10)], value)
         cursor.close()
 
-    # FIXME-WT-10836
-    @wttest.skip_for_hook("tiered", "strange interaction with tiered and named checkpoints using target")
-    def test_checkpoint_target(self):
-        # Create 3 objects, change one record to an easily recognizable string.
-        uri = self.uri + '1'
-        ds1 = SimpleDataSet(self, uri, 100, key_format=self.fmt)
-        ds1.populate()
-        self.update(uri, ds1, 'ORIGINAL')
-
-        uri = self.uri + '2'
-        ds2 = SimpleDataSet(self, uri, 100, key_format=self.fmt)
-        ds2.populate()
-        self.update(uri, ds2, 'ORIGINAL')
-
-        uri = self.uri + '3'
-        ds3 = SimpleDataSet(self, uri, 100, key_format=self.fmt)
-        ds3.populate()
-        self.update(uri, ds3, 'ORIGINAL')
-
-        # Checkpoint all three objects.
-        self.session.checkpoint("name=checkpoint-1")
-
-        # Update all 3 objects, then checkpoint two of the objects with the
-        # same checkpoint name.
-        self.update(self.uri + '1', ds1, 'UPDATE')
-        self.update(self.uri + '2', ds2, 'UPDATE')
-        self.update(self.uri + '3', ds3, 'UPDATE')
-        target = 'target=("' + self.uri + '1"' + ',"' + self.uri + '2")'
-        self.session.checkpoint("name=checkpoint-1," + target)
-
-        # Confirm the checkpoint has the old value in objects that weren't
-        # checkpointed, and the new value in objects that were checkpointed.
-        self.check(self.uri + '1', ds1, 'UPDATE')
-        self.check(self.uri + '2', ds2, 'UPDATE')
-        self.check(self.uri + '3', ds3, 'ORIGINAL')
-
 # Check that you can't write checkpoint cursors.
 class test_checkpoint_cursor_update(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
@@ -346,15 +310,6 @@ class test_checkpoint_illegal_name(wttest.WiredTigerTestCase):
                     lambda: self.session.open_cursor(uri, None, conf), msg)
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.open_cursor("file:WiredTigerHS.wt", None, conf), msg)
-
-# Check we can't name checkpoints that include LSM tables.
-class test_checkpoint_lsm_name(wttest.WiredTigerTestCase):
-    def test_checkpoint_lsm_name(self):
-        ds = ComplexLSMDataSet(self, "table:checkpoint", 1000)
-        ds.populate()
-        msg = '/object does not support named checkpoints/'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.checkpoint("name=ckpt"), msg)
 
 class test_checkpoint_empty(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([

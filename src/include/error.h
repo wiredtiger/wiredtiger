@@ -47,11 +47,18 @@
         if ((ret = (a)) != 0) \
             goto err;         \
     } while (0)
-#define WT_ERR_MSG(session, v, ...)          \
-    do {                                     \
-        ret = (v);                           \
-        __wt_err(session, ret, __VA_ARGS__); \
-        goto err;                            \
+#define WT_ERR_MSG(session, v, ...)                                                   \
+    do {                                                                              \
+        ret = (v);                                                                    \
+        __wt_err(session, ret, __VA_ARGS__);                                          \
+        WT_IGNORE_RET(__wt_session_set_last_error(session, v, WT_NONE, __VA_ARGS__)); \
+        goto err;                                                                     \
+    } while (0)
+#define WT_ERR_SUB(session, v, sub_v, ...)                                          \
+    do {                                                                            \
+        ret = (v);                                                                  \
+        WT_IGNORE_RET(__wt_session_set_last_error(session, v, sub_v, __VA_ARGS__)); \
+        goto err;                                                                   \
     } while (0)
 #define WT_ERR_TEST(a, v, keep) \
     do {                        \
@@ -82,11 +89,18 @@
             return (__ret);           \
         }                             \
     } while (0)
-#define WT_RET_MSG(session, v, ...)            \
-    do {                                       \
-        int __ret = (v);                       \
-        __wt_err(session, __ret, __VA_ARGS__); \
-        return (__ret);                        \
+#define WT_RET_MSG(session, v, ...)                                                   \
+    do {                                                                              \
+        int __ret = (v);                                                              \
+        __wt_err(session, __ret, __VA_ARGS__);                                        \
+        WT_IGNORE_RET(__wt_session_set_last_error(session, v, WT_NONE, __VA_ARGS__)); \
+        return (__ret);                                                               \
+    } while (0)
+#define WT_RET_SUB(session, v, sub_v, ...)                                          \
+    do {                                                                            \
+        int __ret = (v);                                                            \
+        WT_IGNORE_RET(__wt_session_set_last_error(session, v, sub_v, __VA_ARGS__)); \
+        return (__ret);                                                             \
     } while (0)
 #define WT_RET_TEST(a, v) \
     do {                  \
@@ -100,6 +114,11 @@
     } while (0)
 #define WT_RET_BUSY_OK(a) WT_RET_ERROR_OK(a, EBUSY)
 #define WT_RET_NOTFOUND_OK(a) WT_RET_ERROR_OK(a, WT_NOTFOUND)
+#define WT_RET_ONLY(a, e)             \
+    do {                              \
+        int __ret = (a);              \
+        WT_RET_TEST(__ret == (e), e); \
+    } while (0)
 
 #ifdef INLINE_FUNCTIONS_INSTEAD_OF_MACROS
 /* Set "ret" if not already set. */

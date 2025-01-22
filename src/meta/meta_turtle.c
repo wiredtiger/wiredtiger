@@ -275,6 +275,7 @@ err:
 static int
 __metadata_load_bulk(WT_SESSION_IMPL *session)
 {
+    WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     uint32_t allocsize;
@@ -303,7 +304,9 @@ __metadata_load_bulk(WT_SESSION_IMPL *session)
          */
         WT_ERR(cursor->get_value(cursor, &value));
         filecfg[1] = value;
-        WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
+        WT_ERR(__wt_config_gets(session, filecfg, "allocation_size", &cval));
+        allocsize = (uint32_t)cval.val;
+
         WT_ERR(__wt_block_manager_create(session, key, allocsize));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -476,7 +479,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
     WT_DECL_RET;
     uint64_t i;
     char *metaconf, *unused_value;
-    bool exist_backup, exist_incr, exist_isrc, exist_turtle;
+    bool exist_backup, exist_turtle;
     bool load, load_turtle, validate_turtle;
 
     conn = S2C(session);
@@ -510,8 +513,6 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
      * turtle file and an incremental backup file, that is an error. Otherwise, if there's already a
      * turtle file, we're done.
      */
-    WT_ERR(__wt_fs_exist(session, WT_LOGINCR_BACKUP, &exist_incr));
-    WT_ERR(__wt_fs_exist(session, WT_LOGINCR_SRC, &exist_isrc));
     WT_ERR(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist_backup));
     WT_ERR(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist_turtle));
 
@@ -537,12 +538,6 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
             validate_turtle = true;
 
         /*
-         * We need to detect the difference between a source database that may have crashed with an
-         * incremental backup file and a destination database that incorrectly ran recovery.
-         */
-        if (exist_incr && !exist_isrc)
-            WT_ERR_MSG(session, EINVAL, "Incremental backup after running recovery is not allowed");
-        /*
          * If we have a backup file and metadata and turtle files, we want to recreate the metadata
          * from the backup.
          */
@@ -558,9 +553,6 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
     } else
         load = true;
     if (load) {
-        if (exist_incr)
-            F_SET(conn, WT_CONN_WAS_BACKUP);
-
         /*
          * Verifying the metadata is incompatible with restarting from a backup because the verify
          * call will rewrite the metadata's checkpoint and could lead to skipping recovery. Test
@@ -618,6 +610,7 @@ __wti_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_FSTREAM *fs;
+    char msg[512];
     bool exist;
 
     *valuep = NULL;
@@ -637,21 +630,29 @@ __wti_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
           strcmp(key, WT_METAFILE_URI) == 0 ? __metadata_config(session, valuep) : WT_NOTFOUND);
     WT_RET(__wt_fopen(session, WT_METADATA_TURTLE, 0, WT_STREAM_READ, &fs));
 
+    strcpy(msg, "wt_scr_alloc");
     WT_ERR(__wt_scr_alloc(session, 512, &buf));
 
     /* Search for the key. */
+    WT_ERR(__wt_snprintf(msg, sizeof(msg), "key %s search loop", key));
     do {
         WT_ERR(__wt_getline(session, fs, buf));
-        if (buf->size == 0)
+        if (buf->size == 0) {
+            WT_ERR(__wt_snprintf(msg, sizeof(msg), "key %s reached EOF, not found", key));
             WT_ERR(WT_NOTFOUND);
+        }
     } while (strcmp(key, buf->data) != 0);
 
     /* Key matched: read the subsequent line for the value. */
+    WT_ERR(__wt_snprintf(msg, sizeof(msg), "key %s read value line", key));
     WT_ERR(__wt_getline(session, fs, buf));
-    if (buf->size == 0)
+    if (buf->size == 0) {
+        WT_ERR(__wt_snprintf(msg, sizeof(msg), "key %s reached EOF, value not found", key));
         WT_ERR(WT_NOTFOUND);
+    }
 
     /* Copy the value for the caller. */
+    strcpy(msg, "wt_strdup value");
     WT_ERR(__wt_strdup(session, buf->data, valuep));
 
 err:
@@ -669,7 +670,8 @@ err:
     if (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 || F_ISSET(S2C(session), WT_CONN_SALVAGE))
         return (ret);
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-    WT_RET_PANIC(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error", WT_METADATA_TURTLE);
+    WT_RET_PANIC(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error %d at %s",
+      WT_METADATA_TURTLE, ret, msg);
 }
 
 /*

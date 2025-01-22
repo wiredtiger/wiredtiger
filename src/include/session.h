@@ -59,6 +59,20 @@ struct __wt_prefetch {
     uint64_t prefetch_skipped_with_parent;
 };
 
+/*
+ * WT_ERROR_INFO --
+ *  An error structure containing verbose information about an error from a session API call.
+ */
+struct __wt_error_info {
+    int err;
+    int sub_level_err;
+    const char *err_msg;
+    WT_ITEM err_msg_buf;
+};
+
+#define WT_ERROR_INFO_EMPTY ""
+#define WT_ERROR_INFO_SUCCESS "last API call was successful"
+
 /* Get the connection implementation for a session */
 #define S2C(session) ((WT_CONNECTION_IMPL *)((WT_SESSION_IMPL *)(session))->iface.connection)
 
@@ -157,9 +171,10 @@ struct __wt_session_impl {
     WT_RWLOCK *current_rwlock;
     uint8_t current_rwticket;
 
-    WT_ITEM **scratch;     /* Temporary memory for any function */
-    u_int scratch_alloc;   /* Currently allocated */
-    size_t scratch_cached; /* Scratch bytes cached */
+    WT_ITEM **scratch;        /* Temporary memory for any function */
+    u_int scratch_alloc;      /* Currently allocated */
+    size_t scratch_cached;    /* Scratch bytes cached */
+    WT_SPINLOCK scratch_lock; /* Scratch buffer lock */
 #ifdef HAVE_DIAGNOSTIC
 
     /* Enforce the contract that a session is only used by a single thread at a time. */
@@ -204,6 +219,7 @@ struct __wt_session_impl {
     } evict_timeline;
 
     WT_ITEM err; /* Error buffer */
+    WT_ERROR_INFO err_info;
 
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
@@ -213,19 +229,9 @@ struct __wt_session_impl {
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
 
-    const char *hs_checkpoint;     /* History store checkpoint name, during checkpoint cursor ops */
-    uint64_t checkpoint_write_gen; /* Write generation override, during checkpoint cursor ops */
+    const char *hs_checkpoint; /* History store checkpoint name, during checkpoint cursor ops */
 
-    /* Checkpoint handles */
-    WT_DATA_HANDLE **ckpt_handle; /* Handle list */
-    u_int ckpt_handle_next;       /* Next empty slot */
-    size_t ckpt_handle_allocated; /* Bytes allocated */
-
-    /* Named checkpoint drop list, during a checkpoint */
-    WT_ITEM *ckpt_drop_list;
-
-    /* Checkpoint time of current checkpoint, during a checkpoint */
-    uint64_t current_ckpt_sec;
+    WT_CKPT_SESSION ckpt; /* Checkpoint-related data */
 
     /*
      * Operations acting on handles.
@@ -308,7 +314,8 @@ struct __wt_session_impl {
 #define WT_SESSION_READ_WONT_NEED 0x040000u
 #define WT_SESSION_RESOLVING_TXN 0x080000u
 #define WT_SESSION_ROLLBACK_TO_STABLE 0x100000u
-#define WT_SESSION_SCHEMA_TXN 0x200000u
+#define WT_SESSION_SAVE_ERRORS 0x200000u
+#define WT_SESSION_SCHEMA_TXN 0x400000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 

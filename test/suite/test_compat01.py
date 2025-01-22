@@ -53,6 +53,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     # and without the patch number.  Test both.
     start_compat = [
         ('def', dict(compat1='none', logv1=5)),
+        ('120', dict(compat1='12.0', logv1=5)),
         ('113', dict(compat1='11.3', logv1=5)),
         ('112', dict(compat1='11.2', logv1=5)),
         ('111', dict(compat1='11.1', logv1=5)),
@@ -69,6 +70,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     restart_compat = [
         ('def2', dict(compat2='none', logv2=5)),
+        ('120_2', dict(compat2='12.0', logv2=5)),
         ('113_2', dict(compat2='11.3', logv2=5)),
         ('112_2', dict(compat2='11.2', logv2=5)),
         ('111_2', dict(compat2='11.1', logv2=5)),
@@ -211,7 +213,7 @@ class test_reconfig_fail(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(uri, None)
         c.set_key(ds.key(20))
         c.set_value("abcde")
-        self.assertEquals(c.update(), 0)
+        self.assertEqual(c.update(), 0)
 
         # Make sure we can reconfigure unrelated things while downgraded
         # and we have an active transaction.

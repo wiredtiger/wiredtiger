@@ -30,28 +30,25 @@
 #   Test cursor get_raw_key_value using complex schema
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 class test_cursor23(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
         ('file-S', dict(type='file:', keyfmt='S', valfmt='S', dataset=SimpleDataSet, complex=False)),
-        ('lsm-S', dict(type='lsm:', keyfmt='S', valfmt='S', dataset=SimpleDataSet, complex=False)),
         ('table-S', dict(type='table:', keyfmt='S', valfmt='S', dataset=SimpleDataSet, complex=False)),
-        ('table-S-complex-lsm', dict(type='table:', keyfmt='S', valfmt='S',
-            dataset=ComplexLSMDataSet, complex=True)),
     ])
 
     def check_get_key_and_value(self, cursor, expected_key, expected_value):
         key = cursor.get_key()
         value = cursor.get_value()
-        self.assertEquals(key, expected_key)
-        self.assertEquals(value, expected_value)
+        self.assertEqual(key, expected_key)
+        self.assertEqual(value, expected_value)
 
     def check_get_raw_key_value(self, cursor, expected_key, expected_value):
         (key, value) = cursor.get_raw_key_value()
-        self.assertEquals(key, expected_key)
-        self.assertEquals(value, expected_value)
+        self.assertEqual(key, expected_key)
+        self.assertEqual(value, expected_value)
 
     def test_cursor23(self):
         uri = self.type + "test_cursor23"

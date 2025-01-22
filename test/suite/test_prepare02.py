@@ -33,7 +33,7 @@
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_prepare_session_operations(self):
@@ -63,11 +63,7 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.drop("table:mytable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.join(cursor, cursor, "compare=gt,count=10"), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.log_flush("sync=on"), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.rename("table:mytable", "table:mynewtable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.reset(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

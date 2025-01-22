@@ -169,8 +169,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
      * whether we correctly resolved the transaction becomes hard. It is easier to skip this check
      * in that instance.
      */
-    if (__wt_atomic_load64(&cbt->ref->page->read_gen) == WT_READGEN_OLDEST &&
-      !F_ISSET(session->txn, WT_TXN_PREPARE))
+    if (__wt_evict_page_is_soon(cbt->ref->page) && !F_ISSET(session->txn, WT_TXN_PREPARE))
         return (false);
 
     return (true);
@@ -183,13 +182,9 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
 static WT_INLINE int
 __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 {
-    WT_BM *bm;
-    WT_BTREE *btree;
+    WT_BTREE *btree = S2BT(session);
+    WT_BM *bm = btree->bm;
     WT_DECL_RET;
-    size_t size;
-
-    btree = S2BT(session);
-    bm = btree->bm;
 
     if (btree->type == BTREE_COL_FIX) {
         /* Fixed-size column-stores take a single byte. */
@@ -213,7 +208,7 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
           kv->size, WT_BTREE_MAX_OBJECT_SIZE);
 
     /* Check what the block manager can actually write. */
-    size = kv->size;
+    size_t size = kv->size;
     if ((ret = bm->write_size(bm, session, &size)) != 0)
         WT_RET_MSG(
           session, ret, "item size of %" WT_SIZET_FMT " refused by block manager", kv->size);
@@ -249,12 +244,8 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
 static int
 __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool check_bounds)
 {
-    WT_ITEM tmp_key;
-    WT_SESSION_IMPL *session;
-    bool key_out_of_bounds;
-
-    key_out_of_bounds = false;
-    session = CUR2S(cbt);
+    WT_SESSION_IMPL *session = CUR2S(cbt);
+    bool key_out_of_bounds = false;
 
     if (cbt->ins == NULL)
         return (0);
@@ -262,6 +253,7 @@ __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool chec
     if (check_bounds && WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
         /* Get the insert list key. */
         if (key == NULL && CUR2BT(cbt)->type == BTREE_ROW) {
+            WT_ITEM tmp_key;
             tmp_key.data = WT_INSERT_KEY(cbt->ins);
             tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
             WT_RET(__btcur_bounds_contains_key(
@@ -745,7 +737,7 @@ __wti_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
      * unlike read committed isolation level.
      */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_RUNNING) &&
-      (__wt_page_evict_soon_check(session, cbt->ref, NULL) ||
+      (__wt_evict_page_soon_check(session, cbt->ref, NULL) ||
         __cursor_reposition_timing_stress(session))) {
 
         WT_STAT_CONN_DSRC_INCR(session, cursor_reposition);
@@ -1478,14 +1470,22 @@ retry:
             ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else if (__cursor_fix_implicit(btree, cbt)) {
             /*
-             * Creating a record past the end of the tree in a fixed-length column-store implicitly
-             * fills the gap with empty records, delete the record.
+             * We are deleting an implicitly created record, which exists because we have previously
+             * added a record with a higher recno, and FLCS fills the gap with implicit records.
+             * Deleting an implicit record doesn't make sense, and as such, this is a no-op. An
+             * implicit record returns 0 when searched for. If we were to add a tombstone here, it
+             * would mean that the search returns WT_NOTFOUND, which would be then translated back
+             * into 0. Since we would return 0 either way, we choose to not add a tombstone here.
+             *
+             * Not adding a tombstone (unlike what this code did previously) fixes reconciliation
+             * behavior with regards to prepared transactions. Prepared transactions must save
+             * updates when reconciling the update chain, but a single tombstone on the chain cannot
+             * be saved; doing so would cause an assertion to fire.
              *
              * Correct the btree cursor's location: the search will have pointed us at the
              * previous/next item, and that's not correct.
              */
             cbt->recno = cursor->recno;
-            ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else
             WT_ERR(WT_NOTFOUND);
     }
@@ -1798,7 +1798,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    size_t new, orig;
+    size_t max_memsize, new, orig;
     bool overwrite;
 
     cursor = &cbt->iface;
@@ -1835,6 +1835,12 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR(__wt_btcur_search(cbt));
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
+
+    __wt_modify_max_memsize_unpacked(
+      entries, nentries, cursor->value_format, cursor->value.size, &max_memsize);
+
+    WT_ERR(__wt_buf_set_and_grow(
+      session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
 
     orig = cursor->value.size;
     WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &cursor->value, modify->data));
@@ -2170,7 +2176,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 
     session = trunc_info->session;
     btree = CUR2BT(trunc_info->start);
-    logging = __wt_log_op(session);
+    logging = __wt_txn_log_op_check(session);
     start = (WT_CURSOR_BTREE *)trunc_info->start;
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 

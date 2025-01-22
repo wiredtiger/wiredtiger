@@ -410,18 +410,15 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
           "is applicable only on simple tables");
 
     /*
-     * The alter flag is used so LSM can apply some special logic, the exclusive flag avoids
-     * conflicts with other operations and the lock only flag is required because we don't need to
-     * have a handle to update the metadata and opening the handle causes problems when meta
-     * tracking is enabled.
+     * The exclusive flag avoids conflicts with other operations and the lock only flag is required
+     * because we don't need to have a handle to update the metadata and opening the handle causes
+     * problems when meta tracking is enabled.
      */
-    flags = WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY;
+    flags = WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY;
     if (WT_PREFIX_MATCH(uri, "file:"))
         return (__wti_execute_handle_operation(session, uri, __alter_file, newcfg, flags));
     if (WT_PREFIX_MATCH(uri, "colgroup:") || WT_PREFIX_MATCH(uri, "index:"))
         return (__alter_tree(session, uri, newcfg));
-    if (WT_PREFIX_MATCH(uri, "lsm:"))
-        return (__wt_lsm_tree_worker(session, uri, __alter_file, NULL, newcfg, flags));
     if (WT_PREFIX_MATCH(uri, "object:"))
         return (__alter_object(session, uri, newcfg));
     if (WT_PREFIX_MATCH(uri, "table:"))
@@ -440,11 +437,17 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 int
 __wt_schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 {
+    struct timespec tsp;
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
+    /* Add a 2 second wait to simulate session alter slowness. */
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
+    __wt_timing_stress(session, WT_TIMING_STRESS_SESSION_ALTER_SLOW, &tsp);
 
     WT_RET(__wti_schema_internal_session(session, &int_session));
     WT_ERR(__wt_meta_track_on(int_session));

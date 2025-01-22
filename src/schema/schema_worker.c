@@ -96,7 +96,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
     if (skip)
         return (0);
 
-    /* FIXME-WT-10520 - Let verify process tiered storage related entries once it is supported. */
+    /* Tiered tables do not support verify or salvage operations. */
     is_tiered = WT_PREFIX_MATCH(uri, "object:") || WT_PREFIX_MATCH(uri, "tier:") ||
       WT_PREFIX_MATCH(uri, "tiered:");
     if (is_tiered && (file_func == __wt_salvage || file_func == __wt_verify))
@@ -114,8 +114,6 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
         idx = NULL;
         WT_ERR(__wti_schema_get_index(session, uri, false, false, &idx));
         WT_ERR(__wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
-    } else if (WT_PREFIX_MATCH(uri, "lsm:")) {
-        WT_ERR(__wt_lsm_tree_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "table:")) {
         /*
          * Note: we would like to use open_flags here (e.g., to lock the table exclusive during
@@ -132,7 +130,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
         for (i = 0; i < WT_COLGROUPS(table); i++) {
             colgroup = table->cgroups[i];
 
-            /* FIXME-WT-10520 - Let verify process tiered tables once it is supported. */
+            /* Verify is not implemented for tiered tables. */
             if ((file_func == __wt_salvage || file_func == __wt_verify) &&
               WT_PREFIX_MATCH(colgroup->source, "tiered:"))
                 WT_ERR(ENOTSUP);
@@ -170,7 +168,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
             WT_ERR(dsrc->salvage(dsrc, wt_session, uri, (WT_CONFIG_ARG *)cfg));
         else if (file_func == __wt_verify && dsrc->verify != NULL)
             WT_ERR(dsrc->verify(dsrc, wt_session, uri, (WT_CONFIG_ARG *)cfg));
-        else if (file_func == __wt_checkpoint)
+        else if (file_func == __wt_checkpoint_file)
             ;
         else if (file_func == __wt_checkpoint_get_handles)
             ;

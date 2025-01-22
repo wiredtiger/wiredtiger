@@ -9,17 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * Per session handle cached block manager information.
- */
-typedef struct {
-    WT_EXT *ext_cache;   /* List of WT_EXT handles */
-    u_int ext_cache_cnt; /* Count */
-
-    WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
-    u_int sz_cache_cnt; /* Count */
-} WT_BLOCK_MGR_SESSION;
-
-/*
  * __block_ext_alloc --
  *     Allocate a new WT_EXT structure.
  */
@@ -99,15 +88,15 @@ __block_ext_prealloc(WT_SESSION_IMPL *session, u_int max)
  *     Add a WT_EXT structure to the cached list.
  */
 void
-__wti_block_ext_free(WT_SESSION_IMPL *session, WT_EXT *ext)
+__wti_block_ext_free(WT_SESSION_IMPL *session, WT_EXT **ext)
 {
     WT_BLOCK_MGR_SESSION *bms;
 
     if ((bms = session->block_manager) == NULL)
-        __wt_free(session, ext);
+        __wt_free(session, *ext);
     else {
-        ext->next[0] = bms->ext_cache;
-        bms->ext_cache = ext;
+        (*ext)->next[0] = bms->ext_cache;
+        bms->ext_cache = *ext;
 
         ++bms->ext_cache_cnt;
     }
@@ -206,15 +195,15 @@ __block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
  *     Add a WT_SIZE structure to the cached list.
  */
 void
-__wti_block_size_free(WT_SESSION_IMPL *session, WT_SIZE *sz)
+__wti_block_size_free(WT_SESSION_IMPL *session, WT_SIZE **sz)
 {
     WT_BLOCK_MGR_SESSION *bms;
 
     if ((bms = session->block_manager) == NULL)
-        __wt_free(session, sz);
+        __wt_free(session, *sz);
     else {
-        sz->next[0] = bms->sz_cache;
-        bms->sz_cache = sz;
+        (*sz)->next[0] = bms->sz_cache;
+        bms->sz_cache = *sz;
 
         ++bms->sz_cache_cnt;
     }
@@ -297,3 +286,47 @@ __wti_block_ext_discard(WT_SESSION_IMPL *session, u_int max)
     WT_RET(__block_size_discard(session, max));
     return (0);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
+{
+    return (__block_ext_alloc(session, extp));
+}
+
+int
+__ut_block_ext_prealloc(WT_SESSION_IMPL *session, u_int max)
+{
+    return (__block_ext_prealloc(session, max));
+}
+
+int
+__ut_block_size_alloc(WT_SESSION_IMPL *session, WT_SIZE **szp)
+{
+    return (__block_size_alloc(session, szp));
+}
+
+int
+__ut_block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
+{
+    return (__block_size_prealloc(session, max));
+}
+
+int
+__ut_block_manager_session_cleanup(WT_SESSION_IMPL *session)
+{
+    return (__block_manager_session_cleanup(session));
+}
+
+int
+__ut_block_ext_discard(WT_SESSION_IMPL *session, u_int max)
+{
+    return (__block_ext_discard(session, max));
+}
+
+int
+__ut_block_size_discard(WT_SESSION_IMPL *session, u_int max)
+{
+    return (__block_size_discard(session, max));
+}
+#endif

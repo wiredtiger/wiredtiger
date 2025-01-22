@@ -105,6 +105,17 @@ struct __wt_size {
 };
 
 /*
+ * Per session handle cached block manager information.
+ */
+typedef struct {
+    WT_EXT *ext_cache;   /* List of WT_EXT handles */
+    u_int ext_cache_cnt; /* Count */
+
+    WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
+    u_int sz_cache_cnt; /* Count */
+} WT_BLOCK_MGR_SESSION;
+
+/*
  * WT_EXT_FOREACH --
  *	Walk a block manager skiplist.
  * WT_EXT_FOREACH_OFF --
@@ -183,6 +194,7 @@ struct __wt_bm {
     int (*addr_invalid)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*addr_string)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
     u_int (*block_header)(WT_BM *);
+    bool (*can_truncate)(WT_BM *, WT_SESSION_IMPL *);
     int (*checkpoint)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);
     int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, char **, WT_ITEM *);
     int (*checkpoint_load)(
@@ -312,6 +324,7 @@ struct __wt_block {
     /* Verification support */
     bool verify;             /* If performing verification */
     bool verify_layout;      /* Print out file layout information */
+    bool dump_tree_shape;    /* Print out tree shape */
     bool verify_strict;      /* Fail hard on any error */
     wt_off_t verify_size;    /* Checkpoint's file size */
     WT_EXTLIST verify_alloc; /* Verification allocation list */

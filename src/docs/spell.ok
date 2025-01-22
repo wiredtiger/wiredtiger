@@ -297,6 +297,7 @@ dT
 dataN
 database's
 dataitem
+datalen
 dataset
 datasets
 datastore
@@ -359,6 +360,7 @@ eq
 erlang
 errno
 evictable
+evictserver
 exe
 extensibility
 fadvise
@@ -427,6 +429,7 @@ hs
 hsearch
 html
 htmlinclude
+huffman
 hugepage
 iSi
 iaa

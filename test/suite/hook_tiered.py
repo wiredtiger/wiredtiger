@@ -41,7 +41,7 @@
 #
 # 2. If we create an object that is *not* a table:, we add options to its config
 #    so that it will be stored local-only.  Tiered storage isn't intended (yet?) for
-#    use with lsm or column store.
+#    use with column store.
 #
 # 3. We add calls to flush_tier().  Currently we only flush after a checkpoint() call,
 #    but we should add others.
@@ -154,7 +154,7 @@ def wiredtiger_open_tiered(ignored_self, args):
 # We want readonly tests to run with tiered storage, since it is possible to do readonly
 # operations.  This function is called for two purposes:
 #  - when readonly is enabled, we don't want to do flush_tier calls.
-#  - normally the hook silently removes other (not supported) calls, like compact/rename/salvage.
+#  - normally the hook silently removes other (not supported) calls, like compact/salvage.
 #    Except that some tests enable readonly and call these functions, expecting an exception.
 #    So for these "modifying" APIs, we want to actually do the operation (but only when readonly).
 def testcase_is_readonly():
@@ -193,7 +193,7 @@ def connection_close_replace(orig_connection_close, connection_self, config):
 # We add a call to flush_tier during every checkpoint to make sure we are exercising tiered
 # functionality.
 def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
-    # FIXME-WT-10771 We cannot do named checkpoints with tiered storage objects.
+    # Tiered tables do not support named checkpoints.
     # We can't really continue the test without the name, as the name will certainly be used.
     if config == None:
         config = ''
@@ -227,11 +227,12 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     else:
         new_config = config
 
-    # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
+    # If the test isn't creating a table (i.e., it's a column store) create it as a
     # "local only" object.  Otherwise we get tiered storage from the connection defaults.
     # We want readonly connections to do the real call, see comment in testcase_is_readonly.
-    # FIXME-WT-9832 Column store testing should be allowed with this hook.
-    if not uri.startswith("table:") or "key_format=r" in new_config or "type=lsm" in new_config or testcase_is_readonly():
+    #
+    # Column store testing is disallowed with tiered storage.
+    if not uri.startswith("table:") or "key_format=r" in new_config or testcase_is_readonly():
         new_config = new_config + ',tiered_storage=(name=none)'
 
     WiredTigerTestCase.verbose(None, 3,
@@ -246,17 +247,6 @@ def session_open_cursor_replace(orig_session_open_cursor, session_self, uri, dup
     if uri != None and uri.startswith("backup:"):
         skip_test("backup on tiered tables not yet implemented")
     return orig_session_open_cursor(session_self, uri, dupcursor, config)
-
-# Called to replace Session.rename
-def session_rename_replace(orig_session_rename, session_self, uri, newuri, config):
-    # Rename isn't implemented for tiered tables.  Only call it if this can't be the uri
-    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
-    # a tiered table, but we don't have the create config around to check.
-    # We want readonly connections to do the real call, see comment in testcase_is_readonly.
-    ret = 0
-    if not uri.startswith("table:") or testcase_is_readonly():
-        ret = orig_session_rename(session_self, uri, newuri, config)
-    return ret
 
 # Called to replace Session.salvage
 def session_salvage_replace(orig_session_salvage, session_self, uri, config):
@@ -307,7 +297,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         skip_categories = [
             ("backup",               "Can't backup a tiered table"),
             ("inmem",                "In memory tests don't make sense with tiered storage"),
-            ("lsm",                  "LSM is not supported with tiering"),
             ("modify_smoke_recover", "Copying WT dir doesn't copy the bucket directory"),
             ("test_salvage",         "Salvage tests directly name files ending in '.wt'"),
             ("test_config_json",     "Tiered hook's create function can't handle a json config string"),
@@ -352,10 +341,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_open_cursor = self.Session['open_cursor']
         self.Session['open_cursor'] = (wthooks.HOOK_REPLACE, lambda s, uri, todup=None, config=None:
           session_open_cursor_replace(orig_session_open_cursor, s, uri, todup, config))
-
-        orig_session_rename = self.Session['rename']
-        self.Session['rename'] = (wthooks.HOOK_REPLACE, lambda s, uri, newuri, config=None:
-          session_rename_replace(orig_session_rename, s, uri, newuri, config))
 
         orig_session_salvage = self.Session['salvage']
         self.Session['salvage'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:

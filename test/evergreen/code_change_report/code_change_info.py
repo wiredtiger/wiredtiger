@@ -30,7 +30,7 @@
 import argparse
 import json
 import logging
-from pygit2 import discover_repository, Repository, Diff
+from pygit2 import discover_repository, Repository, Diff, GitError
 from pygit2 import GIT_SORT_NONE
 from code_change_helpers import is_useful_line, diff_to_change_list, read_complexity_data, preprocess_complexity_data
 
@@ -289,6 +289,7 @@ def main():
     args = parser.parse_args()
 
     verbose = args.verbose
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
     git_diff = args.git_diff
     git_working_tree_dir = args.git_root
     complexity_data_file = args.metrix_complexity_data
@@ -319,7 +320,11 @@ def main():
     else:
         file = open(git_diff, mode="r")
         data = file.read()
-        diff = Diff.parse_diff(data)
+        try:
+            diff = Diff.parse_diff(data)
+        except (GitError, KeyError) as e:
+            logging.error("Unable to parse the diff file, using an empty diff instead. The exception from PyGit2 is '{}'".format(str(e)))
+            diff = {}
 
     change_list = diff_to_change_list(diff=diff)
     report_info = create_report_info(change_list=change_list,

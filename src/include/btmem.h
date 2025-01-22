@@ -13,8 +13,8 @@
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_READ_CACHE 0x0001u
 #define WT_READ_IGNORE_CACHE_SIZE 0x0002u
-#define WT_READ_NOTFOUND_OK 0x0004u
-#define WT_READ_NO_GEN 0x0008u
+#define WT_READ_INTERNAL_OP 0x0004u /* Internal operations don't bump a page's readgen */
+#define WT_READ_NOTFOUND_OK 0x0008u
 #define WT_READ_NO_SPLIT 0x0010u
 #define WT_READ_NO_WAIT 0x0020u
 #define WT_READ_PREFETCH 0x0040u
@@ -28,19 +28,16 @@
 #define WT_READ_WONT_NEED 0x4000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_REC_APP_EVICTION_SNAPSHOT 0x001u
-#define WT_REC_CALL_URGENT 0x002u
-#define WT_REC_CHECKPOINT 0x004u
-#define WT_REC_CHECKPOINT_RUNNING 0x008u
-#define WT_REC_CLEAN_AFTER_REC 0x010u
-#define WT_REC_EVICT 0x020u
-#define WT_REC_HS 0x040u
-#define WT_REC_IN_MEMORY 0x080u
-#define WT_REC_SCRUB 0x100u
-#define WT_REC_VISIBILITY_ERR 0x200u
-#define WT_REC_VISIBLE_ALL 0x400u
-/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_READ_EVICT_WALK_FLAGS \
+    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL_OP | WT_READ_NO_WAIT
+#define WT_READ_EVICT_READ_FLAGS WT_READ_EVICT_WALK_FLAGS | WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK
+#define WT_READ_DATA_FLAGS WT_READ_NO_SPLIT | WT_READ_SKIP_INTL
+
+/*
+ * Helper: in order to read a Btree without triggering eviction we have to ignore the cache size and
+ * disable splits.
+ */
+#define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
 
 /*
  * WT_PAGE_HEADER --
@@ -320,7 +317,7 @@ struct __wt_page_modify {
     uint64_t obsolete_check_txn;
     wt_timestamp_t obsolete_check_timestamp;
 
-    /* The largest transaction seen on the page by reconciliation. */
+    /* The largest transaction and timestamp seen on the page by reconciliation. */
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
@@ -784,7 +781,7 @@ struct __wt_page {
  * outside of the special range.
  */
 #define WT_READGEN_NOTSET 0
-#define WT_READGEN_OLDEST 1
+#define WT_READGEN_EVICT_SOON 1
 #define WT_READGEN_WONT_NEED 2
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
@@ -1056,6 +1053,31 @@ struct __wt_page_deleted {
 
     /* Flag to indicate fast-truncate is written to disk. */
     bool selected_for_write;
+};
+
+/*
+ * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
+ * create temporary space in which to store them. (Locations can't be much larger than this anyway,
+ * they must fit onto the minimum size page because a reference to an overflow page is itself a
+ * location.)
+ */
+#define WT_ADDR_MAX_COOKIE 255 /* Maximum address cookie */
+
+/*
+ * WT_ADDR_COPY --
+ *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
+ * copy of the WT_REF address information.
+ */
+struct __wt_addr_copy {
+    uint8_t type;
+
+    uint8_t addr[WT_ADDR_MAX_COOKIE];
+    uint8_t size;
+
+    WT_TIME_AGGREGATE ta;
+
+    WT_PAGE_DELETED del; /* Fast-truncate page information */
+    bool del_set;
 };
 
 /*

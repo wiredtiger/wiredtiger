@@ -45,7 +45,6 @@ class test_cursor01(wttest.WiredTigerTestCase):
         ('file-col', dict(tablekind='col',uri='file')),
         ('file-fix', dict(tablekind='fix',uri='file')),
         ('file-row', dict(tablekind='row',uri='file')),
-        ('lsm-row', dict(tablekind='row',uri='lsm')),
         ('table-col', dict(tablekind='col',uri='table')),
         ('table-fix', dict(tablekind='fix',uri='table')),
         ('table-row', dict(tablekind='row',uri='table'))
@@ -142,7 +141,7 @@ class test_cursor01(wttest.WiredTigerTestCase):
             self.assertEqual(key, self.genkey(i))
             self.assertEqual(value, self.genvalue(i))
             dupc = self.session.open_cursor(None, cursor, None)
-            self.assertEquals(cursor.compare(dupc), 0)
+            self.assertEqual(cursor.compare(dupc), 0)
             key = dupc.get_key()
             value = dupc.get_value()
             self.assertEqual(key, self.genkey(i))
@@ -201,7 +200,7 @@ class test_cursor01(wttest.WiredTigerTestCase):
             self.assertEqual(value, self.genvalue(i))
             i -= 1
             dupc = self.session.open_cursor(None, cursor, None)
-            self.assertEquals(cursor.compare(dupc), 0)
+            self.assertEqual(cursor.compare(dupc), 0)
             cursor.close()
             cursor = dupc
 

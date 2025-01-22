@@ -31,6 +31,7 @@
  *	The SWIG interface file defining the wiredtiger python API.
  */
 %include <pybuffer.i>
+%include <cstring.i>
 
 %define DOCSTRING
 "Python wrappers around the WiredTiger C API
@@ -605,6 +606,8 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception __wt_connection::is_new;
 %exception __wt_connection::search_near;
 %exception __wt_session::get_rollback_reason;
+%exception __wt_session::get_last_error;
+%exception __wt_session::strerror;
 %exception __wt_cursor::_set_key;
 %exception __wt_cursor::_set_key_str;
 %exception __wt_cursor::_set_value;
@@ -665,7 +668,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 		metadata = PyBytes_FromStringAndSize(*$1, *$2);
 		$result = metadata;
 		data = PyBytes_FromStringAndSize(*$3, *$4);
-		$result = SWIG_Python_AppendOutput($result, data);
+		$result = SWIG_AppendOutput($result, data);
 	} else {
 		SWIG_exception_fail(SWIG_AttributeError, "invalid pointer argument");
 	}
@@ -677,7 +680,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 		key_data = PyBytes_FromStringAndSize(*$1, *$2);
 		$result = key_data;
 		value_data = PyBytes_FromStringAndSize(*$3, *$4);
-		$result = SWIG_Python_AppendOutput($result, value_data);
+		$result = SWIG_AppendOutput($result, value_data);
 	} else {
 		SWIG_exception_fail(SWIG_AttributeError, "invalid pointer argument");
 	}
@@ -1240,7 +1243,6 @@ int standalone_build();
 %ignore __wt_data_source;
 %ignore __wt_encryptor;
 %ignore __wt_event_handler;
-%ignore __wt_extractor;
 %ignore __wt_item;
 %ignore __wt_lsn;
 
@@ -1248,7 +1250,6 @@ int standalone_build();
 %ignore __wt_connection::add_compressor;
 %ignore __wt_connection::add_data_source;
 %ignore __wt_connection::add_encryptor;
-%ignore __wt_connection::add_extractor;
 %ignore __wt_connection::get_extension_api;
 %ignore __wt_session::log_printf;
 
@@ -1265,6 +1266,7 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 
 /* Convert 'int *' to output args for wiredtiger_version */
 %apply int *OUTPUT { int * };
+%cstring_output_allocate(char **, );
 
 %rename(Cursor) __wt_cursor;
 %rename(Modify) __wt_modify;

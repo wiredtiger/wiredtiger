@@ -5,6 +5,31 @@ import os, re, sys
 from dist import all_c_files, all_cpp_files, all_h_files, compare_srcfile, source_files
 from common_functions import filter_if_fast
 
+def check_function_comment(function_name, function_comment):
+    # Unit test functions don't have to have a comment.
+    if function_name.startswith('__ut_'):
+        return True
+
+    # No comment at all.
+    if not function_comment:
+        return False
+
+    # The first line is the function name
+    #    /*
+    #     * func_name --
+    if function_comment.startswith(f'/*\n * {function_name} --\n'):
+        return True
+
+    # Unformatted comment containing !!!
+    #    /*
+    #     * !!!
+    #     * func_name --
+    if function_comment.find('!!!') != -1 and \
+            function_comment.find(f'\n * {function_name} --\n') != -1:
+        return True
+
+    return False
+
 # Complain if a function comment is missing.
 def missing_comment():
     for f in filter_if_fast(all_c_files(), prefix="../"):
@@ -15,14 +40,10 @@ def missing_comment():
         if skip_re.search(s):
             continue
         for m in func_re.finditer(s):
-            if m.group(2).startswith('__ut_'):
-                # This is just re-exposing an internal function for unit
-                # tests, no comment needed in this case.
-                continue
-            if not m.group(1) or \
-               not m.group(1).startswith('/*\n * %s --\n' % m.group(2)):
-                   print("%s:%d: missing or malformed comment for %s" % \
-                           (f, s[:m.start(2)].count('\n'), m.group(2)))
+            function_name, function_comment = m.group(2), m.group(1)
+            if not check_function_comment(function_name, function_comment):
+                line_num = s[:m.start(2)].count('\n')
+                print(f"{f}:{line_num}: malformed comment for {function_name}")
 
 # Sort helper function, discard * operators so a pointer doesn't necessarily
 # sort before non-pointers, ignore const/static/volatile keywords.
@@ -112,6 +133,15 @@ def function_args(name, line):
     if re.search('^WT_RET', line):
         return False,0
 
+    # If one or more of the variables is being initialised, then dependencies
+    # may exist that prevent alphabetical ordering.
+    # For example, the following lines cannot be sorted alphabetically:
+    #    WT_BTREE *btree = S2BT(session);
+    #    WT_BM *bm = btree->bm;
+    # So, in the presence of initialisation, terminate the parse.
+    if re.search('=', line):
+        return False,0
+
     # Let lines not terminated with a semicolon terminate the parse, it means
     # there's some kind of interesting line split we probably can't handle.
     if not re.search(';$', line):
@@ -161,15 +191,6 @@ def function_declaration():
                     if re.search(r"^\s+static", line):
                         static_list[n].append(line)
                         continue
-
-                    # Disallow assignments in the declaration. Ignore braces
-                    # to allow automatic array initialization using constant
-                    # initializers (and we've already skipped statics, which
-                    # are also typically initialized in the declaration).
-                    if re.search(r"\s=\s[-\w]", line):
-                        print(name + ": assignment in string: " + line.strip(),\
-                              file=sys.stderr)
-                        sys.exit(1);
 
                     list[n].append(line)
                 else:
@@ -229,16 +250,22 @@ def function_scoping():
             print(f'{path}: Unexpected path')
             sys.exit(1)
 
-        # If the path is in src, the module is the subdirectory under src; otherwise it is the
-        # top-level directory, such as "test."
+        # If the path is in src, the module is the subdirectory under src.
+        # If the path is test/unittest, the module is unittest.
+        # Otherwise it is the top-level directory, such as "test."
         if parts[1] == 'src':
+            module = parts[2]
+        elif parts[1] == "test" and parts[2] == "catch2":
+            # Treat test/unittests special since they are allowed to call __wti_ functions.
             module = parts[2]
         else:
             module = parts[1]
 
-        # Make "os_posix" and "os_win" one module because they declare the same "__wt" functions.
-        if module == 'os_posix' or module == 'os_win':
-            return 'os_posix/os_win'
+        # Porting layer contains duplicate function names across platforms. So treat as a single
+        # module to avoid false duplicates below.
+        os_ports = ['os_posix', 'os_win', 'os_darwin', 'os_linux']
+        if module in os_ports:
+            return '/'.join(os_ports)
         return module
 
     # Find all "__wt" and "__wti" function definitions.
@@ -248,8 +275,22 @@ def function_scoping():
             continue
         module = infer_module(source_file)
 
+        # This script assumes any file containing a DO NOT EDIT line should be 
+        # skipped for checking, however this is not applicable to header files
+        # generated by prototypes.py. Only the section inside the DO NO EDIT 
+        # should be skipped. Ignore these lines when processing files.
+        file_contents = open(source_file, 'r').readlines()
+        is_proto = "/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n" \
+            in file_contents
+        if is_proto:
+            start_def = file_contents.index(
+                "/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */\n")
+            end_def = file_contents.index(
+                "/* DO NOT EDIT: automatically built by prototypes.py: END */\n")
+            file_contents = file_contents[:start_def] + file_contents[end_def + 1:]
+        file_contents = "".join(file_contents)
+
         # Skip auto-generated files.
-        file_contents = open(source_file, 'r').read()
         if is_auto_generated(file_contents):
             continue
 
@@ -260,7 +301,7 @@ def function_scoping():
                 continue
             if fn_name in fn_defs and fn_defs[fn_name].module != module:
                 print(f'{source_file}: {fn_name} is already defined in ' +
-                      f'module "{fn_defs[fn_name].module})"')
+                      f'module "{fn_defs[fn_name].module}"')
                 sys.exit(1)
             fn_defs[fn_name] = FunctionDefinition(fn_name, module, source_file)
 
@@ -314,7 +355,8 @@ def function_scoping():
                     fn.used_outside_of_file = True
 
                 # Check whether a "__wti" function is used outside of its module.
-                if fn.visibility_module and module != fn.module:
+                # Exception: Unittest files are allowed to call __wti_ functions.
+                if fn.visibility_module and module != fn.module and module != "catch2":
                     print(f'{source_file}:{line_no}: {fn_name} is used outside of its module ' +
                           f'"{fn.module}"')
                     failed = True

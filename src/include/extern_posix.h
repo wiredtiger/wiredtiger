@@ -1,5 +1,7 @@
 #pragma once
 
+/* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
+
 extern bool __wt_absolute_path(const char *path) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_has_priv(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_path_separator(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -19,7 +21,8 @@ extern int __wt_localtime(WT_SESSION_IMPL *session, const time_t *timep, struct 
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_once(void (*init_routine)(void)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_os_posix(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_os_posix(WT_SESSION_IMPL *session, WT_FILE_SYSTEM **fsp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
   WT_THREAD_CALLBACK (*func)(void *), void *arg) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -71,3 +74,5 @@ extern void __wti_posix_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSIO
 #ifdef HAVE_UNITTEST
 
 #endif
+
+/* DO NOT EDIT: automatically built by prototypes.py: END */

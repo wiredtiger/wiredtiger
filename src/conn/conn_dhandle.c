@@ -323,7 +323,8 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         WT_ASSERT_ALWAYS(session, btree->max_upd_txn != WT_TXN_ABORTED,
           "Assert failure: session: %s: btree->max_upd_txn == WT_TXN_ABORTED", session->name);
         if (check_visibility && !__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
-            return (EBUSY);
+            WT_RET_SUB(session, EBUSY, WT_UNCOMMITTED_DATA,
+              "the table has uncommitted data and cannot be dropped yet");
 
         /* Turn off eviction. */
         WT_RET(__wt_evict_file_exclusive_on(session));
@@ -653,7 +654,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 
     /*
      * We need to pull the handle into the session handle cache and make sure it's referenced to
-     * stop other internal code dropping the handle (e.g in LSM when cleaning up obsolete chunks).
+     * stop other internal code dropping the handle.
      */
     if ((ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
         return (ret == EBUSY ? 0 : ret);
@@ -664,13 +665,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        if (F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT)) {
-            ++conn->ckpt_skip;
-            conn->ckpt_skip_time += time_diff;
-        } else {
-            ++conn->ckpt_apply;
-            conn->ckpt_apply_time += time_diff;
-        }
+        __wt_checkpoint_update_handle_stats(session, &conn->ckpt, time_diff);
     }
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
@@ -713,8 +708,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
         time_start = 0;
         if (WT_SESSION_IS_CHECKPOINT(session)) {
             time_start = __wt_clock(session);
-            conn->ckpt_apply = conn->ckpt_skip = 0;
-            conn->ckpt_apply_time = conn->ckpt_skip_time = 0;
+            __wt_checkpoint_reset_handle_stats(session, &conn->ckpt);
             F_SET(conn, WT_CONN_CKPT_GATHER);
         }
         for (dhandle = NULL;;) {
@@ -734,18 +728,7 @@ done:
             F_CLR(conn, WT_CONN_CKPT_GATHER);
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-            WT_STAT_CONN_SET(session, checkpoint_handle_applied, conn->ckpt_apply);
-            WT_STAT_CONN_SET(session, checkpoint_handle_apply_duration, conn->ckpt_apply_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_dropped, conn->ckpt_drop);
-            WT_STAT_CONN_SET(session, checkpoint_handle_drop_duration, conn->ckpt_drop_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_duration, time_diff);
-            WT_STAT_CONN_SET(session, checkpoint_handle_locked, conn->ckpt_lock);
-            WT_STAT_CONN_SET(session, checkpoint_handle_lock_duration, conn->ckpt_lock_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_meta_checked, conn->ckpt_meta_check);
-            WT_STAT_CONN_SET(
-              session, checkpoint_handle_meta_check_duration, conn->ckpt_meta_check_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_skipped, conn->ckpt_skip);
-            WT_STAT_CONN_SET(session, checkpoint_handle_skip_duration, conn->ckpt_skip_time);
+            __wt_checkpoint_set_handle_stats(session, &conn->ckpt, time_diff);
             WT_STAT_CONN_SET(session, checkpoint_handle_walked, conn->dhandle_count);
         }
         return (0);
@@ -855,7 +838,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
     bucket = dhandle->name_hash & (conn->dh_hash_size - 1);
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
-    WT_ASSERT(session, dhandle != conn->cache->walk_tree);
+    WT_ASSERT(session, dhandle != conn->evict->walk_tree);
 
     /* Check if the handle was reacquired by a session while we waited. */
     if (!final &&
@@ -896,13 +879,13 @@ __wti_conn_dhandle_discard_single(WT_SESSION_IMPL *session, bool final, bool mar
     set_pass_intr = false;
     if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST)) {
         set_pass_intr = true;
-        (void)__wt_atomic_addv32(&S2C(session)->cache->pass_intr, 1);
+        (void)__wt_atomic_addv32(&S2C(session)->evict->pass_intr, 1);
     }
 
     /* Try to remove the handle, protected by the data handle lock. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session, tret = __conn_dhandle_remove(session, final));
     if (set_pass_intr)
-        (void)__wt_atomic_subv32(&S2C(session)->cache->pass_intr, 1);
+        (void)__wt_atomic_subv32(&S2C(session)->evict->pass_intr, 1);
     WT_TRET(tret);
 
     /*
@@ -951,7 +934,7 @@ restart:
         goto restart;
     }
 
-    /* Shut down the history store table after all eviction is complete. */
+    /* Indicate the history store file can no longer be used. */
     __wt_hs_close(session);
 
     /*

@@ -31,7 +31,7 @@
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, SimpleIndexDataSet
-from wtdataset import SimpleLSMDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import ComplexDataSet
 from wtscenario import make_scenarios
 
 # Test WT_CURSOR.reserve.
@@ -45,17 +45,12 @@ class test_reserve(wttest.WiredTigerTestCase):
     ]
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
-        ('lsm', dict(uri='lsm', ds=SimpleDataSet)),
         ('table-complex', dict(uri='table', ds=ComplexDataSet)),
-        ('table-complex-lsm', dict(uri='table', ds=ComplexLSMDataSet)),
         ('table-index', dict(uri='table', ds=SimpleIndexDataSet)),
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
-        ('table-simple-lsm', dict(uri='table', ds=SimpleLSMDataSet)),
     ]
 
     def keep(name, d):
-        if d['keyfmt'] == 'r' and (d['uri'] == 'lsm' or d['ds'].is_lsm()):
-            return False
         # The complex data sets have their own built-in value schemas that are not FLCS.
         if d['valfmt'] == '8t' and d['ds'] == ComplexDataSet:
             return False
@@ -76,7 +71,7 @@ class test_reserve(wttest.WiredTigerTestCase):
             s.begin_transaction()
             c.set_key(ds.key(100))
             c.set_value(ds.value(100))
-            self.assertEquals(c.update(), 0)
+            self.assertEqual(c.update(), 0)
             s.commit_transaction()
 
         # Confirm reserve fails if the record doesn't exist.
@@ -89,32 +84,32 @@ class test_reserve(wttest.WiredTigerTestCase):
         for i in range(1, 5):
             s.begin_transaction()
             c.set_key(ds.key(100))
-            self.assertEquals(c.reserve(), 0)
+            self.assertEqual(c.reserve(), 0)
             s.commit_transaction()
 
         # Repeatedly reserve a record and rollback.
         for i in range(1, 5):
             s.begin_transaction()
             c.set_key(ds.key(100))
-            self.assertEquals(c.reserve(), 0)
+            self.assertEqual(c.reserve(), 0)
             s.rollback_transaction()
 
         # Repeatedly reserve, then update, a record, and commit.
         for i in range(1, 5):
             s.begin_transaction()
             c.set_key(ds.key(100))
-            self.assertEquals(c.reserve(), 0)
+            self.assertEqual(c.reserve(), 0)
             c.set_value(ds.value(100))
-            self.assertEquals(c.update(), 0)
+            self.assertEqual(c.update(), 0)
             s.commit_transaction()
 
         # Repeatedly reserve, then update, a record, and rollback.
         for i in range(1, 5):
             s.begin_transaction()
             c.set_key(ds.key(100))
-            self.assertEquals(c.reserve(), 0)
+            self.assertEqual(c.reserve(), 0)
             c.set_value(ds.value(100))
-            self.assertEquals(c.update(), 0)
+            self.assertEqual(c.update(), 0)
             s.commit_transaction()
 
         # Reserve a slot, repeatedly try and update a record from another
@@ -125,7 +120,7 @@ class test_reserve(wttest.WiredTigerTestCase):
         for i in range(1, 2):
             s.begin_transaction()
             c.set_key(ds.key(100))
-            self.assertEquals(c.reserve(), 0)
+            self.assertEqual(c.reserve(), 0)
 
             s2.begin_transaction()
             c2.set_key(ds.key(100))
@@ -135,7 +130,7 @@ class test_reserve(wttest.WiredTigerTestCase):
 
             c.set_key(ds.key(100))
             c.set_value(ds.value(100))
-            self.assertEquals(c.update(), 0)
+            self.assertEqual(c.update(), 0)
             s.commit_transaction()
 
     # Test cursor.reserve will fail if a key has not yet been set.
@@ -177,7 +172,7 @@ class test_reserve(wttest.WiredTigerTestCase):
         c = ds.open_cursor(uri, None, session=s)
         s.begin_transaction()
         c.set_key(ds.key(5))
-        self.assertEquals(c.reserve(), 0)
+        self.assertEqual(c.reserve(), 0)
         self.assertEqual(c.get_value(), ds.comparable_value(5))
 
     # Test cursor.reserve fails on non-standard cursors.
@@ -192,7 +187,7 @@ class test_reserve(wttest.WiredTigerTestCase):
                 c = s.open_cursor(uri, None, l)
                 msg = "/Operation not supported/"
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda:self.assertEquals(c.reserve(), 0), msg)
+                    lambda:self.assertEqual(c.reserve(), 0), msg)
                 c.close()
 
         list = [ "backup:", "config:" "log:" "metadata:" "statistics:" ]
@@ -200,4 +195,4 @@ class test_reserve(wttest.WiredTigerTestCase):
                 c = s.open_cursor(l, None, None)
                 msg = "/Operation not supported/"
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda:self.assertEquals(c.reserve(), 0), msg)
+                    lambda:self.assertEqual(c.reserve(), 0), msg)

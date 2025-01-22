@@ -938,89 +938,6 @@ err:
 }
 
 /*
- * __txn_timestamp_usage_check --
- *     Check if a commit will violate timestamp rules.
- */
-static WT_INLINE int
-__txn_timestamp_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd)
-{
-    WT_BTREE *btree;
-    WT_TXN *txn;
-    wt_timestamp_t op_ts, prev_op_durable_ts;
-    uint16_t flags;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
-    const char *name;
-    bool no_ts_ok, txn_has_ts;
-
-    btree = op->btree;
-    txn = session->txn;
-    flags = btree->dhandle->ts_flags;
-    name = btree->dhandle->name;
-    txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
-
-    /* Timestamps are ignored on logged files. */
-    if (F_ISSET(btree, WT_BTREE_LOGGED))
-        return (0);
-
-    /*
-     * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
-     * when applying commits, and it is possible that timestamps may be out-of-order in log replay.
-     */
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        return (0);
-
-    op_ts = upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp;
-
-    /* Check for disallowed timestamps. */
-    if (LF_ISSET(WT_DHANDLE_TS_NEVER)) {
-        if (!txn_has_ts)
-            return (0);
-
-        __wt_err(session, EINVAL,
-          "%s: " WT_TS_VERBOSE_PREFIX "timestamp %s set when disallowed by table configuration",
-          name, __wt_timestamp_to_string(op_ts, ts_string[0]));
-#ifdef HAVE_DIAGNOSTIC
-        __wt_abort(session);
-#endif
-        return (EINVAL);
-    }
-
-    prev_op_durable_ts = upd->prev_durable_ts;
-
-    /*
-     * Ordered consistency requires all updates use timestamps, once they are first used, but this
-     * test can be turned off on a per-transaction basis.
-     */
-    no_ts_ok = F_ISSET(txn, WT_TXN_TS_NOT_SET);
-    if (!txn_has_ts && prev_op_durable_ts != WT_TS_NONE && !no_ts_ok) {
-        __wt_err(session, EINVAL,
-          "%s: " WT_TS_VERBOSE_PREFIX
-          "no timestamp provided for an update to a table configured to always use timestamps "
-          "once they are first used",
-          name);
-#ifdef HAVE_DIAGNOSTIC
-        __wt_abort(session);
-#endif
-        return (EINVAL);
-    }
-
-    /* Ordered consistency requires all updates be in timestamp order. */
-    if (txn_has_ts && prev_op_durable_ts > op_ts) {
-        __wt_err(session, EINVAL,
-          "%s: " WT_TS_VERBOSE_PREFIX
-          "updating a value with a timestamp %s before the previous update %s",
-          name, __wt_timestamp_to_string(op_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1]));
-#ifdef HAVE_DIAGNOSTIC
-        __wt_abort(session);
-#endif
-        return (EINVAL);
-    }
-
-    return (0);
-}
-
-/*
  * __txn_fixup_hs_update --
  *     Fix the history store update with the max stop time point if we commit the prepared update.
  */
@@ -1302,10 +1219,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]));
 
     /*
-     * Aborted updates can exist in the update chain of our transaction. Generally this will occur
-     * due to a reserved update. As such we should skip over these updates.
+     * Aborted updates can exist in the update chain of our transaction due to reserved update. All
+     * the prepared updates on a key by a transaction will be resolved during the resolution of the
+     * first operation on that key. Hence the update chain could contain the prepared updates by
+     * another transaction when the transaction tries to resolve the subsequent operations on the
+     * same key.
      */
-    for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
+    for (; upd != NULL && upd->txnid != txn->id; upd = upd->next)
         ;
     head_upd = upd;
 
@@ -1319,7 +1239,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
     if (commit)
-        WT_RET(__txn_timestamp_usage_check(session, op, upd));
+        WT_RET(
+          __wt_txn_timestamp_usage_check(session, op, txn->commit_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1791,8 +1712,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /* If we are logging, write a commit log record. */
     if (txn->logrec != NULL) {
         /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
-        WT_ASSERT(session,
-          !F_ISSET(conn, WT_CONN_RECOVERING) && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED));
+        WT_ASSERT(
+          session, !F_ISSET(conn, WT_CONN_RECOVERING) && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED));
 
         /*
          * The default sync setting is inherited from the connection, but can be overridden by an
@@ -1865,8 +1786,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 if (cache->hs_fileid != 0 && op->btree->id == cache->hs_fileid)
                     break;
 
-                __wt_txn_op_set_timestamp(session, op);
-                WT_ERR(__txn_timestamp_usage_check(session, op, upd));
+                WT_ERR(__wt_txn_op_set_timestamp(session, op, true));
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
@@ -1891,7 +1811,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
-            __wt_txn_op_set_timestamp(session, op);
+            /*
+             * For non-standalone builds, skip truncate commit timestamp validation, as MongoDB
+             * doesn't use timestamps with truncate operations.
+             */
+#ifdef WT_STANDALONE_BUILD
+            WT_ERR(__wt_txn_op_set_timestamp(session, op, true));
+#else
+            WT_ERR(__wt_txn_op_set_timestamp(session, op, false));
+#endif
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -2040,7 +1968,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * Ignore error returns, the return must reflect the fate of the transaction.
      */
     if (!readonly)
-        WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
+        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
 
     return (0);
 
@@ -2334,7 +2262,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
      * Ignore error returns, the return must reflect the fate of the transaction.
      */
     if (!readonly)
-        WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
+        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
 
     return (ret);
 }
@@ -2530,23 +2458,23 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
         0 :
         __wt_atomic_loadv64(&txn_global->current) - checkpoint_pinned);
 
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_max, conn->ckpt_scrub_max);
-    if (conn->ckpt_scrub_min != UINT64_MAX)
-        WT_STATP_CONN_SET(session, stats, checkpoint_scrub_min, conn->ckpt_scrub_min);
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_recent, conn->ckpt_scrub_recent);
-    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_total, conn->ckpt_scrub_total);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_max, conn->ckpt.scrub.max);
+    if (conn->ckpt.scrub.min != UINT64_MAX)
+        WT_STATP_CONN_SET(session, stats, checkpoint_scrub_min, conn->ckpt.scrub.min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_recent, conn->ckpt.scrub.recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_scrub_total, conn->ckpt.scrub.total);
 
-    WT_STATP_CONN_SET(session, stats, checkpoint_prep_max, conn->ckpt_prep_max);
-    if (conn->ckpt_prep_min != UINT64_MAX)
-        WT_STATP_CONN_SET(session, stats, checkpoint_prep_min, conn->ckpt_prep_min);
-    WT_STATP_CONN_SET(session, stats, checkpoint_prep_recent, conn->ckpt_prep_recent);
-    WT_STATP_CONN_SET(session, stats, checkpoint_prep_total, conn->ckpt_prep_total);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_max, conn->ckpt.prepare.max);
+    if (conn->ckpt.prepare.min != UINT64_MAX)
+        WT_STATP_CONN_SET(session, stats, checkpoint_prep_min, conn->ckpt.prepare.min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_recent, conn->ckpt.prepare.recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_prep_total, conn->ckpt.prepare.total);
 
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_max, conn->ckpt_time_max);
-    if (conn->ckpt_time_min != UINT64_MAX)
-        WT_STATP_CONN_SET(session, stats, checkpoint_time_min, conn->ckpt_time_min);
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_recent, conn->ckpt_time_recent);
-    WT_STATP_CONN_SET(session, stats, checkpoint_time_total, conn->ckpt_time_total);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_max, conn->ckpt.ckpt_api.max);
+    if (conn->ckpt.ckpt_api.min != UINT64_MAX)
+        WT_STATP_CONN_SET(session, stats, checkpoint_time_min, conn->ckpt.ckpt_api.min);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_recent, conn->ckpt.ckpt_api.recent);
+    WT_STATP_CONN_SET(session, stats, checkpoint_time_total, conn->ckpt.ckpt_api.total);
 }
 
 /*
@@ -2672,12 +2600,15 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_DECL_RET;
     WT_SESSION_IMPL *s;
     WT_TIMER timer;
-    char ts_string[WT_TS_INT_STRING_SIZE];
+    char conn_rts_cfg[16], ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
     bool use_timestamp;
 
     conn = S2C(session);
     use_timestamp = false;
+
+    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s",
+      "perform final checkpoint and shutting down the global transaction state");
 
     /*
      * Perform a system-wide checkpoint so that all tables are consistent with each other. All
@@ -2701,8 +2632,14 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
         if (use_timestamp) {
             const char *rts_cfg[] = {
               WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
+            if (conn->rts->cfg_threads_num != 0) {
+                WT_RET(__wt_snprintf(
+                  conn_rts_cfg, sizeof(conn_rts_cfg), "threads=%u", conn->rts->cfg_threads_num));
+                rts_cfg[1] = conn_rts_cfg;
+            }
+
             __wt_timer_start(session, &timer);
-            __wt_verbose(session, WT_VERB_RTS,
+            __wt_verbose_info(session, WT_VERB_RTS,
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, rts_cfg, true));
@@ -2715,7 +2652,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
                   "performing shutdown rollback to stable failed with code %s",
                   __wt_strerror(session, ret, NULL, 0));
             else
-                __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+                __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
                   "shutdown rollback to stable has successfully finished and ran for %" PRIu64
                   " milliseconds",
                   conn->shutdown_timeline.rts_ms);
@@ -2729,7 +2666,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 
             __wt_timer_start(session, &timer);
 
-            WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
+            WT_TRET(__wt_checkpoint_db(s, checkpoint_cfg, true));
 
             /*
              * Mark the metadata dirty so we flush it on close, allowing recovery to be skipped.
@@ -2740,7 +2677,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 
             /* Time since the shutdown checkpoint has started. */
             __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
-            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+            __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
               "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
               conn->shutdown_timeline.checkpoint_ms);
         }
@@ -2814,6 +2751,7 @@ __wt_verbose_dump_txn_one(
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     uint32_t i, buf_len;
+    char ckpt_lsn_str[WT_MAX_LSN_STRING];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
@@ -2856,6 +2794,8 @@ __wt_verbose_dump_txn_one(
     buf_len = (uint32_t)snapshot_buf->size + 512;
     WT_ERR(__wt_scr_alloc(session, buf_len, &buf));
 
+    WT_ERR(__wt_lsn_string(&txn->ckpt_lsn, sizeof(ckpt_lsn_str), ckpt_lsn_str));
+
     /*
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
      * error message.
@@ -2871,7 +2811,7 @@ __wt_verbose_dump_txn_one(
         ", prepare_timestamp: %s"
         ", pinned_durable_timestamp: %s"
         ", read_timestamp: %s"
-        ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
+        ", checkpoint LSN: [%s]"
         ", full checkpoint: %s"
         ", rollback reason: %s"
         ", flags: 0x%08" PRIx32 ", isolation: %s",
@@ -2882,9 +2822,9 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
         __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
-        __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
-        __wt_lsn_offset(&txn->ckpt_lsn), txn->full_ckpt ? "true" : "false",
-        txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
+        __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), ckpt_lsn_str,
+        txn->full_ckpt ? "true" : "false", txn->rollback_reason == NULL ? "" : txn->rollback_reason,
+        txn->flags, iso_tag));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.

@@ -33,6 +33,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include "model/driver/kv_workload.h"
 #include "model/driver/kv_workload_sequence.h"
@@ -77,6 +78,7 @@ struct kv_workload_generator_spec {
 
     /* Probabilities of special operations. */
     float checkpoint;
+    float checkpoint_crash;
     float crash;
     float evict;
     float restart;
@@ -91,10 +93,26 @@ struct kv_workload_generator_spec {
     /* The probability of starting a prepared transaction. */
     float prepared_transaction;
 
+    /* The maximum delay after preparing a transaction (expressed as operation count). */
+    size_t max_delay_after_prepare;
+
     /* Probabilities of transaction rollback. */
     float nonprepared_transaction_rollback;
     float prepared_transaction_rollback_after_prepare;
     float prepared_transaction_rollback_before_prepare;
+
+    /* Probabilities of WiredTiger timing stress configurations. */
+    /* FIXME-WT-13878 : Refactor this code and move into a separate structure. */
+    float timing_stress_ckpt_slow;
+    float timing_stress_ckpt_evict_page;
+    float timing_stress_ckpt_handle;
+    float timing_stress_ckpt_stop;
+    float timing_stress_compact_slow;
+    float timing_stress_hs_ckpt_delay;
+    float timing_stress_hs_search;
+    float timing_stress_hs_sweep_race;
+    float timing_stress_prepare_ckpt_delay;
+    float timing_stress_commit_txn_slow;
 
     /*
      * kv_workload_generator_spec::kv_workload_generator_spec --
@@ -425,6 +443,13 @@ public:
         return generator.workload();
     }
 
+    static std::string
+    generate_configurations(uint64_t seed = 0)
+    {
+        kv_workload_generator generator(_default_spec, seed);
+        return generator.generate_connection_config();
+    }
+
 protected:
     /*
      * kv_workload_generator::kv_workload_generator --
@@ -466,6 +491,12 @@ protected:
      *     Create a table.
      */
     void create_table();
+
+    /*
+     * kv_workload_generator::generate_connection_config --
+     *     Generate random WiredTiger timing stress configurations.
+     */
+    std::string generate_connection_config();
 
     /*
      * kv_workload_generator::generate_key --
