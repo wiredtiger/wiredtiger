@@ -98,7 +98,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
 
     SECTION("Test WT_WRITE_CONFLICT in __txn_modify_block")
     {
-        // Create a table and place a lock on it so session can have a set dhandle.
+        // Create a table and place a lock flag on it so session can have a set dhandle.
         REQUIRE(session->create(session, "table:rollback", "key_format=S,value_format=S") == 0);
         FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST);
         REQUIRE(__wt_conn_dhandle_alloc(session_impl, "table:rollback", NULL) == 0);
@@ -120,14 +120,14 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // Free update.
         __wt_free(session_impl, upd);
 
-        // Clear lock so the table can be dropped.
+        // Clear lock flag so the table can be dropped.
         FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST);
         session->drop(session, "table:rollback", NULL);
     }
 
     SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - prepared transaction")
     {
-        // Set transaction as prepared.
+        // Set transaction as prepared. This should cause an early exist so no error is returned.
         F_SET(session_impl->txn, WT_TXN_PREPARE);
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
@@ -135,8 +135,8 @@ TEST_CASE("Test functions for error handling in rollback workflows",
 
     SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - rollback can't be handled")
     {
-        // Check if there are no updates, the thread operation did not time
-        // out and the operation is not running in a transaction.
+        // Check if there are no updates, the thread operation did not time out and the operation is
+        // not running in a transaction. No error should be returned from these.
 
         // Say we have 1 update.
         session_impl->txn->mod_count = 1;
