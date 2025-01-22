@@ -2899,6 +2899,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
          * now.
          */
+        __wt_atomic_addv16(&ref->ref_changes, 1);
         ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
         /*
@@ -2971,10 +2972,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         mod->rec_result = WT_PM_REC_REPLACE;
         break;
     default: /* Page split */
-        if (WT_PAGE_IS_INTERNAL(page)) {
-            __wt_atomic_addv16(&ref->ref_changes, 1);
+        if (WT_PAGE_IS_INTERNAL(page))
             WT_STAT_DSRC_INCR(session, rec_multiblock_internal);
-        } else
+        else
             WT_STAT_DSRC_INCR(session, rec_multiblock_leaf);
 
         /* Optionally display the actual split keys in verbose mode. */
@@ -2986,6 +2986,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * now. We may reconcile this page again. Force it to write a new page instead of reusing
          * the existing page id. Building deltas on the split page is a future thing.
          */
+        __wt_atomic_addv16(&ref->ref_changes, 1);
         r->ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
 split:

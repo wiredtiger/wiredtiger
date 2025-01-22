@@ -293,6 +293,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
     size_t size;
+    uint16_t prev_ref_changes;
     const void *p;
 
     btree = S2BT(session);
@@ -328,6 +329,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
+        /*
+         * Set the ref_changes state to zero if there were no concurrent changes while reconciling the
+         * internal page.
+         */
+        prev_ref_changes = ref->ref_changes;
+        __wt_atomic_casv16(&ref->ref_changes, prev_ref_changes, 0);
+
         /*
          * There are different paths if the key is an overflow item vs. a straight-forward on-page
          * value. If an overflow item, we would have instantiated it, and we can use that fact to
@@ -466,11 +474,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     /* Write the remnant page. */
     ret = __wti_rec_split_finish(session, r);
-    /*
-     * Set the ref_changes state to zero if there were no concurrent changes while reconciling the
-     * internal page.
-     */
-    __wt_atomic_casv16(&ref->ref_changes, 0, 0);
 
 err:
     WT_CHILD_RELEASE(session, cms.hazard, ref);

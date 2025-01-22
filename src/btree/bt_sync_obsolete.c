@@ -219,6 +219,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     ref_state = WT_REF_GET_STATE(ref);
     if (ref_state == WT_REF_DELETED || ref_state == WT_REF_DISK) {
+        __wt_atomic_addv16(&ref->ref_changes, 1);
         WT_REF_LOCK(session, ref, &previous_state);
         /*
          * There are two possible outcomes from the subsequent checks:
@@ -237,6 +238,7 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_REF_UNLOCK(ref, new_state);
         WT_RET(ret);
     } else if (ref_state == WT_REF_MEM) {
+        __wt_atomic_addv16(&ref->ref_changes, 1);
         /*
          * Reviewing in-memory pages requires looking at page reconciliation results and we must
          * ensure we don't race with page reconciliation as it's writing the page modify
@@ -282,7 +284,6 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
       (void *)parent->page);
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
-    __wt_atomic_addv16(&parent->ref_changes, 1);
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
