@@ -205,14 +205,13 @@ reread:
                     block_meta->delta_count =
                       get_args.delta_count == 0 ? *results_count - 1 : get_args.delta_count;
                     block_meta->checksum = checksum;
-                    if (block_meta->delta_count > 0) {
+                    if (block_meta->delta_count > 0)
+                        WT_ASSERT(session,
+                          get_args.base_lsn > 0 ||
+                            get_args.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+                    else
                         WT_ASSERT(
-                          session, get_args.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-                        WT_ASSERT(session, get_args.base_lsn > 0);
-                    } else {
-                        WT_ASSERT(session, get_args.base_checkpoint_id == 0);
-                        WT_ASSERT(session, get_args.base_lsn == 0);
-                    }
+                          session, get_args.base_lsn == 0 && get_args.base_checkpoint_id == 0);
                 }
 
                 /*
