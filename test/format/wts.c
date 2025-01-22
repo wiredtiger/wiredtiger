@@ -269,6 +269,28 @@ configure_debug_mode(char **p, size_t max)
 }
 
 /*
+ * configure_eviction --
+ *     Configure eviction settings.
+ */
+static void
+configure_eviction(char **p, size_t max)
+{
+    /* If no eviction configuration specified, skip the following actions. */
+    if (!GV(EVICTION_EVICT_USE_SOFTPTR) && !GV(CACHE_EVICT_MAX))
+        return;
+
+    CONFIG_APPEND(*p, ",eviction=(");
+
+    if (GV(CACHE_EVICT_MAX) != 0)
+        CONFIG_APPEND(*p, ",threads_max=%" PRIu32 "", GV(CACHE_EVICT_MAX));
+
+    if (GV(EVICTION_EVICT_USE_SOFTPTR))
+        CONFIG_APPEND(*p, ",evict_use_softptr=%u", GV(EVICTION_EVICT_USE_SOFTPTR));
+
+    CONFIG_APPEND(*p, ")");
+}
+
+/*
  * configure_tiered_storage --
  *     Configure tiered storage settings for opening a connection.
  */
@@ -402,8 +424,7 @@ create_database(const char *home, WT_CONNECTION **connp)
           GV(BLOCK_CACHE_CACHE_ON_WRITES) == 0 ? "false" : "true", GV(BLOCK_CACHE_SIZE));
 
     /* Eviction configuration. */
-    if (GV(CACHE_EVICT_MAX) != 0)
-        CONFIG_APPEND(p, ",eviction=(threads_max=%" PRIu32 ")", GV(CACHE_EVICT_MAX));
+    configure_eviction(&p, max);
 
     /* Logging configuration. */
     if (GV(LOGGING)) {
