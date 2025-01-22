@@ -329,12 +329,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        /*
-         * Set the ref_changes state to zero if there were no concurrent changes while reconciling the
-         * internal page.
-         */
-        prev_ref_changes = ref->ref_changes;
-        __wt_atomic_casv16(&ref->ref_changes, prev_ref_changes, 0);
+        WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
 
         /*
          * There are different paths if the key is an overflow item vs. a straight-forward on-page
@@ -469,6 +464,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
+
+        /*
+         * Set the ref_changes state to zero if there were no concurrent changes while reconciling
+         * the internal page.
+         */
+        __wt_atomic_casv16(&ref->ref_changes, prev_ref_changes, 0);
     }
     WT_INTL_FOREACH_END;
 

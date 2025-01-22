@@ -219,7 +219,6 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     ref_state = WT_REF_GET_STATE(ref);
     if (ref_state == WT_REF_DELETED || ref_state == WT_REF_DISK) {
-        __wt_atomic_addv16(&ref->ref_changes, 1);
         WT_REF_LOCK(session, ref, &previous_state);
         /*
          * There are two possible outcomes from the subsequent checks:
@@ -235,10 +234,15 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
             if (ref_deleted)
                 new_state = WT_REF_DELETED;
         }
+        /*
+         * For deleted and on-disk pages, increment ref_changes if there has been a change in the
+         * ref's state. There's nothing to do for in-memory pages as we don't change those.
+         */
+        if (previous_state != new_state)
+            __wt_atomic_addv16(&ref->ref_changes, 1);
         WT_REF_UNLOCK(ref, new_state);
         WT_RET(ret);
     } else if (ref_state == WT_REF_MEM) {
-        __wt_atomic_addv16(&ref->ref_changes, 1);
         /*
          * Reviewing in-memory pages requires looking at page reconciliation results and we must
          * ensure we don't race with page reconciliation as it's writing the page modify
