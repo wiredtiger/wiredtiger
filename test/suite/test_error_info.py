@@ -150,7 +150,6 @@ class test_error_info(compact_util):
         """
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor('backup:', None, None)
-
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, None)), "was expecting drop call to fail with EBUSY")
         self.assert_error_equal(errno.EBUSY, wiredtiger.WT_CONFLICT_BACKUP, "the table is currently performing backup and cannot be dropped")
 
@@ -160,6 +159,5 @@ class test_error_info(compact_util):
         """
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None, None)
-
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, None)), "was expecting drop call to fail with EBUSY")
         self.assert_error_equal(errno.EBUSY, wiredtiger.WT_CONFLICT_DHANDLE, "another thread is currently holding the data handle of the table")

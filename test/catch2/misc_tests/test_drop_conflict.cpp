@@ -9,6 +9,7 @@
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
 #include "../wrappers/connection_wrapper.h"
+#include "../utils.h"
 
 /*
  * [drop_conflict]: test_drop_conflict.cpp
@@ -18,6 +19,8 @@
 
 TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
 {
+    const char *uri = "table:test_error";
+
     connection_wrapper conn_wrapper = connection_wrapper(".", "create");
     WT_CONNECTION *conn = conn_wrapper.get_wt_connection();
 
@@ -25,36 +28,27 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
     REQUIRE(conn->open_session(conn, NULL, NULL, &session) == 0);
 
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
-    const char *uri = "table:test_error";
-    const char *cfg = "key_format=S,value_format=S";
+    WT_ERROR_INFO *err_info = &(session_impl->err_info);
+
+    REQUIRE(session->create(session, uri, "key_format=S,value_format=S") == 0);
 
     SECTION("Test WT_CONFLICT_BACKUP")
     {
-        /* Open a backup cursor on a new table, then attempt to drop the table. */
+        /* Open a backup cursor on a table, then attempt to drop the table. */
         WT_CURSOR *backup_cursor;
-        REQUIRE(session->create(session, uri, cfg) == 0);
         REQUIRE(session->open_cursor(session, "backup:", NULL, NULL, &backup_cursor) == 0);
-        REQUIRE(session->drop(session, "table:test_error", NULL) == EBUSY);
-
-        /* Check that the proper error/sub-level error and message were stored. */
-        CHECK(session_impl->err_info.err == EBUSY);
-        CHECK(session_impl->err_info.sub_level_err == WT_CONFLICT_BACKUP);
-        CHECK(strcmp(session_impl->err_info.err_msg,
-                "the table is currently performing backup and cannot be dropped") == 0);
+        REQUIRE(session->drop(session, uri, NULL) == EBUSY);
+        utils::check_error_info(err_info, EBUSY, WT_CONFLICT_BACKUP,
+          "the table is currently performing backup and cannot be dropped");
     }
 
     SECTION("Test WT_CONFLICT_DHANDLE")
     {
-        /* Open a cursor on a new table, then attempt to drop the table. */
+        /* Open a cursor on a table, then attempt to drop the table. */
         WT_CURSOR *cursor;
-        REQUIRE(session->create(session, uri, cfg) == 0);
         REQUIRE(session->open_cursor(session, uri, NULL, NULL, &cursor) == 0);
         REQUIRE(session->drop(session, uri, NULL) == EBUSY);
-
-        /* Check that the proper error/sub-level error and message were stored. */
-        CHECK(session_impl->err_info.err == EBUSY);
-        CHECK(session_impl->err_info.sub_level_err == WT_CONFLICT_DHANDLE);
-        CHECK(strcmp(session_impl->err_info.err_msg,
-                "another thread is currently holding the data handle of the table") == 0);
+        utils::check_error_info(err_info, EBUSY, WT_CONFLICT_DHANDLE,
+          "another thread is currently holding the data handle of the table");
     }
 }
