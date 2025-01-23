@@ -30,7 +30,7 @@ import wiredtiger, time, errno
 from wttest import open_cursor
 from compact_util import compact_util
 
-# 01.py
+# test_error_info01.py
 #   Test that the get_last_error() session API returns the last error to occur in the session.
 class test_error_info01(compact_util):
 
