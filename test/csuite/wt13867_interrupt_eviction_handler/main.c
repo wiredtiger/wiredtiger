@@ -182,9 +182,10 @@ redo1:
     populate(session, WRITE_CYCLES * cycle);
 
     GET_ALL_STATS(1);
-    if (cache_busy_ops1 < MIN_CACHE_OPS || cache_idle_ops1 < MIN_CACHE_OPS) {
+    if (cache_ops1 < MIN_CACHE_OPS) {
         /* If we didn't do enough cache operations, do more. */
         cycle *= 2;
+        testutil_assert(cycle <= 1024);
         goto redo1;
     }
 
@@ -210,9 +211,10 @@ redo2:
     populate(session, WRITE_CYCLES * cycle);
 
     GET_ALL_STATS(2);
-    if (cache_busy_ops2 - cache_busy_ops1 < MIN_CACHE_OPS) {
+    if (cache_ops2 - cache_ops1 < MIN_CACHE_OPS) {
         /* If we didn't do enough cache operations, do more. */
         cycle *= 2;
+        testutil_assert(cycle <= 1024);
         goto redo2;
     }
 
