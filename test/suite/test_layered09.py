@@ -63,12 +63,12 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
 
-    nitems = 1000
+    nitems = 100
 
     def session_create_config(self):
         # The delta percentage of 200 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=20),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
@@ -88,7 +88,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "aaaa"
+        value1 = "a" * 100
         value2 = "bbbb"
 
         for i in range(self.nitems):
@@ -99,11 +99,6 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -115,16 +110,10 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -160,11 +149,6 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -178,16 +162,10 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -222,11 +200,6 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -239,16 +212,10 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -284,11 +251,6 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems, self.nitems + 5):
@@ -299,16 +261,10 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -357,11 +313,6 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -373,16 +324,10 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
@@ -440,11 +385,6 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
 
         for i in range(self.nitems):
@@ -456,16 +396,10 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 else:
                     self.session.commit_transaction()
 
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
         self.session.checkpoint()
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
