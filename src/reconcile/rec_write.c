@@ -3008,6 +3008,8 @@ split:
         break;
     }
 
+    __wt_atomic_addv16(&ref->ref_changes, 1);
+
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this
      * is the only place in the system that potentially touches ref->page_del without locking the
