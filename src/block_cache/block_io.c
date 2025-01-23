@@ -521,6 +521,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     btree = S2BT(session);
     bm = btree->bm;
     delta_count = (block_meta == NULL) ? 0 : block_meta->delta_count;
+    dsk = NULL;
     encrypted = false;
 
     /*
@@ -688,6 +689,13 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_write, mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, mem_size);
+
+    if (dsk != NULL) {
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl, mem_size);
+        else
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, mem_size);
+    }
 
     /*
      * Store a copy of the compressed buffer in the block cache.

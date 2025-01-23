@@ -1538,6 +1538,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written",
   "block-manager: bytes written by compaction",
   "block-manager: bytes written for checkpoint",
+  "block-manager: bytes written for internal pages after compression and encryption",
+  "block-manager: bytes written for leaf pages after compression and encryption",
   "block-manager: bytes written via memory map API",
   "block-manager: bytes written via system call API",
   "block-manager: mapped blocks read",
@@ -2121,6 +2123,10 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop transaction ID",
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
+  "reconciliation: total number of bytes written for all internal page reconciliations before "
+  "compression and encryption",
+  "reconciliation: total number of bytes written for all leaf page reconciliations before "
+  "compression and encryption",
   "session: attempts to remove a local object and the object is in use",
   "session: flush_tier failed calls",
   "session: flush_tier operation calls",
@@ -2347,6 +2353,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write = 0;
     stats->block_byte_write_compact = 0;
     stats->block_byte_write_checkpoint = 0;
+    stats->block_byte_write_intl = 0;
+    stats->block_byte_write_leaf = 0;
     stats->block_byte_write_mmap = 0;
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
@@ -2906,6 +2914,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
+    stats->rec_write_precomp_intl_page_bytes = 0;
+    stats->rec_write_precomp_leaf_page_bytes = 0;
     stats->local_objects_inuse = 0;
     stats->flush_tier_fail = 0;
     stats->flush_tier = 0;
@@ -3108,6 +3118,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write += WT_STAT_CONN_READ(from, block_byte_write);
     to->block_byte_write_compact += WT_STAT_CONN_READ(from, block_byte_write_compact);
     to->block_byte_write_checkpoint += WT_STAT_CONN_READ(from, block_byte_write_checkpoint);
+    to->block_byte_write_intl += WT_STAT_CONN_READ(from, block_byte_write_intl);
+    to->block_byte_write_leaf += WT_STAT_CONN_READ(from, block_byte_write_leaf);
     to->block_byte_write_mmap += WT_STAT_CONN_READ(from, block_byte_write_mmap);
     to->block_byte_write_syscall += WT_STAT_CONN_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_CONN_READ(from, block_map_read);
@@ -3779,6 +3791,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_stop_txn += WT_STAT_CONN_READ(from, rec_time_window_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_CONN_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_CONN_READ(from, rec_split_stashed_objects);
+    to->rec_write_precomp_intl_page_bytes +=
+      WT_STAT_CONN_READ(from, rec_write_precomp_intl_page_bytes);
+    to->rec_write_precomp_leaf_page_bytes +=
+      WT_STAT_CONN_READ(from, rec_write_precomp_leaf_page_bytes);
     to->local_objects_inuse += WT_STAT_CONN_READ(from, local_objects_inuse);
     to->flush_tier_fail += WT_STAT_CONN_READ(from, flush_tier_fail);
     to->flush_tier += WT_STAT_CONN_READ(from, flush_tier);

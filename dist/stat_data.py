@@ -277,6 +277,8 @@ conn_stats = [
     BlockStat('block_byte_write', 'bytes written', 'size'),
     BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_byte_write_compact', 'bytes written by compaction', 'size'),
+    BlockStat('block_byte_write_intl', 'bytes written for internal pages after compression and encryption'),
+    BlockStat('block_byte_write_leaf', 'bytes written for leaf pages after compression and encryption'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
     BlockStat('block_map_read', 'mapped blocks read'),
@@ -709,6 +711,8 @@ conn_stats = [
     RecStat('rec_time_window_pages_prepared', 'pages written including at least one prepare state'),
     RecStat('rec_time_window_pages_start_ts', 'pages written including at least one start timestamp'),
     RecStat('rec_time_window_prepared', 'records written including a prepare state'),
+    RecStat('rec_write_precomp_intl_page_bytes', 'total number of bytes written for all internal page reconciliations before compression and encryption'),
+    RecStat('rec_write_precomp_leaf_page_bytes', 'total number of bytes written for all leaf page reconciliations before compression and encryption'),
 
     ##########################################
     # Session operations

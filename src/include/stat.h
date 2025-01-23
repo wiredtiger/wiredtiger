@@ -477,6 +477,8 @@ struct __wt_connection_stats {
     int64_t block_byte_write;
     int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
+    int64_t block_byte_write_intl;
+    int64_t block_byte_write_leaf;
     int64_t block_byte_write_mmap;
     int64_t block_byte_write_syscall;
     int64_t block_map_read;
@@ -1036,6 +1038,8 @@ struct __wt_connection_stats {
     int64_t rec_time_window_stop_txn;
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
+    int64_t rec_write_precomp_intl_page_bytes;
+    int64_t rec_write_precomp_leaf_page_bytes;
     int64_t local_objects_inuse;
     int64_t flush_tier_fail;
     int64_t flush_tier;
