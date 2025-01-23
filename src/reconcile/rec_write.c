@@ -2123,10 +2123,8 @@ __wti_rec_pack_delta_internal(
     p += key->len;
     if (value == NULL)
         LF_SET(WT_DELTA_IS_DELETE);
-    else {
+    else
         __wt_rec_kv_copy(session, p, value);
-        p += value->len;
-    }
 
     r->delta.size += packed_size;
     *head_byte = flags;
