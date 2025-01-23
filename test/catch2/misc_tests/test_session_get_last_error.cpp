@@ -8,16 +8,15 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../../wrappers/connection_wrapper.h"
-#include "../utils_sub_level_error.h"
+#include "../wrappers/connection_wrapper.h"
 
 /*
- * [sub_level_error_session_get_last_error]: test_sub_level_error_session_get_last_error.cpp
+ * [session_get_last_error]: test_session_get_last_error.cpp
  * Tests the API for getting verbose information about the last error of the session.
  */
 
 TEST_CASE("Session get last error - test getting verbose info about the last error in the session",
-  "[sub_level_error_session_get_last_error],[sub_level_error]")
+  "[session_get_last_error]")
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
