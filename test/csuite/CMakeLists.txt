@@ -435,3 +435,11 @@ define_c_test(
     ARGUMENTS $<TARGET_FILE:test_wt18969_log_backup_seal>
     DEPENDS "WT_POSIX"
 )
+
+define_c_test(
+    TARGET wt13867_interrupt_eviction_handler
+    SOURCES wt13867_interrupt_eviction_handler/main.c
+    DIR_NAME wt13867_interrupt_eviction_handler
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)

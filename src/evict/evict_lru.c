@@ -2638,9 +2638,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     double pct_full;
-    uint64_t cache_max_wait_us, initial_progress, max_progress;
-    uint64_t elapsed, time_start, time_stop;
-    bool app_thread;
+    uint64_t cache_max_wait_us, initial_progress, max_progress, time_start;
 
     WT_TRACK_OP_INIT(session);
 
@@ -2672,8 +2670,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
     __wt_evict_server_wake(session);
 
     /* Track how long application threads spend doing eviction. */
-    app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
-    if (app_thread)
+    if (!F_ISSET(session, WT_SESSION_INTERNAL))
         time_start = __wt_clock(session);
 
     /*
@@ -2705,13 +2702,13 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
          * Additionally we don't return rollback which could confuse the caller.
          */
         if (__wt_op_timer_fired(session))
-            break;
+            goto err;
 
         /* Check if we have exceeded the global or the session timeout for waiting on the cache. */
         if (time_start != 0 && cache_max_wait_us != 0) {
-            time_stop = __wt_clock(session);
+            uint64_t time_stop = __wt_clock(session);
             if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
-                break;
+                goto err;
         }
 
         /*
@@ -2732,6 +2729,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
           (pct_full < 100.0 && (cache->eviction_progress > initial_progress + max_progress)))
             break;
 
+        /* Last check if application wants to prevent the thread from evicting. */
+        if (!__evict_check_user_ok_with_eviction(session, busy))
+            break;
+
         /* Evict a page. */
         switch (ret = __evict_page(session, false)) {
         case 0:
@@ -2739,7 +2740,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
                 goto err;
         /* FALLTHROUGH */
         case EBUSY:
-            break;
+            break; /* Continue the loop. */
         case WT_NOTFOUND:
             /* Allow the queue to re-populate before retrying. */
             __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
@@ -2752,11 +2753,20 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
 
 err:
     if (time_start != 0) {
-        time_stop = __wt_clock(session);
-        elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+        uint64_t time_stop = __wt_clock(session);
+        uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
         WT_STAT_CONN_INCR(session, application_cache_ops);
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
+        if (busy) {
+            WT_STAT_CONN_INCR(session, application_cache_busy_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_busy_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_busy, elapsed);
+        } else {
+            WT_STAT_CONN_INCR(session, application_cache_idle_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_idle_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_idle, elapsed);
+        }
         session->cache_wait_us += elapsed;
         /*
          * Check if a rollback is required only if there has not been an error. Returning an error
