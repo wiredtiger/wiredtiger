@@ -10,6 +10,7 @@
 #include "wt_internal.h"
 #include "../wrappers/connection_wrapper.h"
 #include "../utils.h"
+#include "../../utility/test_util.h"
 
 /*
  * [drop_conflict]: test_drop_conflict.cpp
@@ -64,7 +65,12 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
 
     SECTION("Test WT_CONFLICT_DHANDLE with tiered storage")
     {
-        connection_wrapper conn_wrapper = connection_wrapper(".", "create,tiered_storage=()");
+        const char *home = "WT_TEST";
+        testutil_system("rm -rf %s && mkdir %s && mkdir %s/%s", home, home, home, "bucket");
+        connection_wrapper conn_wrapper = connection_wrapper(home,
+          "create,tiered_storage=(bucket=bucket,bucket_prefix=pfx-,name=dir_store),extensions=(./"
+          "ext/storage_sources/dir_store/libwiredtiger_dir_store.so)");
+
         prepare_session_and_error(&conn_wrapper, &session, &err_info, uri);
 
         /* Open a cursor on a table that uses tiered storage, then attempt to drop the table. */
