@@ -54,8 +54,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
     }
 
     SECTION(
-      "Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - WT_OLDEST_FOR_EVICTION rollback "
-      "error")
+      "Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - conflicting sub-level error codes")
     {
         // It is possible to get WT_OLDEST_FOR_EVICTION as the sub-level rollback error from this
         // function. This should not be overwritten by WT_CACHE_OVERFLOW.
@@ -142,7 +141,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // Check if there are no updates, the thread operation did not time out and the operation is
         // not running in a transaction. No error should be returned from these.
 
-        // Say we have 1 update.
+        // Set the transaction to have 1 modification.
         session_impl->txn->mod_count = 1;
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
@@ -157,7 +156,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Set modifications to 0.
+        // Set the transaction to have 0 modifications.
         session_impl->txn->mod_count = 0;
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
@@ -165,7 +164,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
 
     SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - transaction ID")
     {
-        // Say that we have 1 modification.
+        // Set the transaction to have 1 modification.
         session_impl->txn->mod_count = 1;
 
         // Check if the transaction's ID or its pinned ID is equal to the oldest transaction ID.

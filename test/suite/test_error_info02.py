@@ -51,7 +51,7 @@ class test_error_info02(wttest.WiredTigerTestCase):
         # a very low eviction trigger threshold.
         self.conn.reconfigure('cache_max_wait_ms=1,eviction_dirty_target=1,eviction_dirty_trigger=2')
 
-        # Create a very basic table.
+        # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         # Open a session and cursor.
@@ -79,7 +79,7 @@ class test_error_info02(wttest.WiredTigerTestCase):
         """
         Try to write conflicting data with two threads.
         """
-        # Create a very basic table.
+        # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         # Insert a key and value.
@@ -119,7 +119,7 @@ class test_error_info02(wttest.WiredTigerTestCase):
         # Configure the connection with the min cache size.
         self.conn.reconfigure('cache_size=1MB')
 
-        # Create a very basic table.
+        # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         cursor = self.session.open_cursor(self.uri)
