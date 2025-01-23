@@ -239,7 +239,7 @@ __wt_rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size
 }
 
 /*
- * __rec_kv_copy --
+ * __wt_rec_kv_copy --
  *     Copy a key/value cell and buffer pair.
  */
 static WT_INLINE void
