@@ -59,7 +59,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     WT_DECL_RET;
     WT_ENCRYPTOR *encryptor;
     WT_ITEM *ip;
-    WT_ITEM results[32];
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
     size_t compression_ratio, result_len;
