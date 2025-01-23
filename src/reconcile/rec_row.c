@@ -474,7 +474,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_INTL_FOREACH_END;
 
     /* Write the remnant page. */
-    ret = __wti_rec_split_finish(session, r);
+    return (__wti_rec_split_finish(session, r));
 
 err:
     WT_CHILD_RELEASE(session, cms.hazard, ref);
