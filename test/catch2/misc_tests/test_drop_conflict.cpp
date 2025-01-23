@@ -22,12 +22,12 @@
  * Prepare the session and error_info structure to be used by the drop conflict tests.
  */
 void
-prepare_session_and_error(
-  connection_wrapper *conn_wrapper, WT_SESSION **session, WT_ERROR_INFO **err_info, const char *uri)
+prepare_session_and_error(connection_wrapper *conn_wrapper, WT_SESSION **session,
+  WT_ERROR_INFO **err_info, const char *uri, std::string cfg)
 {
     WT_CONNECTION *conn = conn_wrapper->get_wt_connection();
     REQUIRE(conn->open_session(conn, NULL, NULL, session) == 0);
-    REQUIRE((*session)->create(*session, uri, "key_format=S,value_format=S") == 0);
+    REQUIRE((*session)->create(*session, uri, ("key_format=S,value_format=S," + cfg).c_str()) == 0);
     *err_info = &(((WT_SESSION_IMPL *)(*session))->err_info);
 }
 
@@ -40,7 +40,7 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
     SECTION("Test WT_CONFLICT_BACKUP")
     {
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session, &err_info, uri);
+        prepare_session_and_error(&conn_wrapper, &session, &err_info, uri, "");
 
         /* Open a backup cursor on a table, then attempt to drop the table. */
         WT_CURSOR *backup_cursor;
@@ -50,10 +50,11 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
           "the table is currently performing backup and cannot be dropped");
     }
 
-    SECTION("Test WT_CONFLICT_DHANDLE")
+    /* This section gives us coverage in __drop_file. */
+    SECTION("Test WT_CONFLICT_DHANDLE with simple table")
     {
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session, &err_info, uri);
+        prepare_session_and_error(&conn_wrapper, &session, &err_info, uri, "");
 
         /* Open a cursor on a table, then attempt to drop the table. */
         WT_CURSOR *cursor;
@@ -63,15 +64,31 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
           "another thread is currently holding the data handle of the table");
     }
 
+    /* This section gives us coverage in __drop_table. */
+    SECTION("Test WT_CONFLICT_DHANDLE with columns")
+    {
+        connection_wrapper conn_wrapper = connection_wrapper(".", "create");
+        prepare_session_and_error(&conn_wrapper, &session, &err_info, uri, "columns=(col1,col2)");
+
+        /* Open a cursor on a table with columns, then attempt to drop the table. */
+        WT_CURSOR *cursor;
+        REQUIRE(session->open_cursor(session, uri, NULL, NULL, &cursor) == 0);
+        REQUIRE(session->drop(session, uri, NULL) == EBUSY);
+        utils::check_error_info(err_info, EBUSY, WT_CONFLICT_DHANDLE,
+          "another thread is currently holding the data handle of the table");
+    }
+
+    /* This section gives us coverage in __drop_tiered. */
     SECTION("Test WT_CONFLICT_DHANDLE with tiered storage")
     {
+        /* Set up the connection and session to use tiered storage. */
         const char *home = "WT_TEST";
         testutil_system("rm -rf %s && mkdir %s && mkdir %s/%s", home, home, home, "bucket");
         connection_wrapper conn_wrapper = connection_wrapper(home,
           "create,tiered_storage=(bucket=bucket,bucket_prefix=pfx-,name=dir_store),extensions=(./"
           "ext/storage_sources/dir_store/libwiredtiger_dir_store.so)");
 
-        prepare_session_and_error(&conn_wrapper, &session, &err_info, uri);
+        prepare_session_and_error(&conn_wrapper, &session, &err_info, uri, "");
 
         /* Open a cursor on a table that uses tiered storage, then attempt to drop the table. */
         WT_CURSOR *cursor;
