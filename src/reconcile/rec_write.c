@@ -2092,6 +2092,50 @@ __rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
 }
 
 /*
+ * __wti_rec_pack_delta_internal --
+ *     Pack a delta for an internal page
+ */
+static int
+__wti_rec_pack_delta_internal(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *key, WT_REC_KV *value)
+{
+    WT_DECL_RET;
+    WT_DELTA_HEADER *header;
+    size_t packed_size;
+    uint8_t flags;
+    uint8_t *p, *head_byte;
+
+    flags = 0;
+
+    header = (WT_DELTA_HEADER *)r->delta.data;
+
+    packed_size = 1 + key->len;
+    if (value != NULL)
+        packed_size += value->len;
+
+    if (r->delta.size + packed_size > r->delta.memsize)
+        WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
+
+    head_byte = (uint8_t *)r->delta.data + r->delta.size;
+    p = head_byte + 1;
+
+    __wt_rec_kv_copy(session, p, r, key);
+    p += key->len;
+    if (value == NULL)
+        LF_SET(WT_DELTA_IS_DELETE);
+    else {
+        __wt_rec_kv_copy(session, p, r, key);
+        p += value->len;
+    }
+
+    r->delta.size += packed_size;
+    *head_byte = flags;
+
+    ++header->u.entries;
+    return (ret);
+}
+
+/*
  * __rec_pack_delta_leaf --
  *     Pack a delta for a leaf page
  */
@@ -2148,7 +2192,6 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     p = head + 1;
 
     if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_ASSERT(session, false);
         LF_SET(WT_DELTA_IS_DELETE);
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
         memcpy(p, key->data, key->size);
