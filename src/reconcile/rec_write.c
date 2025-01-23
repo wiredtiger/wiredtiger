@@ -2119,12 +2119,12 @@ __wti_rec_pack_delta_internal(
     head_byte = (uint8_t *)r->delta.data + r->delta.size;
     p = head_byte + 1;
 
-    __wt_rec_kv_copy(session, p, r, key);
+    __wt_rec_kv_copy(session, p, key);
     p += key->len;
     if (value == NULL)
         LF_SET(WT_DELTA_IS_DELETE);
     else {
-        __wt_rec_kv_copy(session, p, r, key);
+        __wt_rec_kv_copy(session, p, value);
         p += value->len;
     }
 

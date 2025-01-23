@@ -243,7 +243,7 @@ __wt_rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size
  *     Copy a key/value cell and buffer pair.
  */
 static WT_INLINE void
-__wt_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WT_RECONCILE *r, WT_REC_KV *kv)
+__wt_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WT_REC_KV *kv)
 {
     size_t len;
     uint8_t *t;
@@ -272,7 +272,7 @@ __wt_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WT_RECONCILE *r, WT_REC_K
 static WT_INLINE void
 __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 {
-    __wt_rec_kv_copy(session, r->first_free, r, kv);
+    __wt_rec_kv_copy(session, r->first_free, kv);
     __wt_rec_incr(session, r, 1, kv->len);
 }
 
