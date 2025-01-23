@@ -55,10 +55,10 @@ TEST_CASE("Test functions for error handling in compaction workflows",
         check_error_info(err_info, 0, WT_NONE, "");
     }
 
-    SECTION("Test __wt_background_compact_signal - current background_compact configuration")
+    SECTION("Test __wt_background_compact_signal - background_compact configuration")
     {
-        // Set current background compaction running to true and expect the current background
-        // configuration to match the new configuration.
+        // Set current background compaction running to true and expect the new background
+        // configuration to match the already set configuration.
         conn_impl->background_compact.running = true;
         conn_impl->background_compact.config =
           "dryrun=false,exclude=,free_space_target=20MB,run_once=false,timeout=1200";
@@ -66,7 +66,7 @@ TEST_CASE("Test functions for error handling in compaction workflows",
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Expect the current configuration not match the new configuration. Expect an error.
+        // Expect the new configuration not match the already set configuration. Expect an error.
         conn_impl->background_compact.config = "";
 
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == EINVAL);

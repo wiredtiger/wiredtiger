@@ -38,23 +38,28 @@ TEST_CASE("Test functions for error handling in rollback workflows",
     }
 
     SECTION(
-      "Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - eviction server threads aren't "
-      "setup yet")
+      "Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - not safe to proceed with eviction")
     {
-        CHECK(__wti_evict_app_assist_worker(session_impl, true, false, 100) == 0);
-        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
-
-        CHECK(__wti_evict_app_assist_worker(session_impl, true, false, 99) == 0);
-        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
-
-        conn_impl->evict_server_running = true;
-
+        // If the eviction server isn't running, then the threads have not been set up yet and it's
+        // not safe to evict.
         CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == 0);
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+
+        // Set the eviction server as running.
+        conn_impl->evict_server_running = true;
+        // The eviction sever is running, but the application is busy and the cache is less than 100
+        // percent full.
+        CHECK(__wti_evict_app_assist_worker(session_impl, true, false, 99) == 0);
         check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
-    SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - different rollback error")
+    SECTION(
+      "Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - WT_OLDEST_FOR_EVICTION rollback "
+      "error")
     {
+        // It is possible to get WT_OLDEST_FOR_EVICTION as the sub-level rollback error from this
+        // function. This should not be overwritten by WT_CACHE_OVERFLOW.
+
         // Set the eviction cache as stuck.
         conn_impl->evict->evict_aggressive_score = WT_EVICT_SCORE_MAX;
         F_SET(conn_impl->evict, WT_EVICT_CACHE_HARD);
@@ -152,7 +157,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
 
-        // Set updates to 0.
+        // Set modifications to 0.
         session_impl->txn->mod_count = 0;
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
         check_error_info(err_info, 0, WT_NONE, "");
@@ -160,7 +165,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
 
     SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - transaction ID")
     {
-        // Say that we have 1 update.
+        // Say that we have 1 modification.
         session_impl->txn->mod_count = 1;
 
         // Check if the transaction's ID or its pinned ID is equal to the oldest transaction ID.
