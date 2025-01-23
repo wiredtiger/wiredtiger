@@ -131,9 +131,8 @@ __drop_table(
      * Temporarily getting the table exclusively serves the purpose of ensuring that cursors on the
      * table that are already open must at least be closed before this call proceeds.
      */
-    if ((ret = __wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table)) ==
-        EBUSY &&
-      session->err_info.err != EBUSY)
+    ret = __wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table);
+    if (ret == EBUSY && session->err_info.err != EBUSY)
         WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE,
           "another thread is currently holding the data handle of the table");
     WT_ERR(ret);
@@ -222,8 +221,8 @@ __drop_tiered(
 
     name = NULL;
     /* Get the tiered data handle. */
-    if ((ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE)) == EBUSY &&
-      session->err_info.err != EBUSY)
+    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
+    if (ret == EBUSY && session->err_info.err != EBUSY)
         WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE,
           "another thread is currently holding the data handle of the table");
     WT_RET(ret);
