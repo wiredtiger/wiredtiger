@@ -139,17 +139,18 @@ struct __wt_import_list {
  *  Coverity will complain that two threads might modify the lock flags concurrently, but this isn't
  *  possible so those warnings can be ignored.
  */
-#define WT_WITH_LOCK_NOWAIT(session, ret, lock, flag, op)                   \
-    do {                                                                    \
-        (ret) = 0;                                                          \
-        if (FLD_ISSET(session->lock_flags, (flag))) {                       \
-            op;                                                             \
-        } else if (((ret) = __wt_spin_trylock_track(session, lock)) == 0) { \
-            FLD_SET(session->lock_flags, (flag));                           \
-            op;                                                             \
-            FLD_CLR(session->lock_flags, (flag));                           \
-            __wt_spin_unlock(session, lock);                                \
-        }                                                                   \
+#define WT_WITH_LOCK_NOWAIT(session, ret, lock_ret, lock, flag, op)              \
+    do {                                                                         \
+        (ret) = 0;                                                               \
+        (lock_ret) = 0;                                                          \
+        if (FLD_ISSET(session->lock_flags, (flag))) {                            \
+            op;                                                                  \
+        } else if (((lock_ret) = __wt_spin_trylock_track(session, lock)) == 0) { \
+            FLD_SET(session->lock_flags, (flag));                                \
+            op;                                                                  \
+            FLD_CLR(session->lock_flags, (flag));                                \
+            __wt_spin_unlock(session, lock);                                     \
+        }                                                                        \
     } while (0)
 
 /*
@@ -160,7 +161,7 @@ struct __wt_import_list {
     WT_WITH_LOCK_WAIT(session, &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT, op)
 #define WT_WITH_CHECKPOINT_LOCK_NOWAIT(session, ret, op) \
     WT_WITH_LOCK_NOWAIT(                                 \
-      session, ret, &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT, op)
+      session, ret, ret, &S2C(session)->checkpoint_lock, WT_SESSION_LOCKED_CHECKPOINT, op)
 
 /*
  * WT_WITH_HANDLE_LIST_READ_LOCK --
@@ -228,15 +229,21 @@ struct __wt_import_list {
                 WT_SESSION_LOCKED_TABLE));                                                    \
         WT_WITH_LOCK_WAIT(session, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op); \
     } while (0)
-#define WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op)                               \
-    do {                                                                           \
-        WT_ASSERT(session,                                                         \
-          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||              \
-            !FLD_ISSET(session->lock_flags,                                        \
-              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |          \
-                WT_SESSION_LOCKED_TABLE));                                         \
-        WT_WITH_LOCK_NOWAIT(                                                       \
-          session, ret, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op); \
+#define WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op)                                           \
+    do {                                                                                       \
+        WT_ASSERT(session,                                                                     \
+          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA) ||                          \
+            !FLD_ISSET(session->lock_flags,                                                    \
+              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                      \
+                WT_SESSION_LOCKED_TABLE));                                                     \
+        int lock_ret;                                                                          \
+        WT_WITH_LOCK_NOWAIT(                                                                   \
+          session, ret, lock_ret, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);   \
+        if (lock_ret == EBUSY) {                                                               \
+            WT_IGNORE_RET(__wt_session_set_last_error(session, EBUSY, WT_CONFLICT_SCHEMA_LOCK, \
+              "another thread is currently accessing the schema"));                            \
+            ret = EBUSY;                                                                       \
+        }                                                                                      \
     } while (0)
 
 /*
@@ -292,7 +299,9 @@ struct __wt_import_list {
             op;                                                                                    \
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE);                           \
             __wt_writeunlock(session, &S2C(session)->table_lock);                                  \
-        }                                                                                          \
+        } else if ((ret) == EBUSY)                                                                 \
+            WT_IGNORE_RET(__wt_session_set_last_error(session, EBUSY, WT_CONFLICT_TABLE_LOCK,      \
+              "another thread is currently accessing the table"));                                 \
     } while (0)
 
 /*
