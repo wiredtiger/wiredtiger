@@ -2276,32 +2276,17 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
     if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET)
         __wti_evict_read_gen_new(session, page);
 
-    /* Pages being forcibly evicted go on the urgent queue. */
-    if (modified &&
+    bool urgent_oldest = (modified &&
       (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON ||
-        __wt_atomic_loadsize(&page->memory_footprint) >= btree->splitmempage)) {
-        WT_STAT_CONN_INCR(session, eviction_pages_queued_oldest);
-        if (__wt_evict_page_urgent(session, ref))
-            *urgent_queuedp = true;
-        return;
-    }
-
-    /*
-     * If history store dirty content is dominating the cache, we want to prioritize evicting
-     * history store pages over other btree pages. This helps in keeping cache contents below the
-     * configured cache size during checkpoints where reconciling non-HS pages can generate a
-     * significant amount of HS dirty content very quickly.
-     */
-    if (WT_IS_HS(btree->dhandle) && __wti_evict_hs_dirty(session)) {
-        WT_STAT_CONN_INCR(session, eviction_pages_queued_urgent_hs_dirty);
-        if (__wt_evict_page_urgent(session, ref))
-            *urgent_queuedp = true;
-        return;
-    }
+        __wt_atomic_loadsize(&page->memory_footprint) >= btree->splitmempage));
+    bool urgent_hs_dirty = (WT_IS_HS(btree->dhandle) && __wti_evict_hs_dirty(session));
 
     /* Pages that are empty or from dead trees are fast-tracked. */
     if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         goto fast;
+
+    if (urgent_oldest || urgent_hs_dirty)
+        goto urgent;
 
     /* Skip pages we don't want. */
     want_page = (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !modified) ||
@@ -2324,6 +2309,11 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         return;
     }
 
+    /* Evaluate dirty page candidacy, when eviction is not aggressive. */
+    if (!__wt_evict_aggressive(session) && modified && __evict_skip_dirty_candidate(session, page))
+        return;
+
+urgent:
     /*
      * Don't attempt eviction of internal pages with children in cache (indicated by seeing an
      * internal page that is the parent of the last page we saw).
@@ -2342,14 +2332,31 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
             return;
     }
 
-    /* Evaluate dirty page candidacy, when eviction is not aggressive. */
-    if (!__wt_evict_aggressive(session) && modified && __evict_skip_dirty_candidate(session, page))
-        return;
-
 fast:
     /* If the page can't be evicted, give up. */
     if (!__wt_page_can_evict(session, ref, NULL))
         return;
+
+    /* Pages being forcibly evicted go on the urgent queue. */
+    if (urgent_oldest) {
+        WT_STAT_CONN_INCR(session, eviction_pages_queued_oldest);
+        if (__wt_evict_page_urgent(session, ref))
+            *urgent_queuedp = true;
+        return;
+    }
+
+    /*
+     * If history store dirty content is dominating the cache, we want to prioritize evicting
+     * history store pages over other btree pages. This helps in keeping cache contents below the
+     * configured cache size during checkpoints where reconciling non-HS pages can generate a
+     * significant amount of HS dirty content very quickly.
+     */
+    if (urgent_hs_dirty) {
+        WT_STAT_CONN_INCR(session, eviction_pages_queued_urgent_hs_dirty);
+        if (__wt_evict_page_urgent(session, ref))
+            *urgent_queuedp = true;
+        return;
+    }
 
     WT_ASSERT(session, evict_entry->ref == NULL);
     if (!__evict_push_candidate(session, queue, evict_entry, ref))
