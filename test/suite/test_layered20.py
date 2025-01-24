@@ -102,6 +102,11 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
         session_follow.create(self.uri + 'a')
         cursor_follow = session_follow.open_cursor(self.uri + 'a', None, None)
         cursor_follow["** Hello 0"] = "World"
+        cursor_follow.close()
+        cursor_follow = session_follow.open_cursor(self.uri + 'a', None, None)
+        self.assertEqual(cursor_follow.next(), 0)
+        self.assertEqual(cursor_follow.get_key(), b'** Hello 0')
+        self.assertEqual(cursor_follow.get_value(), b'World')
 
         cursor_follow.close()
         session_follow.close()
