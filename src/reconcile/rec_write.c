@@ -383,11 +383,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         conn->cache->reentry_hs_eviction_ms =
           session->reconcile_timeline.total_reentry_hs_eviction_time;
 
-    if (WT_PAGE_IS_INTERNAL(page))
-        WT_STAT_CONN_INCRV(session, rec_write_precomp_intl_page_bytes, page->dsk->mem_size);
-    else
-        WT_STAT_CONN_INCRV(session, rec_write_precomp_leaf_page_bytes, page->dsk->mem_size);
-
 err:
     if (ret != 0)
         WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");

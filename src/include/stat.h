@@ -1038,8 +1038,6 @@ struct __wt_connection_stats {
     int64_t rec_time_window_stop_txn;
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
-    int64_t rec_write_precomp_intl_page_bytes;
-    int64_t rec_write_precomp_leaf_page_bytes;
     int64_t local_objects_inuse;
     int64_t flush_tier_fail;
     int64_t flush_tier;

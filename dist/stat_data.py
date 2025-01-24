@@ -711,8 +711,6 @@ conn_stats = [
     RecStat('rec_time_window_pages_prepared', 'pages written including at least one prepare state'),
     RecStat('rec_time_window_pages_start_ts', 'pages written including at least one start timestamp'),
     RecStat('rec_time_window_prepared', 'records written including a prepare state'),
-    RecStat('rec_write_precomp_intl_page_bytes', 'total number of bytes written for all internal page reconciliations before compression and encryption'),
-    RecStat('rec_write_precomp_leaf_page_bytes', 'total number of bytes written for all leaf page reconciliations before compression and encryption'),
 
     ##########################################
     # Session operations

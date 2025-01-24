@@ -2123,10 +2123,6 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop transaction ID",
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
-  "reconciliation: total number of bytes written for all internal page reconciliations before "
-  "compression and encryption",
-  "reconciliation: total number of bytes written for all leaf page reconciliations before "
-  "compression and encryption",
   "session: attempts to remove a local object and the object is in use",
   "session: flush_tier failed calls",
   "session: flush_tier operation calls",
@@ -2914,8 +2910,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
-    stats->rec_write_precomp_intl_page_bytes = 0;
-    stats->rec_write_precomp_leaf_page_bytes = 0;
     stats->local_objects_inuse = 0;
     stats->flush_tier_fail = 0;
     stats->flush_tier = 0;
@@ -3791,10 +3785,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_stop_txn += WT_STAT_CONN_READ(from, rec_time_window_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_CONN_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_CONN_READ(from, rec_split_stashed_objects);
-    to->rec_write_precomp_intl_page_bytes +=
-      WT_STAT_CONN_READ(from, rec_write_precomp_intl_page_bytes);
-    to->rec_write_precomp_leaf_page_bytes +=
-      WT_STAT_CONN_READ(from, rec_write_precomp_leaf_page_bytes);
     to->local_objects_inuse += WT_STAT_CONN_READ(from, local_objects_inuse);
     to->flush_tier_fail += WT_STAT_CONN_READ(from, flush_tier_fail);
     to->flush_tier += WT_STAT_CONN_READ(from, flush_tier);
