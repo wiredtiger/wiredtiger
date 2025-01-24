@@ -401,8 +401,7 @@ __curstat_file_init(
      * the schema and table list locks. Don't take this path for tiered tables or during live
      * restore as the file is not guaranteed to exist without opening the file handle.
      */
-    if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:") &&
-      !F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS)) {
+    if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:")) {
         filename = uri;
         WT_PREFIX_SKIP(filename, "file:");
         __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);

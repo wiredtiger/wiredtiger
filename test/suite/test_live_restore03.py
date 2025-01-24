@@ -61,7 +61,7 @@ class test_live_restore03(wttest.WiredTigerTestCase):
             if not f == "SOURCE" and not f == "stderr.txt" and not f == "stdout.txt":
                 os.remove(f)
 
-        # Open a connection with no live restore background threads to avoid opening file handles 
+        # Open a connection with no live restore background threads to avoid opening file handles
         # in the background.
         self.open_conn(config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=0)")
 
