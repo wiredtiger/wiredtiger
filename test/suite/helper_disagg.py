@@ -67,6 +67,11 @@ def disagg_test_class(cls):
         def __init__(self, *args, **kwargs):
             super(disagg_test_case_class, self).__init__(*args, **kwargs)
             disagg_ignore_expected_output(self)
+    # Preserve the original name of the wrapped class, so that the test ID is unmodified.
+    disagg_test_case_class.__name__ = cls.__name__
+    disagg_test_case_class.__qualname__ = cls.__qualname__
+    # Preserve the original module, as it is an integral part of the test's identity.
+    disagg_test_case_class.__module__ = cls.__module__
     return disagg_test_case_class
 
 # This mixin class provides disaggregated storage configuration methods.

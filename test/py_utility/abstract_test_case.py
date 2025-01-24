@@ -440,25 +440,6 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         return self.module_file().replace('.py', '')
 
-    @staticmethod
-    def simplify_name(name):
-        '''
-        Remove unnecessary information from the ID, such as the helper names and decorators.
-        '''
-        # Remove helpers and <locals>.
-        name = re.sub(r'^helper_[^.]*\.', '', name)
-        name = name.replace('.<locals>', '')
-
-        # Remove parts of the name that come before the module, e.g., decorators.
-        parts = name.split('.')
-        while len(parts) > 1 and parts[0] not in sys.modules:
-            parts = parts[1:]
-        name = '.'.join(parts)
-        return name
-
-    def id(self):
-        return self.simplify_name(super().id())
-
     def current_test_id(self):
         '''
         Return a test ID. Use this instead of the actual id() function, because we lose its context
@@ -481,6 +462,9 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
         '''
         name = self.shortid().translate(str.maketrans('($[]/ ','______', ')'))
 
+        # Remove '<' and '>', because some qualified names contain strings such as "<locals>".
+        name = name.replace('<', '_').replace('>', '_')
+
         # On OS/X, we can get name conflicts if names differ by case. Upper
         # case letters are uncommon in our python class and method names, so
         # we lowercase them and prefix with '@', e.g. "AbC" -> "@ab@c".
@@ -498,7 +482,7 @@ class AbstractWiredTigerTestCase(unittest.TestCase):
             methodName = self._savedTestMethodName
         else:
             methodName = self._testMethodName
-        return self.simplify_name("%s.%s.%s" %  (self.__module__, self.class_name(), methodName))
+        return "%s.%s.%s" %  (self.__module__, self.class_name(), methodName)
 
     #
     # Debugging
