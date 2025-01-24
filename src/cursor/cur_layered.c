@@ -1030,8 +1030,10 @@ err:
 static int
 __layered_modify_check(WT_SESSION_IMPL *session)
 {
-    if (!S2C(session)->layered_table_manager.leader)
-        return (EINVAL);
+    /* if (!S2C(session)->layered_table_manager.leader) */
+    /*     return (EINVAL); */
+    /* TODO the sanity check probably needs to be preventing checkpoints instead of writes now. */
+    WT_UNUSED(session);
     return (0);
 }
 
