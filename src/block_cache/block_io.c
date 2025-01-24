@@ -122,7 +122,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
         dsk = ip->data;
 
-        /* 
+        /*
          * Increment statistics before we do anymore processing such as decompression or decryption
          * on the data.
          */
