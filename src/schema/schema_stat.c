@@ -132,9 +132,8 @@ __wt_curstat_table_init(
     bool was_fast;
 
     /*
-     * If only gathering table size statistics, try a fast path that doesn't open the tree, avoiding
-     * the schema and table list locks. Don't take this path during live restore as the file is not
-     * guaranteed to exist without opening the file handle.
+     * If only gathering table size statistics, try a fast path that avoids the schema and table
+     * list locks.
      */
     if (F_ISSET(cst, WT_STAT_TYPE_SIZE)) {
         WT_RET(__curstat_size_only(session, uri, &was_fast, cst));

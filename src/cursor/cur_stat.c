@@ -397,9 +397,8 @@ __curstat_file_init(
     const char *filename;
 
     /*
-     * If only gathering table size statistics, try a fast path that doesn't open the tree, avoiding
-     * the schema and table list locks. Don't take this path for tiered tables or during live
-     * restore as the file is not guaranteed to exist without opening the file handle.
+     * If we are only getting the size of the file, we don't need to open the tree. This only
+     * applies to file: types. Tiered tables need to use the dhandle.
      */
     if (F_ISSET(cst, WT_STAT_TYPE_SIZE) && WT_PREFIX_MATCH(uri, "file:")) {
         filename = uri;
