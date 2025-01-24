@@ -16,25 +16,6 @@ static int __live_restore_fs_directory_list_free(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count);
 
 /*
- * __live_restore_create_file_path --
- *     Generate the path of a file or directory in a layer. The file or directory must exist at the
- *     root of the layer.
- */
-static int
-__live_restore_create_file_path(
-  WT_SESSION_IMPL *session, const char *directory, char *name, char **filepathp)
-{
-    char *base_name = basename(name);
-    /* +1 for the path separator, +1 for the null terminator. */
-    size_t len = strlen(directory) + 1 + strlen(base_name) + 1;
-
-    WT_RET(__wt_calloc(session, 1, len, filepathp));
-    WT_RET(__wt_snprintf(*filepathp, len, "%s%s%s", directory, __wt_path_separator(), base_name));
-
-    return (0);
-}
-
-/*
  * __live_restore_fs_backing_filename --
  *     Convert a live restore file/directory path (e..g WT_TEST/WiredTiger.wt) to the actual path of
  *     the backing file/directory. This can be the file in the destination directory (which is
@@ -300,6 +281,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     bool dest_exist = false, have_tombstone = false;
     bool dest_folder_exists = false, source_folder_exists = false;
     uint32_t num_src_files = 0, num_dest_files = 0;
+    WT_DECL_ITEM(filename);
 
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
     path_dest = path_src = temp_path = NULL;
@@ -340,6 +322,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
       lr_fs->os_file_system, wt_session, path_src, &source_folder_exists));
 
     if (source_folder_exists) {
+        WT_ERR(__wt_scr_alloc(session, 0, &filename));
         WT_ERR(lr_fs->os_file_system->fs_directory_list(
           lr_fs->os_file_system, wt_session, path_src, prefix, &dirlist_src, &num_src_files));
 
@@ -365,13 +348,13 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
                  * We're iterating files in the source, but we want to check if they exist in the
                  * destination, so create the file path to the backing destination file.
                  */
-                WT_ERR(
-                  __live_restore_create_file_path(session, directory, dirlist_src[i], &temp_path));
-                WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(
-                                     lr_fs, &lr_fs->destination, session, temp_path, &dest_exist),
+                WT_ERR(__wt_filename_construct(
+                  session, directory, dirlist_src[i], UINTMAX_MAX, UINT32_MAX, filename));
+                WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(lr_fs, &lr_fs->destination, session,
+                                     (char *)filename->data, &dest_exist),
                   false);
-                WT_ERR(__dest_has_tombstone(lr_fs, temp_path, session, &have_tombstone));
-                __wt_free(session, temp_path);
+                WT_ERR(
+                  __dest_has_tombstone(lr_fs, (char *)filename->data, session, &have_tombstone));
 
                 add_source_file = !dest_exist && !have_tombstone;
             }
@@ -397,7 +380,7 @@ done:
 err:
     __wt_free(session, path_dest);
     __wt_free(session, path_src);
-    __wt_free(session, temp_path);
+    __wt_scr_free(session, &filename);
     if (dirlist_dest != NULL)
         WT_TRET(
           __live_restore_fs_directory_list_free(fs, wt_session, dirlist_dest, num_dest_files));
@@ -943,35 +926,37 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
     WT_SESSION *wt_session = (WT_SESSION *)session;
 
     char **files;
-    char *logpath, *filepath;
     uint32_t count = 0;
     WT_DECL_ITEM(buf);
+    WT_DECL_ITEM(filepath);
 
     fs->finished = true;
+
+    WT_RET(__wt_scr_alloc(session, 0, &filepath));
 
     /* Remove tombstones in the destination directory. */
     WT_RET(os_fs->fs_directory_list(os_fs, wt_session, fs->destination.home, NULL, &files, &count));
     for (uint32_t i = 0; i < count; i++) {
         if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
-            WT_ERR(
-              __live_restore_create_file_path(session, fs->destination.home, files[i], &filepath));
+            WT_ERR(__wt_filename_construct(
+              session, fs->destination.home, files[i], UINTMAX_MAX, UINT32_MAX, filepath));
             __wt_verbose_info(
-              session, WT_VERB_LIVE_RESTORE, "Removing tombstone file %s", filepath);
-            WT_ERR(os_fs->fs_remove(os_fs, wt_session, filepath, 0));
+              session, WT_VERB_LIVE_RESTORE, "Removing tombstone file %s", (char *)filepath->data);
+            WT_ERR(os_fs->fs_remove(os_fs, wt_session, (char *)filepath->data, 0));
         }
     }
     if (F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
         WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
         WT_ERR(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
-
         /* Remove tombstones in the log path. */
-        WT_ERR(__live_restore_create_file_path(
-          session, fs->destination.home, (char *)conn->log_mgr.log_path, &logpath));
-        WT_ERR(os_fs->fs_directory_list(os_fs, wt_session, logpath, NULL, &files, &count));
+        WT_ERR(__wt_filename_construct(session, fs->destination.home,
+          (char *)conn->log_mgr.log_path, UINTMAX_MAX, UINT32_MAX, filepath));
+        WT_ERR(os_fs->fs_directory_list(
+          os_fs, wt_session, (char *)filepath->data, NULL, &files, &count));
         for (uint32_t i = 0; i < count; i++) {
             if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
-                WT_ERR(__wt_buf_fmt(session, buf, "%s/%s", logpath, files[i]));
+                WT_ERR(__wt_buf_fmt(session, buf, "%s/%s", (char *)filepath->data, files[i]));
                 __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
                   "Removing log directory tombstone file %s", (char *)buf->data);
                 WT_ERR(os_fs->fs_remove(os_fs, wt_session, buf->data, 0));
@@ -980,6 +965,7 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
     }
 err:
     WT_TRET(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
+    __wt_scr_free(session, &filepath);
     __wt_scr_free(session, &buf);
     return (ret);
 }
@@ -1311,7 +1297,6 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
   const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     WT_DECL_RET;
-    char *dest_folder_path = NULL;
     bool dest_exist = false, source_exist = false;
 
     WT_RET_NOTFOUND_OK(
@@ -1322,9 +1307,6 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
     if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "Directory %s does not exist in source or destination", name);
 
-    WT_RET(__live_restore_create_file_path(
-      session, lr_fs->destination.home, (char *)name, &dest_folder_path));
-
     if (!dest_exist) {
         /*
          * The directory doesn't exist in the destination yet. We need to create it in all cases.
@@ -1334,12 +1316,12 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
          * FIXME-WT-13971 Defaulting to permissions 0755. If the folder exists in the source should
          * we copy the permissions from the source?
          */
-        mkdir(dest_folder_path, 0755);
+        mkdir(name, 0755);
     }
 
     WT_FILE_HANDLE *fh;
-    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-      dest_folder_path, lr_fh->file_type, flags, &fh));
+    WT_ERR(lr_fs->os_file_system->fs_open_file(
+      lr_fs->os_file_system, (WT_SESSION *)session, name, lr_fh->file_type, flags, &fh));
 
     lr_fh->destination.fh = fh;
 
@@ -1349,7 +1331,6 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
     lr_fh->destination.complete = true;
 
 err:
-    __wt_free(session, dest_folder_path);
     return (ret);
 }
 
@@ -1706,7 +1687,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
         /* Call log open file to generate the full path to the log file. */
         WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
         __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-            "Transferring log file from source to dest: %s\n", fh->name);
+          "Transferring log file from source to dest: %s\n", fh->name);
         /*
          * We intentionally do not call the WiredTiger copy and sync function as we are copying
          * between layers and that function copies between two paths. This is the same "path" from
@@ -1726,7 +1707,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
         /* We cannot utilize the log open file code as it doesn't support prep logs. */
         WT_ERR(__wt_log_filename(session, lognum, WTI_LOG_PREPNAME, filename));
         __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-            "Transferring preplog file from source to dest: %s\n", (char*)filename->data);
+          "Transferring prep log file from source to dest: %s\n", (char *)filename->data);
         WT_ERR(__wt_open(
           session, (char *)filename->data, WT_FS_OPEN_FILE_TYPE_LOG, WT_FS_OPEN_ACCESS_SEQ, &fh));
         ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
