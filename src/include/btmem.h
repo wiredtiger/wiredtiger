@@ -804,9 +804,8 @@ struct __wt_page {
 #define WT_PAGE_EVICT_NO_PROGRESS 0x040u  /* Eviction doesn't count as progress */
 #define WT_PAGE_INTL_OVERFLOW_KEYS 0x080u /* Internal page has overflow keys (historic only) */
 #define WT_PAGE_PREFETCH 0x100u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x800            /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x400u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x800u      /* Ignore updates on page discard */
+#define WT_PAGE_SPLIT_INSERT 0x200u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x400u      /* Ignore updates on page discard */
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;      /* Atomic flags, use F_*_ATOMIC_16 */
 

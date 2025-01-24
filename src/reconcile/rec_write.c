@@ -97,11 +97,6 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* If writing a page in service of compaction, we're done, clear the flag. */
     F_CLR_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
 
-    if (ret != 0)
-        F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
-    else
-        F_CLR_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
-
 err:
     if (page_locked)
         WT_PAGE_UNLOCK(session, page);
