@@ -352,7 +352,7 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
         raise(SIGKILL);
 
     // Loop until the state stat is complete!
-    if (thread_count > 0 || (background_thread_mode)) {
+    if (thread_count > 0 || background_thread_mode) {
         logger::log_msg(LOG_INFO, "Waiting for background data transfer to complete...");
         while (true) {
             auto stat_cursor = crud_session.open_scoped_cursor("statistics:");

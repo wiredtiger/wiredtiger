@@ -153,18 +153,18 @@ __live_restore_fs_create_tombstone(
     path = path_marker = NULL;
 
     /*
-     * TODO: This is a big old race where we set this flag outside a lock and therefore have no idea
-     * if we will actually create a tombstone after we clear the tombstones.
+     * FIXME-WT-14040: This is a big old race where we set this flag outside a lock and therefore
+     * have no idea if we will actually create a tombstone after we clear the tombstones.
      */
     if (lr_fs->finished)
         return (0);
-
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "Creating tombstone: %s", path_marker);
 
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, name, &path));
     WT_ERR(__live_restore_create_tombstone_path(
       session, path, WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
+
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "Creating tombstone: %s", path_marker);
 
     open_flags = WT_FS_OPEN_CREATE;
     if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
@@ -311,6 +311,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
             }
     }
 
+    /* FIXME-WT-14040: This is a also a big old race. */
     if (lr_fs->finished)
         goto done;
 
@@ -949,7 +950,7 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
         WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
         WT_ERR(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
-        /* Remove tombstones in the log path. */
+        /* The log path is the only subfolder that can exist. Check its contents explicitly. */
         WT_ERR(__wt_filename_construct(session, fs->destination.home,
           (char *)conn->log_mgr.log_path, UINTMAX_MAX, UINT32_MAX, filepath));
         WT_ERR(os_fs->fs_directory_list(
