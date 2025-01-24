@@ -350,7 +350,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
                  * destination, so create the file path to the backing destination file.
                  */
                 WT_ERR(__wt_filename_construct(
-                  session, directory, dirlist_src[i], UINTMAX_MAX, UINT32_MAX, filename));
+                  session, path_dest, dirlist_src[i], UINTMAX_MAX, UINT32_MAX, filename));
                 WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(lr_fs, &lr_fs->destination, session,
                                      (char *)filename->data, &dest_exist),
                   false);
