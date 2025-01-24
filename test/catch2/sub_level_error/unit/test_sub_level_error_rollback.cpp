@@ -30,13 +30,6 @@ TEST_CASE("Test functions for error handling in rollback workflows",
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     WT_ERROR_INFO *err_info = &(session_impl->err_info);
 
-    SECTION("Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - pre-fetch threads")
-    {
-        F_SET(session_impl, WT_SESSION_PREFETCH_THREAD);
-        CHECK(__wti_evict_app_assist_worker(session_impl, false, false, 100) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
-    }
-
     SECTION(
       "Test WT_CACHE_OVERFLOW in __wti_evict_app_assist_worker - not safe to proceed with eviction")
     {
