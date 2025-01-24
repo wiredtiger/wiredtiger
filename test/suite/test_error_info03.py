@@ -31,12 +31,15 @@ import time
 import wiredtiger
 import threading
 from compact_util import compact_util
+from wtscenario import make_scenarios
 
 # test_error_info03.py
 #   Test that the get_last_error() session API returns the last error to occur in the session.
-class test_error_info01(compact_util):
-    uri = "table:test_error_info.wt"
+class test_error_info03(compact_util):
     conn_config = 'timing_stress_for_test=[session_alter_slow]'
+    types = [('table-cg', dict(uri="table:test_error_info", use_cg=True, use_index=False))]
+    tiered_storage_sources = [('non_tiered', dict(is_tiered = False))]
+    scenarios = make_scenarios(tiered_storage_sources, types)
 
     def assert_error_equal(self, err_val, sub_level_err_val, err_msg_val):
         err, sub_level_err, err_msg = self.session.get_last_error()
@@ -48,6 +51,12 @@ class test_error_info01(compact_util):
         session = self.conn.open_session()
         session.alter(self.uri, 'access_pattern_hint=random')
 
+    def hold_table_lock(self):
+        session = self.conn.open_session()
+        c = session.open_cursor(self.uri, None)
+        c['key'] = 'value'
+        c.close()
+
     def try_drop(self):
         self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, "checkpoint_wait=0,lock_wait=0")), "was expecting drop call to fail with EBUSY")
 
@@ -57,14 +66,35 @@ class test_error_info01(compact_util):
         """
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        alter_thread = threading.Thread(target=self.hold_schema_lock)
+        lock_thread = threading.Thread(target=self.hold_schema_lock)
         drop_thread = threading.Thread(target=self.try_drop)
 
-        alter_thread.start()
+        lock_thread.start()
         time.sleep(1)
         drop_thread.start()
 
-        alter_thread.join()
+        lock_thread.join()
         drop_thread.join()
 
         self.assert_error_equal(errno.EBUSY, wiredtiger.WT_CONFLICT_SCHEMA_LOCK, "another thread is currently accessing the schema")
+
+    def test_conflict_table(self):
+        """
+        Try to drop the table while another thread holds the table lock.
+        """
+        name = "test_error_info"
+        self.uri = "table:" + name
+        self.session.create(self.uri, 'key_format=S,value_format=S,columns=(k,v),colgroups=(g0)')
+        self.session.create('colgroup:' + name + ':g0', 'columns=(v)')
+
+        lock_thread = threading.Thread(target=self.hold_table_lock)
+        drop_thread = threading.Thread(target=self.try_drop)
+
+        lock_thread.start()
+        time.sleep(1)
+        drop_thread.start()
+
+        lock_thread.join()
+        drop_thread.join()
+
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_CONFLICT_TABLE_LOCK, "another thread is currently accessing the table")
