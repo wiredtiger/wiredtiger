@@ -2906,13 +2906,13 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
         /* Evict a page. */
         ret = __evict_page(session, false);
 
-        /* If the appliction thread may be pinning resources, stop after one successful eviction. */
+        /* If the application thread may hold resources, stop after one successful eviction. */
         if (ret == 0 && busy)
             break;
         if (ret == WT_NOTFOUND) {
             /* Allow the queue to re-populate before retrying. */
             __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
-            evict->api_waits++;
+            evict->app_waits++;
         } else if (ret != EBUSY)
             WT_ERR(ret);
     }
