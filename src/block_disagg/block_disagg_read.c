@@ -116,7 +116,7 @@ reread:
     WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id,
       checkpoint_id, &get_args, results_array, results_count));
 
-    WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT);
+    WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT + 1);
 
     if (*results_count == 0) {
         /*

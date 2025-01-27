@@ -217,6 +217,7 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_REC_KV *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, ta;
+    uint16_t prev_ref_changes;
 
     btree = S2BT(session);
     page = pageref->page;
@@ -232,6 +233,8 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
+        WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
+
         /* Update the starting record number in case we split. */
         r->recno = ref->ref_recno;
 
@@ -321,6 +324,12 @@ __wti_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (page_del != NULL)
             WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ft_ta);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
+
+        /*
+         * Set the ref_changes state to zero if there were no concurrent changes while reconciling
+         * the internal page.
+         */
+        __wt_atomic_casv16(&ref->ref_changes, prev_ref_changes, 0);
     }
     WT_INTL_FOREACH_END;
 
