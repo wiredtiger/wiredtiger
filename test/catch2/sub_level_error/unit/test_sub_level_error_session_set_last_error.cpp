@@ -45,6 +45,21 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
         check_error_info(err_info, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content);
     }
 
+    SECTION("Test overwriting/resetting the error message")
+    {
+        const char *err_msg_content = "error";
+        REQUIRE(__wt_session_set_last_error(session_impl, EINVAL, WT_NONE, err_msg_content) == 0);
+        check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
+
+        // The error message should not be overwritten.
+        CHECK(__wt_session_set_last_error(session_impl, EINVAL, WT_NONE, "new error") == 0);
+        check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
+
+        // The error message should be reset.
+        CHECK(__wt_session_set_last_error(session_impl, 0, WT_NONE, NULL) == 0);
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+    }
+
     SECTION("Test with multiple errors (varying err/sub_level_err/err_msg)")
     {
         const char *err_msg_content_EINVAL = "Some EINVAL error";
@@ -55,9 +70,17 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
                   WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content_EINVAL) == 0);
         check_error_info(
           err_info, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content_EINVAL);
+
+        // Reset error.
+        REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, NULL) == 0);
+
         REQUIRE(__wt_session_set_last_error(
                   session_impl, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_EBUSY) == 0);
         check_error_info(err_info, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_EBUSY);
+
+        // Reset error.
+        REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, NULL) == 0);
+
         REQUIRE(__wt_session_set_last_error(
                   session_impl, EBUSY, WT_DIRTY_DATA, err_msg_content_EBUSY) == 0);
         check_error_info(err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_EBUSY);

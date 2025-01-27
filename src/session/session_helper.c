@@ -151,9 +151,10 @@ __wt_session_set_last_error(
 
     /*
      * Only update the error struct if an error occurs during a session API call, or if the error
-     * struct is being initialized.
+     * struct is being initialized. Additionally, if the error struct has already been set during a
+     * session API call, prevent overwriting it.
      */
-    if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+    if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS) || (session->err_info.err != 0 && err != 0))
         return (0);
 
     /*
