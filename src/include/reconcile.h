@@ -396,3 +396,12 @@ typedef struct {
         (r)->ref->page->modify->rec_result == WT_PM_REC_REPLACE ||                              \
         ((r)->ref->page->modify->rec_result == WT_PM_REC_MULTIBLOCK &&                          \
           (r)->ref->page->modify->mod_multi_entries == 1))
+
+/* Called when building the internal page image. */
+#define WT_BUILD_DELTA_INT(session, r)                                             \
+    F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && (r)->multi_next == 0 &&      \
+      !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL) &&                        \
+      (((r)->ref->page->modify->rec_result == 0 && (r)->ref->page->dsk != NULL) || \
+        (r)->ref->page->modify->rec_result == WT_PM_REC_REPLACE ||                 \
+        ((r)->ref->page->modify->rec_result == WT_PM_REC_MULTIBLOCK &&             \
+          (r)->ref->page->modify->mod_multi_entries == 1))

@@ -2043,11 +2043,11 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 }
 
 /*
- * __rec_build_delta_init --
+ * __wti_rec_build_delta_init --
  *     Build delta init.
  */
-static int
-__rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+int
+__wti_rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
     memset(r->delta.mem, 0, WT_DELTA_HEADER_SIZE);
@@ -2095,7 +2095,7 @@ __rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
  * __wti_rec_pack_delta_internal --
  *     Pack a delta for an internal page
  */
-static int
+int
 __wti_rec_pack_delta_internal(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *key, WT_REC_KV *value)
 {
@@ -2276,7 +2276,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WT_
     multi = &r->multi[0];
     count = 0;
 
-    WT_RET(__rec_build_delta_init(session, r));
+    WT_RET(__wti_rec_build_delta_init(session, r));
 
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         if (supd->onpage_upd == NULL)
