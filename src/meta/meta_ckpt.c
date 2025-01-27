@@ -132,9 +132,13 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
         if (ret == WT_NOTFOUND)
             ret = 0;
         else {
-            WT_ERR(__wt_malloc(session, v.len, live_restore_extentsp));
-            strncpy(*live_restore_extentsp, v.str, v.len);
-            printf("live restore extent string %s\n", *live_restore_extentsp);
+            char *live_restore_extents;
+            WT_ERR(__wt_calloc(session, 1, v.len + 1, &live_restore_extents));
+
+            strncpy(live_restore_extents, v.str, v.len);
+            live_restore_extents[v.len] = '\0';
+            printf("live restore extent string %s\n", live_restore_extents);
+            *live_restore_extentsp = live_restore_extents;
         }
     }
     /*
