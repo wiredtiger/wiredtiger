@@ -100,8 +100,9 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
  */
 int
 __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *checkpoint,
-  WT_CKPT *ckpt, WT_CONFIG_ITEM **configp)
+  WT_CKPT *ckpt, char **live_restore_extentsp)
 {
+    WT_CONFIG_ITEM v;
     WT_DECL_RET;
     char *config;
 
@@ -126,22 +127,16 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
     WT_ERR(__ckpt_version_chk(session, fname, config));
 #endif
 
-    if (configp != NULL) {
-        WT_ERR(__wt_calloc_one(session, configp));
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "live_restore", *configp), true);
-        if (ret == WT_NOTFOUND) {
+    if (live_restore_extentsp != NULL) {
+        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "live_restore", &v), true);
+        if (ret == WT_NOTFOUND)
             ret = 0;
-            __wt_free(session, *configp);
-        } else 
-            /*
-             * Mutate the config item returned by __wt_config_getones. All c library string
-             * functions depend on the string having a null terminator character. This is not
-             * guaranteed by the config library. This does risk a buffer overflow if the memory
-             * allocated by the config library is not big enough to null terminate.
-             */
-            /* Forgive me for I have sinned. */
-            ((char*)(*configp)->str)[(*configp)->len] = '\0';
+        else {
+            WT_ERR(__wt_malloc(session, v.len, live_restore_extentsp));
+            strncpy(*live_restore_extentsp, v.str, v.len);
+            printf("live restore extent string %s\n", *live_restore_extentsp);
         }
+    }
     /*
      * Retrieve the named checkpoint or the last checkpoint.
      *
