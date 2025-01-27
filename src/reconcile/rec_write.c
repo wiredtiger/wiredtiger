@@ -2099,7 +2099,6 @@ int
 __wti_rec_pack_delta_internal(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *key, WT_REC_KV *value)
 {
-    WT_DECL_RET;
     WT_DELTA_HEADER *header;
     size_t packed_size;
     uint8_t flags;
@@ -2130,7 +2129,7 @@ __wti_rec_pack_delta_internal(
     *head_byte = flags;
 
     ++header->u.entries;
-    return (ret);
+    return (0);
 }
 
 /*

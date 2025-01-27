@@ -294,6 +294,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_CELL_UNPACK_ADDR *kpack, _kpack, *vpack, _vpack;
     WT_CHILD_MODIFY_STATE cms;
     WT_DECL_RET;
+    WT_DELTA_HEADER *header;
     WT_IKEY *ikey;
     WT_PAGE *child;
     WT_PAGE_DELETED *page_del;
@@ -389,6 +390,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 __wt_ref_key(page, ref, &p, &size);
                 WT_ERR(__rec_cell_build_int_key(session, r, p, size));
                 WT_ERR(__wti_rec_pack_delta_internal(session, r, key, NULL));
+                ++delta_count;
             }
 
             /*
@@ -418,6 +420,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                     __wt_ref_key(page, ref, &p, &size);
                     WT_ERR(__rec_cell_build_int_key(session, r, p, size));
                     WT_ERR(__wti_rec_pack_delta_internal(session, r, key, NULL));
+                    ++delta_count;
                 }
 
                 /*
@@ -531,8 +534,10 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Update compression state. */
         __rec_key_state_update(r, false);
 
-        if (build_delta && prev_ref_changes > 0)
+        if (build_delta && prev_ref_changes > 0) {
             WT_ERR(__wti_rec_pack_delta_internal(session, r, key, val));
+            ++delta_count;
+        }
 
         /*
          * Set the ref_changes state to zero if there were no concurrent changes while reconciling
@@ -541,6 +546,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_atomic_casv16(&ref->ref_changes, prev_ref_changes, 0);
     }
     WT_INTL_FOREACH_END;
+
+    if (build_delta) {
+        header = (WT_DELTA_HEADER *)r->delta.data;
+        /* TODO: it's a bit ugly as we only know the count here. */
+        header->u.entries = delta_count;
+    }
 
     /* Write the remnant page. */
     return (__wti_rec_split_finish(session, r));
