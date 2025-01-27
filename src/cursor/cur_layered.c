@@ -1058,8 +1058,12 @@ err:
 static int
 __layered_modify_check(WT_SESSION_IMPL *session)
 {
-    if (!S2C(session)->layered_table_manager.leader)
-        return (EINVAL);
+    WT_UNUSED(session);
+
+    /*
+     * Currently there are no restrictions on when modifications can be made.
+     * We may in the future introduce restrictions during state changes.
+     */
     return (0);
 }
 
