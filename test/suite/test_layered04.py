@@ -28,6 +28,7 @@
 
 import os, time, wiredtiger, wttest
 from helper_disagg import disagg_test_class
+from wiredtiger import stat
 
 # test_layered04.py
 #    Add enough content to trigger a checkpoint in the stable table.
@@ -79,3 +80,7 @@ class test_layered04(wttest.WiredTigerTestCase):
         self.pr('read cursor saw: ' + str(item_count))
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
+
+        stat_cur = self.session.open_cursor('statistics:' + self.uri, None, None)
+        self.assertEqual(stat_cur[stat.dsrc.btree_entries][2], self.nitems * 3)
+        stat_cur.close()

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,88 +26,114 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import time
 import wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered20.py
-# Test a secondary can perform reads and writes to the ingest component
-# of a layered table, without the stable component.
-class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    uri = 'layered:test_layered20'
+# Test 32 consective deltas
 
-    conn_base_config = 'transaction_sync=(enabled,method=fsync),' \
+@disagg_test_class
+class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    encrypt = [
+        ('none', dict(encryptor='none', encrypt_args='')),
+        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
+    ]
+
+    compress = [
+        ('none', dict(block_compress='none')),
+        ('snappy', dict(block_compress='snappy')),
+    ]
+
+    uris = [
+        ('layered', dict(uri='layered:test_layered09')),
+        ('btree', dict(uri='file:test_layered09')),
+    ]
+
+    ts = [
+        ('ts', dict(ts=True)),
+        ('non-ts', dict(ts=False)),
+    ]
+
+    conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered20', disagg_only = True)
 
-    nitems = 1
+    # Make scenarios for different cloud service providers
+    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
 
-    scenarios = make_scenarios(disagg_storages)
+    nitems = 10
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
-
-    # Load the page log extension, which has object storage support
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
-
-    # Custom test case setup
-    def early_setup(self):
-        os.mkdir('follower')
-        # Create the home directory for the PALM k/v store, and share it with the follower.
-        os.mkdir('kv_home')
-        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
+    def session_create_config(self):
+        # The delta percentage of 200 is an arbitrary large value, intended to produce
+        # deltas a lot of the time.
+        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        if self.uri.startswith('file'):
+            cfg += ',block_manager=disagg'
+        return cfg
 
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
+        enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
+        return self.conn_base_config + 'disaggregated=(role="leader"),' + enc_conf
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
+        extlist.extension('compressors', self.block_compress)
+        extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_secondary_ops_without_stable(self):
-        session_config = 'key_format=S,value_format=S'
-        self.session.create(self.uri, 'disaggregated=(max_consecutive_delta=1)')
-
-        # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "disaggregated=(role=\"follower\")")
-        session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, session_config)
+    def test_layered_read_write(self):
+        self.pr('CREATING')
+        self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "a" * 100
+
         for i in range(self.nitems):
-            cursor["Hello " + str(i)] = "World"
-            cursor["Hi " + str(i)] = "There"
-            cursor["OK " + str(i)] = "Go"
-            if i % 25000 == 0:
-                time.sleep(1)
-        cursor.reset()
+            self.session.begin_transaction()
+            cursor[str(i)] = value1
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
+            else:
+                self.session.commit_transaction()
 
-        # Ensure that all data makes it to the follower before we check.
         self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
 
-        # Reopen the follower connection.
-        session_follow.close()
-        conn_follow.close()
-        self.pr("reopen the follower")
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',' + self.conn_base_config + "disaggregated=(role=\"follower\")")
-        session_follow = conn_follow.open_session('')
+        for j in range(32):
+            for i in range(self.nitems):
+                if i % 10 == 0:
+                    self.session.begin_transaction()
+                    cursor[str(i)] = str(10 + 5 * j)
+                    if self.ts:
+                        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10 + 5 * j))
+                    else:
+                        self.session.commit_transaction()
 
-        session_follow.create(self.uri + 'a')
-        cursor_follow = session_follow.open_cursor(self.uri + 'a', None, None)
-        cursor_follow["** Hello 0"] = "World"
-        cursor_follow.close()
-        cursor_follow = session_follow.open_cursor(self.uri + 'a', None, None)
-        self.assertEqual(cursor_follow.next(), 0)
-        self.assertEqual(cursor_follow.get_key(), b'** Hello 0')
-        self.assertEqual(cursor_follow.get_value(), b'World')
+            self.session.checkpoint()
 
-        cursor_follow.close()
-        session_follow.close()
-        conn_follow.close()
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
+            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
+        self.reopen_conn(config = follower_config)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        if self.ts:
+            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
+            for i in range(self.nitems):
+                self.assertEquals(cursor[str(i)], value1)
+            self.session.rollback_transaction()
+
+            for j in range(32):
+                self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10 + 5 * j))
+                for i in range(self.nitems):
+                    if i % 10 == 0:
+                        self.assertEquals(cursor[str(i)], str(10 + 5 * j))
+                    else:
+                        self.assertEquals(cursor[str(i)], value1)
+                self.session.rollback_transaction()
+        else:
+            for i in range(self.nitems):
+                if i % 10 == 0:
+                    self.assertEquals(cursor[str(i)], str(10 + 5 * 31))
+                else:
+                    self.assertEquals(cursor[str(i)], value1)

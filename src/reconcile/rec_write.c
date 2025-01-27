@@ -97,6 +97,11 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* If writing a page in service of compaction, we're done, clear the flag. */
     F_CLR_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
 
+    if (ret != 0)
+        F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
+    else
+        F_CLR_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
+
 err:
     if (page_locked)
         WT_PAGE_UNLOCK(session, page);
@@ -2143,7 +2148,6 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     p = head + 1;
 
     if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_ASSERT(session, false);
         LF_SET(WT_DELTA_IS_DELETE);
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
         memcpy(p, key->data, key->size);
@@ -2450,8 +2454,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             multi->block_meta.base_lsn = multi->block_meta.disagg_lsn;
             multi->block_meta.base_checkpoint_id = multi->block_meta.checkpoint_id;
         }
-        WT_ASSERT(session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-        WT_ASSERT(session, multi->block_meta.base_lsn >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+        WT_ASSERT(session,
+          multi->block_meta.base_lsn > 0 ||
+            multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
         multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
         multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
@@ -2476,9 +2481,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
              * the base as the new backlink. Otherwise, use the previous page as the backlink.
              */
             if (multi->block_meta.delta_count > 0) {
-                WT_ASSERT(
-                  session, multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-                WT_ASSERT(session, multi->block_meta.base_lsn > 0);
+                WT_ASSERT(session,
+                  multi->block_meta.base_lsn > 0 ||
+                    multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
                 multi->block_meta.backlink_checkpoint_id = multi->block_meta.base_checkpoint_id;
                 multi->block_meta.backlink_lsn = multi->block_meta.base_lsn;
             } else {
@@ -3001,6 +3006,8 @@ split:
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &multi->addr.ta);
         break;
     }
+
+    __wt_atomic_addv16(&ref->ref_changes, 1);
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this

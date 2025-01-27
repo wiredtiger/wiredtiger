@@ -384,6 +384,64 @@ __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 }
 
 /*
+ * __init_layered_constituent_stats --
+ *     For either an ingest or stable table, aggregate dhandle stats into a stat cursor.
+ */
+static int
+__init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+
+    dhandle = session->dhandle;
+
+    if ((ret = __wt_btree_stat_init(session, cst)) == 0) {
+        __wt_stat_dsrc_aggregate(dhandle->stats, &cst->u.dsrc_stats);
+        if (F_ISSET(cst, WT_STAT_CLEAR))
+            __wt_stat_dsrc_clear_all(dhandle->stats);
+    }
+
+    return (ret);
+}
+
+/*
+ * __curstat_layered_init --
+ *     Initialize the statistics for a layered table.
+ */
+static int
+__curstat_layered_init(
+  WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_LAYERED_TABLE *layered;
+
+    WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, 0, NULL, NULL));
+    dhandle = session->dhandle;
+    WT_ASSERT(session, dhandle->type == WT_DHANDLE_TYPE_LAYERED);
+    layered = (WT_LAYERED_TABLE *)dhandle;
+
+    __wt_stat_dsrc_init_single(&cst->u.dsrc_stats);
+
+    /* Do the ingest table. */
+    dhandle = layered->ingest;
+    WT_WITH_DHANDLE(session, dhandle, ret = __init_layered_constituent_stats(session, cst));
+    WT_ERR(ret);
+
+    /* Now do the stable table. */
+    dhandle = layered->stable;
+    WT_WITH_DHANDLE(session, dhandle, ret = __init_layered_constituent_stats(session, cst));
+    WT_ERR(ret);
+
+    __wt_curstat_dsrc_final(cst);
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+
+    return (ret);
+}
+
+/*
  * __curstat_file_init --
  *     Initialize the statistics for a file.
  */
@@ -598,6 +656,8 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *curjoin,
         WT_RET(__curstat_file_init(session, dsrc_uri, cfg, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "index:"))
         WT_RET(__wt_curstat_index_init(session, dsrc_uri, cfg, cst));
+    else if (WT_PREFIX_MATCH(dsrc_uri, "layered:"))
+        WT_RET(__curstat_layered_init(session, dsrc_uri, cfg, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "lsm:"))
         WT_RET(__wt_curstat_lsm_init(session, dsrc_uri, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "table:"))
