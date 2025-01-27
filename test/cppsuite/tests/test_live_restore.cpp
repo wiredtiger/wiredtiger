@@ -55,7 +55,7 @@ extern "C" {
 
 using namespace test_harness;
 
-static const char *file_config = "allocation_size=512B,internal_page_max=512B,leaf_page_max=512B";
+static const char *file_config = "allocation_size=4KB,internal_page_max=4KB,leaf_page_max=4KB";
 
 class database_model {
 public:
@@ -134,6 +134,7 @@ void insert(scoped_cursor &cursor, std::string &coll);
 void update(scoped_cursor &cursor, std::string &coll);
 void remove(scoped_session &session, scoped_cursor &cursor, std::string &coll);
 void configure_database(scoped_session &session);
+void reopen_conn(scoped_session &session, const std::string &conn_config, const std::string &home);
 
 void
 read(scoped_session &session)
@@ -250,9 +251,17 @@ create_collection(scoped_session &session)
     db.add_new_collection(session);
 }
 
+void
+reopen_conn(scoped_session &session, const std::string &conn_config, const std::string &home)
+{
+    session.close_session();
+    connection_manager::instance().close();
+    connection_manager::instance().reopen(conn_config, home);
+}
+
 static void
 do_random_crud(scoped_session &session, const int64_t collection_count, const int64_t op_count,
-  const bool fresh_start)
+  const bool fresh_start, const std::string &conn_config, const std::string &home)
 {
     bool file_created = fresh_start == false;
 
@@ -280,6 +289,11 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
             logger::log_msg(LOG_INFO, "Taking checkpoint");
+        } else if (ran < 5) {
+            reopen_conn(session, conn_config, home);
+            logger::log_msg(LOG_INFO, "Reopening connection");
+
+            session = std::move(connection_manager::instance().create_session());
         } else if (ran < 9000) {
             // 90% Write.
             write(session, false);
@@ -350,7 +364,7 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     if (recovery)
         configure_database(crud_session);
     if (!background_thread_mode)
-        do_random_crud(crud_session, collection_count, op_count, first);
+        do_random_crud(crud_session, collection_count, op_count, first, conn_config, home);
     if (die)
         raise(SIGKILL);
 
@@ -503,8 +517,8 @@ main(int argc, char *argv[])
     /* When setting up the database we don't want to wait for the background threads to complete. */
     bool background_thread_mode_enabled = (!first && background_thread_debug_mode);
     int death_it = -1;
-    if (death_mode) {
-        death_it = random_generator::instance().generate_integer(0, (int)it_count - 1);
+    if (death_mode && it_count > 1) {
+        death_it = random_generator::instance().generate_integer(1, (int)it_count - 1);
         logger::log_msg(LOG_INFO, "Dying on iteration " + std::to_string(death_it));
     }
     for (int i = 0; i < it_count; i++) {

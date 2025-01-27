@@ -136,6 +136,38 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE
 #pragma GCC diagnostic pop
 
 /*
+ * __wt_live_restore_fh_extent_to_string --
+ *     Given a WiredTiger file handle generate a string of its extents. If live restore is not
+ *     running return a WT_NOTFOUND error.
+ */
+int
+__wt_live_restore_fh_extent_to_metadata_string(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_ITEM *extent_string)
+{
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (WT_NOTFOUND);
+
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+    if (lr_fh->destination.complete)
+        return (WT_NOTFOUND);
+
+    WTI_LIVE_RESTORE_HOLE_NODE *head = lr_fh->destination.hole_list_head;
+    WT_RET(__wt_buf_catfmt(session, extent_string, ",live_restore="));
+    while (head != NULL) {
+        WT_RET(
+          __wt_buf_catfmt(session, extent_string, "%" PRId64 "-%" PRIu64, head->off, head->len));
+        if (head->next != NULL)
+            WT_RET(__wt_buf_catfmt(session, extent_string, "_"));
+        head = head->next;
+    }
+    __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+      "Appending live restore extents (%s) to metadata for filehandle %s", fh->name,
+      (char *)extent_string->data);
+
+    return (0);
+}
+
+/*
  * __live_restore_create_tombstone_path --
  *     Generate the file path of a tombstone for a file. This tombstone does not need to exist.
  */
@@ -1196,6 +1228,61 @@ err:
     return (ret);
 }
 
+int
+__wt_live_restore_import_extents_from_string(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, char *ckpt_string)
+{
+    WT_DECL_RET;
+    WT_UNUSED(session);
+    WT_UNUSED(fh);
+    if (ckpt_string != NULL) {
+        WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+        __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+          "Got live restore extents from metadata!! %s", ckpt_string);
+        /* The extents are separated by _. And have the shape %d-%u. */
+        char *offset = ckpt_string;
+        char *int_start = offset;
+        wt_off_t off;
+        size_t len;
+        WTI_LIVE_RESTORE_HOLE_NODE **current = &lr_fh->destination.hole_list_head;
+        while (true) {
+            if (*offset >= '0' && *offset <= '9') {
+                offset++;
+                continue;
+            }
+            if (*offset == '-') {
+                /*
+                 * Okay I don't like mutating the ckpt string but this is lazy because atoi doesn't
+                 * take a length. Lets just ignore the fact that atoi returns an _int_.
+                 */
+                *offset = '\0';
+                off = (wt_off_t)atoi(int_start);
+                offset++;
+                int_start = offset;
+                continue;
+            }
+            if (*offset == '_' || *offset == '\0') {
+                *current = NULL;
+                *offset = '\0';
+                len = (size_t)atoi(int_start);
+                offset++;
+                int_start = offset;
+                __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+                  "Adding an extent: %" PRId64 "-%" PRIu64, off, len);
+                WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
+                current = &((*current)->next);
+                if (*offset == '\0')
+                    break;
+                continue;
+            }
+        }
+        WT_ERR(__live_restore_handle_verify_hole_list(
+          session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system, lr_fh, fh->name));
+    }
+err:
+    return (0);
+}
+
 /*
  * __live_restore_fs_open_in_destination --
  *     Open a file handle.
@@ -1226,8 +1313,14 @@ __live_restore_fs_open_in_destination(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMP
     lr_fh->destination.back_pointer = lr_fs;
 
     /* Get the list of holes of the file that need copying across from the source directory. */
-    WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
-    WT_ERR(__live_restore_handle_verify_hole_list(session, lr_fs, lr_fh, name));
+    if (strstr(name, WT_LOG_FILENAME) != NULL || strstr(name, WTI_LOG_PREPNAME) != NULL) {
+        /*
+         * TODO: I really shot myself in the foot by not making __wt_copy_and_sync work didn't I?
+         * Basically we need to initialise an extent the length of the log file.................
+         */
+        WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
+        WT_ERR(__live_restore_handle_verify_hole_list(session, lr_fs, lr_fh, name));
+    }
 
 err:
     __wt_free(session, path);

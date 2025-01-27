@@ -99,9 +99,10 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
  *     Return a file's checkpoint information.
  */
 int
-__wt_meta_checkpoint(
-  WT_SESSION_IMPL *session, const char *fname, const char *checkpoint, WT_CKPT *ckpt)
+__wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *checkpoint,
+  WT_CKPT *ckpt, char **live_restore_extentsp)
 {
+    WT_CONFIG_ITEM v;
     WT_DECL_RET;
     char *config;
 
@@ -126,6 +127,16 @@ __wt_meta_checkpoint(
     WT_ERR(__ckpt_version_chk(session, fname, config));
 #endif
 
+    if (live_restore_extentsp != NULL) {
+        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "live_restore", &v), true);
+        if (ret == WT_NOTFOUND)
+            ret = 0;
+        else {
+            WT_ERR(__wt_malloc(session, v.len, live_restore_extentsp));
+            strncpy(*live_restore_extentsp, v.str, v.len);
+            printf("live restore extent string %s\n", *live_restore_extentsp);
+        }
+    }
     /*
      * Retrieve the named checkpoint or the last checkpoint.
      *
@@ -1260,6 +1271,20 @@ err:
     return (ret);
 }
 
+static int
+__ckpt_add_live_restore_info(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_ITEM *buf)
+{
+    WT_BM *bm = ((WT_BTREE *)dhandle->handle)->bm;
+    WT_ASSERT(session, bm->is_multi_handle == false);
+    WT_ASSERT(session, WT_PREFIX_MATCH(dhandle->name, "file:"));
+
+    /* FIXME-WT-13897 Replace this with an API call into the block manager. */
+    WT_FILE_HANDLE *fh = bm->block->fh->handle;
+    WT_RET_NOTFOUND_OK(__wt_live_restore_fh_extent_to_metadata_string(session, fh, buf));
+
+    return (0);
+}
+
 /*
  * __wt_meta_ckptlist_set --
  *     Set a file's checkpoint value from the WT_CKPT list.
@@ -1278,6 +1303,8 @@ __wt_meta_ckptlist_set(
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
+    WT_ERR_NOTFOUND_OK(__ckpt_add_live_restore_info(session, dhandle, buf), false);
+
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD))
