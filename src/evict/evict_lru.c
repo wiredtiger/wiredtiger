@@ -2905,11 +2905,11 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
 
         /* Evict a page. */
         ret = __evict_page(session, false);
-
-        /* If the application thread may hold resources, stop after one successful eviction. */
-        if (ret == 0 && busy)
-            break;
-        if (ret == WT_NOTFOUND) {
+        if (ret == 0) {
+            /* If the caller holds resources, we can stop after a successful eviction. */
+            if (busy)
+                break;
+        } else if (ret == WT_NOTFOUND) {
             /* Allow the queue to re-populate before retrying. */
             __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
             evict->app_waits++;
