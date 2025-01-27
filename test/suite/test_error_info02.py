@@ -142,8 +142,8 @@ class test_error_info02(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update())
 
     def test_wt_rollback_wt_cache_overflow(self):
-        # FIXME-WT-XXXXX
-        self.skipTest("FIXME-WT-XXXXX")
+        # FIXME-WT-14046
+        self.skipTest("FIXME-WT-14046")
         self.api_call_with_wt_rollback_wt_cache_overflow()
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
 
