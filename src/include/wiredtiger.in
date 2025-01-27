@@ -5498,15 +5498,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! block-manager: bytes read for internal pages */
 #define	WT_STAT_CONN_BLOCK_BYTE_READ_INTL		1049
 /*!
- * block-manager: bytes read for internal pages before compression and
- * encryption
+ * block-manager: bytes read for internal pages before decompression and
+ * decryption
  */
 #define	WT_STAT_CONN_BLOCK_BYTE_READ_INTL_PRECOMP	1050
 /*! block-manager: bytes read for leaf pages */
 #define	WT_STAT_CONN_BLOCK_BYTE_READ_LEAF		1051
 /*!
- * block-manager: bytes read for leaf pages before compression and
- * encryption
+ * block-manager: bytes read for leaf pages before decompression and
+ * decryption
  */
 #define	WT_STAT_CONN_BLOCK_BYTE_READ_LEAF_PRECOMP	1052
 /*! block-manager: bytes read via memory map API */
