@@ -289,6 +289,13 @@ class WiredTigerHookCreator(ABC):
     def uses(self, use_list):
         return False
 
+# Used by hooks to encapsulate all disagg parameters
+class DisaggParameters(object):
+    def __init__(self):
+        self.config = None
+        self.role = 'leader'
+        self.page_log = 'palm'
+
 class WiredTigerHookPlatformAPI(object):
     def setUp(self, testcase):
         """Called at the beginning of a test case"""
@@ -306,13 +313,9 @@ class WiredTigerHookPlatformAPI(object):
         """The first local backing file name created for this URI."""
         raise NotImplementedError('initialFileName method not implemented')
 
-    def getDisaggService(self):
-        """The disaggregated page log service for this test case."""
-        raise NotImplementedError('getDisaggService method not implemented')
-
-    def getDisaggConfig(self):
-        """The disaggregated configuration for this test case."""
-        raise NotImplementedError('getDisaggConfig method not implemented')
+    def getDisaggParameters(self):
+        """The disaggregated parameters for this test case."""
+        raise NotImplementedError('getDisaggParameters method not implemented')
 
     def getTimestamp(self):
         """The timestamp generator for this test case."""
@@ -347,11 +350,8 @@ class DefaultPlatformAPI(WiredTigerHookPlatformAPI):
         else:
             raise Exception('bad uri')
 
-    def getDisaggService(self):
-        return 'palm'
-
-    def getDisaggConfig(self):
-        return None
+    def getDisaggParameters(self):
+        return DisaggParameters()
 
     # By default, there is no automatic timestamping by test infrastructure classes.
     def getTimestamp(self):
@@ -405,24 +405,14 @@ class MultiPlatformAPI(WiredTigerHookPlatformAPI):
                 pass
         raise Exception('initialFileName: no implementation')  # should never happen
 
-    def getDisaggService(self):
-        """The disaggregated page log service for this test case."""
+    def getDisaggParameters(self):
+        """The disaggregated parameters for this test case."""
         for api in self.apis:
             try:
-                return api.getDisaggService()
+                return api.getDisaggParameters()
             except NotImplementedError:
                 pass
-        raise Exception('getDisaggService: no implementation')  # should never happen
-
-    def getDisaggConfig(self):
-        """The disaggregated configuration for this test case."""
-        for api in self.apis:
-            try:
-                return api.getDisaggConfig()
-            except NotImplementedError:
-                pass
-        raise Exception('getDisaggConfig: no implementation')  # should never happen
-
+        raise Exception('getDisaggParameters: no implementation')  # should never happen
 
     def getTimestamp(self):
         """The timestamp generator for this test case."""
