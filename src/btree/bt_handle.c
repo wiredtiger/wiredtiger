@@ -86,11 +86,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
       F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(btree, WT_BTREE_READONLY);
 
-    char *live_restore_extent_str = NULL;
+    WT_CONFIG_ITEM *live_restore_config = NULL;
 
     /* Get the checkpoint information for this name/checkpoint pair. */
     WT_RET(__wt_meta_checkpoint(
-      session, dhandle->name, dhandle->checkpoint, &ckpt, &live_restore_extent_str));
+      session, dhandle->name, dhandle->checkpoint, &ckpt, &live_restore_config));
 
     /* Set the order number. */
     dhandle->checkpoint_order = ckpt.order;
@@ -115,7 +115,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Connect to the underlying block manager. */
     WT_ERR(__wt_blkcache_open(session, dhandle->name, dhandle->cfg, forced_salvage, false,
-      btree->allocsize, &btree->bm, live_restore_extent_str));
+      btree->allocsize, &btree->bm, live_restore_config));
 
     bm = btree->bm;
 

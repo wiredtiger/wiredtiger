@@ -1230,51 +1230,23 @@ err:
 
 int
 __wt_live_restore_import_extents_from_string(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, char *ckpt_string)
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_CONFIG_ITEM *lr_config)
 {
     WT_DECL_RET;
     WT_UNUSED(session);
     WT_UNUSED(fh);
-    if (ckpt_string != NULL) {
+    if (lr_config != NULL) {
         WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-        __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
-          "Got live restore extents from metadata!! %s", ckpt_string);
-        /* The extents are separated by _. And have the shape %d-%u. */
-        char *offset = ckpt_string;
-        char *int_start = offset;
-        wt_off_t off;
-        size_t len;
+        printf("Got live restore extents from metadata!! %s\n", lr_config->str);
+        /* The extents are separated by _. And have the shape %ld-%ul. */
         WTI_LIVE_RESTORE_HOLE_NODE **current = &lr_fh->destination.hole_list_head;
-        while (true) {
-            if (*offset >= '0' && *offset <= '9') {
-                offset++;
-                continue;
-            }
-            if (*offset == '-') {
-                /*
-                 * Okay I don't like mutating the ckpt string but this is lazy because atoi doesn't
-                 * take a length. Lets just ignore the fact that atoi returns an _int_.
-                 */
-                *offset = '\0';
-                off = (wt_off_t)atoi(int_start);
-                offset++;
-                int_start = offset;
-                continue;
-            }
-            if (*offset == '_' || *offset == '\0') {
-                *current = NULL;
-                *offset = '\0';
-                len = (size_t)atoi(int_start);
-                offset++;
-                int_start = offset;
-                __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
-                  "Adding an extent: %" PRId64 "-%" PRIu64, off, len);
-                WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
-                current = &((*current)->next);
-                if (*offset == '\0')
-                    break;
-                continue;
-            }
+        for (char *str = strtok((char*)lr_config->str, "_"); str != NULL; str = strtok(NULL, "_")) {
+            char *end_ptr;
+            wt_off_t off = (wt_off_t)strtol(str, &end_ptr, 10);
+            size_t len = (size_t)strtol(end_ptr + 1, NULL, 10);
+            printf("Adding an extent: %" PRId64 "-%" PRIu64"\n", off, len);
+            WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
+            current = &((*current)->next);
         }
         WT_ERR(__live_restore_handle_verify_hole_list(
           session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system, lr_fh, fh->name));
