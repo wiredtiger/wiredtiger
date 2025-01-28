@@ -104,7 +104,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
         + f',stable_prefix=.,page_log={page_log_name})'
 
     # Mark the test case whether the connection is a disagg leader or follower.
-    # This is used for the initial state, but also for "flipping" between roles.
+    # This is used for the initial state.
     #
     # We'd really like to mark this on the connection object itself, since there may well be
     # multiple connections in a test (and we might want them to have different roles in the future).
