@@ -263,7 +263,7 @@ __rec_row_merge(
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
         /* Build the key and value cells. */
         if (i == 0) {
-            __wt_ref_key(page, ref, &old_key, &old_key_size);
+            __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
             WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
         } else
             WT_RET(__rec_cell_build_int_key(
