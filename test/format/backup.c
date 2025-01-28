@@ -172,9 +172,6 @@ again:
             fprintf(stderr, "Removing file from backup: %s\n", filename);
 #endif
             testutil_assert_errno(unlink(filename) == 0);
-            testutil_snprintf(
-              filename, sizeof(filename), "%s/BACKUP.copy/%s", g.home, prev->names[prevpos]);
-            testutil_assert_errno(unlink(filename) == 0);
         } else {
             /*
              * There is something in the current list not in the prev list. Walk past it in the
@@ -410,7 +407,7 @@ save_backup_info(ACTIVE_FILES *active, uint64_t id)
 
 /*
  * copy_format_files --
- *     Copies over format-specific files to the BACKUP.copy directory. These include CONFIG and any
+ *     Copies over format-specific files to the backup directory. These include CONFIG and any
  *     CONFIG.keylen* files.
  */
 static void
@@ -551,7 +548,7 @@ backup(void *arg)
 
             /*
              * Copy format-specific files into the backup directories so that test/format can be run
-             * on the BACKUP.copy database for verification.
+             * on the backup database for verification.
              */
             copy_format_files(session);
         }
