@@ -934,7 +934,10 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
     fs->finished = true;
 
     WT_RET(__wt_scr_alloc(session, 0, &filepath));
-
+    /*
+     * FIXME-WT-14048: Improve the logic here, we could be smart and recursively check the log
+     * directory.
+     */
     /* Remove tombstones in the destination directory. */
     WT_RET(os_fs->fs_directory_list(os_fs, wt_session, fs->destination.home, NULL, &files, &count));
     for (uint32_t i = 0; i < count; i++) {
@@ -953,7 +956,7 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
         /* The log path is the only subfolder that can exist. Check its contents explicitly. */
         WT_ERR(__wt_filename_construct(session, fs->destination.home,
           (char *)conn->log_mgr.log_path, UINTMAX_MAX, UINT32_MAX, filepath));
-        /* FIXME-WT-14012: Currently we do not support absolute log paths. */
+        /* FIXME-WT-14047: Currently we do not support absolute log paths. */
         WT_ASSERT(session, !__wt_absolute_path((char *)conn->log_mgr.log_path));
         WT_ERR(os_fs->fs_directory_list(
           os_fs, wt_session, (char *)filepath->data, NULL, &files, &count));
