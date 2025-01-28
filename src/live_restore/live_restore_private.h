@@ -8,6 +8,16 @@
 
 #pragma once
 
+/*
+ * Stop files are created in the file system to indicate that the source directory should never be
+ * used for the filename indicated.
+ *
+ * For example "foo.wt" would have a stop file "foo.wt.stop", this could mean a number of things:
+ *  - The file foo.wt may have completed migration.
+ *  - It may have been removed, in this case we create a stop file in case the same name "foo.wt" is
+ *    recreated.
+ *  - It may have been renamed, again we create a stop file in case it is recreated.
+ */
 #define WTI_LIVE_RESTORE_STOP_FILE_SUFFIX ".stop"
 
 /*
