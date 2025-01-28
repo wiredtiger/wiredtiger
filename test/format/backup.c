@@ -257,7 +257,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
             if (lseek(rfd, (wt_off_t)offset, SEEK_SET) == -1)
                 testutil_die(errno, "backup-read: lseek");
             if (lseek(wfd, (wt_off_t)offset, SEEK_SET) == -1)
-                testutil_die(errno, "backup-write1: lseek");
+                testutil_die(errno, "backup-write: lseek");
             total = 0;
             while (total < size) {
                 /* Use the read size since we may have read less than the granularity. */
