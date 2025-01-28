@@ -282,14 +282,12 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
               session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
             if (ret == 0)
                 F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
-        }
-        if (ret == WT_NOTFOUND)
-            WT_RET(__wt_panic(session, WT_PANIC, "Layered table could not access stable table"));
-        if (ret == ENOENT && !leader) {
+        } else if (ret == ENOENT && !leader) {
             /* This is fine, we may not have seen a checkpoint with this table yet. */
             ret = 0;
             defer_stable = true;
-        }
+        } else if (ret == WT_NOTFOUND)
+            WT_RET(__wt_panic(session, WT_PANIC, "Layered table could not access stable table on leader"));
 
         WT_RET(ret);
         if (clayered->stable_cursor != NULL)
@@ -303,11 +301,13 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
          * cursors, so explicitly allow that here.
          */
         WT_ASSERT(session, WT_PREFIX_MATCH(clayered->ingest_cursor->uri, "file:"));
-        WT_ASSERT(session, WT_PREFIX_MATCH(clayered->stable_cursor->uri, "file:"));
         clayered->ingest_cursor->search_near = __wti_curfile_search_near;
-        /* TODO make sure this gets set if the table appear later. */
-        if (!defer_stable)
+
+        /* TODO make sure this gets set if the stable constituent appears later. */
+        if (!defer_stable) {
             clayered->stable_cursor->search_near = __wti_curfile_search_near;
+            WT_ASSERT(session, WT_PREFIX_MATCH(clayered->stable_cursor->uri, "file:"));
+        }
     }
 
     WT_RET(__clayered_copy_bounds(clayered));
@@ -584,7 +584,7 @@ __layered_prev_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     /* If we aren't positioned for a reverse scan, get started. */
     if (clayered->current_cursor == NULL || !F_ISSET(clayered, WT_CLAYERED_ITERATE_PREV)) {
         WT_ERR(__clayered_iterate_constituent(clayered, clayered->ingest_cursor, false));
-        WT_ERR(__clayered_iterate_constituent(clayered, clayered->stable_cursor, false));
+        WT_ERR_NOTFOUND_OK(__clayered_iterate_constituent(clayered, clayered->stable_cursor, false), false);
         F_SET(clayered, WT_CLAYERED_ITERATE_PREV | WT_CLAYERED_MULTIPLE);
         F_CLR(clayered, WT_CLAYERED_ITERATE_PREV);
 
@@ -599,7 +599,7 @@ retry:
         else
             alternate_cursor = clayered->stable_cursor;
 
-        if (F_ISSET(alternate_cursor, WT_CURSTD_KEY_INT)) {
+        if (alternate_cursor != NULL && F_ISSET(alternate_cursor, WT_CURSTD_KEY_INT)) {
             if (alternate_cursor != clayered->current_cursor) {
                 WT_ERR(__clayered_cursor_compare(
                   clayered, alternate_cursor, clayered->current_cursor, &cmp));

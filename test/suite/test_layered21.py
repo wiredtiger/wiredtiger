@@ -92,7 +92,15 @@ class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
 
-    def DISABLED_test_secondary_modifies_without_stable(self):
+        # Test cursor->prev as well
+        cursor = self.session.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor.prev() == 0:
+            item_count += 1
+        self.assertEqual(item_count, self.nitems * 3)
+        cursor.close()
+
+    def test_secondary_modifies_without_stable(self):
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
