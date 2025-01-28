@@ -80,7 +80,11 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
         utils::check_error_info(err_info, EBUSY, WT_CONFLICT_DHANDLE, CONFLICT_DHANDLE_MSG);
     }
 
-    /* This section gives us coverage in __drop_tiered. */
+    /*
+     * This section gives us coverage in __drop_tiered. dir_store is only supported for POSIX
+     * systems, so skip this section on Windows.
+     */
+#ifndef _WIN32
     SECTION("Test WT_CONFLICT_DHANDLE with tiered storage")
     {
         /* Set up the connection and session to use tiered storage. */
@@ -98,4 +102,5 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
         REQUIRE(session->drop(session, URI, NULL) == EBUSY);
         utils::check_error_info(err_info, EBUSY, WT_CONFLICT_DHANDLE, CONFLICT_DHANDLE_MSG);
     }
+#endif
 }
