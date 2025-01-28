@@ -371,3 +371,11 @@ define_c_test(
     # This test takes over 15 minutes under TSan testing
     LABEL "long_running"
 )
+
+define_c_test(
+    TARGET wt13867_interrupt_eviction_handler
+    SOURCES wt13867_interrupt_eviction_handler/main.c
+    DIR_NAME wt13867_interrupt_eviction_handler
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
