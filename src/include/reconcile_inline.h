@@ -240,7 +240,7 @@ __wt_rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size
 
 /*
  * __wt_rec_kv_copy --
- *     Copy a key/value cell and buffer pair.
+ *     Copy a key/value cell and buffer pair. TODO: ensure memory safety on the pointer.
  */
 static WT_INLINE void
 __wt_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WT_REC_KV *kv)
