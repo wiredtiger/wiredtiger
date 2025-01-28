@@ -131,18 +131,13 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
         WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "live_restore", &v), true);
         if (ret == WT_NOTFOUND)
             ret = 0;
-        else {
-            char *live_restore_extents;
+        else
             /*
-             * The config api returns us a pointer into the metadata string. We need to null
-             * terminate the string as C library functions depend on that. Copy it to return it to
-             * the caller.
+             * The config api returns us a pointer into the metadata string. Copy it to return it to
+             * the caller. This call also null terminates the string which is handy as the C library
+             * functions depend on that.
              */
-            WT_ERR(__wt_calloc(session, 1, v.len + 1, &live_restore_extents));
-            strncpy(live_restore_extents, v.str, v.len);
-            live_restore_extents[v.len] = '\0';
-            *live_restore_extentsp = live_restore_extents;
-        }
+            WT_ERR(__wt_strndup(session, v.str, v.len, live_restore_extentsp));
     }
     /*
      * Retrieve the named checkpoint or the last checkpoint.
