@@ -89,7 +89,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     char *live_restore_extent_str = NULL;
 
     /* Get the checkpoint information for this name/checkpoint pair. */
-    WT_RET(__wt_meta_checkpoint(
+    WT_ERR(__wt_meta_checkpoint(
       session, dhandle->name, dhandle->checkpoint, &ckpt, &live_restore_extent_str));
 
     /* Set the order number. */
@@ -179,6 +179,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 err:
         WT_TRET(__wt_btree_close(session));
     }
+    __wt_free(session, live_restore_extent_str);
     __wt_checkpoint_free(session, &ckpt);
 
     __wt_scr_free(session, &tmp);
