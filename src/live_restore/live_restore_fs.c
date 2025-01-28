@@ -1291,7 +1291,7 @@ err:
  *     Populate a live restore file handle for a directory. Directories have special handling. If
  *     they don't exist in the destination they'll be created immediately (but not their contents)
  *     and immediately marked as complete. WiredTiger will never create or destroy a directory so we
- *     don't need to think about "stop" directories.
+ *     don't need to think about stop files for directories.
  */
 static int
 __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
