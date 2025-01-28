@@ -247,7 +247,7 @@ __schema_open_index(
     /* Add a 2 second wait to simulate open index slowness. */
     tsp.tv_sec = 2;
     tsp.tv_nsec = 0;
-    __wt_timing_stress(session, WT_TIMING_STRESS_SESSION_ALTER_SLOW, &tsp);
+    __wt_timing_stress(session, WT_TIMING_STRESS_OPEN_INDEX_SLOW, &tsp);
 
     /* Build a search key. */
     tablename = table->iface.name;

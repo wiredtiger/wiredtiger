@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 # test_error_info03.py
 #   Test that the get_last_error() session API returns the last error to occur in the session.
 class test_error_info03(compact_util):
-    conn_config = 'timing_stress_for_test=[session_alter_slow]'
+    conn_config = 'timing_stress_for_test=[session_alter_slow,open_index_slow]'
     types = [('table-cg', dict(uri="table:test_error_info", use_cg=True, use_index=False))]
     tiered_storage_sources = [('non_tiered', dict(is_tiered = False))]
     scenarios = make_scenarios(tiered_storage_sources, types)
