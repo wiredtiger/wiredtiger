@@ -719,6 +719,7 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     uint32_t ingest_id, stable_id;
+    bool stable_deferred;
 
     /* This needs to hold the table write lock, so the handle doesn't get swept and closed */
     WT_WITH_TABLE_WRITE_LOCK(session, ret = __schema_open_layered(session));
@@ -735,8 +736,21 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_SAVE_DHANDLE(
       session, ret = __schema_open_layered_member(session, layered, layered->ingest_uri, true));
     WT_RET(ret);
+
     WT_SAVE_DHANDLE(
       session, ret = __schema_open_layered_member(session, layered, layered->stable_uri, false));
+    stable_deferred = ret == ENOENT && !S2C(session)->layered_table_manager.leader;
+    if (stable_deferred) {
+        /*
+         * This is fine: we may not have seen a checkpoint containing this table yet,
+         * so we won't have a stable component until the next checkpoint.
+         */
+        ret = 0;
+        stable_id = 0;
+    } else {
+        stable_id = ((WT_BTREE *)layered->stable->handle)->id;
+        WT_ASSERT(session, WT_BTREE_ID_SHARED(stable_id));
+    }
     WT_RET(ret);
 
     /* Start the layered table manager thread if it isn't running. */
@@ -745,8 +759,6 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     /* Add the ingest table file identifier into the layered table managers list of tracked tables
      */
     ingest_id = ((WT_BTREE *)layered->ingest->handle)->id;
-    stable_id = ((WT_BTREE *)layered->stable->handle)->id;
-    WT_ASSERT(session, WT_BTREE_ID_SHARED(stable_id));
 
     /* Flag the ingest btree as participating in automatic garbage collection */
     F_SET(((WT_BTREE *)layered->ingest->handle), WT_BTREE_GARBAGE_COLLECT);

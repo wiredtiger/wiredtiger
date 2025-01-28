@@ -28,6 +28,7 @@
 
 import os
 import time
+import wiredtiger
 import wttest
 from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
@@ -36,15 +37,14 @@ from wtscenario import make_scenarios
 # Test a secondary can perform reads and writes to the ingest component
 # of a layered table, without the stable component.
 class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    uri = 'layered:test_layered21'
-
     conn_base_config = 'transaction_sync=(enabled,method=fsync),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
+
     disagg_storages = gen_disagg_storages('test_layered21', disagg_only = True)
-
-    nitems = 1
-
     scenarios = make_scenarios(disagg_storages)
+
+    nitems = 10000
+    uri = 'layered:test_layered21'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -64,20 +64,17 @@ class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
+        return self.conn_base_config + 'disaggregated=(role="follower"),'
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_secondary_ops_without_stable(self):
-        session_config = 'key_format=S,value_format=S'
-        self.session.create(self.uri, 'disaggregated=(max_consecutive_delta=1)')
+    def session_create_config(self):
+        return 'key_format=S,value_format=S,'
 
-        # TODO figure out self.extensionsConfig()
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "disaggregated=(role=\"follower\")")
-        session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, session_config)
+    def test_secondary_reads_without_stable(self):
+        self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
@@ -86,28 +83,39 @@ class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor["OK " + str(i)] = "Go"
             if i % 25000 == 0:
                 time.sleep(1)
-        cursor.reset()
+        cursor.close()
 
-        # Ensure that all data makes it to the follower before we check.
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
+        cursor = self.session.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor.next() == 0:
+            item_count += 1
+        self.assertEqual(item_count, self.nitems * 3)
+        cursor.close()
 
-        # Reopen the follower connection.
-        session_follow.close()
-        conn_follow.close()
-        self.pr("reopen the follower")
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',' + self.conn_base_config + "disaggregated=(role=\"follower\")")
-        session_follow = conn_follow.open_session('')
+    def DISABLED_test_secondary_modifies_without_stable(self):
+        self.session.create(self.uri, self.session_create_config())
 
-        session_follow.create(self.uri + 'a')
-        cursor_follow = session_follow.open_cursor(self.uri + 'a', None, None)
-        cursor_follow["** Hello 0"] = "World"
-        cursor_follow.close()
-        cursor_follow = session_follow.open_cursor(self.uri + 'a', None, None)
-        self.assertEqual(cursor_follow.next(), 0)
-        self.assertEqual(cursor_follow.get_key(), b'** Hello 0')
-        self.assertEqual(cursor_follow.get_value(), b'World')
+        cursor = self.session.open_cursor(self.uri, None, None)
+        value1 = "aaaa"
+        value2 = "abaa"
 
-        cursor_follow.close()
-        session_follow.close()
-        conn_follow.close()
+        for i in range(self.nitems):
+            cursor[str(i)] = value1
+
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                self.session.begin_transaction()
+                cursor.set_key(str(i))
+                mods = [wiredtiger.Modify('b', 1, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+                self.session.commit_transaction()
+
+        cursor.close()
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(self.nitems):
+            if i % 10 == 0:
+                self.assertEqual(cursor[str(i)], value2)
+            else:
+                self.assertEqual(cursor[str(i)], value1)
+        cursor.close()

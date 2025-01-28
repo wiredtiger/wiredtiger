@@ -1167,7 +1167,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
 
     stable_cfg[1] = disagg_config->data;
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-    WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
+    if (S2C(session)->layered_table_manager.leader)
+        WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
 #if 0
     /*
      * Open the table to check that it was setup correctly. Keep the handle exclusive until it is
