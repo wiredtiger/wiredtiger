@@ -238,14 +238,12 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_txn_recover(session, cfg));
 
-#ifndef _MSC_VER
     /*
      * If we're performing a live restore start the server. This is intentionally placed after
      * recovery finishes as we depend on the metadata file containing the list of objects that need
      * live restoration.
      */
     WT_RET(__wt_live_restore_server_create(session, cfg));
-#endif
 
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));

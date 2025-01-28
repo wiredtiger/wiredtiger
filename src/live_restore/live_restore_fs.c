@@ -1727,7 +1727,11 @@ __wt_os_live_restore_fs(
     WTI_LIVE_RESTORE_FS *lr_fs;
 
     WT_RET(__wt_calloc_one(session, &lr_fs));
+#if defined(_MSC_VER)
+    WT_RET(__wt_os_win(session, &lr_fs->os_file_system));
+#else
     WT_ERR(__wt_os_posix(session, &lr_fs->os_file_system));
+#endif
 
     /* Initialize the FS jump table. */
     lr_fs->iface.fs_directory_list = __live_restore_fs_directory_list;

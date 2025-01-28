@@ -588,7 +588,7 @@ __win_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
  *     Initialize a MSVC configuration.
  */
 int
-__wt_os_win(WT_SESSION_IMPL *session)
+__wt_os_win(WT_SESSION_IMPL *session, WT_FILE_SYSTEM **fsp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_FILE_SYSTEM *file_system;
@@ -609,7 +609,7 @@ __wt_os_win(WT_SESSION_IMPL *session)
     file_system->terminate = __win_terminate;
 
     /* Switch it into place. */
-    conn->file_system = file_system;
+    *fsp = file_system;
 
     return (0);
 }
