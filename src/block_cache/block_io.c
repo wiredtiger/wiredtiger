@@ -127,9 +127,9 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
          * on the data.
          */
         if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
-            WT_STAT_CONN_INCRV(session, block_byte_read_intl_precomp, ip->size);
+            WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
         else
-            WT_STAT_CONN_INCRV(session, block_byte_read_leaf_precomp, ip->size);
+            WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
         if (WT_SESSION_IS_CHECKPOINT(session))
@@ -422,11 +422,11 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
 
     if (dsk != NULL) {
         if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {
-            WT_STAT_CONN_INCRV(session, block_byte_write_intl_precomp, buf->size);
-            WT_STAT_CONN_INCRV(session, block_byte_write_intl, dsk->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl, buf->size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, dsk->mem_size);
         } else {
-            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_precomp, buf->size);
-            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, dsk->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, buf->size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, dsk->mem_size);
         }
     }
 

@@ -5501,14 +5501,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * block-manager: bytes read for internal pages before decompression and
  * decryption
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_READ_INTL_PRECOMP	1050
+#define	WT_STAT_CONN_BLOCK_BYTE_READ_INTL_DISK		1050
 /*! block-manager: bytes read for leaf pages */
 #define	WT_STAT_CONN_BLOCK_BYTE_READ_LEAF		1051
 /*!
  * block-manager: bytes read for leaf pages before decompression and
  * decryption
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_READ_LEAF_PRECOMP	1052
+#define	WT_STAT_CONN_BLOCK_BYTE_READ_LEAF_DISK		1052
 /*! block-manager: bytes read via memory map API */
 #define	WT_STAT_CONN_BLOCK_BYTE_READ_MMAP		1053
 /*! block-manager: bytes read via system call API */
@@ -5523,22 +5523,22 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * block-manager: bytes written for internal pages after compression and
  * encryption
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL		1058
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_DISK		1058
 /*!
  * block-manager: bytes written for internal pages before compression and
  * encryption
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL_PRECOMP	1059
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_INTL		1059
 /*!
  * block-manager: bytes written for leaf pages after compression and
  * encryption
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF		1060
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_DISK		1060
 /*!
  * block-manager: bytes written for leaf pages before compression and
  * encryption
  */
-#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF_PRECOMP	1061
+#define	WT_STAT_CONN_BLOCK_BYTE_WRITE_LEAF		1061
 /*! block-manager: bytes written via memory map API */
 #define	WT_STAT_CONN_BLOCK_BYTE_WRITE_MMAP		1062
 /*! block-manager: bytes written via system call API */
