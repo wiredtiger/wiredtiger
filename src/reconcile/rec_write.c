@@ -2043,11 +2043,11 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 }
 
 /*
- * __rec_build_delta_init --
+ * __wti_rec_build_delta_init --
  *     Build delta init.
  */
-static int
-__rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+int
+__wti_rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
     memset(r->delta.mem, 0, WT_DELTA_HEADER_SIZE);
@@ -2089,6 +2089,47 @@ __rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
     }
 
     return (ret);
+}
+
+/*
+ * __wti_rec_pack_delta_internal --
+ *     Pack a delta for an internal page into a reconciliation structure
+ */
+int
+__wti_rec_pack_delta_internal(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *key, WT_REC_KV *value)
+{
+    WT_DELTA_HEADER *header;
+    size_t packed_size;
+    uint8_t flags;
+    uint8_t *p, *head_byte;
+
+    flags = 0;
+
+    header = (WT_DELTA_HEADER *)r->delta.data;
+
+    packed_size = 1 + key->len;
+    if (value != NULL)
+        packed_size += value->len;
+
+    if (r->delta.size + packed_size > r->delta.memsize)
+        WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
+
+    head_byte = (uint8_t *)r->delta.data + r->delta.size;
+    p = head_byte + 1;
+
+    __wt_rec_kv_copy(session, p, key);
+    p += key->len;
+    if (value == NULL)
+        LF_SET(WT_DELTA_IS_DELETE);
+    else
+        __wt_rec_kv_copy(session, p, value);
+
+    r->delta.size += packed_size;
+    *head_byte = flags;
+
+    ++header->u.entries;
+    return (0);
 }
 
 /*
@@ -2234,7 +2275,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WT_
     multi = &r->multi[0];
     count = 0;
 
-    WT_RET(__rec_build_delta_init(session, r));
+    WT_RET(__wti_rec_build_delta_init(session, r));
 
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         if (supd->onpage_upd == NULL)
