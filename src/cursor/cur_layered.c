@@ -852,7 +852,7 @@ __clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
      * If the key didn't exist in the ingest constituent and the cursor is setup for reading, check
      * the stable constituent.
      */
-    if (!found && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)) {
+    if (!found && F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL) {
         c = clayered->stable_cursor;
         c->set_key(c, &cursor->key);
         if ((ret = c->search(c)) == 0) {

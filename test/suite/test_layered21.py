@@ -127,3 +127,11 @@ class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
             else:
                 self.assertEqual(cursor[str(i)], value1)
         cursor.close()
+
+    def test_secondary_notfound_without_stable(self):
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+
+        cursor.set_key("nonexistent")
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
