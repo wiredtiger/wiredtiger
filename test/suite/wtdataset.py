@@ -100,7 +100,7 @@ class BaseDataSet(object):
             self.store_one_cursor(c, i, variant)
         c.close()
 
-    def fill(self, first_row, variant=1):
+    def fill(self, variant=1, first_row=1):
         self.store_range(first_row, self.rows - first_row + 1, variant)
 
     def postfill_create(self):
@@ -110,12 +110,12 @@ class BaseDataSet(object):
     def is_lsm(cls):
         return False
 
-    def populate(self, create=True, first_row=1, variant=1):
+    def populate(self, create=True, variant=1, first_row=1):
         self.testcase.pr('populate variant ' + str(variant) + ': ' + self.uri + ' with '
                          + str(self.rows) + ' rows')
         if create:
             self.create()
-        self.fill(first_row, variant)
+        self.fill(variant, first_row)
         if create:
             self.postfill_create()
 
