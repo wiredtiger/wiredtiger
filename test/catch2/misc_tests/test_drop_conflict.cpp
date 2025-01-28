@@ -81,8 +81,8 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[drop_conflict]")
     }
 
     /*
-     * This section gives us coverage in __drop_tiered. dir_store is only supported for POSIX
-     * systems, so skip this section on Windows.
+     * This section gives us coverage in __drop_tiered. The dir_store extension is only supported
+     * for POSIX systems, so skip this section on Windows.
      */
 #ifndef _WIN32
     SECTION("Test WT_CONFLICT_DHANDLE with tiered storage")
