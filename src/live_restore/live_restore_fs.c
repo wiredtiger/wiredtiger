@@ -157,7 +157,7 @@ __wt_live_restore_fh_extent_to_metadata_string(
     WT_RET(__wt_buf_catfmt(session, extent_string, ",live_restore="));
     while (head != NULL) {
         WT_RET(__wt_buf_catfmt(
-          session, extent_string, "%" PRId64 "-%" PRIu64, head->off - prev_off, head->len));
+          session, extent_string, "%" PRId64 "-%" WT_SIZET_FMT, head->off - prev_off, head->len));
         prev_off = head->off;
         if (head->next != NULL)
             WT_RET(__wt_buf_catfmt(session, extent_string, ";"));
@@ -1220,8 +1220,8 @@ __wt_live_restore_import_extents_from_string(
             str_ptr++;
             len = (size_t)strtol(str_ptr, &str_ptr, 10);
             str_ptr++;
-            __wt_verbose_debug3(
-              session, WT_VERB_LIVE_RESTORE, "Adding an extent: %" PRId64 "-%" PRIu64, off, len);
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+              "Adding an extent: %" PRId64 "-%" WT_SIZET_FMT, off, len);
             WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
             current = &((*current)->next);
         } while (*str_ptr != '\0');

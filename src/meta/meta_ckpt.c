@@ -129,15 +129,9 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
 
     if (live_restore_extentsp != NULL) {
         WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "live_restore", &v), true);
-        if (ret == WT_NOTFOUND)
-            ret = 0;
-        else
-            /*
-             * The config api returns us a pointer into the metadata string. Copy it to return it to
-             * the caller. This call also null terminates the string which is handy as the C library
-             * functions depend on that.
-             */
+        if (ret != WT_NOTFOUND)
             WT_ERR(__wt_strndup(session, v.str, v.len, live_restore_extentsp));
+        ret = 0;
     }
     /*
      * Retrieve the named checkpoint or the last checkpoint.
