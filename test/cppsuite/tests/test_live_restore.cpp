@@ -55,7 +55,7 @@ extern "C" {
 
 using namespace test_harness;
 
-static const char *file_config = "allocation_size=4KB,internal_page_max=4KB,leaf_page_max=4KB";
+static const char *file_config = "allocation_size=512B,internal_page_max=512B,leaf_page_max=512B";
 
 class database_model {
 public:

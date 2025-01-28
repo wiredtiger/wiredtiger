@@ -151,16 +151,18 @@ __wt_live_restore_fh_extent_to_metadata_string(
     if (lr_fh->destination.complete)
         return (WT_NOTFOUND);
 
+    wt_off_t prev_off = 0;
     WTI_LIVE_RESTORE_HOLE_NODE *head = lr_fh->destination.hole_list_head;
     WT_RET(__wt_buf_catfmt(session, extent_string, ",live_restore="));
     while (head != NULL) {
         WT_RET(
-          __wt_buf_catfmt(session, extent_string, "%" PRId64 "-%" PRIu64, head->off, head->len));
+          __wt_buf_catfmt(session, extent_string, "%" PRId64 "-%" PRIu64, head->off - prev_off, head->len));
+        prev_off = head->off;
         if (head->next != NULL)
             WT_RET(__wt_buf_catfmt(session, extent_string, ";"));
         head = head->next;
     }
-    __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
       "Appending live restore extents (%s) to metadata for filehandle %s", fh->name,
       (char *)extent_string->data);
 
@@ -1198,19 +1200,20 @@ __wt_live_restore_import_extents_from_string(
     WT_UNUSED(fh);
     if (ckpt_string != NULL) {
         WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-        __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Got live restore extents from metadata!! %s", ckpt_string);
         /* The extents are separated by ;. And have the shape %d-%u. */
-        wt_off_t off;
+        wt_off_t off = 0, next_off;
         size_t len;
         WTI_LIVE_RESTORE_HOLE_NODE **current = &lr_fh->destination.hole_list_head;
         char *str_ptr = ckpt_string;
         do {
-            off = (wt_off_t)strtol(str_ptr, &str_ptr, 10);
+            next_off = (wt_off_t)strtol(str_ptr, &str_ptr, 10);
+            off += next_off;
             str_ptr++;
             len = (size_t)strtol(str_ptr, &str_ptr, 10);
             str_ptr++;
-            __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
                   "Adding an extent: %" PRId64 "-%" PRIu64, off, len);
             WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
             current = &((*current)->next);
