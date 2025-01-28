@@ -423,10 +423,10 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     if (dsk != NULL) {
         if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {
             WT_STAT_CONN_INCRV(session, block_byte_write_intl, buf->size);
-            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, dsk->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
         } else {
             WT_STAT_CONN_INCRV(session, block_byte_write_leaf, buf->size);
-            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, dsk->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, ip->size);
         }
     }
 
