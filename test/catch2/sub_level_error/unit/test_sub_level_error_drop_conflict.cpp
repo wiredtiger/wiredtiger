@@ -21,7 +21,7 @@
 #define CONFLICT_TABLE_LOCK_MSG "another thread is currently accessing the table"
 
 /*
- * Prepare the session and error_info structure to be used by the drop conflict tests.
+ * Prepare the session, session_impl, and error_info struct to be used by the drop conflict tests.
  */
 void
 prepare_session_and_error(connection_wrapper *conn_wrapper, WT_SESSION **session_a,
@@ -48,6 +48,7 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[drop_conflict]"
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
         prepare_session_and_error(&conn_wrapper, &session_a, &session_b_impl, &err_info_a, config);
 
+        /* Attempt to drop the table while another session holds the schema lock. */
         WT_WITH_SCHEMA_LOCK(
           session_b_impl, REQUIRE(session_a->drop(session_a, URI, "lock_wait=0") == EBUSY));
 
@@ -60,6 +61,7 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[drop_conflict]"
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
         prepare_session_and_error(&conn_wrapper, &session_a, &session_b_impl, &err_info_a, config);
 
+        /* Attempt to drop the table while another session holds the table write lock. */
         WT_WITH_TABLE_WRITE_LOCK(
           session_b_impl, REQUIRE(session_a->drop(session_a, URI, "lock_wait=0") == EBUSY););
 
