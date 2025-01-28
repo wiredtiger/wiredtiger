@@ -61,8 +61,8 @@ __wt_filename_construct(WT_SESSION_IMPL *session, const char *path, const char *
   uintmax_t id_1, uint32_t id_2, WT_ITEM *buf)
 {
     /*
-     * If there is a path we write to the start of the buffer to avoid appending when callers loop
-     * externally.
+     * Don't concatenate to the buffer when a path is given. Callers providing a path may be in a
+     * loop and concatenation won't work in that case.
      */
     if (path != NULL && path[0] != '\0')
         WT_RET(__wt_buf_fmt(session, buf, "%s%s", path, __wt_path_separator()));

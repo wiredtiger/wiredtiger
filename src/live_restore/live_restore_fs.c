@@ -953,7 +953,10 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
         WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
         WT_ERR(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
-        /* The log path is the only subdirectory that can exist. Check its contents explicitly. */
+        /*
+         * The log path is the only WiredTiger-owned subdirectory that can exist. Check its contents
+         * explicitly.
+         */
         WT_ERR(__wt_filename_construct(session, fs->destination.home,
           (char *)conn->log_mgr.log_path, UINTMAX_MAX, UINT32_MAX, filepath));
         /* FIXME-WT-14047: Currently we do not support absolute log paths. */
