@@ -306,7 +306,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_CELL_UNPACK_ADDR *kpack, _kpack, *vpack, _vpack;
     WT_CHILD_MODIFY_STATE cms;
     WT_DECL_RET;
-    WT_DELTA_HEADER *header;
     WT_IKEY *ikey;
     WT_PAGE *child;
     WT_PAGE_DELETED *page_del;
