@@ -249,6 +249,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     if (extent_str != NULL)
         WT_ERR(
           __wt_live_restore_import_extents_from_string(session, block->fh->handle, extent_str));
+#else
+    WT_UNUSED(extent_str);
 #endif
 
     /* Set the file's size. */
