@@ -86,7 +86,7 @@
     if ((s)->api_call_counter == 1)                                                                \
         (s)->cache_wait_us = 0;                                                                    \
     /* Initialize the err_info struct - passing NULL sets the message to WT_ERROR_INFO_SUCCESS. */ \
-    WT_IGNORE_RET(__wt_session_set_last_error((s), 0, WT_NONE, NULL));                             \
+    __wt_session_set_last_error((s), 0, WT_NONE, NULL);                                            \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
 #define API_CALL_NOCONF(s, struct_name, func_name, dh) \
@@ -127,7 +127,7 @@
              * Note that this if a different error was recorded earlier in the call, the struct \
              * will not be overwritten.                                                         \
              */                                                                                 \
-            WT_IGNORE_RET(__wt_session_set_last_error(s, ret, WT_NONE, WT_ERROR_INFO_EMPTY));   \
+            __wt_session_set_last_error(s, ret, WT_NONE, WT_ERROR_INFO_EMPTY);                  \
         if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                     \
             __wt_op_timer_stop(s);                                                              \
         /*                                                                                      \

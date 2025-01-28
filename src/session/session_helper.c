@@ -139,7 +139,7 @@ err:
  * __wt_session_set_last_error --
  *     Stores information about the last error to occur during this session.
  */
-int
+void
 __wt_session_set_last_error(
   WT_SESSION_IMPL *session, int err, int sub_level_err, const char *fmt, ...)
 {
@@ -155,7 +155,7 @@ __wt_session_set_last_error(
      * session API call, prevent overwriting it.
      */
     if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS) || (session->err_info.err != 0 && err != 0))
-        return (0);
+        return;
 
     /*
      * Load error codes and message into err_info. If the message is empty or is NULL (indicating
@@ -179,6 +179,8 @@ __wt_session_set_last_error(
         err_info->err_msg = err_info->err_msg_buf.data;
     }
 
+    return;
+
 err:
-    return (ret);
+    __wt_abort(session);
 }
