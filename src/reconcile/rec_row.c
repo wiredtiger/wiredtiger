@@ -261,7 +261,10 @@ __rec_row_merge(
 
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-        /* Build the key and value cells. */
+        /*
+         * Build the key and value cells. We should inherit the old key for the first page.
+         * Otherwise, it is difficult to build the delta for that key as it can change.
+         */
         if (i == 0) {
             __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
             WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
@@ -390,7 +393,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         switch (cms.state) {
         case WT_CHILD_IGNORE:
-            /* Cannot build delta if we decide to delete the first key. */
+            /*
+             * Cannot build delta if we decide to delete the first key. The first key on the
+             * internal page is a random value. If we delete that, the next key will become the new
+             * first key, which is a random value. We cannot reconstruct the delta in this case as
+             * the key has changed.
+             */
             if (build_delta && r->cell_zero) {
                 build_delta = false;
                 r->delta.size = 0;

@@ -2093,7 +2093,7 @@ __rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
 
 /*
  * __wti_rec_pack_delta_internal --
- *     Pack a delta for an internal page
+ *     Pack a delta for an internal page into a reconciliation structure
  */
 int
 __wti_rec_pack_delta_internal(
