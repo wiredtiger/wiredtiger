@@ -235,7 +235,8 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
  *     Merge in a split page.
  */
 static int
-__rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, uint8_t previous_ref_state)
+__rec_row_merge(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, uint16_t ref_changes, bool build_delta)
 {
     WT_ADDR *addr;
     WT_MULTI *multi;
@@ -440,7 +441,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
-                WT_ERR(__rec_row_merge(session, r, ref, prev_ref_changes));
+                WT_ERR(__rec_row_merge(session, r, ref, prev_ref_changes, build_delta));
 
                 /*
                  * Set the ref_changes state to zero if there were no concurrent changes while
