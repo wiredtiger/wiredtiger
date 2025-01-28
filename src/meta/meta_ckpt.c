@@ -1309,7 +1309,10 @@ __wt_meta_ckptlist_set(
 
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
+
+#ifndef _MSC_VER
     WT_ERR_NOTFOUND_OK(__ckpt_add_live_restore_info(session, dhandle, buf), false);
+#endif
 
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)

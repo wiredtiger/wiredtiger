@@ -245,9 +245,11 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
     }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
+#ifndef _MSC_VER
     if (extent_str != NULL)
         WT_ERR(
           __wt_live_restore_import_extents_from_string(session, block->fh->handle, extent_str));
+#endif
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));
