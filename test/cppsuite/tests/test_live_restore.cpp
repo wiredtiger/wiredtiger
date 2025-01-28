@@ -256,7 +256,7 @@ reopen_conn(scoped_session &session, const std::string &conn_config, const std::
 {
     session.close_session();
     connection_manager::instance().close();
-    // connection_manager::instance().reopen(conn_config, home);
+    connection_manager::instance().reopen(conn_config, home);
 }
 
 static void
