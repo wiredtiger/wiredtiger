@@ -94,6 +94,7 @@ struct __wti_live_restore_fs {
     WT_FILE_SYSTEM *os_file_system; /* The storage file system. */
     WTI_LIVE_RESTORE_FS_LAYER destination;
     WTI_LIVE_RESTORE_FS_LAYER source;
+    bool finished;
 
     uint8_t background_threads_max;
     size_t read_size;
@@ -128,6 +129,8 @@ struct __wti_live_restore_server {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern int __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
