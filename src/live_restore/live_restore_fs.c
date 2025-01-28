@@ -1108,64 +1108,25 @@ err:
 
 #include <unistd.h>
 /*
- * __live_restore_fh_find_holes_in_dest_file --
- *     When opening a file from destination create its existing hole list from the file system
- *     information. Any holes in the extent list are data that hasn't been copied from source yet.
+ * __live_restore_fh_init_log_file --
+ *     When copying a log file create a single file size extent.
  */
 static int
-__live_restore_fh_find_holes_in_dest_file(
+__live_restore_fh_init_log_file(
   WT_SESSION_IMPL *session, char *filename, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_DECL_RET;
-    wt_off_t data_end_offset, file_size;
-    int fd;
+    wt_off_t file_size;
 
-    data_end_offset = 0;
-    __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Opening file: %s", filename);
-    WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
-    if (ret != 0)
-        WT_RET_MSG(session, ret, "Failed to open file descriptor on %s", filename);
-
-    /* Check that we opened a valid file descriptor. */
-    WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
-    WT_ERR(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
+    WT_RET(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "File: %s", filename);
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    len: %" PRId64, file_size);
 
     if (file_size > 0)
-        /*
-         * Initialize the file as one big hole. We'll then lseek the file to find data blocks and
-         * remove those ranges from the hole list.
-         */
-        WT_ERR(__live_restore_alloc_extent(
+        /* Initialize the file as one big hole. */
+        WT_RET(__live_restore_alloc_extent(
           session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list_head));
 
-    /*
-     * Find the next data block. data_end_offset is initialized to zero so we start from the
-     * beginning of the file. lseek will find a block when it starts already positioned on the
-     * block, so starting at zero ensures we'll find data blocks at the beginning of the file. This
-     * logic is single threaded but removing holes from the extent list requires the lock.
-     */
-    __wt_writelock(session, &lr_fh->ext_lock);
-    wt_off_t data_offset;
-    while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
-
-        data_end_offset = lseek(fd, data_offset, SEEK_HOLE);
-        /* All data must be followed by a hole */
-        WT_ASSERT(session, data_end_offset != -1);
-        WT_ASSERT(session, data_end_offset > data_offset - 1);
-
-        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-          "File: %s, has data from %" PRId64 "-%" PRId64, filename, data_offset, data_end_offset);
-        WT_ERR(__live_restore_remove_extlist_hole(
-          lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
-    }
-
-err:
-    __wt_writeunlock(session, &lr_fh->ext_lock);
-    WT_SYSCALL_TRET(close(fd), ret);
-    return (ret);
+    return (0);
 }
 
 /*
@@ -1291,14 +1252,12 @@ __live_restore_fs_open_in_destination(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMP
     lr_fh->destination.back_pointer = lr_fs;
 
     /* Get the list of holes of the file that need copying across from the source directory. */
-    if (strstr(name, WT_LOG_FILENAME) != NULL || strstr(name, WTI_LOG_PREPNAME) != NULL) {
+    if (strstr(name, WT_LOG_FILENAME) != NULL || strstr(name, WTI_LOG_PREPNAME) != NULL)
         /*
-         * TODO: I really shot myself in the foot by not making __wt_copy_and_sync work didn't I?
-         * Basically we need to initialise an extent the length of the log file.................
+         * FIXME: We fill holes in the log file to copy them to do this we need a single file size
+         * extent. There is a better way to do this out there.
          */
-        WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
-        WT_ERR(__live_restore_handle_verify_hole_list(session, lr_fs, lr_fh, name));
-    }
+        WT_ERR(__live_restore_fh_init_log_file(session, path, lr_fh));
 
 err:
     __wt_free(session, path);
