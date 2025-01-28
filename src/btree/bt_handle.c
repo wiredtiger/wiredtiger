@@ -159,7 +159,9 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /*
      * Eviction ignores trees until the handle's open flag is set, configure eviction before that
      * happens.
-     *
+	 */
+	WT_IGNORE_RET(__wt_evict_init_handle_data(session, dhandle));
+    /*
      * Files that can still be bulk-loaded cannot be evicted. Permanently cache-resident files can
      * never be evicted. Special operations don't enable eviction. The underlying commands may turn
      * on eviction (for example, verify turns on eviction while working a file to keep from

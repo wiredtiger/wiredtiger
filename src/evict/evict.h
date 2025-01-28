@@ -16,6 +16,7 @@
  */
 struct __wt_evict_handle_data {
 	WT_EVICT_BUCKETSET evict_bucketset[WT_EVICT_LEVELS];
+	bool initialized;
 };
 
 /*

@@ -213,7 +213,6 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
      */
     F_CLR(conn, WT_CONN_EVICTION_RUN);
     __wt_atomic_storebool(&conn->evict_server_running, false);
-    __wt_evict_server_wake(session);
 
     __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "waiting for eviction threads to stop");
 
@@ -595,6 +594,8 @@ done:
 /*
  * __evict_lru_pages --
  *     Get pages from the LRU queue to evict.
+ *     This function will be called repeatedly via the thread group until the
+ *     threads are told to exit.
  */
 static int
 __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
@@ -753,6 +754,8 @@ __evict_get_ref(WT_SESSION_IMPL *session, WT_BTREE **btreep, WT_REF **refp,
 	}
 	else
 		(void)__wt_atomic_addi32(&dhandle->session_inuse, 1);
+
+	WT_ASSERT(dhandle->handle->evict_handle.initialized);
 
     /*
 	 * We iterate over bucket sets in eviction priority order:
@@ -918,8 +921,8 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
     if (!__wt_atomic_loadbool(&conn->evict_server_running) || (busy && pct_full < 100.0))
         goto done;
 
-    /* Wake the eviction server if we need to do work. */
-    __wt_evict_server_wake(session);
+    /* Wake the eviction threads if we need to do work. */
+	 __wt_cond_signal(session, conn->evict_threads.wait_cond);
 
     /* Track how long application threads spend doing eviction. */
     app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
@@ -993,8 +996,6 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
         case EBUSY:
             break;
         case WT_NOTFOUND:
-            /* Allow the queue to re-populate before retrying. */
-            __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
             evict->app_waits++;
             break;
         default:
@@ -1041,6 +1042,7 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref) {
 
 	WT_ASSERT(session->dhanlde != NULL);
 	__wt_evict_touch_page(session, session->dhandle, ref, false, true /* won't need */);
+	__wt_cond_signal(session, conn->evict_threads.wait_cond);
 }
 
 /* !!!
@@ -1278,16 +1280,13 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
  *     Initialize the per-tree eviction data.
  */
 int
-__wt_evict_init_handle_data(WT_SESSION_IMPL *session)
+__wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle;)
 {
 	WT_BTREE *btree;
-    WT_DATA_HANDLE *dhandle;
 	WT_EVICT_HANDLE *evict_handle;
 	WT_EVICT_BUCKET *bucket;
 	WT_EVICT_BUCKET_SET *bucket_set;
 	int i, j;
-
-	dhandle = session->dhandle;
 
 	if (!WT_DHANDLE_BTREE(dhandle))
 		return (0);
@@ -1309,6 +1308,7 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session)
 			TAILQ_INIT(&bucket->evict_queue);
 		}
 	}
+	evict_handle->initialized = true;
 	return (0);
 }
 
@@ -1432,6 +1432,8 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 
 	if (__wt_ref_is_root(ref))
 		return;
+
+	WT_ASSERT(dhandle->handle->evict_handle.initialized);
 
 	/*
 	 * Lock the page so it doesn't disappear.
