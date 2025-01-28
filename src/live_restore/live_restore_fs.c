@@ -117,30 +117,29 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE
 #pragma GCC diagnostic pop
 
 /*
- * __live_restore_create_tombstone_path --
- *     Generate the file path of a tombstone for a file. This tombstone does not need to exist.
+ * __live_restore_create_stop_file_path --
+ *     Generate the stop file path for a file.
  */
 static int
-__live_restore_create_tombstone_path(
-  WT_SESSION_IMPL *session, const char *name, const char *marker, char **out)
+__live_restore_create_stop_file_path(WT_SESSION_IMPL *session, const char *name, char **out)
 {
     size_t p, suffix_len;
 
     p = strlen(name);
-    suffix_len = strlen(marker);
+    suffix_len = strlen(WTI_LIVE_RESTORE_STOP_FILE_SUFFIX);
 
     WT_RET(__wt_malloc(session, p + suffix_len + 1, out));
     memcpy(*out, name, p);
-    memcpy(*out + p, marker, suffix_len + 1);
+    memcpy(*out + p, WTI_LIVE_RESTORE_STOP_FILE_SUFFIX, suffix_len + 1);
     return (0);
 }
 
 /*
- * __live_restore_fs_create_tombstone --
- *     Create a tombstone for the given file.
+ * __live_restore_fs_create_stop_file --
+ *     Create a stop file for the given file.
  */
 static int
-__live_restore_fs_create_tombstone(
+__live_restore_fs_create_stop_file(
   WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
 {
     WT_DECL_RET;
@@ -154,17 +153,16 @@ __live_restore_fs_create_tombstone(
 
     /*
      * FIXME-WT-14040: This is a big old race where we set this flag outside a lock and therefore
-     * have no idea if we will actually create a tombstone after we clear the tombstones.
+     * have no idea if we will actually create a stop file after we clear the stop files.
      */
     if (lr_fs->finished)
         return (0);
 
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, name, &path));
-    WT_ERR(__live_restore_create_tombstone_path(
-      session, path, WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
+    WT_ERR(__live_restore_create_stop_file_path(session, path, &path_marker));
 
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "Creating tombstone: %s", path_marker);
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "Creating stop file: %s", path_marker);
 
     open_flags = WT_FS_OPEN_CREATE;
     if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
@@ -182,24 +180,23 @@ err:
 }
 
 /*
- * __dest_has_tombstone --
- *     Check whether the destination directory contains a tombstone for a given file.
+ * __dest_has_stop_file --
+ *     Check whether the destination directory contains a stop file for a given file.
  */
 static int
-__dest_has_tombstone(WTI_LIVE_RESTORE_FS *lr_fs, char *name, WT_SESSION_IMPL *session, bool *existp)
+__dest_has_stop_file(WTI_LIVE_RESTORE_FS *lr_fs, char *name, WT_SESSION_IMPL *session, bool *existp)
 {
     WT_DECL_RET;
     char *path_marker;
 
     path_marker = NULL;
 
-    WT_ERR(__live_restore_create_tombstone_path(
-      session, name, WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX, &path_marker));
+    WT_ERR(__live_restore_create_stop_file_path(session, name, &path_marker));
 
     lr_fs->os_file_system->fs_exist(
       lr_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
     __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "Tombstone check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
+      session, WT_VERB_LIVE_RESTORE, "Stop file check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
 
 err:
     __wt_free(session, path_marker);
@@ -266,7 +263,7 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
  * __live_restore_fs_directory_list_worker --
  *     The list is a combination of files from the destination and source directories. For
  *     destination files, exclude any files matching the marker paths. For source files, exclude
- *     files that are either marked as tombstones or already present in the destination directory.
+ *     files that have associated stop files or are already present in the destination directory.
  */
 static int
 __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session,
@@ -278,7 +275,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     size_t dirallocsz = 0;
     uint32_t count_dest = 0, count_src = 0;
     char **dirlist_dest, **dirlist_src, **entries, *path_dest, *path_src, *temp_path;
-    bool dest_exist = false, have_tombstone = false;
+    bool dest_exist = false, have_stop = false;
     bool dest_folder_exists = false, source_folder_exists = false;
     uint32_t num_src_files = 0, num_dest_files = 0;
     WT_DECL_ITEM(filename);
@@ -301,7 +298,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
           lr_fs->os_file_system, wt_session, path_dest, prefix, &dirlist_dest, &num_dest_files));
 
         for (uint32_t i = 0; i < num_dest_files; ++i)
-            if (!WT_SUFFIX_MATCH(dirlist_dest[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+            if (!WT_SUFFIX_MATCH(dirlist_dest[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
                 WT_ERR(__wt_realloc_def(session, &dirallocsz, count_dest + 1, &entries));
                 WT_ERR(__wt_strdup(session, dirlist_dest[i], &entries[count_dest]));
                 ++count_dest;
@@ -333,12 +330,11 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
              * list.
              */
             bool add_source_file = false;
-            if (WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+            if (WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
                 /*
-                 * It is possible for tombstones to exist in the source directory. Currently those
-                 * files are not cleaned up on completion. If a backup is taken after a live
-                 * restore, and the user takes a snapshot of the directory instead of walking the
-                 * backup cursor, then the tombstone files will be included in the backup.
+                 * FIXME-WT-14040: It is possible for stop files to exist in the source directory.
+                 * Although those files are cleaned up on completion the concurrency management was
+                 * not implemented in that change so we can't guarantee they don't exist.
                  */
                 continue;
             }
@@ -354,10 +350,9 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
                 WT_ERR_NOTFOUND_OK(__live_restore_fs_has_file(lr_fs, &lr_fs->destination, session,
                                      (char *)filename->data, &dest_exist),
                   false);
-                WT_ERR(
-                  __dest_has_tombstone(lr_fs, (char *)filename->data, session, &have_tombstone));
+                WT_ERR(__dest_has_stop_file(lr_fs, (char *)filename->data, session, &have_stop));
 
-                add_source_file = !dest_exist && !have_tombstone;
+                add_source_file = !dest_exist && !have_stop;
             }
 
             if (add_source_file) {
@@ -914,11 +909,11 @@ err:
 }
 
 /*
- * __wti_live_restore_cleanup_tombstones --
- *     Remove all tombstone files from the database.
+ * __wti_live_restore_cleanup_stop_files --
+ *     Remove all stop files from the database.
  */
 int
-__wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
+__wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -934,18 +929,15 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
     fs->finished = true;
 
     WT_RET(__wt_scr_alloc(session, 0, &filepath));
-    /*
-     * FIXME-WT-14048: Improve the logic here, we could be smart and recursively check the log
-     * directory.
-     */
-    /* Remove tombstones in the destination directory. */
+
+    /* Remove stop files in the destination directory. */
     WT_RET(os_fs->fs_directory_list(os_fs, wt_session, fs->destination.home, NULL, &files, &count));
     for (uint32_t i = 0; i < count; i++) {
-        if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+        if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
             WT_ERR(__wt_filename_construct(
               session, fs->destination.home, files[i], UINTMAX_MAX, UINT32_MAX, filepath));
             __wt_verbose_info(
-              session, WT_VERB_LIVE_RESTORE, "Removing tombstone file %s", (char *)filepath->data);
+              session, WT_VERB_LIVE_RESTORE, "Removing stop file %s", (char *)filepath->data);
             WT_ERR(os_fs->fs_remove(os_fs, wt_session, (char *)filepath->data, 0));
         }
     }
@@ -964,10 +956,10 @@ __wti_live_restore_cleanup_tombstones(WT_SESSION_IMPL *session)
         WT_ERR(os_fs->fs_directory_list(
           os_fs, wt_session, (char *)filepath->data, NULL, &files, &count));
         for (uint32_t i = 0; i < count; i++) {
-            if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_FS_TOMBSTONE_SUFFIX)) {
+            if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
                 WT_ERR(__wt_buf_fmt(session, buf, "%s/%s", (char *)filepath->data, files[i]));
                 __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
-                  "Removing log directory tombstone file %s", (char *)buf->data);
+                  "Removing log directory stop file %s", (char *)buf->data);
                 WT_ERR(os_fs->fs_remove(os_fs, wt_session, buf->data, 0));
             }
         }
@@ -1299,7 +1291,7 @@ err:
  *     Populate a live restore file handle for a directory. Directories have special handling. If
  *     they don't exist in the destination they'll be created immediately (but not their contents)
  *     and immediately marked as complete. WiredTiger will never create or destroy a directory so we
- *     don't need to think about tombstones.
+ *     don't need to think about "stop" directories.
  */
 static int
 __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
@@ -1351,27 +1343,27 @@ static int
 __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
   const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    bool dest_exist = false, source_exist = false, have_tombstone = false;
+    bool dest_exist = false, source_exist = false, have_stop = false;
     WT_SESSION *wt_session = (WT_SESSION *)session;
 
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
-    WT_RET(__dest_has_tombstone(lr_fs, (char *)name, session, &have_tombstone));
+    WT_RET(__dest_has_stop_file(lr_fs, (char *)name, session, &have_stop));
 
     if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
 
-    if (!dest_exist && have_tombstone && !LF_ISSET(WT_FS_OPEN_CREATE))
+    if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
 
     /* Open it in the destination layer. */
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
 
-    if (have_tombstone || lr_fs->finished) {
+    if (have_stop || lr_fs->finished) {
         /*
-         * Set the complete flag, we know that if there is a tombstone we should never look in the
+         * Set the complete flag, we know that if there is a stop file we should never look in the
          * source. Therefore the destination must be complete.
          */
         lr_fh->destination.complete = true;
@@ -1513,7 +1505,7 @@ __live_restore_fs_remove(
 
     /*
      * It's possible to call remove on a file that hasn't yet been created in the destination. In
-     * these cases we only need to create the tombstone.
+     * these cases we only need to create the stop file.
      */
     if (layer == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(
@@ -1522,11 +1514,11 @@ __live_restore_fs_remove(
     }
 
     /*
-     * The tombstone here is useful as it tells us that we will never need to look in the source for
+     * The stop file here is useful as it tells us that we will never need to look in the source for
      * this file in the future. One such case is when a file is created, removed and then created
      * again with the same name.
      */
-    __live_restore_fs_create_tombstone(fs, session, name, flags);
+    __live_restore_fs_create_stop_file(fs, session, name, flags);
 
 err:
     __wt_free(session, path);
@@ -1581,8 +1573,8 @@ __live_restore_fs_rename(
       lr_fs->os_file_system, wt_session, path_from, path_to, flags));
 
     /* Even if we don't modify a backing file we need to update metadata. */
-    WT_ERR(__live_restore_fs_create_tombstone(fs, session, to, flags));
-    WT_ERR(__live_restore_fs_create_tombstone(fs, session, from, flags));
+    WT_ERR(__live_restore_fs_create_stop_file(fs, session, to, flags));
+    WT_ERR(__live_restore_fs_create_stop_file(fs, session, from, flags));
 
 err:
     __wt_free(session, path_from);
