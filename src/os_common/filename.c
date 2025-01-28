@@ -60,6 +60,10 @@ int
 __wt_filename_construct(WT_SESSION_IMPL *session, const char *path, const char *file_prefix,
   uintmax_t id_1, uint32_t id_2, WT_ITEM *buf)
 {
+    /*
+     * If there is a path we write to the start of the buffer to avoid appending when callers loop
+     * externally.
+     */
     if (path != NULL && path[0] != '\0')
         WT_RET(__wt_buf_fmt(session, buf, "%s%s", path, __wt_path_separator()));
     WT_RET(__wt_buf_catfmt(session, buf, "%s", file_prefix));
