@@ -133,11 +133,14 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
             ret = 0;
         else {
             char *live_restore_extents;
+            /*
+             * The config api returns us a pointer into the metadata string. We need to null
+             * terminate the string as C library functions depend on that. Copy it to return it to
+             * the caller.
+             */
             WT_ERR(__wt_calloc(session, 1, v.len + 1, &live_restore_extents));
-
             strncpy(live_restore_extents, v.str, v.len);
             live_restore_extents[v.len] = '\0';
-            printf("live restore extent string %s\n", live_restore_extents);
             *live_restore_extentsp = live_restore_extents;
         }
     }
@@ -1275,6 +1278,10 @@ err:
     return (ret);
 }
 
+/*
+ * __ckpt_add_live_restore_info --
+ *     Add relevant live restore information to the checkpoint metadata string.
+ */
 static int
 __ckpt_add_live_restore_info(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_ITEM *buf)
 {

@@ -136,9 +136,10 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE
 #pragma GCC diagnostic pop
 
 /*
- * __wt_live_restore_fh_extent_to_string --
+ * __wt_live_restore_fh_extent_to_metadata_string --
  *     Given a WiredTiger file handle generate a string of its extents. If live restore is not
- *     running return a WT_NOTFOUND error.
+ *     running or the extent list is missing, which indicates the file is complete, return a
+ *     WT_NOTFOUND error.
  */
 int
 __wt_live_restore_fh_extent_to_metadata_string(
@@ -155,15 +156,15 @@ __wt_live_restore_fh_extent_to_metadata_string(
     WTI_LIVE_RESTORE_HOLE_NODE *head = lr_fh->destination.hole_list_head;
     WT_RET(__wt_buf_catfmt(session, extent_string, ",live_restore="));
     while (head != NULL) {
-        WT_RET(
-          __wt_buf_catfmt(session, extent_string, "%" PRId64 "-%" PRIu64, head->off - prev_off, head->len));
+        WT_RET(__wt_buf_catfmt(
+          session, extent_string, "%" PRId64 "-%" PRIu64, head->off - prev_off, head->len));
         prev_off = head->off;
         if (head->next != NULL)
             WT_RET(__wt_buf_catfmt(session, extent_string, ";"));
         head = head->next;
     }
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-      "Appending live restore extents (%s) to metadata for filehandle %s", fh->name,
+      "Appending live restore extents (%s) to metadata for file handle %s", fh->name,
       (char *)extent_string->data);
 
     return (0);
@@ -1191,15 +1192,21 @@ err:
     return (ret);
 }
 
+/*
+ * __wt_live_restore_import_extents_from_string --
+ *     Reconstruct the extent list in memory from a string representation. If the string is NULL do
+ *     nothing. On error free any allocated extents.
+ */
 int
 __wt_live_restore_import_extents_from_string(
   WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, char *ckpt_string)
 {
     WT_DECL_RET;
-    WT_UNUSED(session);
-    WT_UNUSED(fh);
+
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     if (ckpt_string != NULL) {
-        WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+        WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
+          "Live restore extent list not empty during import");
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Got live restore extents from metadata!! %s", ckpt_string);
         /* The extents are separated by ;. And have the shape %d-%u. */
@@ -1213,16 +1220,21 @@ __wt_live_restore_import_extents_from_string(
             str_ptr++;
             len = (size_t)strtol(str_ptr, &str_ptr, 10);
             str_ptr++;
-            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-                  "Adding an extent: %" PRId64 "-%" PRIu64, off, len);
+            __wt_verbose_debug3(
+              session, WT_VERB_LIVE_RESTORE, "Adding an extent: %" PRId64 "-%" PRIu64, off, len);
             WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
             current = &((*current)->next);
         } while (*str_ptr != '\0');
         WT_ERR(__live_restore_handle_verify_hole_list(
           session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system, lr_fh, fh->name));
     }
+
+    if (0) {
 err:
-    return (0);
+        __live_restore_fs_free_extent_list(session, lr_fh);
+    }
+
+    return (ret);
 }
 
 /*
