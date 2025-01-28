@@ -235,7 +235,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
  *     Merge in a split page.
  */
 static int
-__rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref)
+__rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, uint8_t previous_ref_state)
 {
     WT_ADDR *addr;
     WT_MULTI *multi;
@@ -251,6 +251,12 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref)
 
     key = &r->k;
     val = &r->v;
+
+    /* TODO: build delta for split pages. */
+    if (build_delta && mod->mod_multi_entries > 1 && ref_changes > 0) {
+        build_delta = false;
+        r->delta.size = 0;
+    }
 
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
@@ -277,6 +283,11 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref)
 
         /* Update compression state. */
         __rec_key_state_update(r, false);
+
+        if (build_delta && ref_changes > 0) {
+            WT_ASSERT(session, mod->mod_multi_entries == 1);
+            WT_RET(__wti_rec_pack_delta_internal(session, r, key, val));
+        }
     }
     return (0);
 }
@@ -301,7 +312,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_REC_KV *key, *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
-    size_t size, delta_count;
+    size_t size;
     uint16_t prev_ref_changes;
     bool build_delta;
     const void *p;
@@ -321,7 +332,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     ikey = NULL; /* -Wuninitialized */
     cell = NULL;
     build_delta = WT_BUILD_DELTA_INT(session, r);
-    delta_count = 0;
 
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxintlpage_precomp, 0));
     if (build_delta)
@@ -390,7 +400,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 __wt_ref_key(page, ref, &p, &size);
                 WT_ERR(__rec_cell_build_int_key(session, r, p, size));
                 WT_ERR(__wti_rec_pack_delta_internal(session, r, key, NULL));
-                ++delta_count;
             }
 
             /*
@@ -420,7 +429,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                     __wt_ref_key(page, ref, &p, &size);
                     WT_ERR(__rec_cell_build_int_key(session, r, p, size));
                     WT_ERR(__wti_rec_pack_delta_internal(session, r, key, NULL));
-                    ++delta_count;
                 }
 
                 /*
@@ -432,12 +440,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
-                /* TODO: build delta for split pages. */
-                if (build_delta && prev_ref_changes > 0) {
-                    build_delta = false;
-                    r->delta.size = 0;
-                }
-                WT_ERR(__rec_row_merge(session, r, ref));
+                WT_ERR(__rec_row_merge(session, r, ref, prev_ref_changes));
 
                 /*
                  * Set the ref_changes state to zero if there were no concurrent changes while
@@ -534,10 +537,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Update compression state. */
         __rec_key_state_update(r, false);
 
-        if (build_delta && prev_ref_changes > 0) {
+        if (build_delta && prev_ref_changes > 0)
             WT_ERR(__wti_rec_pack_delta_internal(session, r, key, val));
-            ++delta_count;
-        }
 
         /*
          * Set the ref_changes state to zero if there were no concurrent changes while reconciling
@@ -546,12 +547,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_atomic_casv16(&ref->ref_changes, prev_ref_changes, 0);
     }
     WT_INTL_FOREACH_END;
-
-    if (build_delta) {
-        header = (WT_DELTA_HEADER *)r->delta.data;
-        /* TODO: it's a bit ugly as we only know the count here. */
-        header->u.entries = delta_count;
-    }
 
     /* Write the remnant page. */
     return (__wti_rec_split_finish(session, r));
