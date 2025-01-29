@@ -1480,6 +1480,7 @@ __clayered_next_random(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     int exact;
 
+    c = NULL; /* Workaround for compilers reporting it as used uninitialized. */
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
     CURSOR_API_CALL(cursor, session, ret, next, clayered->dhandle);
