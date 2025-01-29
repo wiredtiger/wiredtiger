@@ -742,8 +742,8 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     stable_deferred = ret == ENOENT && !S2C(session)->layered_table_manager.leader;
     if (stable_deferred) {
         /*
-         * This is fine: we may not have seen a checkpoint containing this table yet,
-         * so we won't have a stable component until the next checkpoint.
+         * This is fine: we may not have seen a checkpoint containing this table yet, so we won't
+         * have a stable component until the next checkpoint.
          */
         ret = 0;
         stable_id = 0;
