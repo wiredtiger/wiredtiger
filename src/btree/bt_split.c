@@ -463,7 +463,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
          */
         ref = *alloc_refp++;
         ref->home = root;
-		WT_REF_ASSIGN_PAGE(session, btree->dhandle, ref, child);
+        WT_REF_ASSIGN_PAGE(session, btree->dhandle, ref, child);
         ref->addr = NULL;
         if (root->type == WT_PAGE_ROW_INT) {
             __wt_ref_key(root, *root_refp, &p, &size);
@@ -636,8 +636,8 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
      */
     WT_REF_SET_STATE(ref, WT_REF_SPLIT);
 
-	/* Remove the ref from evict queues before freeing. */
-	TODO;
+    /* Remove the ref from evict queues before freeing. */
+    TODO;
 
     WT_TRET(__split_safe_free(session, split_gen, exclusive, ref, sizeof(WT_REF)));
     *decrp += sizeof(WT_REF);
@@ -1013,7 +1013,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
          */
         ref = *alloc_refp++;
         ref->home = parent;
-		WT_REF_ASSIGN_PAGE(session, btree->dhandle, ref, child);
+        WT_REF_ASSIGN_PAGE(session, btree->dhandle, ref, child);
         ref->addr = NULL;
         if (page->type == WT_PAGE_ROW_INT) {
             __wt_ref_key(page, *page_refp, &p, &size);
@@ -1820,7 +1820,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ERR(__wt_calloc_one(session, &split_ref[0]));
     parent_incr += sizeof(WT_REF);
     child = split_ref[0];
-	WT_REF_ASSIGN_PAGE(session, S2BT(session)->dhandle, child, ref->page);
+    WT_REF_ASSIGN_PAGE(session, S2BT(session)->dhandle, child, ref->page);
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
@@ -1862,7 +1862,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ERR(__wt_calloc_one(session, &split_ref[1]));
     parent_incr += sizeof(WT_REF);
     child = split_ref[1];
-	WT_REF_ASSIGN_PAGE(session, S2BT(session)->dhandle, child, right);
+    WT_REF_ASSIGN_PAGE(session, S2BT(session)->dhandle, child, right);
     F_SET(child, WT_REF_FLAG_LEAF);
     WT_REF_SET_STATE(child, WT_REF_MEM); /* Visible as soon as the split completes. */
     if (type == WT_PAGE_ROW_LEAF) {
@@ -2308,7 +2308,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
-	WT_REF_ASSIGN_PAGE(session, S2BT(session)->btree, ref, new->page);
+    WT_REF_ASSIGN_PAGE(session, S2BT(session)->btree, ref, new->page);
 
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 

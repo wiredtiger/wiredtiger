@@ -52,6 +52,7 @@ __wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     __wt_atomic_store64(
       &page->read_gen, (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
+    __evict_enqueue_page(session, session->dhandle, ref);
 }
 
 /*
@@ -112,7 +113,6 @@ __wt_evict_page_is_soon(WT_PAGE *page)
     return (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON);
 }
 
-
 /* !!!
  * __wt_evict_page_first_dirty --
  *     Update a page's eviction state (read generation) when a page transitions from clean to
@@ -146,6 +146,9 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
  *
  *     Input parameter:
  *       `page`: The page for which to initialize the read generation.
+ *
+ *     We can't put the page into eviction data structures at this point, because we
+ *     don't have its reference.
  */
 static WT_INLINE void
 __wt_evict_page_init(WT_PAGE *page)
@@ -197,7 +200,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     cache = S2C(session)->cache;
     modify = page->modify;
 
-	WT_ASSERT(session, WT_EVICT_PAGE_CLEARED(page));
+    WT_ASSERT(session, WT_EVICT_PAGE_CLEARED(page));
 
     /* Update the bytes in-memory to reflect the eviction. */
     __wt_cache_decr_check_uint64(session, &btree->bytes_inmem,
@@ -589,4 +592,3 @@ __wt_evict_app_assist_worker_check(
 
     return (__wti_evict_app_assist_worker(session, busy, readonly, pct_full));
 }
-

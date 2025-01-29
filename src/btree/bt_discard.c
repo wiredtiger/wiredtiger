@@ -47,7 +47,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
         !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
 
-	__wt_evict_remove(session, ref);
+    __wt_evict_remove(session, ref);
     __wt_page_out(session, &ref->page);
 }
 
@@ -79,8 +79,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
     WT_ASSERT_ALWAYS(
       session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
-	WT_ASSERT_ALWAYS(session, __wt_evict_page_cleared(page),
-					 "Attempting to discard a page that is still in an eviction queue");
+    WT_ASSERT_ALWAYS(session, __wt_evict_page_cleared(page),
+      "Attempting to discard a page that is still in an eviction queue");
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,
@@ -98,8 +98,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     /* Update the cache's information. */
     __wt_evict_page_cache_bytes_decr(session, page);
 
-	/* Make sure the page is not in eviction queues */
-	WT_ASSERT_ALWAYS(session, WT_EVICT_PAGE_CLEARED(page));
+    /* Make sure the page is not in eviction queues */
+    WT_ASSERT_ALWAYS(session, WT_EVICT_PAGE_CLEARED(page));
 
     dsk = (WT_PAGE_HEADER *)page->dsk;
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
@@ -343,8 +343,9 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
         WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
           "Attempting to discard ref to a page being reconciled");
         __wt_page_modify_clear(session, ref->page);
-/*        __wt_page_out(session, &ref->page); No reason why we shouldn't use __wt_ref_out here */
-		__wt_ref_out(session, ref);
+        /*        __wt_page_out(session, &ref->page); No reason why we shouldn't use __wt_ref_out
+         * here */
+        __wt_ref_out(session, ref);
     }
 
     /*

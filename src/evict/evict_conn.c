@@ -273,6 +273,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     /* Use a common routine for run-time configuration options. */
     WT_RET(__wt_evict_config(session, cfg, false));
 
+	WT_RET(__wt_spin_init(session, &conn->evict.evict_exclusive_lock, "evict-exclusive"));
     /*
      * The lowest possible page read-generation has a special meaning, it marks a page for forcible
      * eviction; don't let it happen by accident.
@@ -309,8 +310,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     if (evict == NULL)
         return (0);
 
-    __wt_cond_destroy(session, &evict->evict_cond);
-    __wt_spin_destroy(session, &evict->evict_walk_lock);
+    __wt_spin_destroy(session, &evict->evict_exclusive_lock);
     __wt_free(session, conn->evict);
     return (ret);
 }

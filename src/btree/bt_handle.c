@@ -159,8 +159,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /*
      * Eviction ignores trees until the handle's open flag is set, configure eviction before that
      * happens.
-	 */
-	WT_IGNORE_RET(__wt_evict_init_handle_data(session, dhandle));
+     */
+    WT_IGNORE_RET(__wt_evict_init_handle_data(session, dhandle));
     /*
      * Files that can still be bulk-loaded cannot be evicted. Permanently cache-resident files can
      * never be evicted. Special operations don't enable eviction. The underlying commands may turn
@@ -800,11 +800,11 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         break;
     }
 
-	/*
-	 * Call this macro even though the above calls already set the page pointer inside the
-	 * ref. We need this, because the macro initializes eviction data structures.
-	 */
-	WT_REF_ASSIGN_PAGE(session, btree->dhandle, ref, &ref->page);
+    /*
+     * Call this macro even though the above calls already set the page pointer inside the ref. We
+     * need this, because the macro initializes eviction data structures.
+     */
+    WT_REF_ASSIGN_PAGE(session, btree->dhandle, ref, &ref->page);
 
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are

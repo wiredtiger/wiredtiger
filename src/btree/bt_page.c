@@ -20,9 +20,8 @@ static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, u
  *     Create or read a page into the cache.
  */
 int
-__wt_page_alloc(
-	WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs, bool evict_add,
-	WT_PAGE **pagep)
+__wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs,
+  bool evict_add, WT_PAGE **pagep)
 {
     WT_DECL_RET;
     WT_PAGE *page;
@@ -113,8 +112,7 @@ err:
     __wt_cache_page_inmem_incr(session, page, size);
     (void)__wt_atomic_add64(&S2C(session)->cache->pages_inmem, 1);
     page->cache_create_gen = __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen);
-	__wt_evict_page_init(page);
-
+    __wt_evict_page_init(page);
 
     *pagep = page;
     return (0);
@@ -460,17 +458,17 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
             break;
         }
         ref->page = page;
-		WT_REF_ASSIGN_PAGE(session, S2BT(session)->dhandle, ref, page);
+        WT_REF_ASSIGN_PAGE(session, S2BT(session)->dhandle, ref, page);
     }
 
     *pagep = page;
     return (0);
 
 err:
-	if (ref != NULL && ref->page == page)
-		__wt_ref_out(session, ref);
-	else
-		__wt_page_out(session, &page);
+    if (ref != NULL && ref->page == page)
+        __wt_ref_out(session, ref);
+    else
+        __wt_page_out(session, &page);
     return (ret);
 }
 

@@ -13,7 +13,6 @@ static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_reconcile(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
 
-
 /*
  * __evict_exclusive_clear --
  *     Release exclusive access to a page.
@@ -283,15 +282,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     if (0) {
 err:
-		/*
-		 * In case something goes wrong, don't pick the same set of pages every time.
-		 * Bumping the read generation will move the page to a lower-priority queue.
-		 */
+        /*
+         * In case something goes wrong, don't pick the same set of pages every time. Bumping the
+         * read generation will move the page to a lower-priority queue.
+         */
         if (!closing) {
-			__wti_evict_read_gen_bump(session, ref->page);
-			/* Put the page back into the list it belongs XXX */
+            __wti_evict_read_gen_bump(session, ref->page);
+            /* Put the page back into the list it belongs XXX */
             __evict_exclusive_clear(session, ref, previous_state);
-		}
+        }
         if (ebusy_only && ret != EBUSY)
             WT_RET_PANIC(session, ret, "eviction failed when only EBUSY is allowed");
     }
@@ -307,7 +306,6 @@ done:
 
     return (ret);
 }
-
 
 /*
  * __evict_delete_ref --
@@ -1011,4 +1009,3 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
     return (0);
 }
-

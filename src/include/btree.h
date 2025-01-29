@@ -242,9 +242,9 @@ struct __wt_btree {
      * reconciliation by the eviction.
      */
     wt_shared uint32_t eviction_obsolete_tw_pages;
-	WT_EVICT_BUCKETSET internal_pages;
-	WT_EVICT_BUCKETSET clean_leaf_pages;
-	WT_EVICT_BUCKETSET dirty_leaf_pages;
+    WT_EVICT_BUCKETSET internal_pages;
+    WT_EVICT_BUCKETSET clean_leaf_pages;
+    WT_EVICT_BUCKETSET dirty_leaf_pages;
 
     /*
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.

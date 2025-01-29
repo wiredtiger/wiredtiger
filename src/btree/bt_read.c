@@ -510,8 +510,8 @@ skip_evict:
                     session->pf.prefetch_disk_read_count = 0;
             }
 
-            __wt_evict_touch_page(session, session->dhandle, ref,
-								  LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
+            __wt_evict_touch_page(
+              session, session->dhandle, ref, LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
 
             /*
              * Check if we need an autocommit transaction. Starting a transaction can trigger
