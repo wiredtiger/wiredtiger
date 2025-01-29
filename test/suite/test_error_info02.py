@@ -58,20 +58,16 @@ class test_error_info02(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
 
         # Start a transaction and insert a value large enough to trigger eviction app worker threads.
-        self.session.begin_transaction()
-        cursor.set_key("key_a")
-        cursor.set_value("a"*1024*5000)
-        cursor.update()
-        self.session.commit_transaction()
+        for i in range(1000):
+            self.session.begin_transaction()
+            cursor.set_key(str(i))
+            cursor.set_value(str(i)*1024*5000)
 
-        # Start a new transaction and attempt to insert a value. The very low cache_max_wait_ms
-        # value should cause the eviction thread to time out.
-        self.session.begin_transaction()
-        cursor.set_key("key_b")
-        cursor.set_value("b")
-
-        # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update())
+            try:
+                cursor.update()
+                self.session.commit_transaction()
+            except wiredtiger.WiredTigerError as e:
+                break
 
         self.ignoreStdoutPatternIfExists("transaction rolled back because of cache overflow")
 
@@ -142,8 +138,6 @@ class test_error_info02(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update())
 
     def test_wt_rollback_wt_cache_overflow(self):
-        # FIXME-WT-14046
-        self.skipTest("FIXME-WT-14046")
         self.api_call_with_wt_rollback_wt_cache_overflow()
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
 
