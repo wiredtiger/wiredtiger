@@ -955,7 +955,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     ingest_found = ret != WT_NOTFOUND;
 
     /* If there wasn't an exact match, check the stable table as well */
-    if (!ingest_found || ingest_cmp != 0) {
+    if ((!ingest_found || ingest_cmp != 0) && clayered->stable_cursor != NULL) {
         clayered->stable_cursor->set_key(clayered->stable_cursor, &cursor->key);
         WT_ERR_NOTFOUND_OK(
           clayered->stable_cursor->search_near(clayered->stable_cursor, &stable_cmp), true);

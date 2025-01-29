@@ -128,10 +128,16 @@ class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertEqual(cursor[str(i)], value1)
         cursor.close()
 
-    def test_secondary_notfound_without_stable(self):
+    def test_secondary_search_without_stable(self):
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
         cursor.set_key("nonexistent")
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
+
+        cursor["found"] = "yes"
+        cursor.set_key("found")
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.search_near(), 0)
