@@ -68,7 +68,7 @@ class test_error_info03(error_info_util):
         lock_thread.join()
         drop_thread.join()
 
-        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_CONFLICT_SCHEMA_LOCK, "another thread is currently accessing the schema")
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_CONFLICT_SCHEMA_LOCK, "another thread is currently holding the schema lock")
 
     def test_conflict_table(self):
         """
@@ -89,7 +89,7 @@ class test_error_info03(error_info_util):
         lock_thread.join()
         drop_thread.join()
 
-        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_CONFLICT_TABLE_LOCK, "another thread is currently accessing the table")
+        self.assert_error_equal(errno.EBUSY, wiredtiger.WT_CONFLICT_TABLE_LOCK, "another thread is currently holding the table lock")
 
     def test_conflict_backup(self):
         """

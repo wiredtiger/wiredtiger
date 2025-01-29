@@ -21,8 +21,8 @@
 #define URI "table:test_drop_conflict"
 #define CONFLICT_BACKUP_MSG "the table is currently performing backup and cannot be dropped"
 #define CONFLICT_DHANDLE_MSG "another thread is currently holding the data handle of the table"
-#define CONFLICT_SCHEMA_LOCK_MSG "another thread is currently accessing the schema"
-#define CONFLICT_TABLE_LOCK_MSG "another thread is currently accessing the table"
+#define CONFLICT_SCHEMA_LOCK_MSG "another thread is currently holding the schema lock"
+#define CONFLICT_TABLE_LOCK_MSG "another thread is currently holding the table lock"
 
 /*
  * Prepare a session and error_info struct to be used by the drop conflict tests.

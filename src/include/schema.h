@@ -242,7 +242,7 @@ struct __wt_import_list {
         if (__lock_ret != 0) {                                                                 \
             WT_IGNORE_RET(                                                                     \
               __wt_session_set_last_error(session, __lock_ret, WT_CONFLICT_SCHEMA_LOCK,        \
-                __lock_ret == EBUSY ? "another thread is currently accessing the schema" :     \
+                __lock_ret == EBUSY ? "another thread is currently holding the schema lock" :  \
                                       "failed to acquire the schema lock"));                   \
             ret = __lock_ret;                                                                  \
         }                                                                                      \
@@ -307,7 +307,7 @@ struct __wt_import_list {
         if ((__table_lock_ret) != 0) {                                                             \
             WT_IGNORE_RET(                                                                         \
               __wt_session_set_last_error(session, __table_lock_ret, WT_CONFLICT_TABLE_LOCK,       \
-                __table_lock_ret == EBUSY ? "another thread is currently accessing the table" :    \
+                __table_lock_ret == EBUSY ? "another thread is currently holding the table lock" : \
                                             "failed to acquire the table lock"));                  \
             ret = __table_lock_ret;                                                                \
         }                                                                                          \
