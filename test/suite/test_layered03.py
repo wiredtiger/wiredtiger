@@ -27,11 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, time, wiredtiger, wttest
+from helper_disagg import disagg_test_class
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_layered03.py
 #    Basic layered tree cursor insert and read
+@disagg_test_class
 class test_layered03(wttest.WiredTigerTestCase):
 
     uri_base = "test_layered03"

@@ -26,11 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wttest
-from helper_disagg import DisaggConfigMixin
+import os, time, wiredtiger, wttest
+from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_layered12.py
 #    Pick up different checkpoints.
+@disagg_test_class
 class test_layered12(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
@@ -77,7 +78,7 @@ class test_layered12(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
-        checkpoint1 = self.disagg_get_complete_checkpoint()
+        checkpoint1 = self.disagg_get_complete_checkpoint_meta()
 
         # Create version 2 of the data
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -90,17 +91,17 @@ class test_layered12(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1)
         self.session.checkpoint()
         time.sleep(1)
-        checkpoint2 = self.disagg_get_complete_checkpoint()
+        checkpoint2 = self.disagg_get_complete_checkpoint_meta()
 
         # Pick up the first version and check
-        conn_follow.reconfigure(f'disaggregated=(checkpoint_id={checkpoint1})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint1}")')
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             self.assertEquals(cursor[str(i)], value1)
         cursor.close()
 
         # Pick up the second version and check
-        conn_follow.reconfigure(f'disaggregated=(checkpoint_id={checkpoint2})')
+        conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint2}")')
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             if i % 10 == 0:

@@ -20,7 +20,7 @@ __wt_block_disagg_header_byteswap(WT_BLOCK_DISAGG_HEADER *blk)
 
 /*
  * __wt_block_disagg_header_byteswap_copy --
- *     Place holder - might be necessaryt to handle network order.
+ *     Place holder - might be necessary to handle network order.
  */
 void
 __wt_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
@@ -70,9 +70,11 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_PAGE_HEADER *page_header;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_PAGE_LOG_PUT_ARGS put_args;
-    uint64_t checkpoint_id, page_id, page_log_checkpoint_id;
+    uint64_t checkpoint_id, page_id, page_log_checkpoint_id, time_start, time_stop;
     uint32_t checksum;
     bool is_delta;
+
+    time_start = __wt_clock(session);
 
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id >= WT_BLOCK_MIN_PAGE_ID);
@@ -190,6 +192,8 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
       /* TODO - WT_BLOCK_COMPRESS_SKIP may not be the right thing */
       __wt_checksum(buf->mem, data_checksum ? buf->size : WT_BLOCK_COMPRESS_SKIP);
 
+    put_args.backlink_lsn = block_meta->backlink_lsn;
+    put_args.base_lsn = block_meta->base_lsn;
     put_args.backlink_checkpoint_id = block_meta->backlink_checkpoint_id;
     put_args.base_checkpoint_id = block_meta->base_checkpoint_id;
 
@@ -206,12 +210,15 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_STAT_CONN_INCRV(session, block_byte_write, buf->size);
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, buf->size);
+    time_stop = __wt_clock(session);
+    __wt_stat_msecs_hist_incr_bmwrite(session, WT_CLOCKDIFF_MS(time_stop, time_start));
 
     __wt_verbose(session, WT_VERB_WRITE, "off %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIu32,
       (uintmax_t)page_id, (uintmax_t)buf->size, checksum);
 
     /* Some extra data is set by the put interface, and must be returned up the chain. */
     block_meta->disagg_lsn = put_args.lsn;
+    WT_ASSERT(session, put_args.lsn > 0);
     block_meta->checksum = checksum;
 
     *sizep = WT_STORE_SIZE(buf->size);
@@ -251,8 +258,8 @@ __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
     __wt_page_header_byteswap(buf->mem);
 
     endp = addr;
-    WT_RET(__wt_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->checkpoint_id,
-      block_meta->reconciliation_id, size, checksum));
+    WT_RET(__wt_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->disagg_lsn,
+      block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);

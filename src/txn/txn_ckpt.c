@@ -1130,6 +1130,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     cache = conn->cache;
+    ckpt_tmp_ts = WT_TS_NONE;
     hs_size = 0;
     hs_dhandle = NULL;
     txn = session->txn;
@@ -1253,6 +1254,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_ACQUIRE_READ_WITH_BARRIER(ckpt_tmp_ts, txn_global->checkpoint_timestamp);
 
+    /*
+     * Save the checkpoint timestamp in the disaggregated storage struct, as we'll need it during
+     * the checkpoint resolve of the shared metadata table.
+     */
+    conn->disaggregated_storage.cur_checkpoint_timestamp = ckpt_tmp_ts;
+
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
     /*
@@ -1319,13 +1326,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         time_stop_hs = __wt_clock(session);
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
-    }
-
-    /* Checkpoint the shared metadata table last, as it could have changed. */
-    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
-        WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
-        if (S2BT(session)->modified)
-            WT_ERR(__wt_checkpoint(session, cfg));
     }
 
     /*
@@ -1419,6 +1419,20 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (full || !logging) {
         session->isolation = txn->isolation = WT_ISO_READ_UNCOMMITTED;
+
+        /*
+         * Checkpoint the shared metadata table last, as it could have changed. Also checkpoint it
+         * after we have released the checkpoint transaction. Otherwise, during the checkpoint, we
+         * have reconciled the pages on the tree and may have cleaned them (checkpoint can see its
+         * own uncommitted updates). In that case, we may evict it and the checkpoint transaction
+         * cannot commit as the updates have gone from memory.
+         */
+        if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+            WT_ERR(__wt_session_get_dhandle(session, WT_DISAGG_METADATA_URI, NULL, NULL, 0));
+            if (S2BT(session)->modified)
+                WT_ERR(__wt_checkpoint(session, cfg));
+        }
+
         /* Disable metadata tracking during the metadata checkpoint. */
         saved_meta_next = session->meta_track_next;
         session->meta_track_next = NULL;
@@ -1537,9 +1551,11 @@ err:
      * Ensure that turning off meta tracking worked.
      */
     WT_ACQUIRE_READ(num_meta_put, conn->disaggregated_storage.num_meta_put);
-    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put)
+    if (conn->disaggregated_storage.num_meta_put_at_ckpt_begin < num_meta_put) {
+        WT_ASSERT(session, ckpt_tmp_ts == conn->disaggregated_storage.cur_checkpoint_timestamp);
         if (__wt_disagg_advance_checkpoint(session, !failed && ret == 0) != 0)
             return (__wt_panic(session, WT_PANIC, "Failed to advance the checkpoint."));
+    }
 
     for (i = 0; i < session->ckpt_handle_next; ++i) {
         if (session->ckpt_handle[i] == NULL)
@@ -1558,6 +1574,9 @@ err:
         __wt_scr_free(session, &session->ckpt_drop_list);
 
     __txn_checkpoint_clear_time(session);
+
+    /* Clear the timestamp of the in-progress checkpoint now that we are done. */
+    conn->disaggregated_storage.cur_checkpoint_timestamp = WT_TS_NONE;
 
     __wt_free(session, session->ckpt_handle);
     session->ckpt_handle_allocated = session->ckpt_handle_next = 0;

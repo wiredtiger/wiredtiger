@@ -48,7 +48,8 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
         WT_RET(__wt_block_disagg_write_internal(
           session, block_disagg, root_image, block_meta, &size, &checksum, true, true));
         WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
-          block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
+          block_meta->disagg_lsn, block_meta->checkpoint_id, block_meta->reconciliation_id, size,
+          checksum));
         ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
     }
 
@@ -127,15 +128,14 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t len;
-    uint64_t checkpoint_id;
-    char *entry, *md_key;
+    uint64_t checkpoint_id, checkpoint_timestamp, lsn;
+    char *md_key;
     const char *md_value;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     conn = S2C(session);
 
     buf = NULL;
-    entry = NULL;
     md_cursor = NULL;
     md_key = NULL;
 
@@ -163,15 +163,16 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     if (strcmp(block_disagg->name, WT_DISAGG_METADATA_FILE) == 0) {
         /* Get the config we want to print to the metadata file */
         WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
+        checkpoint_timestamp = conn->disaggregated_storage.cur_checkpoint_timestamp;
 
-        len = cval.len + 1; /* +1 for the last byte */
-        WT_ERR(__wt_calloc_def(session, len, &entry));
-        WT_ERR(__wt_snprintf(entry, len, "%.*s", (int)cval.len, cval.str));
-
-        WT_ERR(__wt_scr_alloc(session, len, &buf));
-        memcpy(buf->mem, entry, len);
-        buf->size = len - 1;
-        WT_ERR(__wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf));
+        WT_ERR(__wt_scr_alloc(session, 0, &buf));
+        WT_ERR(__wt_buf_fmt(session, buf,
+          "%.*s\n"
+          "timestamp=%" PRIx64,
+          (int)cval.len, cval.str, checkpoint_timestamp));
+        WT_ERR(
+          __wt_disagg_put_meta(session, WT_DISAGG_METADATA_MAIN_PAGE_ID, checkpoint_id, buf, &lsn));
+        WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_meta_lsn, lsn);
     } else {
         /* Keep all metadata for regular tables. */
         WT_SAVE_DHANDLE(
@@ -180,7 +181,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
         /* Check if we need to include any other metadata keys. */
         if (WT_SUFFIX_MATCH(block_disagg->name, ".wt")) {
-            /* TODO: Less hacky way of finding related metadata. */
+            /* TODO: Change this hack to a nicer way of finding related metadata. */
 
             WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", block_disagg->name));
             md_key[strlen(md_key) - 3] = '\0'; /* Remove the .wt suffix */
@@ -209,7 +210,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 
         /* Check if we need to include any other metadata keys for layered tables. */
         if (WT_SUFFIX_MATCH(block_disagg->name, ".wt_stable")) {
-            /* TODO: Less hacky way of finding related metadata. */
+            /* TODO: Change this hack to a nicer way of finding related metadata. */
 
             WT_ERR(__wt_snprintf(md_key, len, "layered:%s", block_disagg->name));
             md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
@@ -229,7 +230,6 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
 err:
     __wt_scr_free(session, &buf);
     __wt_free(session, md_key);
-    __wt_free(session, entry); /* TODO may not have been allocated */
     if (md_cursor != NULL)
         WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
 
@@ -247,7 +247,7 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
 {
     WT_BLOCK_DISAGG *block_disagg;
     unsigned i;
-    uint64_t checkpoint_id, reconciliation_id, root_id;
+    uint64_t checkpoint_id, lsn, reconciliation_id, root_id;
     uint32_t root_size, root_checksum;
     uint8_t *endp;
 
@@ -262,15 +262,15 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
     if (addr == NULL || addr_size == 0)
         return (0);
 
-    WT_RET(__wt_block_disagg_ckpt_unpack(block_disagg, addr, addr_size, &root_id, &checkpoint_id,
-      &reconciliation_id, &root_size, &root_checksum));
+    WT_RET(__wt_block_disagg_ckpt_unpack(block_disagg, addr, addr_size, &root_id, &lsn,
+      &checkpoint_id, &reconciliation_id, &root_size, &root_checksum));
 
     /*
      * Read root page address.
      */
     endp = root_addr;
     WT_RET(__wt_block_disagg_addr_pack(
-      &endp, root_id, checkpoint_id, reconciliation_id, root_size, root_checksum));
+      &endp, root_id, lsn, checkpoint_id, reconciliation_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
     fprintf(stderr, "[%s] __wt_block_disagg_checkpoint_load(): 0x", S2C(session)->home);

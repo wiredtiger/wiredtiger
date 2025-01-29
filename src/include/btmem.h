@@ -166,8 +166,9 @@ struct __wt_delta_header {
 #define WT_DELTA_HEADER_SIZE 20
 
 /*
- * The number of deltas for a base page must be strictly less than WT_DELTA_LIMIT. Changes past that
- * point are reflected by making a new base page. Thus WT_DELTA_LIMIT can be used to size arrays
+ * The number of deltas for a base page must be strictly less than or equal to WT_DELTA_LIMIT.
+ * Though we have made the number of consecutive deltas adjustable through the max_consecutive_delta
+ * config, 32 remains the maximum value we support. Thus WT_DELTA_LIMIT can be used to size arrays
  * that contain the base page plus all associated deltas.
  */
 #define WT_DELTA_LIMIT 32
@@ -325,6 +326,8 @@ struct __wt_page_block_meta {
     uint64_t checkpoint_id;
     uint64_t reconciliation_id;
 
+    uint64_t backlink_lsn;
+    uint64_t base_lsn;
     uint64_t backlink_checkpoint_id;
     uint64_t base_checkpoint_id;
     uint32_t delta_count;
@@ -801,8 +804,9 @@ struct __wt_page {
 #define WT_PAGE_EVICT_NO_PROGRESS 0x040u  /* Eviction doesn't count as progress */
 #define WT_PAGE_INTL_OVERFLOW_KEYS 0x080u /* Internal page has overflow keys (historic only) */
 #define WT_PAGE_PREFETCH 0x100u           /* The page is being pre-fetched */
-#define WT_PAGE_SPLIT_INSERT 0x200u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x400u      /* Ignore updates on page discard */
+#define WT_PAGE_REC_FAIL 0x200u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x400u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x800u      /* Ignore updates on page discard */
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;      /* Atomic flags, use F_*_ATOMIC_16 */
 
@@ -1340,6 +1344,19 @@ struct __wt_ref {
     WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
     uint64_t histoff;
 #endif
+
+    /*
+     * A counter used to track how many times a ref has changed during internal page reconciliation.
+     * The value is compared and swapped to 0 for each internal page reconciliation. If the counter
+     * has a value greater than zero, this implies that the ref has been changed concurrently and
+     * that the ref remains dirty after internal page reconciliation. It is possible for other
+     * operations such as page splits and fast-truncate to concurrently write new values to the ref,
+     * but depending on timing or race conditions, it cannot be guaranteed that these new values are
+     * included as part of the reconciliation. The page would need to be reconciled again to ensure
+     * that these modifications are included.
+     */
+    wt_shared volatile uint16_t ref_changes;
+    char pad[6]; /* Padding */
 };
 
 #ifdef HAVE_REF_TRACK
@@ -1352,9 +1369,9 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 48
+#define WT_REF_SIZE 56
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 

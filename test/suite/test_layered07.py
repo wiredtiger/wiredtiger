@@ -26,11 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wttest
-from helper_disagg import DisaggConfigMixin
+import os, time, wiredtiger, wttest
+from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_layered07.py
 #    Start a second WT that becomes leader and checke that content appears in the first.
+@disagg_test_class
 class test_layered07(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 

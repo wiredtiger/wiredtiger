@@ -37,10 +37,17 @@ from wtscenario import make_scenarios
 # including after other checkpoints are dropped.
 @wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
 class test_checkpoint(wttest.WiredTigerTestCase):
-    scenarios = make_scenarios([
+    uris = [
         ('file', dict(uri='file:checkpoint',fmt='S')),
         ('table', dict(uri='table:checkpoint',fmt='S'))
-    ])
+    ]
+
+    ckpt_precision = [
+        ('fuzzy', dict(ckpt_config='checkpoint=(precise=false)')),
+        ('precise', dict(ckpt_config='checkpoint=(precise=true)')),
+    ]
+
+    scenarios = make_scenarios(uris, ckpt_precision)
 
     # Each checkpoint has a key range and a "is dropped" flag.
     checkpoints = {
@@ -54,6 +61,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         "checkpoint-8": ((300, 820), 0),
         "checkpoint-9": ((400, 920), 0)
         }
+
+    def conn_config(self):
+        return self.ckpt_config
 
     # Add a set of records for a checkpoint.
     def add_records(self, name):

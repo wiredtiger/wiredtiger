@@ -158,8 +158,8 @@ struct __wt_layered_table_manager {
      */
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
 
-    // #define WT_LAYERED_TABLE_THREAD_COUNT 2
-    //     WT_THREAD_GROUP threads;
+#define WT_LAYERED_TABLE_THREAD_COUNT 1
+    WT_THREAD_GROUP threads;
 
     //     WT_LSN max_replay_lsn;
     //     uint64_t max_applied_txnid;
@@ -177,8 +177,12 @@ struct __wt_disaggregated_storage {
     char *stable_prefix;
     char *storage_source;
 
-    wt_shared uint64_t global_checkpoint_id; /* The ID of the currenty opened checkpoint. */
-                                             /* Updates are protected by the checkpoint lock. */
+    wt_shared uint64_t global_checkpoint_id;     /* The ID of the currently opened checkpoint. */
+                                                 /* Updates are protected by the checkpoint lock. */
+    wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
+
+    wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
+    wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
 
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;
@@ -751,7 +755,6 @@ struct __wt_connection_impl {
     WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
     WT_LOG_INFO log_info;
-    WT_LOG_INFO layered_table_log_info;
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
@@ -932,12 +935,11 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_CHUNKCACHE_METADATA 0x008u
 #define WT_CONN_SERVER_COMPACT 0x010u
 #define WT_CONN_SERVER_LAYERED 0x020u
-#define WT_CONN_SERVER_LAYERED_TABLE_LOG 0x040u
-#define WT_CONN_SERVER_LOG 0x080u
-#define WT_CONN_SERVER_LSM 0x100u
-#define WT_CONN_SERVER_STATISTICS 0x200u
-#define WT_CONN_SERVER_SWEEP 0x400u
-#define WT_CONN_SERVER_TIERED 0x800u
+#define WT_CONN_SERVER_LOG 0x040u
+#define WT_CONN_SERVER_LSM 0x080u
+#define WT_CONN_SERVER_STATISTICS 0x100u
+#define WT_CONN_SERVER_SWEEP 0x200u
+#define WT_CONN_SERVER_TIERED 0x400u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t server_flags;
 

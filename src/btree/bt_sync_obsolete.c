@@ -234,6 +234,12 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
             if (ref_deleted)
                 new_state = WT_REF_DELETED;
         }
+        /*
+         * For deleted and on-disk pages, increment ref_changes if there has been a change in the
+         * ref's state. There's nothing to do for in-memory pages as we don't change those.
+         */
+        if (previous_state != new_state)
+            __wt_atomic_addv16(&ref->ref_changes, 1);
         WT_REF_UNLOCK(ref, new_state);
         WT_RET(ret);
     } else if (ref_state == WT_REF_MEM) {

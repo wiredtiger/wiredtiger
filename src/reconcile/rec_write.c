@@ -97,6 +97,11 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* If writing a page in service of compaction, we're done, clear the flag. */
     F_CLR_ATOMIC_16(ref->page, WT_PAGE_COMPACTION_WRITE);
 
+    if (ret != 0)
+        F_SET_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
+    else
+        F_CLR_ATOMIC_16(ref->page, WT_PAGE_REC_FAIL);
+
 err:
     if (page_locked)
         WT_PAGE_UNLOCK(session, page);
@@ -638,10 +643,11 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
-     * can move beyond the checkpoint transaction id. When reconciling the metadata, we have to take
-     * checkpoints into account.
+     * can move beyond the checkpoint transaction id. When reconciling the metadata or disaggregated
+     * shared metadata, we have to take checkpoints into account. Otherwise, eviction may evict the
+     * uncommitted checkpoint updates.
      */
-    if (WT_IS_METADATA(session->dhandle)) {
+    if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
@@ -2037,11 +2043,11 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 }
 
 /*
- * __rec_build_delta_init --
+ * __wti_rec_build_delta_init --
  *     Build delta init.
  */
-static int
-__rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+int
+__wti_rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
     memset(r->delta.mem, 0, WT_DELTA_HEADER_SIZE);
@@ -2086,6 +2092,47 @@ __rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
 }
 
 /*
+ * __wti_rec_pack_delta_internal --
+ *     Pack a delta for an internal page into a reconciliation structure
+ */
+int
+__wti_rec_pack_delta_internal(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *key, WT_REC_KV *value)
+{
+    WT_DELTA_HEADER *header;
+    size_t packed_size;
+    uint8_t flags;
+    uint8_t *p, *head_byte;
+
+    flags = 0;
+
+    header = (WT_DELTA_HEADER *)r->delta.data;
+
+    packed_size = 1 + key->len;
+    if (value != NULL)
+        packed_size += value->len;
+
+    if (r->delta.size + packed_size > r->delta.memsize)
+        WT_RET(__wt_buf_grow(session, &r->delta, r->delta.size + packed_size));
+
+    head_byte = (uint8_t *)r->delta.data + r->delta.size;
+    p = head_byte + 1;
+
+    __wt_rec_kv_copy(session, p, key);
+    p += key->len;
+    if (value == NULL)
+        LF_SET(WT_DELTA_IS_DELETE);
+    else
+        __wt_rec_kv_copy(session, p, value);
+
+    r->delta.size += packed_size;
+    *head_byte = flags;
+
+    ++header->u.entries;
+    return (0);
+}
+
+/*
  * __rec_pack_delta_leaf --
  *     Pack a delta for a leaf page
  */
@@ -2126,13 +2173,14 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     /*
      * The max length of a delta:
      * 1 header byte
+     * 2 transaction ids
      * 4 timestamps (4 * 9)
      * key size (5)
      * value size (5)
      * key
      * value
      */
-    max_packed_size = 1 + 4 * 9 + 2 * 5 + key->size + value.size;
+    max_packed_size = 1 + 2 * 9 + 4 * 9 + 2 * 5 + key->size + value.size;
 
     if (r->delta.size + max_packed_size > r->delta.memsize)
         WT_ERR(__wt_buf_grow(session, &r->delta, r->delta.size + max_packed_size));
@@ -2141,7 +2189,6 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     p = head + 1;
 
     if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_ASSERT(session, false);
         LF_SET(WT_DELTA_IS_DELETE);
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
         memcpy(p, key->data, key->size);
@@ -2228,7 +2275,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WT_
     multi = &r->multi[0];
     count = 0;
 
-    WT_RET(__rec_build_delta_init(session, r));
+    WT_RET(__wti_rec_build_delta_init(session, r));
 
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         if (supd->onpage_upd == NULL)
@@ -2392,7 +2439,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint_compressed = true;
         }
         /*
-         * We need to assign a new page id for the root everytime. We don't support delta for
+         * We need to assign a new page id for the root every time. We don't support delta for
          * internal page yet.
          */
         __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
@@ -2429,7 +2476,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     }
 
     if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
-      block_meta->delta_count < WT_DELTA_LIMIT) {
+      block_meta->delta_count < btree->max_consecutive_delta) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
         if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct)
@@ -2440,12 +2487,21 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (build_delta) {
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
+        WT_ASSERT(session, block_meta->checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
         multi->block_meta = *block_meta;
         WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+        /* The first delta needs to explicitly initialize the base LSN and checkpoint id. */
+        if (multi->block_meta.delta_count == 0) {
+            multi->block_meta.base_lsn = multi->block_meta.disagg_lsn;
+            multi->block_meta.base_checkpoint_id = multi->block_meta.checkpoint_id;
+        }
+        WT_ASSERT(session,
+          multi->block_meta.base_lsn > 0 ||
+            multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+        multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
+        multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
         if (checkpoint_id != multi->block_meta.checkpoint_id) {
             WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
-            /* Delta reuse the previous base checkpoint id. */
-            multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
             multi->block_meta.checkpoint_id = checkpoint_id;
             multi->block_meta.reconciliation_id = 0;
         } else
@@ -2461,13 +2517,27 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
             multi->block_meta = *block_meta;
+            /*
+             * Full page's backlink is the previous full page. If the previous page is a delta, use
+             * the base as the new backlink. Otherwise, use the previous page as the backlink.
+             */
+            if (multi->block_meta.delta_count > 0) {
+                WT_ASSERT(session,
+                  multi->block_meta.base_lsn > 0 ||
+                    multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+                multi->block_meta.backlink_checkpoint_id = multi->block_meta.base_checkpoint_id;
+                multi->block_meta.backlink_lsn = multi->block_meta.base_lsn;
+            } else {
+                multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
+                multi->block_meta.backlink_lsn = multi->block_meta.disagg_lsn;
+            }
             multi->block_meta.delta_count = 0;
+            multi->block_meta.base_lsn = 0;
+            multi->block_meta.base_checkpoint_id = 0;
             WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
             if (checkpoint_id != multi->block_meta.checkpoint_id) {
                 WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
-                multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
                 multi->block_meta.checkpoint_id = checkpoint_id;
-                multi->block_meta.base_checkpoint_id = checkpoint_id;
                 multi->block_meta.reconciliation_id = 0;
             } else
                 ++multi->block_meta.reconciliation_id;
@@ -2731,7 +2801,7 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 
 /*
  * __rec_set_updates_durable --
- *     Set the updates druable. This must be called when the reconciliation can no longer fail.
+ *     Set the updates durable. This must be called when the reconciliation can no longer fail.
  */
 static WT_INLINE void
 __rec_set_updates_durable(WT_RECONCILE *r)
@@ -2977,6 +3047,8 @@ split:
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &multi->addr.ta);
         break;
     }
+
+    __wt_atomic_addv16(&ref->ref_changes, 1);
 
     /*
      * If the page has post-instantiation delete information, we don't need it any more. Note: this

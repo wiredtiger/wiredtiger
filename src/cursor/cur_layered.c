@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
 static int __clayered_lookup(WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
@@ -201,7 +202,10 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
-    const char *ckpt_cfg[3];
+    u_int cfg_pos;
+    char random_config[1024];
+    const char *ckpt_cfg[4];
+    bool leader;
 
     c = &clayered->iface;
     session = CUR2S(clayered);
@@ -226,6 +230,19 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     if (clayered->ingest_cursor != NULL && clayered->stable_cursor != NULL)
         return (0);
 
+    cfg_pos = 0;
+    ckpt_cfg[cfg_pos++] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+    /*
+     * If the layered cursor is configured with next_random, we'll need to open any constituent
+     * cursors with the same configuration that is relevant for random cursors.
+     */
+    if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
+        WT_RET(__wt_snprintf(random_config, sizeof(random_config),
+          "next_random=true,next_random_seed=%" PRId64 ",next_random_sample_size=%" PRIu64,
+          clayered->next_random_seed, (uint64_t)clayered->next_random_sample_size));
+        ckpt_cfg[cfg_pos++] = random_config;
+    }
+
     /*
      * If the key is pointing to memory that is pinned by a chunk cursor, take a copy before closing
      * cursors.
@@ -237,16 +254,15 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
     /* Always open both the ingest and stable cursors */
     if (clayered->ingest_cursor == NULL) {
+        ckpt_cfg[cfg_pos] = NULL;
         WT_RET(__wt_open_cursor(
-          session, layered->ingest_uri, &clayered->iface, NULL, &clayered->ingest_cursor));
+          session, layered->ingest_uri, &clayered->iface, ckpt_cfg, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
     }
 
     if (clayered->stable_cursor == NULL) {
-        if (!S2C(session)->layered_table_manager.leader) {
-            ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-            ckpt_cfg[1] = ",raw,checkpoint_use_history=false,force=true";
-            ckpt_cfg[2] = NULL;
+        leader = S2C(session)->layered_table_manager.leader;
+        if (!leader)
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
              * cursor on stable without a checkpoint. It will never return an invalid result (it's
@@ -254,25 +270,39 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * efficient, and also not an accurate reflection of what we want in terms of sharing
              * checkpoint across different WiredTiger instances eventually.
              */
+            ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false,force=true";
+        ckpt_cfg[cfg_pos] = NULL;
+        ret = __wt_open_cursor(
+          session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
+
+        if (ret == WT_NOTFOUND && !leader) {
+            ckpt_cfg[1] = "";
             ret = __wt_open_cursor(
               session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
-        } else
-            ret = __wt_open_cursor(
-              session, layered->stable_uri, &clayered->iface, NULL, &clayered->stable_cursor);
-
-        if (ret == WT_NOTFOUND) {
-            ret = __wt_open_cursor(
-              session, layered->stable_uri, &clayered->iface, NULL, &clayered->stable_cursor);
-            if (ret == WT_NOTFOUND)
-                WT_RET(
-                  __wt_panic(session, WT_PANIC, "Layered table could not access stable table"));
             if (ret == 0)
                 F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
         }
+        if (ret == WT_NOTFOUND)
+            WT_RET(__wt_panic(session, WT_PANIC, "Layered table could not access stable table"));
+
         WT_RET(ret);
         if (clayered->stable_cursor != NULL)
             F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
     }
+
+    if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
+        /*
+         * Cursors configured with next_random only allow the next method to be called. But our
+         * implementation of random requires search_near to be called on the two constituent
+         * cursors, so explicitly allow that here.
+         */
+        WT_ASSERT(session, WT_PREFIX_MATCH(clayered->ingest_cursor->uri, "file:"));
+        WT_ASSERT(session, WT_PREFIX_MATCH(clayered->stable_cursor->uri, "file:"));
+        clayered->ingest_cursor->search_near = __wti_curfile_search_near;
+        clayered->stable_cursor->search_near = __wti_curfile_search_near;
+    }
+
+    WT_RET(__clayered_copy_bounds(clayered));
 
     return (ret);
 }
@@ -372,9 +402,6 @@ __clayered_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
      */
     if (strcmp(a->uri, b->uri) != 0)
         WT_ERR_MSG(session, EINVAL, "comparison method cursors must reference the same object");
-
-    WT_ERR(__cursor_needkey(a));
-    WT_ERR(__cursor_needkey(b));
 
     /* Both cursors are from the same tree - they share the same collator */
     __clayered_get_collator(clayered, &collator);
@@ -655,6 +682,11 @@ __clayered_reset(WT_CURSOR *cursor)
      */
     clayered = (WT_CURSOR_LAYERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, clayered->dhandle);
+
+    /* Reset any bounds on the top level cursor, and propagate that to constituents */
+    __wt_cursor_bound_reset(cursor);
+    WT_ERR(__clayered_copy_bounds(clayered));
+
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     WT_TRET(__clayered_reset_cursors(clayered, false));
@@ -663,6 +695,112 @@ __clayered_reset(WT_CURSOR *cursor)
     __clayered_leave(clayered);
 
 err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __clayered_copy_constituent_bound --
+ *     Copy the top level bound into a single constituent cursor
+ */
+static int
+__clayered_copy_constituent_bound(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constituent)
+{
+    WT_CURSOR *base_cursor;
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(clayered);
+    base_cursor = (WT_CURSOR *)clayered;
+
+    if (constituent == NULL)
+        return (0);
+
+    /* Note that the inclusive flag is additive to upper/lower, so no need to check it as well */
+    if (F_ISSET(base_cursor, WT_CURSTD_BOUND_UPPER)) {
+        WT_ASSERT_ALWAYS(session, constituent->upper_bound.size == 0,
+          "Setting up a bound in a layered cursor expects no configured constituent bounds");
+        WT_RET(__wt_buf_set(session, &constituent->upper_bound, base_cursor->upper_bound.data,
+          base_cursor->upper_bound.size));
+    } else {
+        __wt_buf_free(session, &constituent->upper_bound);
+        WT_CLEAR(constituent->upper_bound);
+    }
+    if (F_ISSET(base_cursor, WT_CURSTD_BOUND_LOWER)) {
+        WT_ASSERT_ALWAYS(session, constituent->lower_bound.size == 0,
+          "Setting up a bound in a layered cursor expects no configured constituent bounds");
+        WT_RET(__wt_buf_set(session, &constituent->lower_bound, base_cursor->lower_bound.data,
+          base_cursor->lower_bound.size));
+    } else {
+        __wt_buf_free(session, &constituent->lower_bound);
+        WT_CLEAR(constituent->lower_bound);
+    }
+    /* Copy across all the bound configurations */
+    F_CLR(constituent, WT_CURSTD_BOUND_ALL);
+    F_SET(constituent, F_MASK(base_cursor, WT_CURSTD_BOUND_ALL));
+    return (0);
+}
+
+/*
+ * __clayered_copy_bounds --
+ *     A method for copying (or clearing) bounds on constituent cursors within a layered cursor
+ */
+static int
+__clayered_copy_bounds(WT_CURSOR_LAYERED *clayered)
+{
+    WT_RET(__clayered_copy_constituent_bound(clayered, clayered->ingest_cursor));
+    WT_RET(__clayered_copy_constituent_bound(clayered, clayered->stable_cursor));
+    return (0);
+}
+
+/*
+ * __clayered_bound --
+ *     WT_CURSOR->bound method for the layered cursor type.
+ */
+static int
+__clayered_bound(WT_CURSOR *cursor, const char *config)
+{
+    WT_COLLATOR *collator;
+    WT_CURSOR_LAYERED *clayered;
+    WT_DECL_CONF(WT_CURSOR, bound, conf);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    clayered = (WT_CURSOR_LAYERED *)cursor;
+
+    /*
+     * The bound interface operates on an unpositioned cursor, so skip entering the layered cursor
+     * for this API.
+     */
+    CURSOR_API_CALL(cursor, session, ret, bound, clayered->dhandle);
+
+    WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
+      WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
+
+    __clayered_get_collator(clayered, &collator);
+    /* Setup bounds on this top level cursor */
+    WT_ERR(__wti_cursor_bound(cursor, conf, collator));
+
+    /*
+     * Copy those bounds into the constituents. Note that the constituent cursors may not be open
+     * yet, and that would be fine, the layered cursor open interface handles setting up configured
+     * bounds as well.
+     */
+    WT_ERR(__clayered_copy_bounds(clayered));
+
+err:
+    if (ret != 0) {
+        /* Free any bounds we set on the top level cursor before the error */
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
+            __wt_buf_free(session, &cursor->upper_bound);
+            WT_CLEAR(cursor->upper_bound);
+        }
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
+            __wt_buf_free(session, &cursor->lower_bound);
+            WT_CLEAR(cursor->lower_bound);
+        }
+        F_CLR(cursor, WT_CURSTD_BOUND_ALL);
+        /* Ensure the bounds are cleaned up on any constituents */
+        WT_TRET(__clayered_copy_bounds(clayered));
+    }
     API_END_RET(session, ret);
 }
 
@@ -920,14 +1058,18 @@ err:
 static int
 __layered_modify_check(WT_SESSION_IMPL *session)
 {
-    if (!S2C(session)->layered_table_manager.leader)
-        return (EINVAL);
+    WT_UNUSED(session);
+
+    /*
+     * Currently there are no restrictions on when modifications can be made. We may in the future
+     * introduce restrictions during state changes.
+     */
     return (0);
 }
 
 /*
  * __clayered_put --
- *     Put an entry into the ingest tree, and make sure it's available for replay into stable.
+ *     Put an entry into the desired tree.
  */
 static WT_INLINE int
 __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
@@ -960,6 +1102,37 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     if (func != c->reserve)
         c->set_value(c, value);
     WT_RET(func(c));
+
+    /* TODO: Need something to add a log record? */
+
+    return (0);
+}
+
+/*
+ * __clayered_modify_int --
+ *     Put an modify into the desired tree.
+ */
+static WT_INLINE int
+__clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key,
+  WT_MODIFY *entries, int nentries)
+{
+    WT_CURSOR *c;
+
+    /*
+     * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
+     * anyway.
+     */
+    WT_RET(__clayered_reset_cursors(clayered, true));
+
+    if (S2C(session)->layered_table_manager.leader)
+        c = clayered->stable_cursor;
+    else
+        c = clayered->ingest_cursor;
+
+    clayered->current_cursor = c;
+
+    c->set_key(c, key);
+    WT_RET(c->modify(c, entries, nentries));
 
     /* TODO: Need something to add a log record? */
 
@@ -1318,8 +1491,8 @@ __clayered_next_random(WT_CURSOR *cursor)
         /* TODO: consider the size of ingest table in the future. */
         c = clayered->stable_cursor;
         /*
-         * This call to next_random on the ingest table can potentially end in WT_NOTFOUND if the
-         * ingest table is empty.
+         * This call to next_random on the layered table can potentially end in WT_NOTFOUND if the
+         * layered table is empty. When that happens, use the ingest table.
          */
         WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
         if (ret == WT_NOTFOUND) {
@@ -1344,6 +1517,57 @@ err:
 }
 
 /*
+ * __clayered_modify --
+ *     WT_CURSOR->modify method for the layered cursor type. This function assumes the modify will
+ *     be done on the btree that we originally calculate the diff from. Currently, we only allow
+ *     writes to the stable table so the assumption holds. TODO: revisit this when we enable writing
+ *     to the ingest table.
+ */
+static int
+__clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+{
+    WT_CURSOR_LAYERED *clayered;
+    WT_DECL_RET;
+    WT_ITEM value;
+    WT_SESSION_IMPL *session;
+
+    clayered = (WT_CURSOR_LAYERED *)cursor;
+
+    CURSOR_UPDATE_API_CALL(cursor, session, ret, modify, clayered->dhandle);
+    WT_ERR(__layered_modify_check(session));
+    WT_ERR(__cursor_needkey(cursor));
+    WT_ERR(__clayered_enter(clayered, false, true));
+
+    if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+        WT_ERR(__clayered_lookup(clayered, &value));
+        /*
+         * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
+         * have landed on.
+         */
+        WT_ERR(__cursor_needkey(cursor));
+    }
+    WT_ERR(__clayered_modify_int(session, clayered, &cursor->key, entries, nentries));
+
+    /*
+     * Set the cursor to reference the internal key/value of the positioned cursor.
+     */
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    WT_ITEM_SET(cursor->key, clayered->current_cursor->key);
+    WT_ITEM_SET(cursor->value, clayered->current_cursor->value);
+    WT_ASSERT(session, F_MASK(clayered->current_cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
+    WT_ASSERT(
+      session, F_MASK(clayered->current_cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
+    F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+
+    WT_STAT_CONN_DSRC_INCR(session, layered_curs_update);
+
+err:
+    __clayered_leave(clayered);
+    CURSOR_UPDATE_API_END(session, ret);
+    return (ret);
+}
+
+/*
  * __wt_clayered_open --
  *     WT_SESSION->open_cursor method for layered cursors.
  */
@@ -1365,13 +1589,13 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __clayered_search,                              /* search */
       __clayered_search_near,                         /* search-near */
       __clayered_insert,                              /* insert */
-      __wt_cursor_modify_value_format_notsup,         /* modify */
+      __clayered_modify,                              /* modify */
       __clayered_update,                              /* update */
       __clayered_remove,                              /* remove */
       __clayered_reserve,                             /* reserve */
       __wt_cursor_reconfigure,                        /* reconfigure */
       __clayered_largest_key,                         /* largest_key */
-      __wt_cursor_config_notsup,                      /* bound */
+      __clayered_bound,                               /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
@@ -1419,8 +1643,15 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
     WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
     if (cval.val != 0) {
+        F_SET(clayered, WT_CLAYERED_RANDOM);
         __wt_cursor_set_notsup(cursor);
         cursor->next = __clayered_next_random;
+
+        WT_ERR(__wt_config_gets_def(session, cfg, "next_random_seed", 0, &cval));
+        clayered->next_random_seed = cval.val;
+
+        WT_ERR(__wt_config_gets_def(session, cfg, "next_random_sample_size", 0, &cval));
+        clayered->next_random_sample_size = (u_int)cval.val;
     }
 
     if (0) {

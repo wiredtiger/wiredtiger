@@ -89,7 +89,6 @@ src/conn/conn_ckpt.c
 src/conn/conn_compact.c
 src/conn/conn_dhandle.c
 src/conn/conn_handle.c
-src/conn/conn_layered_table_log.c
 src/conn/conn_layered.c
 src/conn/conn_log.c
 src/conn/conn_open.c
@@ -124,10 +123,6 @@ src/history/hs_conn.c
 src/history/hs_cursor.c
 src/history/hs_rec.c
 src/history/hs_verify.c
-src/layered_table_log/layered_table_log.c
-src/layered_table_log/layered_table_log_auto.c
-src/layered_table_log/layered_table_log_slot.c
-src/layered_table_log/layered_table_log_sys.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_slot.c
@@ -250,7 +245,6 @@ src/tiered/tiered_handle.c
 src/tiered/tiered_work.c
 src/txn/txn.c
 src/txn/txn_ckpt.c
-src/txn/txn_layered_table_log.c
 src/txn/txn_log.c
 src/txn/txn_recover.c
 src/txn/txn_timestamp.c

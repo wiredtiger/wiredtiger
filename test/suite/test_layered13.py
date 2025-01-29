@@ -26,12 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+import os, time, wiredtiger, wttest
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
 # test_layered13.py
 #    More than one table.
+@disagg_test_class
 class test_layered13(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
@@ -66,7 +67,7 @@ class test_layered13(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.layered_uris + self.other_uris:
             cfg = self.create_session_config
             if not uri.startswith('layered'):
-                cfg += ',block_manager=disagg,layered_table_log=(enabled=false),log=(enabled=false)'
+                cfg += ',block_manager=disagg,log=(enabled=false)'
             self.session.create(uri, cfg)
 
         # Create the follower

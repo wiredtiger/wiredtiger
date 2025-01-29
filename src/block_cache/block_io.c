@@ -59,7 +59,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     WT_DECL_RET;
     WT_ENCRYPTOR *encryptor;
     WT_ITEM *ip;
-    WT_ITEM results[32];
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
     size_t compression_ratio, result_len;
@@ -359,7 +359,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_DECL_ITEM(etmp);
     WT_DECL_RET;
     const WT_DELTA_HEADER *delta_hdr;
-    WT_ITEM results[WT_DELTA_LIMIT];
+    WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_ITEM *tmp, *ip;
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
@@ -447,7 +447,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      */
     for (i = 1; i < count; i++) {
         ip = &results[i];
-        /* TODO in principle we should end up not caring about which block mananger is backing the
+        /* TODO in principle we should end up not caring about which block manager is backing the
          * file. */
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
 

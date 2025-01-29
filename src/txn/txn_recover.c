@@ -823,10 +823,10 @@ __recovery_file_scan(WT_RECOVERY *r)
      */
     /*
      * TODO: it's not something specific to this line, but note the places we call the namespace
-     * macros. The boundary is that the on-disk trees have namespaced IDs, but the maximum file ID
-     * variable is not namespaced. This avoids us having to increment it by a number other than one,
+     * macros. The boundary is that the on-disk trees have namespace IDs, but the maximum file ID
+     * variable is not namespace. This avoids us having to increment it by a number other than one,
      * among other annoyances, but they're all solvable problems. We can revisit this decision after
-     * using the namespaced file IDs for a while.
+     * using the tracked namespace file IDs for a while.
      */
     S2C(r->session)->next_file_id = WT_BTREE_ID_UNNAMESPACED(r->max_fileid);
 
@@ -903,7 +903,7 @@ err:
  *     Run recovery.
  */
 int
-__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
@@ -1150,8 +1150,9 @@ done:
      * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
      *    any changes that need to be done on the database other than reading.
      * 2. The history store file was found in the metadata.
+     * 3. We are not using disaggregated storage.
      */
-    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY)) {
+    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY) && !disagg) {
         const char *rts_cfg[] = {
           WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
         __wt_timer_start(session, &rts_timer);
@@ -1176,7 +1177,8 @@ done:
           "recovery rollback to stable has successfully finished and ran for %" PRIu64
           " milliseconds",
           conn->recovery_timeline.rts_ms);
-    }
+    } else if (disagg)
+        __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped recovery RTS due to disagg");
 
     /*
      * Sometimes eviction is triggered after doing a checkpoint. However, we don't want eviction to

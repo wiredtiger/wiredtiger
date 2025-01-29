@@ -27,12 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, wiredtiger, wttest
-from helper_disagg import DisaggConfigMixin
+from helper_disagg import DisaggConfigMixin, disagg_test_class
+from wtscenario import make_scenarios
 
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_layered01.py
 #    Basic layered tree creation test
+@disagg_test_class
 class test_layered01(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri_base = "test_layered01"

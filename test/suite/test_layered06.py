@@ -26,12 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wttest
-from helper_disagg import DisaggConfigMixin
+import os, time, wiredtiger, wttest
+from helper_disagg import DisaggConfigMixin, disagg_test_class
+from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # test_layered06.py
 #    Start a second WT that shares the stable content with the first.
+@disagg_test_class
 class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
@@ -75,6 +77,11 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + "disaggregated=(role=\"follower\")")
         session_follow = conn_follow.open_session('')
         session_follow.create(self.uri, session_config)
+
+        # Sanity-check that a stats cursor says we have nothing in the tree.
+        stat_cur = self.session.open_cursor('statistics:' + self.uri, None, None)
+        self.assertEqual(stat_cur[stat.dsrc.btree_entries][2], 0)
+        stat_cur.close()
 
         self.pr('opening cursor')
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -154,6 +161,12 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(item_count, self.nitems * 6)
         cursor.close()
 
+        # Make sure the stats agree that the leader has everything.
+        stat_cur = self.session.open_cursor('statistics:' + self.uri, None, None)
+        self.assertEqual(stat_cur[stat.dsrc.btree_entries][2], self.nitems * 6)
+        stat_cur.close()
+
+
         # Allow time for stats to be updated
         time.sleep(2)
 
@@ -179,5 +192,11 @@ class test_layered06(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(item_count, self.nitems * 6)
 
         cursor_follow.close()
+
+        # Make sure the stats agree that the follower has everything.
+        stat_cur = session_follow.open_cursor('statistics:' + self.uri, None, None)
+        self.assertEqual(stat_cur[stat.dsrc.btree_entries][2], self.nitems * 6)
+        stat_cur.close()
+
         session_follow.close()
         conn_follow.close()

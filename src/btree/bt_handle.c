@@ -396,9 +396,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         }
     }
 
-    /* Page sizes */
-    WT_RET(__btree_page_sizes(session));
-
     /*
      * This option turns off eviction for a tree. Therefore, its memory footprint can only grow. But
      * checkpoint will still visit it to persist the data.
@@ -450,18 +447,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
             F_CLR(btree, WT_BTREE_LOGGED);
     }
 
-    if (FLD_ISSET(conn->layered_table_log_info.log_flags, WT_CONN_LOG_ENABLED)) {
-        WT_RET(__wt_config_gets(session, cfg, "layered_table_log.enabled", &cval));
-        if (cval.val)
-            F_SET(btree, WT_BTREE_LAYERED_TABLE_LOGGED);
-    }
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY)) {
-        F_SET(btree, WT_BTREE_LAYERED_TABLE_LOGGED);
-        WT_RET(__wt_config_gets(session, cfg, "layered_table_log.enabled", &cval));
-        if (!cval.val)
-            F_CLR(btree, WT_BTREE_LAYERED_TABLE_LOGGED);
-    }
-
     /*
      * The metadata isn't blocked by in-memory cache limits because metadata "unroll" is performed
      * by updates that are potentially blocked by the cache-full checks.
@@ -483,7 +468,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (strcmp(session->dhandle->name, WT_DISAGG_METADATA_URI) == 0) {
         F_SET(btree->dhandle, WT_DHANDLE_DISAGG_META);
         F_CLR(btree, WT_BTREE_LOGGED);
-        F_CLR(btree, WT_BTREE_LAYERED_TABLE_LOGGED);
     }
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
@@ -508,11 +492,18 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         WT_RET(__wt_config_gets(session, cfg, "disaggregated.delta_pct", &cval));
         btree->delta_pct = (u_int)cval.val;
 
+        /* Get the maximum number of consecutive deltas allowed for a single page. */
+        WT_RET(__wt_config_gets(session, cfg, "disaggregated.max_consecutive_delta", &cval));
+        btree->max_consecutive_delta = (u_int)cval.val;
+
         WT_RET(__btree_setup_page_log(session, btree));
 
         /* A page log service and a storage source cannot both be enabled. */
         WT_ASSERT(session, btree->page_log == NULL || btree->bstorage == NULL);
     }
+
+    /* Page sizes */
+    WT_RET(__btree_page_sizes(session));
 
     /* Get the last flush times for tiered storage, if applicable. */
     btree->flush_most_recent_secs = 0;
@@ -909,41 +900,6 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
     return (0);
 }
 
-// /*
-//  * __btree_preload --
-//  *     Pre-load internal pages.
-//  */
-// static int
-// __btree_preload(WT_SESSION_IMPL *session)
-// {
-//     WT_ADDR_COPY addr;
-//     WT_BTREE *btree;
-//     WT_DECL_ITEM(tmp);
-//     WT_DECL_RET;
-//     WT_REF *ref;
-//     uint64_t block_preload;
-
-//     btree = S2BT(session);
-//     block_preload = 0;
-
-//     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-
-//     /* Pre-load the second-level internal pages. */
-//     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
-//         if (__wt_ref_addr_copy(session, ref, &addr)) {
-//             WT_ERR(
-//               __wt_blkcache_read(session, tmp, NULL, addr.block_cookie, addr.block_cookie_size));
-//             ++block_preload;
-//         }
-//     WT_INTL_FOREACH_END;
-
-// err:
-//     __wt_scr_free(session, &tmp);
-
-//     WT_STAT_CONN_INCRV(session, block_preload, block_preload);
-//     return (ret);
-// }
-
 /*
  * __btree_get_last_recno --
  *     Set the last record number for a column-store. Note that this is used to handle appending to
@@ -1130,8 +1086,12 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      *
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
+     *
+     * TODO the disaggregated check is a workaround for the disaggregated block manager not yet
+     * supporting overflow items.
      */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) {
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
+      F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         btree->maxleafkey = WT_BTREE_MAX_OBJECT_SIZE;
         btree->maxleafvalue = WT_BTREE_MAX_OBJECT_SIZE;
         return (0);

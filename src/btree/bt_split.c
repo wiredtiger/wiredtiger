@@ -699,7 +699,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * which seems like asking for trouble.) Don't discard any ref has the prefetch flag,
              * the prefetch thread would crash if it sees a freed ref.
              */
-            if (next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
+            if (next_ref->ref_changes == 0 && next_ref != ref &&
+              WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
               __wti_delete_page_skip(session, next_ref, true) &&
@@ -1742,6 +1743,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         break;
     }
 
+    __wt_atomic_addv16(&ref->ref_changes, 1);
+
     switch (page->type) {
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -2336,6 +2339,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
+    __wt_atomic_addv16(&ref->ref_changes, 1);
     ref->page = new->page;
 
     WT_REF_SET_STATE(ref, WT_REF_MEM);

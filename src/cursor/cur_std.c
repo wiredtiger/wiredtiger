@@ -1285,62 +1285,49 @@ err:
 
 /*
  * __wti_cursor_bound --
- *     WT_CURSOR->bound default implementation.
+ *     WT_CURSOR->bound implementation shared between table cursors and layered cursors.
  */
 int
-__wti_cursor_bound(WT_CURSOR *cursor, const char *config)
+__wti_cursor_bound(WT_CURSOR *cursor, WT_CONF *conf, WT_COLLATOR *collator)
 {
     WT_CONFIG_ITEM cval;
-    WT_CURSOR_BTREE *cbt;
-    WT_DECL_CONF(WT_CURSOR, bound, conf);
-    WT_DECL_RET;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
     int exact;
     bool inclusive;
 
-    cbt = (WT_CURSOR_BTREE *)cursor;
+    session = CUR2S(cursor);
     exact = 0;
     inclusive = true;
 
-    CURSOR_API_CALL(cursor, session, ret, bound, NULL);
-    WT_ERR(__wt_conf_compile_api_call(session, WT_CONFIG_REF(session, WT_CURSOR_bound),
-      WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
-
-    if (CUR2BT(cursor)->type == BTREE_COL_FIX)
-        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with fixed column store");
-
     /* Action is default to "set". */
-    WT_ERR(__wt_conf_gets(session, conf, action, &cval));
+    WT_RET(__wt_conf_gets(session, conf, action, &cval));
     if (WT_CONF_STRING_MATCH(set, cval)) {
-        if (WT_CURSOR_IS_POSITIONED(cbt))
-            WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
 
         /* The cursor must have a key set to place the lower or upper bound. */
-        WT_ERR(__cursor_checkkey(cursor));
+        WT_RET(__cursor_checkkey(cursor));
 
-        WT_ERR(__wt_conf_gets_def(session, conf, inclusive, true, &cval));
+        WT_RET(__wt_conf_gets_def(session, conf, inclusive, true, &cval));
         if (cval.val == 0)
             inclusive = false;
 
-        WT_ERR(__wt_conf_gets(session, conf, bound, &cval));
+        WT_RET(__wt_conf_gets(session, conf, bound, &cval));
         if (WT_CONF_STRING_MATCH(upper, cval)) {
             /*
              * If the lower bounds are set, make sure that the upper bound is greater than the lower
              * bound.
              */
-            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
+            WT_RET(__wt_cursor_get_raw_key(cursor, &key));
             if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER)) {
-                WT_ERR(__wt_compare(
-                  session, CUR2BT(cursor)->collator, &key, &cursor->lower_bound, &exact));
+                WT_RET(__wt_compare(session, collator, &key, &cursor->lower_bound, &exact));
                 if (exact < 0)
-                    WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
+                    WT_RET_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
                 /*
                  * If the lower bound and upper bound are equal, both inclusive flags must be
                  * specified.
                  */
                 if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE) || !inclusive))
-                    WT_ERR_MSG(
+                    WT_RET_MSG(
                       session, EINVAL, "The provided cursor bounds are equal but not inclusive");
             }
             /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
@@ -1349,24 +1336,23 @@ __wti_cursor_bound(WT_CURSOR *cursor, const char *config)
                 F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
             else
                 F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-            WT_ERR(__wt_buf_set(session, &cursor->upper_bound, key.data, key.size));
+            WT_RET(__wt_buf_set(session, &cursor->upper_bound, key.data, key.size));
         } else if (WT_CONF_STRING_MATCH(lower, cval)) {
             /*
              * If the upper bounds are set, make sure that the lower bound is less than the upper
              * bound.
              */
-            WT_ERR(__wt_cursor_get_raw_key(cursor, &key));
+            WT_RET(__wt_cursor_get_raw_key(cursor, &key));
             if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER)) {
-                WT_ERR(__wt_compare(
-                  session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
+                WT_RET(__wt_compare(session, collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
-                    WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
+                    WT_RET_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
                 /*
                  * If the lower bound and upper bound are equal, both inclusive flags must be
                  * specified.
                  */
                 if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) || !inclusive))
-                    WT_ERR_MSG(
+                    WT_RET_MSG(
                       session, EINVAL, "The provided cursor bounds are equal but not inclusive");
             }
             /* Copy the key over to the lower bound item and set upper bound and inclusive flags. */
@@ -1375,9 +1361,9 @@ __wti_cursor_bound(WT_CURSOR *cursor, const char *config)
                 F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             else
                 F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
-            WT_ERR(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
+            WT_RET(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
         } else
-            WT_ERR_MSG(session, EINVAL,
+            WT_RET_MSG(session, EINVAL,
               "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
     } else {
         /*
@@ -1391,8 +1377,7 @@ __wti_cursor_bound(WT_CURSOR *cursor, const char *config)
         WT_CLEAR(cursor->upper_bound);
         WT_CLEAR(cursor->lower_bound);
     }
-err:
-    API_END_RET_STAT(session, ret, cursor_bound);
+    return (0);
 }
 
 /*

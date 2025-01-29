@@ -293,9 +293,6 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
      * function can safely free the updates if it receives an error return.
      */
     if (added_to_txn && modify_type != WT_UPDATE_RESERVE) {
-        if (__wt_layered_table_log_op(session))
-            WT_ERR(__wt_txn_layered_table_log_op(session, cbt));
-
         if (__wt_log_op(session))
             WT_ERR(__wt_txn_log_op(session, cbt));
 
