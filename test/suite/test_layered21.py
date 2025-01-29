@@ -81,8 +81,6 @@ class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 25000 == 0:
-                time.sleep(1)
         cursor.close()
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -150,10 +148,20 @@ class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 25000 == 0:
-                time.sleep(1)
         cursor.close()
 
         cursor = self.session.open_cursor(self.uri, None, None)
         self.assertEqual(cursor.largest_key(), 0)
         self.assertEqual(cursor.get_key(), "OK " + str(self.nitems - 1))
+
+    def test_getrandom_without_stable(self):
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(self.nitems):
+            cursor["Hello " + str(i)] = "World"
+        cursor.close()
+
+        random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
+        self.assertEquals(random_cursor.next(), 0)
+        self.assertTrue(random_cursor.get_key().startswith("Hello "))
