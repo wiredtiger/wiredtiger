@@ -26,21 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
-import wiredtiger
-import wttest
+import time, wiredtiger
+from error_info_util import error_info_util
 
 # test_error_info02.py
 #   Test that the get_last_error() session API returns the last error for rollback error to
 #   occur in the session.
-class test_error_info02(wttest.WiredTigerTestCase):
+class test_error_info02(error_info_util):
     uri = "table:test_error_info.wt"
-
-    def assert_error_equal(self, err_val, sub_level_err_val, err_msg_val):
-        err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, err_val)
-        self.assertEqual(sub_level_err, sub_level_err_val)
-        self.assertEqual(err_msg, err_msg_val)
 
     def api_call_with_wt_rollback_wt_cache_overflow(self):
         """

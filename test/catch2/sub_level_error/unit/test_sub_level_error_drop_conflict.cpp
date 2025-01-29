@@ -10,33 +10,124 @@
 #include "wt_internal.h"
 #include "../../wrappers/connection_wrapper.h"
 #include "../utils_sub_level_error.h"
+#include "../../../utility/test_util.h"
 
 /*
- * [sub_level_error_drop_conflict]: test_sub_level_error_rollback.cpp
- * Tests the error handling for rollback workflows.
+ * [sub_level_error_drop_conflict]: test_sub_level_error_drop_conflict.cpp
+ * Tests the drop workflows that lead to EBUSY errors, and ensure that the correct sub level error
+ * codes and messages are stored.
  */
 
 #define URI "table:test_drop_conflict"
+#define CONFLICT_BACKUP_MSG "the table is currently performing backup and cannot be dropped"
+#define CONFLICT_DHANDLE_MSG "another thread is currently holding the data handle of the table"
 #define CONFLICT_SCHEMA_LOCK_MSG "another thread is currently accessing the schema"
 #define CONFLICT_TABLE_LOCK_MSG "another thread is currently accessing the table"
 
 /*
- * Prepare the session, session_impl, and error_info struct to be used by the drop conflict tests.
+ * Prepare a session and error_info struct to be used by the drop conflict tests.
  */
 void
-prepare_session_and_error(connection_wrapper *conn_wrapper, WT_SESSION **session_a,
-  WT_SESSION_IMPL **session_b_impl, WT_ERROR_INFO **err_info_a, std::string &config)
+prepare_session_and_error(connection_wrapper *conn_wrapper, WT_SESSION **session,
+  WT_ERROR_INFO **err_info, std::string &config)
 {
-    WT_SESSION *session_b = NULL;
     WT_CONNECTION *conn = conn_wrapper->get_wt_connection();
-    REQUIRE(conn->open_session(conn, NULL, NULL, session_a) == 0);
-    REQUIRE(conn->open_session(conn, NULL, NULL, &session_b) == 0);
-    REQUIRE((*session_a)->create(*session_a, URI, config.c_str()) == 0);
-    *session_b_impl = (WT_SESSION_IMPL *)(session_b);
-    *err_info_a = &(((WT_SESSION_IMPL *)(*session_a))->err_info);
+    REQUIRE(conn->open_session(conn, NULL, NULL, session) == 0);
+    REQUIRE((*session)->create(*session, URI, config.c_str()) == 0);
+    *err_info = &(((WT_SESSION_IMPL *)(*session))->err_info);
 }
 
-TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[drop_conflict]")
+/*
+ * Prepare a session_a, session_impl_b, and error_info struct to be used by the drop conflict tests.
+ */
+void
+prepare_two_sessions_and_error(connection_wrapper *conn_wrapper, WT_SESSION **session_a,
+  WT_SESSION_IMPL **session_b_impl, WT_ERROR_INFO **err_info_a, std::string &config)
+{
+    prepare_session_and_error(conn_wrapper, session_a, err_info_a, config);
+    WT_SESSION *session_b = NULL;
+    WT_CONNECTION *conn = conn_wrapper->get_wt_connection();
+    REQUIRE(conn->open_session(conn, NULL, NULL, &session_b) == 0);
+    *session_b_impl = (WT_SESSION_IMPL *)(session_b);
+}
+
+/*
+ * This test case covers EBUSY errors resulting from drop while cursors are still open on the table.
+ */
+TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_drop_conflict]")
+{
+    std::string config = "key_format=S,value_format=S";
+    WT_SESSION *session = NULL;
+    WT_ERROR_INFO *err_info = NULL;
+
+    SECTION("Test WT_CONFLICT_BACKUP")
+    {
+        connection_wrapper conn_wrapper = connection_wrapper(".", "create");
+        prepare_session_and_error(&conn_wrapper, &session, &err_info, config);
+
+        /* Open a backup cursor, then attempt to drop the table. */
+        WT_CURSOR *backup_cursor;
+        REQUIRE(session->open_cursor(session, "backup:", NULL, NULL, &backup_cursor) == 0);
+        REQUIRE(session->drop(session, URI, NULL) == EBUSY);
+        utils::check_error_info(err_info, EBUSY, WT_CONFLICT_BACKUP, CONFLICT_BACKUP_MSG);
+    }
+
+    /* This section gives us coverage in __drop_file. */
+    SECTION("Test WT_CONFLICT_DHANDLE with simple table")
+    {
+        connection_wrapper conn_wrapper = connection_wrapper(".", "create");
+        prepare_session_and_error(&conn_wrapper, &session, &err_info, config);
+
+        /* Open a cursor on a table, then attempt to drop the table. */
+        WT_CURSOR *cursor;
+        REQUIRE(session->open_cursor(session, URI, NULL, NULL, &cursor) == 0);
+        REQUIRE(session->drop(session, URI, NULL) == EBUSY);
+        utils::check_error_info(err_info, EBUSY, WT_CONFLICT_DHANDLE, CONFLICT_DHANDLE_MSG);
+    }
+
+    /* This section gives us coverage in __drop_table. */
+    SECTION("Test WT_CONFLICT_DHANDLE with columns")
+    {
+        config += ",columns=(col1,col2)";
+        connection_wrapper conn_wrapper = connection_wrapper(".", "create");
+        prepare_session_and_error(&conn_wrapper, &session, &err_info, config);
+
+        /* Open a cursor on a table with columns, then attempt to drop the table. */
+        WT_CURSOR *cursor;
+        REQUIRE(session->open_cursor(session, URI, NULL, NULL, &cursor) == 0);
+        REQUIRE(session->drop(session, URI, NULL) == EBUSY);
+        utils::check_error_info(err_info, EBUSY, WT_CONFLICT_DHANDLE, CONFLICT_DHANDLE_MSG);
+    }
+
+    /*
+     * This section gives us coverage in __drop_tiered. The dir_store extension is only supported
+     * for POSIX systems, so skip this section on Windows.
+     */
+#ifndef _WIN32
+    SECTION("Test WT_CONFLICT_DHANDLE with tiered storage")
+    {
+        /* Set up the connection and session to use tiered storage. */
+        const char *home = "WT_TEST";
+        testutil_system("rm -rf %s && mkdir %s && mkdir %s/%s", home, home, home, "bucket");
+        connection_wrapper conn_wrapper = connection_wrapper(home,
+          "create,tiered_storage=(bucket=bucket,bucket_prefix=pfx-,name=dir_store),extensions=(./"
+          "ext/storage_sources/dir_store/libwiredtiger_dir_store.so)");
+
+        prepare_session_and_error(&conn_wrapper, &session, &err_info, config);
+
+        /* Open a cursor on a table that uses tiered storage, then attempt to drop the table. */
+        WT_CURSOR *cursor;
+        REQUIRE(session->open_cursor(session, URI, NULL, NULL, &cursor) == 0);
+        REQUIRE(session->drop(session, URI, NULL) == EBUSY);
+        utils::check_error_info(err_info, EBUSY, WT_CONFLICT_DHANDLE, CONFLICT_DHANDLE_MSG);
+    }
+#endif
+}
+
+/*
+ * This test case covers EBUSY errors resulting from drop while a lock is held by another thread.
+ */
+TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[sub_level_error_drop_conflict]")
 {
     std::string config = "key_format=S,value_format=S";
     WT_SESSION *session_a = NULL;
@@ -46,7 +137,8 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[drop_conflict]"
     SECTION("Test CONFLICT_SCHEMA_LOCK")
     {
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session_a, &session_b_impl, &err_info_a, config);
+        prepare_two_sessions_and_error(
+          &conn_wrapper, &session_a, &session_b_impl, &err_info_a, config);
 
         /* Attempt to drop the table while another session holds the schema lock. */
         WT_WITH_SCHEMA_LOCK(
@@ -59,7 +151,8 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[drop_conflict]"
     SECTION("Test CONFLICT_TABLE_LOCK")
     {
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session_a, &session_b_impl, &err_info_a, config);
+        prepare_two_sessions_and_error(
+          &conn_wrapper, &session_a, &session_b_impl, &err_info_a, config);
 
         /* Attempt to drop the table while another session holds the table write lock. */
         WT_WITH_TABLE_WRITE_LOCK(
