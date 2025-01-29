@@ -175,14 +175,38 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     __wt_verbose_debug2(
       session, WT_VERB_LIVE_RESTORE, "Live restore worker: Filling holes in %s", work_item->uri);
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
-    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-      "Live restore worker: Finished finished filling holes in %s", work_item->uri);
 
-    /* Free the work item. */
-    __live_restore_free_work_item(session, &work_item);
     WT_STAT_CONN_SET(
       session, live_restore_work_remaining, __wt_atomic_sub64(&server->work_items_remaining, 1));
+
+    /*
+     * Mark the btree as modified so the now empty extent list is written out to the metadata.
+     * Having to wait on the checkpoint lock here is not great, effectively checkpoint will block
+     * out any background thread from continuing it's work for the duration of the checkpoint.
+     *
+     * Fine in a healthy 1 second checkpoint system, not fine in a 30 minute checkpoint world. This
+     * probably has a different solution where we force the system to take a fake checkpoint until
+     * live restore finishes. That solution is also fraught with difficulty and its own concurrency
+     * problems.
+     *
+     * Given these are background thread writes we're not so fussed about losing them. Maybe we can
+     * leverage that to queue modified setting till after a checkpoint completes? I thought about a
+     * solution where we don't set the tree as modified and therefore don't update the extents, this
+     * almost works but if the file never has writes from the application then the live restore will
+     * never complete.
+     *
+     * Finally if "complete" means that the source connection can be dropped then all the remaining
+     * metadata writes must happen and be made stable otherwise the source will be dropped
+     * prematurely.
+     */
+    WT_WITH_CHECKPOINT_LOCK(session, CUR2BT(cursor)->modified = true);
+
     WT_TRET(cursor->close(cursor));
+
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+      "Live restore worker: Finished finished filling holes in %s", work_item->uri);
+    /* Free the work item. */
+    __live_restore_free_work_item(session, &work_item);
     return (ret);
 }
 

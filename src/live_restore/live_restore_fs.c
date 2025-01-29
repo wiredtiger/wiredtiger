@@ -1198,6 +1198,9 @@ __wt_live_restore_fh_import_extents_from_string(
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
 
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (0);
+
     /*
      * We can open a file which already has an extent list on it. In this case there should be an
      * empty extent list string. This scenario occurs when we open a file for the first time with a

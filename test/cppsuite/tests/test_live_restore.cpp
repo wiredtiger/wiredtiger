@@ -355,7 +355,10 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
       ",statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,path=journal)";
 
     /* Create connection. */
-    connection_manager::instance().create(conn_config, home, true);
+    if (recovery)
+        connection_manager::instance().reopen(conn_config, home);
+    else
+        connection_manager::instance().create(conn_config, home, true);
 
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
@@ -496,16 +499,13 @@ main(int argc, char *argv[])
         home_path = HOME_PATH;
     logger::log_msg(LOG_INFO, "Home path: " + home_path);
 
+    // Assuming this run is following a -d "death" run then no folder manipulation is required
+    // as the home and source path remain the same.
     if (!recovery) {
         // Delete any existing source dir and home path.
         logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
         testutil_recreate_dir(SOURCE_PATH);
         testutil_remove(home_path.c_str());
-    } else {
-        // Assuming this run is following a -d "death" run then the previous home path will be the
-        // source path.
-        testutil_remove(SOURCE_PATH);
-        testutil_move(home_path.c_str(), SOURCE_PATH);
     }
 
     /* When setting up the database we don't want to wait for the background threads to complete. */
