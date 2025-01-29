@@ -290,6 +290,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
         testutil_assert_errno(close(rfd) == 0);
         testutil_assert_errno(close(wfd) == 0);
     }
+    free(tmp);
 }
 
 #define RESTORE_SKIP 1
