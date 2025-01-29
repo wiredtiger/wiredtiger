@@ -86,6 +86,14 @@ class test_error_info03(error_info_util):
         time.sleep(1)
         drop_thread.start()
 
+        # Because the schema lock is acquired before the table lock, this drop will only fail with
+        # WT_CONFLICT_TABLE_LOCK if the table lock is held by another thread but the schema lock is
+        # available.
+        # The function __schema_open_index happens to be one of the few locations where it's
+        # possible to hold the table lock without also holding the schema lock, so the timing stress
+        # has been placed there (at the cost of an additional wait, since it is also called when the
+        # table is created).
+
         lock_thread.join()
         drop_thread.join()
 
