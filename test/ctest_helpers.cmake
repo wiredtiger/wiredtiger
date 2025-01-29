@@ -4,6 +4,8 @@
 # are used when compiling the test executable.
 #   target - Target name of the test.
 #   SOURCES <source files> - Sources to compile for the given test.
+#   CXX - Indicates that this is a C++ test.
+#   NO_TEST_UTIL - Do not link against the test_util library.
 #   EXECUTABLE_NAME <name> - A name for the output test binary. Defaults to the target name if not given.
 #   BINARY_DIR <dir> - The output directory to install the binaries. Defaults to 'CMAKE_CURRENT_BINARY_DIR' if not given.
 #   INCLUDES <includes> - Additional includes for building the test binary.
