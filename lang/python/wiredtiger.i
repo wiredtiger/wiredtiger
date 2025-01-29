@@ -228,7 +228,7 @@ from packing import pack, unpack
  */
 %typemap(argout) (WT_ITEM *results_array, u_int *results_count) {
     int i;
-	u_int n;
+    u_int n;
     WT_ITEM *results_array;
 
     results_array = $1;
