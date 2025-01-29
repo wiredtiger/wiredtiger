@@ -18,7 +18,7 @@ function(create_test_executable target)
         PARSE_ARGV
         1
         "CREATE_TEST"
-        "CXX"
+        "CXX;NO_TEST_UTIL"
         "EXECUTABLE_NAME;BINARY_DIR"
         "SOURCES;INCLUDES;ADDITIONAL_FILES;ADDITIONAL_DIRECTORIES;LIBS;FLAGS"
     )
@@ -92,7 +92,10 @@ function(create_test_executable target)
     endif()
 
     # Link the base set of libraries for a wiredtiger C/CXX test.
-    target_link_libraries(${target} wt::wiredtiger test_util)
+    target_link_libraries(${target} wt::wiredtiger)
+    if(NOT CREATE_TEST_NO_TEST_UTIL)
+        target_link_libraries(${target} test_util)
+    endif()
     if(NOT "${CREATE_TEST_LIBS}" STREQUAL "")
         target_link_libraries(${target} ${CREATE_TEST_LIBS})
     endif()
