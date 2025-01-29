@@ -26,142 +26,55 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import time
-import wiredtiger
-import wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+import os, time, wiredtiger, wttest
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_layered21.py
-# Test a secondary can perform reads and writes to the ingest component
-# of a layered table, without the stable component.
+#    Test the basic ability to insert on a follower.
+@disagg_test_class
 class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_base_config = 'transaction_sync=(enabled,method=fsync),' \
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(stable_prefix=.,page_log=palm),'
+    def conn_config(self):
+        return self.conn_base_config + f'disaggregated=(role="{self.initial_role}")'
 
+    uri = "layered:test_layered21"
+    nentries = 1000
+
+    role_scenarios = [
+        ('leader', dict(initial_role='leader')),
+        ('follower', dict(initial_role='follower')),
+    ]
     disagg_storages = gen_disagg_storages('test_layered21', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages)
-
-    nitems = 10000
-    uri = 'layered:test_layered21'
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
+    scenarios = make_scenarios(disagg_storages, role_scenarios)
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
-
-    # Custom test case setup
-    def early_setup(self):
-        os.mkdir('follower')
-        # Create the home directory for the PALM k/v store, and share it with the follower.
-        os.mkdir('kv_home')
-        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
-
-    def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="follower"),'
-
-    # Load the storage store extension.
-    def conn_extensions(self, extlist):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def session_create_config(self):
-        return 'key_format=S,value_format=S,'
+    # Test simple inserts to a leader/follower
+    def test_insert_changing_roles(self):
+        role = self.initial_role
 
-    def test_secondary_reads_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
+        # No matter what the role, we should be able to insert and
+        # see the results.
+        ds = SimpleDataSet(self, self.uri, self.nentries)
+        ds.populate()
+        ds.check()
 
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nitems):
-            cursor["Hello " + str(i)] = "World"
-            cursor["Hi " + str(i)] = "There"
-            cursor["OK " + str(i)] = "Go"
-        cursor.close()
+        if role == 'leader':
+            # If we are the leader, we should be able to shut down and switch roles
+            # in the same directory, insert some new items and see them.
 
-        cursor = self.session.open_cursor(self.uri, None, None)
-        item_count = 0
-        while cursor.next() == 0:
-            item_count += 1
-        self.assertEqual(item_count, self.nitems * 3)
-        cursor.close()
+            self.session.checkpoint()
+            self.reopen_conn(config=self.conn_base_config +
+                    f'disaggregated=(role="follower",checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")')
 
-        # Test cursor->prev as well
-        cursor = self.session.open_cursor(self.uri, None, None)
-        item_count = 0
-        while cursor.prev() == 0:
-            item_count += 1
-        self.assertEqual(item_count, self.nitems * 3)
-        cursor.close()
-
-    def test_secondary_modifies_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "aaaa"
-        value2 = "abaa"
-
-        for i in range(self.nitems):
-            cursor[str(i)] = value1
-
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                self.session.begin_transaction()
-                cursor.set_key(str(i))
-                mods = [wiredtiger.Modify('b', 1, 1)]
-                self.assertEqual(cursor.modify(mods), 0)
-                self.session.commit_transaction()
-
-        cursor.close()
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                self.assertEqual(cursor[str(i)], value2)
-            else:
-                self.assertEqual(cursor[str(i)], value1)
-        cursor.close()
-
-    def test_secondary_search_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        cursor.set_key("nonexistent")
-        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
-
-        cursor["found"] = "yes"
-        cursor.set_key("found")
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.search_near(), 0)
-
-    def test_largest_key_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nitems):
-            cursor["Hello " + str(i)] = "World"
-            cursor["Hi " + str(i)] = "There"
-            cursor["OK " + str(i)] = "Go"
-        cursor.close()
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.assertEqual(cursor.largest_key(), 0)
-        self.assertEqual(cursor.get_key(), "OK " + str(self.nitems - 1))
-
-    def test_getrandom_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nitems):
-            cursor["Hello " + str(i)] = "World"
-        cursor.close()
-
-        random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
-        self.assertEquals(random_cursor.next(), 0)
-        self.assertTrue(random_cursor.get_key().startswith("Hello "))
+            first_row = ds.rows + 1
+            ds.rows += 1000
+            ds.populate(first_row=first_row)
+            ds.check()

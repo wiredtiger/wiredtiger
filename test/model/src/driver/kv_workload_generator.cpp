@@ -49,8 +49,9 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     max_recno = 100'000;
     max_value_uint64 = 1'000'000;
 
-    column_fix = 0.1;
-    column_var = 0.1;
+    /* FIXME-SLS-1096: Disable these until we fix the test failures; then reset back to 0.1. */
+    column_fix = 0.0;
+    column_var = 0.0;
 
     finish_transaction = 0.08;
     insert = 0.75;

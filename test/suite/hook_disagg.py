@@ -57,19 +57,21 @@ from helper_disagg import DisaggConfigMixin, gen_disagg_storages, disagg_ignore_
 # Add the local storage extension whenever we call wiredtiger_open
 def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
 
-    disagg_storage_sources = gen_disagg_storages()
+    disagg_storages = gen_disagg_storages()
     testcase = WiredTigerTestCase.currentTestCase()
-    extension_name = testcase.getDisaggService()
-    extension_config = testcase.getDisaggConfig()
+    platform_api = testcase.platform_api
+    disagg_parameters = platform_api.getDisaggParameters()
+    page_log_name = disagg_parameters.page_log
+    page_log_config = disagg_parameters.config
 
-    valid_storage_source = False
+    valid_page_log = False
     # Construct the configuration string based on the storage source.
-    for disagg_details in disagg_storage_sources:
-        if (testcase.getDisaggService() == disagg_details[0]):
-            valid_storage_source = True
+    for disagg_details in disagg_storages:
+        if (testcase.getDisaggParameters().page_log == disagg_details[0]):
+            valid_page_log = True
 
-    if valid_storage_source == False:
-        raise AssertionError('Invalid storage source passed in the argument.')
+    if valid_page_log == False:
+        raise AssertionError('Invalid page_log passed in the argument.')
 
     # If there is already disagg storage enabled, we shouldn't enable it here.
     # We might attempt to let the wiredtiger_open complete without alteration,
@@ -92,12 +94,32 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     if 'tiered_storage=' in curconfig:
         skip_test("cannot run disagg hook on a test that uses tiered_storage in the config string")
 
-    extension_libs = WiredTigerTestCase.findExtension('page_log', extension_name)
+    extension_libs = WiredTigerTestCase.findExtension('page_log', page_log_name)
     if len(extension_libs) == 0:
         raise Exception(extension_name + ' storage source extension not found')
 
+    WiredTigerTestCase.verbose(None, 3, f'role={disagg_parameters.role}')
     disagg_config = ',verbose=[layered]' \
-        + ',disaggregated=(role="leader",stable_prefix=.,page_log=palm)'
+        + f',disaggregated=(role="{disagg_parameters.role}"' \
+        + f',stable_prefix=.,page_log={page_log_name})'
+
+    # Mark the test case whether the connection is a disagg leader or follower.
+    # This is used for the initial state.
+    #
+    # We'd really like to mark this on the connection object itself, since there may well be
+    # multiple connections in a test (and we might want them to have different roles in the future).
+    # But marking the connection object with a regular attribute does not work with SWIG.
+    #
+    # To elaborate, if we set conn.foo = 1, and later open a session and cursors, then from a cursor
+    # intercept function, we can get the connection via:
+    #   myconn = cursor.session.connection
+    # Then myconn will be an entirely new Python object from the original conn, but both are
+    # backed by the same connection. In other words, myconn is created on the fly by SWIG, and
+    # it won't have the foo attribute we originally set.
+    #
+    # This doesn't matter too much in this case, because we're usually hooking into tests with
+    # a single connection.
+    testcase.disagg_leader = (disagg_parameters.role == "leader")
 
     # Build the extension strings, we'll need to merge it with any extensions
     # already in the configuration.
@@ -109,10 +131,10 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
             raise Exception('hook_disagg: bad extensions in config \"%s\"' % curconfig)
         ext_string = curconfig[start: end]
 
-    if extension_config == None:
+    if page_log_config == None:
         ext_lib = '\"%s\"' % extension_libs[0]
     else:
-        ext_lib = '\"%s\"=(config=\"%s\")' % (extension_libs[0], extension_config)
+        ext_lib = '\"%s\"=(config=\"%s\")' % (extension_libs[0], page_log_config)
 
     disagg_config += ',' + ext_string + ',%s]' % ext_lib
 
@@ -355,11 +377,9 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
     def __init__(self, arg=None):
         params = []
 
-        # We want to split args something like arg.split(','), except that we need
-        # to sometimes allow commas as part of the individual parameters, which we
-        # allow via parens.  For example, a developer can run:
+        # We allow multiple parameters via
         #  run.py --hook \
-        #    'disagg=(tier_storage_source=dir_store,tier_storage_source_config=(force_delay=5,delay_ms=10))'
+        #    'disagg=(param1=value1,param2=value2)'
         #
         # and that should appear as two parameters to the disagg hook.
         if arg:
@@ -370,11 +390,20 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
 
         import wttest
         #wttest.WiredTigerTestCase.tty('Disagg hook params={}'.format(params))
-        for param_key, param_value in params:
-            # no parameters yet
-            raise Exception('hook_disagg: unknown parameter {}'.format(param_key))
-        self.disagg_service = 'palm'
+
         self.disagg_config = ''
+        self.disagg_page_log = 'palm'
+        self.disagg_role = 'leader'
+
+        for param_key, param_value in params:
+            if param_key == 'config':
+                self.disagg_config = param_value
+            elif param_key == 'page_log':
+                self.disagg_page_log = param_value
+            elif param_key == 'role':
+                self.disagg_role = param_value
+            else:
+                raise Exception('hook_disagg: unknown parameter {}'.format(param_key))
 
     def setUp(self, testcase):
         # Keep a set of table uris on the test case that we have
@@ -406,11 +435,12 @@ class DisaggPlatformAPI(wthooks.WiredTigerHookPlatformAPI):
         # return 'kv_home/data.mdb'
         return None
 
-    def getDisaggService(self):
-        return self.disagg_service
-
-    def getDisaggConfig(self):
-        return self.disagg_config
+    def getDisaggParameters(self):
+        result = wthooks.DisaggParameters()
+        result.config = self.disagg_config
+        result.role = self.disagg_role
+        result.page_log = self.disagg_page_log
+        return result
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.
