@@ -470,7 +470,7 @@ __clayered_iterate_constituent(WT_CURSOR_LAYERED *clayered, WT_CURSOR *constitue
 
     /* We may not have this table yet, e.g. for a stable cursor on a secondary. */
     if (constituent == NULL)
-        return (WT_NOTFOUND);
+        return (0);
 
     /* To iterate a layered cursor, which has two constituent cursors, we are in one of a few
      * states:
