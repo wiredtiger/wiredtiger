@@ -248,7 +248,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
 #ifndef _MSC_VER
     if (extent_str != NULL)
         WT_ERR(
-          __wt_live_restore_import_extents_from_string(session, block->fh->handle, extent_str));
+          __wt_live_restore_fh_import_extents_from_string(session, block->fh->handle, extent_str));
 #else
     WT_UNUSED(extent_str);
 #endif

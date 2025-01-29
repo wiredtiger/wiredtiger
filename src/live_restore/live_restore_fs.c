@@ -117,41 +117,6 @@ __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE
 #pragma GCC diagnostic pop
 
 /*
- * __wt_live_restore_fh_extent_to_metadata_string --
- *     Given a WiredTiger file handle generate a string of its extents. If live restore is not
- *     running or the extent list is missing, which indicates the file is complete, return a
- *     WT_NOTFOUND error.
- */
-int
-__wt_live_restore_fh_extent_to_metadata_string(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_ITEM *extent_string)
-{
-    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
-        return (WT_NOTFOUND);
-
-    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    if (lr_fh->destination.complete)
-        return (WT_NOTFOUND);
-
-    wt_off_t prev_off = 0;
-    WTI_LIVE_RESTORE_HOLE_NODE *head = lr_fh->destination.hole_list_head;
-    WT_RET(__wt_buf_catfmt(session, extent_string, ",live_restore="));
-    while (head != NULL) {
-        WT_RET(__wt_buf_catfmt(
-          session, extent_string, "%" PRId64 "-%" WT_SIZET_FMT, head->off - prev_off, head->len));
-        prev_off = head->off;
-        if (head->next != NULL)
-            WT_RET(__wt_buf_catfmt(session, extent_string, ";"));
-        head = head->next;
-    }
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-      "Appending live restore extents (%s) to metadata for file handle %s", fh->name,
-      (char *)extent_string->data);
-
-    return (0);
-}
-
-/*
  * __live_restore_create_stop_file_path --
  *     Generate the stop file path for a file.
  */
@@ -1161,29 +1126,6 @@ err:
     return (ret);
 }
 
-#include <unistd.h>
-/*
- * __live_restore_fh_init_log_file --
- *     When copying a log file create a single file size extent.
- */
-static int
-__live_restore_fh_init_log_file(
-  WT_SESSION_IMPL *session, char *filename, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
-{
-    wt_off_t file_size;
-
-    WT_RET(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "File: %s", filename);
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    len: %" PRId64, file_size);
-
-    if (file_size > 0)
-        /* Initialize the file as one big hole. */
-        WT_RET(__live_restore_alloc_extent(
-          session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list_head));
-
-    return (0);
-}
-
 /*
  * __live_restore_handle_verify_hole_list --
  *     Check that the generated hole list doesn't not contain holes that extend past the end of the
@@ -1245,32 +1187,51 @@ err:
 }
 
 /*
- * __wt_live_restore_import_extents_from_string --
+ * __wt_live_restore_fh_import_extents_from_string --
  *     Reconstruct the extent list in memory from a string representation. If the string is NULL do
  *     nothing. On error free any allocated extents.
  */
 int
-__wt_live_restore_import_extents_from_string(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, char *ckpt_string)
+__wt_live_restore_fh_import_extents_from_string(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, const char *ckpt_string)
 {
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
 
-    WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
-      "Live restore extent list not empty on file open");
-    if (ckpt_string != NULL && strlen(ckpt_string) != 0) {
+    /*
+     * We can open a file which already has an extent list on it. In this case there should be an
+     * empty extent list string. This scenario occurs when we open a file for the first time with a
+     * backing source file. That will initialize a single hole the size of the file.
+     *
+     * If the extent list string is non null there are two cases: It may be an empty string in which
+     * case the destination file is complete.
+     */
+    bool ckpt_string_empty = ckpt_string == NULL || strlen(ckpt_string) == 0;
+
+    if (lr_fh->destination.hole_list_head != NULL) {
+        WT_ASSERT_ALWAYS(
+          session, ckpt_string_empty, "Extent list not empty while trying to import");
+        return (0);
+    }
+
+    if (ckpt_string_empty)
+        lr_fh->destination.complete = true;
+    else {
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Got live restore extents from metadata!! %s", ckpt_string);
         /* The extents are separated by ;. And have the shape %d-%u. */
         wt_off_t off = 0, next_off;
         size_t len;
         WTI_LIVE_RESTORE_HOLE_NODE **current = &lr_fh->destination.hole_list_head;
-        char *str_ptr = ckpt_string;
+        const char *str_ptr = ckpt_string;
+        char *next;
         do {
-            next_off = (wt_off_t)strtol(str_ptr, &str_ptr, 10);
+            next_off = (wt_off_t)strtol(str_ptr, &next, 10);
+            str_ptr = next;
             off += next_off;
             str_ptr++;
-            len = (size_t)strtol(str_ptr, &str_ptr, 10);
+            len = (size_t)strtol(str_ptr, &next, 10);
+            str_ptr = next;
             str_ptr++;
             __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "Adding an extent: %" PRId64 "-%" WT_SIZET_FMT, off, len);
@@ -1279,8 +1240,7 @@ __wt_live_restore_import_extents_from_string(
         } while (*str_ptr != '\0');
         WT_ERR(__live_restore_handle_verify_hole_list(
           session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system, lr_fh, fh->name));
-    } else
-        lr_fh->destination.complete = true;
+    }
 
     if (0) {
 err:
@@ -1288,6 +1248,41 @@ err:
     }
 
     return (ret);
+}
+
+/*
+ * __wt_live_restore_fh_export_extent_to_metadata_string --
+ *     Given a WiredTiger file handle generate a string of its extents. If live restore is not
+ *     running or the extent list is missing, which indicates the file is complete, return a
+ *     WT_NOTFOUND error.
+ */
+int
+__wt_live_restore_fh_export_extent_to_metadata_string(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_ITEM *extent_string)
+{
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (WT_NOTFOUND);
+
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+    if (lr_fh->destination.complete)
+        return (WT_NOTFOUND);
+
+    wt_off_t prev_off = 0;
+    WTI_LIVE_RESTORE_HOLE_NODE *head = lr_fh->destination.hole_list_head;
+    WT_RET(__wt_buf_catfmt(session, extent_string, ",live_restore="));
+    while (head != NULL) {
+        WT_RET(__wt_buf_catfmt(
+          session, extent_string, "%" PRId64 "-%" WT_SIZET_FMT, head->off - prev_off, head->len));
+        prev_off = head->off;
+        if (head->next != NULL)
+            WT_RET(__wt_buf_catfmt(session, extent_string, ";"));
+        head = head->next;
+    }
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+      "Appending live restore extents (%s) to metadata for file handle %s", fh->name,
+      (char *)extent_string->data);
+
+    return (0);
 }
 
 /*
@@ -1313,20 +1308,11 @@ __live_restore_fs_open_in_destination(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMP
 
     /* Open the file in the layer. */
     WT_ERR(__live_restore_fs_backing_filename(
-      &lr_fs->destination, session, lr_fs->destination.home, lr_fh->iface.name, &path));
+      &lr_fs->destination, session, lr_fs->destination.home, name, &path));
     WT_ERR(lr_fs->os_file_system->fs_open_file(
       lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
     lr_fh->destination.fh = fh;
     lr_fh->destination.back_pointer = lr_fs;
-
-    /* Get the list of holes of the file that need copying across from the source directory. */
-    if (strstr(name, WT_LOG_FILENAME) != NULL || strstr(name, WTI_LOG_PREPNAME) != NULL)
-        /*
-         * FIXME: We fill holes in the log file to copy them to do this we need a single file size
-         * extent. There is a better way to do this out there.
-         */
-        WT_ERR(__live_restore_fh_init_log_file(session, path, lr_fh));
-
 err:
     __wt_free(session, path);
     return (ret);

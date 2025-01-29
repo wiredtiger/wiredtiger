@@ -1280,7 +1280,7 @@ __ckpt_add_live_restore_info(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, 
         WT_ASSERT(session, bm->is_multi_handle == false);
         /* FIXME-WT-13897 Replace this with an API call into the block manager. */
         WT_FILE_HANDLE *fh = bm->block->fh->handle;
-        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_extent_to_metadata_string(session, fh, buf));
+        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_export_extent_to_metadata_string(session, fh, buf));
     }
     return (0);
 }
