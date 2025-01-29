@@ -32,8 +32,8 @@ from wtdataset import SimpleDataSet
 from helper import copy_wiredtiger_home
 
 # test_live_restore03.py
-# Test we don't take the fast path when querying block_size and instead always open the file handle
-# during live restore.
+# Test that live_restore->fs_size can returns a valid size when the file only exists in the source
+# directory.
 # Note: The block_size statistic corresponds to underlying file size.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore03(wttest.WiredTigerTestCase):
@@ -42,7 +42,7 @@ class test_live_restore03(wttest.WiredTigerTestCase):
     def test_live_restore03(self):
         # Live restore is not supported on Windows.
         if os.name == 'nt':
-            return
+            self.skipTest('Unix specific test skipped on Windows')
 
         uris = ['file:foo', 'table:bar']
         # Create a data set with a 1 file and 1 table data source type.
