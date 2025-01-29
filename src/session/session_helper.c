@@ -151,10 +151,15 @@ __wt_session_set_last_error(
 
     /*
      * Only update the error struct if an error occurs during a session API call, or if the error
-     * struct is being initialized. Additionally, if the error struct has already been set during a
-     * session API call, prevent overwriting it.
+     * struct is being initialized.
      */
-    if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS) || (session->err_info.err != 0 && err != 0))
+    if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+        return;
+
+    /* Only update if the err_info struct has not been previously set in the current API call, or
+     * if the err_info struct is being reset.
+     */
+    if (session->err_info.err != 0 && err != 0)
         return;
 
     /*
@@ -182,5 +187,6 @@ __wt_session_set_last_error(
     return;
 
 err:
-    __wt_abort(session);
+    WT_ASSERT_ALWAYS(
+      session, err_info->err_msg_buf.data != NULL, "Format into a scratch buffer has failed");
 }
