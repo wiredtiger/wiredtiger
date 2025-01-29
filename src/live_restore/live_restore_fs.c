@@ -1254,11 +1254,11 @@ __wt_live_restore_import_extents_from_string(
   WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, char *ckpt_string)
 {
     WT_DECL_RET;
-
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    if (ckpt_string != NULL) {
-        WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
-          "Live restore extent list not empty during import");
+
+    WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
+      "Live restore extent list not empty on file open");
+    if (ckpt_string != NULL && strlen(ckpt_string) != 0) {
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Got live restore extents from metadata!! %s", ckpt_string);
         /* The extents are separated by ;. And have the shape %d-%u. */
@@ -1279,7 +1279,8 @@ __wt_live_restore_import_extents_from_string(
         } while (*str_ptr != '\0');
         WT_ERR(__live_restore_handle_verify_hole_list(
           session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system, lr_fh, fh->name));
-    }
+    } else
+        lr_fh->destination.complete = true;
 
     if (0) {
 err:

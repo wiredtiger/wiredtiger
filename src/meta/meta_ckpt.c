@@ -131,7 +131,8 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
         WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "live_restore", &v), true);
         if (ret != WT_NOTFOUND)
             WT_ERR(__wt_strndup(session, v.str, v.len, live_restore_extentsp));
-        ret = 0;
+        /* All code paths that exist today overwrite ret but to be defensive we clear it here. */
+        WT_NOT_READ(ret, 0);
     }
     /*
      * Retrieve the named checkpoint or the last checkpoint.
@@ -1274,14 +1275,13 @@ err:
 static int
 __ckpt_add_live_restore_info(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_ITEM *buf)
 {
-    WT_BM *bm = ((WT_BTREE *)dhandle->handle)->bm;
-    WT_ASSERT(session, bm->is_multi_handle == false);
-    WT_ASSERT(session, WT_PREFIX_MATCH(dhandle->name, "file:"));
-
-    /* FIXME-WT-13897 Replace this with an API call into the block manager. */
-    WT_FILE_HANDLE *fh = bm->block->fh->handle;
-    WT_RET_NOTFOUND_OK(__wt_live_restore_fh_extent_to_metadata_string(session, fh, buf));
-
+    if (WT_PREFIX_MATCH(dhandle->name, "file:")) {
+        WT_BM *bm = ((WT_BTREE *)dhandle->handle)->bm;
+        WT_ASSERT(session, bm->is_multi_handle == false);
+        /* FIXME-WT-13897 Replace this with an API call into the block manager. */
+        WT_FILE_HANDLE *fh = bm->block->fh->handle;
+        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_extent_to_metadata_string(session, fh, buf));
+    }
     return (0);
 }
 
