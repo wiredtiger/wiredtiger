@@ -141,3 +141,19 @@ class test_layered21(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.set_key("found")
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.search_near(), 0)
+
+    def test_largest_key_without_stable(self):
+        self.session.create(self.uri, self.session_create_config())
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(self.nitems):
+            cursor["Hello " + str(i)] = "World"
+            cursor["Hi " + str(i)] = "There"
+            cursor["OK " + str(i)] = "Go"
+            if i % 25000 == 0:
+                time.sleep(1)
+        cursor.close()
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        self.assertEqual(cursor.largest_key(), 0)
+        self.assertEqual(cursor.get_key(), "OK " + str(self.nitems - 1))

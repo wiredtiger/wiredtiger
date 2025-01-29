@@ -1384,9 +1384,11 @@ __clayered_largest_key(WT_CURSOR *cursor)
     if (ret == 0)
         ingest_found = true;
 
-    WT_ERR_NOTFOUND_OK(stable_cursor->largest_key(stable_cursor), true);
-    if (ret == 0)
-        stable_found = true;
+    if (stable_cursor != NULL) {
+        WT_ERR_NOTFOUND_OK(stable_cursor->largest_key(stable_cursor), true);
+        if (ret == 0)
+            stable_found = true;
+    }
 
     if (!ingest_found && !stable_found) {
         ret = WT_NOTFOUND;
@@ -1399,11 +1401,15 @@ __clayered_largest_key(WT_CURSOR *cursor)
         larger_cursor = stable_cursor;
     } else {
         __clayered_get_collator(clayered, &collator);
-        WT_ERR(__wt_compare(session, collator, &ingest_cursor->key, &stable_cursor->key, &cmp));
-        if (cmp <= 0)
-            larger_cursor = stable_cursor;
-        else
+        if (stable_cursor == NULL)
             larger_cursor = ingest_cursor;
+        else {
+            WT_ERR(__wt_compare(session, collator, &ingest_cursor->key, &stable_cursor->key, &cmp));
+            if (cmp <= 0)
+                larger_cursor = stable_cursor;
+            else
+                larger_cursor = ingest_cursor;
+        }
     }
 
     /* Copy the key as we will reset the cursor after that. */
