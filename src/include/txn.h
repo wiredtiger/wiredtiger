@@ -16,16 +16,6 @@
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
 
-/*
- * A list of reasons for returning a rollback error from the API. These reasons can be queried via
- * the session get rollback reason API call. Users of the API could have a dependency on the format
- * of these messages so changing them must be done with care.
- */
-#define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "transaction rolled back because of cache overflow"
-#define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
-#define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
-    "oldest pinned transaction ID rolled back for eviction"
-
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
 #define WT_TXN_LOG_CKPT_PREPARE 0x02u
@@ -353,8 +343,6 @@ struct __wt_txn {
 
     /* Timeout */
     uint64_t operation_timeout_us;
-
-    const char *rollback_reason; /* If rollback, the reason */
 
 /*
  * WT_TXN_HAS_TS_COMMIT --
