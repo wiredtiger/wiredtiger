@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
+
 #define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
 
 /*
@@ -1302,8 +1304,7 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
         return (0);
 
     btree = dhandle->handle;
-    WT_RET(__wt_calloc_one(session, &btree->evict_handle));
-    evict_handle = btree->evict_handle;
+    evict_handle = &btree->evict_handle;
 
     /*
      * We have a few bucket sets organized by eviction priority. Lower numbered bucket set means
@@ -1363,7 +1364,7 @@ __evict_bucket_range(WT_EVICT_BUCKET *bucket, uint64_t *min_range, uint64_t *max
  * __wt_evict_remove --
  *     Remove the page from its evict bucket.
  */
-bool
+void
 __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 
@@ -1546,7 +1547,7 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
         if (wont_need)
             __wt_atomic_store64(&page->read_gen, WT_READGEN_WONT_NEED);
         else
-            __wti_evict_read_gen_new(session, page);
+            __evict_read_gen_new(session, page);
     } else if (!internal_only)
         __wti_evict_read_gen_bump(session, page);
 
@@ -1622,4 +1623,50 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
         dhandle = TAILQ_NEXT(dhandle, q);
     }
     *dhandle_p = best_dhandle;
+}
+
+/*
+ * __wt_evict_read_gen_new --
+ *     Get the read generation for a new page in memory.
+ */
+static void
+__evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    __wt_atomic_store64(
+      &page->read_gen, (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
+    __evict_enqueue_page(session, session->dhandle, ref);
+}
+
+/* !!!
+ * __wt_evict_page_first_dirty --
+ *     Update a page's eviction state (read generation) when a page transitions from clean to
+ *     dirty.
+ *
+ *     It is called every time a page transitions from clean to dirty for the first time in memory.
+ *
+ *     Input parameter:
+ *       `page`: The page whose eviction state is being updated.
+ */
+void
+__wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    /*
+     * In the event we dirty a page which is flagged as wont need, we update its read generation to
+     * avoid evicting a dirty page prematurely.
+     */
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
+        __evict_read_gen_new(session, page);
+}
+
+/*
+ * __wt_ref_assign_page --
+ *     Must be called every time we associate a new page with a ref.
+ *     Adds the ref to eviction data structures.
+ */
+void
+__wt_ref_assign_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref, WT_PAGE *page)
+{
+
+	ref->page = page;
+	__wt_evict_init_ref(session, dhandle, ref);
 }

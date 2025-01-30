@@ -135,7 +135,7 @@ struct __wt_data_handle {
     WT_DSRC_STATS *stat_array;
 
     /* Evict data for this handle */
-    WT_EVICT_HANDLE_DATA *evict_handle_data;
+    struct __wt_evict_handle_data evict_handle_data;
 
 /*
  * Flags values over 0xfff are reserved for WT_BTREE_*. This lets us combine the dhandle and btree

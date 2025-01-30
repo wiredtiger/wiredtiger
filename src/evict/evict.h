@@ -10,23 +10,6 @@
 
 #include "evict_private.h"
 
-/*
- * Data handle evict data
- */
-struct __wt_evict_handle_data {
-    struct __wt_evict_bucketset evict_bucketset[WT_EVICT_LEVELS];
-    bool initialized;
-};
-
-/*
- * Page evict data
- */
-struct __wt_evict_page_data {
-    TAILQ_ENTRY(__wt_page) evict_q; /* Link to the next item in the evict queue */
-    struct __wt_data_handle *dhandle;
-    struct __wt_evict_bucket *bucket; /* Bucket containing this page */
-};
-
 #define WT_EVICT_PAGE_CLEARED(page) page->evict.bucket == NULL
 
 /*
@@ -52,6 +35,7 @@ struct __wt_evict {
     uint64_t read_gen;        /* Current page read generation */
     uint64_t read_gen_oldest; /* Oldest read generation the eviction
                                * server saw in its last queue load */
+    uint64_t evict_pass_gen;  /* Number of eviction passes */
 
     /*
      * Eviction threshold percentages use double type to allow for specifying percentages less than
@@ -83,6 +67,13 @@ struct __wt_evict {
     bool evict_tune_stable;                      /* Are we stable? */
     uint32_t evict_tune_workers_best;            /* Best performing value */
 
+#define WT_EVICT_PRESSURE_THRESHOLD 0.95
+    /*
+     * Score of how aggressive eviction should be about selecting eviction candidates. If eviction
+     * is struggling to make progress, this score rises (up to a maximum of WT_EVICT_SCORE_MAX), at
+     * which point the cache is "stuck" and transactions will be rolled back.
+     */
+    wt_shared uint32_t evict_aggressive_score;
 /*
  * Flags.
  */
@@ -112,8 +103,6 @@ struct __wt_evict {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
-extern bool __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state,
   uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
@@ -137,13 +126,21 @@ extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_init_ref(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref);
+extern void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
+extern void __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref,
   bool internal_only, bool wont_need);
+extern void __wt_ref_assign_page(
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref, WT_PAGE *page);
+static WT_INLINE bool __wt_evict_aggressive(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
@@ -161,7 +158,6 @@ static WT_INLINE int __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session
 static WT_INLINE void __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);
 static WT_INLINE void __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
-static WT_INLINE void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
 
 #ifdef HAVE_UNITTEST

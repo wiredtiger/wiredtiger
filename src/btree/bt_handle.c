@@ -75,7 +75,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     WT_RET(__btree_clear(session));
     memset(btree, 0, WT_BTREE_CLEAR_SIZE);
-    __wt_evict_clear_npos(btree);
     F_CLR(btree, ~WT_BTREE_SPECIAL_FLAGS);
 
     /* Set the data handle first, our called functions reasonably use it. */
@@ -804,7 +803,7 @@ __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * Call this macro even though the above calls already set the page pointer inside the ref. We
      * need this, because the macro initializes eviction data structures.
      */
-    WT_REF_ASSIGN_PAGE(session, btree->dhandle, ref, &ref->page);
+    __wt_ref_assign_page(session, btree->dhandle, ref, ref->page);
 
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are

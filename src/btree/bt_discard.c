@@ -25,13 +25,6 @@ void
 __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     /*
-     * A version of the page-out function that allows us to make additional diagnostic checks.
-     *
-     * The WT_REF cannot be the eviction thread's location.
-     */
-    WT_ASSERT(session, S2BT(session)->evict_ref != ref);
-
-    /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
      * complicated by the fact that readers publish their hazard pointer before re-checking the page
      * state, so our check can race with readers without indicating a real problem. If we find a
@@ -79,8 +72,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
     WT_ASSERT_ALWAYS(
       session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
-    WT_ASSERT_ALWAYS(session, __wt_evict_page_cleared(page),
-      "Attempting to discard a page that is still in an eviction queue");
+    WT_ASSERT_ALWAYS(session, WT_EVICT_PAGE_CLEARED(page),
+					 "Attempting to discard a page that is still in an eviction queue");
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,
@@ -97,9 +90,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 
     /* Update the cache's information. */
     __wt_evict_page_cache_bytes_decr(session, page);
-
-    /* Make sure the page is not in eviction queues */
-    WT_ASSERT_ALWAYS(session, WT_EVICT_PAGE_CLEARED(page));
 
     dsk = (WT_PAGE_HEADER *)page->dsk;
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))

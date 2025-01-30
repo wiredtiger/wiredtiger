@@ -8,6 +8,48 @@
 
 #pragma once
 
+/* !!!
+ * __wt_evict_aggressive --
+ *     Check whether eviction is unable to make any progress for some amount of time.
+ *
+ *     As eviction continues to struggle, let the caller know that eviction has become inefficient
+ *     (or made no progress). This helps determine if eviction strategies need to be more
+ *     forceful due to ongoing inefficiencies. Additionally, it serves as a useful indicator of
+ *     the health of the eviction process which callers can use to inform their behavior.
+ */
+static WT_INLINE bool
+__wt_evict_aggressive(WT_SESSION_IMPL *session)
+{
+#define WT_EVICT_SCORE_CUTOFF 10
+    return (
+      __wt_atomic_load32(&S2C(session)->evict->evict_aggressive_score) >= WT_EVICT_SCORE_CUTOFF);
+}
+
+/* !!!
+ * __wt_evict_cache_stuck --
+ *     Check whether eviction has remained inefficient (or made no progress) for a significant
+ *     period and that the cache has crossed the trigger thresholds even after significant
+ *     efforts towards forceful eviction.
+ *
+ *     This function represents a more severe state compared to aggressive eviction and servers as a
+ *     useful indicator of eviction's health, based on which callers may make certain choices to
+ *     reduce cache pressure.
+ */
+static WT_INLINE bool
+__wt_evict_cache_stuck(WT_SESSION_IMPL *session)
+{
+    WT_EVICT *evict;
+    uint32_t tmp_evict_aggressive_score;
+
+#define WT_EVICT_SCORE_MAX 100
+
+    evict = S2C(session)->evict;
+    tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score);
+    WT_ASSERT(session, tmp_evict_aggressive_score <= WT_EVICT_SCORE_MAX);
+    return (
+      tmp_evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(evict, WT_EVICT_CACHE_HARD));
+}
+
 /*
  * __evict_read_gen --
  *     Get the current read generation number.
@@ -41,18 +83,6 @@ __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * avoid some number of updates immediately after each update we have to make.
      */
     __wt_atomic_store64(&page->read_gen, __evict_read_gen(session) + WT_READGEN_STEP);
-}
-
-/*
- * __wti_evict_read_gen_new --
- *     Get the read generation for a new page in memory.
- */
-static WT_INLINE void
-__wti_evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
-{
-    __wt_atomic_store64(
-      &page->read_gen, (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
-    __evict_enqueue_page(session, session->dhandle, ref);
 }
 
 /*
@@ -113,26 +143,6 @@ __wt_evict_page_is_soon(WT_PAGE *page)
     return (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON);
 }
 
-/* !!!
- * __wt_evict_page_first_dirty --
- *     Update a page's eviction state (read generation) when a page transitions from clean to
- *     dirty.
- *
- *     It is called every time a page transitions from clean to dirty for the first time in memory.
- *
- *     Input parameter:
- *       `page`: The page whose eviction state is being updated.
- */
-static WT_INLINE void
-__wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
-{
-    /*
-     * In the event we dirty a page which is flagged as wont need, we update its read generation to
-     * avoid evicting a dirty page prematurely.
-     */
-    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_WONT_NEED)
-        __wti_evict_read_gen_new(session, page);
-}
 
 /* !!!
  * __wt_evict_page_init --
