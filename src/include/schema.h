@@ -139,18 +139,18 @@ struct __wt_import_list {
  *  Coverity will complain that two threads might modify the lock flags concurrently, but this isn't
  *  possible so those warnings can be ignored.
  */
-#define WT_WITH_LOCK_NOWAIT(session, ret, __lock_ret, lock, flag, op)              \
-    do {                                                                           \
-        (ret) = 0;                                                                 \
-        (__lock_ret) = 0;                                                          \
-        if (FLD_ISSET(session->lock_flags, (flag))) {                              \
-            op;                                                                    \
-        } else if (((__lock_ret) = __wt_spin_trylock_track(session, lock)) == 0) { \
-            FLD_SET(session->lock_flags, (flag));                                  \
-            op;                                                                    \
-            FLD_CLR(session->lock_flags, (flag));                                  \
-            __wt_spin_unlock(session, lock);                                       \
-        }                                                                          \
+#define WT_WITH_LOCK_NOWAIT(session, ret, lock_ret, lock, flag, op)              \
+    do {                                                                         \
+        (ret) = 0;                                                               \
+        (lock_ret) = 0;                                                          \
+        if (FLD_ISSET(session->lock_flags, (flag))) {                            \
+            op;                                                                  \
+        } else if (((lock_ret) = __wt_spin_trylock_track(session, lock)) == 0) { \
+            FLD_SET(session->lock_flags, (flag));                                \
+            op;                                                                  \
+            FLD_CLR(session->lock_flags, (flag));                                \
+            __wt_spin_unlock(session, lock);                                     \
+        }                                                                        \
     } while (0)
 
 /*
@@ -240,7 +240,7 @@ struct __wt_import_list {
         WT_WITH_LOCK_NOWAIT(                                                                       \
           session, ret, __lock_ret, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);     \
         if (__lock_ret != 0) {                                                                     \
-            if (__lock_ret == EBUSY)                                                             \
+            if (__lock_ret == EBUSY)                                                               \
                 WT_IGNORE_RET(__wt_session_set_last_error(session, EBUSY, WT_CONFLICT_SCHEMA_LOCK, \
                   "another thread is currently holding the schema lock"));                         \
             else                                                                                   \
@@ -299,15 +299,15 @@ struct __wt_import_list {
         int __table_lock_ret = 0;                                                                  \
         if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE)) {                       \
             op;                                                                                    \
-        } else if (((__table_lock_ret) =                                                           \
-                       __wt_try_writelock(session, &S2C(session)->table_lock)) == 0) {             \
+        } else if ((__table_lock_ret = __wt_try_writelock(session, &S2C(session)->table_lock)) ==  \
+          0) {                                                                                     \
             FLD_SET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE);                           \
             op;                                                                                    \
             FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE);                           \
             __wt_writeunlock(session, &S2C(session)->table_lock);                                  \
         }                                                                                          \
-        if ((__table_lock_ret) != 0) {                                                             \
-            WT_ASSERT(session, (__table_lock_ret) == EBUSY);                                       \
+        if (__table_lock_ret != 0) {                                                               \
+            WT_ASSERT(session, __table_lock_ret == EBUSY);                                         \
             WT_IGNORE_RET(__wt_session_set_last_error(session, EBUSY, WT_CONFLICT_TABLE_LOCK,      \
               "another thread is currently holding the table lock"));                              \
             ret = __table_lock_ret;                                                                \
