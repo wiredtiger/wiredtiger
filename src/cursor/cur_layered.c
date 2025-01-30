@@ -585,8 +585,7 @@ __layered_prev_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     /* If we aren't positioned for a reverse scan, get started. */
     if (clayered->current_cursor == NULL || !F_ISSET(clayered, WT_CLAYERED_ITERATE_PREV)) {
         WT_ERR(__clayered_iterate_constituent(clayered, clayered->ingest_cursor, false));
-        WT_ERR_NOTFOUND_OK(
-          __clayered_iterate_constituent(clayered, clayered->stable_cursor, false), false);
+        WT_ERR(__clayered_iterate_constituent(clayered, clayered->stable_cursor, false));
         F_SET(clayered, WT_CLAYERED_ITERATE_PREV | WT_CLAYERED_MULTIPLE);
         F_CLR(clayered, WT_CLAYERED_ITERATE_PREV);
 
