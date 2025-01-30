@@ -125,7 +125,6 @@ struct __wt_layered_table_manager_entry {
     WT_CURSOR *stable_cursor;
     WT_LAYERED_TABLE *layered_table;
 
-    uint64_t accumulated_write_bytes;
     uint64_t checkpoint_txn_id;
     uint64_t read_checkpoint;
 };

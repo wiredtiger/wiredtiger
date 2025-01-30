@@ -899,17 +899,20 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prev_upd, *tombstone, *upd, *upds;
+    wt_timestamp_t last_checkpoint_timestamp;
     uint8_t flags, location, prepare, type;
     int cmp;
     char buf[256];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
+    WT_ACQUIRE_READ(
+      last_checkpoint_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
     WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     WT_RET(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,visible_only=true,timestamp_order=true,start_timestamp="
       "%" PRIx64 "))",
-      S2C(session)->disaggregated_storage.last_checkpoint_timestamp));
+      last_checkpoint_timestamp));
     cfg[1] = buf;
     WT_RET(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
     /* We only care about binary data. */
@@ -949,7 +952,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_ts,
           &tw.durable_start_ts, &tw.stop_txn, &tw.stop_ts, &tw.durable_stop_ts, &type, &prepare,
           &flags, &location, value));
-        /* We shouldn't seen any prepared updates. */
+        /* We shouldn't see any prepared updates. */
         WT_ASSERT(session, prepare == 0);
 
         /* We assume the updates returned will be in timestamp order. */
@@ -979,19 +982,19 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
 
             if (prev_upd != NULL)
                 prev_upd->next = tombstone;
-            else {
-                prev_upd = upd;
+            else
                 upds = tombstone;
-            }
+
+            prev_upd = upd;
             tombstone = NULL;
             upd = NULL;
         } else {
             if (prev_upd != NULL)
                 prev_upd->next = upd;
-            else {
-                prev_upd = upd;
+            else
                 upds = upd;
-            }
+
+            prev_upd = upd;
             upd = NULL;
         }
     }
@@ -1023,9 +1026,13 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     manager = &S2C(session)->layered_table_manager;
 
-    /* The table count never shrinks, so this is safe. It probably needs the layered table lock */
+    /*
+     * The table count never shrinks, so this is safe. It probably needs the layered table lock.
+     *
+     * TODO: skip empty ingest tables.
+     */
     for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL && entry->accumulated_write_bytes > 0)
+        if ((entry = manager->entries[i]) != NULL)
             WT_RET(__layered_drain_ingest_table(session, entry));
     }
 
