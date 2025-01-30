@@ -640,7 +640,16 @@ static int
 __schema_open_layered_member(
   WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, const char *uri, bool ingest)
 {
-    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+    WT_DECL_RET;
+
+    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+    if (!ingest && ret == ENOENT && !S2C(session)->layered_table_manager.leader) {
+        /*
+         * This is fine: we may not have seen a checkpoint containing this table yet, so we won't
+         * have a stable component until the next checkpoint.
+         */
+        return (0);
+    }
 
     /* Reference the dhandle and set it in the tier array. */
     (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
@@ -719,7 +728,6 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     uint32_t ingest_id, stable_id;
-    bool stable_deferred;
 
     /* This needs to hold the table write lock, so the handle doesn't get swept and closed */
     WT_WITH_TABLE_WRITE_LOCK(session, ret = __schema_open_layered(session));
@@ -739,19 +747,12 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
 
     WT_SAVE_DHANDLE(
       session, ret = __schema_open_layered_member(session, layered, layered->stable_uri, false));
-    stable_deferred = ret == ENOENT && !S2C(session)->layered_table_manager.leader;
-    if (stable_deferred) {
-        /*
-         * This is fine: we may not have seen a checkpoint containing this table yet, so we won't
-         * have a stable component until the next checkpoint.
-         */
-        ret = 0;
-        stable_id = 0;
-    } else {
+    WT_RET(ret);
+    if (layered->stable != NULL) {
         stable_id = ((WT_BTREE *)layered->stable->handle)->id;
         WT_ASSERT(session, WT_BTREE_ID_SHARED(stable_id));
-    }
-    WT_RET(ret);
+    } else
+        stable_id = 0;
 
     /* Start the layered table manager thread if it isn't running. */
     WT_RET(__wt_layered_table_manager_start(session));
