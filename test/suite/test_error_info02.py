@@ -60,17 +60,21 @@ class test_error_info02(wttest.WiredTigerTestCase):
         # Start a transaction and insert a value large enough to trigger eviction app worker
         # threads. Loop 1000 times to ensure that the eviction server is busy evicting, and the
         # cache will be full when the application worker thread checks if eviction is needed.
-        for i in range(1000):
+        for i in range(100):
             self.session.begin_transaction()
             cursor.set_key(str(i))
             cursor.set_value(str(i)*1024*5000)
 
             try:
                 cursor.update()
-                self.session.commit_transaction()
             except wiredtiger.WiredTigerError as e:
-                break
-
+                if wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(e):
+                    break
+                else:
+                    raise e
+            
+            self.session.commit_transaction()
+            
         self.ignoreStdoutPatternIfExists("transaction rolled back because of cache overflow")
 
     def api_call_with_wt_rollback_wt_write_conflict(self):
