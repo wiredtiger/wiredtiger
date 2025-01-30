@@ -43,6 +43,10 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * complete.
          */
         if (TAILQ_EMPTY(&server->work_queue)) {
+            /* Force a checkpoint, we need our last metadata updates to be written out. */
+            const char *cfg[] = {
+              WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=true", NULL};
+            WT_ERR(__wt_checkpoint_db(ctx->session, cfg, true));
             WT_ERR(__wti_live_restore_cleanup_stop_files(session));
             uint64_t time_diff_ms;
             WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
@@ -198,8 +202,32 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      * Finally if "complete" means that the source connection can be dropped then all the remaining
      * metadata writes must happen and be made stable otherwise the source will be dropped
      * prematurely.
+     *
+     * TODO: Reword comment, referencing safety of the modify flag getting cleared concurrently
+     * meaning that the metadata does not get written out as we want.
+     *
+     * Checkpoint thread:
+     * - Checkpoint begins, calls prepare
+     * - Walking dhandle list checks a.wt->modified
+     * - Writes a.wt
+     * - Set a.wt->modified = false
+     * - Writes metadata:a.wt -> takes extent string
+     *
+     * Background thread:
+     * - Get checkpoint string?
+     * - Fill holes in a.wt
+     * - Get checkpoint string?
+     * - On completion set a.wt->modified = true
+     *
+     * Scenario 2:
+     * - Checkpoint begins, calls prepare, a.wt->modified = false, a.wt is skipped.
+     * - Background thread finishes
+     * - a.wt->modified set to true
+     * - crash
+     * - read old a.wt->extent list
+     * - Live restore complete? Background threads having finished their work
      */
-    WT_WITH_CHECKPOINT_LOCK(session, CUR2BT(cursor)->modified = true);
+    WT_WITH_DHANDLE(session, CUR2BT(cursor)->dhandle, __wt_tree_modify_set(session));
 
     WT_TRET(cursor->close(cursor));
 

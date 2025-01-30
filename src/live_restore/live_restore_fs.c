@@ -1156,7 +1156,8 @@ __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTOR
         WT_ERR(lr_fs->os_file_system->fs_size(
           lr_fs->os_file_system, (WT_SESSION *)session, source_fh->name, &source_size));
 
-        __wt_readlock(session, &lr_fh->ext_lock);
+        WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+          "Live restore lock not taken when needed");
         WTI_LIVE_RESTORE_HOLE_NODE *final_hole;
         final_hole = lr_fh->destination.hole_list_head;
         while (final_hole->next != NULL)
@@ -1166,12 +1167,9 @@ __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTOR
             __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
               "Error: Hole list for %s has holes beyond the the end of the source file!", name);
             __live_restore_debug_dump_extent_list(session, lr_fh);
-            __wt_readunlock(session, &lr_fh->ext_lock);
             WT_ERR_MSG(session, EINVAL,
               "Hole list for %s has holes beyond the the end of the source file!", name);
         }
-        __wt_readunlock(session, &lr_fh->ext_lock);
-
     } else
         WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
           "Source file doesn't exist but there are holes in the destination file");
@@ -1220,6 +1218,7 @@ __wt_live_restore_fh_import_extents_from_string(
     if (ckpt_string_empty)
         lr_fh->destination.complete = true;
     else {
+        __wt_readlock(session, &lr_fh->ext_lock);
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Got live restore extents from metadata!! %s", ckpt_string);
         /* The extents are separated by ;. And have the shape %d-%u. */
@@ -1234,6 +1233,8 @@ __wt_live_restore_fh_import_extents_from_string(
             off += next_off;
             str_ptr++;
             len = (size_t)strtol(str_ptr, &next, 10);
+            if (len == 0)
+                WT_ERR_MSG(session, EINVAL, "Length zero extent found, this is an error");
             str_ptr = next;
             str_ptr++;
             __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
@@ -1249,7 +1250,8 @@ __wt_live_restore_fh_import_extents_from_string(
 err:
         __live_restore_fs_free_extent_list(session, lr_fh);
     }
-
+    if (__wt_rwlock_islocked(session, &lr_fh->ext_lock))
+        __wt_readunlock(session, &lr_fh->ext_lock);
     return (ret);
 }
 
