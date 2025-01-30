@@ -240,7 +240,7 @@ struct __wt_import_list {
         WT_WITH_LOCK_NOWAIT(                                                                       \
           session, ret, __lock_ret, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);     \
         if (__lock_ret != 0) {                                                                     \
-            if ((__lock_ret) == EBUSY)                                                             \
+            if (__lock_ret == EBUSY)                                                             \
                 WT_IGNORE_RET(__wt_session_set_last_error(session, EBUSY, WT_CONFLICT_SCHEMA_LOCK, \
                   "another thread is currently holding the schema lock"));                         \
             else                                                                                   \
