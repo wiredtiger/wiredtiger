@@ -109,4 +109,4 @@ class test_live_restore02(wttest.WiredTigerTestCase):
                 self.assertEqual(cursor.get_key(), cursor2.get_key())
                 self.assertEqual(cursor.get_value(), cursor2.get_value())
 
-        assert(len(glob.glob('WT_DEST/*.deleted')) == 0)
+        assert(len(glob.glob('WT_DEST/*.stop')) == 0)
