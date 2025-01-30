@@ -1233,10 +1233,8 @@ __wt_live_restore_fh_import_extents_from_string(
             off += next_off;
             str_ptr++;
             len = (size_t)strtol(str_ptr, &next, 10);
-            if (len == 0) {
-                WT_ASSERT(session, false);
+            if (len == 0)
                 WT_ERR_MSG(session, EINVAL, "Length zero extent found, this is an error");
-            }
 
             __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "Adding an extent: %" PRId64 "-%" WT_SIZET_FMT, off, len);

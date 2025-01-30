@@ -1269,11 +1269,11 @@ err:
 }
 
 /*
- * __ckpt_add_live_restore_info --
+ * __meta_add_live_restore_info --
  *     Add relevant live restore information to the checkpoint metadata string.
  */
 static int
-__ckpt_add_live_restore_info(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_ITEM *buf)
+__meta_add_live_restore_info(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_ITEM *buf)
 {
     if (WT_PREFIX_MATCH(dhandle->name, "file:")) {
         WT_BM *bm = ((WT_BTREE *)dhandle->handle)->bm;
@@ -1305,7 +1305,7 @@ __wt_meta_ckptlist_set(
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
 
 #ifndef _MSC_VER
-    WT_ERR_NOTFOUND_OK(__ckpt_add_live_restore_info(session, dhandle, buf), false);
+    WT_ERR_NOTFOUND_OK(__meta_add_live_restore_info(session, dhandle, buf), false);
 #endif
 
     /* Add backup block modifications for any added checkpoint. */

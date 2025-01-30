@@ -167,7 +167,7 @@ __wti_block_configure_first_fit(WT_BLOCK *block, bool on)
 int
 __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objectid,
   const char *cfg[], bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize,
-  WT_BLOCK **blockp, char *extent_str)
+  char *extent_str, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;

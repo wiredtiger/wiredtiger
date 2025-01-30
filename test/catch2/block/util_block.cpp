@@ -146,7 +146,7 @@ setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string &f
       {"access_pattern_hint", access_pattern}});
     REQUIRE(__wt_block_open(session->get_wt_session_impl(), file_path.c_str(),
               WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false,
-              std::stoi(allocation_size), &bm->block, NULL) == 0);
+              std::stoi(allocation_size), NULL, &bm->block) == 0);
 
     // Initialize the extent lists inside the block handle.
     REQUIRE(__wti_block_ckpt_init(session->get_wt_session_impl(), &bm->block->live, nullptr) == 0);
