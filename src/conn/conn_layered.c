@@ -970,9 +970,11 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         } else if (WT_TIME_WINDOW_HAS_STOP(&tw))
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
 
-        /* It is possible to see a full value that is smaller or equal to the last checkpoint
+        /*
+         * It is possible to see a full value that is smaller than or equal to the last checkpoint
          * timestamp with a tombstone that is larger than the last checkpoint timestamp. Ignore the
-         * update in this case. */
+         * update in this case.
+         */
         if (tw.durable_start_ts > last_checkpoint_timestamp) {
             WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
             upd->txnid = tw.start_txn;
