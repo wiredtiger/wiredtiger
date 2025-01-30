@@ -118,7 +118,8 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     __wt_blkcache_destroy(session);
 
     /* Shut down layered table manager - this should be done after closing out data handles. */
-    __wt_layered_table_manager_destroy(session, true);
+    if (__wt_conn_is_disagg(session))
+        __wt_layered_table_manager_destroy(session, true);
 
     /*
      * Now that all data handles are closed, tell logging that a checkpoint has completed then shut

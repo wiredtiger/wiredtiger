@@ -479,6 +479,8 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
+
+    __wt_spin_unlock(session, &manager->layered_table_lock);
 }
 
 /*
