@@ -518,8 +518,7 @@ __clayered_next(WT_CURSOR *cursor)
     /* If we aren't positioned for a forward scan, get started. */
     if (clayered->current_cursor == NULL || !F_ISSET(clayered, WT_CLAYERED_ITERATE_NEXT)) {
         WT_ERR(__clayered_iterate_constituent(clayered, clayered->ingest_cursor, true));
-        WT_ERR_NOTFOUND_OK(
-          __clayered_iterate_constituent(clayered, clayered->stable_cursor, true), false);
+        WT_ERR(__clayered_iterate_constituent(clayered, clayered->stable_cursor, true));
         F_SET(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_MULTIPLE);
         F_CLR(clayered, WT_CLAYERED_ITERATE_PREV);
 
