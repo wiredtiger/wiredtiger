@@ -1227,21 +1227,28 @@ __wt_live_restore_fh_import_extents_from_string(
         WTI_LIVE_RESTORE_HOLE_NODE **current = &lr_fh->destination.hole_list_head;
         const char *str_ptr = ckpt_string;
         char *next;
-        do {
+        while (true) {
             next_off = (wt_off_t)strtol(str_ptr, &next, 10);
             str_ptr = next;
             off += next_off;
             str_ptr++;
             len = (size_t)strtol(str_ptr, &next, 10);
-            if (len == 0)
+            if (len == 0) {
+                WT_ASSERT(session, false);
                 WT_ERR_MSG(session, EINVAL, "Length zero extent found, this is an error");
-            str_ptr = next;
-            str_ptr++;
+            }
+
             __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
               "Adding an extent: %" PRId64 "-%" WT_SIZET_FMT, off, len);
             WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
             current = &((*current)->next);
-        } while (*str_ptr != '\0');
+
+            str_ptr = next;
+            /* We've reached the end of the string, don't go over by accident. */
+            if (*str_ptr == '\0')
+                break;
+            str_ptr++;
+        }
         WT_ERR(__live_restore_handle_verify_hole_list(
           session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system, lr_fh, fh->name));
     }
