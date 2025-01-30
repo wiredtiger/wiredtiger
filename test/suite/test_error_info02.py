@@ -75,9 +75,10 @@ class test_error_info02(wttest.WiredTigerTestCase):
 
         self.ignoreStdoutPatternIfExists("transaction rolled back because of cache overflow")
 
-    def api_call_with_wt_rollback_wt_write_conflict(self):
+    def api_call_with_wt_rollback_wt_write_conflict_update_list(self):
         """
-        Try to write conflicting data with two threads.
+        Try to write conflicting data with two threads. There will be an update that is not visible
+        to the second session, therefore, it cannot modify it.
         """
         # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -111,6 +112,66 @@ class test_error_info02(wttest.WiredTigerTestCase):
         # Expect the get_last_error reason to give us the true reason for the rollback.
         # The error will be set in the second session.
         self.session = session2
+
+    def api_call_with_wt_rollback_wt_write_conflict_time_start(self):
+        """
+        Try to write conflicting data with two threads. There will be an update from the first
+        session that is written to disk, and it is not visible to second session, so there is a
+        conflict.
+        """
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        session1 = self.session
+        cursor1 = session1.open_cursor(self.uri)
+        session2 = self.conn.open_session()
+        cursor2 = session2.open_cursor(self.uri)
+
+        session1.begin_transaction()
+        cursor1.set_key('key')
+        cursor1.set_value('value')
+
+        session2.begin_transaction()
+        cursor2.set_key('key')
+        cursor2.set_value('a'*1024*5000)
+        cursor2.insert()
+        session2.commit_transaction('commit_timestamp=1')
+
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.insert())
+
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
+
+    def api_call_with_wt_rollback_wt_write_conflict_time_stop(self):
+        """
+        Try to write conflicting data with two threads. There will be an update from the first
+        session that is written to disk, and it is not visible to the second session, so there is
+        a conflict.
+        """
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+
+        session1 = self.session
+        cursor1 = session1.open_cursor(self.uri)
+        session2 = self.conn.open_session()
+        cursor2 = session2.open_cursor(self.uri)
+
+        session2.begin_transaction()
+        cursor2.set_key('key')
+        cursor2.set_value('a'*1024*5000)
+        cursor2.insert()
+        session2.commit_transaction()
+
+        session1.begin_transaction()
+        cursor1.set_key('key')
+        cursor1.set_value('value')
+
+        session2.begin_transaction()
+        cursor2.set_key('key')
+        cursor2.remove()
+        session2.commit_transaction('commit_timestamp=1')
+        session2.checkpoint()
+
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.insert())
+
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
     def api_call_with_wt_rollback_wt__oldest_for_eviction(self):
         """
@@ -147,8 +208,16 @@ class test_error_info02(wttest.WiredTigerTestCase):
         self.api_call_with_wt_rollback_wt_cache_overflow()
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
 
-    def test_wt_rollback_wt_write_conflict(self):
-        self.api_call_with_wt_rollback_wt_write_conflict()
+    def test_wt_rollback_wt_write_conflict_update_list(self):
+        self.api_call_with_wt_rollback_wt_write_conflict_update_list()
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
+
+    def test_wt_rollback_wt_write_conflict_time_start(self):
+        self.api_call_with_wt_rollback_wt_write_conflict_time_start()
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
+
+    def test_wt_rollback_wt_write_conflict_time_stop(self):
+        self.api_call_with_wt_rollback_wt_write_conflict_time_stop()
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
     def test_wt_rollback_wt_oldest_for_eviction(self):
