@@ -467,6 +467,9 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     conn = S2C(session);
     manager = &conn->layered_table_manager;
 
+    if (!__wt_conn_is_disagg(session))
+        return;
+
     __wt_verbose_level(
       session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_destroy");
 
