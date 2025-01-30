@@ -596,7 +596,6 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *first_upd, *tombstone, **upd_entry;
-    wt_timestamp_t last_checkpoint_timestamp;
 
     btree = S2BT(session);
     page = r->page;
@@ -610,9 +609,8 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
     if (first_upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    WT_READ_ONCE(last_checkpoint_timestamp, S2C(session)->txn_global.last_ckpt_timestamp);
-    if (last_checkpoint_timestamp != WT_TS_NONE &&
-      first_upd->durable_ts <= last_checkpoint_timestamp) {
+    if (r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
+      first_upd->durable_ts <= r->rec_last_checkpoint_timestamp) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
           "layered table record garbage collected 5");
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
@@ -866,7 +864,6 @@ __wti_rec_row_leaf(
     WT_TIME_WINDOW *twp;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
-    wt_timestamp_t last_ckpt_timestamp;
     size_t key_size;
     uint64_t slvg_skip;
     uint32_t i;
@@ -887,8 +884,6 @@ __wti_rec_row_leaf(
 
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
-
-    WT_READ_ONCE(last_ckpt_timestamp, S2C(session)->txn_global.last_ckpt_timestamp);
 
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));
 
@@ -962,8 +957,9 @@ __wti_rec_row_leaf(
          */
         if (upd == NULL &&
           (__wt_txn_tw_stop_visible_all(session, twp) ||
-            (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) && last_ckpt_timestamp != WT_TS_NONE &&
-              twp->durable_start_ts <= last_ckpt_timestamp))) {
+            (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+              r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
+              twp->durable_start_ts <= r->rec_last_checkpoint_timestamp))) {
             /*
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
                 __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",

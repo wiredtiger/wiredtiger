@@ -1327,7 +1327,7 @@ err:
      * well. It also needs to happen prior to draining transaction activity - since the manager
      * artificially pins transaction state to allow for garbage collection in ingest tables.
      */
-    WT_TRET(__wt_layered_table_manager_destroy(session, true));
+    __wt_layered_table_manager_destroy(session, true);
 
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));

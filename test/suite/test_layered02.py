@@ -26,12 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-<<<<<<< HEAD
-import os, wttest
-=======
 import os, wiredtiger, wttest
 from helper_disagg import disagg_test_class
->>>>>>> wiredtiger-disagg-v8.0
 
 # test_layered02.py
 #    Basic layered tree cursor creation

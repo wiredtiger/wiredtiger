@@ -53,15 +53,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     WT_DECL_ITEM(item);
     WT_DECL_RET;
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
-    WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t ckpt_timestamp;
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, global_checkpoint_id;
     char *buf, *cfg_ret, *checkpoint_config, *metadata_value_cfg, *layered_ingest_uri;
     const char *cfg[3], *current_value, *metadata_key, *metadata_value;
 
     conn = S2C(session);
-    txn_global = &conn->txn_global;
 
     buf = NULL;
     cursor = NULL;
@@ -310,7 +307,7 @@ __wt_layered_table_manager_init(WT_SESSION_IMPL *session)
 
 err:
     /* Quit the layered table server. */
-    WT_TRET(__wt_layered_table_manager_destroy(session, false));
+    __wt_layered_table_manager_destroy(session, false);
     return (ret);
 }
 
@@ -462,7 +459,7 @@ __layered_table_get_constituent_cursor(
  * __wt_layered_table_manager_destroy --
  *     Destroy the layered table manager thread(s)
  */
-int
+void
 __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
 {
     WT_CONNECTION_IMPL *conn;
@@ -484,8 +481,6 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
-
-    return (0);
 }
 
 /*

@@ -368,7 +368,8 @@ __wt_update_obsolete_check(
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
 
-    WT_READ_ONCE(last_ckpt_timestamp, txn_global->last_ckpt_timestamp);
+    WT_READ_ONCE(
+      last_ckpt_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
 
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;

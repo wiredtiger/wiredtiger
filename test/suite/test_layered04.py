@@ -36,10 +36,6 @@ from wiredtiger import stat
 class test_layered04(wttest.WiredTigerTestCase):
     nitems = 50000
     uri_base = "test_layered04"
-<<<<<<< HEAD
-    # conn_config = 'log=(enabled),verbose=[layered:5]'
-=======
->>>>>>> wiredtiger-disagg-v8.0
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),disaggregated=(role="leader"),' \
                 + 'disaggregated=(stable_prefix=.,page_log=palm),'
 
