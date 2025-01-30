@@ -1290,7 +1290,7 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
  *     Initialize the per-tree eviction data.
  */
 int
-__wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle;)
+__wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_BTREE *btree;
     WT_EVICT_BUCKET *bucket;
@@ -1302,7 +1302,8 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle;)
         return (0);
 
     btree = dhandle->handle;
-    evict_handle = &btree->evict_handle;
+    WT_RET(__wt_calloc_one(session, &btree->evict_handle));
+    evict_handle = btree->evict_handle;
 
     /*
      * We have a few bucket sets organized by eviction priority. Lower numbered bucket set means

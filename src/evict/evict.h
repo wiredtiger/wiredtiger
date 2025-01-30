@@ -14,7 +14,7 @@
  * Data handle evict data
  */
 struct __wt_evict_handle_data {
-    WT_EVICT_BUCKETSET evict_bucketset[WT_EVICT_LEVELS];
+    struct __wt_evict_bucketset evict_bucketset[WT_EVICT_LEVELS];
     bool initialized;
 };
 
@@ -23,8 +23,8 @@ struct __wt_evict_handle_data {
  */
 struct __wt_evict_page_data {
     TAILQ_ENTRY(__wt_page) evict_q; /* Link to the next item in the evict queue */
-    WT_DATA_HANDLE *dhandle;
-    WT_EVICT_BUCKET *bucket; /* Bucket containing this page */
+    struct __wt_data_handle *dhandle;
+    struct __wt_evict_bucket *bucket; /* Bucket containing this page */
 };
 
 #define WT_EVICT_PAGE_CLEARED(page) page->evict.bucket == NULL
@@ -126,7 +126,7 @@ extern int __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle;)
+extern int __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_threads_create(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
