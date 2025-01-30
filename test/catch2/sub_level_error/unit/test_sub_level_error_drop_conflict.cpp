@@ -124,6 +124,8 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[sub_level_error
     WT_ERROR_INFO *err_info_a = NULL;
     WT_ERROR_INFO *err_info_b = NULL;
 
+    /* This section directly uses the pthread library which is POSIX-only, so skip on Windows. */
+#ifndef _WIN32
     SECTION("Test CONFLICT_SCHEMA_LOCK")
     {
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
@@ -139,6 +141,7 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[sub_level_error
           err_info_a, EBUSY, WT_CONFLICT_SCHEMA_LOCK, CONFLICT_SCHEMA_LOCK_MSG);
         utils::check_error_info(err_info_b, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
     }
+#endif
 
     SECTION("Test CONFLICT_TABLE_LOCK")
     {
