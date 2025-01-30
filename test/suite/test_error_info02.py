@@ -72,9 +72,9 @@ class test_error_info02(wttest.WiredTigerTestCase):
                     break
                 else:
                     raise e
-            
+
             self.session.commit_transaction()
-            
+
         self.ignoreStdoutPatternIfExists("transaction rolled back because of cache overflow")
 
     def api_call_with_wt_rollback_wt_write_conflict(self):
