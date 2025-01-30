@@ -487,7 +487,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
          * file. */
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
 
-        /* 
+        /*
          * For each delta, increment statistics before we do any more processing such as
          * decompression or decryption.
          */
