@@ -187,6 +187,5 @@ __wt_session_set_last_error(
     return;
 
 err:
-    WT_ASSERT_ALWAYS(
-      session, err_info->err_msg_buf.data != NULL, "Format into a scratch buffer has failed");
+    WT_ASSERT_ALWAYS(session, false, "Format into a scratch buffer has failed");
 }
