@@ -135,20 +135,9 @@ struct __wt_layered_table_manager_entry {
  *      Structure containing information related to running the layered table manager.
  */
 struct __wt_layered_table_manager {
-
-#define WT_LAYERED_TABLE_MANAGER_OFF 0      /* The layered table manager is not running */
-#define WT_LAYERED_TABLE_MANAGER_RUNNING 1  /* The layered table manager is running */
-#define WT_LAYERED_TABLE_MANAGER_STARTING 2 /* The layered table manager is being started */
-#define WT_LAYERED_TABLE_MANAGER_STOPPING 3 /* The layered table manager is being shut down */
-    wt_shared uint32_t state;               /* Atomic: Indicating the manager is already running */
-
-    wt_shared uint32_t log_applying; /* Atomic: a thread is currently applying logs */
-
     WT_SPINLOCK
     layered_table_lock; /* Lock used for managing changes to global layered table state */
 
-    /* Set the checkpoint threshold tiny for now - we just want to know the process is working */
-#define WT_LAYERED_TABLE_CHECKPOINT_THRESHOLD 16
     uint32_t open_layered_table_count;
     /*
      * This is a sparsely populated array of layered tables - each fileid in the system gets an
@@ -157,12 +146,6 @@ struct __wt_layered_table_manager {
      * whether a log record belongs to a layered table and should be applied.
      */
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
-
-#define WT_LAYERED_TABLE_THREAD_COUNT 1
-    WT_THREAD_GROUP threads;
-
-    //     WT_LSN max_replay_lsn;
-    //     uint64_t max_applied_txnid;
 
     bool leader;
 };
@@ -934,7 +917,6 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_CHECKPOINT_CLEANUP 0x004u
 #define WT_CONN_SERVER_CHUNKCACHE_METADATA 0x008u
 #define WT_CONN_SERVER_COMPACT 0x010u
-#define WT_CONN_SERVER_LAYERED 0x020u
 #define WT_CONN_SERVER_LOG 0x040u
 #define WT_CONN_SERVER_LSM 0x080u
 #define WT_CONN_SERVER_STATISTICS 0x100u

@@ -279,11 +279,11 @@ __disagg_pick_up_checkpoint_meta(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *meta_
 }
 
 /*
- * __wt_layered_table_manager_start --
+ * __wt_layered_table_manager_init --
  *     Start the layered table manager thread
  */
 int
-__wt_layered_table_manager_start(WT_SESSION_IMPL *session)
+__wt_layered_table_manager_init(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -292,20 +292,6 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
-
-    /* It's possible to race - only start the manager if we are the winner */
-    if (!__wt_atomic_cas32(
-          &manager->state, WT_LAYERED_TABLE_MANAGER_OFF, WT_LAYERED_TABLE_MANAGER_STARTING)) {
-        /* This isn't optimal, but it'll do. It's uncommon for multiple threads to be trying to
-         * start the layered table manager at the same time.
-         * It's probably fine for any "loser" to proceed without waiting, but be conservative
-         * and have a semantic where a return from this function indicates a running layered table
-         * manager->
-         */
-        while (__wt_atomic_load32(&manager->state) != WT_LAYERED_TABLE_MANAGER_RUNNING)
-            __wt_sleep(0, 1000);
-        return (0);
-    }
 
     WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
 
@@ -318,39 +304,14 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
 
-    // session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
-    // WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
-    //   WT_LAYERED_TABLE_THREAD_COUNT, WT_LAYERED_TABLE_THREAD_COUNT, session_flags,
-    //   __wt_layered_table_manager_thread_chk, __wt_layered_table_manager_thread_run, NULL));
-
-    // WT_MAX_LSN(&manager->max_replay_lsn);
-
-    WT_STAT_CONN_SET(session, layered_table_manager_running, 1);
     __wt_verbose_level(
-      session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_start");
-    FLD_SET(conn->server_flags, WT_CONN_SERVER_LAYERED);
-
-    /* Now that everything is setup, allow the manager to be used. */
-    __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_RUNNING);
+      session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_init");
     return (0);
 
 err:
     /* Quit the layered table server. */
     WT_TRET(__wt_layered_table_manager_destroy(session, false));
     return (ret);
-}
-
-/*
- * __wt_layered_table_manager_thread_chk --
- *     Check to decide if the layered table manager thread should continue running
- */
-bool
-__wt_layered_table_manager_thread_chk(WT_SESSION_IMPL *session)
-{
-    if (!S2C(session)->layered_table_manager.leader)
-        return (false);
-    return (__wt_atomic_load32(&S2C(session)->layered_table_manager.state) ==
-      WT_LAYERED_TABLE_MANAGER_RUNNING);
 }
 
 /*
@@ -374,9 +335,6 @@ __wt_layered_table_manager_add_table(
       "Adding a layered tree to tracking without the right dhandle context.");
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_ALWAYS(session,
-      __wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_RUNNING,
-      "Adding a layered table, but the manager isn't running");
     __wt_spin_lock(session, &manager->layered_table_lock);
     /* Diagnostic sanity check - don't keep adding the same table */
     if (manager->entries[ingest_id] != NULL)
@@ -453,16 +411,6 @@ __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t inges
 
     manager = &S2C(session)->layered_table_manager;
 
-    manager_state = __wt_atomic_load32(&manager->state);
-
-    /* Shutdown calls this redundantly - ignore cases when the manager is already closed. */
-    if (manager_state == WT_LAYERED_TABLE_MANAGER_OFF)
-        return;
-
-    WT_ASSERT_ALWAYS(session,
-      manager_state == WT_LAYERED_TABLE_MANAGER_RUNNING ||
-        manager_state == WT_LAYERED_TABLE_MANAGER_STOPPING,
-      "Adding a layered table, but the manager isn't running");
     __wt_spin_lock(session, &manager->layered_table_lock);
     __layered_table_manager_remove_table_inlock(session, ingest_id, false);
 
@@ -511,161 +459,6 @@ __layered_table_get_constituent_cursor(
 }
 
 /*
- * __layered_table_manager_checkpoint_locked --
- *     Trigger a checkpoint of the handle - will acquire necessary locks
- */
-// static int
-// __layered_table_manager_checkpoint_locked(WT_SESSION_IMPL *session)
-// {
-//     WT_DECL_RET;
-
-//     WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_checkpoints);
-//     WT_WITH_CHECKPOINT_LOCK(
-//       session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_checkpoint(session, 0)));
-//     return (ret);
-// }
-
-/*
- * __layered_table_manager_checkpoint_one --
- *     Review the layered tables and checkpoint one if it has enough accumulated content. For now
- *     this just checkpoints the first table that meets the threshold. In the future it should be
- *     more fair in selecting a table.
- */
-// static int
-// __layered_table_manager_checkpoint_one(WT_SESSION_IMPL *session)
-// {
-//     WT_BTREE *ingest_btree;
-//     WT_CURSOR *stable_cursor;
-//     WT_DECL_RET;
-//     WT_LAYERED_TABLE_MANAGER *manager;
-//     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-//     WT_TXN_ISOLATION saved_isolation;
-//     uint64_t satisfied_txn_id;
-//     uint32_t i;
-
-//     manager = &S2C(session)->layered_table_manager;
-
-//     /* The table count never shrinks, so this is safe. It probably needs the layered table lock
-//     */ for (i = 0; i < manager->open_layered_table_count; i++) {
-//         if ((entry = manager->entries[i]) != NULL &&
-//           entry->accumulated_write_bytes > WT_LAYERED_TABLE_CHECKPOINT_THRESHOLD) {
-//             /*
-//              * Retrieve the current transaction ID - ensure it actually gets read from the shared
-//              * variable here, it would lead to data loss if it was read later and included
-//              * transaction IDs that aren't included in the checkpoint. It's OK for it to miss IDs
-//              -
-//              * this requires an "at least as much" guarantee, not an exact match guarantee.
-//              */
-//             WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
-//             __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-//               "layered table %s being checkpointed, satisfied txnid=%" PRIu64, entry->stable_uri,
-//               satisfied_txn_id);
-
-//             WT_RET(
-//               __layered_table_get_constituent_cursor(session, entry->ingest_id,
-//               &stable_cursor));
-//             /*
-//              * Clear out the byte count before checkpointing - otherwise any writes done during
-//              the
-//              * checkpoint won't count towards the next threshold.
-//              */
-//             entry->accumulated_write_bytes = 0;
-
-//             /*
-//              * We know all content in the table is visible - use the cheapest check we can
-//              during
-//              * reconciliation.
-//              */
-//             saved_isolation = session->txn->isolation;
-//             session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
-
-//             /*
-//              * Turn on metadata tracking to ensure the checkpoint gets the necessary handle
-//              locks.
-//              */
-//             WT_RET(__wt_meta_track_on(session));
-//             WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
-//               ret = __layered_table_manager_checkpoint_locked(session));
-//             WT_TRET(__wt_meta_track_off(session, false, ret != 0));
-//             session->txn->isolation = saved_isolation;
-//             if (ret == 0) {
-//                 entry->checkpoint_txn_id = satisfied_txn_id;
-//                 ingest_btree = (WT_BTREE *)entry->layered_table->ingest->handle;
-//                 WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT),
-//                   "Ingest table not setup for garbage collection");
-//                 ingest_btree->oldest_live_txnid = satisfied_txn_id;
-//             }
-
-//             /* We've done (or tried to do) a checkpoint - that's it. */
-//             return (ret);
-//         } else if (entry != NULL) {
-//             if (entry->accumulated_write_bytes > 0)
-//                 __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-//                   "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
-//                   entry->accumulated_write_bytes);
-//         }
-//     }
-
-//     WT_STAT_CONN_SET(session, layered_table_manager_checkpoint_candidates, i);
-//     return (0);
-// }
-
-/*
- * __wt_layered_table_manager_thread_run --
- *     Entry function for a layered table manager thread. This is called repeatedly from the thread
- *     group code so it does not need to loop itself.
- */
-// int
-// __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *thread)
-// {
-//     WT_SESSION_IMPL *session;
-
-//     WT_UNUSED(session_shared);
-//     session = thread->session;
-//     WT_ASSERT(session, session->id != 0);
-
-//     WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
-
-//     /*
-//      * For now the layered table manager is simple - it just ensures that checkpoints are created
-//      in
-//      * constituent tables regularly.
-//      */
-//     WT_RET(__layered_table_manager_checkpoint_one(session));
-
-//     WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
-
-//     return (0);
-// }
-
-/*
- * __wt_layered_table_manager_get_pinned_id --
- *     Retrieve the oldest checkpoint ID that's relevant to garbage collection
- */
-// void
-// __wt_layered_table_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp)
-// {
-//     WT_LAYERED_TABLE_MANAGER *manager;
-//     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-//     uint64_t pinned;
-//     uint32_t i;
-
-//     manager = &S2C(session)->layered_table_manager;
-
-//     /* If no tables are being managed, then don't pin anything */
-//     pinned = WT_TXN_MAX;
-//     for (i = 0; i < manager->open_layered_table_count; i++) {
-//         if ((entry = manager->entries[i]) != NULL && WT_TXNID_LT(entry->checkpoint_txn_id,
-//         pinned))
-//             pinned = entry->checkpoint_txn_id;
-//     }
-
-//     *pinnedp = pinned;
-
-//     WT_STAT_CONN_SET(session, layered_table_manager_pinned_id_tables_searched, i);
-// }
-
-/*
  * __wt_layered_table_manager_destroy --
  *     Destroy the layered table manager thread(s)
  */
@@ -682,34 +475,7 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     __wt_verbose_level(
       session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_destroy");
 
-    if (__wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_OFF)
-        return (0);
-
-    /*
-     * Spin until exclusive access is gained. If we got here from the startup path seeing an
-     error,
-     * the state might still be "starting" rather than "running".
-     */
-    while (!__wt_atomic_cas32(&manager->state, WT_LAYERED_TABLE_MANAGER_RUNNING,
-             WT_LAYERED_TABLE_MANAGER_STOPPING) &&
-      !__wt_atomic_cas32(
-        &manager->state, WT_LAYERED_TABLE_MANAGER_STARTING, WT_LAYERED_TABLE_MANAGER_STOPPING)) {
-        /* If someone beat us to it, we are done */
-        if (__wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_OFF)
-            return (0);
-        __wt_sleep(0, 1000);
-    }
-
-    /* Ensure other things that engage with the layered table server know it's gone. */
-    // FLD_CLR(conn->server_flags, WT_CONN_SERVER_LAYERED);
-
     __wt_spin_lock(session, &manager->layered_table_lock);
-
-    /* Let any running threads finish up. */
-    __wt_cond_signal(session, manager->threads.wait_cond);
-    __wt_writelock(session, &manager->threads.lock);
-
-    // WT_RET(__wt_thread_group_destroy(session, &manager->threads));
 
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_layered_table_count; i++) {
@@ -718,10 +484,6 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
-    // WT_MAX_LSN(&manager->max_replay_lsn);
-
-    __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
-    WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
 
     return (0);
 }
@@ -863,6 +625,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     }
 
     if (__wt_conn_is_disagg(session)) {
+        WT_ERR(__wt_layered_table_manager_init(session));
 
         /* Initialize the shared metadata table. */
         WT_ERR(__disagg_metadata_table_init(session));
