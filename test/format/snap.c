@@ -630,14 +630,12 @@ static void
 snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 {
     WT_DECL_RET;
-    WT_SESSION *session;
-    int sub_level_err;
-    const char *rollback_reason;
 #define MAX_RETRY_ON_ROLLBACK WT_THOUSAND
     u_int max_retry;
 
-    rollback_reason = NULL;
-    session = tinfo->session;
+    int sub_level_err = 0;
+    const char *rollback_reason = NULL;
+    WT_SESSION *session = tinfo->session;
 
     /* Start a transaction with a read-timestamp and verify the record. */
     for (max_retry = 0; max_retry < MAX_RETRY_ON_ROLLBACK; ++max_retry, __wt_yield()) {
