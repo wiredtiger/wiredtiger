@@ -285,7 +285,6 @@ __wt_layered_table_manager_init(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LAYERED_TABLE_MANAGER *manager;
-    uint32_t session_flags;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
@@ -404,7 +403,6 @@ void
 __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
 {
     WT_LAYERED_TABLE_MANAGER *manager;
-    uint32_t manager_state;
 
     manager = &S2C(session)->layered_table_manager;
 
