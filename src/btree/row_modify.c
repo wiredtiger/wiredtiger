@@ -368,7 +368,7 @@ __wt_update_obsolete_check(
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
 
-    WT_READ_ONCE(
+    WT_ACQUIRE_READ(
       last_ckpt_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
 
     /*
