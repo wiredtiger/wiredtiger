@@ -571,6 +571,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     btree = S2BT(session);
     bm = btree->bm;
     delta_count = (block_meta == NULL) ? 0 : block_meta->delta_count;
+    delta = NULL;
     dsk = NULL;
     encrypted = false;
 
