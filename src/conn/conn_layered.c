@@ -955,6 +955,9 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
 
         /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
+            /* If we see a single tombstone in the previous iteration, we must be reaching the end
+             * and should never be here. */
+            WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
             WT_ASSERT(session,
               tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= prev_upd->start_ts &&
                 tw.durable_stop_ts <= prev_upd->durable_ts);
@@ -967,16 +970,24 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         } else if (WT_TIME_WINDOW_HAS_STOP(&tw))
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
 
-        WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-        upd->txnid = tw.start_txn;
-        upd->start_ts = tw.start_ts;
-        upd->durable_ts = tw.durable_start_ts;
+        /* It is possible to see a full value that is smaller or equal to the last checkpoint
+         * timestamp with a tombstone that is larger than the last checkpoint timestamp. Ignore the
+         * update in this case. */
+        if (tw.durable_start_ts > last_checkpoint_timestamp) {
+            WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+            upd->txnid = tw.start_txn;
+            upd->start_ts = tw.start_ts;
+            upd->durable_ts = tw.durable_start_ts;
+        } else
+            WT_ASSERT(session, tombstone != NULL);
 
         if (tombstone != NULL) {
             tombstone->txnid = tw.stop_txn;
             tombstone->start_ts = tw.start_ts;
             tombstone->durable_ts = tw.durable_start_ts;
             tombstone->next = upd;
+
+            WT_ASSERT(session, tombstone->durable_ts > last_checkpoint_timestamp);
 
             if (prev_upd != NULL)
                 prev_upd->next = tombstone;
