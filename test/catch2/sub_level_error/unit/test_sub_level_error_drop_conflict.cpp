@@ -21,6 +21,7 @@
 #define URI "table:test_drop_conflict"
 #define CONFLICT_BACKUP_MSG "the table is currently performing backup and cannot be dropped"
 #define CONFLICT_DHANDLE_MSG "another thread is currently holding the data handle of the table"
+#define CONFLICT_CHECKPOINT_LOCK_MSG "another thread is currently holding the checkpoint lock"
 #define CONFLICT_SCHEMA_LOCK_MSG "another thread is currently holding the schema lock"
 #define CONFLICT_TABLE_LOCK_MSG "another thread is currently holding the table lock"
 
@@ -123,6 +124,22 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[sub_level_error
     WT_SESSION *session_b = NULL;
     WT_ERROR_INFO *err_info_a = NULL;
     WT_ERROR_INFO *err_info_b = NULL;
+
+    SECTION("Test CONFLICT_CHECKPOINT_LOCK")
+    {
+        connection_wrapper conn_wrapper = connection_wrapper(".", "create");
+        prepare_session_and_error(&conn_wrapper, &session_a, &err_info_a);
+        prepare_session_and_error(&conn_wrapper, &session_b, &err_info_b);
+        REQUIRE(session_a->create(session_a, URI, config.c_str()) == 0);
+
+        /* Attempt to drop the table while another session holds the checkpoint lock. */
+        WT_WITH_CHECKPOINT_LOCK(((WT_SESSION_IMPL *)session_b),
+          REQUIRE(session_a->drop(session_a, URI, "lock_wait=0") == EBUSY));
+
+        utils::check_error_info(
+          err_info_a, EBUSY, WT_CONFLICT_CHECKPOINT_LOCK, CONFLICT_CHECKPOINT_LOCK_MSG);
+        utils::check_error_info(err_info_b, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
+    }
 
     SECTION("Test CONFLICT_SCHEMA_LOCK")
     {
