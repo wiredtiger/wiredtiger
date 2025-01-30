@@ -1993,7 +1993,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         txn_global = &S2C(session)->txn_global;
         if (txn_global->debug_rollback != 0 &&
           ++txn_global->debug_ops % txn_global->debug_rollback == 0)
-            WT_RET_MSG(session, WT_ROLLBACK, "debug mode simulated conflict");
+            WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, "debug mode simulated conflict");
     }
     return (0);
 }
