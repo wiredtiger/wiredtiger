@@ -740,7 +740,15 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_STAT_SESSION_INCRV(session, bytes_write, mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, mem_size);
 
-    if (dsk != NULL) {
+    if (delta_count > 0) {
+        if (delta->type == WT_PAGE_COL_INT || delta->type == WT_PAGE_ROW_INT) {
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl, delta->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
+        } else {
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, delta->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, ip->size);
+        }
+    } else {
         if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {
             WT_STAT_CONN_INCRV(session, block_byte_write_intl, dsk->mem_size);
             WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
