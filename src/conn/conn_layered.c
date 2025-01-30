@@ -1151,7 +1151,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     WT_RET(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,visible_only=true,timestamp_order=true,start_timestamp="
       "%" PRIx64 "))",
-      S2C(session)->txn_global.stable_timestamp));
+      S2C(session)->disaggregated_storage.last_checkpoint_timestamp));
     cfg[1] = buf;
     WT_RET(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
     /* We only care about binary data. */
@@ -1251,11 +1251,6 @@ err:
     WT_TRET(version_cursor->close(version_cursor));
     return (ret);
 }
-
-/* TODO: use this function to drain the ingest table */
-#ifdef __linux__
-static int __layered_drain_ingest_tables(WT_SESSION_IMPL *) __attribute__((unused));
-#endif
 
 /*
  * __layered_drain_ingest_tables --
