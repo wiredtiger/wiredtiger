@@ -145,7 +145,8 @@ __curversion_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
 }
 
 /*
- * __curversion_next_single_key-- Iterate the updates of a single key.
+ * __curversion_next_single_key --
+ *     Iterate the updates of a single key.
  */
 static int
 __curversion_next_single_key(WT_CURSOR *cursor)
