@@ -404,7 +404,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_SESSION_IMPL *oldest_session;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
-    uint64_t id, last_running, layered_pinned_id, metadata_pinned, oldest_id, prev_oldest_id;
+    uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
     uint32_t i, session_cnt;
 
     conn = S2C(session);
