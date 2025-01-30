@@ -577,6 +577,11 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_btree_open(session, cfg));
         break;
     case WT_DHANDLE_TYPE_LAYERED:
+        if (!__wt_conn_is_disagg(session)) {
+            ret = EINVAL;
+            __wt_err(session, ret, "layered table is only supported for disaggregated storage");
+            goto err;
+        }
         WT_ERR(__wt_schema_open_layered(session));
         break;
     case WT_DHANDLE_TYPE_TABLE:
