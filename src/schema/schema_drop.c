@@ -91,6 +91,52 @@ __drop_index(
 }
 
 /*
+ * __drop_layered --
+ *     WT_SESSION::drop for a layered table.
+ */
+static int
+__drop_layered(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility
+)
+{
+    WT_DECL_ITEM(ingest_uri_buf);
+    WT_DECL_ITEM(stable_uri_buf);
+    WT_DECL_RET;
+    const char *ingest_uri, *stable_uri, *tablename;
+
+    WT_ASSERT(session, WT_PREFIX_MATCH(uri, "layered:"));
+
+    WT_RET(__wt_scr_alloc(session, 0, &ingest_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+
+    tablename = uri;
+    WT_PREFIX_SKIP_REQUIRED(session, tablename, "layered:");
+    WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "file:%s.wt_ingest", tablename));
+    ingest_uri = ingest_uri_buf->data;
+    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
+    stable_uri = stable_uri_buf->data;
+
+    /*
+     * Drop the constituent tables. We may not have a stable, e.g. if a secondary sees
+     * both a create and drop before seeing a table in a checkpoint.
+     */
+    WT_ERR(__drop_file(session, ingest_uri, force, cfg, check_visibility));
+    WT_ERR_NOTFOUND_OK(__drop_file(session, stable_uri, force, cfg, check_visibility), false);
+
+    /* Now drop the top-level table. */
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
+    WT_RET(ret);
+    WT_TRET(__wt_metadata_remove(session, uri));
+    /* No need for a meta track drop, since the top-level table has no underlying files to remove. */
+
+err:
+    __wt_scr_free(session, &ingest_uri_buf);
+    __wt_scr_free(session, &stable_uri_buf);
+    return (ret);
+}
+
+/*
  * __drop_table --
  *     WT_SESSION::drop for a table.
  */
@@ -355,6 +401,8 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
         ret = __drop_file(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "index:"))
         ret = __drop_index(session, uri, force, cfg, check_visibility);
+    else if (WT_PREFIX_MATCH(uri, "layered:"))
+        ret = __drop_layered(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "lsm:"))
         ret = __wt_lsm_tree_drop(session, uri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "table:"))
