@@ -638,7 +638,6 @@ __rec_row_garbage_collect_fixup_insert_list(
 {
     WT_BTREE *btree;
     WT_UPDATE *first_upd, *tombstone;
-    wt_timestamp_t last_ckpt_timestamp;
 
     btree = S2BT(session);
 
@@ -651,8 +650,8 @@ __rec_row_garbage_collect_fixup_insert_list(
     if (first_upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    WT_READ_ONCE(last_ckpt_timestamp, S2C(session)->txn_global.last_ckpt_timestamp);
-    if (last_ckpt_timestamp != WT_TS_NONE && first_upd->durable_ts <= last_ckpt_timestamp) {
+    if (r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
+      first_upd->durable_ts <= r->rec_last_checkpoint_timestamp) {
         /* __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s", */
         /*   "layered table record garbage collected 4"); */
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
