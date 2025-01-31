@@ -46,8 +46,8 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     uris = [
-        ('layered', dict(uri='layered:test_layered09')),
-        ('btree', dict(uri='file:test_layered09')),
+        ('layered', dict(uri='layered:test_layered20')),
+        ('btree', dict(uri='file:test_layered20')),
     ]
 
     ts = [
