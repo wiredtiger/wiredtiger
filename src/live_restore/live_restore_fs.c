@@ -1200,12 +1200,17 @@ __wt_live_restore_fh_import_extents_from_string(
         return (0);
 
     /*
-     * We can open a file which already has an extent list on it. In this case there should be an
-     * empty extent list string. This scenario occurs when we open a file for the first time with a
-     * backing source file. That will initialize a single hole the size of the file.
+     * This function can be called for file handles that already have an in memory extent list. For
+     * this to happen the destination file was created for the first time and a single file size
+     * hole was initialized.
      *
-     * If the extent list string is non null there are two cases: It may be an empty string in which
-     * case the destination file is complete.
+     * There is a tricky scenario here:
+     *   - Open a file that exists in the source, a.wt.
+     *   - Create a new file in the destination to begin migrating the file to.
+     *   - Crash.
+     *   - Open the file a.wt again, we will see an a.wt in the destination and not create the
+     *   necessary file length hole. We will also get an empty extent list string indicating a.wt is
+     *   complete.
      */
     bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
 
