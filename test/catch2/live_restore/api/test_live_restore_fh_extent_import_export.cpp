@@ -44,7 +44,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
         create_file(source_file.c_str(), 4096);
         // We need to create a file in the destination from the get go otherwise we'll initialize
-        // it with one extent size 1000.
+        // it with one extent size 4096.
         create_file(dest_file.c_str(), 0);
         testutil_check(open_lr_fh(env, dest_file.c_str(), &lr_fh, WT_FS_OPEN_CREATE));
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
@@ -114,30 +114,14 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         testutil_check(open_lr_fh(env, dest_file.c_str(), &lr_fh, WT_FS_OPEN_CREATE));
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, "-1") == EINVAL);
-    }
-
-    SECTION("Invalid shape string test #3")
-    {
-        WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-        create_file(source_file.c_str(), 1000);
-        // We need to create a file in the destination from the get go otherwise we'll initialize
-        // it with one extent size 1000.
-        create_file(dest_file.c_str(), 0);
-        testutil_check(open_lr_fh(env, dest_file.c_str(), &lr_fh, WT_FS_OPEN_CREATE));
+        REQUIRE(__wt_live_restore_fh_import_extents_from_string(
+                  session, (WT_FILE_HANDLE *)lr_fh, "1") == EINVAL);
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, "string1") == EINVAL);
-    }
-
-    SECTION("Invalid shape string test #3")
-    {
-        WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-        create_file(source_file.c_str(), 1000);
-        // We need to create a file in the destination from the get go otherwise we'll initialize
-        // it with one extent size 1000.
-        create_file(dest_file.c_str(), 0);
-        testutil_check(open_lr_fh(env, dest_file.c_str(), &lr_fh, WT_FS_OPEN_CREATE));
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
-                  session, (WT_FILE_HANDLE *)lr_fh, "string1") == EINVAL);
+                  session, (WT_FILE_HANDLE *)lr_fh, ";") == EINVAL);
+        REQUIRE(__wt_live_restore_fh_import_extents_from_string(
+                  session, (WT_FILE_HANDLE *)lr_fh, ";;;") == EINVAL);
     }
 
     SECTION("Test an empty string")

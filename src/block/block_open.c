@@ -250,9 +250,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * We need to do this as close to __wt_open as possible as there is a descriptor block read
      * further down which requires the extent lists to be initialized.
      */
-    if (extent_str != NULL)
-        WT_ERR(
-          __wt_live_restore_fh_import_extents_from_string(session, block->fh->handle, extent_str));
+    WT_ERR(__wt_live_restore_fh_import_extents_from_string(session, block->fh->handle, extent_str));
 #else
     WT_UNUSED(extent_str);
 #endif

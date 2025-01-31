@@ -188,44 +188,10 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     WT_STAT_CONN_SET(
       session, live_restore_work_remaining, __wt_atomic_sub64(&server->work_items_remaining, 1));
-
-    /*
-     * !!!
-     * Mark the btree as modified so the now empty extent list is written out to the metadata. Given
-     * these are background thread writes we're not so fussed about losing them. But we need the
-     * fact that they are complete to become durable at some point, this is the easiest way of
-     * forcing that.
-     *
-     * The btree modified flag is not protected by a lock so ordering needs thought. The checkpoint
-     * thread is referred to as Ct and the live restore worker thread as Wt.
-     *
-     * Scenario #1:
-     * Ct: Begin a checkpoint and begin preparing the checkpoint
-     * Ct: Walk the dhandle list checking if a.wt is modified per btree->modified
-     * Ct: Includes a.wt in the checkpoint as the tree was modified
-     * Ct: Writes out a.wt
-     * Bt: Finishes filling holes in a.wt
-     * Bt: Sets btree->modified = true
-     * Ct: Sets btree->modified = false
-     * Ct: Writes the metadata for a.wt in doing so querying the extent string
-     *
-     * In scenario #1 we are safe because the extent string query happened after the btree->modified
-     * flag being cleared. This could interleave a few ways with a similar result.
-     *
-     * Scenario #2:
-     * Ct: Begin a checkpoint and begin preparing the checkpoint
-     * Ct: Walk the dhandle list checking if a.wt is modified per btree->modified
-     * Wt: Finishes filling holes in a.wt
-     * Ct: Omits a.wt from the checkpoint as the tree was not modified
-     * Wt: Sets btree->modified = true for a.wt
-     * The system crashes, reloads the previous extent lists and we end up doing double work.
-     */
-    WT_WITH_DHANDLE(session, CUR2BT(cursor)->dhandle, __wt_tree_modify_set(session));
-
     WT_TRET(cursor->close(cursor));
 
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-      "Live restore worker: Finished finished filling holes in %s", work_item->uri);
+      "Live restore worker: Finished filling holes in %s", work_item->uri);
     /* Free the work item. */
     __live_restore_free_work_item(session, &work_item);
     return (ret);

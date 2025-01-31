@@ -1186,12 +1186,12 @@ err:
 
 /*
  * __wt_live_restore_fh_import_extents_from_string --
- *     Reconstruct the extent list in memory from a string representation. If the string is NULL do
- *     nothing. On error free any allocated extents.
+ *     Reconstruct the extent list in memory from a string representation. If the string is NULL
+ *     mark the destination as complete. On error free any allocated extents.
  */
 int
 __wt_live_restore_fh_import_extents_from_string(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, const char *ckpt_string)
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, const char *extent_str)
 {
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
@@ -1207,31 +1207,38 @@ __wt_live_restore_fh_import_extents_from_string(
      * If the extent list string is non null there are two cases: It may be an empty string in which
      * case the destination file is complete.
      */
-    bool ckpt_string_empty = ckpt_string == NULL || strlen(ckpt_string) == 0;
+    bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
 
     if (lr_fh->destination.hole_list_head != NULL) {
         WT_ASSERT_ALWAYS(
-          session, ckpt_string_empty, "Extent list not empty while trying to import");
+          session, extent_string_empty, "Extent list not empty while trying to import");
         return (0);
     }
 
-    if (ckpt_string_empty)
+    if (extent_string_empty)
         lr_fh->destination.complete = true;
     else {
         __wt_readlock(session, &lr_fh->ext_lock);
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-          "Got live restore extents from metadata!! %s", ckpt_string);
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s metadata extent list string: %s",
+          fh->name, extent_str);
         /* The extents are separated by ;. And have the shape %d-%u. */
         wt_off_t off = 0, next_off;
         size_t len;
         WTI_LIVE_RESTORE_HOLE_NODE **current = &lr_fh->destination.hole_list_head;
-        const char *str_ptr = ckpt_string;
+        const char *str_ptr = extent_str;
         char *next;
         while (true) {
-            next_off = (wt_off_t)strtol(str_ptr, &next, 10);
+            if (*str_ptr > '9' || *str_ptr < '0')
+                WT_ERR_MSG(session, EINVAL, "Invalid extent string found");
+
+            next_off = (wt_off_t)strtoll(str_ptr, &next, 10);
             str_ptr = next;
+            if (*str_ptr == '\0')
+                WT_ERR_MSG(session, EINVAL, "Invalid extent string found");
             off += next_off;
             str_ptr++;
+            if (*str_ptr > '9' || *str_ptr < '0')
+                WT_ERR_MSG(session, EINVAL, "Invalid extent string found");
             len = (size_t)strtol(str_ptr, &next, 10);
             if (len == 0)
                 WT_ERR_MSG(session, EINVAL, "Length zero extent found, this is an error");
