@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os
+import wiredtiger
 import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
@@ -88,4 +89,5 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         #
         session_follow.drop(self.uri)
 
-        # TODO rest of test
+        with self.assertRaises(wiredtiger.WiredTigerError):
+            session_follow.open_cursor(self.uri, None, None)
