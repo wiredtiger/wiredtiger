@@ -1149,8 +1149,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     /*
-     * Create a pair of constituent tables. Disable logging on the
-     * ingest table so we have timestamps.
+     * Create a pair of constituent tables. Disable logging on the ingest table so we have
+     * timestamps.
      */
     WT_ERR(__wt_buf_fmt(session, tmp,
       "in_memory=true,log=(enabled=false),"
