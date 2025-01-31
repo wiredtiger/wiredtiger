@@ -1235,10 +1235,12 @@ __wt_live_restore_fh_import_extents_from_string(
             str_ptr = next;
             if (*str_ptr == '\0')
                 WT_ERR_MSG(session, EINVAL, "Invalid extent string found");
+
             off += next_off;
             str_ptr++;
             if (*str_ptr > '9' || *str_ptr < '0')
                 WT_ERR_MSG(session, EINVAL, "Invalid extent string found");
+
             len = (size_t)strtol(str_ptr, &next, 10);
             if (len == 0)
                 WT_ERR_MSG(session, EINVAL, "Length zero extent found, this is an error");

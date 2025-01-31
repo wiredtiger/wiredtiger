@@ -24,6 +24,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
      */
     live_restore_test_env env;
     WT_SESSION_IMPL *session = env.session;
+    WT_SESSION *wt_session = (WT_SESSION *)session;
     std::string file_name = "MY_FILE.txt";
     std::string source_file = env.source_file_path(file_name);
     std::string dest_file = env.dest_file_path(file_name);
@@ -37,6 +38,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         // source file.
         testutil_check(open_lr_fh(env, dest_file.c_str(), &lr_fh, WT_FS_OPEN_CREATE));
         REQUIRE(extent_list_str(lr_fh) == "(0-4096)");
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Test a single hole in the first 4KB of the file")
@@ -50,6 +52,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, "0-4096") == 0);
         REQUIRE(extent_list_str(lr_fh) == "(0-4096)");
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Test a string import with numerous holes")
@@ -65,6 +68,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, "0-4096;10000-10000;20001-1") == 0);
         REQUIRE(extent_list_str(lr_fh) == "(0-4096), (10000-10000), (30001-1)");
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Test that we cannot import a string with holes beyond the end of the source file")
@@ -78,6 +82,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         // The file ends at 999.
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, "1000-1") == EINVAL);
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Test that we cannot import a string with a zero len extent")
@@ -90,6 +95,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         testutil_check(open_lr_fh(env, dest_file.c_str(), &lr_fh, WT_FS_OPEN_CREATE));
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, "0-0") == EINVAL);
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Invalid shape string test #1")
@@ -102,6 +108,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         testutil_check(open_lr_fh(env, dest_file.c_str(), &lr_fh, WT_FS_OPEN_CREATE));
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, "-") == EINVAL);
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Invalid shape string test #2")
@@ -122,6 +129,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
                   session, (WT_FILE_HANDLE *)lr_fh, ";") == EINVAL);
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, ";;;") == EINVAL);
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Test an empty string")
@@ -136,6 +144,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, "") == 0);
         REQUIRE(lr_fh->destination.complete == true);
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Test a nullptr string")
@@ -150,6 +159,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, nullptr) == 0);
         REQUIRE(lr_fh->destination.complete == true);
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 
     SECTION("Pass a string but unset the WT_CONN_LIVE_RESTORE_FS flag")
@@ -161,6 +171,7 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
         // No file system means this function immediately returns 0.
         REQUIRE(__wt_live_restore_fh_import_extents_from_string(
                   session, (WT_FILE_HANDLE *)lr_fh, nullptr) == 0);
+        REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }
 }
 
@@ -243,5 +254,6 @@ TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_imp
         __wt_free(session, lr_fh->destination.hole_list_head);
     }
 
+    __wt_free(session, lr_fh);
     __wt_buf_free(session, &string);
 }
