@@ -70,13 +70,13 @@ class Oplog(object):
         if table <= 0 or table > len(self._uris):
             raise Exception('oplog.append: bad table id')
         return self._uris[table - 1][1]
-        
+
     # Append a single entry to the oplog, incrementing the internal timestamp.
     # Also update the entlist that is attached to the _uris table, it
     # indicates which oplog entries have activity for a given table -
     # useful for updates.  Also update the _lookup, which gives them
     # current value and history for each key.
-    # 
+    #
     def _append_single(self, table, entlist, k, v):
         self._timestamp += 1
         pos = len(self._entries)
