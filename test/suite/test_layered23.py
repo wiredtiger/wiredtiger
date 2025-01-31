@@ -91,3 +91,19 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         with self.assertRaises(wiredtiger.WiredTigerError):
             session_follow.open_cursor(self.uri, None, None)
+
+        #
+        # Part 3: check we still have content on the leader, then drop and
+        # perform the same check that all the content is gone.
+        #
+        cursor = self.session.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor_follow.next() == 0:
+            item_count += 1
+        self.assertEqual(item_count, self.nitems * 3)
+        cursor.close()
+
+        self.session.drop(self.uri)
+
+        with self.assertRaises(wiredtiger.WiredTigerError):
+            self.session.open_cursor(self.uri, None, None)
