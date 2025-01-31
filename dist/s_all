@@ -5,7 +5,7 @@
 ################################################################
 # For disaggregated storage, we're not enforcing certain scripts yet.
 # TODO: remove changes to s_all that ignore certain scripts, and resolve resulting fallout.
-disagg_ignore="comment_style.py s_funcs"
+disagg_ignore="comment_style.py"
 ################################################################
 
 . `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
