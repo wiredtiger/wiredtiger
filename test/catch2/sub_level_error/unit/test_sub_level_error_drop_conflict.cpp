@@ -27,6 +27,9 @@
 #define CONFLICT_SCHEMA_LOCK_MSG "another thread is currently holding the schema lock"
 #define CONFLICT_TABLE_LOCK_MSG "another thread is currently holding the table lock"
 
+static bool is_locked;
+static bool can_unlock;
+
 /*
  * prepare_session_and_error --
  *     Prepare a session and error_info struct to be used by the drop conflict tests.
@@ -58,7 +61,9 @@ void
 thread_function_hold_spinlock(WT_SESSION *session, WT_SPINLOCK *spinlock)
 {
     __wt_spin_lock((WT_SESSION_IMPL *)session, spinlock);
-    __wt_sleep(1, 0);
+    is_locked = true;
+    while (!can_unlock)
+        continue;
     __wt_spin_unlock((WT_SESSION_IMPL *)session, spinlock);
 }
 
@@ -70,7 +75,9 @@ void
 thread_function_hold_rwlock(WT_SESSION *session, WT_RWLOCK *rwlock)
 {
     __wt_writelock((WT_SESSION_IMPL *)session, rwlock);
-    __wt_sleep(1, 0);
+    is_locked = true;
+    while (!can_unlock)
+        continue;
     __wt_writeunlock((WT_SESSION_IMPL *)session, rwlock);
 }
 
@@ -153,6 +160,11 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_d
 
 /*
  * This test case covers EBUSY errors resulting from drop while a lock is held by another thread.
+ *
+ * We need different threads holding the lock versus performing the drop (as opposed to having
+ * another session take the lock within the same thread). This is because the Windows implementation
+ * of __wt_spin_lock/__wt_try_spin_lock will take the lock if has already been taken by the same
+ * thread, resulting in a successful (no conflicts) drop.
  */
 TEST_CASE("Test conflicts with checkpoint/schema/table locks", "[sub_level_error_drop_conflict]")
 {
@@ -161,54 +173,52 @@ TEST_CASE("Test conflicts with checkpoint/schema/table locks", "[sub_level_error
     WT_SESSION *session_b = NULL;
     WT_ERROR_INFO *err_info_a = NULL;
     WT_ERROR_INFO *err_info_b = NULL;
+    is_locked = false;
+    can_unlock = false;
 
     connection_wrapper conn_wrapper = connection_wrapper(".", "create");
     prepare_session_and_error(&conn_wrapper, &session_a, &err_info_a);
     prepare_session_and_error(&conn_wrapper, &session_b, &err_info_b);
     REQUIRE(session_a->create(session_a, URI, config.c_str()) == 0);
 
+    std::thread lock_thread;
+    int sub_level_err;
+    const char *err_msg;
+
     SECTION("Test CONFLICT_CHECKPOINT_LOCK")
     {
-        /* Attempt to drop the table while another session holds the checkpoint lock. */
         WT_SPINLOCK *checkpoint_lock = &S2C((WT_SESSION_IMPL *)session_a)->checkpoint_lock;
-        std::thread lock_thread(
-          [&]() { thread_function_hold_spinlock(session_b, checkpoint_lock); });
-        __wt_sleep(0, 500000);
-        std::thread drop_thread([&]() { thread_function_drop_no_wait(session_a); });
-        lock_thread.join();
-        drop_thread.join();
-
-        utils::check_error_info(
-          err_info_a, EBUSY, WT_CONFLICT_CHECKPOINT_LOCK, CONFLICT_CHECKPOINT_LOCK_MSG);
-        utils::check_error_info(err_info_b, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
+        lock_thread =
+          std::thread([&]() { thread_function_hold_spinlock(session_b, checkpoint_lock); });
+        sub_level_err = WT_CONFLICT_CHECKPOINT_LOCK;
+        err_msg = CONFLICT_CHECKPOINT_LOCK_MSG;
     }
 
     SECTION("Test CONFLICT_SCHEMA_LOCK")
     {
-        /* Attempt to drop the table while another session holds the schema lock. */
         WT_SPINLOCK *schema_lock = &S2C((WT_SESSION_IMPL *)session_a)->schema_lock;
-        std::thread lock_thread([&]() { thread_function_hold_spinlock(session_b, schema_lock); });
-        __wt_sleep(0, 500000);
-        std::thread drop_thread([&]() { thread_function_drop_no_wait(session_a); });
-        lock_thread.join();
-        drop_thread.join();
-
-        utils::check_error_info(
-          err_info_a, EBUSY, WT_CONFLICT_SCHEMA_LOCK, CONFLICT_SCHEMA_LOCK_MSG);
-        utils::check_error_info(err_info_b, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
+        lock_thread = std::thread([&]() { thread_function_hold_spinlock(session_b, schema_lock); });
+        sub_level_err = WT_CONFLICT_SCHEMA_LOCK;
+        err_msg = CONFLICT_SCHEMA_LOCK_MSG;
     }
 
     SECTION("Test CONFLICT_TABLE_LOCK")
     {
-        /* Attempt to drop the table while another session holds the table write lock. */
         WT_RWLOCK *table_lock = &S2C((WT_SESSION_IMPL *)session_a)->table_lock;
-        std::thread lock_thread([&]() { thread_function_hold_rwlock(session_b, table_lock); });
-        __wt_sleep(0, 500000);
-        std::thread drop_thread([&]() { thread_function_drop_no_wait(session_a); });
-        lock_thread.join();
-        drop_thread.join();
-
-        utils::check_error_info(err_info_a, EBUSY, WT_CONFLICT_TABLE_LOCK, CONFLICT_TABLE_LOCK_MSG);
-        utils::check_error_info(err_info_b, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
+        lock_thread = std::thread([&]() { thread_function_hold_rwlock(session_b, table_lock); });
+        sub_level_err = WT_CONFLICT_TABLE_LOCK;
+        err_msg = CONFLICT_TABLE_LOCK_MSG;
     }
+
+    /* Wait until the lock has been acquired before trying to drop. */
+    while (!is_locked)
+        continue;
+
+    /* Attempt to drop the table while another thread holds a checkpoint, schema or table lock. */
+    REQUIRE(session_a->drop(session_a, URI, "lock_wait=0") == EBUSY);
+    can_unlock = true;
+    lock_thread.join();
+
+    utils::check_error_info(err_info_a, EBUSY, sub_level_err, err_msg);
+    utils::check_error_info(err_info_b, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
 }
