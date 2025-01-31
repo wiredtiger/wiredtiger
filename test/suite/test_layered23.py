@@ -36,12 +36,15 @@ from wtdataset import SimpleDataSet
 # The oplog simulates the MongoDB oplog and does a bit more.
 # Basic operations:
 # - Append a bunch of k,v pairs to the oplog. For convenience, this class chooses
-#   the keys (string-ized timestamp) and values (the same string-ized timestamp).
-#   Timestamp advances on each append.
+#   the keys (string-ized timestamp) and initial values (the same string-ized timestamp).
+#   The values may later be changed by update operations.  Timestamp advances on each append.
+#
 # - Add some update of k,v pairs to the oplog.  From keys already available, some are
 #   updated to new values.  Timestamp advances on each update.
+#
 # - Apply some entries of the oplog to a WT session.  It is assumed that
 #   the URIs needed are already created.
+#
 # - Check the current state of the oplog (up to some position) against tables
 #   accessed by a WT session. Both point reads and a read scan are done.
 class Oplog(object):
@@ -94,7 +97,7 @@ class Oplog(object):
     def _current_value(self, table, k):
         pairs = self._lookup[(table,k)]
         # the last pair will be the most recent oplog entry
-        (ts,v) = pairs[-1]
+        (_,v) = pairs[-1]
         return v
 
     # Add inserts to the oplog, return the first entry position
@@ -153,6 +156,7 @@ class Oplog(object):
     def check(self, testcase, session, pos, count):
         # A faster implementation might keep cursors open in an array indexed by table id
 
+        pos_limit = pos + count
         # Walk through oplog entries doing point-reads at timestamps
         while count > 0:
             (table, k, v) = self._entries[pos]
@@ -181,9 +185,9 @@ class Oplog(object):
             for entindex in entlist:
                 if entindex < prev:
                     raise Exception(f'oplog: intindex for {table} is out of order')
-                if entindex >= pos + count:
+                if entindex >= pos_limit
                     break
-                (table,k,v) = self._entries[entindex]
+                (_,k,v) = self._entries[entindex]
                 values[k] = v    # overwrites in time order, so we end up with most recent
 
             # Walk the cursor and check
