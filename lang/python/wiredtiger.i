@@ -228,13 +228,14 @@ from packing import pack, unpack
  */
 %typemap(argout) (WT_ITEM *results_array, u_int *results_count) {
     int i;
+    u_int n;
     WT_ITEM *results_array;
 
     results_array = $1;
     $result = PyList_New(*$2);
-    for (i = 0; i < *$2; i++) {
-        PyBytesObject *pbo = PyBytes_FromStringAndSize(results_array[i].data, results_array[i].size);
-        PyList_SetItem($result, i, pbo);
+    for (n = 0; n < *$2; n++) {
+        PyBytesObject *pbo = PyBytes_FromStringAndSize(results_array[n].data, results_array[n].size);
+        PyList_SetItem($result, (int)n, pbo);
     }
     /* Free in reverse order, since the first item might hold all the memory used by other items. */
     for (i = *$2 - 1; i >= 0; i--)
@@ -1183,7 +1184,7 @@ typedef int int_void;
         uint64_t checkpoint_id;
 
         ret = $self->pl_get_complete_checkpoint($self, session, &checkpoint_id);
-        return (ret == 0 ? checkpoint_id : ret);
+        return (ret == 0 ? (int)checkpoint_id : ret);
     }
 
     /* get_open_checkpoint: special handling to return the int. */
@@ -1192,7 +1193,7 @@ typedef int int_void;
         uint64_t checkpoint_id;
 
         ret = $self->pl_get_open_checkpoint($self, session, &checkpoint_id);
-        return (ret == 0 ? checkpoint_id : ret);
+        return (ret == 0 ? (int)checkpoint_id : ret);
     }
 }
 

@@ -239,14 +239,14 @@ __wt_rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size
 }
 
 /*
- * __wt_rec_image_copy --
- *     Copy a key/value cell and buffer pair into the new image.
+ * __wt_rec_kv_copy --
+ *     Copy a key/value cell and buffer pair. TODO: ensure memory safety on the pointer.
  */
 static WT_INLINE void
-__wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
+__wt_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WT_REC_KV *kv)
 {
     size_t len;
-    uint8_t *p, *t;
+    uint8_t *t;
 
     /*
      * If there's only one chunk of data to copy (because the cell and data are being copied from
@@ -255,7 +255,7 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
      *
      * WT_CELLs are typically small, 1 or 2 bytes -- don't call memcpy, do the copy in-line.
      */
-    for (p = r->first_free, t = (uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
+    for (t = (uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
         *p++ = *t++;
 
     /* The data can be quite large -- call memcpy. */
@@ -263,6 +263,16 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
         memcpy(p, kv->buf.data, kv->buf.size);
 
     WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
+}
+
+/*
+ * __wt_rec_image_copy --
+ *     Copy a key/value cell and buffer pair into the new image.
+ */
+static WT_INLINE void
+__wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
+{
+    __wt_rec_kv_copy(session, r->first_free, kv);
     __wt_rec_incr(session, r, 1, kv->len);
 }
 

@@ -150,6 +150,16 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
             *block_meta = block_meta_tmp;
 
         dsk = ip->data;
+
+        /*
+         * Increment statistics before we do anymore processing such as decompression or decryption
+         * on the data.
+         */
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
+        else
+            WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
+
         WT_STAT_CONN_DSRC_INCR(session, cache_read);
         if (WT_SESSION_IS_CHECKPOINT(session))
             WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
@@ -240,6 +250,17 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
          */
         if (ip != buf)
             WT_ERR(__wt_buf_set(session, buf, ip->data, dsk->mem_size));
+    }
+
+    /*
+     * These statistics are increased when the block is not found in the block cache and we need to
+     * read from disk.
+     */
+    if (dsk != NULL) {
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_INCRV(session, block_byte_read_intl, dsk->mem_size);
+        else
+            WT_STAT_CONN_INCRV(session, block_byte_read_leaf, dsk->mem_size);
     }
 
 verify:
@@ -405,6 +426,16 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      */
     ip = &results[0];
     dsk = ip->data;
+
+    /*
+     * Increment statistics before we do any more processing such as decompression or decryption on
+     * the base image.
+     */
+    if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+        WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
+    else
+        WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
+
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
         WT_ERR(__read_decrypt(session, ip, etmp, addr, addr_size, false));
@@ -429,6 +460,11 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     if (etmp != NULL && WT_DATA_IN_ITEM(etmp))
         __wt_scr_free(session, &etmp);
 
+    if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+        WT_STAT_CONN_INCRV(session, block_byte_read_intl, ip->size);
+    else
+        WT_STAT_CONN_INCRV(session, block_byte_read_leaf, ip->size);
+
     /*
      * Now do deltas. Here, the structure looks like:
      *
@@ -451,6 +487,15 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
          * file. */
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].mem);
 
+        /*
+         * For each delta, increment statistics before we do any more processing such as
+         * decompression or decryption.
+         */
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
+        else
+            WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
+
         if (F_ISSET(blk, WT_BLOCK_DISAGG_ENCRYPTED)) {
             WT_ERR(__wt_scr_alloc(session, 0, &etmp));
             WT_ERR(__read_decrypt(session, ip, etmp, addr, addr_size, true));
@@ -467,6 +512,11 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             WT_ITEM_MOVE(results[i], *ip);
         if (etmp != NULL && WT_DATA_IN_ITEM(etmp))
             __wt_scr_free(session, &etmp);
+
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+            WT_STAT_CONN_INCRV(session, block_byte_read_intl, ip->size);
+        else
+            WT_STAT_CONN_INCRV(session, block_byte_read_leaf, ip->size);
     }
 
     /* Finalize our return list. */
@@ -521,6 +571,8 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     btree = S2BT(session);
     bm = btree->bm;
     delta_count = (block_meta == NULL) ? 0 : block_meta->delta_count;
+    delta = NULL;
+    dsk = NULL;
     encrypted = false;
 
     /*
@@ -688,6 +740,24 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
     WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_write, mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_write, mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, mem_size);
+
+    if (delta_count > 0) {
+        if (delta->type == WT_PAGE_COL_INT || delta->type == WT_PAGE_ROW_INT) {
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl, delta->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
+        } else {
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, delta->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, ip->size);
+        }
+    } else {
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl, dsk->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
+        } else {
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, dsk->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, ip->size);
+        }
+    }
 
     /*
      * Store a copy of the compressed buffer in the block cache.
