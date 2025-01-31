@@ -1930,7 +1930,8 @@ __txn_modify_block(
         }
 
         WT_STAT_CONN_DSRC_INCR(session, txn_update_conflict);
-        WT_ERR_SUB(
+        ret = WT_ROLLBACK;
+        __wt_session_set_last_error(
           session, WT_ROLLBACK, WT_WRITE_CONFLICT, "Write conflict between concurrent operations");
     }
 
