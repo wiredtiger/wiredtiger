@@ -68,7 +68,7 @@ def disagg_test_class(cls):
             super(disagg_test_case_class, self).__init__(*args, **kwargs)
             disagg_ignore_expected_output(self)
 
-        # Create an early_setup function, only if it hasn't already been overridden
+        # Create an early_setup function, only if it hasn't already been overridden.
         if cls.early_setup == wttest.WiredTigerTestCase.early_setup:
             def early_setup(self):
                 os.mkdir('follower')
@@ -76,11 +76,12 @@ def disagg_test_class(cls):
                 os.mkdir('kv_home')
                 os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
-        # Load the page log extension, which has object storage support
-        def conn_extensions(self, extlist):
-            if os.name == 'nt':
-                extlist.skip_if_missing = True
-            return DisaggConfigMixin.conn_extensions(self, extlist)
+        # Load the page log extension, only if extensions hasn't already been specified.
+        if cls.conn_extensions == wttest.WiredTigerTestCase.conn_extensions:
+            def conn_extensions(self, extlist):
+                if os.name == 'nt':
+                    extlist.skip_if_missing = True
+                return DisaggConfigMixin.conn_extensions(self, extlist)
 
     # Preserve the original name of the wrapped class, so that the test ID is unmodified.
     disagg_test_case_class.__name__ = cls.__name__
