@@ -163,8 +163,8 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_d
  *
  * We need different threads holding the lock versus performing the drop (as opposed to having
  * another session take the lock within the same thread). This is because the Windows implementation
- * of __wt_spin_lock/__wt_try_spin_lock will take the lock if has already been taken by the same
- * thread, resulting in a successful (no conflicts) drop.
+ * of __wt_spin_lock/__wt_try_spin_lock will still take the lock if it has already been taken by the
+ * same thread, resulting in a successful (no conflicts) drop.
  */
 TEST_CASE("Test conflicts with checkpoint/schema/table locks", "[sub_level_error_drop_conflict]")
 {
