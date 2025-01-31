@@ -100,28 +100,22 @@ __drop_layered(
 )
 {
     WT_DECL_ITEM(ingest_uri_buf);
-    WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
-    const char *ingest_uri, *stable_uri, *tablename;
+    const char *ingest_uri, *tablename;
 
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "layered:"));
 
     WT_RET(__wt_scr_alloc(session, 0, &ingest_uri_buf));
-    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
 
     tablename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "layered:");
     WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "file:%s.wt_ingest", tablename));
     ingest_uri = ingest_uri_buf->data;
-    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
-    stable_uri = stable_uri_buf->data;
 
     /*
-     * Drop the constituent tables. We may not have a stable, e.g. if a secondary sees
-     * both a create and drop before seeing a table in a checkpoint.
+     * Drop the ingest table. We don't drop the stable component, since it's not a real table.
      */
     WT_ERR(__drop_file(session, ingest_uri, force, cfg, check_visibility));
-    WT_ERR_NOTFOUND_OK(__drop_file(session, stable_uri, force, cfg, check_visibility), false);
 
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
@@ -132,7 +126,6 @@ __drop_layered(
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);
-    __wt_scr_free(session, &stable_uri_buf);
     return (ret);
 }
 

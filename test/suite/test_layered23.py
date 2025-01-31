@@ -76,12 +76,12 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
 
         # Sanity-check all data made it to the follower.
-        cursor_follow2 = session_follow.open_cursor(self.uri, None, None)
+        cursor_follow = session_follow.open_cursor(self.uri, None, None)
         item_count = 0
-        while cursor_follow2.next() == 0:
+        while cursor_follow.next() == 0:
             item_count += 1
         self.assertEqual(item_count, self.nitems * 3)
-        cursor_follow2.close()
+        cursor_follow.close()
 
         #
         # Part 2: drop the table on the secondary and check it has no data.
