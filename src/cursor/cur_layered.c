@@ -734,8 +734,11 @@ __clayered_copy_constituent_bound(WT_CURSOR_LAYERED *clayered, WT_CURSOR *consti
         if (F_ISSET(constituent, WT_CURSTD_BOUND_UPPER)) {
             layered_bound = &base_cursor->upper_bound;
             constituent_bound = &constituent->upper_bound;
-            WT_ASSERT_ALWAYS(session, layered_bound->size == constituent_bound->size && memcmp(layered_bound->data, constituent_bound->data, layered_bound->size) == 0,
-              "Setting an upper bound on a layered cursor and a constituent already has a different bound");
+            WT_ASSERT_ALWAYS(session,
+              layered_bound->size == constituent_bound->size &&
+                memcmp(layered_bound->data, constituent_bound->data, layered_bound->size) == 0,
+              "Setting an upper bound on a layered cursor and a constituent already has a "
+              "different bound");
         } else
             WT_RET(__wt_buf_set(session, &constituent->upper_bound, base_cursor->upper_bound.data,
               base_cursor->upper_bound.size));
@@ -748,8 +751,11 @@ __clayered_copy_constituent_bound(WT_CURSOR_LAYERED *clayered, WT_CURSOR *consti
         if (F_ISSET(constituent, WT_CURSTD_BOUND_LOWER)) {
             layered_bound = &base_cursor->lower_bound;
             constituent_bound = &constituent->lower_bound;
-            WT_ASSERT_ALWAYS(session, layered_bound->size == constituent_bound->size && memcmp(layered_bound->data, constituent_bound->data, layered_bound->size) == 0,
-              "Setting a lower bound on a layered cursor and a constituent already has a different bound");
+            WT_ASSERT_ALWAYS(session,
+              layered_bound->size == constituent_bound->size &&
+                memcmp(layered_bound->data, constituent_bound->data, layered_bound->size) == 0,
+              "Setting a lower bound on a layered cursor and a constituent already has a different "
+              "bound");
         } else
             WT_RET(__wt_buf_set(session, &constituent->lower_bound, base_cursor->lower_bound.data,
               base_cursor->lower_bound.size));
