@@ -112,7 +112,8 @@ __drop_layered(
     ingest_uri = ingest_uri_buf->data;
 
     /*
-     * Drop the ingest table. We don't drop the stable component, since it's not a real table.
+     * Drop the ingest table. We don't drop the stable component, since it's not a real table. TODO
+     * we should (somehow) call into PALI to drop this properly.
      */
     WT_ERR(__drop_file(session, ingest_uri, force, cfg, check_visibility));
 
