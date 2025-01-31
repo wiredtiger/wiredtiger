@@ -185,7 +185,7 @@ class Oplog(object):
             for entindex in entlist:
                 if entindex < prev:
                     raise Exception(f'oplog: intindex for {table} is out of order')
-                if entindex >= pos_limit
+                if entindex >= pos_limit:
                     break
                 (_,k,v) = self._entries[entindex]
                 values[k] = v    # overwrites in time order, so we end up with most recent
