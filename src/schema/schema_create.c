@@ -1148,12 +1148,11 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     /*
-     * Create a pair of constituent tables. The ingest table has write ahead log enabled (in the
-     * future in a special mode that allows for it to be ignored by recovery, but for now just
-     * regular logging. That logging will allow for write ahead log replay into the stable table.
+     * Create a pair of constituent tables. Disable logging on the
+     * ingest table so we have timestamps.
      */
     WT_ERR(__wt_buf_fmt(session, tmp,
-      "in_memory=true,"
+      "in_memory=true,log=(enabled=false),"
       "disaggregated=(page_log=none)"));
     ingest_cfg[2] = tmp->data;
 
