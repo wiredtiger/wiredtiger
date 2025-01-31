@@ -42,7 +42,9 @@ class test_error_info02(wttest.WiredTigerTestCase):
         self.assertEqual(sub_level_err, sub_level_err_val)
         self.assertEqual(err_msg, err_msg_val)
 
-    def wt_rollback_cache_overflow(self):
+    def test_wt_rollback_cache_overflow(self):
+        # FIXME-WT-14046
+        self.skipTest("FIXME-WT-14046")
         """
         Try to insert a key value pair with an unreasonably low cache max wait time and
         application worker threads are attempting to do eviction.
@@ -71,11 +73,12 @@ class test_error_info02(wttest.WiredTigerTestCase):
         cursor.set_value("b")
 
         # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update())
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update(), wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
 
         self.ignoreStdoutPatternIfExists("transaction rolled back because of cache overflow")
 
-    def wt_rollback_write_conflict_update_list(self):
+    def test_wt_rollback_write_conflict_update_list(self):
         """
         Try to write conflicting data with two threads. There will be an update in the update list
         that is not visible to the second session, therefore, it cannot modify it.
@@ -107,13 +110,14 @@ class test_error_info02(wttest.WiredTigerTestCase):
         cursor2.set_value("bbb")
 
         # Catch the default reason for WT_ROLLBACK errors.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update())
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor2.update(), wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
 
         # Expect the get_last_error reason to give us the true reason for the rollback.
         # The error will be set in the second session.
         self.session = session2
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
-    def wt_rollback_write_conflict_time_start(self):
+    def test_wt_rollback_write_conflict_time_start(self):
         """
         Try to write conflicting data with two threads. There will be an update from the first
         session that is written to disk, and it is not visible to second session, so there is a
@@ -145,15 +149,16 @@ class test_error_info02(wttest.WiredTigerTestCase):
 
         # Because the first session started a transaction earlier than the second session, the
         # update made by the second session will be invisible to the first session.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.insert())
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.insert(), wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
-    def wt_rollback_write_conflict_time_stop(self):
+    def test_wt_rollback_write_conflict_time_stop(self):
         """
         Try to write conflicting data with two threads. There will be an overwrite update from the
         first session that is written to disk, and it is not visible to the second session, so
         there is a conflict.
         """
-        # Create a basic table
+        # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         cursor1 = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
@@ -190,9 +195,10 @@ class test_error_info02(wttest.WiredTigerTestCase):
 
         # Because the first session started a transaction earlier than the second session, the
         # overwrite made by the second session will be invisible to the first session.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.insert())
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor1.insert(), wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
-    def wt_rollback__oldest_for_eviction(self):
+    def test_wt_rollback_oldest_for_eviction(self):
         """
         Try to insert a key value pair while the cache is full.
         """
@@ -219,26 +225,5 @@ class test_error_info02(wttest.WiredTigerTestCase):
         cursor.set_value("b"*1024)
 
         # Catch the default reason for WT_ROLLBACK errors.
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update())
-
-    def test_wt_rollback_cache_overflow(self):
-        # FIXME-WT-14046
-        self.skipTest("FIXME-WT-14046")
-        self.wt_rollback_cache_overflow()
-        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
-
-    def test_wt_rollback_write_conflict_update_list(self):
-        self.wt_rollback_write_conflict_update_list()
-        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
-
-    def test_wt_rollback_write_conflict_time_start(self):
-        self.wt_rollback_write_conflict_time_start()
-        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
-
-    def test_wt_rollback_write_conflict_time_stop(self):
-        self.wt_rollback_write_conflict_time_stop()
-        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
-
-    def test_wt_rollback_oldest_for_eviction(self):
-        self.wt_rollback__oldest_for_eviction()
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.update(), wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK))
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID")
