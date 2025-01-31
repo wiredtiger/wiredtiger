@@ -96,8 +96,7 @@ __drop_index(
  */
 static int
 __drop_layered(
-  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility
-)
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_DECL_ITEM(ingest_uri_buf);
     WT_DECL_RET;
@@ -120,9 +119,11 @@ __drop_layered(
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
-    WT_RET(ret);
-    WT_TRET(__wt_metadata_remove(session, uri));
-    /* No need for a meta track drop, since the top-level table has no underlying files to remove. */
+    WT_ERR(ret);
+    WT_ERR(__wt_metadata_remove(session, uri));
+
+    /* No need for a meta track drop, since the top-level table has no underlying files to remove.
+     */
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);

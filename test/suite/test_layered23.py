@@ -98,7 +98,7 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         #
         cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0
-        while cursor_follow.next() == 0:
+        while cursor.next() == 0:
             item_count += 1
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
