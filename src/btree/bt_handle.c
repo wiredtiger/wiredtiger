@@ -11,7 +11,7 @@
 static int __btree_conf(WT_SESSION_IMPL *, WT_CKPT *ckpt, bool);
 static int __btree_get_last_recno(WT_SESSION_IMPL *);
 static int __btree_page_sizes(WT_SESSION_IMPL *);
-// static int __btree_preload(WT_SESSION_IMPL *);
+static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 
 /*
@@ -146,8 +146,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
 
             /* Warm the cache, if possible. */
-            // WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
-            // WT_ERR(ret);
+            if (!__wt_conn_is_disagg(session)) {
+                WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
+                WT_ERR(ret);
+            }
 
             /* Get the last record number in a column-store file. */
             if (btree->type != BTREE_ROW)
