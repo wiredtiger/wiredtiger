@@ -1166,27 +1166,13 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
 
-    stable_cfg[1] = disagg_config->data;
-    WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-    if (conn->layered_table_manager.leader)
+    if (conn->layered_table_manager.leader) {
+        stable_cfg[1] = disagg_config->data;
+        WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
-#if 0
-    /*
-     * Open the table to check that it was setup correctly. Keep the handle exclusive until it is
-     * released at the end of the call. TODO: Is this necessary/right?
-     */
-    WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
-    if (WT_META_TRACKING(session)) {
-        WT_WITH_DHANDLE(session, &table->iface, ret = __wt_meta_track_handle_lock(session, true));
-        WT_ERR(ret);
-        table = NULL;
     }
 
 err:
-    WT_TRET(__wt_schema_release_table(session, &table));
-#else
-err:
-#endif
     __wt_scr_free(session, &disagg_config);
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);
