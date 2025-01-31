@@ -216,9 +216,6 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri = "layered:test_layered23"
 
-    def disaggregated_extension_config(self):
-        return ''  # disable disagg verboseness
-
     # Test simple inserts to a leader/follower
     def test_leader_follower(self):
         # Create the oplog
