@@ -61,6 +61,7 @@ def disagg_ignore_expected_output(testcase):
     testcase.ignoreStdoutPattern('WT_VERB_RTS')
 
 # A decorator for a disaggregated test class, that ignores verbose warnings about RTS at shutdown.
+# The class decorator takes a class as input, and returns a class to take its place.
 def disagg_test_class(cls):
     class disagg_test_case_class(cls):
         @functools.wraps(cls, updated=())
@@ -76,6 +77,8 @@ def disagg_test_class(cls):
 
 # This mixin class provides disaggregated storage configuration methods.
 class DisaggConfigMixin:
+    palm_debug = False        # can be overridden in test class
+
     # Returns True if the current scenario is disaggregated.
     def is_disagg_scenario(self):
         return hasattr(self, 'is_disagg') and self.is_disagg
@@ -118,7 +121,13 @@ class DisaggConfigMixin:
     # or for palm: 'verbose=1,delay_ms=13,force_delay=30'
     # or 'materialization_delay_ms=1000'
     def disaggregated_extension_config(self):
-        return 'verbose=1'
+        extension_config = ''
+        if self.ds_name == 'palm':
+            if self.palm_debug:
+                extension_config += ',verbose=1'
+            else:
+                extension_config += ',verbose=0'
+        return extension_config
 
     # Load disaggregated storage extension.
     def disagg_conn_extensions(self, extlist):
