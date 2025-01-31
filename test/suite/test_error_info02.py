@@ -58,7 +58,7 @@ class test_error_info02(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
 
         # Start a transaction and insert a value large enough to trigger eviction app worker
-        # threads. Loop 1000 times to ensure that the eviction server is busy evicting, and the
+        # threads. Loop 100 times to ensure that the eviction server is busy evicting, and the
         # cache will be full when the application worker thread checks if eviction is needed.
         for i in range(100):
             self.session.begin_transaction()
