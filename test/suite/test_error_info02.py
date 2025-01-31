@@ -228,18 +228,18 @@ class test_error_info02(wttest.WiredTigerTestCase):
         self.wt_rollback_wt_cache_overflow()
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
 
-    # def test_wt_rollback_wt_write_conflict_update_list(self):
-    #     self.wt_rollback_wt_write_conflict_update_list()
-    #     self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
+    def test_wt_rollback_wt_write_conflict_update_list(self):
+        self.wt_rollback_wt_write_conflict_update_list()
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
-    # def test_wt_rollback_wt_write_conflict_time_start(self):
-    #     self.wt_rollback_wt_write_conflict_time_start()
-    #     self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
+    def test_wt_rollback_wt_write_conflict_time_start(self):
+        self.wt_rollback_wt_write_conflict_time_start()
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
     def test_wt_rollback_wt_write_conflict_time_stop(self):
         self.wt_rollback_wt_write_conflict_time_stop()
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_WRITE_CONFLICT, "Write conflict between concurrent operations")
 
-    # def test_wt_rollback_wt_oldest_for_eviction(self):
-    #     self.wt_rollback_wt__oldest_for_eviction()
-    #     self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID")
+    def test_wt_rollback_wt_oldest_for_eviction(self):
+        self.wt_rollback_wt__oldest_for_eviction()
+        self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID")
