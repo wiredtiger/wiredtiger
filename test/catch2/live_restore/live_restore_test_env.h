@@ -32,7 +32,6 @@ public:
     WT_SESSION_IMPL *session;
 
     live_restore_test_env();
-    ~live_restore_test_env();
 
     std::string dest_file_path(const std::string &file_name);
     std::string source_file_path(const std::string &file_name);
