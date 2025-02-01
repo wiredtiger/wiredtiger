@@ -269,7 +269,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
              */
             WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
         else if (session->event_handler->handle_close != NULL &&
-          strcmp(cursor->internal_uri, WT_HS_URI) != 0)
+          !WT_IS_URI_HS(cursor->internal_uri))
             /*
              * Notify the user that we are closing the cursor handle via the registered close
              * callback.
@@ -646,7 +646,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
             if ((ret = __wt_config_gets_def(
                    session, cfg, "debug.dump_version.enabled", 0, &cval)) == 0 &&
               cval.val) {
-                if (WT_STREQ(uri, WT_HS_URI))
+                if (WT_IS_URI_HS(uri))
                     WT_RET_MSG(session, EINVAL, "cannot open version cursor on the history store");
                 WT_RET(__wt_curversion_open(session, uri, owner, cfg, cursorp));
             } else
@@ -724,7 +724,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
      *  - Opening the meta file itself while performing a checkpoint.
      */
     WT_ASSERT(session,
-      strcmp(uri, WT_HS_URI) == 0 ||
+      WT_IS_URI_HS(uri) ||
         (strcmp(uri, WT_METAFILE_URI) == 0 &&
           __wt_atomic_loadvbool(&txn_global->checkpoint_running)) ||
         session->hs_cursor_counter == 0 || F_ISSET(session, WT_SESSION_INTERNAL) ||
@@ -2633,7 +2633,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
 
     /* Find the first inactive session slot. */
     for (session_ret = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.size;
-         ++session_ret, ++i)
+      ++session_ret, ++i)
         if (!session_ret->active)
             break;
     if (i == conn->session_array.size)

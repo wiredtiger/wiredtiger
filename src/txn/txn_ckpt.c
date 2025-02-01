@@ -1112,7 +1112,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CACHE *cache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *hs_dhandle;
+    WT_DATA_HANDLE *hs_dhandle, *hs_dhandle_shared;
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -1132,7 +1132,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     cache = conn->cache;
     ckpt_tmp_ts = WT_TS_NONE;
     hs_size = 0;
-    hs_dhandle = NULL;
+    hs_dhandle = hs_dhandle_shared = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
@@ -1291,6 +1291,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
 
+    /* Get the handle to the shared history store. */
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader) {
+        WT_ERR_ERROR_OK(
+          __wt_session_get_dhandle(session, WT_HS_URI_SHARED, NULL, NULL, 0), ENOENT, false);
+        hs_dhandle_shared = session->dhandle;
+    }
+
     /*
      * Get a history store dhandle. If the history store file is opened for a special operation this
      * will return EBUSY which we treat as an error. In scenarios where the history store is not
@@ -1309,6 +1316,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         conn->txn_global.checkpoint_running_hs = true;
         WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_HS);
 
+        if (hs_dhandle_shared != NULL)
+            WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint(session, cfg));
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
 
         conn->txn_global.checkpoint_running_hs = false;
@@ -1377,6 +1386,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_HS_SYNC);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
+    }
+    if (hs_dhandle_shared != NULL && F_ISSET(hs_dhandle_shared, WT_DHANDLE_OPEN)) {
+        WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_HS_SYNC);
+        WT_WITH_DHANDLE(session, hs_dhandle_shared, ret = __wt_checkpoint_sync(session, NULL));
     }
 
     time_stop_fsync = __wt_clock(session);

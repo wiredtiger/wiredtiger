@@ -958,7 +958,7 @@ __wti_conn_dhandle_discard(WT_SESSION_IMPL *session)
  */
 restart:
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_HS_URI) == 0 ||
+        if (WT_IS_METADATA(dhandle) || WT_IS_URI_HS(dhandle->name) ||
           WT_PREFIX_MATCH(dhandle->name, WT_SYSTEM_PREFIX))
             continue;
 

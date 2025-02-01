@@ -33,8 +33,9 @@
 #define WT_METAFILE_SLVG "WiredTiger.wt.orig" /* Metadata copy */
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */
 
-#define WT_HS_FILE "WiredTigerHS.wt"     /* History store table */
-#define WT_HS_URI "file:WiredTigerHS.wt" /* History store table URI */
+#define WT_HS_FILE "WiredTigerHS.wt"                         /* History store table */
+#define WT_HS_URI "file:WiredTigerHS.wt"                     /* History store table URI */
+#define WT_HS_URI_SHARED "file:WiredTigerSharedHS.wt_stable" /* Shared history store */
 
 #define WT_CC_METAFILE "WiredTigerCC.wt"          /* Chunk cache metadata table */
 #define WT_CC_METAFILE_URI "file:WiredTigerCC.wt" /* Chunk cache metadata table URI */
@@ -73,6 +74,11 @@
 #define WT_METADATA_COMPAT "Compatibility version"
 #define WT_METADATA_VERSION "WiredTiger version" /* Version keys */
 #define WT_METADATA_VERSION_STR "WiredTiger version string"
+
+/*
+ * Other useful comparisons.
+ */
+#define WT_IS_URI_HS(uri) (strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_HS_URI_SHARED) == 0)
 
 /*
  * As a result of a data format change WiredTiger is not able to start on versions below 3.2.0, as

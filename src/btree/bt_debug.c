@@ -254,6 +254,7 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint32_t btree_id;
 
     memset(ds, 0, sizeof(WT_DBG));
 
@@ -270,8 +271,10 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
      * checkpoint.
      */
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
-      !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL))
-        WT_ERR(__wt_curhs_open(session, NULL, &ds->hs_cursor));
+      !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL)) {
+        btree_id = session->dhandle != NULL ? S2BT(session)->id : 0;
+        WT_ERR(__wt_curhs_open(session, btree_id, NULL, &ds->hs_cursor));
+    }
 
     if (ds->hs_cursor != NULL) {
         /*
@@ -1095,14 +1098,22 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint32_t hs_id;
 
     session = CUR2S(cursor_arg);
-    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
-    hs_btree = __wt_curhs_get_btree(hs_cursor);
-    WT_WITH_BTREE(session, hs_btree, ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
-    WT_TRET(hs_cursor->close(hs_cursor));
 
-    return (ret);
+    hs_id = 0;
+    for (;;) {
+        WT_RET_ERROR_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id), WT_NOTFOUND);
+        if (ret == WT_NOTFOUND)
+            return (0);
+
+        WT_RET(__wt_curhs_open_ext(session, hs_id, 0, NULL, &hs_cursor));
+        hs_btree = __wt_curhs_get_btree(hs_cursor);
+        WT_WITH_BTREE(session, hs_btree, ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
+        WT_TRET(hs_cursor->close(hs_cursor));
+        WT_RET(ret);
+    }
 }
 
 /*

@@ -45,8 +45,8 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
      * quickly.
      */
     for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
-         __wt_atomic_loadv32(&cache->pass_intr) == 0;
-         spins++) {
+      __wt_atomic_loadv32(&cache->pass_intr) == 0;
+      spins++) {
         if (spins < WT_THOUSAND)
             __wt_yield();
         else
@@ -606,9 +606,10 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
-    uint32_t flags;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem;
+    uint32_t flags, hs_id;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -636,9 +637,22 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
      * values could lead to surprising bugs in the future.
      */
-    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
-        __wt_atomic_store64(&cache->bytes_hs, __wt_atomic_load64(&hs_tree->bytes_inmem));
-        cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
+    if (F_ISSET(conn, WT_CONN_HS_OPEN)) {
+        total_dirty = total_inmem = 0;
+        hs_id = 0;
+        for (;;) {
+            WT_RET_ERROR_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id), WT_NOTFOUND);
+            if (ret == WT_NOTFOUND) {
+                ret = 0;
+                break;
+            }
+            if (__wt_hs_get_btree(session, hs_id, &hs_tree) == 0) {
+                total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
+                total_dirty += hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
+            }
+        }
+        __wt_atomic_store64(&cache->bytes_hs, total_inmem);
+        cache->bytes_hs_dirty = total_dirty;
     }
 
     /*
@@ -1972,8 +1986,7 @@ rand_next:
      */
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
     for (evict = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
-         evict < end && (ret == 0 || ret == WT_NOTFOUND);
-         last_parent = ref == NULL ? NULL : ref->home,
+      evict < end && (ret == 0 || ret == WT_NOTFOUND); last_parent = ref == NULL ? NULL : ref->home,
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
         /*
          * Check whether we're finding a good ratio of candidates vs pages seen. Some workloads
@@ -2348,7 +2361,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
 
     /* Get the next page queued for eviction. */
     for (evict = queue->evict_current;
-         evict >= queue->evict_queue && evict < queue->evict_queue + candidates; ++evict) {
+      evict >= queue->evict_queue && evict < queue->evict_queue + candidates; ++evict) {
         if (evict->ref == NULL)
             continue;
         WT_ASSERT(session, evict->btree != NULL);

@@ -459,7 +459,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     }
 
     /* The history store file is never logged and supports timestamps. */
-    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+    if (WT_IS_URI_HS(session->dhandle->name)) {
         F_SET(btree->dhandle, WT_DHANDLE_HS);
         F_CLR(btree, WT_BTREE_LOGGED);
     }

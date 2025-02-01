@@ -298,12 +298,14 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_HS_KEY_FORMAT WT_UNCHECKED_STRING(IuQQ)
 #define WT_HS_VALUE_FORMAT WT_UNCHECKED_STRING(QQQu)
-#define WT_HS_CONFIG                                                   \
+#define WT_HS_CONFIG_COMMON                                                   \
     "key_format=" WT_HS_KEY_FORMAT ",value_format=" WT_HS_VALUE_FORMAT \
     ",block_compressor=" WT_HS_COMPRESSOR                              \
     ",internal_page_max=16KB"                                          \
     ",leaf_value_max=64MB"                                             \
     ",prefix_compression=false"
+#define WT_HS_CONFIG_LOCAL WT_HS_CONFIG_COMMON
+#define WT_HS_CONFIG_SHARED WT_HS_CONFIG_COMMON ",block_manager=disagg"
 
 /*
  * WT_SAVE_UPD --
@@ -734,7 +736,7 @@ struct __wt_page {
         uint32_t __entries;                                                          \
         WT_INTL_INDEX_GET(session, page, __pindex);                                  \
         for (__refp = __pindex->index, __entries = __pindex->entries; __entries > 0; \
-             --__entries) {                                                          \
+          --__entries) {                                                             \
             (ref) = *__refp++;
 #define WT_INTL_FOREACH_REVERSE_BEGIN(session, page, ref)                                 \
     do {                                                                                  \
@@ -743,7 +745,7 @@ struct __wt_page {
         uint32_t __entries;                                                               \
         WT_INTL_INDEX_GET(session, page, __pindex);                                       \
         for (__refp = __pindex->index + __pindex->entries, __entries = __pindex->entries; \
-             __entries > 0; --__entries) {                                                \
+          __entries > 0; --__entries) {                                                   \
             (ref) = *--__refp;
 #define WT_INTL_FOREACH_END \
     }                       \
@@ -1413,7 +1415,7 @@ struct __wt_row { /* On-page key, on-page cell, or off-page WT_IKEY */
     for ((i) = (page)->entries, (rip) = (page)->pg_row; (i) > 0; ++(rip), --(i))
 #define WT_ROW_FOREACH_REVERSE(page, rip, i)                                             \
     for ((i) = (page)->entries, (rip) = (page)->pg_row + ((page)->entries - 1); (i) > 0; \
-         --(rip), --(i))
+      --(rip), --(i))
 
 /*
  * WT_ROW_SLOT --
@@ -1791,15 +1793,15 @@ struct __wt_insert_head {
         (page)->modify->mod_col_append[0])
 
 /* WT_COL_FIX_FOREACH_BITS walks fixed-length bit-fields on a disk page. */
-#define WT_COL_FIX_FOREACH_BITS(btree, dsk, v, i)                            \
-    for ((i) = 0,                                                            \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
-           0;                                                                \
-         (i) < (dsk)->u.entries; ++(i),                                      \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
-           0)
+#define WT_COL_FIX_FOREACH_BITS(btree, dsk, v, i)                         \
+    for ((i) = 0,                                                         \
+        (v) = (i) < (dsk)->u.entries ?                                    \
+        __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
+        0;                                                                \
+      (i) < (dsk)->u.entries; ++(i),                                      \
+        (v) = (i) < (dsk)->u.entries ?                                    \
+        __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
+        0)
 
 /*
  * FLCS pages with time information have a small additional header after the main page data that

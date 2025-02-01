@@ -3357,11 +3357,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(event_handler->handle_general(
           event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY, NULL));
 
-    /* Start the worker threads and run recovery. */
-    WT_ERR(__wti_connection_workers(session, cfg));
+    /* Initialize metadata tracking, required before creating tables. */
+    WT_RET(__wt_meta_track_init(session));
 
     /* Initialize disaggregated storage (the metadata table must be open at this point). */
     WT_ERR(__wti_disagg_conn_config(session, cfg, false));
+
+    /* Start the worker threads and run recovery. */
+    WT_ERR(__wti_connection_workers(session, cfg));
 
     /*
      * We want WiredTiger in a reasonably normal state - despite the salvage flag, this is a boring
