@@ -1642,7 +1642,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     uint32_t prepare_count;
 #endif
     u_int i;
-    bool cannot_fail, locked, prepare, readonly, update_durable_ts;
+    bool cannot_fail, locked, prepare, readonly, update_durable_ts, save_errors;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1654,6 +1654,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
+    save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
     cannot_fail = locked = false;
 
     /* Permit the commit if the transaction failed, but was read-only. */
@@ -1967,9 +1968,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * We're between transactions, if we need to block for eviction, it's a good time to do so.
      * Ignore error returns, the return must reflect the fate of the transaction.
      */
-    if (!readonly)
+    if (!readonly) {
+        F_CLR(session, WT_SESSION_SAVE_ERRORS);
         WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
-
+        if (save_errors)
+            F_SET(session, WT_SESSION_SAVE_ERRORS);
+    }
     return (0);
 
 err:
@@ -2152,7 +2156,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool prepare, readonly;
+    bool prepare, readonly, save_errors;
 
     cursor = NULL;
     txn = session->txn;
@@ -2161,6 +2165,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
+    save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
@@ -2261,9 +2266,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
      * We're between transactions, if we need to block for eviction, it's a good time to do so.
      * Ignore error returns, the return must reflect the fate of the transaction.
      */
-    if (!readonly)
+    if (!readonly) {
+        F_CLR(session, WT_SESSION_SAVE_ERRORS);
         WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
-
+        if (save_errors)
+            F_SET(session, WT_SESSION_SAVE_ERRORS);
+    }
     return (ret);
 }
 
