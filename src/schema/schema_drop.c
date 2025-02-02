@@ -98,28 +98,51 @@ static int
 __drop_layered(
   WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
+    /* WT_CURSOR *cursor; */
     WT_DECL_ITEM(ingest_uri_buf);
+    WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
-    const char *ingest_uri, *tablename;
+    const char *ingest_uri, *stable_uri, *tablename;
+    WT_UNUSED(force);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "layered:"));
 
     WT_RET(__wt_scr_alloc(session, 0, &ingest_uri_buf));
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
 
     tablename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "layered:");
     WT_ERR(__wt_buf_fmt(session, ingest_uri_buf, "file:%s.wt_ingest", tablename));
     ingest_uri = ingest_uri_buf->data;
+    WT_ERR(__wt_buf_fmt(session, stable_uri_buf, "file:%s.wt_stable", tablename));
+    stable_uri = stable_uri_buf->data;
+
+    /* Get exclusive access to the dhandles */
+    /* WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY)); */
+    /* WT_ERR(__wt_session_get_dhandle(session, ingest_uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY)); */
+    /* WT_ERR(__wt_session_get_dhandle(session, stable_uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY)); */
 
     /*
      * Drop the ingest table. We don't drop the stable component, since it's not a real table. TODO
      * we should (somehow) call into PALI to drop this properly.
      */
-    WT_ERR(__drop_file(session, ingest_uri, force, cfg, check_visibility));
+    /* WT_WITH_HANDLE_LIST_WRITE_LOCK( */
+    /*   session, ret = __wt_conn_dhandle_close_all(session, ingest_uri, true, true, check_visibility)); */
+    /* WT_ERR(ret); */
+    WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
+
+    /* Handle the stable table */
+    /* WT_WITH_HANDLE_LIST_WRITE_LOCK( */
+    /*   session, ret = __wt_conn_dhandle_close_all(session, stable_uri, true, true, check_visibility)); */
+    /* WT_ERR(ret); */
+    /* WT_ERR(__wt_metadata_cursor(session, &cursor)); */
+    /* cursor->set_key(cursor, stable_uri); */
+    /* WT_ERR(cursor->remove(cursor)); */
+    WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
 
     /* Now drop the top-level table. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, true, check_visibility));
     WT_ERR(ret);
     WT_ERR(__wt_metadata_remove(session, uri));
 
@@ -128,6 +151,7 @@ __drop_layered(
 
 err:
     __wt_scr_free(session, &ingest_uri_buf);
+    __wt_scr_free(session, &stable_uri_buf);
     return (ret);
 }
 
