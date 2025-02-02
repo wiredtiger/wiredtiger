@@ -87,7 +87,7 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         #
         # Part 2: drop the table on the secondary and check it has no data.
         #
-        session_follow.drop(self.uri)
+        session_follow.drop(self.uri, 'force=true')
 
         with self.assertRaises(wiredtiger.WiredTigerError):
             session_follow.open_cursor(self.uri, None, None)
@@ -103,7 +103,9 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(item_count, self.nitems * 3)
         cursor.close()
 
-        self.session.drop(self.uri)
+        # Avoid any shenanigans with cached cursors, etc
+        self.reopen_conn()
 
+        self.session.drop(self.uri)
         with self.assertRaises(wiredtiger.WiredTigerError):
             self.session.open_cursor(self.uri, None, None)
