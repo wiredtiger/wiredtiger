@@ -31,12 +31,12 @@ import wiredtiger
 import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
-# test_layered23.py
+# test_layered24.py
 #    Ensure a secondary that drops a table does not fall back to reading
 #    the stable table.
 @disagg_test_class
-class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    uri = "layered:test_layered23"
+class test_layered24(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    uri = "layered:test_layered24"
 
     conn_base_config = "disaggregated=(stable_prefix=.,page_log=palm),"
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
@@ -54,7 +54,7 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
-    def test_layered23(self):
+    def test_layered24(self):
         session_config = 'key_format=S,value_format=S'
 
         #
