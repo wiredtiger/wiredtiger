@@ -115,10 +115,6 @@ run()
     local t="${t_pfx}-${name}-$$"
     [[ "$name" =~ .*\.py$ ]] && cmd="python3 $cmd" || cmd="/bin/bash $cmd"
     [[ -z "$bg" ]] && status "Running: $name"
-    if echo " $disagg_ignore " | grep " $1 " >/dev/null; then
-        echo "$name skipped for disaggregated storage"
-        return
-    fi
     $cmd > $t 2>&1
     [[ -z "$bg" ]] && status ""
     errchk "$name" "$t" "$flags"
