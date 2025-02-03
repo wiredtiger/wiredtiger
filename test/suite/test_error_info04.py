@@ -30,13 +30,13 @@ import wiredtiger
 from error_info_util import error_info_util
 
 # test_error_info04.py
-#   Test that when committing or rolling back a transaction, after successfully committing or 
+#   Test that when committing or rolling back a transaction, after successfully committing or
 #   rolling back, if an error occurs in __wti_evict_app_assist_worker it is not saved in err_info.
 class test_error_info04(error_info_util):
     uri = "table:test_error_info.wt"
 
     def test_commit_transaction_skip_save(self):
-        # Configure connection with very low cache wait time and dirty trigger. 
+        # Configure connection with very low cache wait time and dirty trigger.
         self.conn.reconfigure('cache_max_wait_ms=2,eviction_dirty_target=1,eviction_dirty_trigger=2')
 
         # Create a basic table.
@@ -55,7 +55,7 @@ class test_error_info04(error_info_util):
             self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
 
             self.session.checkpoint()
-    
+
     def test_rollback_transaction_skip_save(self):
         # Configure connection with very low cache max wait time and dirty trigger.
         self.conn.reconfigure('cache_max_wait_ms=2,eviction_dirty_target=1,eviction_dirty_trigger=2')
