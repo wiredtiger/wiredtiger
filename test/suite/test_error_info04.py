@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger
+import wiredtiger, time
 from error_info_util import error_info_util
 
 # test_error_info04.py
@@ -49,7 +49,7 @@ class test_error_info04(error_info_util):
         self.session.begin_transaction()
         cursor.set_key("key_a")
         cursor.set_value("a"*1024*5000)
-        cursor.update()
+        cursor.insert()
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
             self.assertEqual(self.session.commit_transaction(), 0)
             self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
@@ -66,11 +66,18 @@ class test_error_info04(error_info_util):
         # Open a session and cursor.
         cursor = self.session.open_cursor(self.uri)
 
+        # Insert a key and value within a transaction.
+        self.session.begin_transaction()
+        cursor.set_key("key_a")
+        cursor.set_value("a")
+        cursor.insert()
+        self.session.commit_transaction()
+
         # Start a transaction and insert a value large enough to trigger eviction app worker threads.
         self.session.begin_transaction()
         cursor.set_key("key_b")
         cursor.set_value("b"*1024*5000)
-        cursor.update()
+        cursor.insert()
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
             self.assertEqual(self.session.rollback_transaction(), 0)
             self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
