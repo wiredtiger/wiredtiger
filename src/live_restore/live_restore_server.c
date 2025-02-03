@@ -161,7 +161,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     ret = wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor);
     if (ret != 0)
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-          "Live restore worker: Open cursor to %s ret %d", work_item->uri, ret);
+          "Live restore worker: Error opening cursor to %s, ret %d", work_item->uri, ret);
     if (ret == ENOENT) {
         /* Free the work item. */
         __live_restore_free_work_item(session, &work_item);
@@ -174,6 +174,8 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         __wt_spin_lock(session, &server->queue_lock);
         TAILQ_INSERT_TAIL(&server->work_queue, work_item, q);
         __wt_spin_unlock(session, &server->queue_lock);
+        if (server->work_items_remaining < server->threads_working)
+            __wt_sleep(0, 100 * WT_THOUSAND);
         return (0);
     }
     WT_RET(ret);
