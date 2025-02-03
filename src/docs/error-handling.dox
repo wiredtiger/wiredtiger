@@ -32,18 +32,21 @@ exclusive access when the objects might be in active use by other threads.
 @section error_sub_level Sub-level errors
 
 Calls within the session API will complete with an error code, a sub-level error code, and
-an error message, which are extracted by calling the WT_SESSION::get_last_error method. All calls
+an error message, which are extracted by calling the WT_SESSION::get_last_error method. Every call
 to the session API (except for WT_SESSION::get_last_error) will refresh these fields. The error
 code from WT_SESSION::get_last_error will be the same as the value returned from the last API call.
-The sub-level error code and error message are optional, and default to WT_NONE and "" respectively.
 The error message string is owned by the session, and is invalidated after each session API call
-(except for WT_SESSION::get_last_error).
+(except for WT_SESSION::get_last_error). Within a session API call, only the earliest error is saved
+and will not be overwritten by an error that occurs later. When saving an error, the session must
+have the WT_SESSION_SAVE_ERRORS flag set, or the error will not be saved. External sessions have
+this flag set and internal sessions do not, however when an external session opens an internal
+session, it will inherit the external sessions flags including the WT_SESSION_SAVE_ERRORS flag.
 
+The sub-level error code and error message are optional, and default to WT_NONE and "" respectively.
 If no other call has been made or there is no sub-level error, WT_SESSION::get_last_error will give
-the error code as 0, sub-level error code as WT_NONE, and error message as "".
-
-If the last API call was successful, WT_SESSION::get_last_error will give the error code as 0,
-sub-level error code as WT_NONE, and error message as "last API call was successful".
+the error code as 0, sub-level error code as WT_NONE, and error message as "". If the last API call
+was successful, WT_SESSION::get_last_error will give the error code as 0, sub-level error code as
+WT_NONE, and error message as "last API call was successful".
 
 @section error_list WiredTiger-specific errors
 
