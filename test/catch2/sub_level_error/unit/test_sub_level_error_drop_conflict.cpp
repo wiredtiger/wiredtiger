@@ -19,6 +19,7 @@
  */
 
 #define URI "table:test_drop_conflict"
+#define FILE_URI "file:test_drop_conflict.wt"
 #define UNCOMMITTED_DATA_MSG "the table has uncommitted data and cannot be dropped yet"
 #define DIRTY_DATA_MSG "the table has dirty data and can not be dropped yet"
 #define CONFLICT_BACKUP_MSG "the table is currently performing backup and cannot be dropped"
@@ -51,9 +52,11 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_c
     prepare_session_and_error(&conn_wrapper, &session, &err_info);
     REQUIRE(session->create(session, URI, config.c_str()) == 0);
 
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+
     SECTION("Test WT_UNCOMMITTED_DATA")
     {
-        /* Make an update, then attempt to drop the table without committing the transaction. */
+        /* Make an update, then try to close the btree handle without committing the transaction. */
         WT_CURSOR *cursor;
         REQUIRE(session->open_cursor(session, URI, NULL, NULL, &cursor) == 0);
         REQUIRE(session->begin_transaction(session, NULL) == 0);
@@ -61,13 +64,16 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_c
         cursor->set_value(cursor, "value");
         REQUIRE(cursor->update(cursor) == 0);
         REQUIRE(cursor->close(cursor) == 0);
-        REQUIRE(session->drop(session, URI, NULL) == EBUSY);
+
+        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, true) == EBUSY);
+
         utils::check_error_info(err_info, EBUSY, WT_UNCOMMITTED_DATA, UNCOMMITTED_DATA_MSG);
     }
 
     SECTION("Test WT_DIRTY_DATA")
     {
-        /* Commit an update, then attempt to drop the table without checkpointing. */
+        /* Commit an update, then try to close the btree handle without checkpointing. */
         WT_CURSOR *cursor;
         REQUIRE(session->open_cursor(session, URI, NULL, NULL, &cursor) == 0);
         REQUIRE(session->begin_transaction(session, NULL) == 0);
@@ -79,13 +85,17 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_c
 
         /* Give time for the oldest txn id to update before dropping the table. */
         sleep(1);
-        REQUIRE(session->drop(session, URI, NULL) == EBUSY);
+
+        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, true) == EBUSY);
+
         utils::check_error_info(err_info, EBUSY, WT_DIRTY_DATA, DIRTY_DATA_MSG);
     }
 }
 
 /*
- * This test case covers EBUSY errors resulting from drop while cursors are still open on the table.
+ * This test case covers EBUSY errors resulting from drop while cursors are still open on the
+ table.
  */
 TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_drop_conflict]")
 {
