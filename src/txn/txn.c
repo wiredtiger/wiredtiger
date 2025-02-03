@@ -2736,7 +2736,6 @@ __wt_verbose_dump_txn_one(
     WT_DECL_ITEM(buf);
     WT_DECL_ITEM(snapshot_buf);
     WT_DECL_RET;
-    WT_ERROR_INFO *txn_err_info;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     uint32_t i, buf_len;
@@ -2789,7 +2788,6 @@ __wt_verbose_dump_txn_one(
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
      * error message.
      */
-    txn_err_info = &(txn_session->err_info);
     WT_ERR(
       __wt_snprintf((char *)buf->data, buf_len,
         "transaction id: %" PRIu64 ", mod count: %u"
@@ -2803,10 +2801,7 @@ __wt_verbose_dump_txn_one(
         ", read_timestamp: %s"
         ", checkpoint LSN: [%s]"
         ", full checkpoint: %s"
-        ", flags: 0x%08" PRIx32 ", isolation: %s"
-        ", last saved error code: %d"
-        ", last saved sub-level error code: %d"
-        ", last saved error message: %s",
+        ", flags: 0x%08" PRIx32 ", isolation: %s",
         txn->id, txn->mod_count, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
         txn->snapshot_data.snapshot_count, (char *)snapshot_buf->data,
         __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
@@ -2815,8 +2810,7 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
         __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), ckpt_lsn_str,
-        txn->full_ckpt ? "true" : "false", txn->flags, iso_tag, txn_err_info->err,
-        txn_err_info->sub_level_err, txn_err_info->err_msg));
+        txn->full_ckpt ? "true" : "false", txn->flags, iso_tag));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.
