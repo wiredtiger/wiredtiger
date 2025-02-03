@@ -180,8 +180,7 @@ TEST_CASE("Live Restore extent export no live restore fs",
 {
     std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();
     WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
-    REQUIRE(
-      __wt_live_restore_fh_export_extent_to_metadata_string(session, NULL, NULL) == WT_NOTFOUND);
+    REQUIRE(__wt_live_restore_fh_extent_to_metadata(session, NULL, NULL) == WT_NOTFOUND);
 }
 
 WTI_LIVE_RESTORE_HOLE_NODE *
@@ -213,14 +212,14 @@ TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_imp
     {
         WT_UNUSED(string);
         lr_fh->destination.complete = true;
-        REQUIRE(__wt_live_restore_fh_export_extent_to_metadata_string(
-                  session, (WT_FILE_HANDLE *)lr_fh, NULL) == WT_NOTFOUND);
+        REQUIRE(__wt_live_restore_fh_extent_to_metadata(session, (WT_FILE_HANDLE *)lr_fh, NULL) ==
+          WT_NOTFOUND);
     }
 
     SECTION("Test a file handle with no extents")
     {
-        REQUIRE(__wt_live_restore_fh_export_extent_to_metadata_string(
-                  session, (WT_FILE_HANDLE *)lr_fh, &string) == 0);
+        REQUIRE(
+          __wt_live_restore_fh_extent_to_metadata(session, (WT_FILE_HANDLE *)lr_fh, &string) == 0);
         REQUIRE(std::string((char *)string.data) == ",live_restore=");
     }
 
@@ -229,8 +228,8 @@ TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_imp
         WTI_LIVE_RESTORE_HOLE_NODE *node;
         node = __alloc_exent(session, 0, 4096);
         lr_fh->destination.hole_list_head = node;
-        REQUIRE(__wt_live_restore_fh_export_extent_to_metadata_string(
-                  session, (WT_FILE_HANDLE *)lr_fh, &string) == 0);
+        REQUIRE(
+          __wt_live_restore_fh_extent_to_metadata(session, (WT_FILE_HANDLE *)lr_fh, &string) == 0);
         REQUIRE(std::string((char *)string.data) == ",live_restore=0-4096");
         __wt_free(session, lr_fh->destination.hole_list_head);
     }
@@ -244,8 +243,8 @@ TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_imp
         lr_fh->destination.hole_list_head->next->next = __alloc_exent(session, 8192, 10);
         lr_fh->destination.hole_list_head->next->next->next = __alloc_exent(session, 100000, 10);
         REQUIRE(extent_list_in_order(lr_fh));
-        REQUIRE(__wt_live_restore_fh_export_extent_to_metadata_string(
-                  session, (WT_FILE_HANDLE *)lr_fh, &string) == 0);
+        REQUIRE(
+          __wt_live_restore_fh_extent_to_metadata(session, (WT_FILE_HANDLE *)lr_fh, &string) == 0);
         REQUIRE(
           std::string((char *)string.data) == ",live_restore=0-4096;4096-4096;4096-10;91808-10");
         __wt_free(session, lr_fh->destination.hole_list_head->next->next->next);

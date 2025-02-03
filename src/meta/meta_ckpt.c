@@ -1269,18 +1269,18 @@ err:
 }
 
 /*
- * __meta_add_live_restore_info --
+ * __meta_live_restore_to_meta --
  *     Add relevant live restore information to the checkpoint metadata string.
  */
 static int
-__meta_add_live_restore_info(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_ITEM *buf)
+__meta_live_restore_to_meta(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_ITEM *buf)
 {
     if (WT_PREFIX_MATCH(dhandle->name, "file:")) {
         WT_BM *bm = ((WT_BTREE *)dhandle->handle)->bm;
         WT_ASSERT(session, bm->is_multi_handle == false);
         /* FIXME-WT-13897 Replace this with an API call into the block manager. */
         WT_FILE_HANDLE *fh = bm->block->fh->handle;
-        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_export_extent_to_metadata_string(session, fh, buf));
+        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_extent_to_metadata(session, fh, buf));
     }
     return (0);
 }
@@ -1305,7 +1305,7 @@ __wt_meta_ckptlist_set(
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
 
 #ifndef _MSC_VER
-    WT_ERR_NOTFOUND_OK(__meta_add_live_restore_info(session, dhandle, buf), false);
+    WT_ERR_NOTFOUND_OK(__meta_live_restore_to_meta(session, dhandle, buf), false);
 #endif
 
     /* Add backup block modifications for any added checkpoint. */

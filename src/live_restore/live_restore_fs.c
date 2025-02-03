@@ -1233,7 +1233,7 @@ __wt_live_restore_fh_import_extents_from_string(
         const char *str_ptr = extent_str;
         char *next;
         while (true) {
-            if (!__wt_isdigit(*str_ptr))
+            if (!__wt_isdigit((u_char)*str_ptr))
                 WT_ERR_MSG(session, EINVAL, "Invalid offset found in extent string");
 
             next_off = (wt_off_t)strtoll(str_ptr, &next, 10);
@@ -1247,7 +1247,7 @@ __wt_live_restore_fh_import_extents_from_string(
              */
             off += next_off;
             str_ptr++;
-            if (*str_ptr > '9' || *str_ptr < '0')
+            if (!__wt_isdigit((u_char)*str_ptr))
                 WT_ERR_MSG(session, EINVAL, "Invalid length found in extent string");
 
             len = (size_t)strtol(str_ptr, &next, 10);
@@ -1279,13 +1279,13 @@ err:
 }
 
 /*
- * __wt_live_restore_fh_export_extent_to_metadata_string --
+ * __wt_live_restore_fh_extent_to_metadata --
  *     Given a WiredTiger file handle generate a string of its extents. If live restore is not
  *     running or the extent list is missing, which indicates the file is complete, return a
  *     WT_NOTFOUND error.
  */
 int
-__wt_live_restore_fh_export_extent_to_metadata_string(
+__wt_live_restore_fh_extent_to_metadata(
   WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_ITEM *extent_string)
 {
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
