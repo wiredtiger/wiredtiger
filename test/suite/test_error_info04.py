@@ -46,15 +46,16 @@ class test_error_info04(error_info_util):
         cursor = self.session.open_cursor(self.uri)
 
         # Start a transaction and insert a value large enough to trigger eviction app worker threads.
-        self.session.begin_transaction()
-        cursor.set_key("key_a")
-        cursor.set_value("a"*1024*5000)
-        cursor.insert()
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
-            self.assertEqual(self.session.commit_transaction(), 0)
-            self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
+            for i in range(100):
+                self.session.begin_transaction()
+                cursor.set_key(str(i))
+                cursor.set_value(str(i)*1024*500)
+                cursor.insert()
+                self.assertEqual(self.session.commit_transaction(), 0)
+                self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
 
-            self.session.checkpoint()
+        self.session.checkpoint()
 
     def test_rollback_transaction_skip_save(self):
         # Configure connection with very low cache max wait time and dirty trigger.
@@ -67,17 +68,13 @@ class test_error_info04(error_info_util):
         cursor = self.session.open_cursor(self.uri)
 
         # Insert a key and value within a transaction.
-        self.session.begin_transaction()
-        cursor.set_key("key_a")
-        cursor.set_value("a")
-        cursor.insert()
-        self.session.commit_transaction()
 
         # Start a transaction and insert a value large enough to trigger eviction app worker threads.
-        self.session.begin_transaction()
-        cursor.set_key("key_b")
-        cursor.set_value("b"*1024*5000)
-        cursor.insert()
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
-            self.assertEqual(self.session.rollback_transaction(), 0)
-            self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
+            for i in range(100):
+                self.session.begin_transaction()
+                cursor.set_key(str(i))
+                cursor.set_value(str(i)*1024*500)
+                cursor.insert()
+                self.assertEqual(self.session.rollback_transaction(), 0)
+                self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
