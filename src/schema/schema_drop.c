@@ -129,6 +129,7 @@ __drop_layered(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, true, check_visibility));
     WT_ERR(ret);
     WT_ERR(__wt_metadata_remove(session, uri));
+    /* TODO SLS-1052 drop from the shared metadata table. */
 
     /* No need for a meta track drop, since the top-level table has no underlying files to remove.
      */
