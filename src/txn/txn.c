@@ -1966,7 +1966,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * We're between transactions, if we need to block for eviction, it's a good time to do so.
-     * Ignore error returns, the return must reflect the fate of the transaction.
+     * Ignore error returns, the return must reflect the fate of the transaction. Similarly, clear
+     * WT_SESSION_SAVE_ERRORS as the fate of the transaction has already been determined, so no
+     * new errors should be saved.
      */
     if (!readonly) {
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
@@ -2264,7 +2266,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * We're between transactions, if we need to block for eviction, it's a good time to do so.
-     * Ignore error returns, the return must reflect the fate of the transaction.
+     * Ignore error returns, the return must reflect the fate of the transaction. Similarly, clear
+     * WT_SESSION_SAVE_ERRORS as the fate of the transaction has already been determined, so no
+     * new errors should be saved.
      */
     if (!readonly) {
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
