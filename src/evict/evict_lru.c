@@ -2813,7 +2813,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
  * The function returns an error code from either __evict_page or __wt_txn_is_blocking.
  */
 int
-__wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, double pct_full)
+__wti_evict_app_assist_worker(
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, double pct_full)
 {
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
@@ -2908,7 +2909,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
             (__wt_atomic_loadv64(&evict->eviction_progress) > initial_progress + max_progress)))
             break;
 
-        if (!__evict_check_user_ok_with_eviction(session, busy))
+        if (!__evict_check_user_ok_with_eviction(session, interruptible))
             break;
 
         /* Evict a page. */

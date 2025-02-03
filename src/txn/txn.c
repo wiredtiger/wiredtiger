@@ -1968,7 +1968,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * Ignore error returns, the return must reflect the fate of the transaction.
      */
     if (!readonly)
-        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
+        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, NULL));
 
     return (0);
 
@@ -2262,7 +2262,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
      * Ignore error returns, the return must reflect the fate of the transaction.
      */
     if (!readonly)
-        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
+        WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, true, NULL));
 
     return (ret);
 }
