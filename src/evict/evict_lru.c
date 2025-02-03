@@ -45,8 +45,8 @@ __evict_lock_handle_list(WT_SESSION_IMPL *session)
      * quickly.
      */
     for (spins = 0; (ret = __wt_try_readlock(session, dh_lock)) == EBUSY &&
-      __wt_atomic_loadv32(&cache->pass_intr) == 0;
-      spins++) {
+         __wt_atomic_loadv32(&cache->pass_intr) == 0;
+         spins++) {
         if (spins < WT_THOUSAND)
             __wt_yield();
         else
@@ -1987,7 +1987,8 @@ rand_next:
      */
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
     for (evict = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
-      evict < end && (ret == 0 || ret == WT_NOTFOUND); last_parent = ref == NULL ? NULL : ref->home,
+         evict < end && (ret == 0 || ret == WT_NOTFOUND);
+         last_parent = ref == NULL ? NULL : ref->home,
         ret = __wt_tree_walk_count(session, &ref, &refs_walked, walk_flags)) {
         /*
          * Check whether we're finding a good ratio of candidates vs pages seen. Some workloads
@@ -2362,7 +2363,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
 
     /* Get the next page queued for eviction. */
     for (evict = queue->evict_current;
-      evict >= queue->evict_queue && evict < queue->evict_queue + candidates; ++evict) {
+         evict >= queue->evict_queue && evict < queue->evict_queue + candidates; ++evict) {
         if (evict->ref == NULL)
             continue;
         WT_ASSERT(session, evict->btree != NULL);

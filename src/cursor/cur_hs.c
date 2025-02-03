@@ -27,8 +27,8 @@ __curhs_file_cursor_open(
     WT_CURSOR *cursor;
     WT_DECL_RET;
     size_t len;
-    char *tmp;
     uint64_t global_ckpt_id;
+    char *tmp;
 
     const char *open_cursor_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL, NULL};
@@ -1294,8 +1294,8 @@ __wt_curhs_open(WT_SESSION_IMPL *session, uint32_t btree_id, WT_CURSOR *owner, W
 
     /*
      * Map the history store ID into the URI. The current implementation does this simply using
-     * table ID namespaces, but keep the notion of HS ID and namespace ID separate to ensure that
-     * we can make more flexible choices in the future.
+     * table ID namespaces, but keep the notion of HS ID and namespace ID separate to ensure that we
+     * can make more flexible choices in the future.
      */
     hs_id = WT_BTREE_ID_SHARED(btree_id) ? 2 : 1;
 
@@ -1342,6 +1342,7 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
     const char *uri;
 
     cursor = NULL;
+    *cursorp = NULL;
 
     switch (hs_id) {
     case 1:
@@ -1356,8 +1357,7 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
         WT_ERR_MSG(session, EINVAL, "No such History Store ID: %" PRIu32, hs_id);
     }
 
-    *cursorp = NULL;
-    WT_RET(__wt_calloc_one(session, &hs_cursor));
+    WT_ERR(__wt_calloc_one(session, &hs_cursor));
     ++session->hs_cursor_counter;
     cursor = (WT_CURSOR *)hs_cursor;
     *cursor = iface;
