@@ -1421,10 +1421,15 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
     /* Open it in the destination layer. */
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
 
-    if (have_stop || lr_fs->finished) {
+    WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+
+    // TODO - can we drop ->finished?
+    if (have_stop || lr_fs->finished || state == WTI_LIVE_RESTORE_STATE_CLEAN_UP) {
         /*
          * Set the complete flag, we know that if there is a stop file we should never look in the
-         * source. Therefore the destination must be complete.
+         * source. Therefore the destination must be complete. It's also possible we're in the
+         * cleanup stage, in which case we might have deleted the tombstone even though the file
+         * migration is complete.
          */
         lr_fh->destination.complete = true;
         /* Opening files is single threaded but the remove extlist free requires the lock. */
@@ -1733,20 +1738,41 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_DECL_RET;
 
+    u_int logcount = 0;
+    char **logfiles = NULL;
+
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
     __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
       "WiredTiger started in live restore mode. Source path is: %s, Destination path is %s. The "
       "configured read size is %" WT_SIZET_FMT " bytes\n",
       lr_fs->source.home, lr_fs->destination.home, lr_fs->read_size);
 
-    if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED))
+    WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+
+    if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
+        WT_ERR(
+            __wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION));
+        return (0);
+    }
+
+    if (state != WTI_LIVE_RESTORE_STATE_LOG_COPY)
         return (0);
 
-    u_int logcount = 0;
-    char **logfiles = NULL;
     WT_DECL_ITEM(filename);
     WT_FH *fh = NULL;
     uint32_t lognum;
+
+
+    /* Open and close the log folder. This creates it in the destination if it didn't exist. */
+    WT_DECL_ITEM(log_folder_path);
+    WT_RET(__wt_scr_alloc(session, 0, &log_folder_path));
+    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, conn->log_mgr.log_path,
+      UINTMAX_MAX, UINT32_MAX, log_folder_path));
+
+    WT_FILE_HANDLE *log_folder_fh = NULL;
+    lr_fs->iface.fs_open_file(
+      (WT_FILE_SYSTEM *)lr_fs, (WT_SESSION *)session, log_folder_path->data, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log_folder_fh);
+    log_folder_fh->close(log_folder_fh, (WT_SESSION *)session);
 
     /* Get a list of actual log files. */
     WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
@@ -1783,9 +1809,13 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
         WT_ERR(ret);
     }
 
+    WT_ERR(
+      __wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION));
+
 err:
     WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
     __wt_scr_free(session, &filename);
+    __wt_scr_free(session, &log_folder_path);
     return (ret);
 }
 
@@ -1835,6 +1865,10 @@ __wt_os_live_restore_fs(
     lr_fs->read_size = (uint64_t)cval.val;
     if (!__wt_ispo2((uint32_t)lr_fs->read_size))
         WT_ERR_MSG(session, EINVAL, "the live restore read size must be a power of two");
+
+    WT_ERR(__wt_spin_init(session, &lr_fs->state_file_lock, "state file access lock"));
+    WT_ERR(__wti_live_restore_validate_directories(session, lr_fs));
+    WT_ERR(__wti_live_restore_init_state(session, lr_fs));
 
     /* Update the callers pointer. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;

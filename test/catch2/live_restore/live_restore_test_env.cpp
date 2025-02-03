@@ -24,7 +24,7 @@ live_restore_test_env::live_restore_test_env()
     testutil_recreate_dir(DB_SOURCE.c_str());
 
     static std::string cfg_string =
-      "create=true,live_restore=(enabled=true, path=" + DB_SOURCE + ")";
+      "create=true,live_restore=(enabled=true, path=" + DB_SOURCE + ",threads_max=0)";
     conn = std::make_unique<connection_wrapper>(DB_DEST.c_str(), cfg_string.c_str());
 
     session = conn->create_session();

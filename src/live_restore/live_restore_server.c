@@ -33,6 +33,7 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_DECL_RET;
     WT_UNUSED(ctx);
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
 
     __wt_spin_lock(session, &server->queue_lock);
     server->threads_working--;
@@ -53,13 +54,24 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
             const char *cfg[] = {
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=true", NULL};
             WT_ERR(__wt_checkpoint_db(ctx->session, cfg, true));
+
+            if (__wti_live_restore_get_state(session, lr_fs) ==
+              WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
+                WT_ERR(
+                  __wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_CLEAN_UP));
+            }
+
             WT_ERR(__wti_live_restore_cleanup_stop_files(session));
+
             uint64_t time_diff_ms;
             WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
             __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
             __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-              "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
-              S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
+            "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
+            S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
+
+            /* Finally, once we've deleted all stop files we can delete the state file */
+            WT_ERR(__wti_live_restore_delete_state_file(session, lr_fs));
         }
         /*
          * Future proofing: in general unless the conn is closing the queue must be empty if there
@@ -134,6 +146,15 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_DECL_RET;
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
     uint64_t time_diff_ms;
+
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
+    WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+
+    /* Don't start work until we're in the correct state. This prevents the background migration threads from racing with log pre-copy. */
+    if (state == WTI_LIVE_RESTORE_STATE_NONE || state == WTI_LIVE_RESTORE_STATE_LOG_COPY) {
+        __wt_sleep(0, 10000);
+        return (0);
+    }
 
     __wt_spin_lock(session, &server->queue_lock);
     if (TAILQ_EMPTY(&server->work_queue)) {
