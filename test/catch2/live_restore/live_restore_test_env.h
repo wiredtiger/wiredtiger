@@ -25,7 +25,6 @@ class live_restore_test_env {
 public:
     const std::string DB_DEST = "WT_LR_DEST";
     const std::string DB_SOURCE = "WT_LR_SOURCE";
-    const std::string DB_TEMP_BACKUP = "WT_LR_TEMP_BACKUP";
 
     WTI_LIVE_RESTORE_FS *lr_fs;
     std::unique_ptr<connection_wrapper> conn;

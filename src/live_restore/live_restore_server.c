@@ -192,7 +192,6 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
       "Live restore worker: Finished filling holes in %s", work_item->uri);
-    /* Free the work item. */
     __live_restore_free_work_item(session, &work_item);
     return (ret);
 }

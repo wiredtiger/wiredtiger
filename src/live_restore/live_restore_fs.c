@@ -1204,7 +1204,7 @@ __wt_live_restore_fh_import_extents_from_string(
      * this to happen the destination file was created for the first time and a single file size
      * hole was initialized.
      *
-     * There is a tricky scenario here:
+     * FIXME-WT-14079 there is a tricky scenario here:
      *   - Open a file that exists in the source, a.wt.
      *   - Create a new file in the destination to begin migrating the file to.
      *   - Crash.
@@ -1233,18 +1233,22 @@ __wt_live_restore_fh_import_extents_from_string(
         const char *str_ptr = extent_str;
         char *next;
         while (true) {
-            if (*str_ptr > '9' || *str_ptr < '0')
-                WT_ERR_MSG(session, EINVAL, "Invalid extent string found");
+            if (!__wt_isdigit(*str_ptr))
+                WT_ERR_MSG(session, EINVAL, "Invalid offset found in extent string");
 
             next_off = (wt_off_t)strtoll(str_ptr, &next, 10);
             str_ptr = next;
             if (*str_ptr == '\0')
-                WT_ERR_MSG(session, EINVAL, "Invalid extent string found");
+                WT_ERR_MSG(session, EINVAL, "Invalid separator found in extent string");
 
+            /*
+             * Extents are additive to compress the string size i.e. the offset of extent n + 1 is
+             * the offset of extent n plus the offset of extent n + 1.
+             */
             off += next_off;
             str_ptr++;
             if (*str_ptr > '9' || *str_ptr < '0')
-                WT_ERR_MSG(session, EINVAL, "Invalid extent string found");
+                WT_ERR_MSG(session, EINVAL, "Invalid length found in extent string");
 
             len = (size_t)strtol(str_ptr, &next, 10);
             if (len == 0)
@@ -1462,6 +1466,9 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
                   lr_fh->destination.fh, wt_session, source_size));
 
                 /*
+                 * FIXME-WT-14078: The log file transfer stage and new file creation depend on this
+                 * allocation. Ideally we should be able to simplify the code and remove it.
+                 *
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */

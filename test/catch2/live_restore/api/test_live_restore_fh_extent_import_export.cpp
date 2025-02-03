@@ -29,8 +29,8 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
     std::string source_file = env.source_file_path(file_name);
     std::string dest_file = env.dest_file_path(file_name);
     SECTION(
-      "A file created in the destination will have a single hole which matches it's size without "
-      "importing a string")
+      "When opening a file instantiates a new destination file it will have a single hole which "
+      "matches it's size without importing a string")
     {
         WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
         create_file(source_file.c_str(), 4096);
