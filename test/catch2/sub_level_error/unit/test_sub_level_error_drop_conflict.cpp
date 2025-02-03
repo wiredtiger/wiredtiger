@@ -19,79 +19,10 @@
  */
 
 #define URI "table:test_drop_conflict"
-#define FILE_URI "file:test_drop_conflict.wt"
-#define UNCOMMITTED_DATA_MSG "the table has uncommitted data and cannot be dropped yet"
-#define DIRTY_DATA_MSG "the table has dirty data and can not be dropped yet"
 #define CONFLICT_BACKUP_MSG "the table is currently performing backup and cannot be dropped"
 #define CONFLICT_DHANDLE_MSG "another thread is currently holding the data handle of the table"
 #define CONFLICT_SCHEMA_LOCK_MSG "another thread is currently holding the schema lock"
 #define CONFLICT_TABLE_LOCK_MSG "another thread is currently holding the table lock"
-
-/*
- * Prepare a session and error_info struct to be used by the drop conflict tests.
- */
-void
-prepare_session_and_error(
-  connection_wrapper *conn_wrapper, WT_SESSION **session, WT_ERROR_INFO **err_info)
-{
-    WT_CONNECTION *conn = conn_wrapper->get_wt_connection();
-    REQUIRE(conn->open_session(conn, NULL, NULL, session) == 0);
-    *err_info = &(((WT_SESSION_IMPL *)(*session))->err_info);
-}
-
-/*
- * This test case covers EBUSY errors resulting from drop before committing/checkpointing changes.
- */
-TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_conflict]")
-{
-    std::string config = "key_format=S,value_format=S";
-    WT_SESSION *session = NULL;
-    WT_ERROR_INFO *err_info = NULL;
-
-    connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-    prepare_session_and_error(&conn_wrapper, &session, &err_info);
-    REQUIRE(session->create(session, URI, config.c_str()) == 0);
-
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
-
-    SECTION("Test WT_UNCOMMITTED_DATA")
-    {
-        /* Make an update, then try to close the btree handle without committing the transaction. */
-        WT_CURSOR *cursor;
-        REQUIRE(session->open_cursor(session, URI, NULL, NULL, &cursor) == 0);
-        REQUIRE(session->begin_transaction(session, NULL) == 0);
-        cursor->set_key(cursor, "key");
-        cursor->set_value(cursor, "value");
-        REQUIRE(cursor->update(cursor) == 0);
-        REQUIRE(cursor->close(cursor) == 0);
-
-        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
-        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, true) == EBUSY);
-
-        utils::check_error_info(err_info, EBUSY, WT_UNCOMMITTED_DATA, UNCOMMITTED_DATA_MSG);
-    }
-
-    SECTION("Test WT_DIRTY_DATA")
-    {
-        /* Commit an update, then try to close the btree handle without checkpointing. */
-        WT_CURSOR *cursor;
-        REQUIRE(session->open_cursor(session, URI, NULL, NULL, &cursor) == 0);
-        REQUIRE(session->begin_transaction(session, NULL) == 0);
-        cursor->set_key(cursor, "key");
-        cursor->set_value(cursor, "value");
-        REQUIRE(cursor->update(cursor) == 0);
-        REQUIRE(session->commit_transaction(session, NULL) == 0);
-        REQUIRE(cursor->close(cursor) == 0);
-
-        /* Give time for the oldest txn id to update before dropping the table. */
-        sleep(1);
-
-        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
-        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, true) == EBUSY);
-
-        utils::check_error_info(err_info, EBUSY, WT_DIRTY_DATA, DIRTY_DATA_MSG);
-    }
-}
 
 /*
  * This test case covers EBUSY errors resulting from drop while cursors are still open on the
@@ -106,7 +37,7 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_d
     SECTION("Test WT_CONFLICT_BACKUP")
     {
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session, &err_info);
+        utils::prepare_session_and_error(&conn_wrapper, &session, &err_info);
         REQUIRE(session->create(session, URI, config.c_str()) == 0);
 
         /* Open a backup cursor, then attempt to drop the table. */
@@ -120,7 +51,7 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_d
     SECTION("Test WT_CONFLICT_DHANDLE with simple table")
     {
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session, &err_info);
+        utils::prepare_session_and_error(&conn_wrapper, &session, &err_info);
         REQUIRE(session->create(session, URI, config.c_str()) == 0);
 
         /* Open a cursor on a table, then attempt to drop the table. */
@@ -135,7 +66,7 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_d
     {
         config += ",columns=(col1,col2)";
         connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session, &err_info);
+        utils::prepare_session_and_error(&conn_wrapper, &session, &err_info);
         REQUIRE(session->create(session, URI, config.c_str()) == 0);
 
         /* Open a cursor on a table with columns, then attempt to drop the table. */
@@ -159,7 +90,7 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_d
           "create,tiered_storage=(bucket=bucket,bucket_prefix=pfx-,name=dir_store),extensions=(./"
           "ext/storage_sources/dir_store/libwiredtiger_dir_store.so)");
 
-        prepare_session_and_error(&conn_wrapper, &session, &err_info);
+        utils::prepare_session_and_error(&conn_wrapper, &session, &err_info);
         REQUIRE(session->create(session, URI, config.c_str()) == 0);
 
         /* Open a cursor on a table that uses tiered storage, then attempt to drop the table. */
@@ -182,16 +113,23 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[sub_level_error
     WT_ERROR_INFO *err_info_a = NULL;
     WT_ERROR_INFO *err_info_b = NULL;
 
-    /* This section directly uses the pthread library which is POSIX-only, so skip on Windows. */
+    connection_wrapper conn_wrapper = connection_wrapper(".", "create");
+    utils::prepare_session_and_error(&conn_wrapper, &session_a, &err_info_a);
+    utils::prepare_session_and_error(&conn_wrapper, &session_b, &err_info_b);
+    REQUIRE(session_a->create(session_a, URI, config.c_str()) == 0);
+
+    /*
+     * The Windows implementation of __wt_spin_lock/__wt_try_spin_lock will still manage to take the
+     * lock if it has already been taken by a different session in the same thread, resulting in a
+     * successful (no conflicts) drop.
+     *
+     * These CHECKPOINT_LOCK/SCHEMA_LOCK sections will therefore fail on Windows - we have decided
+     * to skip them in this case rather than have the tests use multithreading.
+     */
 #ifndef _WIN32
     SECTION("Test CONFLICT_SCHEMA_LOCK")
     {
-        connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session_a, &err_info_a);
-        prepare_session_and_error(&conn_wrapper, &session_b, &err_info_b);
-        REQUIRE(session_a->create(session_a, URI, config.c_str()) == 0);
-
-        /* Attempt to drop the table while another session holds the schema lock. */
+        /* Attempt to drop the table while the schema lock is taken by another session. */
         WT_WITH_SCHEMA_LOCK(((WT_SESSION_IMPL *)session_b),
           REQUIRE(session_a->drop(session_a, URI, "lock_wait=0") == EBUSY));
 
@@ -203,12 +141,7 @@ TEST_CASE("Test CONFLICT_SCHEMA_LOCK and CONFLICT_TABLE_LOCK", "[sub_level_error
 
     SECTION("Test CONFLICT_TABLE_LOCK")
     {
-        connection_wrapper conn_wrapper = connection_wrapper(".", "create");
-        prepare_session_and_error(&conn_wrapper, &session_a, &err_info_a);
-        prepare_session_and_error(&conn_wrapper, &session_b, &err_info_b);
-        REQUIRE(session_a->create(session_a, URI, config.c_str()) == 0);
-
-        /* Attempt to drop the table while another session holds the table write lock. */
+        /* Attempt to drop the table while the table write lock is taken by another session. */
         WT_WITH_TABLE_WRITE_LOCK(((WT_SESSION_IMPL *)session_b),
                                  REQUIRE(session_a->drop(session_a, URI, "lock_wait=0") == EBUSY););
 
