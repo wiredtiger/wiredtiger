@@ -30,8 +30,8 @@ import wiredtiger, time
 from error_info_util import error_info_util
 
 # test_error_info04.py
-#   Test that when committing or rolling back a transaction, after successfully committing or
-#   rolling back, if an error occurs in __wti_evict_app_assist_worker it is not saved in err_info.
+#   Test error information scenarios when an application thread gets pulled into eviction when
+#   committing or rolling back a transaction. The original error of the commit/rollback should be returned and not be saved inside the get_last_error() function call.
 class test_error_info04(error_info_util):
     uri = "table:test_error_info.wt"
 
