@@ -31,6 +31,8 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_u
     std::string config = "key_format=S,value_format=S";
     WT_SESSION *session = NULL;
     WT_ERROR_INFO *err_info = NULL;
+    bool final = false;
+    bool mark_dead = false;
     bool check_visibility = false;
 
     connection_wrapper conn_wrapper = connection_wrapper(".", "create");
@@ -38,11 +40,11 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_u
     REQUIRE(session->create(session, URI, config.c_str()) == 0);
 
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
 
     SECTION("Test WT_UNCOMMITTED_DATA is not thrown")
     {
-        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
-        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, check_visibility) == 0);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
@@ -50,17 +52,15 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_u
     SECTION("Test WT_UNCOMMITTED_DATA is not thrown (with visibility check only)")
     {
         check_visibility = true;
-        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
-        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, check_visibility) == 0);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test WT_UNCOMMITTED_DATA is not thrown (with uncommitted txn only)")
     {
-        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
-        ((WT_BTREE *)session_impl->dhandle->handle)->max_upd_txn = 2;
-        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, check_visibility) == 0);
+        S2BT(session_impl)->max_upd_txn = 2;
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
 
         utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
@@ -68,31 +68,100 @@ TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_u
     SECTION("Test WT_UNCOMMITTED_DATA is thrown (with both visibility check + uncommitted txn)")
     {
         check_visibility = true;
-        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
-        ((WT_BTREE *)session_impl->dhandle->handle)->max_upd_txn = 2;
-        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, check_visibility) == EBUSY);
+        S2BT(session_impl)->max_upd_txn = 2;
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == EBUSY);
 
         utils::check_error_info(err_info, EBUSY, WT_UNCOMMITTED_DATA, UNCOMMITTED_DATA_MSG);
     }
 
-    SECTION("Test WT_DIRTY_DATA")
+    SECTION("Test WT_DIRTY_DATA is not thrown (!btree->modified && !bulk && !metadata)")
     {
-        /* Commit an update, then try to close the btree handle without checkpointing. */
-        WT_CURSOR *cursor;
-        REQUIRE(session->open_cursor(session, URI, NULL, NULL, &cursor) == 0);
-        REQUIRE(session->begin_transaction(session, NULL) == 0);
-        cursor->set_key(cursor, "key");
-        cursor->set_value(cursor, "value");
-        REQUIRE(cursor->update(cursor) == 0);
-        REQUIRE(session->commit_transaction(session, NULL) == 0);
-        REQUIRE(cursor->close(cursor) == 0);
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
 
-        /* Give time for the oldest txn id to update before dropping the table. */
-        sleep(1);
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+    }
 
-        REQUIRE(__wt_session_get_dhandle(session_impl, FILE_URI, NULL, NULL, 0) == 0);
-        REQUIRE(__wt_conn_dhandle_close(session_impl, false, false, true) == EBUSY);
+    SECTION("Test WT_DIRTY_DATA is not thrown (!btree->modified && !bulk && metadata)")
+    {
+        F_SET(session_impl->dhandle, WT_DHANDLE_IS_METADATA);
+
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+    }
+
+    SECTION("Test WT_DIRTY_DATA is not thrown (!btree->modified && bulk && !metadata)")
+    {
+        F_SET(S2BT(session_impl), WT_BTREE_BULK);
+
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+    }
+
+    SECTION("Test WT_DIRTY_DATA is not thrown (!btree->modified && bulk && metadata)")
+    {
+        F_SET(S2BT(session_impl), WT_BTREE_BULK);
+        F_SET(session_impl->dhandle, WT_DHANDLE_IS_METADATA);
+
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+    }
+
+    SECTION("Test WT_DIRTY_DATA is thrown (btree->modified && !bulk && !metadata)")
+    {
+        S2BT(session_impl)->modified = true;
+
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == EBUSY);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
 
         utils::check_error_info(err_info, EBUSY, WT_DIRTY_DATA, DIRTY_DATA_MSG);
+    }
+
+    SECTION("Test WT_DIRTY_DATA is not thrown (btree->modified && !bulk && metadata)")
+    {
+        S2BT(session_impl)->modified = true;
+        F_SET(session_impl->dhandle, WT_DHANDLE_IS_METADATA);
+
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+    }
+
+    SECTION("Test WT_DIRTY_DATA is not thrown (btree->modified && bulk && !metadata)")
+    {
+        S2BT(session_impl)->modified = true;
+        F_SET(S2BT(session_impl), WT_BTREE_BULK);
+
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+    }
+
+    SECTION("Test WT_DIRTY_DATA is not thrown (btree->modified && bulk && metadata)")
+    {
+        S2BT(session_impl)->modified = true;
+        F_SET(S2BT(session_impl), WT_BTREE_BULK);
+        F_SET(session_impl->dhandle, WT_DHANDLE_IS_METADATA);
+
+        FLD_SET(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+        REQUIRE(__wt_conn_dhandle_close(session_impl, final, mark_dead, check_visibility) == 0);
+        FLD_CLR(session_impl->lock_flags, WT_SESSION_LOCKED_SCHEMA);
+
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 }
