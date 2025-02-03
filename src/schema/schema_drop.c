@@ -118,6 +118,11 @@ __drop_layered(
     stable_uri = stable_uri_buf->data;
 
     WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
+
+    /*
+     * TODO: as part of the bigger garbage-collection picture, we should eventually find a way to
+     * tell PALI that this was dropped.
+     */
     WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
 
     /* Now drop the top-level table. */
