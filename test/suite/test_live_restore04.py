@@ -38,7 +38,7 @@ from suite_subprocess import suite_subprocess
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore04(wttest.WiredTigerTestCase, suite_subprocess):
     format_values = [
-        # ('column', dict(key_format='r', value_format='S')),
+        ('column', dict(key_format='r', value_format='S')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
     scenarios = make_scenarios(format_values)
