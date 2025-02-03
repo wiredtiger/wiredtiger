@@ -19,7 +19,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"backup.incr_granularity", "incremental backup block granularity (KB)", 0x0, 4, 16384, 16384,
     V_GLOBAL_BACKUP_INCR_GRANULARITY},
 
-  {"backup.live_restore", "configure backup live restore recovery", C_BOOL, 50, 0, 0,
+  {"backup.live_restore", "configure backup live restore recovery", C_BOOL, 0, 0, 0,
     V_GLOBAL_BACKUP_LIVE_RESTORE},
 
   {"block_cache", "enable the block cache", C_BOOL, 10, 0, 0, V_GLOBAL_BLOCK_CACHE},
