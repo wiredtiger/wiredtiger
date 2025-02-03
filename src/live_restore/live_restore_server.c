@@ -167,15 +167,20 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         __live_restore_free_work_item(session, &work_item);
         return (0);
     } else if (ret == EBUSY) {
+        uint64_t remain;
+        uint32_t threads;
         /*
          * Someone else has exclusive access to the table. Add it back to the work queue and try
          * again later.
          */
         __wt_spin_lock(session, &server->queue_lock);
+        remain = server->work_items_remaining;
+        threads = server->threads_working;
         TAILQ_INSERT_TAIL(&server->work_queue, work_item, q);
         __wt_spin_unlock(session, &server->queue_lock);
-        if (server->work_items_remaining < server->threads_working)
-            __wt_sleep(0, 100 * WT_THOUSAND);
+        if (remain < (uint64_t)threads)
+            ;
+        __wt_sleep(0, 100 * WT_THOUSAND);
         return (0);
     }
     WT_RET(ret);
