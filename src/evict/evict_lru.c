@@ -644,6 +644,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
             WT_RET_ERROR_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id), WT_NOTFOUND);
             if (ret == WT_NOTFOUND) {
                 ret = 0;
+                (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
                 break;
             }
             if (__wt_hs_get_btree(session, hs_id, &hs_tree) == 0) {

@@ -834,13 +834,13 @@ __recovery_file_scan(WT_RECOVERY *r)
 }
 
 /*
- * __hs_exists --
- *     Check whether the history store exists. This function looks for both the history store URI in
- *     the metadata file and for the history store data file itself. If we're running salvage, we'll
- *     attempt to salvage the history store here.
+ * __hs_local_exists --
+ *     Check whether the local history store exists. This function looks for both the history store
+ *     URI in the metadata file and for the history store data file itself. If we're running
+ *     salvage, we'll attempt to salvage the history store here.
  */
 static int
-__hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool *hs_exists)
+__hs_local_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool *hs_exists)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -860,20 +860,12 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
      */
     metac->set_key(metac, WT_HS_URI);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
-    // XXXXXX
-    if (__wt_conn_is_disagg(session)) {
-        ret = 0;
-        goto err;
-    }
     if (ret == WT_NOTFOUND) {
         *hs_exists = false;
         ret = 0;
     } else {
         /* Given the history store exists in the metadata validate whether it exists on disk. */
         WT_ERR(__wt_fs_exist(session, WT_HS_FILE, hs_exists));
-    // XXXXXX
-        if (__wt_conn_is_disagg(session))
-            *hs_exists = true;
         if (*hs_exists) {
             /*
              * Attempt to configure the history store, this will detect corruption if it fails.
@@ -922,7 +914,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     wt_off_t hs_size;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool do_checkpoint, eviction_started, hs_exists, needs_rec, rts_executed, was_backup;
+    bool do_checkpoint, eviction_started, hs_local_exists, needs_rec, rts_executed, was_backup;
 
     conn = S2C(session);
     F_SET(conn, WT_CONN_RECOVERING);
@@ -930,7 +922,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
-    do_checkpoint = hs_exists = true;
+    do_checkpoint = hs_local_exists = true;
     rts_executed = false;
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
@@ -978,7 +970,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
             WT_ERR(__wt_log_reset(session, r.max_ckpt_lsn.l.file));
         else
             do_checkpoint = false;
-        WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
+        WT_ERR(__hs_local_exists(session, metac, cfg, &hs_local_exists));
         goto done;
     }
 
@@ -1042,14 +1034,14 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     WT_ERR(__recovery_file_scan(&r));
 
     /*
-     * Check whether the history store exists.
+     * Check whether the local history store exists.
      *
      * This will open a dhandle on the history store and initialize its write gen so we must ensure
      * that the connection-wide base write generation is stable at this point. Performing a recovery
      * file scan will involve updating the connection-wide base write generation so we MUST do this
      * before checking for the existence of a history store file.
      */
-    WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
+    WT_ERR(__hs_local_exists(session, metac, cfg, &hs_local_exists));
 
     /*
      * Clear this out. We no longer need it and it could have been re-allocated when scanning the
@@ -1091,20 +1083,16 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
         goto done;
     }
 
-    // XXXXXX
-    (void)hs_size;
-WT_ERR(__wt_hs_open(session, cfg));
-    #if 0
-    if (!hs_exists) {
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "%s",
-          "Creating the history store before applying log records. Likely recovering after an"
-          "unclean shutdown on an earlier version");
+    if (!hs_local_exists || disagg) {
+        if (!disagg)
+            __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "%s",
+              "Creating the history store before applying log records. Likely recovering after an"
+              "unclean shutdown on an earlier version");
         /*
          * Create the history store as we might need it while applying log records in recovery.
          */
         WT_ERR(__wt_hs_open(session, cfg));
     }
-    #endif
 
     /*
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
@@ -1153,13 +1141,10 @@ done:
     /*
      * Set the history store file size as it may already exist after a restart.
      */
-    // XXXXXX
-    #if 0
-    if (hs_exists) {
+    if (hs_local_exists) {
         WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
         WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
     }
-    #endif
 
     /*
      * Perform rollback to stable only when the following conditions met.
@@ -1168,7 +1153,7 @@ done:
      * 2. The history store file was found in the metadata.
      * 3. We are not using disaggregated storage.
      */
-    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY) && !disagg) {
+    if (hs_local_exists && !F_ISSET(conn, WT_CONN_READONLY) && !disagg) {
         const char *rts_cfg[] = {
           WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
         __wt_timer_start(session, &rts_timer);

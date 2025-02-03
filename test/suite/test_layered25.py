@@ -30,10 +30,10 @@ import os, os.path, shutil, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered22.py
+# test_layered25.py
 #    Start without local files and test historical reads.
 @disagg_test_class
-class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
     conn_base_config = 'statistics=(all),' \
@@ -43,9 +43,9 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    table_name = "test_layered18"
+    table_name = "test_layered25"
 
-    disagg_storages = gen_disagg_storages('test_layered22', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered25', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
         ('layered', dict(prefix='layered:')),
         ('shared', dict(prefix='table:')),
@@ -85,7 +85,7 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.open_conn()
 
     # Start without local files and test historical reads.
-    def test_layered22(self):
+    def test_layered25(self):
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
 
