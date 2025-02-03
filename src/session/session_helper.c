@@ -139,22 +139,27 @@ err:
  * __wt_session_set_last_error --
  *     Stores information about the last error to occur during this session.
  */
-int
+void
 __wt_session_set_last_error(
   WT_SESSION_IMPL *session, int err, int sub_level_err, const char *fmt, ...)
 {
     WT_DECL_RET;
-    WT_ERROR_INFO *err_info = &(session->err_info);
-
-    /* Validate the sub level error code. */
-    WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
 
     /*
      * Only update the error struct if an error occurs during a session API call, or if the error
-     * struct is being initialized.
+     * struct is being initialized. If the session is NULL, there is nothing to update.
      */
-    if (!F_ISSET(session, WT_SESSION_SAVE_ERRORS))
-        return (0);
+    if (session == NULL || !F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+        return;
+
+    /* Only update if the err_info struct has not been previously set in the current API call, or
+     * if the err_info struct is being reset.
+     */
+    if (session->err_info.err != 0 && err != 0)
+        return;
+
+    /* Validate the incoming sub level error code. */
+    WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
 
     /*
      * Load error codes and message into err_info. If the message is empty or is NULL (indicating
@@ -165,6 +170,7 @@ __wt_session_set_last_error(
      * and err_msg should be set to WT_ERROR_INFO_SUCCESS. NULL implying success here saves us a
      * strcmp to validate that we never set err = 0 with a custom message.
      */
+    WT_ERROR_INFO *err_info = &(session->err_info);
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
     if (fmt != NULL && strlen(fmt) == 0)
@@ -178,6 +184,8 @@ __wt_session_set_last_error(
         err_info->err_msg = err_info->err_msg_buf.data;
     }
 
+    return;
+
 err:
-    return (ret);
+    WT_ASSERT_ALWAYS(session, false, "Error encountered when formatting into a scratch buffer");
 }

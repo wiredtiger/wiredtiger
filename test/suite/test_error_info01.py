@@ -26,22 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import errno
-import time
-import wiredtiger
+import wiredtiger, time, errno
 from wttest import open_cursor
+from error_info_util import error_info_util
 from compact_util import compact_util
 
 # test_error_info01.py
 #   Test that the get_last_error() session API returns the last error to occur in the session.
-class test_error_info01(compact_util):
-    uri = "table:test_error_info.wt"
+class test_error_info01(error_info_util, compact_util):
 
-    def assert_error_equal(self, err_val, sub_level_err_val, err_msg_val):
-        err, sub_level_err, err_msg = self.session.get_last_error()
-        self.assertEqual(err, err_val)
-        self.assertEqual(sub_level_err, sub_level_err_val)
-        self.assertEqual(err_msg, err_msg_val)
+    uri = "table:test_error_info01"
 
     def api_call_with_success(self):
         """
@@ -74,7 +68,7 @@ class test_error_info01(compact_util):
             cursor.set_key('key')
             cursor.set_value('value')
             self.assertEqual(cursor.update(), 0)
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.uri, None))
+        self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, None)), "was expecting drop call to fail with EBUSY")
 
     def api_call_with_ebusy_wt_dirty_data(self):
         """
@@ -90,7 +84,7 @@ class test_error_info01(compact_util):
 
         # Give time for the oldest id to update before dropping the table.
         time.sleep(1)
-        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: self.session.drop(self.uri, None))
+        self.assertTrue(self.raisesBusy(lambda: self.session.drop(self.uri, None)), "was expecting drop call to fail with EBUSY")
 
     def test_success(self):
         self.api_call_with_success()
