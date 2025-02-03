@@ -59,11 +59,14 @@ directory_list(live_restore_test_env &env, const std::string &directory = NO_DIR
 static bool
 contained_by(lr_files set, lr_files subset)
 {
-    for (const std::string &s : subset) {
-        if (set.find(s) == set.end())
-            return (false);
-    }
-    return (true);
+    // Ignore metadata files created by conn_open. We only want to check files that were created by our test scenario.
+    set.erase(WT_METAFILE);
+    set.erase(WT_METADATA_TURTLE);
+    set.erase(WT_WIREDTIGER);
+    set.erase(WT_BASECONFIG);
+    set.erase(WT_SINGLETHREAD);
+    set.erase(WT_HS_FILE);
+    return set == subset;
 }
 
 static lr_files
