@@ -28,8 +28,7 @@
 #define CONFLICT_TABLE_LOCK_MSG "another thread is currently holding the table lock"
 
 /*
- * This test case covers EBUSY errors resulting from drop while cursors are still open on the
- * table.
+ * This test case covers EBUSY errors resulting from drop while cursors are still open on the table.
  */
 TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_drop_conflict]")
 {
