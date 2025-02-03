@@ -74,7 +74,6 @@ class test_error_info02(error_info_util):
 
             self.session.commit_transaction()
 
-        # This reason is the default reason for WT_ROLLBACK errors so we need to catch it.
         self.assert_error_equal(wiredtiger.WT_ROLLBACK, wiredtiger.WT_CACHE_OVERFLOW, "Cache capacity has overflown")
 
         self.ignoreStdoutPatternIfExists("transaction rolled back because of cache overflow")
