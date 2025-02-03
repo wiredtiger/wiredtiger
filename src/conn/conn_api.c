@@ -3145,6 +3145,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_version_verify(session));
 
     /*
+     * If live restore is enabled then live restores log pre-copy must be run first. That logic
+     * creates the log folder which version verify needs to access to determine the log version
+     * we're using.
+     */
+    WT_ERR(__conn_version_verify(session));
+
+    /*
      * Configuration completed; optionally write a base configuration file.
      */
     WT_ERR(__conn_write_base_config(session, cfg));

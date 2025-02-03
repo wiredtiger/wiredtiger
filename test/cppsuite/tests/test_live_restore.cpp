@@ -357,8 +357,15 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     /* Create connection. */
     if (recovery)
         connection_manager::instance().reopen(conn_config, home);
-    else
-        connection_manager::instance().create(conn_config, home, true);
+    else {
+        /*
+         * We only want to create the log directory when no source directory is available to copy it
+         * from. This is only true when it's the first iteration of the loop *and* we're not recovering
+         * from a crash.
+         */
+        bool create_log_directory = first && !recovery;
+        connection_manager::instance().create(conn_config, home, create_log_directory);
+    }
 
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
