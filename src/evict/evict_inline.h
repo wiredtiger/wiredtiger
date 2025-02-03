@@ -615,7 +615,7 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool busy)
  *
  *     Input parameters:
  *       (1) `busy`: A flag indicating if the session is actively pinning resources, in which
- *            case eviction work is limited.
+ *            case eviction work should be limited.
  *       (2) `readonly`: A flag indicating if the session is read-only, in which case dirty and
  *            update triggers are ignored.
  *       (3) `didworkp`: A pointer to indicate whether eviction work was done (optional).
