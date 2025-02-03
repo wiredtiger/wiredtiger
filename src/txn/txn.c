@@ -1642,7 +1642,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     uint32_t prepare_count;
 #endif
     u_int i;
-    bool cannot_fail, locked, prepare, readonly, update_durable_ts, save_errors;
+    bool cannot_fail, locked, prepare, readonly, update_durable_ts;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1654,7 +1654,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
-    save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
     cannot_fail = locked = false;
 
     /* Permit the commit if the transaction failed, but was read-only. */
@@ -1965,12 +1964,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * We're between transactions, if we need to block for eviction, it's a good time to do so.
-     * Ignore error returns, the return must reflect the fate of the transaction. Similarly, clear
-     * WT_SESSION_SAVE_ERRORS as the fate of the transaction has already been determined, so no
-     * new errors should be saved.
+     * We're between transactions, if we need to block for eviction, it's a good time to do so. The
+     * return must reflect the transaction state, ignore any error returned, and clear the
+     * WT_SESSION_SAVE_ERRORS flag to prevent errors from being saved in the session.
      */
     if (!readonly) {
+        bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
         WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
         if (save_errors)
@@ -2158,7 +2157,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool prepare, readonly, save_errors;
+    bool prepare, readonly;
 
     cursor = NULL;
     txn = session->txn;
@@ -2167,7 +2166,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
-    save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
@@ -2265,12 +2263,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     __txn_release(session);
 
     /*
-     * We're between transactions, if we need to block for eviction, it's a good time to do so.
-     * Ignore error returns, the return must reflect the fate of the transaction. Similarly, clear
-     * WT_SESSION_SAVE_ERRORS as the fate of the transaction has already been determined, so no
-     * new errors should be saved.
+     * We're between transactions, if we need to block for eviction, it's a good time to do so. The
+     * return must reflect the transaction state, ignore any error returned, and clear the
+     * WT_SESSION_SAVE_ERRORS flag to prevent errors from being saved in the session.
      */
     if (!readonly) {
+        bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
         F_CLR(session, WT_SESSION_SAVE_ERRORS);
         WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
         if (save_errors)
