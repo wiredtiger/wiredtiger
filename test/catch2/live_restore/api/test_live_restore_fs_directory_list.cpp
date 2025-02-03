@@ -55,18 +55,17 @@ directory_list(live_restore_test_env &env, const std::string &directory = NO_DIR
     return found_files;
 }
 
-/* Return true if the set contains the full subset. */
+/* Return true if the file list contains the check files, removing the metadata files manually. */
 static bool
-contained_by(lr_files set, lr_files subset)
+file_list_equals(lr_files list, lr_files check)
 {
-    // Ignore metadata files created by conn_open. We only want to check files that were created by our test scenario.
-    set.erase(WT_METAFILE);
-    set.erase(WT_METADATA_TURTLE);
-    set.erase(WT_WIREDTIGER);
-    set.erase(WT_BASECONFIG);
-    set.erase(WT_SINGLETHREAD);
-    set.erase(WT_HS_FILE);
-    return set == subset;
+    list.erase(WT_METAFILE);
+    list.erase(WT_METADATA_TURTLE);
+    list.erase(WT_WIREDTIGER);
+    list.erase(WT_BASECONFIG);
+    list.erase(WT_SINGLETHREAD);
+    list.erase(WT_HS_FILE);
+    return list == check;
 }
 
 static lr_files
@@ -103,96 +102,96 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
     SECTION("Directory list - Test when files only exist in the destination")
     {
         // Start with an empty directory.
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
 
         // Progressively add files
         create_file(env.dest_file_path(file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1}));
 
         create_file(env.dest_file_path(file_2).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_2}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_2}));
 
         create_file(env.dest_file_path(file_3).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_2, file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_2, file_3}));
 
         // And then delete them
         testutil_remove(env.dest_file_path(file_2).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_3}));
 
         testutil_remove(env.dest_file_path(file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_3}));
 
         testutil_remove(env.dest_file_path(file_3).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
     }
 
     SECTION("Directory list - Test when files only exist in the source")
     {
         // Start with an empty directory.
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
 
         // Progressively add files
         create_file(env.source_file_path(file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1}));
 
         create_file(env.source_file_path(file_2).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_2}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_2}));
 
         create_file(env.source_file_path(file_3).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_2, file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_2, file_3}));
 
         // And then delete them
         testutil_remove(env.source_file_path(file_2).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_3}));
 
         testutil_remove(env.source_file_path(file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_3}));
 
         testutil_remove(env.source_file_path(file_3).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
     }
 
     SECTION("Directory list - Test when files exist in both source and destination")
     {
         // Start with an empty directory.
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
 
         // Progressively add files
         create_file(env.dest_file_path(file_1).c_str());
         create_file(env.source_file_path(file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1}));
 
         create_file(env.dest_file_path(file_2).c_str());
         create_file(env.source_file_path(file_2).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_2}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_2}));
 
         create_file(env.dest_file_path(file_3).c_str());
         create_file(env.source_file_path(file_3).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_2, file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_2, file_3}));
 
         // And then delete them
         testutil_remove(env.dest_file_path(file_2).c_str());
         testutil_remove(env.source_file_path(file_2).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_3}));
 
         testutil_remove(env.dest_file_path(file_1).c_str());
         testutil_remove(env.source_file_path(file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_3}));
 
         testutil_remove(env.dest_file_path(file_3).c_str());
         testutil_remove(env.source_file_path(file_3).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
     }
 
     SECTION("Directory list - Test when files exist either in source or destination, but not both")
     {
         // Add one file to the source.
         create_file(env.source_file_path(file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1}));
 
         // And now the destination.
         create_file(env.dest_file_path(file_2).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_2}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_2}));
     }
 
     SECTION(
@@ -202,46 +201,46 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         create_file(env.source_file_path(file_1).c_str());
         create_file(env.source_file_path(file_2).c_str());
         create_file(env.source_file_path(file_3).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_2, file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_2, file_3}));
 
         // Now progressively add tombstones. The files are no longer reported.
         create_file(env.tombstone_file_path(file_2).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_1, file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_1, file_3}));
 
         create_file(env.tombstone_file_path(file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{file_3}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{file_3}));
 
         create_file(env.tombstone_file_path(file_3).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
 
         // Now add the tombstone before the file to confirm it isn't reported.
         create_file(env.tombstone_file_path(file_4).c_str());
         create_file(env.source_file_path(file_4).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
     }
 
     SECTION("Directory list - Test directory list reports subfolders")
     {
         // Only in the destination
         testutil_mkdir(subfolder_dest_path.c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{subfolder}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{subfolder}));
 
         // And then deleted
         testutil_remove(subfolder_dest_path.c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{}));
 
         // Only in the source
         testutil_mkdir(subfolder_source_path.c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{subfolder}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{subfolder}));
 
         // Now in both
         testutil_mkdir(subfolder_dest_path.c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{subfolder}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{subfolder}));
 
         // Check that we *don't* report the contents, just the subfolder itself
         std::string sub_file_1 = subfolder + "/" + file_1;
         create_file(env.dest_file_path(sub_file_1).c_str());
-        REQUIRE(contained_by(directory_list(env), lr_files{subfolder}));
+        REQUIRE(file_list_equals(directory_list(env), lr_files{subfolder}));
     }
 
     SECTION(
@@ -253,14 +252,14 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
 
         // But if the subfolder exists in either backing directory we'll return successfully.
         testutil_mkdir(subfolder_dest_path.c_str());
-        REQUIRE(contained_by(directory_list(env, subfolder_dest_path), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env, subfolder_dest_path), lr_files{}));
 
         testutil_remove(subfolder_dest_path.c_str());
         testutil_mkdir(subfolder_source_path.c_str());
-        REQUIRE(contained_by(directory_list(env, subfolder_dest_path), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env, subfolder_dest_path), lr_files{}));
 
         testutil_mkdir(subfolder_dest_path.c_str());
-        REQUIRE(contained_by(directory_list(env, subfolder_dest_path), lr_files{}));
+        REQUIRE(file_list_equals(directory_list(env, subfolder_dest_path), lr_files{}));
     }
 
     SECTION("Directory list - Test multi-level subdirectories")
@@ -271,7 +270,7 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         testutil_mkdir(sub_subfolder_dest_path.c_str());
         create_file(sub_subfolder_file_1_path.c_str());
 
-        REQUIRE(contained_by(directory_list(env, sub_subfolder_dest_path), lr_files{file_1}));
+        REQUIRE(file_list_equals(directory_list(env, sub_subfolder_dest_path), lr_files{file_1}));
     }
 
     SECTION("Directory list - Test reporting contents of a subdirectory")
@@ -289,7 +288,7 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
 
         // Note we're returning file_1 here, not sub_file_1. Since we're reporting the
         // contents of the subfolder the file names are relative to that folder.
-        REQUIRE(contained_by(directory_list(env, subfolder_dest_path), lr_files{file_1, file_2}));
+        REQUIRE(file_list_equals(directory_list(env, subfolder_dest_path), lr_files{file_1, file_2}));
     }
 
     SECTION("Directory list - Test only files matching the specified prefix are returned")
@@ -300,24 +299,24 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         testutil_mkdir(subfolder_dest_path.c_str());
 
         // Report all files and folders when prefix is empty
-        REQUIRE(contained_by(directory_list_prefix(env, ""), lr_files{file_1, file_2, subfolder}));
+        REQUIRE(file_list_equals(directory_list_prefix(env, ""), lr_files{file_1, file_2, subfolder}));
 
         // Now only report the files
-        REQUIRE(contained_by(directory_list_prefix(env, "file"), lr_files{file_1, file_2}));
+        REQUIRE(file_list_equals(directory_list_prefix(env, "file"), lr_files{file_1, file_2}));
 
         // Only the folder
-        REQUIRE(contained_by(directory_list_prefix(env, "sub"), lr_files{subfolder}));
+        REQUIRE(file_list_equals(directory_list_prefix(env, "sub"), lr_files{subfolder}));
 
         // Only file_1. The prefix is the entire file name
-        REQUIRE(contained_by(directory_list_prefix(env, file_1), lr_files{file_1}));
+        REQUIRE(file_list_equals(directory_list_prefix(env, file_1), lr_files{file_1}));
 
         // A prefix longer than any files or folders in the directory
-        REQUIRE(contained_by(directory_list_prefix(env, std::string(10000, 'A')), lr_files{}));
+        REQUIRE(file_list_equals(directory_list_prefix(env, std::string(10000, 'A')), lr_files{}));
 
         // The prefix is actually a suffix
-        REQUIRE(contained_by(directory_list_prefix(env, "_1.txt"), lr_files{}));
+        REQUIRE(file_list_equals(directory_list_prefix(env, "_1.txt"), lr_files{}));
 
         // The prefix matches a file's full name but then has additional characters
-        REQUIRE(contained_by(directory_list_prefix(env, "file_1.txt.txt.txt"), lr_files{}));
+        REQUIRE(file_list_equals(directory_list_prefix(env, "file_1.txt.txt.txt"), lr_files{}));
     }
 }
