@@ -77,7 +77,8 @@ class test_live_restore02(wttest.WiredTigerTestCase):
             if not f == "SOURCE" and not f == "stderr.txt" and not f == "stdout.txt":
                 os.remove(f)
 
-        self.open_conn(config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1)")
+        os.mkdir("DEST")
+        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1)")
 
         state = 0
         timeout = 120

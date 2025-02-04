@@ -98,7 +98,7 @@ __live_restore_get_state_from_file(
         lr_fs->os_file_system->fs_size(
           lr_fs->os_file_system, (WT_SESSION *)session, (char *)state_file_name->data, &file_size);
 
-        fh->fh_read(fh, (WT_SESSION *)session, 0, (size_t) file_size, state_str);
+        fh->fh_read(fh, (WT_SESSION *)session, 0, (size_t)file_size, state_str);
 
         WT_ERR(__live_restore_state_from_string(session, state_str, statep));
     }
@@ -234,8 +234,7 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
           (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
           WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &fh));
 
-        fh->fh_write(
-          fh, (WT_SESSION *)session, 0, 128, state_to_write);
+        fh->fh_write(fh, (WT_SESSION *)session, 0, 128, state_to_write);
 
         lr_fs->state = WTI_LIVE_RESTORE_STATE_LOG_COPY;
     }
@@ -331,14 +330,17 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->source.home, "", &dirlist_source, &num_source_files));
 
+    if (num_source_files == 0) {
+        WT_ERR_MSG(session, EINVAL, "Source directory is empty. Nothing to restore!");
+    }
+
     for (uint32_t i = 0; i < num_source_files; ++i) {
         if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX) ||
           strcmp(dirlist_source[i], WT_LIVE_RESTORE_STATE_FILE) == 0) {
-            // TODO - also broken by jank tests
-            // WT_ERR_MSG(session, EINVAL,
-            //   "Source directory contains live restore metadata file: %s. This implies it is a "
-            //   "destination directory that hasn't finished restoration",
-            //   dirlist_source[i]);
+            WT_ERR_MSG(session, EINVAL,
+              "Source directory contains live restore metadata file: %s. This implies it is a "
+              "destination directory that hasn't finished restoration",
+              dirlist_source[i]);
         }
     }
 
@@ -351,24 +353,30 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->destination.home, "", &dirlist_dest, &num_dest_files));
 
+    // TODO - run Sean's mongo test
+
+    // TODO - make sure we have tests that restart during the log copy stage
+
+    // TODO - New catch2 test explicitly for states
+
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
-        /* This is a branch new live restore. The destination folder shouldn't contain anything. */
-        // FIXME - tonnes of tests break this assumption
-        // if (num_dest_files > 0) {
-        //     WT_ERR_MSG(session, EINVAL,
-        //       "Live restore state is about to start but destination directory is not empty!");
-        // }
+        /* This is a brand new live restore. The destination folder shouldn't contain anything. If
+         * it does there's a risk we're overwriting a valid database. */
+        if (num_dest_files > 0) {
+            WT_ERR_MSG(session, EINVAL,
+              "Live restore state is about to start but destination directory is not empty!");
+        }
         break;
     case WTI_LIVE_RESTORE_STATE_LOG_COPY:
-        // TODO - ugh
-        // for (uint32_t i = 0; i < num_dest_files; ++i) {
-        //     if (!WT_SUFFIX_MATCH(dirlist_dest[i], ".log") &&
-        //       strcmp(dirlist_dest[i], WT_LIVE_RESTORE_STATE_FILE) != 0)
-        //         WT_ERR_MSG(session, EINVAL,
-        //           "Live restore state is in log copy phase but the destination contains files "
-        //           "other than logs or the state file: %s", dirlist_dest[i]);
-        // }
+        for (uint32_t i = 0; i < num_dest_files; ++i) {
+            if (!WT_SUFFIX_MATCH(dirlist_dest[i], ".log") &&
+              strcmp(dirlist_dest[i], WT_LIVE_RESTORE_STATE_FILE) != 0)
+                WT_ERR_MSG(session, EINVAL,
+                  "Live restore state is in log copy phase but the destination contains files "
+                  "other than logs or the state file: %s",
+                  dirlist_dest[i]);
+        }
         break;
     case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
     case WTI_LIVE_RESTORE_STATE_CLEAN_UP:

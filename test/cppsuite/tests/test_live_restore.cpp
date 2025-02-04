@@ -122,7 +122,6 @@ static const char *SOURCE_PATH = "WT_LIVE_RESTORE_SOURCE";
 static const char *HOME_PATH = DEFAULT_DIR;
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
-void do_random_crud(scoped_session &session, bool fresh_start);
 void create_collection(scoped_session &session);
 void read(scoped_session &session);
 void trigger_fs_truncate(scoped_session &session);
@@ -342,7 +341,7 @@ configure_database(scoped_session &session)
 static void
 run_restore(const std::string &home, const std::string &source, const int64_t thread_count,
   const int64_t collection_count, const int64_t op_count, const bool background_thread_mode,
-  const int64_t verbose_level, const bool first, const bool die, const bool recovery)
+  const int64_t verbose_level, const bool die, const bool recovery)
 {
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string verbose_string = verbose_level == 0 ?
@@ -357,21 +356,14 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     /* Create connection. */
     if (recovery)
         connection_manager::instance().reopen(conn_config, home);
-    else {
-        /*
-         * We only want to create the log directory when no source directory is available to copy it
-         * from. This is only true when it's the first iteration of the loop *and* we're not recovering
-         * from a crash.
-         */
-        bool create_log_directory = first && !recovery;
-        connection_manager::instance().create(conn_config, home, create_log_directory);
-    }
+    else
+        connection_manager::instance().create(conn_config, home, false);
 
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
         configure_database(crud_session);
     if (!background_thread_mode)
-        do_random_crud(crud_session, collection_count, op_count, first, conn_config, home);
+        do_random_crud(crud_session, collection_count, op_count, false, conn_config, home);
     if (die)
         raise(SIGKILL);
 
@@ -391,6 +383,29 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
 
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
+    crud_session.close_session();
+    connection_manager::instance().close();
+}
+
+// Populate an initial database to be live restores. This will be used for the first live restore
+// and after that we can use the restored database from the prior iterations as the source.
+static void
+create_db(const std::string &home, const int64_t thread_count, const int64_t collection_count,
+  const int64_t op_count, const int64_t verbose_level)
+{
+    /* Create a connection, set the cache size and specify the home directory. */
+    const std::string conn_config = CONNECTION_CREATE +
+      ",cache_size=5GB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,"
+      "path=journal)";
+
+    /*
+     * Open the connection and create the log folder. In futre runs this is copued by live restore.
+     */
+    connection_manager::instance().create(conn_config, home, true);
+
+    auto crud_session = connection_manager::instance().create_session();
+    do_random_crud(crud_session, collection_count, op_count, true, conn_config, home);
+
     crud_session.close_session();
     connection_manager::instance().close();
 }
@@ -511,8 +526,18 @@ main(int argc, char *argv[])
     if (!recovery) {
         // Delete any existing source dir and home path.
         logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
-        testutil_recreate_dir(SOURCE_PATH);
+
+        testutil_remove(SOURCE_PATH);
         testutil_remove(home_path.c_str());
+
+        // We need to create a database to restore from initially.
+        create_db(home_path, thread_count, coll_count, op_count, verbose_level);
+        testutil_move(home_path.c_str(), SOURCE_PATH);
+    } else {
+        // Assuming this run is following a -d "death" run then the previous home path will be the
+        // source path.
+        testutil_remove(SOURCE_PATH);
+        testutil_move(home_path.c_str(), SOURCE_PATH);
     }
 
     /* When setting up the database we don't want to wait for the background threads to complete. */
@@ -524,7 +549,7 @@ main(int argc, char *argv[])
     for (int i = 0; i < it_count; i++) {
         logger::log_msg(LOG_INFO, "!!!! Beginning iteration: " + std::to_string(i) + " !!!!");
         run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count,
-          background_thread_debug_mode, verbose_level, i == 0, i == death_it, recovery);
+          background_thread_debug_mode, verbose_level, i == death_it, recovery);
         testutil_remove(SOURCE_PATH);
         testutil_move(home_path.c_str(), SOURCE_PATH);
     }
