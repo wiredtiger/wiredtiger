@@ -34,11 +34,9 @@ from error_info_util import error_info_util
 #   committing or rolling back a transaction. The original error of the commit/rollback should be returned and not be saved inside the get_last_error() function call.
 class test_error_info04(error_info_util):
     uri = "table:test_error_info.wt"
+    conn_config = "eviction_dirty_target=1,eviction_dirty_trigger=2"
 
     def test_commit_transaction_skip_save(self):
-        # Configure connection with very low cache wait time and dirty trigger.
-        self.conn.reconfigure('cache_max_wait_ms=2,eviction_dirty_target=1,eviction_dirty_trigger=2')
-
         # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
@@ -48,33 +46,34 @@ class test_error_info04(error_info_util):
         # Start a transaction and insert a value large enough to trigger eviction app worker threads.
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
             for i in range(100):
+                # Reconfigure cache max wait time so that cursor insert does not attempt eviction.
+                self.conn.reconfigure('cache_max_wait_ms=1')
                 self.session.begin_transaction()
                 cursor.set_key(str(i))
                 cursor.set_value(str(i)*1024*500)
                 cursor.insert()
+                self.conn.reconfigure('cache_max_wait_ms=2')
                 self.assertEqual(self.session.commit_transaction(), 0)
                 self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
 
         self.session.checkpoint()
 
     def test_rollback_transaction_skip_save(self):
-        # Configure connection with very low cache max wait time and dirty trigger.
-        self.conn.reconfigure('cache_max_wait_ms=2,eviction_dirty_target=1,eviction_dirty_trigger=2')
-
         # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         # Open a session and cursor.
         cursor = self.session.open_cursor(self.uri)
 
-        # Insert a key and value within a transaction.
-
         # Start a transaction and insert a value large enough to trigger eviction app worker threads.
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
             for i in range(100):
+                # Reconfigure cache max wait time so that cursor insert does not attempt eviction.
+                self.conn.reconfigure('cache_max_wait_ms=1')
                 self.session.begin_transaction()
                 cursor.set_key(str(i))
                 cursor.set_value(str(i)*1024*500)
                 cursor.insert()
+                self.conn.reconfigure('cache_max_wait_ms=2')
                 self.assertEqual(self.session.rollback_transaction(), 0)
                 self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
