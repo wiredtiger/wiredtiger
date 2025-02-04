@@ -2933,7 +2933,7 @@ err:
         WT_STAT_CONN_INCR(session, application_cache_ops);
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
-        if (interruptible) {
+        if (!interruptible) {
             WT_STAT_CONN_INCR(session, application_cache_mandatory_ops);
             WT_STAT_CONN_INCRV(session, application_cache_mandatory_time, elapsed);
             WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
