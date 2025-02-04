@@ -242,12 +242,15 @@ __evict_update_work(WT_SESSION_IMPL *session)
     cache = conn->cache;
     evict = conn->evict;
 
+	bytes_dirty = __wt_cache_dirty_leaf_inuse(cache);
+	bytes_inuse = __wt_cache_bytes_inuse(cache);
+	bytes_max = conn->cache_size + 1;
     dirty_target = __wti_evict_dirty_target(evict);
     dirty_trigger = evict->eviction_dirty_trigger;
     target = evict->eviction_target;
     trigger = evict->eviction_trigger;
-    updates_target = evict->eviction_updates_target;
-    updates_trigger = evict->eviction_updates_trigger;
+	updates_target = evict->eviction_updates_target;
+	updates_trigger = evict->eviction_updates_trigger;
 
     /* Build up the new state. */
     flags = 0;
@@ -269,26 +272,20 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
     /*
      * If we need space in the cache, try to find clean pages to evict.
-     *
-     * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
-    bytes_max = conn->cache_size + 1;
-    bytes_inuse = __wt_cache_bytes_inuse(cache);
-    if (__wt_evict_clean_needed(session, NULL))
+    if (__wti_evict_clean_exceeded_trigger(session, NULL))
         LF_SET(WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_CLEAN_HARD);
-    else if (bytes_inuse > (target * bytes_max) / 100)
+    else if (__wti_evict_clean_exceeded_target(session))
         LF_SET(WT_EVICT_CACHE_CLEAN);
 
-    bytes_dirty = __wt_cache_dirty_leaf_inuse(cache);
-    if (__wt_evict_dirty_needed(session, NULL))
+    if (__wti_evict_dirty_exceeded_trigger(session, NULL))
         LF_SET(WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_DIRTY_HARD);
-    else if (bytes_dirty > (uint64_t)(dirty_target * bytes_max) / 100)
+    else if (__wti_evict_dirty_exceeded_target(session))
         LF_SET(WT_EVICT_CACHE_DIRTY);
 
-    bytes_updates = __wt_cache_bytes_updates(cache);
-    if (__wti_evict_updates_needed(session, NULL))
+    if (__wti_evict_updates_exceeded_trigger(session, NULL))
         LF_SET(WT_EVICT_CACHE_UPDATES | WT_EVICT_CACHE_UPDATES_HARD);
-    else if (bytes_updates > (uint64_t)(updates_target * bytes_max) / 100)
+	else if (__wti_evict_updates_exceed_target(session))
         LF_SET(WT_EVICT_CACHE_UPDATES);
 
     /*

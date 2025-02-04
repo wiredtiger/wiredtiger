@@ -285,9 +285,17 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
 }
 
 static WT_INLINE bool
-__wt_evict_clean_exceed_target(session) {
+__wti_evict_clean_exceeded_target(session) {
 
-	return;
+	uint64_t bytes_inuse, bytes_max;
+
+    /*
+     * Avoid division by zero if the cache size has not yet been set in a shared cache.
+     */
+    bytes_max = S2C(session)->cache_size + 1;
+    bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
+
+	return (bytes_inuse > (target * bytes_max) / 100);
 }
 
 /* !!!
@@ -306,7 +314,7 @@ __wt_evict_clean_exceed_target(session) {
  *     Return `true` if the cache usage exceeds the eviction trigger threshold.
  */
 static WT_INLINE bool
-__wt_evict_clean_exceed_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_clean_exceeded_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_inuse, bytes_max;
 
@@ -353,7 +361,7 @@ __wti_evict_dirty_target(WT_EVICT *evict)
  *     Return `true` if the cache usage exceeds the eviction dirty trigger threshold.
  */
 static WT_INLINE bool
-__wt_evict_dirty_exceed_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_dirty_exceeded_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_dirty, bytes_max;
 
@@ -371,9 +379,19 @@ __wt_evict_dirty_exceed_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 }
 
 static WT_INLINE bool
-__wt_evict_dirty_exceed_target(WT_SESSION_IMPL *session)
+__wti_evict_dirty_exceeded_target(WT_SESSION_IMPL *session)
 {
-	return;
+	uint64_t bytes_dirty, bytes_max, dirty_target;
+
+	dirty_target = __wti_evict_dirty_target(evict);
+
+    /*
+     * Avoid division by zero if the cache size has not yet been set in a shared cache.
+     */
+    bytes_dirty = __wt_cache_dirty_leaf_inuse(S2C(session)->cache);
+    bytes_max = S2C(session)->cache_size + 1;
+
+    return (bytes_dirty > (uint64_t)(dirty_target * bytes_max) / 100);
 }
 
 /* !!!
@@ -392,7 +410,7 @@ __wt_evict_dirty_exceed_target(WT_SESSION_IMPL *session)
  *     Returns `true` if the cache usage exceeds the eviction update trigger threshold.
  */
 static WT_INLINE bool
-__wti_evict_updates_exceed_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_updates_exceeded_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_max, bytes_updates;
 
@@ -410,8 +428,18 @@ __wti_evict_updates_exceed_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 }
 
 static WT_INLINE bool
-__wti_evict_updates_exceed_target(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_updates_exceeded_target(WT_SESSION_IMPL *session, double *pct_fullp)
 {
+	uint64_t bytes_max, bytes_updates, updates_target;
+
+    /*
+     * Avoid division by zero if the cache size has not yet been set in a shared cache.
+     */
+    bytes_max = S2C(session)->cache_size + 1;
+    bytes_updates = __wt_cache_bytes_updates(S2C(session)->cache);
+	updates_target = evict->eviction_updates_target;
+
+    return (bytes_updates > (uint64_t)(updates_target * bytes_max) / 100);
 }
 
 /* !!!
