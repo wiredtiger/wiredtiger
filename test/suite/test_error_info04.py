@@ -44,20 +44,20 @@ class test_error_info04(error_info_util):
         # Start 100 transactions which should be enough to trigger application eviction when committed.
         sessions = []
         for i in range(100):
-            session = self.conn.open_session()
-            cursor = session.open_cursor(self.uri)
-            session.begin_transaction()
+            temp_session = self.conn.open_session()
+            cursor = temp_session.open_cursor(self.uri)
+            temp_session.begin_transaction()
             cursor.set_key(str(i))
             cursor.set_value(str(i)*1024*500)
             cursor.insert()
-            sessions.append(session)
+            sessions.append(temp_session)
 
         # Configure the lowest cache max wait time so that application attempts eviction.
         self.conn.reconfigure('cache_max_wait_ms=2')
         # Commit all transactions large enough to trigger eviction app worker threads.
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
-            for session in sessions:
-                self.assertEqual(session.commit_transaction(), 0)
+            for temp_session in sessions:
+                self.assertEqual(temp_session.commit_transaction(), 0)
                 self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
 
         self.session.checkpoint()
@@ -66,18 +66,21 @@ class test_error_info04(error_info_util):
         # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # Open a session and cursor.
-        cursor = self.session.open_cursor(self.uri)
+        # Start 100 transactions which should be enough to trigger application eviction when rolled back.
+        sessions = []
+        for i in range(100):
+            temp_session = self.conn.open_session()
+            cursor = temp_session.open_cursor(self.uri)
+            temp_session.begin_transaction()
+            cursor.set_key(str(i))
+            cursor.set_value(str(i)*1024*500)
+            cursor.insert()
+            sessions.append(temp_session)
 
-        # Start a transaction and insert a value large enough to trigger eviction app worker threads.
+        # Configure the lowest cache max wait time so that application attempts eviction.
+        self.conn.reconfigure('cache_max_wait_ms=2')
+        # Rollback all transactions large enough to trigger eviction app worker threads.
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
-            for i in range(100):
-                # Reconfigure cache max wait time so that cursor insert does not attempt eviction.
-                self.conn.reconfigure('cache_max_wait_ms=1')
-                self.session.begin_transaction()
-                cursor.set_key(str(i))
-                cursor.set_value(str(i)*1024*500)
-                cursor.insert()
-                self.conn.reconfigure('cache_max_wait_ms=2')
-                self.assertEqual(self.session.rollback_transaction(), 0)
+            for temp_session in sessions:
+                self.assertEqual(temp_session.rollback_transaction(), 0)
                 self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
