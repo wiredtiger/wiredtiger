@@ -10,7 +10,6 @@ else()
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
-        misc_tests/test_drop_conflict.cpp
         misc_tests/test_error.cpp
         misc_tests/test_fnv.cpp
         misc_tests/test_futex.cpp
@@ -43,6 +42,7 @@ else()
         sub_level_error/api/test_sub_level_error_strerror.cpp
         sub_level_error/unit/test_sub_level_error_api_end.cpp
         sub_level_error/unit/test_sub_level_error_compact.cpp
+        sub_level_error/unit/test_sub_level_error_drop_conflict.cpp
         sub_level_error/unit/test_sub_level_error_is_valid_sub_level_error.cpp
         sub_level_error/unit/test_sub_level_error_msg_macros.cpp
         sub_level_error/unit/test_sub_level_error_rollback.cpp
