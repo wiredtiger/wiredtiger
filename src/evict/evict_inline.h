@@ -616,11 +616,11 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible
  *     should assist eviction worker threads with eviction of pages from the queues.
  *
  *     Input parameters:
- *       - `busy`: A flag indicating if eviction is mandatory (true) or optional (false).
- *       - `readonly`: A flag indicating if the session is read-only, in which case dirty and
+ *       (1) `busy`: A flag indicating if eviction is mandatory (true) or optional (false).
+ *       (2) `readonly`: A flag indicating if the session is read-only, in which case dirty and
  *          update triggers are ignored.
- *       - `interruptible`: A flag indicating if eviction is ok to be interrupted by user.
- *       - `didworkp`: A pointer to indicate whether eviction work was done (optional).
+ *       (3) `interruptible`: A flag indicating if eviction is ok to be interrupted by user.
+ *       (4) `didworkp`: A pointer to indicate whether eviction work was done (optional).
  *
  *     Return an error code from `__wti_evict_app_assist_worker` if it is unable to perform
  *     meaningful work (eviction cache stuck).

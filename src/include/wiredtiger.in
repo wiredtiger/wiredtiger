@@ -6954,29 +6954,29 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! thread-yield: application thread operations waiting for cache */
 #define	WT_STAT_CONN_APPLICATION_CACHE_OPS		1640
 /*!
- * thread-yield: application thread operations waiting for cache eviction
- * while idle
+ * thread-yield: application thread operations waiting for interruptible
+ * cache eviction
  */
-#define	WT_STAT_CONN_APPLICATION_CACHE_IDLE_OPS		1641
+#define	WT_STAT_CONN_APPLICATION_CACHE_INTERRUPTIBLE_OPS	1641
 /*!
  * thread-yield: application thread operations waiting for mandatory
  * cache eviction
  */
-#define	WT_STAT_CONN_APPLICATION_CACHE_BUSY_OPS		1642
+#define	WT_STAT_CONN_APPLICATION_CACHE_MANDATORY_OPS	1642
 /*! thread-yield: application thread snapshot refreshed for eviction */
 #define	WT_STAT_CONN_APPLICATION_EVICT_SNAPSHOT_REFRESHED	1643
 /*! thread-yield: application thread time waiting for cache (usecs) */
 #define	WT_STAT_CONN_APPLICATION_CACHE_TIME		1644
 /*!
- * thread-yield: application thread time waiting for cache eviction while
- * idle (usecs)
+ * thread-yield: application thread time waiting for interruptible cache
+ * eviction (usecs)
  */
-#define	WT_STAT_CONN_APPLICATION_CACHE_IDLE_TIME	1645
+#define	WT_STAT_CONN_APPLICATION_CACHE_INTERRUPTIBLE_TIME	1645
 /*!
  * thread-yield: application thread time waiting for mandatory cache
  * eviction (usecs)
  */
-#define	WT_STAT_CONN_APPLICATION_CACHE_BUSY_TIME	1646
+#define	WT_STAT_CONN_APPLICATION_CACHE_MANDATORY_TIME	1646
 /*!
  * thread-yield: connection close blocked waiting for transaction state
  * stabilization
@@ -8075,10 +8075,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_SESSION_LOCK_SCHEMA_WAIT		4006
 /*! session: time waiting for cache (usecs) */
 #define	WT_STAT_SESSION_CACHE_TIME			4007
-/*! session: time waiting for cache eviction while idle (usecs) */
-#define	WT_STAT_SESSION_CACHE_TIME_IDLE			4008
+/*! session: time waiting for cache interruptible eviction (usecs) */
+#define	WT_STAT_SESSION_CACHE_TIME_INTERRUPTIBLE	4008
 /*! session: time waiting for mandatory cache eviction (usecs) */
-#define	WT_STAT_SESSION_CACHE_TIME_BUSY			4009
+#define	WT_STAT_SESSION_CACHE_TIME_MANDATORY		4009
 /*! @} */
 /*
  * Statistics section: END
