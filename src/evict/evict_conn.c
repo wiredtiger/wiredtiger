@@ -259,9 +259,7 @@ int
 __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_EVICT *evict;
-    int i;
 
     conn = S2C(session);
 
@@ -302,7 +300,6 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_EVICT *evict;
-    int i;
 
     conn = S2C(session);
     evict = conn->evict;
@@ -343,8 +340,6 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
       session, stats, eviction_reentry_hs_eviction_milliseconds, evict->reentry_hs_eviction_ms);
 
     WT_STATP_CONN_SET(session, stats, eviction_state, __wt_atomic_load32(&evict->flags));
-    WT_STATP_CONN_SET(session, stats, eviction_aggressive_set, evict->evict_aggressive_score);
-    WT_STATP_CONN_SET(session, stats, eviction_empty_score, evict->evict_empty_score);
 
     WT_STATP_CONN_SET(session, stats, eviction_active_workers,
       __wt_atomic_load32(&conn->evict_threads.current_threads));

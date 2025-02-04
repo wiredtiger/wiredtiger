@@ -12,15 +12,12 @@
  * __wt_evict_aggressive --
  *     Check whether eviction is unable to make any progress for some amount of time.
  *
- *     As eviction continues to struggle, let the caller know that eviction has become inefficient
- *     (or made no progress). This helps determine if eviction strategies need to be more
- *     forceful due to ongoing inefficiencies. Additionally, it serves as a useful indicator of
- *     the health of the eviction process which callers can use to inform their behavior.
+ *     As eviction continues to struggle, let the caller know that eviction has made no progress.
+ *     This helps determine if we need to roll back transactions
  */
 static WT_INLINE bool
 __wt_evict_aggressive(WT_SESSION_IMPL *session)
 {
-#define WT_EVICT_SCORE_CUTOFF 10
     return (
       __wt_atomic_load32(&S2C(session)->evict->evict_aggressive_score) >= WT_EVICT_SCORE_CUTOFF);
 }
@@ -40,8 +37,6 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
 {
     WT_EVICT *evict;
     uint32_t tmp_evict_aggressive_score;
-
-#define WT_EVICT_SCORE_MAX 100
 
     evict = S2C(session)->evict;
     tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score);
@@ -289,6 +284,12 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
     return (false);
 }
 
+static WT_INLINE bool
+__wt_evict_clean_exceed_target(session) {
+
+	return;
+}
+
 /* !!!
  * __wt_evict_clean_needed --
  *     Check whether the configured eviction trigger threshold for the total volume of data in the
@@ -305,7 +306,7 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
  *     Return `true` if the cache usage exceeds the eviction trigger threshold.
  */
 static WT_INLINE bool
-__wt_evict_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+__wt_evict_clean_exceed_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_inuse, bytes_max;
 
@@ -352,7 +353,7 @@ __wti_evict_dirty_target(WT_EVICT *evict)
  *     Return `true` if the cache usage exceeds the eviction dirty trigger threshold.
  */
 static WT_INLINE bool
-__wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+__wt_evict_dirty_exceed_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_dirty, bytes_max;
 
@@ -367,6 +368,12 @@ __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 
     return (
       bytes_dirty > (uint64_t)(S2C(session)->evict->eviction_dirty_trigger * bytes_max) / 100);
+}
+
+static WT_INLINE bool
+__wt_evict_dirty_exceed_target(WT_SESSION_IMPL *session)
+{
+	return;
 }
 
 /* !!!
@@ -385,7 +392,7 @@ __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
  *     Returns `true` if the cache usage exceeds the eviction update trigger threshold.
  */
 static WT_INLINE bool
-__wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_updates_exceed_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_max, bytes_updates;
 
@@ -400,6 +407,11 @@ __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 
     return (
       bytes_updates > (uint64_t)(S2C(session)->evict->eviction_updates_trigger * bytes_max) / 100);
+}
+
+static WT_INLINE bool
+__wti_evict_updates_exceed_target(WT_SESSION_IMPL *session, double *pct_fullp)
+{
 }
 
 /* !!!
