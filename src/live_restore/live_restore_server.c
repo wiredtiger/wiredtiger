@@ -179,8 +179,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         TAILQ_INSERT_TAIL(&server->work_queue, work_item, q);
         __wt_spin_unlock(session, &server->queue_lock);
         if (remain < (uint64_t)threads)
-            ;
-        __wt_sleep(0, 100 * WT_THOUSAND);
+            __wt_sleep(0, 100 * WT_THOUSAND);
         return (0);
     }
     WT_RET(ret);
