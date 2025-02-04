@@ -337,6 +337,8 @@ file_meta = file_config + [
         LSN of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
+    Config('live_restore', '', r'''
+        live restore metadata'''),
     Config('readonly', 'false', r'''
         the file is read-only. All methods that modify a file are disabled. See @ref
         readonly for more information''',
