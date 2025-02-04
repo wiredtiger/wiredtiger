@@ -67,7 +67,7 @@ sub-level error code. In all four macros, an error code must be included, and th
 optional. In terms of saving errors, WT_RET_MSG and WT_ERR_MSG have the same behavior, and
 WT_RET_SUB and WT_ERR_MSG also behave the same.
 
-@subsection arch_session_error_life_cycle Sub-level - Errors Life Cycle
+@subsection arch_session_error_life_cycle Sub-level Errors - Life Cycle
 When a session API call is made, API_SESSION_INIT is called and err_info is reset to an error code
 0, sub-level error code WT_NONE, and error message "the last API call was successful.
 Only the earliest error is saved and will not be overwritten by an error
@@ -76,13 +76,13 @@ the return value. If it is non-zero and it is not the same as the error code in 
 attempt to save this error with a sub-level error code WT_NONE, and an error message "". The
 overwrite rules still apply, and will not overwrite a previously saved error within the API call.
 
-@subsection arch_session_error_sessions Sub-level - Errors Internal & External Sessions
+@subsection arch_session_error_sessions Sub-level Errors - External & Internal Sessions
 When saving an error, the session must have the WT_SESSION_SAVE_ERRORS flag set, or the error will
 not be saved. External sessions have this flag set while internal sessions do not, however when an
 external session opens an internal session, it will inherit the external sessions flags including
 the WT_SESSION_SAVE_ERRORS flag.
 
-@subsection arch_session_error_buffers Sub-level - Errors Static & Dynamic Buffers
+@subsection arch_session_error_buffers Sub-level Errors - Static & Dynamic Buffers
 When setting err_info, if the error message is "" or "the last API call was successful", then a
 static buffer is used, otherwise a dynamic buffer is allocated. When err_info is refreshed after
 each API call, this dynamic buffer is freed.
