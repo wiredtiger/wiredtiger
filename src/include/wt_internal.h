@@ -77,6 +77,8 @@ struct __wt_background_compact_stat;
 typedef struct __wt_background_compact_stat WT_BACKGROUND_COMPACT_STAT;
 struct __wt_backup_target;
 typedef struct __wt_backup_target WT_BACKUP_TARGET;
+struct __wt_bitmap;
+typedef struct __wt_bitmap WT_BITMAP;
 struct __wt_blkcache;
 typedef struct __wt_blkcache WT_BLKCACHE;
 struct __wt_blkcache_item;
@@ -506,6 +508,7 @@ typedef uint64_t wt_timestamp_t;
 #include "thread_group.h" /* required by rollback_to_stable.h */
 
 #include "api.h"
+#include "bitmap.h"
 #include "bitstring.h"
 #include "block.h"
 #include "block_cache.h"

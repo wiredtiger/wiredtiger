@@ -88,8 +88,6 @@ struct __wt_chunkcache_pinned_list {
  *     chunks are placed into a linked list. There is a per-bucket spinlock.
  */
 #define WT_CHUNKCACHE_MAX_RETRIES 32 * 1024
-#define WT_CHUNKCACHE_BITMAP_SIZE(capacity, chunk_size) \
-    (WT_CEIL_POS((double)((capacity) / (chunk_size)) / 8.0))
 struct __wt_chunkcache {
     /* Cache-wide. */
 #define WT_CHUNKCACHE_FILE 1
@@ -109,10 +107,11 @@ struct __wt_chunkcache {
     unsigned int hashtable_size; /* The number of buckets */
 
     /* Backing storage (or memory). */
-    char *storage_path;   /* The storage path if we are on a file system or a block device */
-    WT_FH *fh;            /* Only used when backed by a file */
-    uint8_t *free_bitmap; /* Bitmap of free chunks in file */
-    uint8_t *memory;      /* Memory location for the assigned chunk space */
+    char *storage_path;     /* The storage path if we are on a file system or a block device */
+    WT_FH *fh;              /* Only used when backed by a file */
+    WT_BITMAP *free_bitmap; /* Bitmap of free chunks in file. Protected by bitmap_lock. */
+    WT_RWLOCK bitmap_lock;  /* Controls access to free_bitmap. */
+    uint8_t *memory;        /* Memory location for the assigned chunk space */
 
     /* Content management. */
     wt_thread_t evict_thread_tid;

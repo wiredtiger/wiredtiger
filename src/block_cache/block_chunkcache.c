@@ -21,113 +21,6 @@
     (wt_off_t)(((size_t)offset / (chunkcache)->chunk_size) * (chunkcache)->chunk_size)
 
 /*
- * __chunkcache_bitmap_find_free --
- *     Iterate through the bitmap to find a free chunk in the cache.
- */
-static int
-__chunkcache_bitmap_find_free(WT_SESSION_IMPL *session, size_t *bit_index)
-{
-    WT_CHUNKCACHE *chunkcache;
-    size_t bitmap_size, bits_remainder, i, j;
-    uint8_t map_byte;
-
-    chunkcache = &S2C(session)->chunkcache;
-
-    /* The bitmap size accounts for full bytes only, remainder bits are iterated separately. */
-    bitmap_size = (chunkcache->capacity / chunkcache->chunk_size) / 8;
-
-    /* Iterate through the bytes and bits of the bitmap to find free chunks. */
-    for (i = 0; i < bitmap_size; i++) {
-        map_byte = chunkcache->free_bitmap[i];
-        if (map_byte != 0xff) {
-            j = 0;
-            while ((map_byte & 1) != 0) {
-                j++;
-                map_byte >>= 1;
-            }
-            *bit_index = ((i * 8) + j);
-            return (0);
-        }
-    }
-
-    /* If the number of chunks isn't divisible by 8, iterate through the remaining bits. */
-    bits_remainder = (chunkcache->capacity / chunkcache->chunk_size) % 8;
-    for (j = 0; j < bits_remainder; j++)
-        if ((chunkcache->free_bitmap[bitmap_size] & (0x01 << j)) == 0) {
-            *bit_index = ((bitmap_size * 8) + j);
-            return (0);
-        }
-    return (ENOSPC);
-}
-
-/*
- * __set_bit_index --
- *     Allocate a specific bit from the chunk usage bitmap.
- */
-static WT_INLINE int
-__set_bit_index(WT_SESSION_IMPL *session, size_t bit_index)
-{
-    WT_CHUNKCACHE *chunkcache;
-    uint8_t map_byte_expected, map_byte_mask;
-
-    chunkcache = &S2C(session)->chunkcache;
-
-    /* Bit index should be less than the maximum number of chunks that can be allocated. */
-    WT_ASSERT(session, bit_index < (chunkcache->capacity / chunkcache->chunk_size));
-
-    WT_READ_ONCE(map_byte_expected, chunkcache->free_bitmap[bit_index / 8]);
-    map_byte_mask = (uint8_t)(0x01 << (bit_index % 8));
-    if (((map_byte_expected & map_byte_mask) != 0) ||
-      !__wt_atomic_cas8(&chunkcache->free_bitmap[bit_index / 8], map_byte_expected,
-        map_byte_expected | map_byte_mask))
-        return (EAGAIN);
-
-    return (0);
-}
-
-/*
- * __chunkcache_bitmap_alloc --
- *     Find a free slot in the allocation bitmap, reserve it, and hand it back to the caller.
- */
-static int
-__chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
-{
-    WT_DECL_RET;
-
-    /*
-     * We don't need to bound the retry attempts - if we have to retry long enough, eventually we'll
-     * stop finding free slots in the bitmap and say we're out of space.
-     */
-    do {
-        WT_RET(__chunkcache_bitmap_find_free(session, bit_index));
-    } while ((ret = __set_bit_index(session, *bit_index)) == EAGAIN);
-
-    return (ret);
-}
-
-/*
- * __chunkcache_bitmap_free --
- *     Free the bit index. This can get called while (e.g.) handling errors before we finish
- *     completely setting up a chunk, so we can't be too picky about expecting the bit to already be
- *     set when we're called. If it magically gets unset (or is unset when called), that's fine.
- */
-static void
-__chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t index)
-{
-    WT_CHUNKCACHE *chunkcache;
-    uint8_t map_byte_expected, map_byte_mask;
-
-    chunkcache = &S2C(session)->chunkcache;
-
-    map_byte_mask = (uint8_t)(0x01 << (index % 8));
-    do {
-        WT_READ_ONCE(map_byte_expected, chunkcache->free_bitmap[index / 8]);
-    } while (((map_byte_expected & map_byte_mask) != 0) &&
-      !__wt_atomic_cas8(&chunkcache->free_bitmap[index / 8], map_byte_expected,
-        map_byte_expected & (uint8_t) ~(map_byte_mask)));
-}
-
-/*
  * __chunkcache_drop_queued_work --
  *     Pop items off the head of the metadata read/write queue (i.e. oldest first). Intended for
  *     cases where the queue is getting too long, indicating the consumer thread is behind.
@@ -315,14 +208,17 @@ __chunkcache_memory_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
          * 10MB (1MB file per chunk) of data is utilized, while the remaining chunk cache capacity
          * (990MB) remains unused.
          */
-        if ((ret = __chunkcache_bitmap_alloc(session, &bit_index)) == ENOSPC) {
+        __wt_writelock(session, &chunkcache->bitmap_lock);
+        if ((ret = __wt_bitmap_find_first(chunkcache->free_bitmap, &bit_index)) == ENOSPC) {
             WT_STAT_CONN_INCR(session, chunkcache_exceeded_bitmap_capacity);
             __wt_verbose(session, WT_VERB_CHUNKCACHE,
               "chunk cache bitmap exceeded capacity of %" PRIu64
               " bytes "
               "with %" PRIu64 " bytes in use and the chunk size of %" PRIu64 " bytes",
               chunkcache->capacity, chunkcache->bytes_used, (uint64_t)chunk->chunk_size);
-        }
+        } else
+            __wt_bitmap_set(chunkcache->free_bitmap, bit_index);
+        __wt_writeunlock(session, &chunkcache->bitmap_lock);
         WT_ERR(ret);
 
         /* Allocate the free memory in the chunk cache. */
@@ -469,7 +365,9 @@ __chunkcache_free_chunk(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
 
         /* Update the bitmap, then free the chunk memory. */
         index = (size_t)(chunk->chunk_memory - chunkcache->memory) / chunkcache->chunk_size;
-        __chunkcache_bitmap_free(session, index);
+        __wt_writelock(session, &chunkcache->bitmap_lock);
+        __wt_bitmap_clear(chunkcache->free_bitmap, index);
+        __wt_writeunlock(session, &chunkcache->bitmap_lock);
     }
 
     __wt_free(session, chunk);
@@ -1159,9 +1057,11 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
 
     /* Get the position of a specific bit index and link the chunk and its memory cached on disk. */
     bit_index = cache_offset / chunkcache->chunk_size;
-    WT_ASSERT_ALWAYS(session, !__set_bit_index(session, bit_index),
+    __wt_readlock(session, &chunkcache->bitmap_lock);
+    WT_ASSERT_ALWAYS(session, !__wt_bitmap_isset(chunkcache->free_bitmap, bit_index),
       "the link between chunk memory and cached data cannot be established as the link is already "
       "in place");
+    __wt_readunlock(session, &chunkcache->bitmap_lock);
     newchunk->chunk_memory = chunkcache->memory + cache_offset;
 
     TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), newchunk, next_chunk);
@@ -1258,9 +1158,9 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
               "Storage size mapping %lu does not equal capacity of chunk cache %" PRIu64,
               mapped_size, chunkcache->capacity);
 
-        WT_RET(__wt_calloc(session,
-          WT_CHUNKCACHE_BITMAP_SIZE(chunkcache->capacity, chunkcache->chunk_size), sizeof(uint8_t),
-          &chunkcache->free_bitmap));
+        WT_RET(__wt_rwlock_init(session, &chunkcache->bitmap_lock));
+        WT_RET(__wt_bitmap_init(
+          session, chunkcache->capacity / chunkcache->chunk_size, chunkcache->free_bitmap));
     }
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.flushed_data_cache_insertion", &cval));
@@ -1291,6 +1191,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 err:
     __wt_rwlock_destroy(session, &chunkcache->pinned_objects.array_lock);
+    __wt_rwlock_destroy(session, &chunkcache->bitmap_lock);
+    __wt_bitmap_free(session, chunkcache->free_bitmap);
     return (ret);
 }
 
@@ -1314,6 +1216,8 @@ __wt_chunkcache_teardown(WT_SESSION_IMPL *session)
 
     __chunkcache_arr_free(session, &chunkcache->pinned_objects.array);
     __wt_rwlock_destroy(session, &chunkcache->pinned_objects.array_lock);
+    __wt_rwlock_destroy(session, &chunkcache->bitmap_lock);
+    __wt_bitmap_free(session, chunkcache->free_bitmap);
 
     if (chunkcache->type != WT_CHUNKCACHE_IN_VOLATILE_MEMORY) {
         WT_TRET(__wt_close(session, &chunkcache->fh));
@@ -1339,16 +1243,21 @@ __wt_chunkcache_salvage(WT_SESSION_IMPL *session)
 
 #ifdef HAVE_UNITTEST
 
+/* TODO replace these */
+
 int
 __ut_chunkcache_bitmap_alloc(WT_SESSION_IMPL *session, size_t *bit_index)
 {
-    return (__chunkcache_bitmap_alloc(session, bit_index));
+    WT_RET(__wt_bitmap_find_first(S2C(session)->chunkcache.free_bitmap, bit_index));
+    __wt_bitmap_set(S2C(session)->chunkcache.free_bitmap, *bit_index);
+
+    return (0);
 }
 
 void
 __ut_chunkcache_bitmap_free(WT_SESSION_IMPL *session, size_t bit_index)
 {
-    __chunkcache_bitmap_free(session, bit_index);
+    __wt_bitmap_clear(S2C(session)->chunkcache.free_bitmap, bit_index);
 }
 
 #endif
