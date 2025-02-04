@@ -254,7 +254,6 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint32_t btree_id;
 
     memset(ds, 0, sizeof(WT_DBG));
 
@@ -272,8 +271,8 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
      */
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
       !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL)) {
-        btree_id = session->dhandle != NULL ? S2BT(session)->id : 0;
-        WT_ERR(__wt_curhs_open(session, btree_id, NULL, &ds->hs_cursor));
+        WT_ASSERT(session, session->dhandle != NULL);
+        WT_ERR(__wt_curhs_open(session, S2BT(session)->id, NULL, &ds->hs_cursor));
     }
 
     if (ds->hs_cursor != NULL) {
@@ -1104,7 +1103,7 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
 
     hs_id = 0;
     for (;;) {
-        WT_RET_ERROR_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id), WT_NOTFOUND);
+        WT_RET_NOTFOUND_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id));
         if (ret == WT_NOTFOUND)
             return (0);
 

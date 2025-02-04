@@ -641,7 +641,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
         total_dirty = total_inmem = 0;
         hs_id = 0;
         for (;;) {
-            WT_RET_ERROR_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id), WT_NOTFOUND);
+            WT_RET_NOTFOUND_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id));
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */

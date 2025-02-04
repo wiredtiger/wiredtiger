@@ -24,17 +24,28 @@ static int
 __curhs_file_cursor_open(
   WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     size_t len;
     uint64_t global_ckpt_id;
     char *tmp;
+    bool leader;
 
     const char *open_cursor_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL, NULL};
 
-    if (strcmp(uri, WT_HS_URI_SHARED) == 0) {
-        WT_ACQUIRE_READ(global_ckpt_id, S2C(session)->disaggregated_storage.global_checkpoint_id);
+    conn = S2C(session);
+    leader = conn->layered_table_manager.leader;
+
+    if (strcmp(uri, WT_HS_URI_SHARED) == 0 && !leader) {
+        /*
+         * In the case of disaggregated storage, we may need to reopen the shared HS btree if we
+         * just picked up a new checkpoint to ensure that we get the latest version. We need to do
+         * this only for follower nodes, because the leader nodes are always up to date (as they are
+         * the ones writing it).
+         */
+        WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
         if (global_ckpt_id > session->hs_checkpoint_id) {
             session->hs_checkpoint_id = global_ckpt_id;
             open_cursor_cfg[1] = "force=true";
@@ -411,12 +422,17 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 
     WT_ASSERT(session, arg_count >= 1 && arg_count <= 4);
 
+    /*
+     * Verify that the btree ID matches the history store cursor's btree ID. We also need to allow
+     * btree ID + 1, which is used by RTS to mark the end of a truncation range: When truncating all
+     * entries belonging to a given btree, it sets the start key to btree ID and the end key to
+     * btree ID + 1.
+     */
     btree_id = va_arg(ap, uint32_t);
-    WT_ASSERT(session,
-      hs_cursor->btree_id == btree_id ||
-        hs_cursor->btree_id + 1 == btree_id /* for RTS history truncate */);
+    WT_ASSERT(session, hs_cursor->btree_id == btree_id || hs_cursor->btree_id + 1 == btree_id);
     hs_cursor->btree_id = btree_id;
     F_SET(hs_cursor, WT_HS_CUR_BTREE_ID_SET);
+
     if (arg_count > 1) {
         datastore_key = va_arg(ap, WT_ITEM *);
         if ((ret = __wt_buf_set(

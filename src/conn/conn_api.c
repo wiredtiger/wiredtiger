@@ -3357,13 +3357,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(event_handler->handle_general(
           event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY, NULL));
 
-    /* Initialize metadata tracking, required before creating tables. */
-    WT_ERR(__wt_meta_track_init(session));
-
-    /* Initialize disaggregated storage (the metadata table must be open at this point). */
-    WT_ERR(__wti_disagg_conn_config(session, cfg, false));
-
-    /* Start the worker threads and run recovery. */
+    /* Start the worker threads, run recovery, and initialize the disaggregated storage. */
     WT_ERR(__wti_connection_workers(session, cfg));
 
     /*
