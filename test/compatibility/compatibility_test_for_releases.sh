@@ -490,7 +490,7 @@ upgrade_downgrade()
 	    # changed. So copy it for older releases if testing against a
 	    # develop run that is doing backups.
 	    dir2=$top/$format_dir_branch2/RUNDIR.$am
-	    if [ "$2" == "develop" && -e $dir2/BACKUP ]; then
+	    if [ -e $dir2/BACKUP -a ! -e $dir2/BACKUP.copy ] ; then
                 echo "Copying backup directory for older releases"
 		cp -rp $dir2/BACKUP $dir2/BACKUP.copy
 	    fi
