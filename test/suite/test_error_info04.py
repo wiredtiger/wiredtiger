@@ -31,29 +31,33 @@ from error_info_util import error_info_util
 
 # test_error_info04.py
 #   Test error information scenarios when an application thread gets pulled into eviction when
-#   committing or rolling back a transaction. The original error of the commit/rollback should be returned and not be saved inside the get_last_error() function call.
+#   committing or rolling back a transaction. The original error of the commit/rollback should
+#   be returned and not be saved inside the get_last_error() function call.
 class test_error_info04(error_info_util):
     uri = "table:test_error_info.wt"
-    conn_config = "eviction_dirty_target=1,eviction_dirty_trigger=2"
+    conn_config = "cache_max_wait_ms=1,eviction_dirty_target=1,eviction_dirty_trigger=2"
 
     def test_commit_transaction_skip_save(self):
         # Create a basic table.
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        # Open a session and cursor.
-        cursor = self.session.open_cursor(self.uri)
+        # Start 100 transactions which should be enough to trigger application eviction when committed.
+        sessions = []
+        for i in range(100):
+            session = self.conn.open_session()
+            cursor = session.open_cursor(self.uri)
+            session.begin_transaction()
+            cursor.set_key(str(i))
+            cursor.set_value(str(i)*1024*500)
+            cursor.insert()
+            sessions.append(session)
 
-        # Start a transaction and insert a value large enough to trigger eviction app worker threads.
+        # Configure the lowest cache max wait time so that application attempts eviction.
+        self.conn.reconfigure('cache_max_wait_ms=2')
+        # Commit all transactions large enough to trigger eviction app worker threads.
         with self.expectedStdoutPattern("transaction rolled back because of cache overflow"):
-            for i in range(100):
-                # Reconfigure cache max wait time so that cursor insert does not attempt eviction.
-                self.conn.reconfigure('cache_max_wait_ms=1')
-                self.session.begin_transaction()
-                cursor.set_key(str(i))
-                cursor.set_value(str(i)*1024*500)
-                cursor.insert()
-                self.conn.reconfigure('cache_max_wait_ms=2')
-                self.assertEqual(self.session.commit_transaction(), 0)
+            for session in sessions:
+                self.assertEqual(session.commit_transaction(), 0)
                 self.assert_error_equal(0, wiredtiger.WT_NONE, "last API call was successful")
 
         self.session.checkpoint()
