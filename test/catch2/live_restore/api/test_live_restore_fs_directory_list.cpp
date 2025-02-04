@@ -61,6 +61,7 @@ file_list_equals(lr_files list, lr_files check)
 {
     list.erase(WT_METAFILE);
     list.erase(WT_METADATA_TURTLE);
+    list.erase(WT_METADATA_TURTLE_SET);
     list.erase(WT_WIREDTIGER);
     list.erase(WT_BASECONFIG);
     list.erase(WT_SINGLETHREAD);
@@ -288,7 +289,8 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
 
         // Note we're returning file_1 here, not sub_file_1. Since we're reporting the
         // contents of the subfolder the file names are relative to that folder.
-        REQUIRE(file_list_equals(directory_list(env, subfolder_dest_path), lr_files{file_1, file_2}));
+        REQUIRE(
+          file_list_equals(directory_list(env, subfolder_dest_path), lr_files{file_1, file_2}));
     }
 
     SECTION("Directory list - Test only files matching the specified prefix are returned")
@@ -299,7 +301,8 @@ TEST_CASE("Live Restore Directory List", "[live_restore],[live_restore_directory
         testutil_mkdir(subfolder_dest_path.c_str());
 
         // Report all files and folders when prefix is empty
-        REQUIRE(file_list_equals(directory_list_prefix(env, ""), lr_files{file_1, file_2, subfolder}));
+        REQUIRE(
+          file_list_equals(directory_list_prefix(env, ""), lr_files{file_1, file_2, subfolder}));
 
         // Now only report the files
         REQUIRE(file_list_equals(directory_list_prefix(env, "file"), lr_files{file_1, file_2}));
