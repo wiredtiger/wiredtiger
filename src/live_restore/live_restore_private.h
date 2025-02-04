@@ -29,7 +29,7 @@
 /* As extent ranges are inclusive we want >= and <= on both ends of the range. */
 #define WTI_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WTI_EXTENT_END(ext))
 
-#define WT_LIVE_RESTORE_STATE_FILE "live_restore.state"
+#define WT_LIVE_RESTORE_STATE_FILE "WiredTigerLR.state"
 
 /*
  * __wti_live_restore_hole_node --
