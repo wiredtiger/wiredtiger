@@ -37,7 +37,7 @@ class test_txn27(error_info_util):
 
     def test_rollback_reason(self):
         uri = "table:txn27"
-        
+
         # Create a very basic table.
         ds = SimpleDataSet(self, uri, 10, key_format='S', value_format='S')
         ds.populate()
