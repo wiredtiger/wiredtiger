@@ -1086,7 +1086,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     const char *constituent_cfg;
     const char *ingest_cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *ingest_uri, *stable_uri, *tablename;
-    const char *layered_cfg[5] = {WT_CONFIG_BASE(session, layered_meta), "", config, NULL, NULL};
+    const char *layered_cfg[5] = {
+      WT_CONFIG_BASE(session, layered_meta), "", config == NULL ? "" : config, NULL, NULL};
     const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), "", config, NULL};
 
     conn = S2C(session);
@@ -1148,12 +1149,11 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     /*
-     * Create a pair of constituent tables. The ingest table has write ahead log enabled (in the
-     * future in a special mode that allows for it to be ignored by recovery, but for now just
-     * regular logging. That logging will allow for write ahead log replay into the stable table.
+     * Create a pair of constituent tables. Disable logging on the ingest table so we have
+     * timestamps.
      */
     WT_ERR(__wt_buf_fmt(session, tmp,
-      "in_memory=true,"
+      "in_memory=true,log=(enabled=false),"
       "disaggregated=(page_log=none)"));
     ingest_cfg[2] = tmp->data;
 
@@ -1165,26 +1165,13 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
 
-    stable_cfg[1] = disagg_config->data;
-    WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-    WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
-#if 0
-    /*
-     * Open the table to check that it was setup correctly. Keep the handle exclusive until it is
-     * released at the end of the call. TODO: Is this necessary/right?
-     */
-    WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
-    if (WT_META_TRACKING(session)) {
-        WT_WITH_DHANDLE(session, &table->iface, ret = __wt_meta_track_handle_lock(session, true));
-        WT_ERR(ret);
-        table = NULL;
+    if (conn->layered_table_manager.leader) {
+        stable_cfg[1] = disagg_config->data;
+        WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
+        WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
     }
 
 err:
-    WT_TRET(__wt_schema_release_table(session, &table));
-#else
-err:
-#endif
     __wt_scr_free(session, &disagg_config);
     __wt_scr_free(session, &ingest_uri_buf);
     __wt_scr_free(session, &stable_uri_buf);

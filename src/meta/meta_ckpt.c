@@ -642,24 +642,6 @@ __meta_blk_mods_load(
 }
 
 /*
- * __wt_meta_ckpt_order --
- *     Get the checkpoint order of the metadata table.
- */
-int
-__wt_meta_ckpt_order(WT_SESSION_IMPL *session, int64_t *orderp)
-{
-    WT_CKPT ckpt;
-    WT_DATA_HANDLE *dhandle;
-
-    dhandle = WT_SESSION_META_DHANDLE(session);
-
-    WT_RET(__wt_meta_checkpoint(session, dhandle->name, dhandle->checkpoint, &ckpt));
-    *orderp = ckpt.order;
-
-    return (0);
-}
-
-/*
  * __meta_ckptlist_allocate_new_ckpt --
  *     Provided a checkpoint list, allocate a new checkpoint. Either use the last checkpoint in the
  *     list or the file metadata to initialize this new checkpoint.
