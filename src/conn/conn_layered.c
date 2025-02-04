@@ -317,8 +317,8 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
-      WT_LAYERED_TABLE_THREAD_COUNT, WT_LAYERED_TABLE_THREAD_COUNT, session_flags, NULL,
-      __wt_layered_table_manager_thread_run, NULL));
+      WT_LAYERED_TABLE_THREAD_COUNT, WT_LAYERED_TABLE_THREAD_COUNT, session_flags,
+      __wt_layered_table_manager_thread_chk, __wt_layered_table_manager_thread_run, NULL));
 
     WT_STAT_CONN_SET(session, layered_table_manager_running, 1);
     __wt_verbose_level(
@@ -333,6 +333,19 @@ err:
     /* Quit the layered table server. */
     WT_TRET(__wt_layered_table_manager_destroy(session, false));
     return (ret);
+}
+
+/*
+ * __wt_layered_table_manager_thread_chk --
+ *     Check to decide if the layered table manager thread should continue running
+ */
+bool
+__wt_layered_table_manager_thread_chk(WT_SESSION_IMPL *session)
+{
+    if (!S2C(session)->layered_table_manager.leader)
+        return (false);
+    return (__wt_atomic_load32(&S2C(session)->layered_table_manager.state) ==
+      WT_LAYERED_TABLE_MANAGER_RUNNING);
 }
 
 /*
