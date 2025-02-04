@@ -357,6 +357,7 @@ __wt_update_obsolete_check(
     WT_UPDATE *first, *next;
     wt_timestamp_t last_ckpt_timestamp;
     size_t size;
+    uint64_t oldest_id;
     u_int count;
 
     next = NULL;
@@ -370,6 +371,8 @@ __wt_update_obsolete_check(
 
     WT_ACQUIRE_READ(
       last_ckpt_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+
+    oldest_id = __wt_txn_oldest_id(session);
 
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
@@ -404,7 +407,8 @@ __wt_update_obsolete_check(
          */
         if (__wt_txn_upd_visible_all(session, upd) ||
           (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
-            (last_ckpt_timestamp != WT_TS_NONE && upd->durable_ts <= last_ckpt_timestamp))) {
+            (WT_TXNID_LT(upd->txnid, oldest_id) && last_ckpt_timestamp != WT_TS_NONE &&
+              upd->durable_ts <= last_ckpt_timestamp))) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
         } else

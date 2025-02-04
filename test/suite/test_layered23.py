@@ -263,7 +263,7 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.disagg_advance_checkpoint(conn_follow)
         oplog.check(self, session_follow, 0, 2100)
 
-        # No go back to leader, checkpoint and insert more.
+        # Now go back to leader, checkpoint and insert more.
         # On follower apply some, advance.
         # Rinse and repeat.
         leader_pos = 3000

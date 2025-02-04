@@ -754,14 +754,14 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
       session, ret = __schema_open_layered_member(session, layered, layered->stable_uri, false));
     WT_RET(ret);
 
-    /* Start the layered table manager thread if it isn't running. */
-    WT_RET(__wt_layered_table_manager_start(session));
-
     if (layered->stable != NULL) {
         stable_id = ((WT_BTREE *)layered->stable->handle)->id;
         WT_ASSERT(session, WT_BTREE_ID_SHARED(stable_id));
     } else
         stable_id = 0;
+
+    /* Start the layered table manager thread if it isn't running. */
+    WT_RET(__wt_layered_table_manager_start(session));
 
     /* Add the ingest table file identifier into the layered table managers list of tracked tables
      */

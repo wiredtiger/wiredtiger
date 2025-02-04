@@ -726,6 +726,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     }
 
     if (__wt_conn_is_disagg(session)) {
+
         /* Initialize the shared metadata table. */
         WT_ERR(__disagg_metadata_table_init(session));
 
