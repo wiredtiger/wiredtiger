@@ -2761,6 +2761,7 @@ __wt_verbose_dump_txn_one(
 
     txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
+    WT_ERROR_INFO *txn_err_info = &(txn_session->err_info);
 
     if (txn->isolation != WT_ISO_READ_UNCOMMITTED && !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (0);
@@ -2818,7 +2819,10 @@ __wt_verbose_dump_txn_one(
         ", checkpoint LSN: [%s]"
         ", full checkpoint: %s"
         ", rollback reason: %s"
-        ", flags: 0x%08" PRIx32 ", isolation: %s",
+        ", flags: 0x%08" PRIx32 ", isolation: %s"
+        ", last saved error code: %d"
+        ", last saved sub-level error code: %d"
+        ", last saved error message: %s",
         txn->id, txn->mod_count, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
         txn->snapshot_data.snapshot_count, (char *)snapshot_buf->data,
         __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
@@ -2828,7 +2832,8 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
         __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), ckpt_lsn_str,
         txn->full_ckpt ? "true" : "false", txn->rollback_reason == NULL ? "" : txn->rollback_reason,
-        txn->flags, iso_tag));
+        txn->flags, iso_tag, txn_err_info->err, txn_err_info->sub_level_err,
+        txn_err_info->err_msg));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.
