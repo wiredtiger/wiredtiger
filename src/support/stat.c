@@ -1956,6 +1956,8 @@ static const char *const __stats_connection_desc[] = {
   "layered: how many log applications the layered table manager skipped on this tree",
   "layered: how many previously-applied LSNs the layered table manager skipped on this tree",
   "layered: the number of tables the layered table manager has open",
+  "layered: whether the layered table manager thread has been started",
+  "layered: whether the layered table manager thread is currently busy doing work",
   "lock: checkpoint lock acquisitions",
   "lock: checkpoint lock application thread wait time (usecs)",
   "lock: checkpoint lock internal thread wait time (usecs)",
@@ -2747,6 +2749,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_logops_skipped = 0;
     stats->layered_table_manager_skip_lsn = 0;
     stats->layered_table_manager_tables = 0;
+    stats->layered_table_manager_running = 0;
+    stats->layered_table_manager_active = 0;
     stats->lock_checkpoint_count = 0;
     stats->lock_checkpoint_wait_application = 0;
     stats->lock_checkpoint_wait_internal = 0;
@@ -3595,6 +3599,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, layered_table_manager_logops_skipped);
     to->layered_table_manager_skip_lsn += WT_STAT_CONN_READ(from, layered_table_manager_skip_lsn);
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
+    to->layered_table_manager_running += WT_STAT_CONN_READ(from, layered_table_manager_running);
+    to->layered_table_manager_active += WT_STAT_CONN_READ(from, layered_table_manager_active);
     to->lock_checkpoint_count += WT_STAT_CONN_READ(from, lock_checkpoint_count);
     to->lock_checkpoint_wait_application +=
       WT_STAT_CONN_READ(from, lock_checkpoint_wait_application);
