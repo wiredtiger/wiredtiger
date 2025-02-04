@@ -1666,13 +1666,14 @@ methods = {
                     only dump updates that are visible to the session''',
                     type='boolean', undoc=True),
                 Config('start_timestamp', '', r'''
-                    Only return updates with durable timestamps larger than the start timestamp. If a
-                    tombstone has a timestamp larger than the start timestamp but the associated full
-                    value has a timestamp smaller than the start timestamp, it returns the tombstone and
-                    the full value.''', undoc=True),
+                    Only return updates with durable timestamps larger than the start timestamp. If
+                    a tombstone has a timestamp larger than the start timestamp but the associated
+                    full value has a timestamp smaller than the start timestamp, it returns the
+                    tombstone and the full value.''', undoc=True),
                 Config('timestamp_order', 'false', r'''
                     Return the updates in timestamp order from newest to oldest and ignore duplicate
-                    updates and updates that are from the same transaction with the same timestamp.''',
+                    updates and updates that are from the same transaction with the same timestamp.
+                    ''',
                     type='boolean', undoc=True),
         ]),
         Config('release_evict', 'false', r'''

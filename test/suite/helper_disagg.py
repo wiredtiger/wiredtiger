@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import datetime, functools, inspect, os, random, wiredtiger
+import datetime, functools, inspect, os, random, wiredtiger, wttest
 
 # These routines help run the various page log sources used by disaggregated storage.
 # They are required to manage the generation of disaggregated storage specific configurations.
@@ -61,12 +61,29 @@ def disagg_ignore_expected_output(testcase):
     testcase.ignoreStdoutPattern('WT_VERB_RTS')
 
 # A decorator for a disaggregated test class, that ignores verbose warnings about RTS at shutdown.
+# The class decorator takes a class as input, and returns a class to take its place.
 def disagg_test_class(cls):
     class disagg_test_case_class(cls):
         @functools.wraps(cls, updated=())
         def __init__(self, *args, **kwargs):
             super(disagg_test_case_class, self).__init__(*args, **kwargs)
             disagg_ignore_expected_output(self)
+
+        # Create an early_setup function, only if it hasn't already been overridden.
+        if cls.early_setup == wttest.WiredTigerTestCase.early_setup:
+            def early_setup(self):
+                os.mkdir('follower')
+                # Create the home directory for the PALM k/v store, and share it with the follower.
+                os.mkdir('kv_home')
+                os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
+
+        # Load the page log extension, only if extensions hasn't already been specified.
+        if cls.conn_extensions == wttest.WiredTigerTestCase.conn_extensions:
+            def conn_extensions(self, extlist):
+                if os.name == 'nt':
+                    extlist.skip_if_missing = True
+                return DisaggConfigMixin.conn_extensions(self, extlist)
+
     # Preserve the original name of the wrapped class, so that the test ID is unmodified.
     disagg_test_case_class.__name__ = cls.__name__
     disagg_test_case_class.__qualname__ = cls.__qualname__
@@ -76,6 +93,8 @@ def disagg_test_class(cls):
 
 # This mixin class provides disaggregated storage configuration methods.
 class DisaggConfigMixin:
+    palm_debug = False        # can be overridden in test class
+
     # Returns True if the current scenario is disaggregated.
     def is_disagg_scenario(self):
         return hasattr(self, 'is_disagg') and self.is_disagg
@@ -118,7 +137,13 @@ class DisaggConfigMixin:
     # or for palm: 'verbose=1,delay_ms=13,force_delay=30'
     # or 'materialization_delay_ms=1000'
     def disaggregated_extension_config(self):
-        return 'verbose=1'
+        extension_config = ''
+        if self.ds_name == 'palm':
+            if self.palm_debug:
+                extension_config += ',verbose=1'
+            else:
+                extension_config += ',verbose=0'
+        return extension_config
 
     # Load disaggregated storage extension.
     def disagg_conn_extensions(self, extlist):

@@ -254,6 +254,9 @@ __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, b
     /* Release our reference to the member handles so they can be cleaned up */
     if (!final) {
         (void)__wt_atomic_subi32(&layered->ingest->session_inuse, 1);
-        (void)__wt_atomic_subi32(&layered->stable->session_inuse, 1);
+
+        /* The stable handle may not be open yet. */
+        if (layered->stable != NULL)
+            (void)__wt_atomic_subi32(&layered->stable->session_inuse, 1);
     }
 }
