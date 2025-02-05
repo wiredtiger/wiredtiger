@@ -205,7 +205,7 @@ extern void __wt_checkpoint_handle_stats(
 extern void __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_timer_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
-extern void __wt_checkpoint_stats_timer_update(WT_SESSION_IMPL *session);
+extern void __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta);
 extern void __wt_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep);
 extern void __wt_ckptlist_saved_free(WT_SESSION_IMPL *session);

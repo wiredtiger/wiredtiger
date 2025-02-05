@@ -60,11 +60,11 @@ __wt_checkpoint_handle_stats(WT_SESSION_IMPL *session, uint64_t gathering_handle
 }
 
 /*
- * __wt_checkpoint_stats_timer_update --
+ * __wt_checkpoint_timer_stats --
  *     Update timer-related stats.
  */
 void
-__wt_checkpoint_stats_timer_update(WT_SESSION_IMPL *session)
+__wt_checkpoint_timer_stats(WT_SESSION_IMPL *session)
 {
     WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
 
