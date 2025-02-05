@@ -1485,10 +1485,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
                 conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
-
-            if (__wt_conn_is_disagg(session))
-                WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_timestamp,
-                  conn->txn_global.last_ckpt_timestamp);
         } else
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
     }
