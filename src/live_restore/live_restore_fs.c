@@ -169,7 +169,7 @@ __live_restore_fs_create_stop_file(
     WT_ERR(fh->close(fh, &session->iface));
 
     /* Check the live restore state hasn't changed during creation. If state has changed the stop
-     * file is now redundnant as we're at or after the CLEAN_UP stage when we delete all stop files.
+     * file is now redundant as we're at or after the CLEAN_UP stage when we delete all stop files.
      */
     if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
         /* ENOENT is ok here. It's possible the stop file cleanup logic deleted the stop file before
@@ -341,14 +341,11 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
              * list.
              */
             bool add_source_file = false;
-            if (WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
-                /*
-                 * FIXME-WT-14040: It is possible for stop files to exist in the source directory.
-                 * Although those files are cleaned up on completion the concurrency management was
-                 * not implemented in that change so we can't guarantee they don't exist.
-                 */
-                continue;
-            }
+            /*
+             * Stop files should never exist in the source directory. We check this on startup but
+             * add a sanity check here.
+             */
+            WT_ASSERT(session, !WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX));
             if (!dest_folder_exists)
                 add_source_file = true;
             else {
@@ -1446,7 +1443,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
          * Set the complete flag, we know that if there is a stop file we should never look in the
          * source. Therefore the destination must be complete. It's also possible we've moved past
          * the background migration stage, in which case we know all files have been fully migrated
-         * from the sourec directory.
+         * from the source directory.
          */
         lr_fh->destination.complete = true;
         /* Opening files is single threaded but the remove extlist free requires the lock. */
@@ -1768,7 +1765,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
 
     if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
         /* There are no logs to copy across. Jump straight to background migration. */
-        WT_ERR(__wti_live_restore_set_state(
+        WT_RET(__wti_live_restore_set_state(
           session, lr_fs, WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION));
         return (0);
     }

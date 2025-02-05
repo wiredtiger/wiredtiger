@@ -157,7 +157,7 @@ __wti_live_restore_set_state(
     }
 
     WT_DECL_ITEM(state_file_name);
-    WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
+    WT_ERR(__wt_scr_alloc(session, 0, &state_file_name));
 
     bool state_file_exists = false;
 
@@ -353,7 +353,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->destination.home, "", &dirlist_dest, &num_dest_files));
 
-    // TODO - run Sean's mongo test
+    // TODO - run Sean's server test
 
     // TODO - make sure we have tests that restart during the log copy stage
 

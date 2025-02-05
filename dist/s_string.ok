@@ -15,6 +15,7 @@ ARG
 ARGS
 ASAN
 ASM
+ASan
 AUS
 AWS
 AWS's
@@ -454,6 +455,7 @@ WiredTigerCheckpoint
 WiredTigerChunkCache
 WiredTigerHS
 WiredTigerLAS
+WiredTigerLR
 WiredTigerLog
 WiredTigerPreplog
 WiredTigerTmplog

@@ -399,7 +399,7 @@ create_db(const std::string &home, const int64_t thread_count, const int64_t col
       "path=journal)";
 
     /*
-     * Open the connection and create the log folder. In futre runs this is copued by live restore.
+     * Open the connection and create the log folder. In future runs this is copied by live restore.
      */
     connection_manager::instance().create(conn_config, home, true);
 
