@@ -24,7 +24,7 @@ __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session)
 
 /*
  * __wt_checkpoint_timer_stats_clear --
- *     Reset timer-related stats.
+ *     Clear timer-related stats.
  */
 void
 __wt_checkpoint_timer_stats_clear(WT_SESSION_IMPL *session)
