@@ -284,8 +284,13 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
     return (false);
 }
 
+/* !!!
+ * __wti_evict_exceeded_clean_target --
+ *    Check if the cache exceeded the configured target for clean pages.
+ */
 static WT_INLINE bool
-__wti_evict_clean_exceeded_target(session) {
+__wti_evict_exceeded_clean_target(session)
+{
 
 	uint64_t bytes_inuse, bytes_max;
 
@@ -299,7 +304,7 @@ __wti_evict_clean_exceeded_target(session) {
 }
 
 /* !!!
- * __wt_evict_clean_needed --
+ * __wti_evict_exceeded_clean_trigger --
  *     Check whether the configured eviction trigger threshold for the total volume of data in the
  *     cache has been reached. Once this threshold is met, application threads are signaled to
  *     assist with eviction. The eviction trigger threshold is configurable, and defined in
@@ -314,7 +319,7 @@ __wti_evict_clean_exceeded_target(session) {
  *     Return `true` if the cache usage exceeds the eviction trigger threshold.
  */
 static WT_INLINE bool
-__wti_evict_clean_exceeded_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_exceeded_clean_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_inuse, bytes_max;
 
@@ -346,7 +351,7 @@ __wti_evict_dirty_target(WT_EVICT *evict)
 }
 
 /* !!!
- * __wt_evict_dirty_needed --
+ * __wti_evict_exceeded_dirty_trigger --
  *     Check whether the configured eviction dirty trigger threshold for the total volume
  *     of dirty data in the cache has been reached. Once this threshold is met, application threads
  *     are signaled to assist with the eviction of dirty pages. The eviction dirty trigger threshold
@@ -361,7 +366,7 @@ __wti_evict_dirty_target(WT_EVICT *evict)
  *     Return `true` if the cache usage exceeds the eviction dirty trigger threshold.
  */
 static WT_INLINE bool
-__wti_evict_dirty_exceeded_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_exceeded_dirty_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_dirty, bytes_max;
 
@@ -378,8 +383,18 @@ __wti_evict_dirty_exceeded_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
       bytes_dirty > (uint64_t)(S2C(session)->evict->eviction_dirty_trigger * bytes_max) / 100);
 }
 
+/* !!!
+ * __wti_evict_exceeded_dirty_target --
+ *     Check whether the configured eviction dirty target threshold for the total volume
+ *     of dirty data in the cache has been reached. Once this threshold is met, eviction threads
+ *     begin eviction of dirty pages. The eviction dirty trigger threshold
+ *     is configurable, and defined in `api_data.py`.
+ *
+ *     This function is called by the eviction server to determine the cache's current
+ *     state and to set the internal flags accordingly.
+ */
 static WT_INLINE bool
-__wti_evict_dirty_exceeded_target(WT_SESSION_IMPL *session)
+__wti_evict_exceeded_dirty_target(WT_SESSION_IMPL *session)
 {
 	uint64_t bytes_dirty, bytes_max, dirty_target;
 
@@ -395,7 +410,7 @@ __wti_evict_dirty_exceeded_target(WT_SESSION_IMPL *session)
 }
 
 /* !!!
- * __wti_evict_updates_needed --
+ * __wti_evict_exceeded_updates_trigger --
  *     Check whether the configured eviction update trigger threshold for the total volume of
  *     updates in the cache has been reached. Once this threshold is met, application threads are
  *     signaled to assist with the eviction of pages with updates. The eviction update trigger
@@ -410,7 +425,7 @@ __wti_evict_dirty_exceeded_target(WT_SESSION_IMPL *session)
  *     Returns `true` if the cache usage exceeds the eviction update trigger threshold.
  */
 static WT_INLINE bool
-__wti_evict_updates_exceeded_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_exceeded_updates_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 {
     uint64_t bytes_max, bytes_updates;
 
@@ -427,8 +442,18 @@ __wti_evict_updates_exceeded_trigger(WT_SESSION_IMPL *session, double *pct_fullp
       bytes_updates > (uint64_t)(S2C(session)->evict->eviction_updates_trigger * bytes_max) / 100);
 }
 
+/* !!!
+ * __wti_evict_exceeded_updates_target --
+ *     Check whether the configured eviction update target threshold for the total volume of
+ *     updates in the cache has been reached. Once this threshold is met, eviction threads
+ *     begin eviction of pages with updates. The eviction update trigger
+ *     threshold is configurable, and defined in `api_data.py`.
+ *
+ *     This function is called by the eviction server to determine the cache's current
+ *     state and to set the internal flags accordingly.
+ */
 static WT_INLINE bool
-__wti_evict_updates_exceeded_target(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_exceeded_updates_target(WT_SESSION_IMPL *session, double *pct_fullp)
 {
 	uint64_t bytes_max, bytes_updates, updates_target;
 
@@ -477,13 +502,13 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
     if (F_ISSET(S2C(session), WT_CONN_CLOSING))
         return (false);
 
-    clean_needed = __wt_evict_clean_needed(session, &pct_full);
+    clean_needed = __wt_evict_exceeded_clean_trigger(session, &pct_full);
     if (readonly) {
         dirty_needed = updates_needed = false;
         pct_dirty = pct_updates = 0.0;
     } else {
-        dirty_needed = __wt_evict_dirty_needed(session, &pct_dirty);
-        updates_needed = __wti_evict_updates_needed(session, &pct_updates);
+        dirty_needed = __wt_evict_exceeded_dirty_trigger(session, &pct_dirty);
+        updates_needed = __wti_evict_exceeded_updates_trigger(session, &pct_updates);
     }
 
     /*

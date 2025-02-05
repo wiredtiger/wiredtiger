@@ -13,6 +13,85 @@ static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 #define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
 
 /*
+ * __evict_log_cache_stuck --
+ *     Output log messages if the cache is stuck.
+ */
+static void
+__evict_log_cache_stuck(WT_SESSION_IMPL *session)
+{
+	WT_EVICT *evict;
+	struct timespec now;
+	uint64_t time_diff_ms;
+
+	conn = S2C(session);
+	evict = conn->evict;
+
+	!__wt_evict_cache_stuck(session) {
+		evict->last_eviction_progress = 0;       /* Make sure we'll notice next time we're stuck. */
+		return;
+	}
+
+	evict->last_eviction_progress = __wt_atomic_loadv64(&evict->eviction_progress);
+
+	/* Eviction is stuck, check if we have made progress. */
+	if (__wt_atomic_loadv64(&evict->eviction_progress) != evict->last_eviction_progress) {
+#if !defined(HAVE_DIAGNOSTIC)
+		/* Need verbose check only if not in diagnostic build */
+		if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTION))
+#endif
+            __wt_epoch(session, &evict->stuck_time);
+		return;
+	}
+#if !defined(HAVE_DIAGNOSTIC)
+	/* Need verbose check only if not in diagnostic build */
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_EVICTION))
+		return;
+#endif
+	/*
+	 * If we're stuck for 5 minutes in diagnostic mode, or the verbose eviction flag is set,
+	 * log the cache and transaction state.
+	 *
+	 * If we're stuck for 5 minutes in diagnostic mode, give up.
+	 *
+	 * We don't do this check for in-memory workloads because application threads are not
+	 * blocked by the cache being full. If the cache becomes full of clean pages,
+	 * we can be servicing reads while the cache appears stuck to eviction.
+	 */
+	if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+		return;
+
+	__wt_epoch(session, &now);
+
+	/* The checks below should only be executed when a cache timeout has been set. */
+	if (evict->cache_stuck_timeout_ms > 0) {
+		time_diff_ms = WT_TIMEDIFF_MS(now, evict->stuck_time);
+#ifdef HAVE_DIAGNOSTIC
+		/* Enable extra logs 20ms before timing out. */
+		if (evict->cache_stuck_timeout_ms < 20 ||
+			(time_diff_ms > evict->cache_stuck_timeout_ms - 20))
+			WT_SET_VERBOSE_LEVEL(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1);
+#endif
+
+		if (time_diff_ms >= evict->cache_stuck_timeout_ms) {
+#ifdef HAVE_DIAGNOSTIC
+			__wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
+			WT_RET(__wt_verbose_dump_txn(session));
+			WT_RET(__wt_verbose_dump_cache(session));
+			return (__wt_set_return(session, ETIMEDOUT));
+#else
+			if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTION)) {
+				WT_RET(__wt_verbose_dump_txn(session));
+				WT_RET(__wt_verbose_dump_cache(session));
+
+				/* Reset the timer. */
+				__wt_epoch(session, &evict->stuck_time);
+			}
+#endif
+		}
+	}
+}
+
+/*
  * __evict_lock_handle_list --
  *     Try to get the handle list lock, with yield and sleep back off. Keep timing statistics
  *     overall.
@@ -273,19 +352,19 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /*
      * If we need space in the cache, try to find clean pages to evict.
      */
-    if (__wti_evict_clean_exceeded_trigger(session, NULL))
+    if (__wti_evict_exceeded_clean_trigger(session, NULL))
         LF_SET(WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_CLEAN_HARD);
-    else if (__wti_evict_clean_exceeded_target(session))
+    else if (__wti_evict_exceeded_clean_target(session))
         LF_SET(WT_EVICT_CACHE_CLEAN);
 
-    if (__wti_evict_dirty_exceeded_trigger(session, NULL))
+    if (__wti_evict_exceeded_dirty_trigger(session, NULL))
         LF_SET(WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_DIRTY_HARD);
-    else if (__wti_evict_dirty_exceeded_target(session))
+    else if (__wti_evict_exceeded_dirty_target(session))
         LF_SET(WT_EVICT_CACHE_DIRTY);
 
-    if (__wti_evict_updates_exceeded_trigger(session, NULL))
+    if (__wti_evict_exceeded_updates_trigger(session, NULL))
         LF_SET(WT_EVICT_CACHE_UPDATES | WT_EVICT_CACHE_UPDATES_HARD);
-	else if (__wti_evict_updates_exceed_target(session))
+	else if (__wti_evict_exceed_updates_target(session))
         LF_SET(WT_EVICT_CACHE_UPDATES);
 
     /*
@@ -595,7 +674,7 @@ done:
  *     group until the threads are told to exit.
  */
 static int
-__evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
+__evict_lru_pages(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -655,6 +734,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
             __wt_atomic_load64(&cache->bytes_dirty_leaf),
           __wt_atomic_load64(&cache->bytes_updates));
 
+		/* Try to evict a page */
 		if ((ret = __evict_page(session)) == EBUSY)
             ret = 0;
 
@@ -704,6 +784,10 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
         eviction_progress = __wt_atomic_loadv64(&evict->eviction_progress);
     }
 
+	/* Check if the cache is stuck and write messages to the log */
+	__evict_log_cache_stuck(session);
+
+  done:
     /* If any resources are pinned, release them now. */
     WT_TRET(__wt_session_release_resources(session));
 
