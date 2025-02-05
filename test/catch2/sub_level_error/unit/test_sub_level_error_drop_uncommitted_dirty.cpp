@@ -26,7 +26,8 @@
 /*
  * This test case covers EBUSY errors resulting from drop before committing/checkpointing changes.
  */
-TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA", "[sub_level_error_drop_uncommitted_dirty]")
+TEST_CASE("Test WT_UNCOMMITTED_DATA and WT_DIRTY_DATA",
+  "[sub_level_error_drop_uncommitted_dirty],[sub_level_error]")
 {
     std::string config = "key_format=S,value_format=S";
     WT_SESSION *session = NULL;

@@ -30,7 +30,8 @@
 /*
  * This test case covers EBUSY errors resulting from drop while cursors are still open on the table.
  */
-TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE", "[sub_level_error_drop_conflict]")
+TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE",
+  "[sub_level_error_drop_conflict],[sub_level_error]")
 {
     std::string config = "key_format=S,value_format=S";
     WT_SESSION *session = NULL;
