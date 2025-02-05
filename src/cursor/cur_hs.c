@@ -38,13 +38,18 @@ __curhs_file_cursor_open(
     conn = S2C(session);
     leader = conn->layered_table_manager.leader;
 
-    if (strcmp(uri, WT_HS_URI_SHARED) == 0 && !leader) {
-        /*
-         * In the case of disaggregated storage, we may need to reopen the shared HS btree if we
-         * just picked up a new checkpoint to ensure that we get the latest version. We need to do
-         * this only for follower nodes, because the leader nodes are always up to date (as they are
-         * the ones writing it).
-         */
+    /*
+     * In the case of disaggregated storage, we may need to reopen the shared HS btree if we just
+     * picked up a new checkpoint to ensure that we get the latest version. We need to do this only
+     * for follower nodes, because the leader nodes are always up to date (as they are the ones
+     * writing it).
+     *
+     * We also need to avoid advancing the HS cursor to the next checkpoint if we have the eviction
+     * pass lock: Reopening the cursor would attempt to acquire the schema lock, which could in this
+     * case result in a deadlock. Instead, allow the session to continue with the cached HS cursor.
+     */
+    if (strcmp(uri, WT_HS_URI_SHARED) == 0 && !leader &&
+      !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS)) {
         WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
         if (global_ckpt_id > session->hs_checkpoint_id) {
             session->hs_checkpoint_id = global_ckpt_id;
