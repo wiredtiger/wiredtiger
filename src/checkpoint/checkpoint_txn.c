@@ -614,11 +614,11 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 }
 
 /*
- * __wti_ckpt_started --
+ * __wt_checkpoint_started --
  *     Indicate whether a checkpoint has started or not.
  */
 bool
-__wti_ckpt_started(WT_SESSION_IMPL *session)
+__wt_checkpoint_started(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 

@@ -360,7 +360,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /* Update checkpoint IO tracking data if configured to log verbose progress messages. */
-            if (__wti_ckpt_started(session)) {
+            if (__wt_checkpoint_started(session)) {
                 conn->ckpt.write_bytes += __wt_atomic_loadsize(&page->memory_footprint);
                 ++conn->ckpt.write_pages;
 
