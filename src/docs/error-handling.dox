@@ -44,7 +44,7 @@ The sub-level error code and error message are optional, and default to WT_NONE 
 respectively.
 
 If no other call has been made or there is no sub-level error, WT_SESSION::get_last_error will give
-the error code as 0, sub-level error code as WT_NONE, and error message as "".
+the error code as 0, sub-level error code as WT_NONE, and error message as an empty string.
 
 If the last API call was successful, WT_SESSION::get_last_error will give the error code as 0,
 sub-level error code as WT_NONE, and error message as "last API call was successful".

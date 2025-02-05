@@ -82,7 +82,7 @@ not be saved. External sessions have this flag set while internal sessions do no
 internal sessions are not part of the session API and users do not have access to them. However, when an
 external session opens an internal session, it will inherit the external sessions flags including
 the WT_SESSION_SAVE_ERRORS flag. This allows any errors that occur to be saved within the internal
-session and propagate back to the external session, when it is closed.
+session and propagate back to the external session, when the internal session is closed.
 
 @subsection arch_session_error_buffers Sub-level Errors - Static & Dynamic Buffers
 When setting err_info, if the error message is an empty string or "the last API call was successful", then a
