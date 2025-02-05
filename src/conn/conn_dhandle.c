@@ -705,7 +705,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
         time_start = 0;
         if (WT_SESSION_IS_CHECKPOINT(session)) {
             time_start = __wt_clock(session);
-            __wt_checkpoint_reset_handle_stats(session);
+            __wt_checkpoint_handle_stats_clear(session);
             F_SET(conn, WT_CONN_CKPT_GATHER);
         }
         for (dhandle = NULL;;) {

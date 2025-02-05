@@ -8,11 +8,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_checkpoint_reset_handle_stats --
- *     Reset handle-related stats.
+ * __wt_checkpoint_handle_stats_clear --
+ *     Clear handle-related stats.
  */
 void
-__wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session)
+__wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session)
 {
     WT_CKPT_CONNECTION *ckpt = &S2C(session)->ckpt;
 
