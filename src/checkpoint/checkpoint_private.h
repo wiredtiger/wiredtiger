@@ -56,6 +56,19 @@ struct __wti_ckpt_handle_stats {
     uint64_t skip_time;       /* skipped handles gather time */
 };
 
+/*
+ * WTI_CKPT_TIMER --
+ *     Time-related statistics.
+ */
+struct __wti_ckpt_timer {
+    struct timespec timer_end;
+    struct timespec timer_start;
+    uint64_t max;
+    uint64_t min;
+    uint64_t recent;
+    uint64_t total;
+};
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 /* DO NOT EDIT: automatically built by prototypes.py: END */
