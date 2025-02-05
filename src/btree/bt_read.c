@@ -91,7 +91,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
 {
-    WT_CELL_UNPACK_DELTA unpack;
+    WT_CELL_UNPACK_DELTA_LEAF unpack;
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
     WT_DELTA_HEADER *header;
@@ -110,7 +110,7 @@ __bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    WT_CELL_FOREACH_DELTA(session, header, unpack)
+    WT_CELL_FOREACH_DELTA_LEAF(session, header, unpack)
     {
         key.data = unpack.key;
         key.size = unpack.key_size;
