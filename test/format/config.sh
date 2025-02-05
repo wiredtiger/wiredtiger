@@ -84,6 +84,8 @@ CONFIG configuration_list[] = {
 
 {"backup.incr_granularity", "incremental backup block granularity (KB)", 0x0, 4, 16384, 16384}
 
+{"backup.live_restore", "configure backup live restore recovery", C_BOOL, 0, 0, 0}
+
 {"block_cache", "enable the block cache", C_BOOL, 10, 0, 0}
 
 {"block_cache.cache_on_checkpoint", "block cache: cache checkpoint writes", C_BOOL, 30, 0, 0}
@@ -187,6 +189,8 @@ CONFIG configuration_list[] = {
 {"disk.mmap", "configure mmap operations (reads only)", C_BOOL, 90, 0, 0}
 
 {"disk.mmap_all", "configure mmap operations (read and write)", C_BOOL, 5, 0, 0}
+
+{"eviction.evict_use_softptr", "use soft pointers instead of hard hazard pointers in eviction", C_BOOL, 20, 0, 0}
 
 /* Test format can only handle 32 tables so we use a maximum value of 32 here. */
 {"file_manager.close_handle_minimum", "number of handles open before the file manager will look for handles to close", 0x0, 0, 32, 32}

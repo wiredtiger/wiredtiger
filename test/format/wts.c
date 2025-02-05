@@ -269,6 +269,35 @@ configure_debug_mode(char **p, size_t max)
 }
 
 /*
+ * configure_eviction --
+ *     Configure eviction settings.
+ */
+static void
+configure_eviction(char **p, size_t max)
+{
+    CONFIG_APPEND(*p, ",eviction=(");
+
+    if (GV(CACHE_EVICT_MAX) != 0)
+        CONFIG_APPEND(*p, ",threads_max=%" PRIu32 "", GV(CACHE_EVICT_MAX));
+
+    if (GV(EVICTION_EVICT_USE_SOFTPTR))
+        CONFIG_APPEND(*p, ",evict_use_softptr=true");
+
+    CONFIG_APPEND(*p, ")");
+}
+
+/*
+ * configure_live_restore --
+ *     Configure live_restore settings.
+ */
+static void
+configure_live_restore(char **p, size_t max)
+{
+    if (GV(BACKUP) && GV(BACKUP_LIVE_RESTORE) && g.backup_verify)
+        CONFIG_APPEND(*p, ",live_restore=(enabled=true,path=\"./%s/BACKUP\")", g.home);
+}
+
+/*
  * configure_tiered_storage --
  *     Configure tiered storage settings for opening a connection.
  */
@@ -402,8 +431,7 @@ create_database(const char *home, WT_CONNECTION **connp)
           GV(BLOCK_CACHE_CACHE_ON_WRITES) == 0 ? "false" : "true", GV(BLOCK_CACHE_SIZE));
 
     /* Eviction configuration. */
-    if (GV(CACHE_EVICT_MAX) != 0)
-        CONFIG_APPEND(p, ",eviction=(threads_max=%" PRIu32 ")", GV(CACHE_EVICT_MAX));
+    configure_eviction(&p, max);
 
     /* Logging configuration. */
     if (GV(LOGGING)) {
@@ -632,6 +660,9 @@ wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 
     /* Optional debug mode. */
     configure_debug_mode(&p, max);
+
+    /* Optional live restore. */
+    configure_live_restore(&p, max);
 
     /* Optional prefetch. */
     configure_prefetch(&p, max);
