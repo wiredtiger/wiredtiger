@@ -662,7 +662,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        __wt_checkpoint_apply_or_skip_handle_update(session, time_diff);
+        __wt_checkpoint_apply_or_skip_handle_stats(session, time_diff);
     }
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
