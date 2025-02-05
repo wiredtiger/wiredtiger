@@ -55,7 +55,7 @@ A session is always executed as a single thread, see @ref threads for more detai
 @section arch_session_error Errors and Sub-level Errors
 When WiredTiger operations encounter an error, a non-zero error code is returned
 which indicates the general type of error. Along with this, there are also sub-level error codes which are more specific.
-These sub-level error can accompany the error code, to better identify the source of error.
+These sub-level error codes can accompany the error code, to better identify the source of error.
 Every session API call (except WT_SESSION::get_last_error) will be completed with a refreshed
 error_info struct containing an error code, a sub-level error code, and an error message. These are
 extracted by using WT_SESSION::get_last_error. The error code indicates the general type of error,
