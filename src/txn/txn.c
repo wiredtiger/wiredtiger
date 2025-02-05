@@ -1964,12 +1964,17 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * We're between transactions, if we need to block for eviction, it's a good time to do so.
-     * Ignore error returns, the return must reflect the fate of the transaction.
+     * We're between transactions, if we need to block for eviction, it's a good time to do so. The
+     * return must reflect the transaction state, ignore any error returned, and clear the
+     * WT_SESSION_SAVE_ERRORS flag to prevent errors from being saved in the session.
      */
-    if (!readonly)
+    if (!readonly) {
+        bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
+        F_CLR(session, WT_SESSION_SAVE_ERRORS);
         WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
-
+        if (save_errors)
+            F_SET(session, WT_SESSION_SAVE_ERRORS);
+    }
     return (0);
 
 err:
@@ -2258,12 +2263,17 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     __txn_release(session);
 
     /*
-     * We're between transactions, if we need to block for eviction, it's a good time to do so.
-     * Ignore error returns, the return must reflect the fate of the transaction.
+     * We're between transactions, if we need to block for eviction, it's a good time to do so. The
+     * return must reflect the transaction state, ignore any error returned, and clear the
+     * WT_SESSION_SAVE_ERRORS flag to prevent errors from being saved in the session.
      */
-    if (!readonly)
+    if (!readonly) {
+        bool save_errors = F_ISSET(session, WT_SESSION_SAVE_ERRORS);
+        F_CLR(session, WT_SESSION_SAVE_ERRORS);
         WT_IGNORE_RET(__wt_evict_app_assist_worker_check(session, false, false, NULL));
-
+        if (save_errors)
+            F_SET(session, WT_SESSION_SAVE_ERRORS);
+    }
     return (ret);
 }
 
