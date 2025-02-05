@@ -61,7 +61,7 @@ error_info struct containing an error code, a sub-level error code, and an error
 extracted by using WT_SESSION::get_last_error. The error code indicates the general type of error,
 while the sub-level error code and error message provide additional context.
 See @ref error_handling for details. When a session API call is made, API_SESSION_INIT is called and err_info is reset to an error code
-0, sub-level error code WT_NONE, and error message "the last API call was successful.
+0, sub-level error code WT_NONE, and error message "the last API call was successful".
 Only the earliest error is saved and will not be overwritten by an error
 that occurs later. At the end of the API call, API_END is called, which does an additional check on
 the return value. If it is non-zero and it is not the same as the error code in err_info. It will
