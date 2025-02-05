@@ -2866,8 +2866,9 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
                 if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
                     (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
-                __wt_verbose_debug1(
-                  session, WT_VERB_TRANSACTION, "rollback reason: %s", session->err_info.err_msg);
+                if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                      session->err_info.err_msg);
             }
             WT_ERR(ret);
         }
@@ -2953,8 +2954,9 @@ err:
             if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
                 (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
             WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
-            __wt_verbose_notice(
-              session, WT_VERB_TRANSACTION, "rollback reason: %s", session->err_info.err_msg);
+            if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                __wt_verbose_notice(
+                  session, WT_VERB_TRANSACTION, "rollback reason: %s", session->err_info.err_msg);
         }
     }
 
