@@ -151,11 +151,7 @@ __live_restore_fs_create_stop_file(
     lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
 
-    /*
-     * FIXME-WT-14040: This is a big old race where we set this flag outside a lock and therefore
-     * have no idea if we will actually create a stop file after we clear the stop files.
-     */
-    if (lr_fs->finished)
+    if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
         return (0);
 
     WT_ERR(__live_restore_fs_backing_filename(
@@ -171,6 +167,16 @@ __live_restore_fs_create_stop_file(
     WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, &session->iface, path_marker,
       WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
     WT_ERR(fh->close(fh, &session->iface));
+
+    /* Check the live restore state hasn't changed during creation. If state has changed the stop
+     * file is now redundnant as we're at or after the CLEAN_UP stage when we delete all stop files.
+     */
+    if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
+        /* ENOENT is ok here. It's possible the stop file cleanup logic deleted the stop file before
+         * we could. */
+        WT_ERR_ERROR_OK(
+          lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, &session->iface, path_marker, 0),
+          ENOENT, false);
 
 err:
     __wt_free(session, path);
@@ -308,8 +314,13 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
             }
     }
 
-    /* FIXME-WT-14040: This is a also a big old race. */
-    if (lr_fs->finished)
+    /*
+     * Once we're past the background migration stage we never need to access the source directory
+     * again.
+     */
+    WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+    // TODO - get input on this. It's a deviation from WT style
+    if (state > WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
         goto done;
 
     /* Get files from source. */
@@ -926,8 +937,6 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(buf);
     WT_DECL_ITEM(filepath);
 
-    fs->finished = true;
-
     WT_RET(__wt_scr_alloc(session, 0, &filepath));
 
     /* Remove stop files in the destination directory. */
@@ -938,7 +947,12 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
               session, fs->destination.home, files[i], UINTMAX_MAX, UINT32_MAX, filepath));
             __wt_verbose_info(
               session, WT_VERB_LIVE_RESTORE, "Removing stop file %s", (char *)filepath->data);
-            WT_ERR(os_fs->fs_remove(os_fs, wt_session, (char *)filepath->data, 0));
+            /*
+             * ENOENT is ok here. It's possible another thread has deleted the stop file. We're not
+             * worried as we just want to delete all stop files.
+             */
+            WT_ERR_ERROR_OK(
+              os_fs->fs_remove(os_fs, wt_session, (char *)filepath->data, 0), ENOENT, false);
         }
     }
     if (F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
@@ -960,7 +974,11 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
                 WT_ERR(__wt_buf_fmt(session, buf, "%s/%s", (char *)filepath->data, files[i]));
                 __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
                   "Removing log directory stop file %s", (char *)buf->data);
-                WT_ERR(os_fs->fs_remove(os_fs, wt_session, buf->data, 0));
+                /*
+                 * ENOENT is ok here. It's possible another thread has deleted the stop file. We're
+                 * not worried as we just want to delete all stop files.
+                 */
+                WT_ERR_ERROR_OK(os_fs->fs_remove(os_fs, wt_session, buf->data, 0), ENOENT, false);
             }
         }
     }
@@ -1423,13 +1441,12 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
 
     WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
-    // TODO - can we drop ->finished?
-    if (have_stop || lr_fs->finished || state == WTI_LIVE_RESTORE_STATE_CLEAN_UP) {
+    if (have_stop || state > WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
         /*
          * Set the complete flag, we know that if there is a stop file we should never look in the
-         * source. Therefore the destination must be complete. It's also possible we're in the
-         * cleanup stage, in which case we might have deleted the tombstone even though the file
-         * migration is complete.
+         * source. Therefore the destination must be complete. It's also possible we've moved past
+         * the background migration stage, in which case we know all files have been fully migrated
+         * from the sourec directory.
          */
         lr_fh->destination.complete = true;
         /* Opening files is single threaded but the remove extlist free requires the lock. */
@@ -1750,8 +1767,9 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
     WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
     if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
-        WT_ERR(
-            __wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION));
+        /* There are no logs to copy across. Jump straight to background migration. */
+        WT_ERR(__wti_live_restore_set_state(
+          session, lr_fs, WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION));
         return (0);
     }
 
@@ -1762,7 +1780,6 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
     WT_FH *fh = NULL;
     uint32_t lognum;
 
-
     /* Open and close the log folder. This creates it in the destination if it didn't exist. */
     WT_DECL_ITEM(log_folder_path);
     WT_RET(__wt_scr_alloc(session, 0, &log_folder_path));
@@ -1770,8 +1787,8 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
       UINTMAX_MAX, UINT32_MAX, log_folder_path));
 
     WT_FILE_HANDLE *log_folder_fh = NULL;
-    lr_fs->iface.fs_open_file(
-      (WT_FILE_SYSTEM *)lr_fs, (WT_SESSION *)session, log_folder_path->data, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log_folder_fh);
+    lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, (WT_SESSION *)session, log_folder_path->data,
+      WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log_folder_fh);
     log_folder_fh->close(log_folder_fh, (WT_SESSION *)session);
 
     /* Get a list of actual log files. */

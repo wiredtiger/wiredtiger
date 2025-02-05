@@ -128,7 +128,6 @@ struct __wti_live_restore_fs {
     WT_FILE_SYSTEM *os_file_system; /* The storage file system. */
     WTI_LIVE_RESTORE_FS_LAYER destination;
     WTI_LIVE_RESTORE_FS_LAYER source;
-    bool finished;
 
     uint8_t background_threads_max;
     size_t read_size;
