@@ -614,6 +614,19 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 }
 
 /*
+ * __wti_ckpt_started --
+ *     Indicate whether a checkpoint has started or not.
+ */
+bool
+__wti_ckpt_started(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    return (conn->ckpt.ckpt_api.timer_start.tv_sec > 0);
+}
+
+/*
  * __checkpoint_stats --
  *     Update checkpoint timer stats.
  */

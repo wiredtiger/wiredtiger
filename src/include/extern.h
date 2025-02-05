@@ -1620,6 +1620,7 @@ extern void __wti_block_size_free(WT_SESSION_IMPL *session, WT_SIZE **sz);
 extern void __wti_bm_method_set(WT_BM *bm, bool readonly);
 extern void __wti_btcur_iterate_setup(WT_CURSOR_BTREE *cbt);
 extern void __wti_cache_stats_update(WT_SESSION_IMPL *session);
+extern bool __wti_ckpt_started(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wti_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag,
   const char *ckpt_name, const uint8_t *ckpt_string, size_t ckpt_size);
 extern void __wti_connection_destroy(WT_CONNECTION_IMPL *conn);
