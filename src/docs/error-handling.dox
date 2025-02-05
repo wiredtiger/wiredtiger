@@ -40,7 +40,8 @@ additional context, and is specific to the source of error.
 The error message string is owned by the session, and is invalidated after each session API call
 (except for WT_SESSION::get_last_error).
 
-The sub-level error code and error message are optional, and default to WT_NONE and "" respectively.
+The sub-level error code and error message are optional, and default to WT_NONE and an empty string
+respectively.
 
 If no other call has been made or there is no sub-level error, WT_SESSION::get_last_error will give
 the error code as 0, sub-level error code as WT_NONE, and error message as "".

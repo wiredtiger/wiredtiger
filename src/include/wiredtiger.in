@@ -1945,7 +1945,7 @@ struct __wt_session {
      * different API calls have been made yet.
      * @param[out] sub_level_err optional sub-level error code. WT_NONE if there is no sub-level
      * error code, no different API calls have been made yet, or the last API call was successful.
-     * @param[out] err_msg optional error message. "" if the last API call was successful or no
+     * @param[out] err_msg optional error message. Empty string if no
      * different API calls have been made yet. "last API call was successful" if the last API call
      * was successful.
      */
