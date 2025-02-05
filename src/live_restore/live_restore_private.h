@@ -133,7 +133,7 @@ struct __wti_live_restore_fs {
     size_t read_size;
 
     WT_LIVE_RESTORE_STATE state;
-    WT_SPINLOCK state_file_lock;
+    WT_RWLOCK state_lock;
 };
 
 /*

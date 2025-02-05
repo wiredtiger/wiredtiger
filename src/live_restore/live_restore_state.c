@@ -62,7 +62,8 @@ __live_restore_state_from_string(
 
 /*
  * __live_restore_get_state_from_file --
- *     Read the live restore state from the on-disk file. If it doesn't exist we return NONE.
+ *     Read the live restore state from the on-disk file. If it doesn't exist we return NONE. The
+ *     caller must already hold the live restore state lock.
  */
 static int
 __live_restore_get_state_from_file(
@@ -74,31 +75,28 @@ __live_restore_get_state_from_file(
 
     WT_FILE_HANDLE *fh = NULL;
 
-    // TODO - should be read/write lock
-    // TODO - change lock to just state lock, not state file
-
     WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
 
     bool state_file_exists = false;
 
     WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
-    lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, &state_file_exists);
+    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
+      (char *)state_file_name->data, &state_file_exists));
 
     if (!state_file_exists)
         *statep = WTI_LIVE_RESTORE_STATE_NONE;
     else {
         char state_str[128];
 
-        lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-          (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_EXCLUSIVE, &fh);
+        WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
+          (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_EXCLUSIVE, &fh));
 
         wt_off_t file_size;
-        lr_fs->os_file_system->fs_size(
-          lr_fs->os_file_system, (WT_SESSION *)session, (char *)state_file_name->data, &file_size);
+        WT_ERR(lr_fs->os_file_system->fs_size(
+          lr_fs->os_file_system, (WT_SESSION *)session, (char *)state_file_name->data, &file_size));
 
-        fh->fh_read(fh, (WT_SESSION *)session, 0, (size_t)file_size, state_str);
+        WT_ERR(fh->fh_read(fh, (WT_SESSION *)session, 0, (size_t)file_size, state_str));
 
         WT_ERR(__live_restore_state_from_string(session, state_str, statep));
     }
@@ -125,7 +123,7 @@ __wti_live_restore_set_state(
     WT_DECL_RET;
     WT_FILE_HANDLE *fh = NULL;
 
-    __wt_spin_lock(session, &lr_fs->state_file_lock);
+    __wt_writelock(session, &lr_fs->state_lock);
 
     /* State should always be initialized on start up. If we ever try to set state without first
      * reading it something's gone wrong. */
@@ -163,8 +161,8 @@ __wti_live_restore_set_state(
 
     WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
-    lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, &state_file_exists);
+    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
+      (char *)state_file_name->data, &state_file_exists));
 
     /* This should be created on live restore start up. If it's not present we've called set state
      * too early. */
@@ -172,17 +170,16 @@ __wti_live_restore_set_state(
 
     char state_to_write[128];
     __live_restore_state_to_string(new_state, state_to_write);
-    lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_EXCLUSIVE, &fh);
-    fh->fh_write(fh, (WT_SESSION *)session, 0, 128, state_to_write);
+    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
+      (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_EXCLUSIVE, &fh));
+    WT_ERR(fh->fh_write(fh, (WT_SESSION *)session, 0, 128, state_to_write));
 
     lr_fs->state = new_state;
 
 err:
-    __wt_spin_unlock(session, &lr_fs->state_file_lock);
+    __wt_writeunlock(session, &lr_fs->state_lock);
 
     if (fh != NULL)
-        // TODO - check other calls for proper ret handling
         WT_TRET(fh->close(fh, &session->iface));
 
     __wt_scr_free(session, &state_file_name);
@@ -203,6 +200,8 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
     bool state_file_exists = false;
     WT_DECL_ITEM(state_file_name);
 
+    __wt_writelock(session, &lr_fs->state_lock);
+
     WT_ASSERT_ALWAYS(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_NONE,
       "Attempting to initialize already initialized state!");
 
@@ -210,14 +209,12 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
 
     WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
-    lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, &state_file_exists);
+    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
+      (char *)state_file_name->data, &state_file_exists));
 
     WT_LIVE_RESTORE_STATE state;
 
-    __wt_spin_lock(session, &lr_fs->state_file_lock);
     WT_ERR(__live_restore_get_state_from_file(session, lr_fs, &state));
-    __wt_spin_unlock(session, &lr_fs->state_file_lock);
 
     if (state != WTI_LIVE_RESTORE_STATE_NONE) {
         lr_fs->state = state;
@@ -229,7 +226,6 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
         char state_to_write[128];
         __live_restore_state_to_string(WTI_LIVE_RESTORE_STATE_LOG_COPY, state_to_write);
 
-        // TODO - check all posix calls for proper ret handling
         WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
           (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
           WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &fh));
@@ -241,7 +237,7 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
 
 err:
 
-    // TODO - run ASan
+    __wt_writeunlock(session, &lr_fs->state_lock);
     __wt_scr_free(session, &state_file_name);
 
     if (fh != NULL)
@@ -262,6 +258,7 @@ __wti_live_restore_delete_state_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
     WT_FILE_HANDLE *fh = NULL;
     bool state_file_exists = false;
     WT_DECL_ITEM(state_file_name);
+    __wt_writelock(session, &lr_fs->state_lock);
 
     WT_ASSERT_ALWAYS(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_CLEAN_UP,
       "Cannot delete state file unless we've just finished cleaning up stop files!");
@@ -270,24 +267,21 @@ __wti_live_restore_delete_state_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
 
     WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
-    lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, &state_file_exists);
+    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
+      (char *)state_file_name->data, &state_file_exists));
 
-    __wt_spin_lock(session, &lr_fs->state_file_lock);
     WT_ERR(lr_fs->os_file_system->fs_remove(
       lr_fs->os_file_system, (WT_SESSION *)session, (char *)state_file_name->data, 0));
     lr_fs->state = WTI_LIVE_RESTORE_STATE_COMPLETE;
-    // TODO - move state update to here
 
 err:
-    __wt_spin_unlock(session, &lr_fs->state_file_lock);
 
-    // TODO - run ASan
     __wt_scr_free(session, &state_file_name);
 
     if (fh != NULL)
         WT_TRET(fh->close(fh, &session->iface));
 
+    __wt_writeunlock(session, &lr_fs->state_lock);
     return (ret);
 }
 
@@ -300,10 +294,9 @@ WT_LIVE_RESTORE_STATE
 __wti_live_restore_get_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
 {
     WT_LIVE_RESTORE_STATE state;
-    __wt_spin_lock(session, &lr_fs->state_file_lock);
+    __wt_readlock(session, &lr_fs->state_lock);
     state = lr_fs->state;
-    // printf("Getting state: %d\n", state);
-    __wt_spin_unlock(session, &lr_fs->state_file_lock);
+    __wt_readunlock(session, &lr_fs->state_lock);
 
     /* We initialize state on startup. This shouldn't be possible. */
     WT_ASSERT_ALWAYS(session, state != WTI_LIVE_RESTORE_STATE_NONE, "State not initialized!");
@@ -346,9 +339,9 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
 
     /* Now check the destination folder */
     WT_LIVE_RESTORE_STATE state;
-    __wt_spin_lock(session, &lr_fs->state_file_lock);
+    __wt_readlock(session, &lr_fs->state_lock);
     WT_ERR(__live_restore_get_state_from_file(session, lr_fs, &state));
-    __wt_spin_unlock(session, &lr_fs->state_file_lock);
+    __wt_readunlock(session, &lr_fs->state_lock);
 
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->destination.home, "", &dirlist_dest, &num_dest_files));
@@ -391,12 +384,12 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
 
 err:
     if (dirlist_source != NULL)
-        lr_fs->os_file_system->fs_directory_list_free(
-          lr_fs->os_file_system, (WT_SESSION *)session, dirlist_source, num_source_files);
+        WT_TRET(lr_fs->os_file_system->fs_directory_list_free(
+          lr_fs->os_file_system, (WT_SESSION *)session, dirlist_source, num_source_files));
 
     if (dirlist_dest != NULL)
-        lr_fs->os_file_system->fs_directory_list_free(
-          lr_fs->os_file_system, (WT_SESSION *)session, dirlist_dest, num_source_files);
+        WT_TRET(lr_fs->os_file_system->fs_directory_list_free(
+          lr_fs->os_file_system, (WT_SESSION *)session, dirlist_dest, num_source_files));
 
     return (ret);
 }

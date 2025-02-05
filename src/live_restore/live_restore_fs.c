@@ -1880,7 +1880,7 @@ __wt_os_live_restore_fs(
     if (!__wt_ispo2((uint32_t)lr_fs->read_size))
         WT_ERR_MSG(session, EINVAL, "the live restore read size must be a power of two");
 
-    WT_ERR(__wt_spin_init(session, &lr_fs->state_file_lock, "state file access lock"));
+    WT_ERR(__wt_rwlock_init(session, &lr_fs->state_lock));
     WT_ERR(__wti_live_restore_validate_directories(session, lr_fs));
     WT_ERR(__wti_live_restore_init_state(session, lr_fs));
 
