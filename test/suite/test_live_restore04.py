@@ -52,6 +52,7 @@ class test_live_restore04(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor.close()
         return val
 
+    # FIXME-WT-14040 Re-enable this test.
     @unittest.skip("This test fails as we cannot handle an empty live_restore= string in the metadata file for a new file")
     def test_live_restore04(self):
         # Live restore is not supported on Windows.
