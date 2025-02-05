@@ -43,6 +43,7 @@ else()
         sub_level_error/unit/test_sub_level_error_api_end.cpp
         sub_level_error/unit/test_sub_level_error_compact.cpp
         sub_level_error/unit/test_sub_level_error_drop_conflict.cpp
+        sub_level_error/unit/test_sub_level_error_drop_uncommitted_dirty.cpp
         sub_level_error/unit/test_sub_level_error_is_valid_sub_level_error.cpp
         sub_level_error/unit/test_sub_level_error_msg_macros.cpp
         sub_level_error/unit/test_sub_level_error_rollback.cpp
