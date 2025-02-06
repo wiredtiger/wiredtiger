@@ -614,6 +614,22 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 }
 
 /*
+ * __wti_checkpoint_progress_clear --
+ *     Clear checkpoint progress data.
+ */
+void
+__wti_checkpoint_progress_clear(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    conn->ckpt.progress.progress_msg_count = 0;
+    conn->ckpt.progress.write_bytes = 0;
+    conn->ckpt.progress.write_pages = 0;
+}
+
+/*
  * __checkpoint_stats --
  *     Update checkpoint timer stats.
  */
@@ -1119,9 +1135,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
 
     /* Initialize the checkpoint progress tracking data */
-    conn->ckpt.progress.progress_msg_count = 0;
-    conn->ckpt.progress.write_bytes = 0;
-    conn->ckpt.progress.write_pages = 0;
+    __wti_checkpoint_progress_clear(session);
 
     /*
      * Get a time (wall time, not a timestamp) for this checkpoint. This will be applied to all the
