@@ -598,19 +598,21 @@ __evict_is_session_cache_trigger_tolerant(WT_SESSION_IMPL *session, uint8_t cach
  *     Check if the user wants to abort eviction in this session. #private
  */
 static bool
-__evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool busy)
+__evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible)
 {
     WT_EVENT_HANDLER *event_handler;
 
     /* Ask the user only if eviction is optional and it's a user session. */
-    if (busy || F_ISSET(session, WT_SESSION_INTERNAL))
+    if (!interruptible || F_ISSET(session, WT_SESSION_INTERNAL))
         return (true);
 
     event_handler = session->event_handler;
     if (event_handler->handle_general != NULL &&
       event_handler->handle_general(
-        event_handler, &S2C(session)->iface, &session->iface, WT_EVENT_EVICTION, NULL) != 0)
+        event_handler, &S2C(session)->iface, &session->iface, WT_EVENT_EVICTION, NULL) != 0) {
+        WT_STAT_CONN_INCR(session, eviction_interupted_by_app);
         return (false);
+    }
 
     return (true);
 }
@@ -620,7 +622,8 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool busy)
  *     Evict pages if the cache crosses its boundaries.
  */
 static WT_INLINE int
-__wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bool *didworkp)
+__wt_cache_eviction_check(
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool *didworkp)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -726,7 +729,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     }
 
     /* Last check if application wants to prevent the thread from evicting. */
-    if (!__evict_check_user_ok_with_eviction(session, busy))
+    if (!__evict_check_user_ok_with_eviction(session, interruptible))
         return (0);
 
     /*
@@ -736,5 +739,5 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     if (didworkp != NULL)
         *didworkp = true;
 
-    return (__wt_cache_eviction_worker(session, busy, readonly));
+    return (__wt_cache_eviction_worker(session, busy, readonly, interruptible));
 }
