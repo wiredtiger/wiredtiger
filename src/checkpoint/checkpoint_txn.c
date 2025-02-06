@@ -14,6 +14,8 @@ static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
 static int __checkpoint_tree_helper(WT_SESSION_IMPL *, const char *[]);
 static void __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final);
+static void __checkpoint_progress(WT_SESSION_IMPL *, bool);
+static void __checkpoint_progress_clear(WT_SESSION_IMPL *);
 static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 
 /*
@@ -588,11 +590,11 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
 }
 
 /*
- * __wti_checkpoint_progress --
+ * __checkpoint_progress --
  *     Output a checkpoint progress message.
  */
 void
-__wti_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
+__checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 {
     struct timespec cur_time;
     WT_CONNECTION_IMPL *conn;
@@ -614,11 +616,11 @@ __wti_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 }
 
 /*
- * __wti_checkpoint_progress_clear --
+ * __checkpoint_progress_clear --
  *     Clear checkpoint progress data.
  */
 void
-__wti_checkpoint_progress_clear(WT_SESSION_IMPL *session)
+__checkpoint_progress_clear(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -645,7 +647,7 @@ __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes)
 
     /* Periodically log checkpoint progress. */
     if (conn->ckpt.progress.write_pages % (5 * WT_THOUSAND) == 0)
-        __wti_checkpoint_progress(session, false);
+        __checkpoint_progress(session, false);
 }
 
 /*
@@ -663,7 +665,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     /* Output a verbose progress message for long running checkpoints. */
     if (conn->ckpt.progress.msg_count > 0)
-        __wti_checkpoint_progress(session, true);
+        __checkpoint_progress(session, true);
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
@@ -1154,7 +1156,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
 
     /* Initialize the checkpoint progress tracking data */
-    __wti_checkpoint_progress_clear(session);
+    __checkpoint_progress_clear(session);
 
     /*
      * Get a time (wall time, not a timestamp) for this checkpoint. This will be applied to all the
