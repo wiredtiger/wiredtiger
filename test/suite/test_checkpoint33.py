@@ -82,7 +82,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
     def test_checkpoint33(self):
 
         if os.environ.get("TSAN_OPTIONS"):
-            self.skipTest("FIXME-WT-14098 breaks with TSan")
+            self.skipTest("FIXME-WT-14098 This test fails to compress the table when run under TSan")
 
         # Pin oldest timestamp 1.
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
