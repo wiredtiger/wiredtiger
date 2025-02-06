@@ -25,7 +25,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"backup.live_restore_read_size", "live restore read size (KB power of 2)", C_POW2, 1, 16384,
     16384, V_GLOBAL_BACKUP_LIVE_RESTORE_READ_SIZE},
 
-  {"backup.live_restore_threads", "number of live restore worker threads", 0x0, 0, 12, 8,
+  {"backup.live_restore_threads", "number of live restore worker threads", 0x0, 0, 12, 12,
     V_GLOBAL_BACKUP_LIVE_RESTORE_THREADS},
 
   {"block_cache", "enable the block cache", C_BOOL, 10, 0, 0, V_GLOBAL_BLOCK_CACHE},
