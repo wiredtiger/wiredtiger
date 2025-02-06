@@ -5113,16 +5113,16 @@ tasks:
             mkdir WT_TEST_0_0
       - func: "run-perf-test"
         vars:
-          perf-test-name: 500m-btree-50r50u-live-restore.wtperf
+          perf-test-name: 500m-btree-50r50u-live-restore-no-server.wtperf
           maxruns: 1
           no_create: true
           wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:]),live_restore=(enabled=true,path=SOURCE,threads_max=0)"'] -ops ['"read", "update", "warnings", "max_latency_read_update"']
       - func: "upload stats to atlas"
         vars:
-          test-name: 500m-btree-50r50u-live-restore.wtperf
+          test-name: 500m-btree-50r50u-live-restore-no-server.wtperf
       - func: "upload stats to evergreen"
         vars:
-          test-name: 500m-btree-50r50u-live-restore.wtperf
+          test-name: 500m-btree-50r50u-live-restore-no-server.wtperf
       - func: "cleanup"
 
   - name: many-dhandle-stress
