@@ -606,9 +606,10 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
-    uint32_t flags;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem;
+    uint32_t flags, hs_id;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -636,9 +637,23 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
      * values could lead to surprising bugs in the future.
      */
-    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
-        __wt_atomic_store64(&cache->bytes_hs, __wt_atomic_load64(&hs_tree->bytes_inmem));
-        cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
+    if (F_ISSET(conn, WT_CONN_HS_OPEN)) {
+        total_dirty = total_inmem = 0;
+        hs_id = 0;
+        for (;;) {
+            WT_RET_NOTFOUND_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id));
+            if (ret == WT_NOTFOUND) {
+                ret = 0;
+                (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
+                break;
+            }
+            if (__wt_hs_get_btree(session, hs_id, &hs_tree) == 0) {
+                total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
+                total_dirty += hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
+            }
+        }
+        __wt_atomic_store64(&cache->bytes_hs, total_inmem);
+        cache->bytes_hs_dirty = total_dirty;
     }
 
     /*

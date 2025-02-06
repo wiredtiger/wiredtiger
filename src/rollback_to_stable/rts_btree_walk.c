@@ -291,7 +291,7 @@ __wti_rts_btree_walk_btree_apply(
     bool file_skipped, has_txn_updates_gt_than_ckpt_snap, modified, prepared_updates;
 
     /* Ignore non-btree objects as well as the metadata and history store files. */
-    if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
+    if (!WT_BTREE_PREFIX(uri) || WT_IS_URI_HS(uri) || strcmp(uri, WT_METAFILE_URI) == 0)
         return (0);
 
     addr_size = 0;

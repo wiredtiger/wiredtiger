@@ -186,9 +186,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
             WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", block_disagg->name));
             md_key[strlen(md_key) - 3] = '\0'; /* Remove the .wt suffix */
             md_cursor->set_key(md_cursor, md_key);
-            WT_ERR(md_cursor->search(md_cursor));
-            WT_ERR_NOTFOUND_OK(md_cursor->get_value(md_cursor, &md_value), true);
+            WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
             if (ret == 0) {
+                WT_ERR(md_cursor->get_value(md_cursor, &md_value));
                 WT_SAVE_DHANDLE(session,
                   ret = __block_disagg_update_shared_metadata(bm, session, md_key, md_value));
                 WT_ERR(ret);
@@ -197,9 +197,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
             WT_ERR(__wt_snprintf(md_key, len, "table:%s", block_disagg->name));
             md_key[strlen(md_key) - 3] = '\0'; /* Remove the .wt suffix */
             md_cursor->set_key(md_cursor, md_key);
-            WT_ERR(md_cursor->search(md_cursor));
-            WT_ERR_NOTFOUND_OK(md_cursor->get_value(md_cursor, &md_value), true);
+            WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
             if (ret == 0) {
+                WT_ERR(md_cursor->get_value(md_cursor, &md_value));
                 WT_SAVE_DHANDLE(session,
                   ret = __block_disagg_update_shared_metadata(bm, session, md_key, md_value));
                 WT_ERR(ret);
@@ -215,9 +215,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
             WT_ERR(__wt_snprintf(md_key, len, "layered:%s", block_disagg->name));
             md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
             md_cursor->set_key(md_cursor, md_key);
-            WT_ERR(md_cursor->search(md_cursor));
-            WT_ERR_NOTFOUND_OK(md_cursor->get_value(md_cursor, &md_value), true);
+            WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
             if (ret == 0) {
+                WT_ERR(md_cursor->get_value(md_cursor, &md_value));
                 WT_SAVE_DHANDLE(session,
                   ret = __block_disagg_update_shared_metadata(bm, session, md_key, md_value));
                 WT_ERR(ret);

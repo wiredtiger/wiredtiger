@@ -849,7 +849,9 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
       __wt_cursor_checkpoint_id,                       /* checkpoint ID */
       __curversion_close);                             /* close */
 
+    WT_BTREE *file_btree;
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_RET;
@@ -861,7 +863,8 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     char *version_cursor_value_format;
     size_t format_len;
 
-    txn_global = &S2C(session)->txn_global;
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
     *cursorp = NULL;
     WT_RET(__wt_calloc_one(session, &version_cursor));
     cursor = (WT_CURSOR *)version_cursor;
@@ -871,11 +874,11 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
 
     /* Freeze pinned timestamp when we open the first version cursor. */
     __wt_writelock(session, &txn_global->rwlock);
-    if (S2C(session)->version_cursor_count == 0) {
+    if (conn->version_cursor_count == 0) {
         __wt_txn_pinned_timestamp(session, &pinned_ts);
         txn_global->version_cursor_pinned_timestamp = pinned_ts;
     }
-    (void)__wt_atomic_add32(&S2C(session)->version_cursor_count, 1);
+    (void)__wt_atomic_add32(&conn->version_cursor_count, 1);
     __wt_writeunlock(session, &txn_global->rwlock);
 
     /* Open the file cursor to check the key and value format. */
@@ -897,9 +900,9 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_ERR(__wt_open_cursor(session, uri, cursor, file_cursor_cfg, &version_cursor->file_cursor));
 
     /* Open the history store cursor for btrees that may have data in the history store.*/
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
-      !F_ISSET(CUR2BT(version_cursor->file_cursor), WT_BTREE_IN_MEMORY)) {
-        WT_ERR(__wt_curhs_open(session, cursor, &version_cursor->hs_cursor));
+    file_btree = CUR2BT(version_cursor->file_cursor);
+    if (F_ISSET(conn, WT_CONN_HS_OPEN) && !F_ISSET(file_btree, WT_BTREE_IN_MEMORY)) {
+        WT_ERR(__wt_curhs_open(session, file_btree->id, cursor, &version_cursor->hs_cursor));
         F_SET(version_cursor->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     }
 

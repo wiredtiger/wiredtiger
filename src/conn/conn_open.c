@@ -249,7 +249,13 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_txn_recover(session, cfg, cval.len != 0));
 
     /* Initialize metadata tracking, required before creating tables. */
-    WT_RET(__wt_meta_track_init(session));
+    WT_RET(__wt_meta_track_init(session)); /* XXXXXX */
+
+    /*
+     * Initialize disaggregated storage. It technically doesn't belong here, but it must be
+     * initialized after metadata tracking and before the history store.
+     */
+    WT_RET(__wti_disagg_conn_config(session, cfg, false));
 
     /* Can create a table, so must be done after metadata tracking. */
     WT_RET(__wt_chunkcache_setup(session, cfg));

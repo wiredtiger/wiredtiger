@@ -143,7 +143,8 @@ struct __wt_session_impl {
 
     WT_IMPORT_LIST *import_list; /* List of metadata entries to import from file. */
 
-    u_int hs_cursor_counter; /* Number of open history store cursors */
+    u_int hs_cursor_counter;   /* Number of open history store cursors */
+    uint64_t hs_checkpoint_id; /* The checkpoint ID of the last opened HS cursor */
 
     WT_CURSOR *meta_cursor;  /* Metadata file */
     void *meta_track;        /* Metadata operation tracking */
