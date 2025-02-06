@@ -1,5 +1,5 @@
 # wtperf options file: simulate MongoDB.
-# The configuration for the connection and table are from mongoDB.
+# This test is identical to the 500m-btree-50r50u tests, but with live restore enabled (without background threads) to understand the perf impacts of live restore. Any changes to that file should be also be made here.
 # We use multiple tables to simulate collections and indexes.
 # This test assumes that its correlating populate already completed and exists.
 #
