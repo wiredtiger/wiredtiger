@@ -154,6 +154,9 @@ config_random(TABLE *table, bool table_only)
         if (F_ISSET(cp, C_BOOL))
             testutil_snprintf(buf, sizeof(buf), "%s=%s", cp->name,
               mmrand(&g.data_rnd, 1, 100) <= cp->min ? "on" : "off");
+        else if (F_ISSET(cp, C_POW2))
+            testutil_snprintf(buf, sizeof(buf), "%s=%" PRIu32, cp->name,
+              __wt_rduppo2(mmrand(&g.data_rnd, cp->min, cp->maxrand), 1024));
         else
             testutil_snprintf(
               buf, sizeof(buf), "%s=%" PRIu32, cp->name, mmrand(&g.data_rnd, cp->min, cp->maxrand));
@@ -1954,6 +1957,12 @@ config_single(TABLE *table, const char *s, bool explicit)
             if (v1 != 0 && v1 != 1)
                 testutil_die(EINVAL, "%s: %s: value of boolean not 0 or 1", progname, s);
         }
+    }
+
+    if (F_ISSET(cp, C_POW2)) {
+        v1 = atou32(s, equalp, '\0');
+        if (v1 != 0 && !__wt_ispo2(v1))
+            testutil_die(EINVAL, "%s: %s: value is not a power of 2", progname, s);
 
         v->v = v1;
         v->set = explicit;
@@ -2022,6 +2031,9 @@ config_single(TABLE *table, const char *s, bool explicit)
         }
     }
 
+    /* If a power of 2 is required, adjust the value after choosing. */
+    if (F_ISSET(cp, C_POW2))
+        v->v = __wt_rduppo2(v1, 1024);
     v->v = v1;
     v->set = explicit;
 
