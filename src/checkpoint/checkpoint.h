@@ -60,6 +60,16 @@ struct __wt_ckpt_timer {
 };
 
 /*
+ * WT_CKPT_PROGRESS --
+ *     Checkpoint progress.
+ */
+struct __wt_ckpt_progress {
+    uint64_t progress_msg_count;
+    uint64_t write_bytes;
+    uint64_t write_pages;
+};
+
+/*
  * WT_CKPT_CONNECTION --
  *     Checkpoint information.
  */
