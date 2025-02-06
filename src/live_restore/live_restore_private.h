@@ -58,13 +58,16 @@ struct __wti_live_restore_file_handle {
         WTI_LIVE_RESTORE_FS *back_pointer;
 
         /*
-         * The hole list tracks which ranges in the destination file are holes. As the migration
+         * The hole list bitmap tracks which ranges in the file are holes. As the migration
          * continues the holes will be gradually filled by either data from the source or new
-         * writes. Holes in these extents should only shrink and never grow.
+         * writes.
          */
-        WTI_LIVE_RESTORE_HOLE_NODE *hole_list_head;
+        /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
+        uint64_t bitmap_size;
+        uint8_t *bitmap;
     } destination;
 
+    uint32_t allocsize;
     WT_FS_OPEN_FILE_TYPE file_type;
     WT_RWLOCK ext_lock; /* File extent list lock */
 };

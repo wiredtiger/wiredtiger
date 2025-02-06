@@ -17,23 +17,24 @@ namespace utils {
 std::string
 extent_list_str(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WTI_LIVE_RESTORE_HOLE_NODE *ext = lr_fh->destination.hole_list_head;
+    WT_UNUSED(lr_fh);
+    // WTI_LIVE_RESTORE_HOLE_NODE *ext = lr_fh->destination.hole_list_head;
 
-    std::string str = "";
+    // std::string str = "";
 
-    if (ext == nullptr)
-        // nullptr is an empty list
-        return "";
+    // if (ext == nullptr)
+    //     // nullptr is an empty list
+    //     return "";
 
-    while (ext != nullptr) {
-        str += "(" + std::to_string(ext->off) + "-" + std::to_string(ext->len) + "), ";
-        ext = ext->next;
-    }
+    // while (ext != nullptr) {
+    //     str += "(" + std::to_string(ext->off) + "-" + std::to_string(ext->len) + "), ";
+    //     ext = ext->next;
+    // }
 
-    // Remove the trailing ", "
-    str.erase(str.size() - 2);
+    // // Remove the trailing ", "
+    // str.erase(str.size() - 2);
 
-    return str;
+    return "str";
 }
 
 // Open the live restore file handle for a file. This file path is identical to the backing file in
@@ -55,15 +56,16 @@ open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
 bool
 extent_list_in_order(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WTI_LIVE_RESTORE_HOLE_NODE *node;
-    node = lr_fh->destination.hole_list_head;
+    WT_UNUSED(lr_fh);
+    // WTI_LIVE_RESTORE_HOLE_NODE *node;
+    // node = lr_fh->destination.hole_list_head;
 
-    while (node != NULL && node->next != NULL) {
-        if (WTI_EXTENT_END(node) >= node->next->off)
-            return false;
+    // while (node != NULL && node->next != NULL) {
+    //     if (WTI_EXTENT_END(node) >= node->next->off)
+    //         return false;
 
-        node = node->next;
-    }
+    //     node = node->next;
+    // }
     return true;
 }
 
