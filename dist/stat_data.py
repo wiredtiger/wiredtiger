@@ -787,8 +787,8 @@ conn_stats = [
     ##########################################
     YieldStat('application_cache_interruptible_ops', 'application thread operations waiting for interruptible cache eviction'),
     YieldStat('application_cache_interruptible_time', 'application thread time waiting for interruptible cache eviction (usecs)'),
-    YieldStat('application_cache_mandatory_ops', 'application thread operations waiting for mandatory cache eviction'),
-    YieldStat('application_cache_mandatory_time', 'application thread time waiting for mandatory cache eviction (usecs)'),
+    YieldStat('application_cache_uninterruptible_ops', 'application thread operations waiting for mandatory cache eviction'),
+    YieldStat('application_cache_uninterruptible_time', 'application thread time waiting for mandatory cache eviction (usecs)'),
     YieldStat('application_cache_ops', 'application thread operations waiting for cache'),
     YieldStat('application_cache_time', 'application thread time waiting for cache (usecs)'),
     YieldStat('application_evict_snapshot_refreshed', 'application thread snapshot refreshed for eviction'),

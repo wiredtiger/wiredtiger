@@ -619,7 +619,7 @@ __evict_check_user_ok_with_eviction(WT_SESSION_IMPL *session, bool interruptible
  *       (1) `busy`: A flag indicating if eviction is mandatory (true) or optional (false).
  *       (2) `readonly`: A flag indicating if the session is read-only, in which case dirty and
  *          update triggers are ignored.
- *       (3) `interruptible`: A flag indicating if eviction is ok to be interrupted by user.
+ *       (3) `interruptible`: A flag indicating if the user is allowed to interrupt eviction.
  *       (4) `didworkp`: A pointer to indicate whether eviction work was done (optional).
  *
  *     Return an error code from `__wti_evict_app_assist_worker` if it is unable to perform

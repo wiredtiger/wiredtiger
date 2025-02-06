@@ -1054,11 +1054,11 @@ struct __wt_connection_stats {
     int64_t thread_write_active;
     int64_t application_cache_ops;
     int64_t application_cache_interruptible_ops;
-    int64_t application_cache_mandatory_ops;
+    int64_t application_cache_uninterruptible_ops;
     int64_t application_evict_snapshot_refreshed;
     int64_t application_cache_time;
     int64_t application_cache_interruptible_time;
-    int64_t application_cache_mandatory_time;
+    int64_t application_cache_uninterruptible_time;
     int64_t txn_release_blocked;
     int64_t dhandle_lock_blocked;
     int64_t page_index_slot_ref_blocked;

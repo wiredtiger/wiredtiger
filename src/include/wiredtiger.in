@@ -6962,7 +6962,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * thread-yield: application thread operations waiting for mandatory
  * cache eviction
  */
-#define	WT_STAT_CONN_APPLICATION_CACHE_MANDATORY_OPS	1642
+#define	WT_STAT_CONN_APPLICATION_CACHE_UNINTERRUPTIBLE_OPS	1642
 /*! thread-yield: application thread snapshot refreshed for eviction */
 #define	WT_STAT_CONN_APPLICATION_EVICT_SNAPSHOT_REFRESHED	1643
 /*! thread-yield: application thread time waiting for cache (usecs) */
@@ -6976,7 +6976,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * thread-yield: application thread time waiting for mandatory cache
  * eviction (usecs)
  */
-#define	WT_STAT_CONN_APPLICATION_CACHE_MANDATORY_TIME	1646
+#define	WT_STAT_CONN_APPLICATION_CACHE_UNINTERRUPTIBLE_TIME	1646
 /*!
  * thread-yield: connection close blocked waiting for transaction state
  * stabilization

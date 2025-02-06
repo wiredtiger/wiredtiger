@@ -2743,11 +2743,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing thread_write_active */
     stats->application_cache_ops = 0;
     stats->application_cache_interruptible_ops = 0;
-    stats->application_cache_mandatory_ops = 0;
+    stats->application_cache_uninterruptible_ops = 0;
     stats->application_evict_snapshot_refreshed = 0;
     stats->application_cache_time = 0;
     stats->application_cache_interruptible_time = 0;
-    stats->application_cache_mandatory_time = 0;
+    stats->application_cache_uninterruptible_time = 0;
     stats->txn_release_blocked = 0;
     stats->dhandle_lock_blocked = 0;
     stats->page_index_slot_ref_blocked = 0;
@@ -3582,14 +3582,15 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->application_cache_ops += WT_STAT_CONN_READ(from, application_cache_ops);
     to->application_cache_interruptible_ops +=
       WT_STAT_CONN_READ(from, application_cache_interruptible_ops);
-    to->application_cache_mandatory_ops += WT_STAT_CONN_READ(from, application_cache_mandatory_ops);
+    to->application_cache_uninterruptible_ops +=
+      WT_STAT_CONN_READ(from, application_cache_uninterruptible_ops);
     to->application_evict_snapshot_refreshed +=
       WT_STAT_CONN_READ(from, application_evict_snapshot_refreshed);
     to->application_cache_time += WT_STAT_CONN_READ(from, application_cache_time);
     to->application_cache_interruptible_time +=
       WT_STAT_CONN_READ(from, application_cache_interruptible_time);
-    to->application_cache_mandatory_time +=
-      WT_STAT_CONN_READ(from, application_cache_mandatory_time);
+    to->application_cache_uninterruptible_time +=
+      WT_STAT_CONN_READ(from, application_cache_uninterruptible_time);
     to->txn_release_blocked += WT_STAT_CONN_READ(from, txn_release_blocked);
     to->dhandle_lock_blocked += WT_STAT_CONN_READ(from, dhandle_lock_blocked);
     to->page_index_slot_ref_blocked += WT_STAT_CONN_READ(from, page_index_slot_ref_blocked);
