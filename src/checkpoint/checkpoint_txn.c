@@ -620,10 +620,7 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 bool
 __wt_checkpoint_started(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    return (conn->ckpt.ckpt_api.timer_start.tv_sec > 0);
+    return (S2C(session)->ckpt.ckpt_api.timer_start.tv_sec > 0);
 }
 
 /*
