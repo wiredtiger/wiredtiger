@@ -363,11 +363,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * Update checkpoint IO tracking data if configured to log verbose progress messages.
              */
             if (conn->ckpt.ckpt_api.timer_start.tv_sec > 0) {
-                conn->ckpt.write_bytes += __wt_atomic_loadsize(&page->memory_footprint);
-                ++conn->ckpt.write_pages;
+                conn->ckpt.progress.write_bytes += __wt_atomic_loadsize(&page->memory_footprint);
+                ++conn->ckpt.progress.write_pages;
 
                 /* Periodically log checkpoint progress. */
-                if (conn->ckpt.write_pages % (5 * WT_THOUSAND) == 0)
+                if (conn->ckpt.progress.write_pages % (5 * WT_THOUSAND) == 0)
                     __wt_checkpoint_progress(session, false);
             }
         }

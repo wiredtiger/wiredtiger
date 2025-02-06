@@ -577,13 +577,13 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
     /* Time since the full database checkpoint started */
     time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.ckpt_api.timer_start);
 
-    if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress_msg_count) {
+    if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.progress_msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint prepare %s for %" PRIu64 " seconds and it has gathered %" PRIu64
           " dhandles and skipped %" PRIu64 " dhandles",
           final ? "ran" : "has been running", time_diff, conn->ckpt.handle_stats.apply,
           conn->ckpt.handle_stats.skip);
-        conn->ckpt.progress_msg_count++;
+        conn->ckpt.progress.progress_msg_count++;
     }
 }
 
@@ -604,12 +604,12 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
     /* Time since the full database checkpoint started */
     time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.ckpt_api.timer_start);
 
-    if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress_msg_count) {
+    if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.progress_msg_count) {
         __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
-          closing ? "ran" : "has been running", time_diff, conn->ckpt.write_pages,
-          conn->ckpt.write_bytes / WT_MEGABYTE);
-        conn->ckpt.progress_msg_count++;
+          closing ? "ran" : "has been running", time_diff, conn->ckpt.progress.write_pages,
+          conn->ckpt.progress.write_bytes / WT_MEGABYTE);
+        conn->ckpt.progress.progress_msg_count++;
     }
 }
 
@@ -627,7 +627,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Output a verbose progress message for long running checkpoints. */
-    if (conn->ckpt.progress_msg_count > 0)
+    if (conn->ckpt.progress.progress_msg_count > 0)
         __wt_checkpoint_progress(session, true);
 
     /* Compute end-to-end timer statistics for checkpoint. */
@@ -1119,9 +1119,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
 
     /* Initialize the checkpoint progress tracking data */
-    conn->ckpt.progress_msg_count = 0;
-    conn->ckpt.write_bytes = 0;
-    conn->ckpt.write_pages = 0;
+    conn->ckpt.progress.progress_msg_count = 0;
+    conn->ckpt.progress.write_bytes = 0;
+    conn->ckpt.progress.write_pages = 0;
 
     /*
      * Get a time (wall time, not a timestamp) for this checkpoint. This will be applied to all the
@@ -1205,7 +1205,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Log the final checkpoint prepare progress message if needed. */
-    if (conn->ckpt.progress_msg_count > 0)
+    if (conn->ckpt.progress.progress_msg_count > 0)
         __checkpoint_prepare_progress(session, true);
 
     /*

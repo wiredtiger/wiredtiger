@@ -90,9 +90,7 @@ struct __wt_ckpt_connection {
     wt_shared uint64_t most_recent;
 
     /* Checkpoint progress message data. */
-    uint64_t progress_msg_count;
-    uint64_t write_bytes;
-    uint64_t write_pages;
+    WT_CKPT_PROGRESS progress;
 
     /* Last checkpoint connection's base write generation. */
     uint64_t last_base_write_gen;
