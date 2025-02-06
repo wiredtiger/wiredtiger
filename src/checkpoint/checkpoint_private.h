@@ -68,6 +68,7 @@ struct __wti_ckpt_progress {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern void __wti_checkpoint_progress(WT_SESSION_IMPL *session, bool closing);
 extern void __wti_checkpoint_progress_clear(WT_SESSION_IMPL *session);
 
 #ifdef HAVE_UNITTEST

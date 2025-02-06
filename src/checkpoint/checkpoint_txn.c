@@ -588,11 +588,11 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
 }
 
 /*
- * __wt_checkpoint_progress --
+ * __wti_checkpoint_progress --
  *     Output a checkpoint progress message.
  */
 void
-__wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
+__wti_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 {
     struct timespec cur_time;
     WT_CONNECTION_IMPL *conn;
@@ -645,7 +645,7 @@ __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes)
 
     /* Periodically log checkpoint progress. */
     if (conn->ckpt.progress.write_pages % (5 * WT_THOUSAND) == 0)
-        __wt_checkpoint_progress(session, false);
+        __wti_checkpoint_progress(session, false);
 }
 
 /*
@@ -663,7 +663,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     /* Output a verbose progress message for long running checkpoints. */
     if (conn->ckpt.progress.progress_msg_count > 0)
-        __wt_checkpoint_progress(session, true);
+        __wti_checkpoint_progress(session, true);
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
