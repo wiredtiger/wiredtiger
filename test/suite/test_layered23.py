@@ -218,7 +218,6 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Test simple inserts to a leader/follower
     def test_leader_follower(self):
-        self.skipTest('Skip until we write history table to SLS')
         # Create the oplog
         oplog = Oplog()
 
