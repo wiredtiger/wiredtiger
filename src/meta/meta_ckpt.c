@@ -100,7 +100,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
  */
 int
 __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *checkpoint,
-  WT_CKPT *ckpt, char **live_restore_extentsp)
+  WT_CKPT *ckpt, WT_LIVE_RESTORE_FH_META *lr_fh_meta)
 {
     WT_CONFIG_ITEM v;
     WT_DECL_RET;
@@ -127,10 +127,17 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
     WT_ERR(__ckpt_version_chk(session, fname, config));
 #endif
 
-    if (live_restore_extentsp != NULL) {
+    if (lr_fh_meta != NULL) {
         WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "live_restore", &v), true);
-        if (ret != WT_NOTFOUND)
-            WT_ERR(__wt_strndup(session, v.str, v.len, live_restore_extentsp));
+        if (ret != WT_NOTFOUND) {
+            WT_CONFIG_ITEM cval;
+            WT_ERR(__wt_config_subgets(session, &v, "bitmap", &cval));
+            WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fh_meta->bitmap_str));
+            WT_ERR(__wt_config_subgets(session, &v, "bitmap_size", &cval));
+            lr_fh_meta->bitmap_size = (uint64_t)cval.val;
+            WT_ERR(__wt_config_subgets(session, &v, "state", &cval));
+            WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fh_meta->state));
+        }
         /* All code paths that exist today overwrite ret but to be defensive we clear it here. */
         WT_NOT_READ(ret, 0);
     }

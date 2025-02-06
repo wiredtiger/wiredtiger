@@ -267,6 +267,8 @@ struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_live_restore_fh_meta;
+typedef struct __wt_live_restore_fh_meta WT_LIVE_RESTORE_FH_META;
 struct __wt_log_manager;
 typedef struct __wt_log_manager WT_LOG_MANAGER;
 struct __wt_log_record;

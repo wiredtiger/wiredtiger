@@ -24,7 +24,7 @@
  * WTI_OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
  * length=1024 WTI_OFFSET_END returns 1023
  */
-#define WTI_OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
+#define WTI_OFFSET_END(offset, len) (offset + (wt_off_t)len)
 #define WTI_EXTENT_END(ext) WTI_OFFSET_END((ext)->off, (ext)->len)
 /* As extent ranges are inclusive we want >= and <= on both ends of the range. */
 #define WTI_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WTI_EXTENT_END(ext))

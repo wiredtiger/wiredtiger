@@ -489,7 +489,7 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
         }
         if (current_bit == read_start_bit)
             read_begins_in_hole = true;
-        if (current_bit < read_end_bit - 1)
+        if (current_bit == read_end_bit - 1)
             read_ends_in_hole = true;
         if (!hole_bit_set) {
             *hole_begin_off = WTI_BIT_TO_OFFSET(current_bit);
@@ -658,7 +658,7 @@ err:
  */
 static int
 __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_session, char *buf,
-  WT_TIMER *start_timer, uint64_t *msg_count, bool *finishedp)
+  wt_off_t buf_size, WT_TIMER *start_timer, uint64_t *msg_count, bool *finishedp)
 {
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
@@ -671,17 +671,18 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
     }
 
     /* We need walk the unset bit list up till read_size. */
-    off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
+    wt_off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
+    /* If the configured background thread read_size is smaller than the file alloc size bump up our
+     */
     uint64_t max_read_bit =
-      WTI_OFFSET_BIT(read_start + (wt_off_t)lr_fh->destination.back_pointer->read_size);
+      WTI_OFFSET_BIT(WT_MIN(((wt_off_t)lr_fh->source_size), read_start + buf_size));
     uint64_t end_bit = 0;
-    for (uint64_t current_bit = first_clear_bit + 1; current_bit < max_read_bit; current_bit++) {
+    for (uint64_t current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++) {
         end_bit = current_bit;
         if (__bit_test(lr_fh->destination.bitmap, current_bit))
             break;
     }
-    /* The end bit is technically not a hole, correct for this. */
-    off_t read_end = WTI_BIT_TO_OFFSET(end_bit) - 1;
+    wt_off_t read_end = WTI_BIT_TO_OFFSET(end_bit);
     size_t read_size = (size_t)(read_end - read_start);
 
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
@@ -724,15 +725,15 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     uint64_t msg_count = 0;
     char *buf = NULL;
     bool finished = false;
-
-    WT_RET(
-      __wt_calloc(session, 1, ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system)->read_size, &buf));
+    size_t read_unit = WT_MAX(lr_fh->destination.back_pointer->read_size, lr_fh->allocsize);
+    WT_RET(__wt_calloc(session, 1, read_unit, &buf));
 
     __wt_timer_start(session, &timer);
     while (!finished) {
 
         WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, lr_fh,
-          ret = __live_restore_fill_hole(lr_fh, wt_session, buf, &timer, &msg_count, &finished));
+          ret = __live_restore_fill_hole(
+            lr_fh, wt_session, buf, (wt_off_t)read_unit, &timer, &msg_count, &finished));
         WT_ERR(ret);
 
         /*
@@ -964,62 +965,18 @@ __live_restore_fs_open_in_source(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *se
     return (0);
 }
 
-/*
- * __live_restore_handle_verify_hole_list --
- *     Check that the generated hole list doesn't not contain holes that extend past the end of the
- *     source file. If it does we would read junk data and copy it into the destination file.
- */
-// static int
-// __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
-//   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, const char *name)
+// int
+// __live_restore_decode_bitmap(const char *bitmap_str, size_t bitmap_size, uint64_t **bitmap)
 // {
-//     WT_DECL_RET;
-//     WT_FILE_HANDLE *source_fh = NULL;
-//     char *source_path = NULL;
+//     WT_ASSERT_ALWAYS(session, bitmap_str != NULL, "Bitmap string is NULL");
+//     WT_ASSERT_ALWAYS(session, bitmap_size != 0, "Bitmap size is 0");
 
-//     if (lr_fh->destination.hole_list_head == NULL)
-//         return (0);
+//     *bitmap = (uint64_t *)__wt_malloc(session, bitmap_size);
+//     WT_ASSERT_ALWAYS(session, *bitmap != NULL, "Failed to allocate bitmap");
 
-//     bool source_exist = false;
-//     WT_ERR_NOTFOUND_OK(
-//       __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist), true);
-
-//     if (source_exist) {
-//         wt_off_t source_size;
-
-//         WT_ERR(__live_restore_fs_backing_filename(
-//           &lr_fs->source, session, lr_fs->destination.home, name, &source_path));
-//         WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-//           source_path, lr_fh->file_type, 0, &source_fh));
-//         WT_ERR(lr_fs->os_file_system->fs_size(
-//           lr_fs->os_file_system, (WT_SESSION *)session, source_fh->name, &source_size));
-
-//         WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
-//           "Live restore lock not taken when needed");
-//         WTI_LIVE_RESTORE_HOLE_NODE *final_hole;
-//         final_hole = lr_fh->destination.hole_list_head;
-//         while (final_hole->next != NULL)
-//             final_hole = final_hole->next;
-
-//         if (WTI_EXTENT_END(final_hole) >= source_size) {
-//             __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-//               "Error: Hole list for %s has holes beyond the the end of the source file!", name);
-//             __live_restore_debug_dump_extent_list(session, lr_fh);
-//             WT_ERR_MSG(session, EINVAL,
-//               "Hole list for %s has holes beyond the the end of the source file!", name);
-//         }
-//     } else
-//         WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
-//           "Source file doesn't exist but there are holes in the destination file");
-
-// err:
-//     if (source_fh != NULL)
-//         source_fh->close(source_fh, &session->iface);
-
-//     if (source_path != NULL)
-//         __wt_free(session, source_path);
-
-//     return (ret);
+//     for (size_t i = 0; i < bitmap_size; i++) {
+//         (*bitmap)[i] = (uint64_t)bitmap_str[i];
+//     }
 // }
 
 /*
@@ -1029,7 +986,7 @@ __live_restore_fs_open_in_source(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *se
  */
 int
 __wt_live_restore_fh_import_extents_from_string(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, const char *extent_str)
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_LIVE_RESTORE_FH_META *lr_fh_meta)
 {
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
@@ -1037,92 +994,51 @@ __wt_live_restore_fh_import_extents_from_string(
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
-    WT_UNUSED(lr_fh);
-    WT_UNUSED(extent_str);
-    WT_UNUSED(ret);
+    /*
+     * This function can be called for file handles that already have an in memory extent list.
+     * For this to happen the destination file was created for the first time and a single file size
+     * hole was initialized.
+     *
+     * FIXME-WT-14079 there is a tricky scenario here:
+     *   - Open a file that exists in the source, a.wt.
+     *   - Create a new file in the destination to begin migrating the file to.
+     *   - Crash.
+     *   - Open the file a.wt again, we will see an a.wt in the destination and not create the
+     *   necessary file length hole. We will also get an empty extent list string indicating a.wt is
+     *   complete.
+     */
 
-    //     /*
-    //      * This function can be called for file handles that already have an in memory extent
-    //      list. For
-    //      * this to happen the destination file was created for the first time and a single file
-    //      size
-    //      * hole was initialized.
-    //      *
-    //      * FIXME-WT-14079 there is a tricky scenario here:
-    //      *   - Open a file that exists in the source, a.wt.
-    //      *   - Create a new file in the destination to begin migrating the file to.
-    //      *   - Crash.
-    //      *   - Open the file a.wt again, we will see an a.wt in the destination and not create
-    //      the
-    //      *   necessary file length hole. We will also get an empty extent list string indicating
-    //      a.wt is
-    //      *   complete.
-    //      */
-    //     bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
-
-    //     if (lr_fh->destination.hole_list_head != NULL) {
-    //         WT_ASSERT_ALWAYS(
-    //           session, extent_string_empty, "Extent list not empty while trying to import");
-    //         return (0);
-    //     }
+    if (lr_fh->destination.bitmap != NULL) {
+        // WT_ASSERT_ALWAYS(
+        //   session, extent_string_empty, "Bitmap not empty while trying to import");
+        return (0);
+    }
 
     //     if (extent_string_empty)
     //         lr_fh->destination.complete = true;
     //     else {
-    //         __wt_readlock(session, &lr_fh->ext_lock);
-    //         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s metadata extent list string:
-    //         %s",
-    //           fh->name, extent_str);
-    //         /* The extents are separated by ;. And have the shape %d-%u. */
-    //         wt_off_t off = 0, next_off;
-    //         size_t len;
-    //         WTI_LIVE_RESTORE_HOLE_NODE **current = &lr_fh->destination.hole_list_head;
-    //         const char *str_ptr = extent_str;
-    //         char *next;
-    //         while (true) {
-    //             if (!__wt_isdigit((u_char)*str_ptr))
-    //                 WT_ERR_MSG(session, EINVAL, "Invalid offset found in extent string");
-
-    //             next_off = (wt_off_t)strtoll(str_ptr, &next, 10);
-    //             str_ptr = next;
-    //             if (*str_ptr == '\0')
-    //                 WT_ERR_MSG(session, EINVAL, "Invalid separator found in extent string");
-
-    //             /*
-    //              * Extents are additive to compress the string size i.e. the offset of extent n +
-    //              1 is
-    //              * the offset of extent n plus the offset of extent n + 1.
-    //              */
-    //             off += next_off;
-    //             str_ptr++;
-    //             if (!__wt_isdigit((u_char)*str_ptr))
-    //                 WT_ERR_MSG(session, EINVAL, "Invalid length found in extent string");
-
-    //             len = (size_t)strtol(str_ptr, &next, 10);
-    //             if (len == 0)
-    //                 WT_ERR_MSG(session, EINVAL, "Length zero extent found, this is an error");
-
-    //             __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-    //               "Adding an extent: %" PRId64 "-%" WT_SIZET_FMT, off, len);
-    //             WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
-    //             current = &((*current)->next);
-
-    //             str_ptr = next;
-    //             /* We've reached the end of the string, don't go over by accident. */
-    //             if (*str_ptr == '\0')
-    //                 break;
-    //             str_ptr++;
-    //         }
-    //         WT_ERR(__live_restore_handle_verify_hole_list(
-    //           session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system, lr_fh, fh->name));
-    //     }
+    __wt_readlock(session, &lr_fh->ext_lock);
+    lr_fh->allocsize = lr_fh_meta->allocsize;
+    if (lr_fh_meta->bitmap_size != 0) {
+        /* Import a pre existing bitmap. */
+        // __live_restore_decode_bitmap(lr_fh_meta->bitmap_str, lr_fh_meta->bitmap_size,
+        // &lr_fh->destination.bitmap);
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s metadata bitmap: %s", fh->name,
+          lr_fh_meta->bitmap_str);
+    } else {
+        /* Allocate a new bitmap. */
+        uint64_t bitmap_size = lr_fh->source_size / lr_fh_meta->allocsize;
+        WT_RET(__bit_alloc(session, bitmap_size, &lr_fh->destination.bitmap));
+        lr_fh->destination.bitmap_size = bitmap_size;
+    }
+    WT_UNUSED(ret);
 
     //     if (0) {
     // err:
     //         __live_restore_fh_free_bitmap(session, lr_fh);
     //     }
-    //     if (__wt_rwlock_islocked(session, &lr_fh->ext_lock))
-    //         __wt_readunlock(session, &lr_fh->ext_lock);
+    if (__wt_rwlock_islocked(session, &lr_fh->ext_lock))
+        __wt_readunlock(session, &lr_fh->ext_lock);
     return (ret);
 }
 
