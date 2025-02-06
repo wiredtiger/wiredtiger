@@ -43,6 +43,7 @@ else()
         sub_level_error/unit/test_sub_level_error_api_end.cpp
         sub_level_error/unit/test_sub_level_error_compact.cpp
         sub_level_error/unit/test_sub_level_error_drop_conflict.cpp
+        sub_level_error/unit/test_sub_level_error_drop_uncommitted_dirty.cpp
         sub_level_error/unit/test_sub_level_error_is_valid_sub_level_error.cpp
         sub_level_error/unit/test_sub_level_error_msg_macros.cpp
         sub_level_error/unit/test_sub_level_error_rollback.cpp
@@ -52,9 +53,9 @@ endif()
 
 # Live restore is not supported on Windows
 if(NOT WT_WIN)
+    set(unittests live_restore/api/test_live_restore_fh_extent_import_export.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fs_directory_list.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fs_open_file.cpp ${unittests})
-    set(unittests live_restore/unit/test_live_restore_extent_list.cpp ${unittests})
 endif()
 
 set(unittest_sources

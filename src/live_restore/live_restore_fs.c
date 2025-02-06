@@ -1126,68 +1126,6 @@ err:
     return (ret);
 }
 
-#include <unistd.h>
-/*
- * __live_restore_fh_find_holes_in_dest_file --
- *     When opening a file from destination create its existing hole list from the file system
- *     information. Any holes in the extent list are data that hasn't been copied from source yet.
- */
-static int
-__live_restore_fh_find_holes_in_dest_file(
-  WT_SESSION_IMPL *session, char *filename, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
-{
-    WT_DECL_RET;
-    wt_off_t data_end_offset, file_size;
-    int fd;
-
-    data_end_offset = 0;
-    __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Opening file: %s", filename);
-    WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
-    if (ret != 0)
-        WT_RET_MSG(session, ret, "Failed to open file descriptor on %s", filename);
-
-    /* Check that we opened a valid file descriptor. */
-    WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
-    WT_ERR(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "File: %s", filename);
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "    len: %" PRId64, file_size);
-
-    if (file_size > 0)
-        /*
-         * Initialize the file as one big hole. We'll then lseek the file to find data blocks and
-         * remove those ranges from the hole list.
-         */
-        WT_ERR(__live_restore_alloc_extent(
-          session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list_head));
-
-    /*
-     * Find the next data block. data_end_offset is initialized to zero so we start from the
-     * beginning of the file. lseek will find a block when it starts already positioned on the
-     * block, so starting at zero ensures we'll find data blocks at the beginning of the file. This
-     * logic is single threaded but removing holes from the extent list requires the lock.
-     */
-    __wt_writelock(session, &lr_fh->ext_lock);
-    wt_off_t data_offset;
-    while ((data_offset = lseek(fd, data_end_offset, SEEK_DATA)) != -1) {
-
-        data_end_offset = lseek(fd, data_offset, SEEK_HOLE);
-        /* All data must be followed by a hole */
-        WT_ASSERT(session, data_end_offset != -1);
-        WT_ASSERT(session, data_end_offset > data_offset - 1);
-
-        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-          "File: %s, has data from %" PRId64 "-%" PRId64, filename, data_offset, data_end_offset);
-        WT_ERR(__live_restore_remove_extlist_hole(
-          lr_fh, session, data_offset, (size_t)(data_end_offset - data_offset)));
-    }
-
-err:
-    __wt_writeunlock(session, &lr_fh->ext_lock);
-    WT_SYSCALL_TRET(close(fd), ret);
-    return (ret);
-}
-
 /*
  * __live_restore_handle_verify_hole_list --
  *     Check that the generated hole list doesn't not contain holes that extend past the end of the
@@ -1218,7 +1156,8 @@ __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTOR
         WT_ERR(lr_fs->os_file_system->fs_size(
           lr_fs->os_file_system, (WT_SESSION *)session, source_fh->name, &source_size));
 
-        __wt_readlock(session, &lr_fh->ext_lock);
+        WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+          "Live restore lock not taken when needed");
         WTI_LIVE_RESTORE_HOLE_NODE *final_hole;
         final_hole = lr_fh->destination.hole_list_head;
         while (final_hole->next != NULL)
@@ -1228,12 +1167,9 @@ __live_restore_handle_verify_hole_list(WT_SESSION_IMPL *session, WTI_LIVE_RESTOR
             __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
               "Error: Hole list for %s has holes beyond the the end of the source file!", name);
             __live_restore_debug_dump_extent_list(session, lr_fh);
-            __wt_readunlock(session, &lr_fh->ext_lock);
             WT_ERR_MSG(session, EINVAL,
               "Hole list for %s has holes beyond the the end of the source file!", name);
         }
-        __wt_readunlock(session, &lr_fh->ext_lock);
-
     } else
         WT_ASSERT_ALWAYS(session, lr_fh->destination.hole_list_head == NULL,
           "Source file doesn't exist but there are holes in the destination file");
@@ -1246,6 +1182,135 @@ err:
         __wt_free(session, source_path);
 
     return (ret);
+}
+
+/*
+ * __wt_live_restore_fh_import_extents_from_string --
+ *     Reconstruct the extent list in memory from a string representation. If the string is NULL
+ *     mark the destination as complete. On error free any allocated extents.
+ */
+int
+__wt_live_restore_fh_import_extents_from_string(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, const char *extent_str)
+{
+    WT_DECL_RET;
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (0);
+
+    /*
+     * This function can be called for file handles that already have an in memory extent list. For
+     * this to happen the destination file was created for the first time and a single file size
+     * hole was initialized.
+     *
+     * FIXME-WT-14079 there is a tricky scenario here:
+     *   - Open a file that exists in the source, a.wt.
+     *   - Create a new file in the destination to begin migrating the file to.
+     *   - Crash.
+     *   - Open the file a.wt again, we will see an a.wt in the destination and not create the
+     *   necessary file length hole. We will also get an empty extent list string indicating a.wt is
+     *   complete.
+     */
+    bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
+
+    if (lr_fh->destination.hole_list_head != NULL) {
+        WT_ASSERT_ALWAYS(
+          session, extent_string_empty, "Extent list not empty while trying to import");
+        return (0);
+    }
+
+    if (extent_string_empty)
+        lr_fh->destination.complete = true;
+    else {
+        __wt_readlock(session, &lr_fh->ext_lock);
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s metadata extent list string: %s",
+          fh->name, extent_str);
+        /* The extents are separated by ;. And have the shape %d-%u. */
+        wt_off_t off = 0, next_off;
+        size_t len;
+        WTI_LIVE_RESTORE_HOLE_NODE **current = &lr_fh->destination.hole_list_head;
+        const char *str_ptr = extent_str;
+        char *next;
+        while (true) {
+            if (!__wt_isdigit((u_char)*str_ptr))
+                WT_ERR_MSG(session, EINVAL, "Invalid offset found in extent string");
+
+            next_off = (wt_off_t)strtoll(str_ptr, &next, 10);
+            str_ptr = next;
+            if (*str_ptr == '\0')
+                WT_ERR_MSG(session, EINVAL, "Invalid separator found in extent string");
+
+            /*
+             * Extents are additive to compress the string size i.e. the offset of extent n + 1 is
+             * the offset of extent n plus the offset of extent n + 1.
+             */
+            off += next_off;
+            str_ptr++;
+            if (!__wt_isdigit((u_char)*str_ptr))
+                WT_ERR_MSG(session, EINVAL, "Invalid length found in extent string");
+
+            len = (size_t)strtol(str_ptr, &next, 10);
+            if (len == 0)
+                WT_ERR_MSG(session, EINVAL, "Length zero extent found, this is an error");
+
+            __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+              "Adding an extent: %" PRId64 "-%" WT_SIZET_FMT, off, len);
+            WT_ERR(__live_restore_alloc_extent(session, off, len, NULL, current));
+            current = &((*current)->next);
+
+            str_ptr = next;
+            /* We've reached the end of the string, don't go over by accident. */
+            if (*str_ptr == '\0')
+                break;
+            str_ptr++;
+        }
+        WT_ERR(__live_restore_handle_verify_hole_list(
+          session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system, lr_fh, fh->name));
+    }
+
+    if (0) {
+err:
+        __live_restore_fs_free_extent_list(session, lr_fh);
+    }
+    if (__wt_rwlock_islocked(session, &lr_fh->ext_lock))
+        __wt_readunlock(session, &lr_fh->ext_lock);
+    return (ret);
+}
+
+/*
+ * __wt_live_restore_fh_extent_to_metadata --
+ *     Given a WiredTiger file handle generate a string of its extents. If live restore is not
+ *     running or the extent list is missing, which indicates the file is complete, return a
+ *     WT_NOTFOUND error.
+ */
+int
+__wt_live_restore_fh_extent_to_metadata(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_ITEM *extent_string)
+{
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (WT_NOTFOUND);
+
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+    if (lr_fh->destination.complete)
+        return (WT_NOTFOUND);
+
+    wt_off_t prev_off = 0;
+    WTI_LIVE_RESTORE_HOLE_NODE *head = lr_fh->destination.hole_list_head;
+    WT_RET(__wt_buf_catfmt(session, extent_string, ",live_restore="));
+    while (head != NULL) {
+        WT_RET(__wt_buf_catfmt(
+          session, extent_string, "%" PRId64 "-%" WT_SIZET_FMT, head->off - prev_off, head->len));
+        prev_off = head->off;
+        if (head->next != NULL)
+            WT_RET(__wt_buf_catfmt(session, extent_string, ";"));
+        head = head->next;
+    }
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+      "Appending live restore extents (%s) to metadata for file handle %s", fh->name,
+      (char *)extent_string->data);
+
+    return (0);
 }
 
 /*
@@ -1271,16 +1336,11 @@ __live_restore_fs_open_in_destination(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMP
 
     /* Open the file in the layer. */
     WT_ERR(__live_restore_fs_backing_filename(
-      &lr_fs->destination, session, lr_fs->destination.home, lr_fh->iface.name, &path));
+      &lr_fs->destination, session, lr_fs->destination.home, name, &path));
     WT_ERR(lr_fs->os_file_system->fs_open_file(
       lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
     lr_fh->destination.fh = fh;
     lr_fh->destination.back_pointer = lr_fs;
-
-    /* Get the list of holes of the file that need copying across from the source directory. */
-    WT_ERR(__live_restore_fh_find_holes_in_dest_file(session, path, lr_fh));
-    WT_ERR(__live_restore_handle_verify_hole_list(session, lr_fs, lr_fh, name));
-
 err:
     __wt_free(session, path);
     return (ret);
@@ -1406,6 +1466,9 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
                   lr_fh->destination.fh, wt_session, source_size));
 
                 /*
+                 * FIXME-WT-14078: The log file transfer stage and new file creation depend on this
+                 * allocation. Ideally we should be able to simplify the code and remove it.
+                 *
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */
