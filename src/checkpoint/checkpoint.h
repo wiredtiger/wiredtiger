@@ -207,6 +207,7 @@ extern int __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt);
 extern void __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing);
+extern void __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes);
 extern void __wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt);
 extern void __wt_checkpoint_set_handle_stats(
   WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt, uint64_t gathering_handles_time_us);

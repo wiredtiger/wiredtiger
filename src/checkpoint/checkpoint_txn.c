@@ -630,6 +630,25 @@ __wti_checkpoint_progress_clear(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_checkpoint_progress_stats --
+ *     Update checkpoint progress data.
+ */
+void
+__wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    conn->ckpt.progress.write_bytes += write_bytes;
+    ++conn->ckpt.progress.write_pages;
+
+    /* Periodically log checkpoint progress. */
+    if (conn->ckpt.progress.write_pages % (5 * WT_THOUSAND) == 0)
+        __wt_checkpoint_progress(session, false);
+}
+
+/*
  * __checkpoint_stats --
  *     Update checkpoint timer stats.
  */
