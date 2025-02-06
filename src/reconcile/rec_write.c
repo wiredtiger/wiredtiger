@@ -797,8 +797,15 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     btree = S2BT(session);
 
-    if (r->hs_cursor != NULL)
-        WT_RET(r->hs_cursor->reset(r->hs_cursor));
+    /*
+     * The history store cursor cannot be shared across btrees now that we can have more than one
+     * history store table, so close it. We need to do this because the reconciliation struct could
+     * be reused for a different btree.
+     */
+    if (r->hs_cursor != NULL) {
+        WT_RET(r->hs_cursor->close(r->hs_cursor));
+        r->hs_cursor = NULL;
+    }
 
     if (btree->type == BTREE_ROW)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
@@ -3261,7 +3268,7 @@ __wti_rec_hs_clear_on_tombstone(
 
     /* Open a history store cursor if we don't yet have one. */
     if (r->hs_cursor == NULL)
-        WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
+        WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
 
     /*
      * From WT_TS_NONE delete/reinsert all the history store content of the key. The test of

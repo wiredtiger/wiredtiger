@@ -553,7 +553,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * life of the checkpoint cursor.
      */
 
-    is_hs = strcmp(uri, WT_HS_URI) == 0;
+    is_hs = WT_IS_URI_HS(uri);
 
     /*
      * We have already pinned the history store checkpoint dhandle when we open the checkpoint

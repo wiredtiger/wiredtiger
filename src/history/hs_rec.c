@@ -359,7 +359,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     error_on_ts_ordering = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING);
     cache_hs_insert_full_update = cache_hs_insert_reverse_modify = cache_hs_write_squash = 0;
 
-    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    WT_RET(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_update_vector_init(session, &updates);
@@ -1001,7 +1001,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
              * case, we'll never get here.
              */
             if (hs_insert_cursor == NULL)
-                WT_ERR(__wt_curhs_open(session, NULL, &hs_insert_cursor));
+                WT_ERR(__wt_curhs_open(session, btree_id, NULL, &hs_insert_cursor));
 
             /*
              * If these history store records are resolved prepared updates, their durable
@@ -1095,7 +1095,7 @@ __hs_delete_record(
     WT_TIME_WINDOW *hs_tw;
 
     if (r->hs_cursor == NULL)
-        WT_RET(__wt_curhs_open(session, NULL, &r->hs_cursor));
+        WT_RET(__wt_curhs_open(session, S2BT(session)->id, NULL, &r->hs_cursor));
     hs_read_committed = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     /* Ensure we can see all the content in the history store. */
     F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);

@@ -298,12 +298,14 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_HS_KEY_FORMAT WT_UNCHECKED_STRING(IuQQ)
 #define WT_HS_VALUE_FORMAT WT_UNCHECKED_STRING(QQQu)
-#define WT_HS_CONFIG                                                   \
+#define WT_HS_CONFIG_COMMON                                            \
     "key_format=" WT_HS_KEY_FORMAT ",value_format=" WT_HS_VALUE_FORMAT \
     ",block_compressor=" WT_HS_COMPRESSOR                              \
     ",internal_page_max=16KB"                                          \
     ",leaf_value_max=64MB"                                             \
     ",prefix_compression=false"
+#define WT_HS_CONFIG_LOCAL WT_HS_CONFIG_COMMON
+#define WT_HS_CONFIG_SHARED WT_HS_CONFIG_COMMON ",block_manager=disagg"
 
 /*
  * WT_SAVE_UPD --

@@ -457,6 +457,7 @@ WiredTigerLAS
 WiredTigerLog
 WiredTigerPreplog
 WiredTigerShared
+WiredTigerSharedHS
 WiredTigerTmplog
 WithSeeds
 Wmissing

@@ -9,24 +9,55 @@
 #include "wt_internal.h"
 
 static int __curhs_file_cursor_next(WT_SESSION_IMPL *, WT_CURSOR *);
-static int __curhs_file_cursor_open(WT_SESSION_IMPL *, WT_CURSOR *, WT_CURSOR **);
+static int __curhs_file_cursor_open(WT_SESSION_IMPL *, const char *, WT_CURSOR *, WT_CURSOR **);
 static int __curhs_file_cursor_prev(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __curhs_file_cursor_search_near(WT_SESSION_IMPL *, WT_CURSOR *, int *);
 static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
 static int __curhs_next_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
 static int __curhs_search_near_helper(WT_SESSION_IMPL *, WT_CURSOR *, bool);
+
 /*
  * __curhs_file_cursor_open --
  *     Open a new history store table cursor, internal function.
  */
 static int
-__curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
+__curhs_file_cursor_open(
+  WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     size_t len;
+    uint64_t global_ckpt_id;
     char *tmp;
-    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL};
+    bool leader;
+
+    const char *open_cursor_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL, NULL};
+
+    conn = S2C(session);
+    leader = conn->layered_table_manager.leader;
+
+    /*
+     * In the case of disaggregated storage, we may need to reopen the shared HS btree if we just
+     * picked up a new checkpoint to ensure that we get the latest version. We need to do this only
+     * for follower nodes, because the leader nodes are always up to date (as they are the ones
+     * writing it).
+     *
+     * We also need to avoid advancing the HS cursor to the next checkpoint if we have the eviction
+     * pass lock: Reopening the cursor would attempt to acquire the schema lock, which could in this
+     * case result in a deadlock. Instead, allow the session to continue with the cached HS cursor.
+     * This should not be a problem, because (1) this can happen only on the secondary, and (2) the
+     * eviction on the secondary should not update the shared HS.
+     */
+    if (strcmp(uri, WT_HS_URI_SHARED) == 0 && !leader &&
+      !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS)) {
+        WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
+        if (global_ckpt_id > session->hs_checkpoint_id) {
+            session->hs_checkpoint_id = global_ckpt_id;
+            open_cursor_cfg[1] = "force=true";
+        }
+    }
 
     if (WT_READING_CHECKPOINT(session)) {
         /*
@@ -38,12 +69,12 @@ __curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR *
         len = strlen("checkpoint=") + strlen(session->hs_checkpoint) + 1;
         WT_RET(__wt_malloc(session, len, &tmp));
         WT_ERR(__wt_snprintf(tmp, len, "checkpoint=%s", session->hs_checkpoint));
-        open_cursor_cfg[1] = tmp;
+        open_cursor_cfg[2] = tmp;
     } else
         tmp = NULL;
 
     WT_WITHOUT_DHANDLE(
-      session, ret = __wt_open_cursor(session, WT_HS_URI, owner, open_cursor_cfg, &cursor));
+      session, ret = __wt_open_cursor(session, uri, owner, open_cursor_cfg, &cursor));
     WT_ERR(ret);
 
     /* History store cursors should always ignore tombstones. */
@@ -93,8 +124,14 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
       (session->dhandle != NULL && WT_IS_METADATA(S2BT(session)->dhandle)) ||
       session == conn->default_session)
         return (0);
-    WT_RET(__curhs_file_cursor_open(session, NULL, &cursor));
+
+    WT_RET(__curhs_file_cursor_open(session, WT_HS_URI, NULL, &cursor));
     WT_RET(cursor->close(cursor));
+
+    if (__wt_conn_is_disagg(session)) {
+        WT_RET(__curhs_file_cursor_open(session, WT_HS_URI_SHARED, NULL, &cursor));
+        WT_RET(cursor->close(cursor));
+    }
     return (0);
 }
 
@@ -341,9 +378,14 @@ __curhs_reset(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, reset, ((WT_CURSOR_BTREE *)file_cursor)->dhandle);
 
+    /*
+     * Now that we can have more than one history store table, don't reset the btree ID. This cursor
+     * was opened on a specific btree, and there is no guarantee that it could be safely reused for
+     * a different btree.
+     */
+
     ret = file_cursor->reset(file_cursor);
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
-    hs_cursor->btree_id = 0;
     hs_cursor->datastore_key->data = NULL;
     hs_cursor->datastore_key->size = 0;
     hs_cursor->flags = 0;
@@ -372,7 +414,7 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
     WT_SESSION_IMPL *session;
     wt_timestamp_t start_ts;
     uint64_t counter;
-    uint32_t arg_count;
+    uint32_t arg_count, btree_id;
     va_list ap;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
@@ -387,8 +429,17 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 
     WT_ASSERT(session, arg_count >= 1 && arg_count <= 4);
 
-    hs_cursor->btree_id = va_arg(ap, uint32_t);
+    /*
+     * Verify that the btree ID matches the history store cursor's btree ID. We also need to allow
+     * btree ID + 1, which is used by RTS to mark the end of a truncation range: When truncating all
+     * entries belonging to a given btree, it sets the start key to btree ID and the end key to
+     * btree ID + 1.
+     */
+    btree_id = va_arg(ap, uint32_t);
+    WT_ASSERT(session, hs_cursor->btree_id == btree_id || hs_cursor->btree_id + 1 == btree_id);
+    hs_cursor->btree_id = btree_id;
     F_SET(hs_cursor, WT_HS_CUR_BTREE_ID_SET);
+
     if (arg_count > 1) {
         datastore_key = va_arg(ap, WT_ITEM *);
         if ((ret = __wt_buf_set(
@@ -1229,11 +1280,60 @@ __wt_curhs_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 }
 
 /*
+ * __wt_curhs_next_hs_id --
+ *     Get the History Store ID that follows the current ID (kind of like a cursor, but simpler at
+ *     least for now). Starting with ID 0 returns the actual first ID.
+ */
+int
+__wt_curhs_next_hs_id(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t *next_hs_idp)
+{
+    WT_UNUSED(session);
+
+    if (hs_id == 0) {
+        *next_hs_idp = 1;
+        return (0);
+    }
+
+    if (hs_id == 1) {
+        if (!__wt_conn_is_disagg(session))
+            return (WT_NOTFOUND);
+        *next_hs_idp = 2;
+        return (0);
+    }
+
+    return (WT_NOTFOUND);
+}
+
+/*
  * __wt_curhs_open --
  *     Initialize a history store cursor.
  */
 int
-__wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
+__wt_curhs_open(WT_SESSION_IMPL *session, uint32_t btree_id, WT_CURSOR *owner, WT_CURSOR **cursorp)
+{
+    uint32_t hs_id;
+
+    WT_ASSERT(session, btree_id != 0);
+
+    /*
+     * Map the history store ID into the URI. The current implementation does this simply using
+     * table ID namespaces, but keep the notion of HS ID and namespace ID separate to ensure that we
+     * can make more flexible choices in the future.
+     */
+    hs_id = WT_BTREE_ID_SHARED(btree_id) ? 2 : 1;
+
+    return (__wt_curhs_open_ext(session, hs_id, btree_id, owner, cursorp));
+}
+
+/*
+ * __wt_curhs_open_ext --
+ *     Initialize a history store cursor using a logical history store ID. This does not check
+ *     whether the btree ID actually belongs to the selected history store; use 0 to simply ignore
+ *     the it.
+ */
+int
+__wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id, WT_CURSOR *owner,
+  WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
@@ -1262,25 +1362,41 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_CURSOR *cursor;
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
+    const char *uri;
 
+    cursor = NULL;
     *cursorp = NULL;
-    WT_RET(__wt_calloc_one(session, &hs_cursor));
+
+    switch (hs_id) {
+    case 1:
+        uri = WT_HS_URI;
+        break;
+
+    case 2:
+        uri = WT_HS_URI_SHARED;
+        break;
+
+    default:
+        WT_ERR_MSG(session, EINVAL, "No such History Store ID: %" PRIu32, hs_id);
+    }
+
+    WT_ERR(__wt_calloc_one(session, &hs_cursor));
     ++session->hs_cursor_counter;
     cursor = (WT_CURSOR *)hs_cursor;
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
     cursor->key_format = WT_HS_KEY_FORMAT;
     cursor->value_format = WT_HS_VALUE_FORMAT;
-    WT_ERR(__wt_strdup(session, WT_HS_URI, &cursor->uri));
+    WT_ERR(__wt_strdup(session, uri, &cursor->uri));
 
     /* Open the file cursor for operations on the regular history store .*/
-    WT_ERR(__curhs_file_cursor_open(session, owner, &hs_cursor->file_cursor));
+    WT_ERR(__curhs_file_cursor_open(session, uri, owner, &hs_cursor->file_cursor));
 
     WT_WITH_BTREE(session, CUR2BT(hs_cursor->file_cursor),
-      ret = __wt_cursor_init(cursor, WT_HS_URI, owner, NULL, cursorp));
+      ret = __wt_cursor_init(cursor, uri, owner, NULL, cursorp));
     WT_ERR(ret);
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
-    hs_cursor->btree_id = 0;
+    hs_cursor->btree_id = btree_id;
     WT_ERR(__wt_scr_alloc(session, 0, &hs_cursor->datastore_key));
     hs_cursor->flags = 0;
 
@@ -1288,7 +1404,8 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
 
     if (0) {
 err:
-        WT_TRET(cursor->close(cursor));
+        if (cursor != NULL)
+            WT_TRET(cursor->close(cursor));
         *cursorp = NULL;
     }
     return (ret);

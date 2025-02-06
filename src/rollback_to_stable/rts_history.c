@@ -30,7 +30,7 @@ __wti_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp
     btree_id = S2BT(session)->id;
 
     /* Open a history store table cursor. */
-    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    WT_RET(__wt_curhs_open(session, btree_id, NULL, &hs_cursor));
     /*
      * Rollback-to-stable operates exclusively (i.e., it is the only active operation in the system)
      * outside the constraints of transactions. Therefore, there is no need for snapshot based
@@ -114,7 +114,7 @@ __wti_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
     WT_RET(__wt_scr_alloc(session, 0, &hs_key));
 
     /* Open a history store start cursor. */
-    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_start));
+    WT_ERR(__wt_curhs_open(session, btree_id, NULL, &hs_cursor_start));
     F_SET(hs_cursor_start, WT_CURSTD_HS_READ_COMMITTED);
 
     hs_cursor_start->set_key(hs_cursor_start, 1, btree_id);
@@ -129,9 +129,10 @@ __wti_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
       btree_id);
 
     /* Open a history store stop cursor. */
-    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor_stop));
+    WT_ERR(__wt_curhs_open(session, btree_id, NULL, &hs_cursor_stop));
     F_SET(hs_cursor_stop, WT_CURSTD_HS_READ_COMMITTED | WT_CURSTD_HS_READ_ACROSS_BTREE);
 
+    /* Set the stop cursor to one past the btree. */
     hs_cursor_stop->set_key(hs_cursor_stop, 1, btree_id + 1);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor_stop), true);
 

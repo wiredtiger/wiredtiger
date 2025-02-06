@@ -503,7 +503,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      *    timestamps are not in use, otherwise, the first condition will be satisfied.
      */
     if ((addr_size != 0) &&
-      (newest_stop_durable_ts != WT_TS_NONE || logged || strcmp(uri, WT_HS_URI) == 0))
+      (newest_stop_durable_ts != WT_TS_NONE || logged || WT_IS_URI_HS(uri) == 0))
         return (true);
 
     return (false);

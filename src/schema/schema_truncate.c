@@ -200,7 +200,7 @@ __wt_schema_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     session = trunc_info->session;
     uri = trunc_info->uri;
 
-    if (WT_STREQ(uri, WT_HS_URI))
+    if (WT_IS_URI_HS(uri))
         ret = __wt_curhs_range_truncate(trunc_info);
     else if (WT_PREFIX_MATCH(uri, "file:")) {
         WT_ERR(__cursor_needkey(trunc_info->start));
