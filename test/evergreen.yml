@@ -2237,7 +2237,7 @@ tasks:
         vars:
           # As leader, run the set of tests that are not in the fail list.
           unit_test_parallel_ignore: test/suite/hook_disagg.fail
-          unit_test_parallel_args: -v 2 --timeout 60 --hook disagg=(role=leader)
+          unit_test_parallel_args: -v 2 --timeout 60 --hook "disagg=(role=leader)"
 
   - name: unit-test-hook-disagg-follower
     tags: ["pull_request", "python"]
@@ -2248,7 +2248,7 @@ tasks:
       - func: "unit test"
         vars:
           # As follower, run a minimal functionality test
-          unit_test_args: -v 2 --timeout 60 --hook disagg=(role=follower) base01
+          unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower)" base01
 
   - name: unit-test-hook-tiered
     tags: ["python"]
