@@ -1320,7 +1320,6 @@ __wt_cell_unpack_delta(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk, WT_
     p = (uint8_t *)&cell->__chunk[1];
 
     if (F_ISSET(unpack, WT_DELTA_IS_DELETE)) {
-        WT_ASSERT(session, false);
         ret = __wt_vunpack_uint(&p, 0, &v);
         WT_ASSERT(session, ret == 0);
         unpack->key_size = (uint32_t)v;

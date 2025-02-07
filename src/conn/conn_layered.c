@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
+
 /*
  * __layered_create_missing_ingest_table --
  *     Create a missing ingest table from an existing layered table configuration.
@@ -318,8 +320,6 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
       WT_LAYERED_TABLE_THREAD_COUNT, WT_LAYERED_TABLE_THREAD_COUNT, session_flags,
       __wt_layered_table_manager_thread_chk, __wt_layered_table_manager_thread_run, NULL));
 
-    WT_MAX_LSN(&manager->max_replay_lsn);
-
     WT_STAT_CONN_SET(session, layered_table_manager_running, 1);
     __wt_verbose_level(
       session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s", "__wt_layered_table_manager_start");
@@ -506,101 +506,6 @@ __layered_table_get_constituent_cursor(
 }
 
 /*
- * __layered_table_manager_checkpoint_locked --
- *     Trigger a checkpoint of the handle - will acquire necessary locks
- */
-static int
-__layered_table_manager_checkpoint_locked(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-
-    WT_STAT_CONN_DSRC_INCR(session, layered_table_manager_checkpoints);
-    WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_checkpoint(session, 0)));
-    return (ret);
-}
-
-/*
- * __layered_table_manager_checkpoint_one --
- *     Review the layered tables and checkpoint one if it has enough accumulated content. For now
- *     this just checkpoints the first table that meets the threshold. In the future it should be
- *     more fair in selecting a table.
- */
-static int
-__layered_table_manager_checkpoint_one(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *ingest_btree;
-    WT_CURSOR *stable_cursor;
-    WT_DECL_RET;
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    WT_TXN_ISOLATION saved_isolation;
-    uint64_t satisfied_txn_id;
-    uint32_t i;
-
-    manager = &S2C(session)->layered_table_manager;
-
-    /* The table count never shrinks, so this is safe. It probably needs the layered table lock */
-    for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL &&
-          entry->accumulated_write_bytes > WT_LAYERED_TABLE_CHECKPOINT_THRESHOLD) {
-            /*
-             * Retrieve the current transaction ID - ensure it actually gets read from the shared
-             * variable here, it would lead to data loss if it was read later and included
-             * transaction IDs that aren't included in the checkpoint. It's OK for it to miss IDs -
-             * this requires an "at least as much" guarantee, not an exact match guarantee.
-             */
-            WT_READ_ONCE(satisfied_txn_id, manager->max_applied_txnid);
-            __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-              "layered table %s being checkpointed, satisfied txnid=%" PRIu64, entry->stable_uri,
-              satisfied_txn_id);
-
-            WT_RET(
-              __layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
-            /*
-             * Clear out the byte count before checkpointing - otherwise any writes done during the
-             * checkpoint won't count towards the next threshold.
-             */
-            entry->accumulated_write_bytes = 0;
-
-            /*
-             * We know all content in the table is visible - use the cheapest check we can during
-             * reconciliation.
-             */
-            saved_isolation = session->txn->isolation;
-            session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
-
-            /*
-             * Turn on metadata tracking to ensure the checkpoint gets the necessary handle locks.
-             */
-            WT_RET(__wt_meta_track_on(session));
-            WT_WITH_DHANDLE(session, ((WT_CURSOR_BTREE *)stable_cursor)->dhandle,
-              ret = __layered_table_manager_checkpoint_locked(session));
-            WT_TRET(__wt_meta_track_off(session, false, ret != 0));
-            session->txn->isolation = saved_isolation;
-            if (ret == 0) {
-                entry->checkpoint_txn_id = satisfied_txn_id;
-                ingest_btree = (WT_BTREE *)entry->layered_table->ingest->handle;
-                WT_ASSERT_ALWAYS(session, F_ISSET(ingest_btree, WT_BTREE_GARBAGE_COLLECT),
-                  "Ingest table not setup for garbage collection");
-                ingest_btree->oldest_live_txnid = satisfied_txn_id;
-            }
-
-            /* We've done (or tried to do) a checkpoint - that's it. */
-            return (ret);
-        } else if (entry != NULL) {
-            if (entry->accumulated_write_bytes > 0)
-                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                  "not checkpointing table %s bytes=%" PRIu64, entry->stable_uri,
-                  entry->accumulated_write_bytes);
-        }
-    }
-
-    WT_STAT_CONN_SET(session, layered_table_manager_checkpoint_candidates, i);
-    return (0);
-}
-
-/*
  * __wt_layered_table_manager_thread_run --
  *     Entry function for a layered table manager thread. This is called repeatedly from the thread
  *     group code so it does not need to loop itself.
@@ -616,41 +521,12 @@ __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD
 
     WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
 
-    /*
-     * For now the layered table manager is simple - it just ensures that checkpoints are created in
-     * constituent tables regularly.
-     */
-    WT_RET(__layered_table_manager_checkpoint_one(session));
+    /* TODO: now we just sleep. In the future, do whatever we need to do here. */
+    __wt_sleep(1, 0);
 
     WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
 
     return (0);
-}
-
-/*
- * __wt_layered_table_manager_get_pinned_id --
- *     Retrieve the oldest checkpoint ID that's relevant to garbage collection
- */
-void
-__wt_layered_table_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp)
-{
-    WT_LAYERED_TABLE_MANAGER *manager;
-    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    uint64_t pinned;
-    uint32_t i;
-
-    manager = &S2C(session)->layered_table_manager;
-
-    /* If no tables are being managed, then don't pin anything */
-    pinned = WT_TXN_MAX;
-    for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL && WT_TXNID_LT(entry->checkpoint_txn_id, pinned))
-            pinned = entry->checkpoint_txn_id;
-    }
-
-    *pinnedp = pinned;
-
-    WT_STAT_CONN_SET(session, layered_table_manager_pinned_id_tables_searched, i);
 }
 
 /*
@@ -705,10 +581,10 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
-    WT_MAX_LSN(&manager->max_replay_lsn);
 
     __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
     WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
+    __wt_spin_unlock(session, &manager->layered_table_lock);
 
     return (0);
 }
@@ -799,9 +675,13 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     else {
         if (WT_CONFIG_LIT_MATCH("follower", cval))
             conn->layered_table_manager.leader = leader = false;
-        else if (WT_CONFIG_LIT_MATCH("leader", cval))
+        else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
+            /* Drain the ingest tables before switching to leader. */
+            if (reconfig)
+                WT_ERR(__layered_drain_ingest_tables(session));
+
             conn->layered_table_manager.leader = leader = true;
-        else
+        } else
             WT_ERR_MSG(session, EINVAL, "Invalid node role");
 
         /* Follower step-up. */
@@ -1124,17 +1004,20 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prev_upd, *tombstone, *upd, *upds;
+    wt_timestamp_t last_checkpoint_timestamp;
     uint8_t flags, location, prepare, type;
     int cmp;
     char buf[256];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
+    WT_ACQUIRE_READ(
+      last_checkpoint_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
     WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     WT_RET(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,visible_only=true,timestamp_order=true,start_timestamp="
       "%" PRIx64 "))",
-      S2C(session)->txn_global.stable_timestamp));
+      last_checkpoint_timestamp));
     cfg[1] = buf;
     WT_RET(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
     /* We only care about binary data. */
@@ -1174,11 +1057,14 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         WT_ERR(version_cursor->get_value(version_cursor, &tw.start_txn, &tw.start_ts,
           &tw.durable_start_ts, &tw.stop_txn, &tw.stop_ts, &tw.durable_stop_ts, &type, &prepare,
           &flags, &location, value));
-        /* We shouldn't seen any prepared updates. */
+        /* We shouldn't see any prepared updates. */
         WT_ASSERT(session, prepare == 0);
 
         /* We assume the updates returned will be in timestamp order. */
         if (prev_upd != NULL) {
+            /* If we see a single tombstone in the previous iteration, we must be reaching the end
+             * and should never be here. */
+            WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
             WT_ASSERT(session,
               tw.stop_txn <= prev_upd->txnid && tw.stop_ts <= prev_upd->start_ts &&
                 tw.durable_stop_ts <= prev_upd->durable_ts);
@@ -1191,10 +1077,18 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         } else if (WT_TIME_WINDOW_HAS_STOP(&tw))
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
 
-        WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
-        upd->txnid = tw.start_txn;
-        upd->start_ts = tw.start_ts;
-        upd->durable_ts = tw.durable_start_ts;
+        /*
+         * It is possible to see a full value that is smaller than or equal to the last checkpoint
+         * timestamp with a tombstone that is larger than the last checkpoint timestamp. Ignore the
+         * update in this case.
+         */
+        if (tw.durable_start_ts > last_checkpoint_timestamp) {
+            WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+            upd->txnid = tw.start_txn;
+            upd->start_ts = tw.start_ts;
+            upd->durable_ts = tw.durable_start_ts;
+        } else
+            WT_ASSERT(session, tombstone != NULL);
 
         if (tombstone != NULL) {
             tombstone->txnid = tw.stop_txn;
@@ -1202,21 +1096,23 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
             tombstone->durable_ts = tw.durable_start_ts;
             tombstone->next = upd;
 
+            WT_ASSERT(session, tombstone->durable_ts > last_checkpoint_timestamp);
+
             if (prev_upd != NULL)
                 prev_upd->next = tombstone;
-            else {
-                prev_upd = upd;
+            else
                 upds = tombstone;
-            }
+
+            prev_upd = upd;
             tombstone = NULL;
             upd = NULL;
         } else {
             if (prev_upd != NULL)
                 prev_upd->next = upd;
-            else {
-                prev_upd = upd;
+            else
                 upds = upd;
-            }
+
+            prev_upd = upd;
             upd = NULL;
         }
     }
@@ -1235,11 +1131,6 @@ err:
     return (ret);
 }
 
-/* TODO: use this function to drain the ingest table */
-#ifdef __linux__
-static int __layered_drain_ingest_tables(WT_SESSION_IMPL *) __attribute__((unused));
-#endif
-
 /*
  * __layered_drain_ingest_tables --
  *     Moving all the data from the ingest tables to the stable tables
@@ -1253,9 +1144,13 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     manager = &S2C(session)->layered_table_manager;
 
-    /* The table count never shrinks, so this is safe. It probably needs the layered table lock */
+    /*
+     * The table count never shrinks, so this is safe. It probably needs the layered table lock.
+     *
+     * TODO: skip empty ingest tables.
+     */
     for (i = 0; i < manager->open_layered_table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL && entry->accumulated_write_bytes > 0)
+        if ((entry = manager->entries[i]) != NULL)
             WT_RET(__layered_drain_ingest_table(session, entry));
     }
 

@@ -641,6 +641,9 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     __wt_txn_pinned_stable_timestamp(session, &r->rec_start_pinned_stable_ts);
 
+    WT_ACQUIRE_READ(r->rec_last_checkpoint_timestamp,
+      S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
      * can move beyond the checkpoint transaction id. When reconciling the metadata or disaggregated

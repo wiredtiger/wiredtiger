@@ -125,7 +125,6 @@ struct __wt_layered_table_manager_entry {
     WT_CURSOR *stable_cursor;
     WT_LAYERED_TABLE *layered_table;
 
-    uint64_t accumulated_write_bytes;
     uint64_t checkpoint_txn_id;
     uint64_t read_checkpoint;
 };
@@ -142,13 +141,9 @@ struct __wt_layered_table_manager {
 #define WT_LAYERED_TABLE_MANAGER_STOPPING 3 /* The layered table manager is being shut down */
     wt_shared uint32_t state;               /* Atomic: Indicating the manager is already running */
 
-    wt_shared uint32_t log_applying; /* Atomic: a thread is currently applying logs */
-
     WT_SPINLOCK
     layered_table_lock; /* Lock used for managing changes to global layered table state */
 
-    /* Set the checkpoint threshold tiny for now - we just want to know the process is working */
-#define WT_LAYERED_TABLE_CHECKPOINT_THRESHOLD 16
     uint32_t open_layered_table_count;
     /*
      * This is a sparsely populated array of layered tables - each fileid in the system gets an
@@ -160,9 +155,6 @@ struct __wt_layered_table_manager {
 
 #define WT_LAYERED_TABLE_THREAD_COUNT 1
     WT_THREAD_GROUP threads;
-
-    WT_LSN max_replay_lsn;
-    uint64_t max_applied_txnid;
 
     bool leader;
 };

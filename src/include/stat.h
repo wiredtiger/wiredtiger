@@ -873,9 +873,7 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_logops_applied;
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;
-    int64_t layered_table_manager_checkpoint_candidates;
     int64_t layered_table_manager_tables;
-    int64_t layered_table_manager_pinned_id_tables_searched;
     int64_t layered_table_manager_running;
     int64_t layered_table_manager_active;
     int64_t lock_checkpoint_count;

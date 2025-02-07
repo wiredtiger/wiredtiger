@@ -1286,6 +1286,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         }
 
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA) && upd->type == WT_UPDATE_STANDARD) {
+            WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY));
             /*
              * If we see an update that is not visible to the reader and it is restored from delta,
              * we should search the history store.
@@ -1434,7 +1435,8 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
+    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) && F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+      !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));

@@ -269,14 +269,6 @@ struct __wt_btree {
     wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
     WT_EVICT_WALK_TYPE evict_start_type;
 
-    /*
-     * Garbage collected tables keep a certain amount of transaction history available, and delete
-     * older content automatically. This transaction ID defines how much content to keep locally.
-     * Garbage collection is done in reconciliation - obsolete content isn't included when content
-     * is written back to disk.
-     */
-    uint64_t oldest_live_txnid;
-
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;
 

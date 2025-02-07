@@ -542,8 +542,6 @@ conn_stats = [
     # Layered table statistics
     ##########################################
     LayeredStat('layered_table_manager_active', 'whether the layered table manager thread is currently busy doing work'),
-    LayeredStat('layered_table_manager_checkpoint_candidates', 'the number of tables the layered table manager considered for checkpointing'),
-    LayeredStat('layered_table_manager_pinned_id_tables_searched', 'the number of tables the layered table manager thread has search to calculate the pinned ID'),
     LayeredStat('layered_table_manager_running', 'whether the layered table manager thread has been started'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
 

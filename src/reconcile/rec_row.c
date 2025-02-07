@@ -609,7 +609,9 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
     if (first_upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    if (WT_TXNID_LT(first_upd->txnid, btree->oldest_live_txnid)) {
+    if (WT_TXNID_LT(first_upd->txnid, r->last_running) &&
+      r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
+      first_upd->durable_ts <= r->rec_last_checkpoint_timestamp) {
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
           "layered table record garbage collected 5");
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
@@ -649,7 +651,9 @@ __rec_row_garbage_collect_fixup_insert_list(
     if (first_upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    if (WT_TXNID_LT(first_upd->txnid, btree->oldest_live_txnid)) {
+    if (WT_TXNID_LT(first_upd->txnid, r->last_running) &&
+      r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
+      first_upd->durable_ts <= r->rec_last_checkpoint_timestamp) {
         /* __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s", */
         /*   "layered table record garbage collected 4"); */
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
@@ -955,7 +959,9 @@ __wti_rec_row_leaf(
         if (upd == NULL &&
           (__wt_txn_tw_stop_visible_all(session, twp) ||
             (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-              WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)))) {
+              WT_TXNID_LT(twp->start_txn, r->last_running) &&
+              r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
+              twp->durable_start_ts <= r->rec_last_checkpoint_timestamp))) {
             /*
             if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
                 __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
@@ -1024,7 +1030,9 @@ __wti_rec_row_leaf(
               F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
                 __wt_txn_tw_start_visible_all(session, twp) ||
                 (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
-                  WT_TXNID_LT(twp->start_txn, btree->oldest_live_txnid)));
+                  WT_TXNID_LT(twp->start_txn, r->last_running) &&
+                  r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
+                  twp->durable_start_ts <= r->rec_last_checkpoint_timestamp));
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)

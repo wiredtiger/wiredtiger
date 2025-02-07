@@ -729,6 +729,11 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_LAYERED_TABLE *layered;
     uint32_t ingest_id, stable_id;
 
+    if (!__wt_conn_is_disagg(session)) {
+        __wt_err(session, EINVAL, "layered table is only supported for disaggregated storage");
+        return (EINVAL);
+    }
+
     /* This needs to hold the table write lock, so the handle doesn't get swept and closed */
     WT_WITH_TABLE_WRITE_LOCK(session, ret = __schema_open_layered(session));
     WT_RET(ret);
@@ -748,6 +753,7 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_SAVE_DHANDLE(
       session, ret = __schema_open_layered_member(session, layered, layered->stable_uri, false));
     WT_RET(ret);
+
     if (layered->stable != NULL) {
         stable_id = ((WT_BTREE *)layered->stable->handle)->id;
         WT_ASSERT(session, WT_BTREE_ID_SHARED(stable_id));

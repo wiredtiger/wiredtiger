@@ -26,13 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wiredtiger
+from helper_disagg import DisaggConfigMixin, gen_disagg_storages
 from wtscenario import make_scenarios
 from wtbound import bound_base
 
 # test_cursor_bound01.py
 #    Basic cursor bound API validation.
-class test_cursor_bound01(bound_base):
+class test_cursor_bound01(bound_base, DisaggConfigMixin):
+    conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
     file_name = 'test_cursor_bound01'
 
     types = [
@@ -50,7 +53,19 @@ class test_cursor_bound01(bound_base):
         ('fix', dict(key_format='r',value_format='8t'))
     ]
 
-    scenarios = make_scenarios(types,format_values)
+    disagg_storages = gen_disagg_storages('test_cursor_bound01', disagg_only = True)
+    scenarios = make_scenarios(types,format_values, disagg_storages)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+
+    def conn_config(self):
+        return self.conn_base_config + 'disaggregated=(role="leader"),'
+
+    # Load the storage store extension.
+    def conn_extensions(self, extlist):
+        DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_bound_api(self):
         # LSM doesn't support column store type, therefore we can just return early here.
@@ -114,11 +129,10 @@ class test_cursor_bound01(bound_base):
             return
 
         # Check that largest key doesn't work with bounded cursors.
-        if (self.uri != 'layered:'):
-            cursor.set_key(self.gen_key(1))
-            cursor.bound("action=set,bound=lower")
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
-                '/setting bounds is not compatible with cursor largest key/')
+        cursor.set_key(self.gen_key(1))
+        cursor.bound("action=set,bound=lower")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.largest_key(),
+            '/setting bounds is not compatible with cursor largest key/')
 
         # Check edge cases with bounds config
         cursor.set_key(self.gen_key(1))

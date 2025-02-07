@@ -2049,7 +2049,6 @@ extern void __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
 extern void __wt_hazard_close(WT_SESSION_IMPL *session);
 extern void __wt_hs_close(WT_SESSION_IMPL *session);
 extern void __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp);
-extern void __wt_layered_table_manager_get_pinned_id(WT_SESSION_IMPL *session, uint64_t *pinnedp);
 extern void __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t ingest_id);
 extern void __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn);
 extern void __wt_log_slot_free(WT_SESSION_IMPL *session, WT_LOGSLOT *slot);

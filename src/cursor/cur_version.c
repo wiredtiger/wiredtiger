@@ -145,11 +145,11 @@ __curversion_set_value_with_format(WT_CURSOR *cursor, const char *fmt, ...)
 }
 
 /*
- * __curversion_next_int --
- *     Internal implementation for version cursor next api.
+ * __curversion_next_single_key --
+ *     Iterate the updates of a single key.
  */
 static int
-__curversion_next_int(WT_CURSOR *cursor)
+__curversion_next_single_key(WT_CURSOR *cursor)
 {
     WT_CURSOR *file_cursor, *hs_cursor;
     WT_CURSOR_BTREE *cbt;
@@ -687,7 +687,7 @@ __curversion_next(WT_CURSOR *cursor)
     }
 
     for (;;) {
-        WT_ERR_NOTFOUND_OK(__curversion_next_int(cursor), true);
+        WT_ERR_NOTFOUND_OK(__curversion_next_single_key(cursor), true);
 
         if (ret == 0)
             break;
@@ -774,7 +774,7 @@ __curversion_search(WT_CURSOR *cursor)
     WT_ERR(__curversion_skip_starting_updates(session, version_cursor));
 
     /* Point to the newest version. */
-    WT_ERR(__curversion_next_int(cursor));
+    WT_ERR(__curversion_next_single_key(cursor));
 
 err:
     if (ret != 0)
