@@ -44,7 +44,8 @@ waitone() {
     fi
 }
 
-# Wait for one process to exit, if it has a bad status, show that in the output log.
+# Show processes that we are waiting for.  This is helpful for diagnosing hangs and
+# just general progress near the end of a run.
 showprocs() {
     echo -n "Waiting on processes: "
     # Add an extra arg in case all processes are gone
@@ -60,6 +61,10 @@ showprocs() {
 
 # Parse arguments
 parallel_count=$(nproc)
+
+# We want to always tell run.py to not remove the WT_TEST directory
+# before it starts its run.  Otherwise some test processes will get their
+# home directory removed out from underneath them.
 run_py_options="--noremove"
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -104,7 +109,7 @@ label_output() {
     label="$1"
     shift
     "$@" 2>&1 | sed -e "s/^/$label: /"
-    exit ${PIPESTATUS[0]}
+    return ${PIPESTATUS[0]}
 }
 
 # run individual Python tests scripts in the background - it's faster than using run.py -j
