@@ -25,15 +25,22 @@ EOF
 
 # Wait for one process to exit, if it has a bad status, show that in the output log.
 waitone() {
-    local proc=
-    wait -n -p proc
+    # Grab the list of pids running before and after waiting
+    local before="$(jobs -p)"
+    wait -n
     local procstatus=$?
+    local after="$(jobs -p)"
+
     if [ "$procstatus" != 0 ]; then
-        ecode=1
+        # Get the pid missing from the second list, that's the failed one
+        proc=$(echo "$before $after" | tr ' ' '\n' | sort | uniq -u)
+
+        # Now we can get its name, show a message
         local name=${procs[$proc]}
         msg="ERROR: $name process returned $procstatus"
         echo "$msg"
         summary="${summary}  ${msg}"$'\n'
+        ecode=1
     fi
 }
 
