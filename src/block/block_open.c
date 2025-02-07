@@ -167,7 +167,7 @@ __wti_block_configure_first_fit(WT_BLOCK *block, bool on)
 int
 __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objectid,
   const char *cfg[], bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize,
-  char *extent_str, WT_BLOCK **blockp)
+  WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
@@ -244,17 +244,6 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
         block->readonly = true;
     }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
-
-#ifndef _MSC_VER
-    /*
-     * We need to do this as close to __wt_open as possible as there is a descriptor block read
-     * further down which requires the extent lists to be initialized. Even if the extent list is
-     * NULL there is bookkeeping to do.
-     */
-    WT_ERR(__wt_live_restore_fh_import_extents_from_string(session, block->fh->handle, extent_str));
-#else
-    WT_UNUSED(extent_str);
-#endif
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));
