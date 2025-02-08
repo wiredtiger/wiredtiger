@@ -1305,6 +1305,60 @@ __wt_curhs_next_hs_id(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t *next_h
 }
 
 /*
+ * __curhs_btree_id_to_hs_id --
+ *     Get the HS ID that corresponds to the given btree ID.
+ */
+static uint32_t
+__curhs_btree_id_to_hs_id(WT_SESSION_IMPL *session, uint32_t btree_id)
+{
+    WT_ASSERT(session, btree_id != 0);
+
+    /*
+     * Map the history store ID into the URI. The current implementation does this simply using
+     * table ID namespaces, but keep the notion of HS ID and namespace ID separate to ensure that we
+     * can make more flexible choices in the future.
+     */
+    return (WT_BTREE_ID_SHARED(btree_id) ? 2 : 1);
+}
+
+/*
+ * __wt_curhs_get_btree_id --
+ *     Get the HS cursor's btree ID.
+ */
+uint32_t
+__wt_curhs_get_btree_id(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+
+    WT_UNUSED(session);
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    return (hs_cursor->btree_id);
+}
+
+/*
+ * __wt_curhs_set_btree_id --
+ *     Change the HS cursor's btree ID, after first checking that the change is compatible.
+ */
+int
+__wt_curhs_set_btree_id(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id)
+{
+    WT_CURSOR_HS *hs_cursor;
+    uint32_t hs_id;
+
+    WT_UNUSED(session);
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    hs_id = __curhs_btree_id_to_hs_id(session, btree_id);
+
+    if (hs_id != hs_cursor->hs_id)
+        return (EINVAL);
+
+    hs_cursor->btree_id = btree_id;
+    return (0);
+}
+
+/*
  * __wt_curhs_open --
  *     Initialize a history store cursor.
  */
@@ -1313,15 +1367,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, uint32_t btree_id, WT_CURSOR *owner, W
 {
     uint32_t hs_id;
 
-    WT_ASSERT(session, btree_id != 0);
-
-    /*
-     * Map the history store ID into the URI. The current implementation does this simply using
-     * table ID namespaces, but keep the notion of HS ID and namespace ID separate to ensure that we
-     * can make more flexible choices in the future.
-     */
-    hs_id = WT_BTREE_ID_SHARED(btree_id) ? 2 : 1;
-
+    hs_id = __curhs_btree_id_to_hs_id(session, btree_id);
     return (__wt_curhs_open_ext(session, hs_id, btree_id, owner, cursorp));
 }
 
@@ -1397,6 +1443,7 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
     WT_ERR(ret);
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
     hs_cursor->btree_id = btree_id;
+    hs_cursor->hs_id = hs_id;
     WT_ERR(__wt_scr_alloc(session, 0, &hs_cursor->datastore_key));
     hs_cursor->flags = 0;
 
