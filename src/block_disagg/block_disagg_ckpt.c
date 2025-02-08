@@ -246,7 +246,6 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
   size_t addr_size, uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
     WT_BLOCK_DISAGG *block_disagg;
-    unsigned i;
     uint64_t checkpoint_id, lsn, reconciliation_id, root_id;
     uint32_t root_size, root_checksum;
     uint8_t *endp;
@@ -273,11 +272,10 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
       &endp, root_id, lsn, checkpoint_id, reconciliation_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
-    fprintf(stderr, "[%s] __wt_block_disagg_checkpoint_load(): 0x", S2C(session)->home);
-    for (i = 0; i < *root_addr_sizep; i++) {
-        fprintf(stderr, "%02x", root_addr[i]);
-    }
-    fprintf(stderr, "\n");
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Loading checkpoint: root_id=%" PRIu64 " lsn=%" PRIu64 " checkpoint_id=%" PRIu64
+      " reconciliation_id=%" PRIu64 " root_size=%" PRIu32 " root_checksum=%" PRIx32,
+      root_id, lsn, checkpoint_id, reconciliation_id, root_size, root_checksum);
 
     return (0);
 }

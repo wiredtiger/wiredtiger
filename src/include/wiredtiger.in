@@ -2544,14 +2544,14 @@ struct __wt_connection {
      * categories not explicitly set in the config string., a list\, with values chosen from the
      * following options: \c "all"\, \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c
      * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c
-     * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "evict"\, \c
-     * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
-     * "history_store"\, \c "history_store_activity"\, \c "layered"\, \c "log"\, \c "lsm"\, \c
-     * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
-     * "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
-     * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c
-     * "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c
-     * "verify"\, \c "version"\, \c "write"; default \c [].}
+     * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "disaggregated_storage"\, \c
+     * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
+     * "generation"\, \c "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c
+     * "layered"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c
+     * "out_of_order"\, \c "overflow"\, \c "page_delta"\, \c "prefetch"\, \c "read"\, \c
+     * "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
+     * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c
+     * "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
      * @configend
      * @errors
      */
@@ -3505,11 +3505,11 @@ struct __wt_connection {
  * categories not explicitly set in the config string., a list\, with values chosen from the
  * following options: \c "all"\, \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c
  * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "chunkcache"\, \c
- * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "error_returns"\, \c "evict"\, \c
- * "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "generation"\, \c "handleops"\, \c
- * "history_store"\, \c "history_store_activity"\, \c "layered"\, \c "log"\, \c "lsm"\, \c
- * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c "overflow"\, \c
- * "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
+ * "compact"\, \c "compact_progress"\, \c "configuration"\, \c "disaggregated_storage"\, \c
+ * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
+ * "generation"\, \c "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "layered"\,
+ * \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "out_of_order"\, \c
+ * "overflow"\, \c "page_delta"\, \c "prefetch"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
  * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\,
  * \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c
  * "version"\, \c "write"; default \c [].}
@@ -8668,53 +8668,54 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 typedef enum {
 /* VERBOSE ENUM START */
-    WT_VERB_ALL,                  /*!< ALL module messages. */
-    WT_VERB_API,                  /*!< API messages. */
-    WT_VERB_BACKUP,               /*!< Backup messages. */
+    WT_VERB_ALL,                    /*!< ALL module messages. */
+    WT_VERB_API,                    /*!< API messages. */
+    WT_VERB_BACKUP,                 /*!< Backup messages. */
     WT_VERB_BLKCACHE,
-    WT_VERB_BLOCK,                /*!< Block manager messages. */
-    WT_VERB_CHECKPOINT,           /*!< Checkpoint messages. */
+    WT_VERB_BLOCK,                  /*!< Block manager messages. */
+    WT_VERB_CHECKPOINT,             /*!< Checkpoint messages. */
     WT_VERB_CHECKPOINT_CLEANUP,
-    WT_VERB_CHECKPOINT_PROGRESS,  /*!< Checkpoint progress messages. */
-    WT_VERB_CHUNKCACHE,           /*!< Chunk cache messages. */
-    WT_VERB_COMPACT,              /*!< Compact messages. */
-    WT_VERB_COMPACT_PROGRESS,     /*!< Compact progress messages. */
+    WT_VERB_CHECKPOINT_PROGRESS,    /*!< Checkpoint progress messages. */
+    WT_VERB_CHUNKCACHE,             /*!< Chunk cache messages. */
+    WT_VERB_COMPACT,                /*!< Compact messages. */
+    WT_VERB_COMPACT_PROGRESS,       /*!< Compact progress messages. */
     WT_VERB_CONFIGURATION,
     WT_VERB_DEFAULT,
+    WT_VERB_DISAGGREGATED_STORAGE,  /*!< Disaggregated storage, other than layered tables. */
     WT_VERB_ERROR_RETURNS,
-    WT_VERB_EVICT,                /*!< Eviction messages. */
-    WT_VERB_EVICTSERVER,          /*!< Eviction server messages. */
+    WT_VERB_EVICT,                  /*!< Eviction messages. */
+    WT_VERB_EVICTSERVER,            /*!< Eviction server messages. */
     WT_VERB_EVICT_STUCK,
-    WT_VERB_EXTENSION,            /*!< Extension messages. */
+    WT_VERB_EXTENSION,              /*!< Extension messages. */
     WT_VERB_FILEOPS,
     WT_VERB_GENERATION,
     WT_VERB_HANDLEOPS,
-    WT_VERB_HS,                   /*!< History store messages. */
-    WT_VERB_HS_ACTIVITY,          /*!< History store activity messages. */
-    WT_VERB_LAYERED,              /*!< Layered table manager messages. */
-    WT_VERB_LOG,                  /*!< Log messages. */
-    WT_VERB_LSM,                  /*!< LSM messages. */
+    WT_VERB_HS,                     /*!< History store messages. */
+    WT_VERB_HS_ACTIVITY,            /*!< History store activity messages. */
+    WT_VERB_LAYERED,                /*!< Layered table manager messages. */
+    WT_VERB_LOG,                    /*!< Log messages. */
+    WT_VERB_LSM,                    /*!< LSM messages. */
     WT_VERB_LSM_MANAGER,
     WT_VERB_MUTEX,
-    WT_VERB_METADATA,             /*!< Metadata messages. */
+    WT_VERB_METADATA,               /*!< Metadata messages. */
     WT_VERB_OUT_OF_ORDER,
     WT_VERB_OVERFLOW,
     WT_VERB_PREFETCH,
     WT_VERB_READ,
-    WT_VERB_RECONCILE,            /*!< Reconcile messages. */
-    WT_VERB_RECOVERY,             /*!< Recovery messages. */
-    WT_VERB_RECOVERY_PROGRESS,    /*!< Recovery progress messages. */
-    WT_VERB_RTS,                  /*!< RTS messages. */
-    WT_VERB_SALVAGE,              /*!< Salvage messages. */
+    WT_VERB_RECONCILE,              /*!< Reconcile messages. */
+    WT_VERB_RECOVERY,               /*!< Recovery messages. */
+    WT_VERB_RECOVERY_PROGRESS,      /*!< Recovery progress messages. */
+    WT_VERB_RTS,                    /*!< RTS messages. */
+    WT_VERB_SALVAGE,                /*!< Salvage messages. */
     WT_VERB_SHARED_CACHE,
     WT_VERB_SPLIT,
     WT_VERB_TEMPORARY,
     WT_VERB_THREAD_GROUP,
-    WT_VERB_TIERED,               /*!< Tiered storage messages. */
-    WT_VERB_TIMESTAMP,            /*!< Timestamp messages. */
-    WT_VERB_TRANSACTION,          /*!< Transaction messages. */
-    WT_VERB_VERIFY,               /*!< Verify messages. */
-    WT_VERB_VERSION,              /*!< Version messages. */
+    WT_VERB_TIERED,                 /*!< Tiered storage messages. */
+    WT_VERB_TIMESTAMP,              /*!< Timestamp messages. */
+    WT_VERB_TRANSACTION,            /*!< Transaction messages. */
+    WT_VERB_VERIFY,                 /*!< Verify messages. */
+    WT_VERB_VERSION,                /*!< Version messages. */
     WT_VERB_WRITE,
     WT_VERB_PAGE_DELTA,
 /* VERBOSE ENUM STOP */

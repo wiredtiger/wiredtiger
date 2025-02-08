@@ -203,6 +203,7 @@ extern const char __WT_CONFIG_CHOICE_cursor_check[];
 extern const char __WT_CONFIG_CHOICE_data[];
 extern const char __WT_CONFIG_CHOICE_default[];
 extern const char __WT_CONFIG_CHOICE_disagg[];
+extern const char __WT_CONFIG_CHOICE_disaggregated_storage[];
 extern const char __WT_CONFIG_CHOICE_disk_validate[];
 extern const char __WT_CONFIG_CHOICE_dsync[];
 extern const char __WT_CONFIG_CHOICE_eq[];
