@@ -782,6 +782,34 @@ functions:
             ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
         fi
 
+  "unit test parallel":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        # no_run will contain a list of files we don't want to run,
+        # do_run will contain a list of files we want to run.
+        no_run=$(mktemp)
+        do_run=$(mktemp)
+        sed -e 's/ *#.*//' -e '/^$/d' < ${unit_test_parallel_ignore} > $no_run
+        (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
+        cd cmake_build
+        threads_command="-j ${nproc}"
+        if [[ -n "${num_jobs}" ]]; then
+          threads_command="-j ${num_jobs}"
+        fi
+        py=${python_binary|python3}
+        echo "Using $threads_command for 'unit test parallel'"
+        if [ ${check_coverage|false} = true ]; then
+            ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+        else
+            ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
+        fi
+
   "code coverage analysis":
     command: shell.exec
     params:
@@ -2199,7 +2227,19 @@ tasks:
         vars:
           unit_test_args: -v 2 -R cursor13 join02 join07 schema03 timestamp22
 
-  - name: unit-test-hook-disagg
+  - name: unit-test-hook-disagg-leader
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test parallel"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_parallel_ignore: test/suite/hook_disagg.fail
+          unit_test_parallel_args: -v 2 --timeout 60 --hook "disagg=(role=leader)"
+
+  - name: unit-test-hook-disagg-follower
     tags: ["pull_request", "python"]
     depends_on:
     - name: compile
@@ -2207,8 +2247,8 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          # The absolute minimum test to make sure that the hook works.
-          unit_test_args: -v 2 --hook disagg base01
+          # As follower, run a minimal functionality test
+          unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower)" base01
 
   - name: unit-test-hook-tiered
     tags: ["python"]
@@ -5566,7 +5606,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
-    - name: unit-test-hook-disagg
+    - name: unit-test-hook-disagg-leader
+    - name: unit-test-hook-disagg-follower
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
