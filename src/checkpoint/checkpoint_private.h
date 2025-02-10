@@ -57,6 +57,16 @@ struct __wti_ckpt_handle_stats {
 };
 
 /*
+ * WTI_CKPT_PROGRESS --
+ *     Checkpoint progress.
+ */
+struct __wti_ckpt_progress {
+    uint64_t msg_count;
+    uint64_t write_bytes;
+    uint64_t write_pages;
+};
+
+/*
  * WTI_CKPT_TIMER --
  *     Time-related statistics.
  */

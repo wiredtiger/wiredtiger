@@ -407,6 +407,8 @@ struct __wt_version;
 typedef struct __wt_version WT_VERSION;
 struct __wti_ckpt_handle_stats;
 typedef struct __wti_ckpt_handle_stats WTI_CKPT_HANDLE_STATS;
+struct __wti_ckpt_progress;
+typedef struct __wti_ckpt_progress WTI_CKPT_PROGRESS;
 struct __wti_ckpt_timer;
 typedef struct __wti_ckpt_timer WTI_CKPT_TIMER;
 struct __wti_cursor_log;
