@@ -26,7 +26,7 @@ extent_list_str(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
         return "";
 
     while (ext != nullptr) {
-        str += "(" + std::to_string(ext->off) + "-" + std::to_string(ext->len) + "), ";
+        str += "(" + std::to_string(ext->off) + "-" + std::to_string(WTI_EXTENT_END(ext)) + "), ";
         ext = ext->next;
     }
 

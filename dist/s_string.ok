@@ -880,6 +880,7 @@ inmem
 inmemory
 inserters
 instantiation
+interruptible
 intl
 intnum
 intpack
@@ -1364,6 +1365,7 @@ uintAny
 ulock
 umount
 unallocated
+unbacked
 unbare
 unbuffered
 uncached
