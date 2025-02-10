@@ -1,0 +1,95 @@
+<html lang="en">
+<head>
+<title>Cygnus Software - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="up" href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime" title="Compile-time vs Install-time">
+<link rel="prev" href="Other-FSF-Software.html#Other-FSF-Software" title="Other FSF Software">
+<link rel="next" href="Perl-and-Perl-5-Modules.html#Perl-and-Perl-5-Modules" title="Perl and Perl 5 Modules">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Cygnus-Software"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Perl-and-Perl-5-Modules.html#Perl-and-Perl-5-Modules">Perl and Perl 5 Modules</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Other-FSF-Software.html#Other-FSF-Software">Other FSF Software</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime">Compile-time vs Install-time</a>
+<hr>
+</div>
+
+<h3 class="section">12.4 Cygnus Software</h3>
+
+<p>Cygnus is a commercial supplier and supporter of GNU software.  It has
+also written several of its own packages, released under the terms of
+the GNU General Public License; and it has taken over the maintenance of
+other packages.  Among the packages released by Cygnus are &lsquo;<samp><span class="samp">gdb</span></samp>&rsquo;,
+&lsquo;<samp><span class="samp">gnats</span></samp>&rsquo;, and &lsquo;<samp><span class="samp">dejagnu</span></samp>&rsquo;.
+
+   <p>Cygnus packages have the peculiarity that each one unpacks into a
+directory tree with a generic top-level Makefile, which is set up to
+compile <em>all</em> of Cygnus' packages, any number of which may reside
+under the top-level directory.  In other words, even if you're only
+building &lsquo;<samp><span class="samp">gnats</span></samp>&rsquo;, the top-level Makefile will look for, and try to
+build, <samp><span class="file">gdb</span></samp> and <samp><span class="file">dejagnu</span></samp> subdirectories, among many others.
+
+   <p>The result is that if you try &lsquo;<samp><span class="samp">make -n install
+prefix=/usr/local/stow/</span><var>package</var></samp>&rsquo; at the top level of a Cygnus
+package, you'll get a bewildering amount of output.  It will then be
+very difficult to visually scan the output to see whether the install
+will proceed correctly.  Unfortunately, it's not always clear how to
+invoke an install from the subdirectory of interest.
+
+   <p>In cases like this, the best approach is to run your &lsquo;<samp><span class="samp">make install
+prefix=...</span></samp>&rsquo;, but be ready to interrupt it if you detect that it
+is recompiling files.  Usually it will work just fine; otherwise,
+install manually.
+
+<!--  -->
+   </body></html>
+

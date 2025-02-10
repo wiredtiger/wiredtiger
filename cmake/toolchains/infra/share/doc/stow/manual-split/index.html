@@ -1,0 +1,164 @@
+<html lang="en">
+<head>
+<title>Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="#Top">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled "GNU General Public License" is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<h1 class="settitle">Stow</h1>
+<div class="contents">
+<h2>Table of Contents</h2>
+<ul>
+<li><a name="toc_Top" href="index.html#Top">Stow</a>
+<li><a name="toc_Introduction" href="Introduction.html#Introduction">1 Introduction</a>
+<li><a name="toc_Terminology" href="Terminology.html#Terminology">2 Terminology</a>
+<li><a name="toc_Invoking-Stow" href="Invoking-Stow.html#Invoking-Stow">3 Invoking Stow</a>
+<li><a name="toc_Ignore-Lists" href="Ignore-Lists.html#Ignore-Lists">4 Ignore Lists</a>
+<ul>
+<li><a href="Motivation-For-Ignore-Lists.html#Motivation-For-Ignore-Lists">4.1 Motivation For Ignore Lists</a>
+<li><a href="Types-And-Syntax-Of-Ignore-Lists.html#Types-And-Syntax-Of-Ignore-Lists">4.2 Types And Syntax Of Ignore Lists</a>
+<li><a href="Justification-For-Yet-Another-Set-Of-Ignore-Files.html#Justification-For-Yet-Another-Set-Of-Ignore-Files">4.3 Justification For Yet Another Set Of Ignore Files</a>
+</li></ul>
+<li><a name="toc_Installing-Packages" href="Installing-Packages.html#Installing-Packages">5 Installing Packages</a>
+<ul>
+<li><a href="Installing-Packages.html#Installing-Packages">5.1 Tree folding</a>
+<li><a href="Installing-Packages.html#Installing-Packages">5.2 Tree unfolding</a>
+<li><a href="Installing-Packages.html#Installing-Packages">5.3 Ownership</a>
+<li><a href="Installing-Packages.html#Installing-Packages">5.4 Conflicts during installation</a>
+</li></ul>
+<li><a name="toc_Deleting-Packages" href="Deleting-Packages.html#Deleting-Packages">6 Deleting Packages</a>
+<ul>
+<li><a href="Deleting-Packages.html#Deleting-Packages">6.1 Refolding &ldquo;foldable&rdquo; trees.</a>
+</li></ul>
+<li><a name="toc_Conflicts" href="Conflicts.html#Conflicts">7 Conflicts</a>
+<ul>
+<li><a href="Conflicts.html#Conflicts">7.1 Deferred Operation</a>
+</li></ul>
+<li><a name="toc_Mixing-Operations" href="Mixing-Operations.html#Mixing-Operations">8 Mixing Operations</a>
+<li><a name="toc_Multiple-Stow-Directories" href="Multiple-Stow-Directories.html#Multiple-Stow-Directories">9 Multiple Stow Directories</a>
+<li><a name="toc_Target-Maintenance" href="Target-Maintenance.html#Target-Maintenance">10 Target Maintenance</a>
+<li><a name="toc_Resource-Files" href="Resource-Files.html#Resource-Files">11 Resource Files</a>
+<li><a name="toc_Compile_002dtime-vs-Install_002dtime" href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime">12 Compile-time vs Install-time</a>
+<ul>
+<li><a href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime">12.1 Advice on changing compilation and installation parameters</a>
+<li><a href="GNU-Emacs.html#GNU-Emacs">12.2 GNU Emacs</a>
+<li><a href="Other-FSF-Software.html#Other-FSF-Software">12.3 Other FSF Software</a>
+<li><a href="Cygnus-Software.html#Cygnus-Software">12.4 Cygnus Software</a>
+<li><a href="Perl-and-Perl-5-Modules.html#Perl-and-Perl-5-Modules">12.5 Perl and Perl 5 Modules</a>
+</li></ul>
+<li><a name="toc_Bootstrapping" href="Bootstrapping.html#Bootstrapping">13 Bootstrapping</a>
+<li><a name="toc_Reporting-Bugs" href="Reporting-Bugs.html#Reporting-Bugs">14 Reporting Bugs</a>
+<li><a name="toc_Known-Bugs" href="Known-Bugs.html#Known-Bugs">15 Known Bugs</a>
+<li><a name="toc_GNU-General-Public-License" href="GNU-General-Public-License.html#GNU-General-Public-License">GNU General Public License</a>
+<ul>
+<li><a href="GNU-General-Public-License.html#GNU-General-Public-License">Preamble</a>
+<li><a href="GNU-General-Public-License.html#GNU-General-Public-License">How to Apply These Terms to Your New Programs</a>
+</li></ul>
+<li><a name="toc_Index" href="Index.html#Index">Index</a>
+</li></ul>
+</div>
+
+
+
+<!-- ========================================================================== -->
+<div class="node">
+<a name="Top"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Introduction.html#Introduction">Introduction</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="../index.html#dir">(dir)</a>
+<hr>
+</div>
+
+<h2 class="unnumbered">Stow</h2>
+
+<ul class="menu">
+<li><a accesskey="1" href="Introduction.html#Introduction">Introduction</a>:                 Description of Stow. 
+<li><a accesskey="2" href="Terminology.html#Terminology">Terminology</a>:                  Terms used by this manual. 
+<li><a accesskey="3" href="Invoking-Stow.html#Invoking-Stow">Invoking Stow</a>:                Option summary. 
+<li><a accesskey="4" href="Ignore-Lists.html#Ignore-Lists">Ignore Lists</a>:                 Controlling what gets stowed. 
+<li><a accesskey="5" href="Installing-Packages.html#Installing-Packages">Installing Packages</a>:          Using Stow to install. 
+<li><a accesskey="6" href="Deleting-Packages.html#Deleting-Packages">Deleting Packages</a>:            Using Stow to uninstall. 
+<li><a accesskey="7" href="Conflicts.html#Conflicts">Conflicts</a>:                    When Stow can't stow. 
+<li><a accesskey="8" href="Mixing-Operations.html#Mixing-Operations">Mixing Operations</a>:            Multiple actions per invocation. 
+<li><a accesskey="9" href="Multiple-Stow-Directories.html#Multiple-Stow-Directories">Multiple Stow Directories</a>:    Further segregating software. 
+<li><a href="Target-Maintenance.html#Target-Maintenance">Target Maintenance</a>:           Cleaning up mistakes. 
+<li><a href="Resource-Files.html#Resource-Files">Resource Files</a>:               Setting default command line options. 
+<li><a href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime">Compile-time vs Install-time</a>:   Faking out `make install'. 
+<li><a href="Bootstrapping.html#Bootstrapping">Bootstrapping</a>:                When stow and perl are not yet stowed. 
+<li><a href="Reporting-Bugs.html#Reporting-Bugs">Reporting Bugs</a>:               How, what, where, and when to report. 
+<li><a href="Known-Bugs.html#Known-Bugs">Known Bugs</a>:                   Don't report any of these. 
+<li><a href="GNU-General-Public-License.html#GNU-General-Public-License">GNU General Public License</a>:   Copying terms. 
+<li><a href="Index.html#Index">Index</a>:                        Index of concepts.
+
+</li></ul>
+<p>--- The Detailed Node Listing ---
+
+<p>Ignore Lists
+
+</p>
+<ul class="menu">
+<li><a href="Motivation-For-Ignore-Lists.html#Motivation-For-Ignore-Lists">Motivation For Ignore Lists</a>
+<li><a href="Types-And-Syntax-Of-Ignore-Lists.html#Types-And-Syntax-Of-Ignore-Lists">Types And Syntax Of Ignore Lists</a>
+<li><a href="Justification-For-Yet-Another-Set-Of-Ignore-Files.html#Justification-For-Yet-Another-Set-Of-Ignore-Files">Justification For Yet Another Set Of Ignore Files</a>
+
+</li></ul>
+<p>Advice on changing compilation and installation parameters
+
+</p>
+<ul class="menu">
+<li><a href="GNU-Emacs.html#GNU-Emacs">GNU Emacs</a>
+<li><a href="Other-FSF-Software.html#Other-FSF-Software">Other FSF Software</a>
+<li><a href="Cygnus-Software.html#Cygnus-Software">Cygnus Software</a>
+<li><a href="Perl-and-Perl-5-Modules.html#Perl-and-Perl-5-Modules">Perl and Perl 5 Modules</a>
+
+   </ul>
+
+<!-- =========================================================================== -->
+   </body></html>
+

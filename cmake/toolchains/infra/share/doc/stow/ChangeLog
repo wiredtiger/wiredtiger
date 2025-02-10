@@ -1,0 +1,1980 @@
+Mon Nov 9 12:37:09 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * More fixes to "make distcheck" As with dc6a141d, the dependency of
+    distributed files on non-distributed files was causing this error:
+
+        ERROR: files left in build directory after distclean:
+
+    The automake FAQ explains why this happens:
+
+       
+    https://www.gnu.org/software/automake/manual/html_node/Errors-with-distclean.html
+
+    so change the dependency to Makefile.am which is distributed.
+
+
+      M Makefile.am
+
+Mon Nov 9 11:48:55 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * NEWS: Explain why 2.2.1 was not released
+
+      M NEWS
+
+Mon Nov 9 11:46:50 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Bump version to 2.2.2
+
+      M META.json
+      M META.yml
+      M configure.ac
+
+Mon Nov 9 11:36:11 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * add Stow/Util.pm.in with @VERSION@ substitution This is now necessary
+    in order to prevent pause.perl.org from complaining:
+
+        Status: Decreasing version number
+       =================================
+
+             module : Stow::Util
+            version: undef
+            in file: lib/Stow/Util.pm
+            status : Not indexed because lib/Stow/Util.pm in
+                    A/AS/ASPIERS/Stow-v2.2.0.tar.gz has a higher
+    version number
+                    (0)
+
+
+      M .gitignore
+      M MANIFEST
+      M META.json
+      M META.yml
+      M Makefile.am
+      M NEWS
+      D lib/Stow/Util.pm
+      A lib/Stow/Util.pm.in
+
+Mon Nov 9 11:05:00 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * HOWTO-RELEASE: remove body indent
+
+      M doc/HOWTO-RELEASE
+
+Mon Nov 9 11:04:21 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * HOWTO-RELEASE: add link to official GNU maintainers guide
+
+      M doc/HOWTO-RELEASE
+
+Mon Nov 9 10:13:34 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * HOWTO-RELEASE: encourage use of SemVer
+
+      M doc/HOWTO-RELEASE
+
+Mon Nov 9 10:11:59 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * HOWTO-RELEASE: encourage GPG-signing of release tags
+
+      M doc/HOWTO-RELEASE
+
+Mon Nov 9 10:10:36 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * HOWTO-RELEASE: use gnulib for gendocs instead of texinfo These days it
+    seems that gendocs can be done entirely from the templates in
+    gnulib, rather than requiring the texinfo repository.
+
+
+      M doc/HOWTO-RELEASE
+
+Mon Nov 9 10:08:31 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * fix make distcheck The dependency of the distributed file stow.8 on
+    the non-distributed file Makefile was causing this error:
+
+        ERROR: files left in build directory after distclean:
+       ./doc/stow.8
+
+    The automake FAQ explains why this happens:
+
+       
+    https://www.gnu.org/software/automake/manual/html_node/Errors-with-distclean.html
+
+    so change stow.8 to depend on Makefile.am which is distributed.
+
+
+      M Makefile.am
+
+Mon Nov 9 09:28:11 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * HOWTO-RELEASE: include automake --add-missing This is necessary since
+    automake files were removed from the repository recently.
+
+
+      M doc/HOWTO-RELEASE
+
+Mon Nov 9 09:27:49 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Update META.{yml,json} Rebuilt with newer Module::Build.
+
+
+      M META.json
+      M META.yml
+
+Mon Nov 9 09:17:34 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Bump version to 2.2.1
+
+      M configure.ac
+
+Mon Nov 9 09:16:32 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Prepare NEWS file for 2.2.1 release
+
+      M NEWS
+
+Mon Nov 9 09:15:51 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Remove trailing whitespace from NEWS file
+
+      M NEWS
+
+Mon Sep 17 16:55:17 2012 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * Add more index entries to the manual.
+
+      M doc/stow.texi
+
+Mon Sep 17 16:55:03 2012 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * Fix a typo in the docs.
+
+      M doc/stow.texi
+
+Sat Feb 7 19:29:43 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * substitute @VERSION@ in stow.8 man page Thanks to Yue Du for spotting
+    this issue and providing the fix.
+
+
+      M Makefile.am
+
+Sat Feb 7 19:24:22 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * remove automake files These should be generated at development /
+    install-time, rather than distributing versions via git which will
+    inevitably age over time.
+
+
+      A automake/.gitignore
+      D automake/install-sh
+      D automake/mdate-sh
+      D automake/missing
+
+Thu Jan 1 19:02:46 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * fix stowing of relative links when --no-folding is used With a tree
+    like this:
+
+        .
+       |-- stow
+       |   `-- pkg
+       |       `-- lib
+       |           |-- itk-current -> itk4.0.0
+       |           `-- itk4.0.0
+       |               `-- libitk4.0.0.so
+       `-- target
+           `-- lib
+               |-- itk4.0.0 -> ../../stow/pkg/lib/itk4.0.0
+               `-- libfoo-1.2.3.so
+
+    stowing pkg with the --no-folding option resulted in itk-current 
+    being "unpacked":
+
+        .
+       `-- target
+           `-- lib
+               |-- itk-current
+               |   `-- libitk4.0.0.so ->
+    ../../../stow/pkg/lib/itk-current/libitk4.0.0.so
+               |-- itk4.0.0
+               |   `-- libitk4.0.0.so ->
+    ../../../stow/pkg/lib/itk4.0.0/libitk4.0.0.so
+               `-- libfoo-1.2.3.so
+
+    This commit fixes it so that it gets stowed as a symlink:
+
+      .
+     `-- target
+         `-- lib
+             ...
+             |-- itk-current -> ../../stow/pkg/lib/itk-current
+             ...
+
+    Thanks to Gabriele Balducci for reporting this problem:
+
+        http://thread.gmane.org/gmane.comp.gnu.stow.general/6676
+
+
+      M lib/Stow.pm.in
+      M t/stow.t
+
+Thu Jan 1 19:02:26 2015 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * improve debug
+
+      M lib/Stow.pm.in
+
+Mon Sep 22 00:36:25 2014 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * make it more obvious when target (sub)directory is skipped This should
+    avoid the sort of confusion seen in:
+
+      https://github.com/aspiers/shell-env/issues/1
+
+
+      M lib/Stow.pm.in
+      M t/stow.t
+      M t/testutil.pm
+      M t/unstow.t
+      M t/unstow_orig.t
+
+Mon Sep 22 00:40:25 2014 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * trim trailing whitespace
+
+      M t/stow.t
+
+Mon Sep 22 00:14:56 2014 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * update aclocal
+
+      M aclocal.m4
+
+Mon Jun 16 10:22:55 2014 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * avoid precedence warning With Perl 5.20, installing a package with
+    stow gives a warning like this:
+
+      Possible precedence issue with control flow operator at
+     /gar/packages/stow-2.2.0/lib/perl5/site_perl/5.20.0/Stow.pm line
+    1736.
+
+    http://lists.gnu.org/archive/html/bug-stow/2014-06/msg00000.html
+
+    Suggested-by: Adam Sampson <ats@offog.org>
+
+
+      M lib/Stow.pm.in
+
+Wed Apr 24 08:44:32 2013 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * add TODO for install-hooks
+
+      M TODO
+
+Fri Apr 12 17:47:29 2013 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * correctly handle the stow/target directories as non-canonical paths 
+    Fix the case discovered by Hiroyuki Iwatsuki where stowing fails
+    if the stow / target directories are non-canonical paths.  For
+    example, on FreeBSD /home is a symlink pointing to 'usr/home', so
+    running with the stow directory as /home/user/local/stow and the
+    target directory as /home/user/local previously resulted in the
+    stow directory path being calculated as
+    ../../../usr/home/user/local/stow relative to the target.
+
+    http://article.gmane.org/gmane.comp.gnu.stow.bugs/8820
+
+
+      M lib/Stow.pm.in
+
+Thu Jan 17 12:25:43 2013 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * default-ignore-list: ignore top-level README.*, LICENSE.*, and COPYING 
+    These files are by definition specific to a given package, so if
+    they exist in the top-level directory, they should not be stowed.
+
+
+      M default-ignore-list
+
+Mon Jul 9 01:06:13 2012 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * Only include $! in error messages for failed syscalls.
+
+      M lib/Stow.pm.in
+      M lib/Stow/Util.pm
+
+Mon Jul 9 01:05:27 2012 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * Fix RT ticket #75349 https://rt.cpan.org/Ticket/Display.html?id=75349
+
+
+      M bin/stow.in
+
+Wed May 16 11:00:38 2012 +0100  Adam Spiers <stow@adamspiers.org>
+
+    * Bug #36478 - fix Perl warnings from 'require 5.6.1;' 
+    https://savannah.gnu.org/bugs/?36478
+
+
+      M bin/chkstow.in
+      M bin/stow.in
+
+Thu Mar 1 11:40:34 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Revamp README.
+
+      M README
+
+Sun Feb 19 19:15:48 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Remove accidentally duplicated code.
+
+      M t/examples.t
+
+Sun Feb 19 11:54:53 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve docs for path_owned_by_package()
+
+      M lib/Stow.pm.in
+
+Sun Feb 19 01:42:10 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix typo in manual.
+
+      M doc/stow.texi
+
+Sun Feb 19 01:42:04 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add a few more items to index.
+
+      M doc/stow.texi
+
+Sat Feb 18 20:43:20 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add boilerplate commit message for web docs update.
+
+      M doc/HOWTO-RELEASE
+
+Sat Feb 18 17:08:19 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Bump version to 2.2.0
+
+      M META.json
+      M META.yml
+      M NEWS
+      M configure.ac
+
+Sat Feb 18 20:13:32 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add --no-folding option.
+
+      M NEWS
+      M bin/stow.in
+      M doc/stow.texi
+      M lib/Stow.pm.in
+      M t/stow.t
+      M t/testutil.pm
+      M t/unstow.t
+
+Sat Feb 18 14:20:07 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Remove -a option for safety reasons (but keep --adopt).
+
+      M NEWS
+      M bin/stow.in
+      M doc/stow.texi
+
+Sat Feb 18 20:12:14 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve error message when package is not found.
+
+      M NEWS
+      M lib/Stow.pm.in
+
+Sat Feb 18 20:19:05 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Use make_invalid_link() to reliably setup symlink fixtures.
+
+      M NEWS
+      M t/chkstow.t
+      M t/cleanup_invalid_links.t
+      M t/stow.t
+      M t/testutil.pm
+      M t/unstow.t
+      M t/unstow_orig.t
+
+Sat Feb 18 15:47:36 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add documentation improvements to NEWS.
+
+      M NEWS
+
+Sat Feb 18 17:07:15 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Update TODO
+
+      M TODO
+
+Sat Feb 18 20:32:40 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Last known bug was fixed a long time ago :-)
+
+      M doc/stow.texi
+
+Sat Feb 18 15:47:19 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Update structure of manual to match recommended texinfo structure. TOC
+    now appears after title page. Copying information is no longer
+    duplicated.
+
+
+      M doc/stow.texi
+
+Sat Feb 18 15:46:14 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix various formatting issues in the manual.
+
+      M doc/stow.texi
+
+Sat Feb 18 15:45:49 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add some more index entries to the manual.
+
+      M doc/stow.texi
+
+Sat Feb 18 15:45:16 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add some @sections to the manual to break larger nodes up.
+
+      M doc/stow.texi
+
+Sat Feb 18 15:17:21 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Use @command / @samp / @env / @var in the manual where appropriate,
+    rather than @code.
+
+      M doc/stow.texi
+
+Sat Feb 18 15:03:52 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix formatting of regexp values in the manual.
+
+      M doc/stow.texi
+
+Sat Feb 18 14:15:14 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add --adopt to usage text.
+
+      M bin/stow.in
+
+Sat Feb 18 14:11:33 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve ordering of options in usage text.
+
+      M bin/stow.in
+
+Sat Feb 18 14:08:17 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add missing options to pod, and reference to front-end documentation.
+
+      M lib/Stow.pm.in
+
+Sat Feb 18 14:07:45 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Ignore tmp-testing-trees anywhere.
+
+      M .gitignore
+      M MANIFEST.SKIP
+
+Sat Feb 18 12:28:00 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Make shared library tests match real-world scenarios. Typically,
+    libfoo.so.X.Y.Z is the file, and libfoo.so is the symlink which
+    points to it.
+
+
+      M t/stow.t
+
+Sat Feb 18 11:53:46 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Include --simulate in usage text.
+
+      M bin/stow.in
+
+Fri Jan 13 11:34:55 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Avoid "Use of uninitialized value" warnings from test suite. Happened
+    on some versions of Perl when TEST_VERBOSE not yet. Thanks Adam
+    Sampson!
+
+
+      M lib/Stow.pm.in
+
+Thu Jan 12 17:54:32 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Remove reference to old FSF address (thank you rpmlint for catching
+    this!)
+
+      M bin/stow.in
+
+Wed Jan 11 14:01:40 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Remove "There are no outstanding operations to perform" warning. This
+    is more in keeping with the UNIX convention of no output on
+    success, and is also the way Stow v1.x behaved.  Thanks to Adam
+    Sampson for the suggestion.
+
+
+      M NEWS
+      M THANKS
+      M lib/Stow.pm.in
+      M t/stow.t
+      M t/unstow.t
+      M t/unstow_orig.t
+
+Tue Jan 10 12:17:58 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix wrong version number in NEWS.
+
+      M NEWS
+
+Mon Jan 9 21:39:35 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Bump version to 2.1.3
+
+      M META.json
+      M META.yml
+      M NEWS
+      M configure.ac
+
+Mon Jan 9 21:32:31 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Rename test files to reflect their purpose.
+
+      M MANIFEST
+      A t/stow.t
+      D t/stow_contents.t
+      A t/unstow.t
+      D t/unstow_contents.t
+      D t/unstow_contents_orig.t
+      A t/unstow_orig.t
+
+Mon Jan 9 21:31:46 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Rename stow.t to be more consistent with its purpose.
+
+      M MANIFEST
+      A t/cli_options.t
+      D t/stow.t
+
+Mon Jan 9 22:10:19 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * perl Build.PL needs a prefix during testing
+
+      M doc/HOWTO-RELEASE
+
+Mon Jan 9 21:25:35 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add --adopt / -a option.
+
+      M NEWS
+      M bin/stow.in
+      M doc/stow.texi
+      M lib/Stow.pm.in
+      M lib/Stow/Util.pm
+      M t/stow_contents.t
+      M t/testutil.pm
+
+Mon Jan 9 21:11:58 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add stacktrace to internal error report to aid debugging.
+
+      M lib/Stow.pm.in
+
+Mon Jan 9 18:32:06 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Use get_conflict_count() in tests since get_conflicts() no longer
+    returns a flat structure.
+
+      M t/cleanup_invalid_links.t
+      M t/examples.t
+      M t/stow_contents.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Mon Jan 9 17:52:11 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Link to website to encourage users to report bugs.
+
+      M lib/Stow.pm.in
+
+Mon Jan 9 16:42:40 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve readability of NEWS file when viewed raw.
+
+      M NEWS
+
+Mon Jan 9 16:25:27 2012 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve existing comments.
+
+      M lib/Stow.pm.in
+
+Wed Dec 21 11:45:59 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve the footnote which defines 'subpath'.
+
+      M doc/stow.texi
+
+Wed Dec 21 11:45:43 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add another ignore example to the manual and test suite.
+
+      M doc/stow.texi
+      M t/ignore.t
+
+Thu Dec 15 21:14:07 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix some incorrect CPAN meta-data about the project.
+
+      M Build.PL
+      M META.json
+      M META.yml
+
+Tue Dec 13 16:12:29 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Make configure check for Perl modules required by test suite.
+
+      M NEWS
+      M configure.ac
+
+Sun Dec 11 13:23:37 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Make stow script return true for t/stow.t According to
+    http://matrix.cpantesters.org/?dist=Stow this only seems to be an
+    issue with Perl <= 5.8.7.
+
+
+      M bin/stow.in
+
+Sun Dec 11 13:12:32 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Automate check for 'use lib' line in bin/stow.
+
+      M Build.PL
+      M doc/HOWTO-RELEASE
+
+Tue Dec 6 18:30:28 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Bump version to 2.1.2.
+
+      M META.json
+      M META.yml
+      M configure.ac
+
+Wed Dec 7 20:28:28 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Significantly improve the handling of --with-pmdir.
+
+      M INSTALL
+      M Makefile.am
+      M NEWS
+      M bin/stow.in
+      M configure.ac
+      M doc/HOWTO-RELEASE
+
+Wed Dec 7 01:20:07 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Make capitalisation consistent in usage text.
+
+      M bin/stow.in
+
+Wed Dec 7 20:31:18 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Abort ./configure if we can't find Perl.
+
+      M NEWS
+      M configure.ac
+
+Wed Dec 7 01:23:41 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Ensure the ChangeLog is up-to-date when making a new distribution. 
+    Thanks to Stefano Lattarini for this suggestion.
+
+
+      M Makefile.am
+      M NEWS
+      M doc/HOWTO-RELEASE
+
+Wed Dec 7 00:38:16 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Use maintainer-clean-local rule, not maintainer-clean.
+
+      M Makefile.am
+
+Tue Dec 6 18:20:03 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * `make clean' shouldn't remove files which the user may not be able to
+    rebuild.
+
+      M Makefile.am
+
+Tue Dec 6 10:35:31 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Bump version to 2.1.1
+
+      M META.json
+      M META.yml
+      M NEWS
+      M configure.ac
+
+Tue Dec 6 17:33:41 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Ignore .mrdownload files from my `download' plugin to Joey Hess' mr
+    utility.
+
+      M MANIFEST.SKIP
+
+Tue Dec 6 17:30:58 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add a workaround for not being able to ensure that git commit triggers
+    ChangeLog update.
+
+      M doc/HOWTO-RELEASE
+
+Tue Dec 6 17:24:44 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Show when ChangeLog is rebuilt.
+
+      M Makefile.am
+
+Tue Dec 6 17:22:21 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix release instructions regarding CPAN distribution.
+
+      M doc/HOWTO-RELEASE
+
+Tue Dec 6 17:08:21 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Refill paragraph in README.
+
+      M README
+
+Tue Dec 6 17:08:13 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Don't duplicate information from INSTALL.
+
+      M README
+
+Tue Dec 6 17:07:29 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Document installation via Module::Build.
+
+      M INSTALL
+
+Tue Dec 6 17:06:59 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Document prerequisites for installation.
+
+      M INSTALL
+
+Tue Dec 6 17:04:50 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * chkstow was missing from Module::Build install.
+
+      M Build.PL
+
+Tue Dec 6 17:04:37 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * File::Slurp is no longer used.
+
+      M Build.PL
+      M META.json
+      M META.yml
+
+Tue Dec 6 16:20:52 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix automake issues (thanks to Stefano Lattarini for spotting these!)
+
+      M Build.PL
+      M Makefile.am
+      M NEWS
+      M THANKS
+
+Tue Dec 6 16:47:32 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add $(PDF) and $(HTML) variables.
+
+      M Makefile.am
+
+Tue Dec 6 16:39:57 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add *.orig to MANIFEST.SKIP.
+
+      M MANIFEST.SKIP
+
+Tue Dec 6 15:57:36 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Ditch deprecated AM_MAINTAINER_MODE.
+
+      M aclocal.m4
+      M configure.ac
+
+Tue Dec 6 15:56:43 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add licensing changes to TODO.
+
+      M TODO
+
+Tue Dec 6 15:41:33 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add bug-reporting email address and a couple of URLs to usage text to
+    comply with GNU Coding Standards for --help option.
+
+      M bin/stow.in
+
+Tue Dec 6 15:57:20 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Calculated the correct default value for pmdir based on the local Perl
+    installation.
+
+      M NEWS
+      M configure.ac
+
+Tue Dec 6 10:33:34 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fixed bug where --with-pmdir was ineffectual.
+
+      M Makefile.am
+      M NEWS
+      M configure.ac
+
+Sun Dec 4 14:57:34 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Change @dircategory to `System administration' as suggested by Karl
+    Berry.
+
+      M doc/stow.texi
+
+Sat Dec 3 18:13:09 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add git push and update of online documentation to HOWTO-RELEASE.
+
+      M doc/HOWTO-RELEASE
+
+Sat Dec 3 17:51:48 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Release announcements should go to stow-devel too.
+
+      M doc/HOWTO-RELEASE
+
+Sat Dec 3 17:51:44 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix error in gnupload command-line.
+
+      M doc/HOWTO-RELEASE
+
+Sat Dec 3 17:09:48 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add a missing space.
+
+      M AUTHORS
+
+Sat Dec 3 16:40:20 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add a missing hyperlink to the Stow homepage.
+
+      M doc/stow.texi
+
+Sat Dec 3 14:03:58 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Give up on automake's built-in rules for generating PDF and HTML and
+    use our own. Also include split version of the manual.
+
+      M .gitignore
+      M MANIFEST
+      M MANIFEST.SKIP
+      M Makefile.am
+      M NEWS
+
+Sat Dec 3 02:07:19 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Update reference to maintainer.
+
+      M AUTHORS
+      M README
+      M doc/stow.texi
+
+Sat Dec 3 01:30:08 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Temporarily remove PDF from dist_doc_DATA due to automake issue. 
+    http://article.gmane.org/gmane.comp.sysutils.automake.general/13192
+
+    This means that it is still included in the distribution and 
+    installed, but is only automatically (re)built when making a new
+    distribution - if stow.texi changes during development, it has to
+    be rebuilt manually via 'make pdf'.
+
+
+      M MANIFEST
+      M MANIFEST.SKIP
+      M Makefile.am
+
+Sat Dec 3 00:54:05 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Module::Build generates archive files with 'v' for version
+
+      M MANIFEST.SKIP
+
+Fri Dec 2 14:55:44 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add TODOs for .rpm and .deb support.
+
+      M TODO
+
+Thu Dec 1 18:03:16 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add doc/version.texi to distribution.
+
+      M Makefile.am
+
+Thu Dec 1 17:25:24 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Switch to renaming to manual via install hook as suggested by Stefano
+    Lattarini 
+    http://article.gmane.org/gmane.comp.sysutils.automake.general/13191
+
+
+      M MANIFEST
+      M MANIFEST.SKIP
+      M Makefile.am
+
+Thu Dec 1 16:23:04 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix corner case where only -d is specified as a single directory.
+
+      M bin/stow.in
+
+Mon Nov 28 23:20:14 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add result of ./Build dist to .gitignore
+
+      M .gitignore
+
+Mon Nov 28 23:18:58 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Synchronise CPAN MANIFEST files with automake distribution list.
+
+      M MANIFEST
+      M MANIFEST.SKIP
+
+Mon Nov 28 23:18:36 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Ignore split page version of HTML manual.
+
+      M .gitignore
+
+Mon Nov 28 23:17:50 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Don't duplicate stow.texi to manual.texi.
+
+      M MANIFEST
+      M MANIFEST.SKIP
+      M Makefile.am
+
+Sat Nov 26 18:55:10 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve debug levels.
+
+      M lib/Stow.pm.in
+      M lib/Stow/Util.pm
+
+Sat Nov 26 18:24:35 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add a TODO concerning .nonstow.
+
+      M TODO
+
+Sat Nov 26 18:15:26 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add HOWTO-RELEASE
+
+      A doc/HOWTO-RELEASE
+
+Thu Nov 24 01:27:41 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add NEWS entry for 2.1.0
+
+      M NEWS
+
+Thu Nov 24 00:26:50 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Bump version to 2.1.0
+
+      M META.json
+      M META.yml
+      M configure.ac
+
+Fri Nov 25 15:23:08 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix documentation regarding splitting of symlinks across multiple stow
+    directories.
+
+      M doc/stow.texi
+      M lib/Stow.pm.in
+
+Fri Nov 25 15:14:07 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Tidy up chkstow code and documentation.
+
+      M bin/chkstow.in
+      M doc/stow.texi
+
+Fri Nov 25 15:03:46 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add chkstow to NEWS
+
+      M NEWS
+
+Fri Nov 25 14:45:28 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add comment to manual about test_examples_in_manual() in t/ignore.t.
+
+      M doc/stow.texi
+
+Sat Nov 26 16:32:25 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Remove quote stripping code. I'm guessing it was added due to a
+    misunderstanding of how shell quoting works.  When you invoke
+
+       stow --ignore=".#.*" ...
+
+    the shell strips out the quotes before the Perl process ever sees
+    them. I can't imagine any sensible scenario in which you would
+    need to invoke
+
+       stow --ignore='"foo"'
+
+    but if the user has a filename containing quotes at the beginning
+    and end, they can now choose to ignore it (prior to this patch,
+    they couldn't).
+
+
+      M bin/stow.in
+      M t/stow.t
+
+Thu Nov 24 22:49:22 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve conflict reporting
+
+      M bin/stow.in
+      M lib/Stow.pm.in
+      M t/stow_contents.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Thu Nov 24 18:05:57 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Sync up .gitignore and MANIFEST* with recent changes.
+
+      M .gitignore
+      M MANIFEST
+      M MANIFEST.SKIP
+
+Thu Nov 24 20:47:39 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Ditch obsolete --conflicts option and update misleading documentation.
+
+      M bin/stow.in
+      M doc/stow.texi
+      M lib/Stow.pm.in
+
+Thu Nov 24 17:00:33 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Auto-generate ChangeLog from git
+
+      M .gitignore
+      D ChangeLog
+      M Makefile.am
+      A doc/ChangeLog.OLD
+
+Thu Nov 24 16:59:45 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Sort .gitignore alphabetically
+
+      M .gitignore
+
+Thu Nov 24 16:59:26 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add some missing stuff to .gitignore
+
+      M .gitignore
+
+Thu Nov 24 16:22:11 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Distribute .tar.gz and .tar.bz2 but not .shar.gz
+
+      M Makefile.am
+      M configure.ac
+
+Thu Nov 24 16:32:01 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Numerous fixes so that `make distcheck' succeeds. Moves temporary test
+    trees into a separate directory.
+
+      M .gitignore
+      M Makefile.am
+      M configure.ac
+      M t/chkstow.t
+      M t/cleanup_invalid_links.t
+      M t/defer.t
+      M t/examples.t
+      M t/find_stowed_path.t
+      M t/foldable.t
+      M t/ignore.t
+      M t/stow.t
+      M t/stow_contents.t
+      M t/testutil.pm
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Thu Nov 24 00:45:29 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Strip superfluous quotes from $hash{'lookups'}
+
+      M bin/stow.in
+      M lib/Stow.pm.in
+      M t/chkstow.t
+      M t/stow.t
+
+Thu Nov 24 17:15:02 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Tidy up the copyright attributions in the manual.
+
+      M doc/stow.texi
+
+Thu Nov 24 17:14:51 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix some minor issues in the manual.
+
+      M doc/stow.texi
+
+Thu Nov 24 17:33:36 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add HTML and PDF versions of manual to distribution.
+
+      M .gitignore
+      M Makefile.am
+
+Wed Nov 23 23:45:48 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add support for ignore lists.
+
+      M AUTHORS
+      M Makefile.am
+      M TODO
+      A default-ignore-list
+      M doc/stow.texi
+      M lib/Stow.pm.in
+      M lib/Stow/Util.pm
+      M t/chkstow.t
+      M t/cleanup_invalid_links.t
+      M t/examples.t
+      M t/find_stowed_path.t
+      M t/foldable.t
+      A t/ignore.t
+      M t/stow.t
+      M t/stow_contents.t
+      M t/testutil.pm
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Tue Nov 22 15:59:07 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Rename $old_* to $existing_*
+
+      M lib/Stow.pm.in
+
+Tue Nov 22 15:50:12 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Rename protected_dir() to marked_stow_dir().
+
+      M lib/Stow.pm.in
+
+Tue Nov 22 15:48:08 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Rename should_skip_stow_dir_target() to
+    should_skip_target_which_is_stow_dir()
+
+      M lib/Stow.pm.in
+
+Tue Nov 22 15:46:05 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Be clearer when we're not actually (un)stowing, just planning.
+
+      M lib/Stow.pm.in
+
+Tue Nov 22 14:29:52 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add another test to join_paths.t
+
+      M t/join_paths.t
+
+Tue Nov 22 14:29:42 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Clean up coding style in tests
+
+      M t/chkstow.t
+      M t/cleanup_invalid_links.t
+      M t/find_stowed_path.t
+      M t/join_paths.t
+      M t/parent.t
+
+Tue Nov 22 14:28:37 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Avoid use of map in void context
+
+      M bin/stow.in
+
+Mon Nov 21 23:24:02 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add a comment about a relative weakness of compat mode.
+
+      M lib/Stow.pm.in
+
+Mon Nov 21 23:23:43 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Test stow/unstow with stow dir / target dir as absolute paths.
+
+      M t/stow_contents.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Mon Nov 21 23:21:48 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix more inconsistencies in coding style.
+
+      M lib/Stow.pm.in
+
+Mon Nov 21 23:15:47 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix typos
+
+      M lib/Stow.pm.in
+
+Mon Nov 21 22:08:52 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix/remove some outdated TODOs
+
+      M TODO
+
+Mon Nov 21 18:04:58 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add build-time dependencies on Test::More and Test::Output.
+
+      M Build.PL
+      M META.json
+      M META.yml
+      M TODO
+
+Mon Nov 21 14:48:58 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add MYMETA.* to .gitignore
+
+      M .gitignore
+
+Mon Nov 21 14:46:27 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add .dirstamp and stamp-vti to .gitignore
+
+      M .gitignore
+
+Thu Nov 24 16:52:50 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Convert man page to POD format which is easier to maintain within
+    stow.in.
+
+      M .gitignore
+      M Makefile.am
+      M bin/stow.in
+      D doc/stow.8
+
+Mon Nov 21 13:59:36 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Reorganise more files into subdirectories and add CPAN support via
+    Module::Build
+
+      A Build.PL
+      A MANIFEST
+      A MANIFEST.SKIP
+      A META.json
+      A META.yml
+      M Makefile.am
+      A automake/install-sh
+      A automake/mdate-sh
+      A automake/missing
+      A bin/chkstow.in
+      A bin/stow.in
+      D chkstow.in
+      M configure.ac
+      A doc/stow.8
+      A doc/stow.texi
+      A doc/texinfo.tex
+      D install-sh
+      D mdate-sh
+      D missing
+      D stow.8
+      D stow.in
+      D stow.texi
+      D texinfo.tex
+
+Mon Nov 21 14:07:39 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add myself (Adam) to AUTHORS and THANKS ;-)
+
+      M AUTHORS
+      M THANKS
+
+Thu Nov 24 16:28:09 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Major refactoring of code into separate Stow and Stow::Util Perl
+    modules
+
+      M .gitignore
+      M Makefile.am
+      M TODO
+      M configure.ac
+      A lib/Stow.pm.in
+      A lib/Stow/Util.pm
+      M stow.in
+      M t/chkstow.t
+      M t/cleanup_invalid_links.t
+      M t/defer.t
+      M t/examples.t
+      M t/find_stowed_path.t
+      M t/foldable.t
+      M t/join_paths.t
+      M t/parent.t
+      M t/stow.t
+      M t/stow_contents.t
+      A t/testutil.pm
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+      D t/util.pm
+
+Fri Nov 18 15:09:39 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix indentation in Makefile.am
+
+      M Makefile.am
+
+Fri Nov 18 11:24:36 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Test unstowing when target contains a real file generates a conflict.
+
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Thu Nov 17 20:11:06 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Test unstowing stuff which doesn't exist in the target tree.
+
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Thu Nov 17 20:11:32 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add a missing conflict if we tried to unstow a file in compat mode.
+
+      M stow.in
+
+Fri Nov 18 12:00:05 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Remove setting of verbosity from tests
+
+      M t/cleanup_invalid_links.t
+      M t/examples.t
+      M t/foldable.t
+      M t/stow_contents.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Fri Nov 18 11:14:50 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Make 'verbose' option default to 0 in testmode.
+
+      M stow.in
+
+Fri Nov 18 10:48:48 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add protection against stowing into stow dirs
+
+      M stow.in
+      M t/stow_contents.t
+
+Fri Nov 18 10:34:23 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Debug stow dir in stow/unstow contents routines
+
+      M stow.in
+
+Fri Nov 18 10:33:08 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Trace individual cases separately when skipping stow dirs during
+    unstow.
+
+      M stow.in
+
+Fri Nov 18 10:29:15 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Allow TEST_VERBOSE to control level of verbosity. Defaults to 3. 
+    'verbose' option now has precedence if set.
+
+      M stow.in
+
+Thu Nov 17 20:32:48 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Debug when skipping over stow directories
+
+      M stow.in
+
+Thu Nov 17 20:10:42 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add debug when target to be unstowed doesn't exist
+
+      M stow.in
+
+Thu Nov 17 20:09:42 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add comments justifying is_a_node($target) check in unstow_contents().
+
+      M stow.in
+
+Thu Nov 17 19:33:09 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Test unstowing an already unstowed package
+
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Thu Nov 17 19:10:02 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix incorrect comments.
+
+      M stow.in
+
+Thu Nov 17 19:04:10 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Sync t/unstow_contents{,_orig}.t
+
+      M t/unstow_contents_orig.t
+
+Thu Nov 17 18:46:32 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Debug with maximum verbosity to STDOUT when running tests.
+
+      M stow.in
+      M t/util.pm
+
+Thu Nov 17 18:46:13 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Refactored reset_state() into t/util.pm
+
+      M t/cleanup_invalid_links.t
+      M t/examples.t
+      M t/stow_contents.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+      M t/util.pm
+
+Thu Nov 17 18:24:53 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Refactored is_a_{link,dir,node}() code.
+
+      M stow.in
+
+Thu Nov 17 17:23:04 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve tree splitting comments.
+
+      M stow.in
+
+Thu Nov 17 16:39:02 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Don't tolerate '' as value for $target parameter to (un)stow_contents
+
+      M stow.in
+      M t/stow_contents.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Thu Nov 17 16:37:37 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add debug tracing to helper routines
+
+      M stow.in
+
+Thu Nov 17 16:35:57 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix Parameters comments.
+
+      M stow.in
+
+Thu Nov 17 19:47:20 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Improve debug output
+
+      M stow.in
+
+Thu Nov 17 15:32:51 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Clarify meaning of `--defer' in the manual.
+
+      M stow.texi
+
+Thu Nov 17 15:22:58 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Finish "Deferred Operation" section in manual.
+
+      M TODO
+      M stow.texi
+
+Thu Nov 17 14:17:24 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix inconsistencies in coding style.
+
+      M stow.in
+      M t/util.pm
+
+Thu Nov 17 14:12:14 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Set cperl-indent-level to 4
+
+      M stow.in
+
+Thu Nov 17 14:12:12 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Simplify GetOptions() code
+
+      M stow.in
+
+Thu Nov 17 13:26:04 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Refactor verbosity-controlled output to STDERR into debug()
+    subroutine.
+
+      M stow.in
+
+Thu Nov 17 12:45:36 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix broken 'make install' due to man page being duplicated in
+    install-man8 target
+
+      M Makefile.am
+
+Wed Nov 16 16:52:03 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Stow directory now defaults to STOW_DIR environment variable if set.
+
+      M ChangeLog
+      M stow.8
+      M stow.in
+      M stow.texi
+
+Wed Nov 16 15:57:17 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Use File::Spec->abs2rel() instead of home-grown relative_path which
+    actually gets some inputs wrong (e.g. "/" relative to "/")
+
+      M Makefile.am
+      M stow.in
+      D t/relative_path.t
+
+Wed Nov 16 15:51:54 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add a bunch of stuff to the TODO
+
+      M TODO
+
+Wed Nov 16 15:42:42 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add FIXME for Deferred Operation section in manual.
+
+      M TODO
+      M stow.texi
+
+Wed Nov 16 15:40:46 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix indentation issues in NEWS
+
+      M NEWS
+
+Wed Nov 16 15:38:47 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Switch NEWS and TODO to org-mode. org-mode has been included in emacs
+    by default for a long time and is much more friendly than
+    outline-mode.  No impact to non-emacs users.
+
+
+      M NEWS
+      M TODO
+
+Wed Nov 16 15:22:12 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Stow now requires Perl 5.6.1 or newer, due to use of 'our'.
+
+      M README
+      M chkstow.in
+      M stow.in
+
+Wed Nov 16 15:20:21 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Troy is the maintainer now.
+
+      M AUTHORS
+      M README
+      M TODO
+      M stow.texi
+
+Wed Nov 16 14:59:58 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix typos
+
+      M AUTHORS
+      M TODO
+      M stow.in
+      M stow.texi
+      M t/relative_path.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Wed Nov 16 15:16:53 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Catch warnings in tests when no outstanding operations to perform.
+    Tests now all pass completely cleanly.
+
+      M t/stow_contents.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Wed Nov 16 15:07:26 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix %Options typo in several tests
+
+      M t/cleanup_invalid_links.t
+      M t/examples.t
+      M t/stow_contents.t
+      M t/unstow_contents.t
+      M t/unstow_contents_orig.t
+
+Wed Nov 16 15:04:21 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix t/stow.t
+
+      M t/stow.t
+
+Wed Nov 16 14:51:38 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix chkstow.t
+
+      M chkstow.in
+      M t/chkstow.t
+
+Wed Nov 16 14:46:31 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add #! header to t/util.pm for benefit of editor mode selection
+
+      M t/util.pm
+
+Wed Nov 16 14:45:56 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Fix chkstow.in for emacs users
+
+      M chkstow.in
+
+Wed Nov 16 14:34:02 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Support ./configure --disable-maintainer-mode to optionally avoid
+    auto-reconfiguring on make.
+
+      M aclocal.m4
+      M configure.ac
+
+Wed Nov 16 14:31:32 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Run autoreconf with more recent GNU autotools.
+
+      M aclocal.m4
+
+Wed Nov 16 14:30:55 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add test target to Makefile
+
+      M Makefile.am
+
+Thu Nov 24 16:55:43 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Remove auto-generated files from git.
+
+      M .gitignore
+      D Makefile.in
+      D configure
+      D stamp-vti
+      D stow.info
+      D version.texi
+
+Wed Nov 16 14:30:39 2011 +0000  Adam Spiers <stow@adamspiers.org>
+
+    * Add .gitignore
+
+      A .gitignore
+
+Sun Apr 12 23:04:33 2009 -0700  Troy Will <troydwill@gmail.com>
+
+    * made numeric argument to --verbose optional
+
+      M stow.in
+
+Sun Apr 12 21:59:24 2009 -0700  Troy Will <troydwill@gmail.com>
+
+    * Remove stow, config.status, config.log, Makefile
+
+      D Makefile
+      D config.log
+      D config.status
+      D stow
+Thu Jan 31 2008  Kahlil Hodgson  <kal@grebo.cs.rmit.edu.au>
+
+	* stow.texi: Austin Wood and Chris Hoobin clean this up for version 2.
+
+	* texi2man: new script by Austin and Chris to generate a man page from the
+	texinfo file.
+
+
+Sun Nov 25 19:31:32 2007  Kahlil Hodgson <kahlil@internode.con.net>
+	* all: Version 2.0.1
+
+	* AUTHORS: added Kahlil Hodgson as a new author and current maintainer.
+
+	* stow.in: major rewrite to produce version 2.0.1 see NEWS for details
+	
+	* t/: added test suite and support code
+	
+	* configure.in: renamed to configure.ac as per autotools recommendation.
+
+	* configure.ac: 
+	Use AC_INT rather than obsolete AM_INTI_MAKEFILE usage.
+	Remove redundant VERSION and PACKAGE setttings
+	Remove redundant AC_ARG_PROGRAM
+	Use AM_INIT_AUTOMAKE([-Wall -Werror]) because we are pedantic.
+	Add AC_PREREQ([2.6.1])
+	
+	* Makefile.am, configure.ac: 
+	Use explicit rewrite in Makefile.am, rather than AC_CONFIG_FILES(stow.in),
+	as per autotools recommendation.
+
+	* Makefile.am: 
+	Add TESTS and TEST_ENVIRONMENT for files in t/
+	Use dist_man_MANS instead of EXTRA_DIST for man page 
+
+	* INSTALL: update to reflect autotools modernization.
+
+	* NEWS: update to describe cahnges in Version 2.0.1.
+
+	* README: update to point to the right websites and email addresses.
+	
+	* THANKS: 
+	Add Emil Mikulc who's ideas largely inspired Version 2 and 
+	and Geoffrey Giesemann who did some initial testing and found some
+	important bugs.
+
+	* TODO: remove tasks that where implemented in Version 2
+
+	* stow.texi: update documentation to reflect Version 2 changes.
+	
+	* stow.8: update to reflect Version 2 changes.
+
+Sat Jan 26 16:15:21 2002  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: if $ENV{'STOW_DIR'} is set, this becomes the default
+      Stow directory.
+
+Sun Jan 06 12:18:50 2002  Guillaume Morin  <gmorin@gnu.org>
+
+    * Makefile.am: use EXTRA_DIST to include manpage in distribution
+
+Wed Jan 02 21:33:41 2002  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: Stow now only warns the user if a subdirectory
+      is unreadable during unstowing.
+
+Wed Jan 02 20:58:05 2002  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: fixed JoinPaths so that subdirs called "0" are
+      correctly pushed. Thanks a lot to Gergely Nagy
+      <algernon@bonehunter.rulez.org> who patiently helped me to chase 
+      this bug.
+
+Sun Dec 30 21:58:25 2001  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: fixed a bug introduced by previous changes when
+      Target argument was relative. (thanks to Luca Filipozzi
+      <lfilipoz@debian.org> for pointing this out)
+	   
+Sun Dec 30 18:23:25 2001  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: now requires Perl 5. Use POSIX getcwd instead of broken
+      fastcwd. Fixed bug when CommonParent is /. Stow does not remove
+      initially empty directories anymore.
+	
+Sun Dec 30 18:07:51 2001  Guillaume Morin  <gmorin@gnu.org>
+
+    * configure.in: automake fixes (fp_ -> AC, +AC_INIT_AUTOMAKE)
+
+Fri Oct 11 22:09:45 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* stow.html, configure.in: Version 1.3.2.
+
+	* README, stow.texi: Correct the URL again.
+
+Fri Oct 11 18:20:42 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* configure.in: Version 1.3.1.
+
+	* stow.html: Update Stow manual URL.  Mention version 1.3.1.
+
+	* README: Update Stow URL.
+
+	* Makefile.am: stow-manual.html -> manual.html.
+
+	* stow.texi:
+	Add a reference to the Stow home page on the GNU web server.  Change
+	several occurrences of "which" to "that" for grammatical superiority.
+
+Wed Oct  9 00:34:07 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* Makefile.am:
+	Add maintainer-only rules for stow-manual.html and stow-manual.texi.
+
+Wed Oct  9 00:32:31 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* README: Refer to the new location for the Stow home page.
+
+	* stow.html: Make it right for the GNU web server.
+
+Tue Oct  8 21:54:09 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* stow.texi: Document --restow
+
+	* stow.in: Add --restow (-R) option
+
+	* configure.in: Add "perl4" to search for Perl binary.
+	Bump version number to 1.3.
+
+Mon Jun 24 23:23:03 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* stow.texi: Delete trailing whitespace.
+
+Fri Jun 21 19:44:26 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* Makefile.am:
+	Don't explicitly mention version.texi.  Automake now does it
+ 	automagically, by noticing the `@include version.texi' in
+ 	stow.texi.  Awesome.
+
+	* stow.texi:
+	Use @include instead of @input.  This is more Texinfoid, plus
+	allows Automake to automatically deduce the need for
+	version.texi.
+
+	* stow.in:
+	Elide trailing slashes from package names, then complain if
+	package names have slashes in them.
+
+Tue Jun 18 23:19:04 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* README: Call it "Gnu Stow".
+
+Tue Jun 18 22:15:45 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* configure.in:
+	Bump version number to 1.2.
+
+	Look for Perl under the names `perl' and `perl5'.  If not found,
+	print a warning.
+
+	* stow.texi:
+	Add a section about bootstrapping.  Add text about hacking Gnu
+	Make output.
+
+	* INSTALL:
+	Describe what happens when Perl isn't found during `configure'.
+
+Mon Jun 17 19:43:25 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* THANKS: Thank Fritz.
+
+Fri Jun 14 19:18:50 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* AUTHORS: Credit John Bazik and Gord Matzigkeit.
+
+	* stow.texi: Remove a "known bug" -- the pwd dependency is gone.
+
+	* stow.in:
+	Use fastcwd, from fastcwd.pl (which is GPL'd), to remove
+ 	dependency on an external pwd binary.  Suggested by Gord
+	Matzigkeit.
+
+	* stow.in: Add a missing comma.
+
+Thu Jun 13 21:52:10 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* stow.in:
+	Change three occurrences of `my' to `local' for Perl 4
+	compatibility.
+
+Thu Jun 13 18:07:37 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* configure.in: Bump version number to 1.1.
+
+	* Makefile.am:
+	Add `stow' to the list of clean targets.  Don't redirect output
+ 	directly into a make target.
+
+	* AUTHORS, README:
+	Use <bobg+stow@zanshin.com> as the contact address.
+
+	* TODO: New file.
+
+	* stow.in:
+	Refer to "Gnu Stow" in a few places.  Use <bobg+stow@zanshin.com>
+ 	as the contact address.  Handle long and short options.  Handle
+ 	`version' and `help' options.  Refer to "packages," not
+ 	"collections," for consistency with the manual.
+
+	* stow.texi:
+	Refer to "Gnu Stow" in a few places.  Use <bobg+stow@zanshin.com>
+ 	as the contact address.  Add sections on Reporting bugs and Known
+ 	bugs.  Create a master menu.  Minor rewording.  Remove the period
+ 	from a node name.
+
+	* TODO, THANKS: New files.
+
+Mon Jun 10 14:44:13 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* NEWS: Create NEWS file for release.  1.0 now ready.
+
+	* stow.texi: Big revisions in preparation for release.
+
+Sun Jun  9 15:47:19 1996  Bob Glickstein  <bobg@zoger.ipost.com>
+
+	* stow.in: Enhance argument parsing, losing Perl 4 support in the
+	process.
+	(later) Perl 4 support restored.
+
+Fri Jun  7 12:13:33 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* Created stow, formerly "depot."

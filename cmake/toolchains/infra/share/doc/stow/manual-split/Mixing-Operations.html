@@ -1,0 +1,90 @@
+<html lang="en">
+<head>
+<title>Mixing Operations - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="prev" href="Conflicts.html#Conflicts" title="Conflicts">
+<link rel="next" href="Multiple-Stow-Directories.html#Multiple-Stow-Directories" title="Multiple Stow Directories">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Mixing-Operations"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Multiple-Stow-Directories.html#Multiple-Stow-Directories">Multiple Stow Directories</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Conflicts.html#Conflicts">Conflicts</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="index.html#Top">Top</a>
+<hr>
+</div>
+
+<h2 class="chapter">8 Mixing Operations</h2>
+
+<p><a name="index-mixing-operations-33"></a>
+Since version 2.0, multiple distinct actions can be specified in a single
+invocation of GNU Stow.  For example, to update an installation of Emacs from
+version 21.3 to 21.4a you can now do the following:
+
+<pre class="example">     stow -D emacs-21.3 -S emacs-21.4a
+</pre>
+   <p class="noindent">which will replace emacs-21.3 with emacs-21.4a using a single invocation.
+
+   <p><a name="index-deferred-operation-34"></a>This is much faster and cleaner than performing two separate
+invocations of stow, because redundant folding/unfolding operations
+can be factored out.  In addition, all the operations are calculated
+and merged before being executed (see <a href="Deferred-Operation.html#Deferred-Operation">Deferred Operation</a>), so the
+amount of of time in which GNU Emacs is unavailable is minimised.
+
+   <p>You can mix and match any number of actions, for example,
+
+<pre class="example">     stow -S pkg1 pkg2 -D pkg3 pkg4 -S pkg5 -R pkg6
+</pre>
+   <p class="noindent">will unstow pkg3, pkg4 and pkg6, then stow pkg1, pkg2, pkg5 and pkg6.
+
+<!-- =========================================================================== -->
+   </body></html>
+

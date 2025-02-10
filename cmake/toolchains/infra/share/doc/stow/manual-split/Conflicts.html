@@ -1,0 +1,100 @@
+<html lang="en">
+<head>
+<title>Conflicts - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="prev" href="Deleting-Packages.html#Deleting-Packages" title="Deleting Packages">
+<link rel="next" href="Mixing-Operations.html#Mixing-Operations" title="Mixing Operations">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Conflicts"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Mixing-Operations.html#Mixing-Operations">Mixing Operations</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Deleting-Packages.html#Deleting-Packages">Deleting Packages</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="index.html#Top">Top</a>
+<hr>
+</div>
+
+<h2 class="chapter">7 Conflicts</h2>
+
+<p><a name="index-conflicts-31"></a>If, during installation, a file or symlink exists in the target tree and
+has the same name as something Stow needs to create, and if the
+existing name is not a folded tree that can be split open, then a
+<dfn>conflict</dfn> has arisen.  A conflict also occurs if a directory exists
+where Stow needs to place a symlink to a non-directory.  On the
+other hand, if the existing name is merely a symlink that already points
+where Stow needs it to, then no conflict has occurred.  (Thus it
+is harmless to install a package that has already been installed.)
+
+   <p>For complex packages, scanning the stow and target trees in tandem,
+and deciding whether to make directories or links, split-open or fold
+directories, can actually take a long time (a number of seconds). 
+Moreover, an accurate analysis of potential conflicts requires us to
+take into account all of these operations.
+
+   <p><a name="Deferred-Operation"></a>
+
+<h3 class="section">7.1 Deferred Operation</h3>
+
+<p><a name="index-deferred-operation-32"></a>
+Since version 2.0, Stow now adopts a two-phase algorithm, first
+scanning for any potential conflicts before any stowing or unstowing
+operations are performed.  If any conflicts are found, they are
+displayed and then Stow terminates without making any modifications to
+the filesystem.  This means that there is much less risk of a package
+being partially stowed or unstowed due to conflicts.
+
+   <p>Prior to version 2.0, if a conflict was discovered, the stow or unstow
+operation could be aborted mid-flow, leaving the target tree in an
+inconsistent state.
+
+<!-- =========================================================================== -->
+   </body></html>
+

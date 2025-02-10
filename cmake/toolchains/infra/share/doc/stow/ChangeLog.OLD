@@ -1,0 +1,232 @@
+Thu Jan 31 2008  Kahlil Hodgson  <kal@grebo.cs.rmit.edu.au>
+
+	* stow.texi: Austin Wood and Chris Hoobin clean this up for version 2.
+
+	* texi2man: new script by Austin and Chris to generate a man page from the
+	texinfo file.
+
+
+Sun Nov 25 19:31:32 2007  Kahlil Hodgson <kahlil@internode.con.net>
+	* all: Version 2.0.1
+
+	* AUTHORS: added Kahlil Hodgson as a new author and current maintainer.
+
+	* stow.in: major rewrite to produce version 2.0.1 see NEWS for details
+	
+	* t/: added test suite and support code
+	
+	* configure.in: renamed to configure.ac as per autotools recommendation.
+
+	* configure.ac: 
+	Use AC_INT rather than obsolete AM_INTI_MAKEFILE usage.
+	Remove redundant VERSION and PACKAGE setttings
+	Remove redundant AC_ARG_PROGRAM
+	Use AM_INIT_AUTOMAKE([-Wall -Werror]) because we are pedantic.
+	Add AC_PREREQ([2.6.1])
+	
+	* Makefile.am, configure.ac: 
+	Use explicit rewrite in Makefile.am, rather than AC_CONFIG_FILES(stow.in),
+	as per autotools recommendation.
+
+	* Makefile.am: 
+	Add TESTS and TEST_ENVIRONMENT for files in t/
+	Use dist_man_MANS instead of EXTRA_DIST for man page 
+
+	* INSTALL: update to reflect autotools modernization.
+
+	* NEWS: update to describe cahnges in Version 2.0.1.
+
+	* README: update to point to the right websites and email addresses.
+	
+	* THANKS: 
+	Add Emil Mikulc who's ideas largely inspired Version 2 and 
+	and Geoffrey Giesemann who did some initial testing and found some
+	important bugs.
+
+	* TODO: remove tasks that where implemented in Version 2
+
+	* stow.texi: update documentation to reflect Version 2 changes.
+	
+	* stow.8: update to reflect Version 2 changes.
+
+Sat Jan 26 16:15:21 2002  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: if $ENV{'STOW_DIR'} is set, this becomes the default
+      Stow directory.
+
+Sun Jan 06 12:18:50 2002  Guillaume Morin  <gmorin@gnu.org>
+
+    * Makefile.am: use EXTRA_DIST to include manpage in distribution
+
+Wed Jan 02 21:33:41 2002  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: Stow now only warns the user if a subdirectory
+      is unreadable during unstowing.
+
+Wed Jan 02 20:58:05 2002  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: fixed JoinPaths so that subdirs called "0" are
+      correctly pushed. Thanks a lot to Gergely Nagy
+      <algernon@bonehunter.rulez.org> who patiently helped me to chase 
+      this bug.
+
+Sun Dec 30 21:58:25 2001  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: fixed a bug introduced by previous changes when
+      Target argument was relative. (thanks to Luca Filipozzi
+      <lfilipoz@debian.org> for pointing this out)
+	   
+Sun Dec 30 18:23:25 2001  Guillaume Morin  <gmorin@gnu.org>
+
+    * stow.in: now requires Perl 5. Use POSIX getcwd instead of broken
+      fastcwd. Fixed bug when CommonParent is /. Stow does not remove
+      initially empty directories anymore.
+	
+Sun Dec 30 18:07:51 2001  Guillaume Morin  <gmorin@gnu.org>
+
+    * configure.in: automake fixes (fp_ -> AC, +AC_INIT_AUTOMAKE)
+
+Fri Oct 11 22:09:45 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* stow.html, configure.in: Version 1.3.2.
+
+	* README, stow.texi: Correct the URL again.
+
+Fri Oct 11 18:20:42 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* configure.in: Version 1.3.1.
+
+	* stow.html: Update Stow manual URL.  Mention version 1.3.1.
+
+	* README: Update Stow URL.
+
+	* Makefile.am: stow-manual.html -> manual.html.
+
+	* stow.texi:
+	Add a reference to the Stow home page on the GNU web server.  Change
+	several occurrences of "which" to "that" for grammatical superiority.
+
+Wed Oct  9 00:34:07 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* Makefile.am:
+	Add maintainer-only rules for stow-manual.html and stow-manual.texi.
+
+Wed Oct  9 00:32:31 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* README: Refer to the new location for the Stow home page.
+
+	* stow.html: Make it right for the GNU web server.
+
+Tue Oct  8 21:54:09 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* stow.texi: Document --restow
+
+	* stow.in: Add --restow (-R) option
+
+	* configure.in: Add "perl4" to search for Perl binary.
+	Bump version number to 1.3.
+
+Mon Jun 24 23:23:03 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* stow.texi: Delete trailing whitespace.
+
+Fri Jun 21 19:44:26 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* Makefile.am:
+	Don't explicitly mention version.texi.  Automake now does it
+ 	automagically, by noticing the `@include version.texi' in
+ 	stow.texi.  Awesome.
+
+	* stow.texi:
+	Use @include instead of @input.  This is more Texinfoid, plus
+	allows Automake to automatically deduce the need for
+	version.texi.
+
+	* stow.in:
+	Elide trailing slashes from package names, then complain if
+	package names have slashes in them.
+
+Tue Jun 18 23:19:04 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* README: Call it "Gnu Stow".
+
+Tue Jun 18 22:15:45 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* configure.in:
+	Bump version number to 1.2.
+
+	Look for Perl under the names `perl' and `perl5'.  If not found,
+	print a warning.
+
+	* stow.texi:
+	Add a section about bootstrapping.  Add text about hacking Gnu
+	Make output.
+
+	* INSTALL:
+	Describe what happens when Perl isn't found during `configure'.
+
+Mon Jun 17 19:43:25 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* THANKS: Thank Fritz.
+
+Fri Jun 14 19:18:50 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* AUTHORS: Credit John Bazik and Gord Matzigkeit.
+
+	* stow.texi: Remove a "known bug" -- the pwd dependency is gone.
+
+	* stow.in:
+	Use fastcwd, from fastcwd.pl (which is GPL'd), to remove
+ 	dependency on an external pwd binary.  Suggested by Gord
+	Matzigkeit.
+
+	* stow.in: Add a missing comma.
+
+Thu Jun 13 21:52:10 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* stow.in:
+	Change three occurrences of `my' to `local' for Perl 4
+	compatibility.
+
+Thu Jun 13 18:07:37 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* configure.in: Bump version number to 1.1.
+
+	* Makefile.am:
+	Add `stow' to the list of clean targets.  Don't redirect output
+ 	directly into a make target.
+
+	* AUTHORS, README:
+	Use <bobg+stow@zanshin.com> as the contact address.
+
+	* TODO: New file.
+
+	* stow.in:
+	Refer to "Gnu Stow" in a few places.  Use <bobg+stow@zanshin.com>
+ 	as the contact address.  Handle long and short options.  Handle
+ 	`version' and `help' options.  Refer to "packages," not
+ 	"collections," for consistency with the manual.
+
+	* stow.texi:
+	Refer to "Gnu Stow" in a few places.  Use <bobg+stow@zanshin.com>
+ 	as the contact address.  Add sections on Reporting bugs and Known
+ 	bugs.  Create a master menu.  Minor rewording.  Remove the period
+ 	from a node name.
+
+	* TODO, THANKS: New files.
+
+Mon Jun 10 14:44:13 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* NEWS: Create NEWS file for release.  1.0 now ready.
+
+	* stow.texi: Big revisions in preparation for release.
+
+Sun Jun  9 15:47:19 1996  Bob Glickstein  <bobg@zoger.ipost.com>
+
+	* stow.in: Enhance argument parsing, losing Perl 4 support in the
+	process.
+	(later) Perl 4 support restored.
+
+Fri Jun  7 12:13:33 1996  Bob Glickstein  <bobg@hiro.zanshin.com>
+
+	* Created stow, formerly "depot."

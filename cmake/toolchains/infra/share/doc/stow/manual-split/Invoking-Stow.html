@@ -1,0 +1,206 @@
+<html lang="en">
+<head>
+<title>Invoking Stow - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="prev" href="Terminology.html#Terminology" title="Terminology">
+<link rel="next" href="Ignore-Lists.html#Ignore-Lists" title="Ignore Lists">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Invoking-Stow"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Ignore-Lists.html#Ignore-Lists">Ignore Lists</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Terminology.html#Terminology">Terminology</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="index.html#Top">Top</a>
+<hr>
+</div>
+
+<h2 class="chapter">3 Invoking Stow</h2>
+
+<p>The syntax of the <samp><span class="command">stow</span></samp> command is:
+
+<pre class="example">     stow [<var>options</var>] [<var>action flag</var>] <var>package <small class="dots">...</small></var>
+</pre>
+   <p class="noindent">Each <var>package</var> is the name of a package (e.g., &lsquo;<samp><span class="samp">perl</span></samp>&rsquo;) in the stow
+directory that we wish to install into (or delete from) the target directory. 
+The default action is to install the given packages, although alternate actions
+may be specified by preceding the package name(s) with an <var>action flag</var>.
+
+<p class="noindent">The following options are supported:
+
+     <dl>
+<dt>&lsquo;<samp><span class="samp">-d </span><var>dir</var></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--dir=</span><var>dir</var></samp>&rsquo;<dd>Set the stow directory to <var>dir</var>.  Defaults to the value of the environment
+variable <samp><span class="env">STOW_DIR</span></samp> if set, or the current directory otherwise.
+
+     <br><dt>&lsquo;<samp><span class="samp">-t </span><var>dir</var></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--target=</span><var>dir</var></samp>&rsquo;<dd>Set the target directory to <var>dir</var> instead of the parent of the stow
+directory.  Defaults to the parent of the stow directory, so it is typical to
+execute <samp><span class="command">stow</span></samp> from the directory <samp><span class="file">/usr/local/stow</span></samp>.
+
+     <br><dt>&lsquo;<samp><span class="samp">--ignore=</span><var>regexp</var></samp>&rsquo;<dd>This (repeatable) option lets you suppress acting on files that match the
+given perl regular expression.  For example, using the options
+
+     <pre class="example">          --ignore='*.orig' --ignore='*.dist'
+</pre>
+     <p class="noindent">will cause stow to ignore files ending in <samp><span class="file">.orig</span></samp> or <samp><span class="file">.dist</span></samp>.
+
+     <p>Note that the regular expression is anchored to the end of the filename,
+because this is what you will want to do most of the time.
+
+     <p>Also note that by default Stow automatically ignores a &ldquo;sensible&rdquo;
+built-in list of files and directories such as <samp><span class="file">CVS</span></samp>, editor
+backup files, and so on.  See <a href="Ignore-Lists.html#Ignore-Lists">Ignore Lists</a>, for more details.
+
+     <br><dt>&lsquo;<samp><span class="samp">--defer=</span><var>regexp</var></samp>&rsquo;<dd>This (repeatable) option avoids stowing a file matching the given
+regular expression, if that file is already stowed by another package. 
+This is effectively the opposite of <samp><span class="option">--override</span></samp>.
+
+     <p>(N.B. the name <samp><span class="option">--defer</span></samp> was chosen in the sense that the package
+currently being stowed is treated with lower precedence than any
+already installed package, not in the sense that the operation is
+being postponed to be run at a later point in time; do not confuse
+this nomenclature with the wording used in <a href="Deferred-Operation.html#Deferred-Operation">Deferred Operation</a>.)
+
+     <p>For example, the following options
+
+     <pre class="example">          --defer=man --defer=info
+</pre>
+     <p class="noindent">will cause stow to skip over pre-existing man and info pages.
+
+     <p>Equivalently, you could use &lsquo;<samp><span class="samp">--defer='man|info'</span></samp>&rsquo; since the
+argument is just a Perl regex.
+
+     <p>Note that the regular expression is anchored to the beginning of the path
+relative to the target directory, because this is what you will want to do most
+of the time.
+
+     <br><dt>&lsquo;<samp><span class="samp">--override=</span><var>regexp</var></samp>&rsquo;<dd>This (repeatable) option forces any file matching the regular expression to be
+stowed, even if the file is already stowed to another package. For example,
+the following options
+
+     <pre class="example">          --override=man --override=info
+</pre>
+     <p class="noindent">will permit stow to overwrite links that point to pre-existing man and info
+pages that are owned by stow and would otherwise cause a conflict.
+
+     <p>The regular expression is anchored to the beginning of the path relative to
+the target directory, because this is what you will want to do most of the time.
+
+     <br><dt>&lsquo;<samp><span class="samp">--no-folding</span></samp>&rsquo;<dd>
+This disables any further <a href="tree-folding.html#tree-folding">tree folding</a> or <a href="tree-refolding.html#tree-refolding">tree refolding</a>. 
+If a new subdirectory is encountered whilst stowing a new package, the
+subdirectory is created within the target, and its contents are
+symlinked, rather than just creating a symlink for the directory.  If
+removal of symlinks whilst unstowing a package causes a subtree to be
+foldable (i.e. only containing symlinks to a single package), that
+subtree will not be removed and replaced with a symlink.
+
+     <p><a name="index-adopting-existing-files-10"></a><br><dt>&lsquo;<samp><span class="samp">--adopt</span></samp>&rsquo;<dd><strong>Warning!</strong> This behaviour is specifically intended to alter the
+contents of your stow directory.  If you do not want that, this option
+is not for you.
+
+     <p>When stowing, if a target is encountered which already exists but is a
+plain file (and hence not owned by any existing stow package), then
+normally Stow will register this as a conflict and refuse to proceed. 
+This option changes that behaviour so that the file is moved to the
+same relative place within the package's installation image within the
+stow directory, and then stowing proceeds as before.  So effectively,
+the file becomes adopted by the stow package, without its contents
+changing.
+
+     <p>This is particularly useful when the stow package is under the control
+of a version control system, because it allows files in the target
+tree, with potentially different contents to the equivalent versions
+in the stow package's installation image, to be adopted into the
+package, then compared by running something like &lsquo;<samp><span class="samp">git diff ...</span></samp>&rsquo;
+inside the stow package, and finally either kept (e.g. via &lsquo;<samp><span class="samp">git
+commit ...</span></samp>&rsquo;) or discarded (&lsquo;<samp><span class="samp">git checkout HEAD ...</span></samp>&rsquo;).
+
+     <p><a name="index-dry-run-11"></a><a name="index-simulated-run-12"></a><br><dt>&lsquo;<samp><span class="samp">-n</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--no</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--simulate</span></samp>&rsquo;<dd>Do not perform any operations that modify the file system; in combination with
+<samp><span class="option">-v</span></samp> can be used to merely show what would happen.
+
+     <p><a name="index-verbosity-levels-13"></a><br><dt>&lsquo;<samp><span class="samp">-v</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--verbose[=</span><var>n</var><span class="samp">]</span></samp>&rsquo;<dd>Send verbose output to standard error describing what Stow is
+doing.  Verbosity levels are 0, 1, 2, and 3; 0 is the default.  Using
+<samp><span class="option">-v</span></samp> or <samp><span class="option">--verbose</span></samp> increases the verbosity by one; using
+&lsquo;<samp><span class="samp">--verbose=</span><var>n</var></samp>&rsquo; sets it to <var>n</var>.
+
+     <br><dt>&lsquo;<samp><span class="samp">-p</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--compat</span></samp>&rsquo;<dd>Scan the whole target tree when unstowing.  By default, only
+directories specified in the <dfn>installation image</dfn> are scanned
+during an unstow operation.  Scanning the whole tree can be
+prohibitive if your target tree is very large.  This option restores
+the legacy behaviour; however, the <samp><span class="option">--badlinks</span></samp> option to the
+<samp><span class="command">chkstow</span></samp> utility may be a better way of ensuring that your
+installation does not have any dangling symlinks (see <a href="Target-Maintenance.html#Target-Maintenance">Target Maintenance</a>).
+
+     <br><dt>&lsquo;<samp><span class="samp">-V</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--version</span></samp>&rsquo;<dd>Show Stow version number, and exit.
+
+     <br><dt>&lsquo;<samp><span class="samp">-h</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--help</span></samp>&rsquo;<dd>Show Stow command syntax, and exit. 
+</dl>
+
+   <p>The following <var>action flags</var> are supported:
+
+     <dl>
+<dt>&lsquo;<samp><span class="samp">-D</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--delete</span></samp>&rsquo;<dd>Delete (unstow) the package name(s) that follow this option from the <dfn>target
+directory</dfn>. This option may be repeated any number of times.
+
+     <br><dt>&lsquo;<samp><span class="samp">-R</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--restow</span></samp>&rsquo;<dd>Restow (first unstow, then stow again) the package names that follow this
+option.  This is useful for pruning obsolete symlinks from the target tree
+after updating the software in a package. This option may be repeated any
+number of times.
+
+     <br><dt>&lsquo;<samp><span class="samp">-S</span></samp>&rsquo;<br><dt>&lsquo;<samp><span class="samp">--stow</span></samp>&rsquo;<dd>explictly stow the package name(s) that follow this option.  May be
+omitted if you are not using the <samp><span class="option">-D</span></samp> or <samp><span class="option">-R</span></samp> options in the
+same invocation.  See <a href="Mixing-Operations.html#Mixing-Operations">Mixing Operations</a>, for details of when you
+might like to use this feature. This option may be repeated any number
+of times. 
+</dl>
+
+<!-- =========================================================================== -->
+   </body></html>
+

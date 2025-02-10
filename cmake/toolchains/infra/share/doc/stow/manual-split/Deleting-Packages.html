@@ -1,0 +1,112 @@
+<html lang="en">
+<head>
+<title>Deleting Packages - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="prev" href="Installing-Packages.html#Installing-Packages" title="Installing Packages">
+<link rel="next" href="Conflicts.html#Conflicts" title="Conflicts">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Deleting-Packages"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Conflicts.html#Conflicts">Conflicts</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Installing-Packages.html#Installing-Packages">Installing Packages</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="index.html#Top">Top</a>
+<hr>
+</div>
+
+<h2 class="chapter">6 Deleting Packages</h2>
+
+<p><a name="index-deletion-28"></a>When the <samp><span class="option">-D</span></samp> option is given, the action of Stow is to
+delete a package from the target tree.  Note that Stow will not
+delete anything it doesn't &ldquo;own&rdquo;.  Deleting a package does <em>not</em>
+mean removing it from the stow directory or discarding the package
+tree.
+
+   <p>To delete a package, Stow recursively scans the target tree, skipping over any
+directory that is not included in the installation image.<a rel="footnote" href="#fn-1" name="fnd-1"><sup>1</sup></a>
+For example, if the target directory is <samp><span class="file">/usr/local</span></samp> and the
+installation image for the package being deleted has only a <samp><span class="file">bin</span></samp>
+directory and a <samp><span class="file">man</span></samp> directory at the top level, then we only scan
+<samp><span class="file">/usr/local/bin</span></samp> and  <samp><span class="file">/usr/local/bin/man</span></samp>, and not
+<samp><span class="file">/usr/local/lib</span></samp> or <samp><span class="file">/usr/local/share</span></samp>, or for that matter
+<samp><span class="file">/usr/local/stow</span></samp>.  Any symlink it finds that points into the package
+being deleted is removed.  Any directory that contained only symlinks to the
+package being deleted is removed.
+
+   <p><a name="tree-refolding"></a>
+
+<h3 class="section">6.1 Refolding &ldquo;foldable&rdquo; trees.</h3>
+
+<p><a name="index-refolding-trees-29"></a><a name="index-tree-refolding-30"></a>
+After removing symlinks and empty subdirectories, any directory that
+contains only symlinks to a single other package is considered to be a
+previously &ldquo;folded&rdquo; tree that was &ldquo;split open.&rdquo;  Stow will refold
+the tree by removing the symlinks to the surviving package, removing
+the directory, then linking the directory back to the surviving
+package.  However, this behaviour can be prevented via the
+<samp><span class="option">--no-folding</span></samp> option; see <a href="Invoking-Stow.html#Invoking-Stow">Invoking Stow</a>.
+
+<!-- =========================================================================== -->
+   <div class="footnote">
+<hr>
+<h4>Footnotes</h4><p class="footnote"><small>[<a name="fn-1" href="#fnd-1">1</a>]</small> This
+approach was introduced in version 2 of GNU Stow.  Previously, the whole
+target tree was scanned and stow directories were explicitly omitted.  This
+became problematic when dealing with very large installations.  The only
+situation where this is useful is if you accidentally delete a directory in
+the package tree, leaving you with a whole bunch of dangling links.  Note that
+you can enable the old approach with the <samp><span class="option">-p</span></samp> option.  Alternatively, you can
+use the <samp><span class="option">--badlinks</span></samp> option get stow to search for dangling links in your target tree and remove the offenders manually.</p>
+
+   <hr></div>
+
+   </body></html>
+

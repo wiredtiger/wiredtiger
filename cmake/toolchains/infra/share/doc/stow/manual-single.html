@@ -1,0 +1,2534 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html401/loose.dtd">
+<html>
+<!-- This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+C 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+
+C 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+
+C 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+
+C 2011 Adam Spiers <stow@adamspiers.org>
+
+Permission is granted to make and distribute verbatim copies of this
+manual provided the copyright notice and this permission notice are
+preserved on all copies.
+
+
+Permission is granted to copy and distribute modified versions of this
+manual under the conditions for verbatim copying, provided also that the
+section entitled "GNU General Public License" is included with the
+modified manual, and provided that the entire resulting derived work is
+distributed under the terms of a permission notice identical to this
+one.
+
+Permission is granted to copy and distribute translations of this manual
+into another language, under the above conditions for modified versions,
+except that this permission notice may be stated in a translation
+approved by the Free Software Foundation.
+
+ -->
+<!-- Created on November 9, 2015 by texi2html 1.82
+texi2html was written by: 
+            Lionel Cons <Lionel.Cons@cern.ch> (original author)
+            Karl Berry  <karl@freefriends.org>
+            Olaf Bachmann <obachman@mathematik.uni-kl.de>
+            and many others.
+Maintained by: Many creative people.
+Send bugs and suggestions to <texi2html-bug@nongnu.org>
+-->
+<head>
+<title>Stow</title>
+
+<meta name="description" content="Stow">
+<meta name="keywords" content="Stow">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="texi2html 1.82">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+<!--
+a.summary-letter {text-decoration: none}
+blockquote.smallquotation {font-size: smaller}
+pre.display {font-family: serif}
+pre.format {font-family: serif}
+pre.menu-comment {font-family: serif}
+pre.menu-preformatted {font-family: serif}
+pre.smalldisplay {font-family: serif; font-size: smaller}
+pre.smallexample {font-size: smaller}
+pre.smallformat {font-family: serif; font-size: smaller}
+pre.smalllisp {font-size: smaller}
+span.roman {font-family:serif; font-weight:normal;}
+span.sansserif {font-family:sans-serif; font-weight:normal;}
+ul.toc {list-style: none}
+-->
+</style>
+
+
+</head>
+
+<body lang="en" bgcolor="#FFFFFF" text="#000000" link="#0000FF" vlink="#800080" alink="#FF0000">
+
+<a name="Top"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="SEC_Top"></a>
+<h1 class="settitle">Stow</h1>
+
+<p>This manual describes GNU Stow 2.2.2 (9 November 2015), a
+program for managing the installation of software packages.
+</p>
+<table class="menu" border="0" cellspacing="0">
+<tr><td align="left" valign="top"><a href="#Introduction">1. Introduction</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">                Description of Stow.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Terminology">2. Terminology</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">                 Terms used by this manual.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Invoking-Stow">3. Invoking Stow</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">               Option summary.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Ignore-Lists">4. Ignore Lists</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">                Controlling what gets stowed.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Installing-Packages">5. Installing Packages</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">         Using Stow to install.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Deleting-Packages">6. Deleting Packages</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">           Using Stow to uninstall.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Conflicts">7. Conflicts</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">                   When Stow can&rsquo;t stow.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Mixing-Operations">8. Mixing Operations</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">           Multiple actions per invocation.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Multiple-Stow-Directories">9. Multiple Stow Directories</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">   Further segregating software.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Target-Maintenance">10. Target Maintenance</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">          Cleaning up mistakes.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Resource-Files">11. Resource Files</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">              Setting default command line options.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Compile_002dtime-vs-Install_002dtime">12. Compile-time vs Install-time</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">  Faking out &lsquo;make install&rsquo;.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Bootstrapping">13. Bootstrapping</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">               When stow and perl are not yet stowed.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Reporting-Bugs">14. Reporting Bugs</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">              How, what, where, and when to report.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Known-Bugs">15. Known Bugs</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">                  Don&rsquo;t report any of these.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#GNU-General-Public-License">GNU General Public License</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">  Copying terms.
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Index">Index</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">                       Index of concepts.
+</td></tr>
+<tr><th colspan="3" align="left" valign="top"><pre class="menu-comment"> &mdash; The Detailed Node Listing &mdash;
+
+Ignore Lists
+
+</pre></th></tr><tr><td align="left" valign="top"><a href="#Motivation-For-Ignore-Lists">4.1 Motivation For Ignore Lists</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">  
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Types-And-Syntax-Of-Ignore-Lists">4.2 Types And Syntax Of Ignore Lists</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">  
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Justification-For-Yet-Another-Set-Of-Ignore-Files">4.3 Justification For Yet Another Set Of Ignore Files</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">  
+</td></tr>
+<tr><th colspan="3" align="left" valign="top"><pre class="menu-comment">
+Advice on changing compilation and installation parameters
+
+</pre></th></tr><tr><td align="left" valign="top"><a href="#GNU-Emacs">12.2 GNU Emacs</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">                   
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Other-FSF-Software">12.3 Other FSF Software</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">          
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Cygnus-Software">12.4 Cygnus Software</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">             
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Perl-and-Perl-5-Modules">12.5 Perl and Perl 5 Modules</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">     
+</td></tr>
+<tr><th colspan="3" align="left" valign="top"><pre class="menu-comment">
+</pre></th></tr></table>
+
+<hr size="1">
+<a name="Introduction"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Top" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Terminology" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Terminology" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Introduction-1"></a>
+<h1 class="chapter">1. Introduction</h1>
+
+<p>Stow is a tool for managing the installation of multiple software
+packages in the same run-time directory tree.  One historical difficulty
+of this task has been the need to administer, upgrade, install, and
+remove files in independent packages without confusing them with other
+files sharing the same file system space.  For instance, it is common to
+install Perl and Emacs in &lsquo;<tt>/usr/local</tt>&rsquo;.  When one does so, one
+winds up with the following files<a name="DOCF1" href="#FOOT1">(1)</a> in &lsquo;<tt>/usr/local/man/man1</tt>&rsquo;:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">a2p.1
+ctags.1
+emacs.1
+etags.1
+h2ph.1
+perl.1
+s2p.1
+</pre></td></tr></table>
+
+<p>Now suppose it&rsquo;s time to uninstall Perl.  Which man pages
+get removed?  Obviously &lsquo;<tt>perl.1</tt>&rsquo; is one of them, but it should not
+be the administrator&rsquo;s responsibility to memorize the ownership of
+individual files by separate packages.
+</p>
+<p>The approach used by Stow is to install each package into its own
+tree, then use symbolic links to make it appear as though the files are
+installed in the common tree.  Administration can be performed in the
+package&rsquo;s private tree in isolation from clutter from other packages.
+Stow can then be used to update the symbolic links.  The structure
+of each private tree should reflect the desired structure in the common
+tree; i.e. (in the typical case) there should be a &lsquo;<tt>bin</tt>&rsquo; directory
+containing executables, a &lsquo;<tt>man/man1</tt>&rsquo; directory containing section 1
+man pages, and so on.
+</p>
+<p>Stow was inspired by Carnegie Mellon&rsquo;s Depot program, but is
+substantially simpler and safer.  Whereas Depot required database files
+to keep things in sync, Stow stores no extra state between runs, so
+there&rsquo;s no danger (as there was in Depot) of mangling directories when
+file hierarchies don&rsquo;t match the database.  Also unlike Depot, Stow will
+never delete any files, directories, or links that appear in a Stow
+directory (e.g., &lsquo;<tt>/usr/local/stow/emacs</tt>&rsquo;), so it&rsquo;s always possible
+to rebuild the target tree (e.g., &lsquo;<tt>/usr/local</tt>&rsquo;).
+</p>
+<p>For information about the latest version of Stow, you can refer to
+<a href="http://www.gnu.org/software/stow/">http://www.gnu.org/software/stow/</a>.
+</p>
+
+<hr size="6">
+<a name="Terminology"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Introduction" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Invoking-Stow" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Introduction" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Invoking-Stow" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Terminology-1"></a>
+<h1 class="chapter">2. Terminology</h1>
+
+<a name="index-package"></a>
+<p>A <em>package</em> is a related collection of files and directories that
+you wish to administer as a unit &mdash; e.g., Perl or Emacs &mdash; and that needs
+to be installed in a particular directory structure &mdash; e.g., with
+&lsquo;<tt>bin</tt>&rsquo;, &lsquo;<tt>lib</tt>&rsquo;, and &lsquo;<tt>man</tt>&rsquo; subdirectories.
+</p>
+<a name="index-target-directory"></a>
+<p>A <em>target directory</em> is the root of a tree in which one or more
+packages wish to <em>appear</em> to be installed.  A common, but by no
+means the only such location is &lsquo;<tt>/usr/local</tt>&rsquo;.  The examples in this
+manual will use &lsquo;<tt>/usr/local</tt>&rsquo; as the target directory.
+</p>
+<a name="index-stow-directory"></a>
+<p>A <em>stow directory</em> is the root of a tree containing separate
+packages in private subtrees.  When Stow runs, it uses the current
+directory as the default stow directory.  The examples in this manual
+will use &lsquo;<tt>/usr/local/stow</tt>&rsquo; as the stow directory, so that
+individual packages will be, for example, &lsquo;<tt>/usr/local/stow/perl</tt>&rsquo;
+and &lsquo;<tt>/usr/local/stow/emacs</tt>&rsquo;.
+</p>
+<a name="index-installation-image"></a>
+<p>An <em>installation image</em> is the layout of files and directories
+required by a package, relative to the target directory.  Thus, the
+installation image for Perl includes: a &lsquo;<tt>bin</tt>&rsquo; directory containing
+&lsquo;<tt>perl</tt>&rsquo; and &lsquo;<tt>a2p</tt>&rsquo; (among others); an &lsquo;<tt>info</tt>&rsquo; directory
+containing Texinfo documentation; a &lsquo;<tt>lib/perl</tt>&rsquo; directory containing
+Perl libraries; and a &lsquo;<tt>man/man1</tt>&rsquo; directory containing man pages.
+</p>
+<a name="index-package-directory"></a>
+<a name="index-package-name"></a>
+<p>A <em>package directory</em> is the root of a tree containing the
+installation image for a particular package.  Each package directory
+must reside in a stow directory &mdash; e.g., the package directory
+&lsquo;<tt>/usr/local/stow/perl</tt>&rsquo; must reside in the stow directory
+&lsquo;<tt>/usr/local/stow</tt>&rsquo;.  The <em>name</em> of a package is the name of its
+directory within the stow directory &mdash; e.g., &lsquo;<tt>perl</tt>&rsquo;.
+</p>
+<p>Thus, the Perl executable might reside in
+&lsquo;<tt>/usr/local/stow/perl/bin/perl</tt>&rsquo;, where &lsquo;<tt>/usr/local</tt>&rsquo; is the
+target directory, &lsquo;<tt>/usr/local/stow</tt>&rsquo; is the stow directory,
+&lsquo;<tt>/usr/local/stow/perl</tt>&rsquo; is the package directory, and
+&lsquo;<tt>bin/perl</tt>&rsquo; within is part of the installation image.
+</p>
+<a name="index-symlink"></a>
+<a name="index-relative-symlink"></a>
+<a name="index-absolute-symlink"></a>
+<p>A <em>symlink</em> is a symbolic link.  A symlink can be <em>relative</em> or
+<em>absolute</em>.  An absolute symlink names a full path; that is, one
+starting from &lsquo;<tt>/</tt>&rsquo;.  A relative symlink names a relative path; that
+is, one not starting from &lsquo;<tt>/</tt>&rsquo;.  The target of a relative symlink is
+computed starting from the symlink&rsquo;s own directory.  Stow only
+creates relative symlinks.
+</p>
+<hr size="6">
+<a name="Invoking-Stow"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Terminology" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Terminology" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Invoking-Stow-1"></a>
+<h1 class="chapter">3. Invoking Stow</h1>
+
+<p>The syntax of the <code>stow</code> command is:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">stow [<var>options</var>] [<var>action flag</var>] <var>package &hellip;</var>
+</pre></td></tr></table>
+
+<p>Each <var>package</var> is the name of a package (e.g., &lsquo;<samp>perl</samp>&rsquo;) in the stow
+directory that we wish to install into (or delete from) the target directory.
+The default action is to install the given packages, although alternate actions
+may be specified by preceding the package name(s) with an <var>action flag</var>.
+</p>
+<p>The following options are supported:
+</p>
+<dl compact="compact">
+<dt> &lsquo;<samp>-d <var>dir</var></samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--dir=<var>dir</var></samp>&rsquo;</dt>
+<dd><p>Set the stow directory to <var>dir</var>.  Defaults to the value of the environment
+variable <code>STOW_DIR</code> if set, or the current directory otherwise.
+</p>
+</dd>
+<dt> &lsquo;<samp>-t <var>dir</var></samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--target=<var>dir</var></samp>&rsquo;</dt>
+<dd><p>Set the target directory to <var>dir</var> instead of the parent of the stow
+directory.  Defaults to the parent of the stow directory, so it is typical to
+execute <code>stow</code> from the directory &lsquo;<tt>/usr/local/stow</tt>&rsquo;.
+</p>
+</dd>
+<dt> &lsquo;<samp>--ignore=<var>regexp</var></samp>&rsquo;</dt>
+<dd><p>This (repeatable) option lets you suppress acting on files that match the
+given perl regular expression.  For example, using the options
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">--ignore='*.orig' --ignore='*.dist'
+</pre></td></tr></table>
+
+<p>will cause stow to ignore files ending in &lsquo;<tt>.orig</tt>&rsquo; or &lsquo;<tt>.dist</tt>&rsquo;.
+</p>
+<p>Note that the regular expression is anchored to the end of the filename,
+because this is what you will want to do most of the time.
+</p>
+<p>Also note that by default Stow automatically ignores a &ldquo;sensible&rdquo;
+built-in list of files and directories such as &lsquo;<tt>CVS</tt>&rsquo;, editor
+backup files, and so on.  See section <a href="#Ignore-Lists">Ignore Lists</a>, for more details.
+</p>
+</dd>
+<dt> &lsquo;<samp>--defer=<var>regexp</var></samp>&rsquo;</dt>
+<dd><p>This (repeatable) option avoids stowing a file matching the given
+regular expression, if that file is already stowed by another package.
+This is effectively the opposite of &lsquo;<samp>--override</samp>&rsquo;.
+</p>
+<p>(N.B. the name &lsquo;<samp>--defer</samp>&rsquo; was chosen in the sense that the package
+currently being stowed is treated with lower precedence than any
+already installed package, not in the sense that the operation is
+being postponed to be run at a later point in time; do not confuse
+this nomenclature with the wording used in <a href="#Deferred-Operation">Deferred Operation</a>.)
+</p>
+<p>For example, the following options
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">--defer=man --defer=info
+</pre></td></tr></table>
+
+<p>will cause stow to skip over pre-existing man and info pages.
+</p>
+<p>Equivalently, you could use &lsquo;<samp>--defer='man|info'</samp>&rsquo; since the
+argument is just a Perl regex.
+</p>
+<p>Note that the regular expression is anchored to the beginning of the path
+relative to the target directory, because this is what you will want to do most
+of the time.
+</p>
+</dd>
+<dt> &lsquo;<samp>--override=<var>regexp</var></samp>&rsquo;</dt>
+<dd><p>This (repeatable) option forces any file matching the regular expression to be
+stowed, even if the file is already stowed to another package. For example,
+the following options
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">--override=man --override=info
+</pre></td></tr></table>
+
+<p>will permit stow to overwrite links that point to pre-existing man and info
+pages that are owned by stow and would otherwise cause a conflict.
+</p>
+<p>The regular expression is anchored to the beginning of the path relative to
+the target directory, because this is what you will want to do most of the time.
+</p>
+</dd>
+<dt> &lsquo;<samp>--no-folding</samp>&rsquo;</dt>
+<dd>
+<p>This disables any further <a href="#tree-folding">tree folding</a> or <a href="#tree-refolding">tree refolding</a>.
+If a new subdirectory is encountered whilst stowing a new package, the
+subdirectory is created within the target, and its contents are
+symlinked, rather than just creating a symlink for the directory.  If
+removal of symlinks whilst unstowing a package causes a subtree to be
+foldable (i.e. only containing symlinks to a single package), that
+subtree will not be removed and replaced with a symlink.
+</p>
+<a name="index-adopting-existing-files"></a>
+</dd>
+<dt> &lsquo;<samp>--adopt</samp>&rsquo;</dt>
+<dd><p><strong>Warning!</strong> This behaviour is specifically intended to alter the
+contents of your stow directory.  If you do not want that, this option
+is not for you.
+</p>
+<p>When stowing, if a target is encountered which already exists but is a
+plain file (and hence not owned by any existing stow package), then
+normally Stow will register this as a conflict and refuse to proceed.
+This option changes that behaviour so that the file is moved to the
+same relative place within the package&rsquo;s installation image within the
+stow directory, and then stowing proceeds as before.  So effectively,
+the file becomes adopted by the stow package, without its contents
+changing.
+</p>
+<p>This is particularly useful when the stow package is under the control
+of a version control system, because it allows files in the target
+tree, with potentially different contents to the equivalent versions
+in the stow package&rsquo;s installation image, to be adopted into the
+package, then compared by running something like &lsquo;<samp>git diff ...</samp>&rsquo;
+inside the stow package, and finally either kept (e.g. via &lsquo;<samp>git
+commit ...</samp>&rsquo;) or discarded (&lsquo;<samp>git checkout HEAD ...</samp>&rsquo;).
+</p>
+<a name="index-dry-run"></a>
+<a name="index-simulated-run"></a>
+</dd>
+<dt> &lsquo;<samp>-n</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--no</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--simulate</samp>&rsquo;</dt>
+<dd><p>Do not perform any operations that modify the file system; in combination with
+&lsquo;<samp>-v</samp>&rsquo; can be used to merely show what would happen.
+</p>
+<a name="index-verbosity-levels"></a>
+</dd>
+<dt> &lsquo;<samp>-v</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--verbose[=<var>n</var>]</samp>&rsquo;</dt>
+<dd><p>Send verbose output to standard error describing what Stow is
+doing.  Verbosity levels are 0, 1, 2, and 3; 0 is the default.  Using
+&lsquo;<samp>-v</samp>&rsquo; or &lsquo;<samp>--verbose</samp>&rsquo; increases the verbosity by one; using
+&lsquo;<samp>--verbose=<var>n</var></samp>&rsquo; sets it to <var>n</var>.
+</p>
+</dd>
+<dt> &lsquo;<samp>-p</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--compat</samp>&rsquo;</dt>
+<dd><p>Scan the whole target tree when unstowing.  By default, only
+directories specified in the <em>installation image</em> are scanned
+during an unstow operation.  Scanning the whole tree can be
+prohibitive if your target tree is very large.  This option restores
+the legacy behaviour; however, the &lsquo;<samp>--badlinks</samp>&rsquo; option to the
+<code>chkstow</code> utility may be a better way of ensuring that your
+installation does not have any dangling symlinks (see section <a href="#Target-Maintenance">Target Maintenance</a>).
+</p>
+</dd>
+<dt> &lsquo;<samp>-V</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--version</samp>&rsquo;</dt>
+<dd><p>Show Stow version number, and exit.
+</p>
+</dd>
+<dt> &lsquo;<samp>-h</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--help</samp>&rsquo;</dt>
+<dd><p>Show Stow command syntax, and exit.
+</p></dd>
+</dl>
+
+<p>The following <var>action flags</var> are supported:
+</p>
+<dl compact="compact">
+<dt> &lsquo;<samp>-D</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--delete</samp>&rsquo;</dt>
+<dd><p>Delete (unstow) the package name(s) that follow this option from the <em>target
+directory</em>. This option may be repeated any number of times.
+</p>
+</dd>
+<dt> &lsquo;<samp>-R</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--restow</samp>&rsquo;</dt>
+<dd><p>Restow (first unstow, then stow again) the package names that follow this
+option.  This is useful for pruning obsolete symlinks from the target tree
+after updating the software in a package. This option may be repeated any
+number of times.
+</p>
+</dd>
+<dt> &lsquo;<samp>-S</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--stow</samp>&rsquo;</dt>
+<dd><p>explictly stow the package name(s) that follow this option.  May be
+omitted if you are not using the &lsquo;<samp>-D</samp>&rsquo; or &lsquo;<samp>-R</samp>&rsquo; options in the
+same invocation.  See section <a href="#Mixing-Operations">Mixing Operations</a>, for details of when you
+might like to use this feature. This option may be repeated any number
+of times.
+</p></dd>
+</dl>
+
+
+<hr size="6">
+<a name="Ignore-Lists"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Invoking-Stow" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Motivation-For-Ignore-Lists" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Invoking-Stow" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Ignore-Lists-1"></a>
+<h1 class="chapter">4. Ignore Lists</h1>
+
+<a name="index-ignore-lists"></a>
+<a name="index-ignoring-files-and-directories"></a>
+
+<table class="menu" border="0" cellspacing="0">
+<tr><td align="left" valign="top"><a href="#Motivation-For-Ignore-Lists">4.1 Motivation For Ignore Lists</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">  
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Types-And-Syntax-Of-Ignore-Lists">4.2 Types And Syntax Of Ignore Lists</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">  
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Justification-For-Yet-Another-Set-Of-Ignore-Files">4.3 Justification For Yet Another Set Of Ignore Files</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">  
+</td></tr>
+</table>
+
+<hr size="6">
+<a name="Motivation-For-Ignore-Lists"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Ignore-Lists" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Types-And-Syntax-Of-Ignore-Lists" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Motivation-For-Ignore-Lists-1"></a>
+<h2 class="section">4.1 Motivation For Ignore Lists</h2>
+
+<p>In many situations, there will exist files under the package
+directories which it would be undesirable to stow into the target
+directory.  For example, files related version control such as
+&lsquo;<tt>.gitignore</tt>&rsquo;, &lsquo;<tt>CVS</tt>&rsquo;, &lsquo;<tt>*,v</tt>&rsquo; (RCS files) should typically
+not have symlinks from the target tree pointing to them.  Also there
+may be files or directories relating to the build of the package which
+are not needed at run-time.
+</p>
+<p>In these cases, it can be rather cumbersome to specify a
+&lsquo;<samp>--ignore</samp>&rsquo; parameter for each file or directory to be ignored.
+This could be worked around by ensuring the existence of
+&lsquo;<tt>~/.stowrc</tt>&rsquo; containing multiple &lsquo;<samp>--ignore</samp>&rsquo; lines, or if a
+different set of files/directories should be ignored depending on
+which stow package is involved, a &lsquo;<tt>.stowrc</tt>&rsquo; file for each stow
+package, but this would require the user to ensure that they were in
+the correct directory before invoking stow, which would be tedious and
+error-prone.  Furthermore, since Stow shifts parameters from
+&lsquo;<tt>.stowrc</tt>&rsquo; onto ARGV at run-time, it could clutter up the process
+table with excessively long parameter lists, or even worse, exceed the
+operating system&rsquo;s limit for process arguments.
+</p>
+<a name="index-ignore-lists-1"></a>
+<p>Therefore in addition to &lsquo;<samp>--ignore</samp>&rsquo; parameters, Stow provides a
+way to specify lists of files and directories to ignore.
+</p>
+<hr size="6">
+<a name="Types-And-Syntax-Of-Ignore-Lists"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Motivation-For-Ignore-Lists" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Justification-For-Yet-Another-Set-Of-Ignore-Files" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Types-And-Syntax-Of-Ignore-Lists-1"></a>
+<h2 class="section">4.2 Types And Syntax Of Ignore Lists</h2>
+
+<p>If you put Perl regular expressions, one per line, in a
+&lsquo;<tt>.stow-local-ignore</tt>&rsquo; file within any top level package directory,
+in which case any file or directory within that package matching any
+of these regular expressions will be ignored.  In the absence of this
+package-specific ignore list, Stow will instead use the contents of
+&lsquo;<tt>~/.stow-global-ignore</tt>&rsquo;, if it exists.  If neither the
+package-local or global ignore list exist, Stow will use its own
+built-in default ignore list, which serves as a useful example of the
+format of these ignore list files:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example"><pre class="verbatim"># Comments and blank lines are allowed.
+
+RCS
+.+,v
+
+CVS
+\.\#.+       # CVS conflict files / emacs lock files
+\.cvsignore
+
+\.svn
+_darcs
+\.hg
+
+\.git
+\.gitignore
+
+.+~          # emacs backup files
+\#.*\#       # emacs autosave files
+
+^/README.*
+^/LICENSE.*
+^/COPYING
+</pre></pre></td></tr></table>
+
+<p>Stow first iterates through the chosen ignore list (built-in, global,
+or package-local) as per above, stripping out comments (if you want to
+include the &lsquo;<samp>#</samp>&rsquo; symbol in a regular expression, escape it with a
+blackslash) and blank lines, placing each regular expressions into one
+of two sets depending on whether it contains the &lsquo;<samp>/</samp>&rsquo; forward
+slash symbol.
+</p>
+<p>Then in order to determine whether a file or directory should be
+ignored:
+</p>
+<ol>
+<li>
+Stow calculates its path relative to the top-level package directory,
+prefixing that with &lsquo;<samp>/</samp>&rsquo;.  If any of the regular expressions
+containing a &lsquo;<samp>/</samp>&rsquo; <em>exactly</em><a name="DOCF2" href="#FOOT2">(2)</a> match
+a subpath<a name="DOCF3" href="#FOOT3">(3)</a> of this relative path, then the file or
+directory will be ignored.
+
+</li><li>
+If none of the regular expressions containing a &lsquo;<samp>/</samp>&rsquo; match in the
+manner described above, Stow checks whether the
+<em>basename</em><a name="DOCF4" href="#FOOT4">(4)</a> of the file or directory matches
+<em>exactly</em> against the remaining regular expressions which do not
+contain a &lsquo;<samp>/</samp>&rsquo;, and if so, ignores the file or directory.
+
+</li><li>
+Otherwise, the file or directory is not ignored.
+</li></ol>
+
+
+<p>For example, if a file &lsquo;<tt>bazqux</tt>&rsquo; is in the &lsquo;<tt>foo/bar</tt>&rsquo;
+subdirectory of the package directory, Stow would use
+&lsquo;<samp>/foo/bar/bazqux</samp>&rsquo; as the text for matching against regular
+expressions which contain &lsquo;<samp>/</samp>&rsquo;, and &lsquo;<samp>bazqux</samp>&rsquo; as the text for
+matching against regular expressions which don&rsquo;t contain &lsquo;<samp>/</samp>&rsquo;.
+Then regular expressions &lsquo;<samp>bazqux</samp>&rsquo;, &lsquo;<samp>baz.*</samp>&rsquo;, &lsquo;<samp>.*qux</samp>&rsquo;,
+&lsquo;<samp>bar/.*x</samp>&rsquo;, and &lsquo;<samp>^/foo/.*qux</samp>&rsquo; would all match (causing the
+file to be ignored), whereas &lsquo;<samp>bar</samp>&rsquo;, &lsquo;<samp>baz</samp>&rsquo;, &lsquo;<samp>qux</samp>&rsquo;, and
+&lsquo;<samp>o/bar/b</samp>&rsquo; would not (although &lsquo;<samp>bar</samp>&rsquo; would cause its parent
+directory to be ignored and prevent Stow from recursing into that
+anyway, in which case the file &lsquo;<tt>bazqux</tt>&rsquo; would not even be
+considered for stowing).
+</p>
+<p>As a special exception to the above algorithm, any
+&lsquo;<tt>.stow-local-ignore</tt>&rsquo; present in the top-level package directory
+is <em>always</em> ignored, regardless of the contents of any ignore
+list, because this file serves no purpose outside the stow directory.
+</p>
+<hr size="6">
+<a name="Justification-For-Yet-Another-Set-Of-Ignore-Files"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Types-And-Syntax-Of-Ignore-Lists" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Justification-For-Yet-Another-Set-Of-Ignore-Files-1"></a>
+<h2 class="section">4.3 Justification For Yet Another Set Of Ignore Files</h2>
+
+<p>The reader may note that this format is very similar to existing
+ignore list file formats, such as those for <code>cvs</code>, <code>git</code>,
+<code>rsync</code> etc., and wonder if another set of ignore lists is
+justified.  However there are good reasons why Stow does not simply
+check for the presence of say, &lsquo;<tt>.cvsignore</tt>&rsquo;, and use that if it
+exists.  Firstly, there is no guarantee that a stow package would
+contain any version control meta-data, or permit introducing this if
+it didn&rsquo;t already exist.  
+</p>
+<p>Secondly even if it did, version control system ignore lists generally
+reflect <em>build-time</em> ignores rather than <em>install-time</em>, and
+there may be some intermediate or temporary files on those ignore
+lists generated during development or at build-time which it would be
+inappropriate to stow, even though many files generated at build-time
+(binaries, libraries, documentation etc.) certainly do need to be
+stowed.  Similarly, if a file is <em>not</em> in the version control
+system&rsquo;s ignore list, there is no way of knowing whether the file is
+intended for end use, let alone whether the version control system is
+tracking it or not.
+</p>
+<p>Therefore it seems clear that ignore lists provided by version control
+systems do not provide sufficient information for Stow to determine
+which files and directories to stow, and so it makes sense for Stow to
+support independent ignore lists.
+</p>
+<hr size="6">
+<a name="Installing-Packages"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Justification-For-Yet-Another-Set-Of-Ignore-Files" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Tree-folding" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Ignore-Lists" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Installing-Packages-1"></a>
+<h1 class="chapter">5. Installing Packages</h1>
+
+<a name="index-installation"></a>
+<p>The default action of Stow is to install a package.  This means creating
+symlinks in the target tree that point into the package tree.  Stow
+attempts to do this with as few symlinks as possible; in other words, if
+Stow can create a single symlink that points to an entire subtree within
+the package tree, it will choose to do that rather than create a
+directory in the target tree and populate it with symlinks.
+</p>
+<p><a name="tree-folding"></a>
+</p><hr size="6">
+<a name="Tree-folding"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Installing-Packages" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Tree-unfolding-1" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section">5.1 Tree folding</h2>
+<a name="index-tree-folding"></a>
+<a name="index-directory-folding"></a>
+<a name="index-folding-trees"></a>
+<p>For example, suppose that no packages have yet been installed in
+&lsquo;<tt>/usr/local</tt>&rsquo;; it&rsquo;s completely empty (except for the &lsquo;<tt>stow</tt>&rsquo;
+subdirectory, of course).  Now suppose the Perl package is installed.
+Recall that it includes the following directories in its installation
+image:  &lsquo;<tt>bin</tt>&rsquo;; &lsquo;<tt>info</tt>&rsquo;; &lsquo;<tt>lib/perl</tt>&rsquo;; &lsquo;<tt>man/man1</tt>&rsquo;.
+Rather than creating the directory &lsquo;<tt>/usr/local/bin</tt>&rsquo; and populating
+it with symlinks to &lsquo;<tt>../stow/perl/bin/perl</tt>&rsquo; and
+&lsquo;<tt>../stow/perl/bin/a2p</tt>&rsquo; (and so on), Stow will create a
+single symlink, &lsquo;<tt>/usr/local/bin</tt>&rsquo;, which points to
+&lsquo;<tt>stow/perl/bin</tt>&rsquo;.  In this way, it still works to refer to
+&lsquo;<tt>/usr/local/bin/perl</tt>&rsquo; and &lsquo;<tt>/usr/local/bin/a2p</tt>&rsquo;, and fewer
+symlinks have been created.  This is called <em>tree folding</em>, since an
+entire subtree is &ldquo;folded&rdquo; into a single symlink.
+</p>
+<p>To complete this example, Stow will also create the symlink
+&lsquo;<tt>/usr/local/info</tt>&rsquo; pointing to &lsquo;<tt>stow/perl/info</tt>&rsquo;; the symlink
+&lsquo;<tt>/usr/local/lib</tt>&rsquo; pointing to &lsquo;<tt>stow/perl/lib</tt>&rsquo;; and the symlink
+&lsquo;<tt>/usr/local/man</tt>&rsquo; pointing to &lsquo;<tt>stow/perl/man</tt>&rsquo;.
+</p>
+<p>Now suppose that instead of installing the Perl package into an empty
+target tree, the target tree is not empty to begin with.  Instead, it
+contains several files and directories installed under a different
+system-administration philosophy.  In particular, &lsquo;<tt>/usr/local/bin</tt>&rsquo;
+already exists and is a directory, as are &lsquo;<tt>/usr/local/lib</tt>&rsquo; and
+&lsquo;<tt>/usr/local/man/man1</tt>&rsquo;.  In this case, Stow will descend into
+&lsquo;<tt>/usr/local/bin</tt>&rsquo; and create symlinks to
+&lsquo;<tt>../stow/perl/bin/perl</tt>&rsquo; and &lsquo;<tt>../stow/perl/bin/a2p</tt>&rsquo; (etc.),
+and it will descend into &lsquo;<tt>/usr/local/lib</tt>&rsquo; and create the
+tree-folding symlink &lsquo;<tt>perl</tt>&rsquo; pointing to
+&lsquo;<tt>../stow/perl/lib/perl</tt>&rsquo;, and so on.  As a rule, Stow only
+descends as far as necessary into the target tree when it can create a
+tree-folding symlink.  However, this behaviour can be changed via
+the &lsquo;<samp>--no-folding</samp>&rsquo; option; see section <a href="#Invoking-Stow">Invoking Stow</a>.
+</p>
+<p><a name="Tree-unfolding"></a>
+</p><hr size="6">
+<a name="Tree-unfolding-1"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Tree-folding" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Ownership" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section">5.2 Tree unfolding</h2>
+<a name="index-splitting-open-folded-trees"></a>
+<a name="index-unfolding-trees"></a>
+<a name="index-tree-unfolding"></a>
+<a name="index-tree-unsplitting"></a>
+<p>The time often comes when a tree-folding symlink has to be undone
+because another package uses one or more of the folded subdirectories in
+its installation image.  This operation is called <em>splitting open</em> or
+<em>unfolding</em> a folded tree.  It involves removing the original symlink from
+the target tree, creating a true directory in its place, and then populating the
+new directory with symlinks to the newly-installed package <em>and</em> to
+the old package that used the old symlink.  For example, suppose that
+after installing Perl into an empty &lsquo;<tt>/usr/local</tt>&rsquo;, we wish to
+install Emacs.  Emacs&rsquo;s installation image includes a &lsquo;<tt>bin</tt>&rsquo;
+directory containing the &lsquo;<tt>emacs</tt>&rsquo; and &lsquo;<tt>etags</tt>&rsquo; executables,
+among others.  Stow must make these files appear to be installed
+in &lsquo;<tt>/usr/local/bin</tt>&rsquo;, but presently &lsquo;<tt>/usr/local/bin</tt>&rsquo; is a
+symlink to &lsquo;<tt>stow/perl/bin</tt>&rsquo;.  Stow therefore takes the
+following steps:  the symlink &lsquo;<tt>/usr/local/bin</tt>&rsquo; is deleted; the
+directory &lsquo;<tt>/usr/local/bin</tt>&rsquo; is created; links are made from
+&lsquo;<tt>/usr/local/bin</tt>&rsquo; to &lsquo;<tt>../stow/emacs/bin/emacs</tt>&rsquo; and
+&lsquo;<tt>../stow/emacs/bin/etags</tt>&rsquo;; and links are made from
+&lsquo;<tt>/usr/local/bin</tt>&rsquo; to &lsquo;<tt>../stow/perl/bin/perl</tt>&rsquo; and
+&lsquo;<tt>../stow/perl/bin/a2p</tt>&rsquo;.
+</p>
+<hr size="6">
+<a name="Ownership"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Tree-unfolding-1" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Conflicts-during-installation" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section">5.3 Ownership</h2>
+<a name="index-ownership"></a>
+<p>When splitting open a folded tree, Stow makes sure that the
+symlink it is about to remove points inside a valid package in the
+current stow directory.  <em>Stow will never delete anything
+that it doesn&rsquo;t own</em>.  Stow &ldquo;owns&rdquo; everything living in the
+target tree that points into a package in the stow directory.  Anything
+Stow owns, it can recompute if lost: symlinks that point into a package in
+the stow directory, or directories that only contain symlinks that stow
+&ldquo;owns&rdquo;.   Note that by this definition, Stow doesn&rsquo;t &ldquo;own&rdquo; anything
+<em>in</em> the stow directory or in any of the packages.
+</p>
+<hr size="6">
+<a name="Conflicts-during-installation"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Ownership" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section">5.4 Conflicts during installation</h2>
+<a name="index-conflicts"></a>
+<a name="index-installation-conflicts"></a>
+<p>If Stow needs to create a directory or a symlink in the target
+tree and it cannot because that name is already in use and is not owned
+by Stow, then a <em>conflict</em> has arisen.  See section <a href="#Conflicts">Conflicts</a>.
+</p>
+
+<hr size="6">
+<a name="Deleting-Packages"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Conflicts-during-installation" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Refolding-_0060_0060foldable_0027_0027-trees_002e" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Installing-Packages" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Conflicts" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Deleting-Packages-1"></a>
+<h1 class="chapter">6. Deleting Packages</h1>
+
+<a name="index-deletion"></a>
+<p>When the &lsquo;<samp>-D</samp>&rsquo; option is given, the action of Stow is to
+delete a package from the target tree.  Note that Stow will not
+delete anything it doesn&rsquo;t &ldquo;own&rdquo;.  Deleting a package does <em>not</em>
+mean removing it from the stow directory or discarding the package
+tree.
+</p>
+<p>To delete a package, Stow recursively scans the target tree, skipping over any
+directory that is not included in the installation image.<a name="DOCF5" href="#FOOT5">(5)</a>
+For example, if the target directory is &lsquo;<tt>/usr/local</tt>&rsquo; and the
+installation image for the package being deleted has only a &lsquo;<tt>bin</tt>&rsquo;
+directory and a &lsquo;<tt>man</tt>&rsquo; directory at the top level, then we only scan
+&lsquo;<tt>/usr/local/bin</tt>&rsquo; and  &lsquo;<tt>/usr/local/bin/man</tt>&rsquo;, and not
+&lsquo;<tt>/usr/local/lib</tt>&rsquo; or &lsquo;<tt>/usr/local/share</tt>&rsquo;, or for that matter
+&lsquo;<tt>/usr/local/stow</tt>&rsquo;.  Any symlink it finds that points into the package
+being deleted is removed.  Any directory that contained only symlinks to the
+package being deleted is removed.
+</p>
+<p><a name="tree-refolding"></a>
+</p><hr size="6">
+<a name="Refolding-_0060_0060foldable_0027_0027-trees_002e"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Deleting-Packages" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Conflicts" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Conflicts" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section">6.1 Refolding &ldquo;foldable&rdquo; trees.</h2>
+<a name="index-refolding-trees"></a>
+<a name="index-tree-refolding"></a>
+
+<p>After removing symlinks and empty subdirectories, any directory that
+contains only symlinks to a single other package is considered to be a
+previously &ldquo;folded&rdquo; tree that was &ldquo;split open.&rdquo;  Stow will refold
+the tree by removing the symlinks to the surviving package, removing
+the directory, then linking the directory back to the surviving
+package.  However, this behaviour can be prevented via the
+&lsquo;<samp>--no-folding</samp>&rsquo; option; see section <a href="#Invoking-Stow">Invoking Stow</a>.
+</p>
+<hr size="6">
+<a name="Conflicts"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Refolding-_0060_0060foldable_0027_0027-trees_002e" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Deferred-Operation-1" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Deleting-Packages" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Mixing-Operations" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Conflicts-1"></a>
+<h1 class="chapter">7. Conflicts</h1>
+
+<a name="index-conflicts-1"></a>
+<p>If, during installation, a file or symlink exists in the target tree and
+has the same name as something Stow needs to create, and if the
+existing name is not a folded tree that can be split open, then a
+<em>conflict</em> has arisen.  A conflict also occurs if a directory exists
+where Stow needs to place a symlink to a non-directory.  On the
+other hand, if the existing name is merely a symlink that already points
+where Stow needs it to, then no conflict has occurred.  (Thus it
+is harmless to install a package that has already been installed.)
+</p>
+<p>For complex packages, scanning the stow and target trees in tandem,
+and deciding whether to make directories or links, split-open or fold
+directories, can actually take a long time (a number of seconds).
+Moreover, an accurate analysis of potential conflicts requires us to
+take into account all of these operations.
+</p>
+<p><a name="Deferred-Operation"></a>
+</p><hr size="6">
+<a name="Deferred-Operation-1"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Conflicts" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Mixing-Operations" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Conflicts" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Conflicts" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Mixing-Operations" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section">7.1 Deferred Operation</h2>
+<a name="index-deferred-operation"></a>
+
+<p>Since version 2.0, Stow now adopts a two-phase algorithm, first
+scanning for any potential conflicts before any stowing or unstowing
+operations are performed.  If any conflicts are found, they are
+displayed and then Stow terminates without making any modifications to
+the filesystem.  This means that there is much less risk of a package
+being partially stowed or unstowed due to conflicts.
+</p>
+<p>Prior to version 2.0, if a conflict was discovered, the stow or unstow
+operation could be aborted mid-flow, leaving the target tree in an
+inconsistent state.
+</p>
+<hr size="6">
+<a name="Mixing-Operations"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Deferred-Operation-1" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Multiple-Stow-Directories" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Conflicts" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Multiple-Stow-Directories" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Mixing-Operations-1"></a>
+<h1 class="chapter">8. Mixing Operations</h1>
+<a name="index-mixing-operations"></a>
+
+<p>Since version 2.0, multiple distinct actions can be specified in a single
+invocation of GNU Stow.  For example, to update an installation of Emacs from
+version 21.3 to 21.4a you can now do the following:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">stow -D emacs-21.3 -S emacs-21.4a
+</pre></td></tr></table>
+
+<p>which will replace emacs-21.3 with emacs-21.4a using a single invocation.
+</p>
+<a name="index-deferred-operation-1"></a>
+<p>This is much faster and cleaner than performing two separate
+invocations of stow, because redundant folding/unfolding operations
+can be factored out.  In addition, all the operations are calculated
+and merged before being executed (see <a href="#Deferred-Operation">Deferred Operation</a>), so the
+amount of of time in which GNU Emacs is unavailable is minimised.
+</p>
+<p>You can mix and match any number of actions, for example,
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">stow -S pkg1 pkg2 -D pkg3 pkg4 -S pkg5 -R pkg6
+</pre></td></tr></table>
+
+<p>will unstow pkg3, pkg4 and pkg6, then stow pkg1, pkg2, pkg5 and pkg6.
+</p>
+<hr size="6">
+<a name="Multiple-Stow-Directories"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Mixing-Operations" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Target-Maintenance" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Mixing-Operations" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Target-Maintenance" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Multiple-Stow-Directories-1"></a>
+<h1 class="chapter">9. Multiple Stow Directories</h1>
+
+<p>If there are two or more system administrators who wish to maintain
+software separately, or if there is any other reason to want two or more
+stow directories, it can be done by creating a file named &lsquo;<tt>.stow</tt>&rsquo;
+in each stow directory.  The presence of &lsquo;<tt>/usr/local/foo/.stow</tt>&rsquo;
+informs Stow that, though &lsquo;<tt>foo</tt>&rsquo; is not the current stow
+directory, even if it is a subdirectory of the target directory,
+nevertheless it is <em>a</em> stow directory and as such Stow
+doesn&rsquo;t &ldquo;own&rdquo; anything in it (see section <a href="#Installing-Packages">Installing Packages</a>).  This will
+protect the contents of &lsquo;<tt>foo</tt>&rsquo; from a &lsquo;<samp>stow -D</samp>&rsquo;, for instance.
+</p>
+
+<p>When multiple stow directories share a target tree, if a tree-folding
+symlink is encountered and needs to be split open during an
+installation, as long as the top-level stow directory into which the
+existing symlink points contains &lsquo;<tt>.stow</tt>&rsquo;, Stow knows how to split
+open the tree in the correct manner.
+</p>
+<hr size="6">
+<a name="Target-Maintenance"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Multiple-Stow-Directories" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Resource-Files" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Multiple-Stow-Directories" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Resource-Files" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Target-Maintenance-1"></a>
+<h1 class="chapter">10. Target Maintenance</h1>
+
+<a name="index-maintenance"></a>
+<p>From time to time you will need to clean up your target tree.  Since
+version 2, Stow provides a new utility <code>chkstow</code> to help with
+this.  It includes three operational modes which performs checks that
+would generally be too expensive to be performed during normal stow
+execution.
+</p>
+<p>The syntax of the <code>chkstow</code> command is:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">chkstow [<var>options</var>]
+</pre></td></tr></table>
+
+<p>The following options are supported:
+</p>
+<dl compact="compact">
+<dt> &lsquo;<samp>-t <var>dir</var></samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--target=<var>dir</var></samp>&rsquo;</dt>
+<dd><p>Set the target directory to <var>dir</var> instead of the parent of the stow
+directory.  Defaults to the parent of the stow directory, so it is typical to
+execute <code>stow</code> from the directory &lsquo;<tt>/usr/local/stow</tt>&rsquo;.
+</p>
+</dd>
+<dt> &lsquo;<samp>-b</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--badlinks</samp>&rsquo;</dt>
+<dd><p>Checks target directory for bogus symbolic links. That is, links that point to
+non-existent files.
+</p>
+</dd>
+<dt> &lsquo;<samp>-a</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--aliens</samp>&rsquo;</dt>
+<dd><p>Checks for files in the target directory that are not symbolic links. The
+target directory should be managed by stow alone, except for directories that
+contain a &lsquo;<tt>.stow</tt>&rsquo; file.
+</p>
+</dd>
+<dt> &lsquo;<samp>-l</samp>&rsquo;</dt>
+<dt> &lsquo;<samp>--list</samp>&rsquo;</dt>
+<dd><p>Will display the target package for every symbolic link in the stow target
+directory.
+</p>
+</dd>
+</dl>
+
+<hr size="6">
+<a name="Resource-Files"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Target-Maintenance" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Target-Maintenance" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Resource-Files-1"></a>
+<h1 class="chapter">11. Resource Files</h1>
+<a name="index-resource-files"></a>
+<a name="index-configuration-files"></a>
+
+<p>Default command line options may be set in &lsquo;<tt>.stowrc</tt>&rsquo; (current directory) or
+&lsquo;<tt>~/.stowrc</tt>&rsquo; (home directory). These are parsed in that order, and effectively
+prepended to you command line.  This feature can be used for some interesting
+effects.
+</p>
+<p>For example, suppose your site uses more than one stow directory, perhaps in
+order to share around responsibilities with a number of systems
+administrators. One of the administrators might have the following in their
+&lsquo;<tt>~/.stowrc</tt>&rsquo; file:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">--dir=/usr/local/stow2
+--target=/usr/local
+--ignore='~'
+--ignore='^CVS'
+</pre></td></tr></table>
+
+<p>so that the <code>stow</code> command will default to operating on the
+&lsquo;<tt>/usr/local/stow2</tt>&rsquo; directory, with &lsquo;<tt>/usr/local</tt>&rsquo; as the
+target, and ignoring vi backup files and CVS directories.
+</p>
+<p>If you had a stow directory &lsquo;<tt>/usr/local/stow/perl-extras</tt>&rsquo; that
+was only used for Perl modules, then you might place the following in
+&lsquo;<tt>/usr/local/stow/perl-extras/.stowrc</tt>&rsquo;:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">--dir=/usr/local/stow/perl-extras
+--target=/usr/local
+--override=bin
+--override=man
+--ignore='perllocal\.pod'
+--ignore='\.packlist'
+--ignore='\.bs'
+</pre></td></tr></table>
+
+<p>so that when you are in the &lsquo;<tt>/usr/local/stow/perl-extras</tt>&rsquo;
+directory, <code>stow</code> will regard any subdirectories as stow
+packages, with &lsquo;<tt>/usr/local</tt>&rsquo; as the target (rather than the
+immediate parent directory &lsquo;<tt>/usr/local/stow</tt>&rsquo;), overriding any
+pre-existing links to bin files or man pages, and ignoring some cruft
+that gets installed by default.
+</p>
+
+<hr size="6">
+<a name="Compile_002dtime-vs-Install_002dtime"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Resource-Files" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Advice-on-changing-compilation-and-installation-parameters" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Resource-Files" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Bootstrapping" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Compile_002dtime-vs-Install_002dtime-1"></a>
+<h1 class="chapter">12. Compile-time vs Install-time</h1>
+
+<p>Software whose installation is managed with Stow needs to be installed
+in one place (the package directory, e.g. &lsquo;<tt>/usr/local/stow/perl</tt>&rsquo;)
+but needs to appear to run in another place (the target tree, e.g.,
+&lsquo;<tt>/usr/local</tt>&rsquo;).  Why is this important?  What&rsquo;s wrong with Perl, for
+instance, looking for its files in &lsquo;<tt>/usr/local/stow/perl</tt>&rsquo; instead
+of in &lsquo;<tt>/usr/local</tt>&rsquo;?
+</p>
+<p>The answer is that there may be another package, e.g.,
+&lsquo;<tt>/usr/local/stow/perl-extras</tt>&rsquo;, stowed under &lsquo;<tt>/usr/local</tt>&rsquo;.  If
+Perl is configured to find its files in &lsquo;<tt>/usr/local/stow/perl</tt>&rsquo;, it
+will never find the extra files in the &lsquo;<samp>perl-extras</samp>&rsquo; package, even
+though they&rsquo;re intended to be found by Perl.  On the other hand, if Perl
+looks for its files in &lsquo;<tt>/usr/local</tt>&rsquo;, then it will find the
+intermingled Perl and &lsquo;<samp>perl-extras</samp>&rsquo; files.
+</p>
+<p>This means that when you compile a package, you must tell it the
+location of the run-time, or target tree; but when you install it, you
+must place it in the stow tree.
+</p>
+<hr size="6">
+<a name="Advice-on-changing-compilation-and-installation-parameters"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#GNU-Emacs" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Bootstrapping" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="section">12.1 Advice on changing compilation and installation parameters</h2>
+<p>Some software packages allow you to specify, at compile-time, separate
+locations for installation and for run-time.  Perl is one such package;
+see <a href="#Perl-and-Perl-5-Modules">Perl and Perl 5 Modules</a>.  Others allow you to compile the
+package, then give a different destination in the &lsquo;<samp>make install</samp>&rsquo;
+step without causing the binaries or other files to get rebuilt.  Most
+GNU software falls into this category; Emacs is a notable exception.
+See section <a href="#GNU-Emacs">GNU Emacs</a>, and <a href="#Other-FSF-Software">Other FSF Software</a>.
+</p>
+<p>Still other software packages cannot abide the idea of separate
+installation and run-time locations at all.  If you try to &lsquo;<samp>make
+install prefix=/usr/local/stow/<var>foo</var></samp>&rsquo;, then first the whole package
+will be recompiled to hardwire the &lsquo;<tt>/usr/local/stow/<var>foo</var></tt>&rsquo;
+path.  With these packages, it is best to compile normally, then run
+&lsquo;<samp>make -n install</samp>&rsquo;, which should report all the steps needed to
+install the just-built software.  Place this output into a file, edit
+the commands in the file to remove recompilation steps and to reflect
+the Stow-based installation location, and execute the edited file as a
+shell script in place of &lsquo;<samp>make install</samp>&rsquo;.  Be sure to execute the
+script using the same shell that &lsquo;<samp>make install</samp>&rsquo; would have used.
+</p>
+<p>(If you use GNU Make and a shell [such as GNU bash] that understands
+<code>pushd</code> and <code>popd</code>, you can do the following:
+</p>
+<ol>
+<li>
+Replace all lines matching &lsquo;<samp>make[<var>n</var>]: Entering directory
+<var>dir</var></samp>&rsquo; with &lsquo;<samp>pushd <var>dir</var></samp>&rsquo;.
+</li><li>
+Replace all lines matching &lsquo;<samp>make[<var>n</var>]: Leaving directory
+<var>dir</var></samp>&rsquo; with &lsquo;<samp>popd</samp>&rsquo;.
+</li><li>
+Delete all lines matching &lsquo;<samp>make[<var>n</var>]: Nothing to be done for
+<var>rule</var></samp>&rsquo;.
+</li></ol>
+
+<p>Then find other lines in the output containing <code>cd</code> or <code>make</code>
+commands and rewrite or delete them.  In particular, you should be able
+to delete sections of the script that resemble this:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">for i in <var>dir_1</var> <var>dir_2</var> <span class="roman">&hellip;</span>; do \
+  (cd $i; make <var>args</var> <span class="roman">&hellip;</span>) \
+done
+</pre></td></tr></table>
+
+<p>Note, that&rsquo;s &ldquo;should be able to,&rdquo; not &ldquo;can.&rdquo;  Be sure to modulate
+these guidelines with plenty of your own intelligence.
+</p>
+<p>The details of stowing some specific packages are described in the
+following sections.
+</p>
+<table class="menu" border="0" cellspacing="0">
+<tr><td align="left" valign="top"><a href="#GNU-Emacs">12.2 GNU Emacs</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">                   
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Other-FSF-Software">12.3 Other FSF Software</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">          
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Cygnus-Software">12.4 Cygnus Software</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">             
+</td></tr>
+<tr><td align="left" valign="top"><a href="#Perl-and-Perl-5-Modules">12.5 Perl and Perl 5 Modules</a></td><td>&nbsp;&nbsp;</td><td align="left" valign="top">     
+</td></tr>
+</table>
+
+<hr size="6">
+<a name="GNU-Emacs"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Advice-on-changing-compilation-and-installation-parameters" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Other-FSF-Software" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Bootstrapping" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="GNU-Emacs-1"></a>
+<h2 class="section">12.2 GNU Emacs</h2>
+
+<p>Although the Free Software Foundation has many enlightened practices
+regarding Makefiles and software installation (see see section <a href="#Other-FSF-Software">Other FSF Software</a>), Emacs, its flagship program, doesn&rsquo;t quite follow the
+rules.  In particular, most GNU software allows you to write:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">make
+make install prefix=/usr/local/stow/<var>package</var>
+</pre></td></tr></table>
+
+<p>If you try this with Emacs, then the new value for <var>prefix</var> in the
+&lsquo;<samp>make install</samp>&rsquo; step will cause some files to get recompiled with
+the new value of <var>prefix</var> wired into them.  In Emacs 19.23 and
+later,<a name="DOCF6" href="#FOOT6">(6)</a>
+the way to work around this problem is:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">make
+make install-arch-dep install-arch-indep prefix=/usr/local/stow/emacs
+</pre></td></tr></table>
+
+<p>In 19.22 and some prior versions of Emacs, the workaround was:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">make
+make do-install prefix=/usr/local/stow/emacs
+</pre></td></tr></table>
+
+<hr size="6">
+<a name="Other-FSF-Software"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#GNU-Emacs" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Cygnus-Software" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Bootstrapping" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Other-FSF-Software-1"></a>
+<h2 class="section">12.3 Other FSF Software</h2>
+
+<p>The Free Software Foundation, the organization behind the GNU project,
+has been unifying the build procedure for its tools for some time.
+Thanks to its tools &lsquo;<samp>autoconf</samp>&rsquo; and &lsquo;<samp>automake</samp>&rsquo;, most packages
+now respond well to these simple steps, with no other intervention
+necessary:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">./configure <var>options</var>
+make
+make install prefix=/usr/local/stow/<var>package</var>
+</pre></td></tr></table>
+
+<p>Hopefully, these tools can evolve to be aware of Stow-managed packages,
+such that providing an option to &lsquo;<samp>configure</samp>&rsquo; can allow &lsquo;<samp>make</samp>&rsquo;
+and &lsquo;<samp>make install</samp>&rsquo; steps to work correctly without needing to
+&ldquo;fool&rdquo; the build process.
+</p>
+<hr size="6">
+<a name="Cygnus-Software"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Other-FSF-Software" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Perl-and-Perl-5-Modules" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Bootstrapping" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Cygnus-Software-1"></a>
+<h2 class="section">12.4 Cygnus Software</h2>
+
+<p>Cygnus is a commercial supplier and supporter of GNU software.  It has
+also written several of its own packages, released under the terms of
+the GNU General Public License; and it has taken over the maintenance of
+other packages.  Among the packages released by Cygnus are &lsquo;<samp>gdb</samp>&rsquo;,
+&lsquo;<samp>gnats</samp>&rsquo;, and &lsquo;<samp>dejagnu</samp>&rsquo;.
+</p>
+<p>Cygnus packages have the peculiarity that each one unpacks into a
+directory tree with a generic top-level Makefile, which is set up to
+compile <em>all</em> of Cygnus&rsquo; packages, any number of which may reside
+under the top-level directory.  In other words, even if you&rsquo;re only
+building &lsquo;<samp>gnats</samp>&rsquo;, the top-level Makefile will look for, and try to
+build, &lsquo;<tt>gdb</tt>&rsquo; and &lsquo;<tt>dejagnu</tt>&rsquo; subdirectories, among many others.
+</p>
+<p>The result is that if you try &lsquo;<samp>make -n install
+prefix=/usr/local/stow/<var>package</var></samp>&rsquo; at the top level of a Cygnus
+package, you&rsquo;ll get a bewildering amount of output.  It will then be
+very difficult to visually scan the output to see whether the install
+will proceed correctly.  Unfortunately, it&rsquo;s not always clear how to
+invoke an install from the subdirectory of interest.
+</p>
+<p>In cases like this, the best approach is to run your &lsquo;<samp>make install
+prefix=<span class="roman">&hellip;</span></samp>&rsquo;, but be ready to interrupt it if you detect that it
+is recompiling files.  Usually it will work just fine; otherwise,
+install manually.
+</p>
+<hr size="6">
+<a name="Perl-and-Perl-5-Modules"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Cygnus-Software" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Bootstrapping" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Bootstrapping" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Perl-and-Perl-5-Modules-1"></a>
+<h2 class="section">12.5 Perl and Perl 5 Modules</h2>
+
+<p>Perl 4.036 allows you to specify different locations for installation
+and for run-time.  It is the only widely-used package in this author&rsquo;s
+experience that allows this, though hopefully more packages will adopt
+this model.
+</p>
+<p>Unfortunately, the authors of Perl believed that only AFS sites need
+this ability.  The configuration instructions for Perl 4 misleadingly
+state that some occult means are used under AFS to transport files from
+their installation tree to their run-time tree.  In fact, that confusion
+arises from the fact that Depot, Stow&rsquo;s predecessor, originated at
+Carnegie Mellon University, which was also the birthplace of AFS.  CMU&rsquo;s
+need to separate install-time and run-time trees stemmed from its use of
+Depot, not from AFS.
+</p>
+<p>The result of this confusion is that Perl 5&rsquo;s configuration script
+doesn&rsquo;t even offer the option of separating install-time and run-time
+trees <em>unless</em> you&rsquo;re running AFS.  Fortunately, after you&rsquo;ve
+entered all the configuration settings, Perl&rsquo;s setup script gives you
+the opportunity to edit those settings in a file called
+&lsquo;<tt>config.sh</tt>&rsquo;.  When prompted, you should edit this file and replace
+occurrences of
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">inst<span class="roman">&hellip;</span>/usr/local<span class="roman">&hellip;</span>
+</pre></td></tr></table>
+
+<p>with
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">inst<span class="roman">&hellip;</span>/usr/local/stow/perl<span class="roman">&hellip;</span>
+</pre></td></tr></table>
+
+<p>You can do this with the following Unix command:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">sed 's,^\(inst.*/usr/local\),\1/stow/perl,' config.sh &gt; config.sh.new
+mv config.sh.new config.sh
+</pre></td></tr></table>
+
+<p>Hopefully, the Perl authors will correct this deficiency in Perl 5&rsquo;s
+configuration mechanism.
+</p>
+<p>Perl 5 modules&mdash;i.e., extensions to Perl 5&mdash;generally conform to a set
+of standards for building and installing them.  The standard says that
+the package comes with a top-level &lsquo;<tt>Makefile.PL</tt>&rsquo;, which is a Perl
+script.  When it runs, it generates a &lsquo;<tt>Makefile</tt>&rsquo;.
+</p>
+<p>If you followed the instructions above for editing &lsquo;<tt>config.sh</tt>&rsquo; when
+Perl was built, then when you create a &lsquo;<tt>Makefile</tt>&rsquo; from a
+&lsquo;<tt>Makefile.PL</tt>&rsquo;, it will contain separate locations for run-time
+(&lsquo;<tt>/usr/local</tt>&rsquo;) and install-time (&lsquo;<tt>/usr/local/stow/perl</tt>&rsquo;).
+Thus you can do
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">perl Makefile.PL
+make
+make install
+</pre></td></tr></table>
+
+<p>and the files will be installed into &lsquo;<tt>/usr/local/stow/perl</tt>&rsquo;.
+However, you might prefer each Perl module to be stowed separately.  In
+that case, you must edit the resulting Makefile, replacing
+&lsquo;<tt>/usr/local/stow/perl</tt>&rsquo; with &lsquo;<tt>/usr/local/stow/<var>module</var></tt>&rsquo;.
+The best way to do this is:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">perl Makefile.PL
+find . -name Makefile -print | \
+  xargs perl -pi~ -e 's,^(INST.*/stow)/perl,$1/<var>module</var>,;'
+make
+make install
+</pre></td></tr></table>
+
+<p>(The use of &lsquo;<samp>find</samp>&rsquo; and &lsquo;<samp>xargs</samp>&rsquo; ensures that all Makefiles in
+the module&rsquo;s source tree, even those in subdirectories, get edited.)  A
+good convention to follow is to name the stow directory for a Perl
+<var>module</var> &lsquo;<tt>cpan.<var>module</var></tt>&rsquo;, where &lsquo;<samp>cpan</samp>&rsquo; stands for
+Comprehensive Perl Archive Network, a collection of FTP sites that is
+the source of most Perl 5 extensions.  This way, it&rsquo;s easy to tell at a
+glance which of the subdirectories of &lsquo;<tt>/usr/local/stow</tt>&rsquo; are Perl 5
+extensions.
+</p>
+<p>When you stow separate Perl 5 modules separately, you are likely to
+encounter conflicts (see section <a href="#Conflicts">Conflicts</a>) with files named &lsquo;<tt>.exists</tt>&rsquo;
+and &lsquo;<tt>perllocal.pod</tt>&rsquo;.  One way to work around this is to remove
+those files before stowing the module.  If you use the
+&lsquo;<tt>cpan.<var>module</var></tt>&rsquo; naming convention, you can simply do this:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">cd /usr/local/stow
+find cpan.* \( -name .exists -o -name perllocal.pod \) -print | \
+  xargs rm
+</pre></td></tr></table>
+
+
+<hr size="6">
+<a name="Bootstrapping"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Perl-and-Perl-5-Modules" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Reporting-Bugs" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Compile_002dtime-vs-Install_002dtime" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Reporting-Bugs" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Bootstrapping-1"></a>
+<h1 class="chapter">13. Bootstrapping</h1>
+
+<p>Suppose you have a stow directory all set up and ready to go:
+&lsquo;<tt>/usr/local/stow/perl</tt>&rsquo; contains the Perl installation,
+&lsquo;<tt>/usr/local/stow/stow</tt>&rsquo; contains Stow itself, and perhaps you have
+other packages waiting to be stowed.  You&rsquo;d like to be able to do this:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">cd /usr/local/stow
+stow -vv *
+</pre></td></tr></table>
+
+<p>but <code>stow</code> is not yet in your <code>PATH</code>.  Nor can you do this:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">cd /usr/local/stow
+stow/bin/stow -vv *
+</pre></td></tr></table>
+
+<p>because the &lsquo;<samp>#!</samp>&rsquo; line at the beginning of <code>stow</code> tries to
+locate Perl (usually in &lsquo;<tt>/usr/local/bin/perl</tt>&rsquo;), and that won&rsquo;t be
+found.  The solution you must use is:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="example">cd /usr/local/stow
+perl/bin/perl stow/bin/stow -vv *
+</pre></td></tr></table>
+
+<hr size="6">
+<a name="Reporting-Bugs"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Bootstrapping" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Known-Bugs" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Bootstrapping" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Known-Bugs" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Reporting-Bugs-1"></a>
+<h1 class="chapter">14. Reporting Bugs</h1>
+
+<p>Please send bug reports to the current maintainers by electronic
+mail.  The address to use is &lsquo;<samp>&lt;bug-stow@gnu.org&gt;</samp>&rsquo;.  Please
+include:
+</p>
+<ul>
+<li>
+the version number of Stow (&lsquo;<samp>stow --version</samp>&rsquo;);
+
+</li><li>
+the version number of Perl (&lsquo;<samp>perl -v</samp>&rsquo;);
+
+</li><li>
+the system information, which can often be obtained with &lsquo;<samp>uname
+-a</samp>&rsquo;;
+
+</li><li>
+a description of the bug;
+
+</li><li>
+the precise command you gave;
+
+</li><li>
+the output from the command (preferably verbose output, obtained by
+adding &lsquo;<samp>--verbose=3</samp>&rsquo; to the Stow command line).
+</li></ul>
+
+<p>If you are really keen, consider developing a minimal test case and
+creating a new test.  See the &lsquo;<tt>t/</tt>&rsquo; directory in the source for
+lots of examples.
+</p>
+<p>Before reporting a bug, please read the manual carefully, especially
+<a href="#Known-Bugs">Known Bugs</a>, to see whether you&rsquo;re encountering
+something that doesn&rsquo;t need reporting.
+(see section <a href="#Conflicts">Conflicts</a>).
+</p>
+<hr size="6">
+<a name="Known-Bugs"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Reporting-Bugs" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#GNU-General-Public-License" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Reporting-Bugs" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#GNU-General-Public-License" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Known-Bugs-1"></a>
+<h1 class="chapter">15. Known Bugs</h1>
+
+<p>There are no known bugs in Stow version 2.2.2!
+If you think you have found one, please see section <a href="#Reporting-Bugs">Reporting Bugs</a>.
+</p>
+
+<hr size="6">
+<a name="GNU-General-Public-License"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Known-Bugs" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Preamble" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Known-Bugs" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="GNU-General-Public-License-1"></a>
+<h1 class="unnumbered">GNU General Public License</h1>
+
+<p align="center"> Version 2, June 1991
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="display">Copyright &copy; 1989, 1991 Free Software Foundation, Inc.
+675 Mass Ave, Cambridge, MA 02139, USA
+
+Everyone is permitted to copy and distribute verbatim copies
+of this license document, but changing it is not allowed.
+</pre></td></tr></table>
+
+<hr size="6">
+<a name="Preamble"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#GNU-General-Public-License" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#How-to-Apply-These-Terms-to-Your-New-Programs" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#GNU-General-Public-License" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#GNU-General-Public-License" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="unnumberedsec">Preamble</h2>
+
+<p>  The licenses for most software are designed to take away your
+freedom to share and change it.  By contrast, the GNU General Public
+License is intended to guarantee your freedom to share and change free
+software&mdash;to make sure the software is free for all its users.  This
+General Public License applies to most of the Free Software
+Foundation&rsquo;s software and to any other program whose authors commit to
+using it.  (Some other Free Software Foundation software is covered by
+the GNU Library General Public License instead.)  You can apply it to
+your programs, too.
+</p>
+<p>  When we speak of free software, we are referring to freedom, not
+price.  Our General Public Licenses are designed to make sure that you
+have the freedom to distribute copies of free software (and charge for
+this service if you wish), that you receive source code or can get it
+if you want it, that you can change the software or use pieces of it
+in new free programs; and that you know you can do these things.
+</p>
+<p>  To protect your rights, we need to make restrictions that forbid
+anyone to deny you these rights or to ask you to surrender the rights.
+These restrictions translate to certain responsibilities for you if you
+distribute copies of the software, or if you modify it.
+</p>
+<p>  For example, if you distribute copies of such a program, whether
+gratis or for a fee, you must give the recipients all the rights that
+you have.  You must make sure that they, too, receive or can get the
+source code.  And you must show them these terms so they know their
+rights.
+</p>
+<p>  We protect your rights with two steps: (1) copyright the software, and
+(2) offer you this license which gives you legal permission to copy,
+distribute and/or modify the software.
+</p>
+<p>  Also, for each author&rsquo;s protection and ours, we want to make certain
+that everyone understands that there is no warranty for this free
+software.  If the software is modified by someone else and passed on, we
+want its recipients to know that what they have is not the original, so
+that any problems introduced by others will not reflect on the original
+authors&rsquo; reputations.
+</p>
+<p>  Finally, any free program is threatened constantly by software
+patents.  We wish to avoid the danger that redistributors of a free
+program will individually obtain patent licenses, in effect making the
+program proprietary.  To prevent this, we have made it clear that any
+patent must be licensed for everyone&rsquo;s free use or not licensed at all.
+</p>
+<p>  The precise terms and conditions for copying, distribution and
+modification follow.
+</p>
+<p align="center"> TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+</p>
+<ol>
+<li>
+This License applies to any program or other work which contains
+a notice placed by the copyright holder saying it may be distributed
+under the terms of this General Public License.  The &ldquo;Program&rdquo;, below,
+refers to any such program or work, and a &ldquo;work based on the Program&rdquo;
+means either the Program or any derivative work under copyright law:
+that is to say, a work containing the Program or a portion of it,
+either verbatim or with modifications and/or translated into another
+language.  (Hereinafter, translation is included without limitation in
+the term &ldquo;modification&rdquo;.)  Each licensee is addressed as &ldquo;you&rdquo;.
+
+<p>Activities other than copying, distribution and modification are not
+covered by this License; they are outside its scope.  The act of
+running the Program is not restricted, and the output from the Program
+is covered only if its contents constitute a work based on the
+Program (independent of having been made by running the Program).
+Whether that is true depends on what the Program does.
+</p>
+</li><li>
+You may copy and distribute verbatim copies of the Program&rsquo;s
+source code as you receive it, in any medium, provided that you
+conspicuously and appropriately publish on each copy an appropriate
+copyright notice and disclaimer of warranty; keep intact all the
+notices that refer to this License and to the absence of any warranty;
+and give any other recipients of the Program a copy of this License
+along with the Program.
+
+<p>You may charge a fee for the physical act of transferring a copy, and
+you may at your option offer warranty protection in exchange for a fee.
+</p>
+</li><li>
+You may modify your copy or copies of the Program or any portion
+of it, thus forming a work based on the Program, and copy and
+distribute such modifications or work under the terms of Section 1
+above, provided that you also meet all of these conditions:
+
+<ol>
+<li>
+You must cause the modified files to carry prominent notices
+stating that you changed the files and the date of any change.
+
+</li><li>
+You must cause any work that you distribute or publish, that in
+whole or in part contains or is derived from the Program or any
+part thereof, to be licensed as a whole at no charge to all third
+parties under the terms of this License.
+
+</li><li>
+If the modified program normally reads commands interactively
+when run, you must cause it, when started running for such
+interactive use in the most ordinary way, to print or display an
+announcement including an appropriate copyright notice and a
+notice that there is no warranty (or else, saying that you provide
+a warranty) and that users may redistribute the program under
+these conditions, and telling the user how to view a copy of this
+License.  (Exception: if the Program itself is interactive but
+does not normally print such an announcement, your work based on
+the Program is not required to print an announcement.)
+</li></ol>
+
+<p>These requirements apply to the modified work as a whole.  If
+identifiable sections of that work are not derived from the Program,
+and can be reasonably considered independent and separate works in
+themselves, then this License, and its terms, do not apply to those
+sections when you distribute them as separate works.  But when you
+distribute the same sections as part of a whole which is a work based
+on the Program, the distribution of the whole must be on the terms of
+this License, whose permissions for other licensees extend to the
+entire whole, and thus to each and every part regardless of who wrote it.
+</p>
+<p>Thus, it is not the intent of this section to claim rights or contest
+your rights to work written entirely by you; rather, the intent is to
+exercise the right to control the distribution of derivative or
+collective works based on the Program.
+</p>
+<p>In addition, mere aggregation of another work not based on the Program
+with the Program (or with a work based on the Program) on a volume of
+a storage or distribution medium does not bring the other work under
+the scope of this License.
+</p>
+</li><li>
+You may copy and distribute the Program (or a work based on it,
+under Section 2) in object code or executable form under the terms of
+Sections 1 and 2 above provided that you also do one of the following:
+
+<ol>
+<li>
+Accompany it with the complete corresponding machine-readable
+source code, which must be distributed under the terms of Sections
+1 and 2 above on a medium customarily used for software interchange; or,
+
+</li><li>
+Accompany it with a written offer, valid for at least three
+years, to give any third party, for a charge no more than your
+cost of physically performing source distribution, a complete
+machine-readable copy of the corresponding source code, to be
+distributed under the terms of Sections 1 and 2 above on a medium
+customarily used for software interchange; or,
+
+</li><li>
+Accompany it with the information you received as to the offer
+to distribute corresponding source code.  (This alternative is
+allowed only for noncommercial distribution and only if you
+received the program in object code or executable form with such
+an offer, in accord with Subsection b above.)
+</li></ol>
+
+<p>The source code for a work means the preferred form of the work for
+making modifications to it.  For an executable work, complete source
+code means all the source code for all modules it contains, plus any
+associated interface definition files, plus the scripts used to
+control compilation and installation of the executable.  However, as a
+special exception, the source code distributed need not include
+anything that is normally distributed (in either source or binary
+form) with the major components (compiler, kernel, and so on) of the
+operating system on which the executable runs, unless that component
+itself accompanies the executable.
+</p>
+<p>If distribution of executable or object code is made by offering
+access to copy from a designated place, then offering equivalent
+access to copy the source code from the same place counts as
+distribution of the source code, even though third parties are not
+compelled to copy the source along with the object code.
+</p>
+</li><li>
+You may not copy, modify, sublicense, or distribute the Program
+except as expressly provided under this License.  Any attempt
+otherwise to copy, modify, sublicense or distribute the Program is
+void, and will automatically terminate your rights under this License.
+However, parties who have received copies, or rights, from you under
+this License will not have their licenses terminated so long as such
+parties remain in full compliance.
+
+</li><li>
+You are not required to accept this License, since you have not
+signed it.  However, nothing else grants you permission to modify or
+distribute the Program or its derivative works.  These actions are
+prohibited by law if you do not accept this License.  Therefore, by
+modifying or distributing the Program (or any work based on the
+Program), you indicate your acceptance of this License to do so, and
+all its terms and conditions for copying, distributing or modifying
+the Program or works based on it.
+
+</li><li>
+Each time you redistribute the Program (or any work based on the
+Program), the recipient automatically receives a license from the
+original licensor to copy, distribute or modify the Program subject to
+these terms and conditions.  You may not impose any further
+restrictions on the recipients&rsquo; exercise of the rights granted herein.
+You are not responsible for enforcing compliance by third parties to
+this License.
+
+</li><li>
+If, as a consequence of a court judgment or allegation of patent
+infringement or for any other reason (not limited to patent issues),
+conditions are imposed on you (whether by court order, agreement or
+otherwise) that contradict the conditions of this License, they do not
+excuse you from the conditions of this License.  If you cannot
+distribute so as to satisfy simultaneously your obligations under this
+License and any other pertinent obligations, then as a consequence you
+may not distribute the Program at all.  For example, if a patent
+license would not permit royalty-free redistribution of the Program by
+all those who receive copies directly or indirectly through you, then
+the only way you could satisfy both it and this License would be to
+refrain entirely from distribution of the Program.
+
+<p>If any portion of this section is held invalid or unenforceable under
+any particular circumstance, the balance of the section is intended to
+apply and the section as a whole is intended to apply in other
+circumstances.
+</p>
+<p>It is not the purpose of this section to induce you to infringe any
+patents or other property right claims or to contest validity of any
+such claims; this section has the sole purpose of protecting the
+integrity of the free software distribution system, which is
+implemented by public license practices.  Many people have made
+generous contributions to the wide range of software distributed
+through that system in reliance on consistent application of that
+system; it is up to the author/donor to decide if he or she is willing
+to distribute software through any other system and a licensee cannot
+impose that choice.
+</p>
+<p>This section is intended to make thoroughly clear what is believed to
+be a consequence of the rest of this License.
+</p>
+</li><li>
+If the distribution and/or use of the Program is restricted in
+certain countries either by patents or by copyrighted interfaces, the
+original copyright holder who places the Program under this License
+may add an explicit geographical distribution limitation excluding
+those countries, so that distribution is permitted only in or among
+countries not thus excluded.  In such case, this License incorporates
+the limitation as if written in the body of this License.
+
+</li><li>
+The Free Software Foundation may publish revised and/or new versions
+of the General Public License from time to time.  Such new versions will
+be similar in spirit to the present version, but may differ in detail to
+address new problems or concerns.
+
+<p>Each version is given a distinguishing version number.  If the Program
+specifies a version number of this License which applies to it and &ldquo;any
+later version&rdquo;, you have the option of following the terms and conditions
+either of that version or of any later version published by the Free
+Software Foundation.  If the Program does not specify a version number of
+this License, you may choose any version ever published by the Free Software
+Foundation.
+</p>
+</li><li>
+If you wish to incorporate parts of the Program into other free
+programs whose distribution conditions are different, write to the author
+to ask for permission.  For software which is copyrighted by the Free
+Software Foundation, write to the Free Software Foundation; we sometimes
+make exceptions for this.  Our decision will be guided by the two goals
+of preserving the free status of all derivatives of our free software and
+of promoting the sharing and reuse of software generally.
+
+<p align="center"> NO WARRANTY
+</p>
+</li><li>
+BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
+FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.  EXCEPT WHEN
+OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
+PROVIDE THE PROGRAM &ldquo;AS IS&rdquo; WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED
+OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.  THE ENTIRE RISK AS
+TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU.  SHOULD THE
+PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING,
+REPAIR OR CORRECTION.
+
+</li><li>
+IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+REDISTRIBUTE THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES,
+INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING
+OUT OF THE USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED
+TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY
+YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
+PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGES.
+</li></ol>
+
+<p align="center"> END OF TERMS AND CONDITIONS
+</p>
+
+<hr size="6">
+<a name="How-to-Apply-These-Terms-to-Your-New-Programs"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Preamble" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Next section in reading order"> &gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#GNU-General-Public-License" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#GNU-General-Public-License" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Next chapter"> &gt;&gt; </a>]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h2 class="unnumberedsec">How to Apply These Terms to Your New Programs</h2>
+
+<p>  If you develop a new program, and you want it to be of the greatest
+possible use to the public, the best way to achieve this is to make it
+free software which everyone can redistribute and change under these terms.
+</p>
+<p>  To do so, attach the following notices to the program.  It is safest
+to attach them to the start of each source file to most effectively
+convey the exclusion of warranty; and each file should have at least
+the &ldquo;copyright&rdquo; line and a pointer to where the full notice is found.
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="smallexample"><var>one line to give the program's name and an idea of what it does.</var>
+Copyright (C) 19<var>yy</var>  <var>name of author</var>
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+</pre></td></tr></table>
+
+<p>Also add information on how to contact you by electronic and paper mail.
+</p>
+<p>If the program is interactive, make it output a short notice like this
+when it starts in an interactive mode:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="smallexample">Gnomovision version 69, Copyright (C) 19<var>yy</var> <var>name of author</var>
+Gnomovision comes with ABSOLUTELY NO WARRANTY; for details
+type `show w'.  This is free software, and you are welcome
+to redistribute it under certain conditions; type `show c'
+for details.
+</pre></td></tr></table>
+
+<p>The hypothetical commands &lsquo;<samp>show w</samp>&rsquo; and &lsquo;<samp>show c</samp>&rsquo; should show
+the appropriate parts of the General Public License.  Of course, the
+commands you use may be called something other than &lsquo;<samp>show w</samp>&rsquo; and
+&lsquo;<samp>show c</samp>&rsquo;; they could even be mouse-clicks or menu items&mdash;whatever
+suits your program.
+</p>
+<p>You should also get your employer (if you work as a programmer) or your
+school, if any, to sign a &ldquo;copyright disclaimer&rdquo; for the program, if
+necessary.  Here is a sample; alter the names:
+</p>
+<table><tr><td>&nbsp;</td><td><pre class="smallexample">Yoyodyne, Inc., hereby disclaims all copyright
+interest in the program `Gnomovision'
+(which makes passes at compilers) written
+by James Hacker.
+
+<var>signature of Ty Coon</var>, 1 April 1989
+Ty Coon, President of Vice
+</pre></td></tr></table>
+
+<p>This General Public License does not permit incorporating your program
+into proprietary programs.  If your program is a subroutine library, you
+may consider it more useful to permit linking proprietary applications
+with the library.  If this is what you want to do, use the GNU Library
+General Public License instead of this License.
+</p>
+<hr size="6">
+<a name="Index"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#How-to-Apply-These-Terms-to-Your-New-Programs" title="Previous section in reading order"> &lt; </a>]</td>
+<td valign="middle" align="left">[ &gt; ]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#GNU-General-Public-License" title="Beginning of this chapter or previous chapter"> &lt;&lt; </a>]</td>
+<td valign="middle" align="left">[<a href="#Top" title="Up section"> Up </a>]</td>
+<td valign="middle" align="left">[ &gt;&gt; ]</td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left"> &nbsp; </td>
+<td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<a name="Index-1"></a>
+<h1 class="unnumbered">Index</h1>
+
+<table><tr><th valign="top">Jump to: &nbsp; </th><td><a href="#Index-1_cp_letter-A" class="summary-letter"><b>A</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-C" class="summary-letter"><b>C</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-D" class="summary-letter"><b>D</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-F" class="summary-letter"><b>F</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-I" class="summary-letter"><b>I</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-M" class="summary-letter"><b>M</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-O" class="summary-letter"><b>O</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-P" class="summary-letter"><b>P</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-R" class="summary-letter"><b>R</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-S" class="summary-letter"><b>S</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-T" class="summary-letter"><b>T</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-U" class="summary-letter"><b>U</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-V" class="summary-letter"><b>V</b></a>
+ &nbsp; 
+</td></tr></table>
+<table border="0" class="index-cp">
+<tr><td></td><th align="left">Index Entry</th><th align="left"> Section</th></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-A">A</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-absolute-symlink">absolute symlink</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-adopting-existing-files">adopting existing files</a></td><td valign="top"><a href="#Invoking-Stow">3. Invoking Stow</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-C">C</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-configuration-files">configuration files</a></td><td valign="top"><a href="#Resource-Files">11. Resource Files</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-conflicts">conflicts</a></td><td valign="top"><a href="#Conflicts-during-installation">5.4 Conflicts during installation</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-conflicts-1">conflicts</a></td><td valign="top"><a href="#Conflicts">7. Conflicts</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-D">D</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-deferred-operation">deferred operation</a></td><td valign="top"><a href="#Deferred-Operation-1">7.1 Deferred Operation</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-deferred-operation-1">deferred operation</a></td><td valign="top"><a href="#Mixing-Operations">8. Mixing Operations</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-deletion">deletion</a></td><td valign="top"><a href="#Deleting-Packages">6. Deleting Packages</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-directory-folding">directory folding</a></td><td valign="top"><a href="#Tree-folding">5.1 Tree folding</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-dry-run">dry run</a></td><td valign="top"><a href="#Invoking-Stow">3. Invoking Stow</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-F">F</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-folding-trees">folding trees</a></td><td valign="top"><a href="#Tree-folding">5.1 Tree folding</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-I">I</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-ignore-lists">ignore lists</a></td><td valign="top"><a href="#Ignore-Lists">4. Ignore Lists</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-ignore-lists-1">ignore lists</a></td><td valign="top"><a href="#Motivation-For-Ignore-Lists">4.1 Motivation For Ignore Lists</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-ignoring-files-and-directories">ignoring files and directories</a></td><td valign="top"><a href="#Ignore-Lists">4. Ignore Lists</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-installation">installation</a></td><td valign="top"><a href="#Installing-Packages">5. Installing Packages</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-installation-conflicts">installation conflicts</a></td><td valign="top"><a href="#Conflicts-during-installation">5.4 Conflicts during installation</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-installation-image">installation image</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-M">M</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-maintenance">maintenance</a></td><td valign="top"><a href="#Target-Maintenance">10. Target Maintenance</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-mixing-operations">mixing operations</a></td><td valign="top"><a href="#Mixing-Operations">8. Mixing Operations</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-O">O</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-ownership">ownership</a></td><td valign="top"><a href="#Ownership">5.3 Ownership</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-P">P</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-package">package</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-package-directory">package directory</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-package-name">package name</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-R">R</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-refolding-trees">refolding trees</a></td><td valign="top"><a href="#Refolding-_0060_0060foldable_0027_0027-trees_002e">6.1 Refolding &ldquo;foldable&rdquo; trees.</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-relative-symlink">relative symlink</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-resource-files">resource files</a></td><td valign="top"><a href="#Resource-Files">11. Resource Files</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-S">S</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-simulated-run">simulated run</a></td><td valign="top"><a href="#Invoking-Stow">3. Invoking Stow</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-splitting-open-folded-trees">splitting open folded trees</a></td><td valign="top"><a href="#Tree-unfolding-1">5.2 Tree unfolding</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-stow-directory">stow directory</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-symlink">symlink</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-T">T</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-target-directory">target directory</a></td><td valign="top"><a href="#Terminology">2. Terminology</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-tree-folding">tree folding</a></td><td valign="top"><a href="#Tree-folding">5.1 Tree folding</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-tree-refolding">tree refolding</a></td><td valign="top"><a href="#Refolding-_0060_0060foldable_0027_0027-trees_002e">6.1 Refolding &ldquo;foldable&rdquo; trees.</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-tree-unfolding">tree unfolding</a></td><td valign="top"><a href="#Tree-unfolding-1">5.2 Tree unfolding</a></td></tr>
+<tr><td></td><td valign="top"><a href="#index-tree-unsplitting">tree unsplitting</a></td><td valign="top"><a href="#Tree-unfolding-1">5.2 Tree unfolding</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-U">U</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-unfolding-trees">unfolding trees</a></td><td valign="top"><a href="#Tree-unfolding-1">5.2 Tree unfolding</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+<tr><th><a name="Index-1_cp_letter-V">V</a></th><td></td><td></td></tr>
+<tr><td></td><td valign="top"><a href="#index-verbosity-levels">verbosity levels</a></td><td valign="top"><a href="#Invoking-Stow">3. Invoking Stow</a></td></tr>
+<tr><td colspan="3"> <hr></td></tr>
+</table>
+<table><tr><th valign="top">Jump to: &nbsp; </th><td><a href="#Index-1_cp_letter-A" class="summary-letter"><b>A</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-C" class="summary-letter"><b>C</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-D" class="summary-letter"><b>D</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-F" class="summary-letter"><b>F</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-I" class="summary-letter"><b>I</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-M" class="summary-letter"><b>M</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-O" class="summary-letter"><b>O</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-P" class="summary-letter"><b>P</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-R" class="summary-letter"><b>R</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-S" class="summary-letter"><b>S</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-T" class="summary-letter"><b>T</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-U" class="summary-letter"><b>U</b></a>
+ &nbsp; 
+<a href="#Index-1_cp_letter-V" class="summary-letter"><b>V</b></a>
+ &nbsp; 
+</td></tr></table>
+
+<hr size="6">
+<a name="SEC_Foot"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1>Footnotes</h1>
+<h3><a name="FOOT1" href="#DOCF1">(1)</a></h3>
+<p>As of Perl 4.036 and Emacs
+19.22.
+</p><h3><a name="FOOT2" href="#DOCF2">(2)</a></h3>
+<p>Exact matching means the
+regular expression is anchored at the beginning and end, in contrast
+to unanchored regular expressions which will match a substring.
+</p><h3><a name="FOOT3" href="#DOCF3">(3)</a></h3>
+<p>In this context, &ldquo;subpath&rdquo; means a contiguous
+subset of path segments; e.g for the relative path
+&lsquo;<tt>one/two/three</tt>&rsquo;, there are six valid subpaths: &lsquo;<tt>one</tt>&rsquo;,
+&lsquo;<tt>two</tt>&rsquo;, &lsquo;<tt>three</tt>&rsquo;, &lsquo;<tt>one/two</tt>&rsquo;, &lsquo;<tt>two/three</tt>&rsquo;,
+&lsquo;<tt>one/two/three</tt>&rsquo;.
+</p><h3><a name="FOOT4" href="#DOCF4">(4)</a></h3>
+<p>The &ldquo;basename&rdquo; is the name of the file or
+directory itself, excluding any directory path prefix - as returned by
+the <code>basename</code> command.
+</p><h3><a name="FOOT5" href="#DOCF5">(5)</a></h3>
+<p>This
+approach was introduced in version 2 of GNU Stow.  Previously, the whole
+target tree was scanned and stow directories were explicitly omitted.  This
+became problematic when dealing with very large installations.  The only
+situation where this is useful is if you accidentally delete a directory in
+the package tree, leaving you with a whole bunch of dangling links.  Note that
+you can enable the old approach with the &lsquo;<samp>-p</samp>&rsquo; option.  Alternatively, you can
+use the &lsquo;<samp>--badlinks</samp>&rsquo; option get stow to search for dangling links in your target tree and remove the offenders manually.
+</p><h3><a name="FOOT6" href="#DOCF6">(6)</a></h3>
+<p>As I write this, the current version of Emacs is 19.31.
+</p><hr size="1">
+<a name="SEC_Contents"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1>Table of Contents</h1>
+<div class="contents">
+
+<ul class="toc">
+  <li><a name="toc-Introduction-1" href="#Introduction">1. Introduction</a></li>
+  <li><a name="toc-Terminology-1" href="#Terminology">2. Terminology</a></li>
+  <li><a name="toc-Invoking-Stow-1" href="#Invoking-Stow">3. Invoking Stow</a></li>
+  <li><a name="toc-Ignore-Lists-1" href="#Ignore-Lists">4. Ignore Lists</a>
+  <ul class="toc">
+    <li><a name="toc-Motivation-For-Ignore-Lists-1" href="#Motivation-For-Ignore-Lists">4.1 Motivation For Ignore Lists</a></li>
+    <li><a name="toc-Types-And-Syntax-Of-Ignore-Lists-1" href="#Types-And-Syntax-Of-Ignore-Lists">4.2 Types And Syntax Of Ignore Lists</a></li>
+    <li><a name="toc-Justification-For-Yet-Another-Set-Of-Ignore-Files-1" href="#Justification-For-Yet-Another-Set-Of-Ignore-Files">4.3 Justification For Yet Another Set Of Ignore Files</a></li>
+  </ul></li>
+  <li><a name="toc-Installing-Packages-1" href="#Installing-Packages">5. Installing Packages</a>
+  <ul class="toc">
+    <li><a name="toc-Tree-folding" href="#Tree-folding">5.1 Tree folding</a></li>
+    <li><a name="toc-Tree-unfolding-1" href="#Tree-unfolding-1">5.2 Tree unfolding</a></li>
+    <li><a name="toc-Ownership" href="#Ownership">5.3 Ownership</a></li>
+    <li><a name="toc-Conflicts-during-installation" href="#Conflicts-during-installation">5.4 Conflicts during installation</a></li>
+  </ul></li>
+  <li><a name="toc-Deleting-Packages-1" href="#Deleting-Packages">6. Deleting Packages</a>
+  <ul class="toc">
+    <li><a name="toc-Refolding-_0060_0060foldable_0027_0027-trees_002e" href="#Refolding-_0060_0060foldable_0027_0027-trees_002e">6.1 Refolding &ldquo;foldable&rdquo; trees.</a></li>
+  </ul></li>
+  <li><a name="toc-Conflicts-1" href="#Conflicts">7. Conflicts</a>
+  <ul class="toc">
+    <li><a name="toc-Deferred-Operation-1" href="#Deferred-Operation-1">7.1 Deferred Operation</a></li>
+  </ul></li>
+  <li><a name="toc-Mixing-Operations-1" href="#Mixing-Operations">8. Mixing Operations</a></li>
+  <li><a name="toc-Multiple-Stow-Directories-1" href="#Multiple-Stow-Directories">9. Multiple Stow Directories</a></li>
+  <li><a name="toc-Target-Maintenance-1" href="#Target-Maintenance">10. Target Maintenance</a></li>
+  <li><a name="toc-Resource-Files-1" href="#Resource-Files">11. Resource Files</a></li>
+  <li><a name="toc-Compile_002dtime-vs-Install_002dtime-1" href="#Compile_002dtime-vs-Install_002dtime">12. Compile-time vs Install-time</a>
+  <ul class="toc">
+    <li><a name="toc-Advice-on-changing-compilation-and-installation-parameters" href="#Advice-on-changing-compilation-and-installation-parameters">12.1 Advice on changing compilation and installation parameters</a></li>
+    <li><a name="toc-GNU-Emacs-1" href="#GNU-Emacs">12.2 GNU Emacs</a></li>
+    <li><a name="toc-Other-FSF-Software-1" href="#Other-FSF-Software">12.3 Other FSF Software</a></li>
+    <li><a name="toc-Cygnus-Software-1" href="#Cygnus-Software">12.4 Cygnus Software</a></li>
+    <li><a name="toc-Perl-and-Perl-5-Modules-1" href="#Perl-and-Perl-5-Modules">12.5 Perl and Perl 5 Modules</a></li>
+  </ul></li>
+  <li><a name="toc-Bootstrapping-1" href="#Bootstrapping">13. Bootstrapping</a></li>
+  <li><a name="toc-Reporting-Bugs-1" href="#Reporting-Bugs">14. Reporting Bugs</a></li>
+  <li><a name="toc-Known-Bugs-1" href="#Known-Bugs">15. Known Bugs</a></li>
+  <li><a name="toc-GNU-General-Public-License-1" href="#GNU-General-Public-License">GNU General Public License</a>
+  <ul class="toc">
+    <li><a name="toc-Preamble" href="#Preamble">Preamble</a></li>
+    <li><a name="toc-How-to-Apply-These-Terms-to-Your-New-Programs" href="#How-to-Apply-These-Terms-to-Your-New-Programs">How to Apply These Terms to Your New Programs</a></li>
+  </ul></li>
+  <li><a name="toc-Index-1" href="#Index">Index</a></li>
+</ul>
+</div>
+<hr size="1">
+<a name="SEC_About"></a>
+<table cellpadding="1" cellspacing="1" border="0">
+<tr><td valign="middle" align="left">[<a href="#Top" title="Cover (top) of document">Top</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_Contents" title="Table of contents">Contents</a>]</td>
+<td valign="middle" align="left">[<a href="#Index" title="Index">Index</a>]</td>
+<td valign="middle" align="left">[<a href="#SEC_About" title="About (help)"> ? </a>]</td>
+</tr></table>
+<h1>About This Document</h1>
+<p>
+  This document was generated by <em>Adam Spiers</em> on <em>November 9, 2015</em> using <a href="http://www.nongnu.org/texi2html/"><em>texi2html 1.82</em></a>.
+</p>
+<p>
+  The buttons in the navigation panels have the following meaning:
+</p>
+<table border="1">
+  <tr>
+    <th> Button </th>
+    <th> Name </th>
+    <th> Go to </th>
+    <th> From 1.2.3 go to</th>
+  </tr>
+  <tr>
+    <td align="center"> [ &lt; ] </td>
+    <td align="center">Back</td>
+    <td>Previous section in reading order</td>
+    <td>1.2.2</td>
+  </tr>
+  <tr>
+    <td align="center"> [ &gt; ] </td>
+    <td align="center">Forward</td>
+    <td>Next section in reading order</td>
+    <td>1.2.4</td>
+  </tr>
+  <tr>
+    <td align="center"> [ &lt;&lt; ] </td>
+    <td align="center">FastBack</td>
+    <td>Beginning of this chapter or previous chapter</td>
+    <td>1</td>
+  </tr>
+  <tr>
+    <td align="center"> [ Up ] </td>
+    <td align="center">Up</td>
+    <td>Up section</td>
+    <td>1.2</td>
+  </tr>
+  <tr>
+    <td align="center"> [ &gt;&gt; ] </td>
+    <td align="center">FastForward</td>
+    <td>Next chapter</td>
+    <td>2</td>
+  </tr>
+  <tr>
+    <td align="center"> [Top] </td>
+    <td align="center">Top</td>
+    <td>Cover (top) of document</td>
+    <td> &nbsp; </td>
+  </tr>
+  <tr>
+    <td align="center"> [Contents] </td>
+    <td align="center">Contents</td>
+    <td>Table of contents</td>
+    <td> &nbsp; </td>
+  </tr>
+  <tr>
+    <td align="center"> [Index] </td>
+    <td align="center">Index</td>
+    <td>Index</td>
+    <td> &nbsp; </td>
+  </tr>
+  <tr>
+    <td align="center"> [ ? ] </td>
+    <td align="center">About</td>
+    <td>About (help)</td>
+    <td> &nbsp; </td>
+  </tr>
+</table>
+
+<p>
+  where the <strong> Example </strong> assumes that the current position is at <strong> Subsubsection One-Two-Three </strong> of a document of the following structure:
+</p>
+
+<ul>
+  <li> 1. Section One
+    <ul>
+      <li>1.1 Subsection One-One
+        <ul>
+          <li>...</li>
+        </ul>
+      </li>
+      <li>1.2 Subsection One-Two
+        <ul>
+          <li>1.2.1 Subsubsection One-Two-One</li>
+          <li>1.2.2 Subsubsection One-Two-Two</li>
+          <li>1.2.3 Subsubsection One-Two-Three &nbsp; &nbsp;
+            <strong>&lt;== Current Position </strong></li>
+          <li>1.2.4 Subsubsection One-Two-Four</li>
+        </ul>
+      </li>
+      <li>1.3 Subsection One-Three
+        <ul>
+          <li>...</li>
+        </ul>
+      </li>
+      <li>1.4 Subsection One-Four</li>
+    </ul>
+  </li>
+</ul>
+
+<hr size="1">
+<p>
+ <font size="-1">
+  This document was generated by <em>Adam Spiers</em> on <em>November 9, 2015</em> using <a href="http://www.nongnu.org/texi2html/"><em>texi2html 1.82</em></a>.
+ </font>
+ <br>
+
+</p>
+</body>
+</html>

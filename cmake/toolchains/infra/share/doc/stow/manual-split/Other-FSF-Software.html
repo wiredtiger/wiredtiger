@@ -1,0 +1,85 @@
+<html lang="en">
+<head>
+<title>Other FSF Software - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="up" href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime" title="Compile-time vs Install-time">
+<link rel="prev" href="GNU-Emacs.html#GNU-Emacs" title="GNU Emacs">
+<link rel="next" href="Cygnus-Software.html#Cygnus-Software" title="Cygnus Software">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Other-FSF-Software"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Cygnus-Software.html#Cygnus-Software">Cygnus Software</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="GNU-Emacs.html#GNU-Emacs">GNU Emacs</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime">Compile-time vs Install-time</a>
+<hr>
+</div>
+
+<h3 class="section">12.3 Other FSF Software</h3>
+
+<p>The Free Software Foundation, the organization behind the GNU project,
+has been unifying the build procedure for its tools for some time. 
+Thanks to its tools &lsquo;<samp><span class="samp">autoconf</span></samp>&rsquo; and &lsquo;<samp><span class="samp">automake</span></samp>&rsquo;, most packages
+now respond well to these simple steps, with no other intervention
+necessary:
+
+<pre class="example">     ./configure <var>options</var>
+     make
+     make install prefix=/usr/local/stow/<var>package</var>
+</pre>
+   <p>Hopefully, these tools can evolve to be aware of Stow-managed packages,
+such that providing an option to &lsquo;<samp><span class="samp">configure</span></samp>&rsquo; can allow &lsquo;<samp><span class="samp">make</span></samp>&rsquo;
+and &lsquo;<samp><span class="samp">make install</span></samp>&rsquo; steps to work correctly without needing to
+&ldquo;fool&rdquo; the build process.
+
+<!--  -->
+   </body></html>
+

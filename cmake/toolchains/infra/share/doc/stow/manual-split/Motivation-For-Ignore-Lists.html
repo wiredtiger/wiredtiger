@@ -1,0 +1,94 @@
+<html lang="en">
+<head>
+<title>Motivation For Ignore Lists - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="up" href="Ignore-Lists.html#Ignore-Lists" title="Ignore Lists">
+<link rel="prev" href="Ignore-Lists.html#Ignore-Lists" title="Ignore Lists">
+<link rel="next" href="Types-And-Syntax-Of-Ignore-Lists.html#Types-And-Syntax-Of-Ignore-Lists" title="Types And Syntax Of Ignore Lists">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Motivation-For-Ignore-Lists"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Types-And-Syntax-Of-Ignore-Lists.html#Types-And-Syntax-Of-Ignore-Lists">Types And Syntax Of Ignore Lists</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Ignore-Lists.html#Ignore-Lists">Ignore Lists</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="Ignore-Lists.html#Ignore-Lists">Ignore Lists</a>
+<hr>
+</div>
+
+<h3 class="section">4.1 Motivation For Ignore Lists</h3>
+
+<p>In many situations, there will exist files under the package
+directories which it would be undesirable to stow into the target
+directory.  For example, files related version control such as
+<samp><span class="file">.gitignore</span></samp>, <samp><span class="file">CVS</span></samp>, <samp><span class="file">*,v</span></samp> (RCS files) should typically
+not have symlinks from the target tree pointing to them.  Also there
+may be files or directories relating to the build of the package which
+are not needed at run-time.
+
+   <p>In these cases, it can be rather cumbersome to specify a
+<samp><span class="option">--ignore</span></samp> parameter for each file or directory to be ignored. 
+This could be worked around by ensuring the existence of
+<samp><span class="file">~/.stowrc</span></samp> containing multiple <samp><span class="option">--ignore</span></samp> lines, or if a
+different set of files/directories should be ignored depending on
+which stow package is involved, a <samp><span class="file">.stowrc</span></samp> file for each stow
+package, but this would require the user to ensure that they were in
+the correct directory before invoking stow, which would be tedious and
+error-prone.  Furthermore, since Stow shifts parameters from
+<samp><span class="file">.stowrc</span></samp> onto ARGV at run-time, it could clutter up the process
+table with excessively long parameter lists, or even worse, exceed the
+operating system's limit for process arguments.
+
+   <p><a name="index-ignore-lists-16"></a>Therefore in addition to <samp><span class="option">--ignore</span></samp> parameters, Stow provides a
+way to specify lists of files and directories to ignore.
+
+<!-- =========================================================================== -->
+   </body></html>
+

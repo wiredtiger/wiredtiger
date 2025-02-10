@@ -1,0 +1,113 @@
+<html lang="en">
+<head>
+<title>Terminology - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="prev" href="Introduction.html#Introduction" title="Introduction">
+<link rel="next" href="Invoking-Stow.html#Invoking-Stow" title="Invoking Stow">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Terminology"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Invoking-Stow.html#Invoking-Stow">Invoking Stow</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Introduction.html#Introduction">Introduction</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="index.html#Top">Top</a>
+<hr>
+</div>
+
+<h2 class="chapter">2 Terminology</h2>
+
+   <p class="indent"><a name="index-package-1"></a>A <dfn>package</dfn> is a related collection of files and directories that
+you wish to administer as a unit &mdash; e.g., Perl or Emacs &mdash; and that needs
+to be installed in a particular directory structure &mdash; e.g., with
+<samp><span class="file">bin</span></samp>, <samp><span class="file">lib</span></samp>, and <samp><span class="file">man</span></samp> subdirectories.
+
+   <p><a name="index-target-directory-2"></a>A <dfn>target directory</dfn> is the root of a tree in which one or more
+packages wish to <em>appear</em> to be installed.  A common, but by no
+means the only such location is <samp><span class="file">/usr/local</span></samp>.  The examples in this
+manual will use <samp><span class="file">/usr/local</span></samp> as the target directory.
+
+   <p><a name="index-stow-directory-3"></a>A <dfn>stow directory</dfn> is the root of a tree containing separate
+packages in private subtrees.  When Stow runs, it uses the current
+directory as the default stow directory.  The examples in this manual
+will use <samp><span class="file">/usr/local/stow</span></samp> as the stow directory, so that
+individual packages will be, for example, <samp><span class="file">/usr/local/stow/perl</span></samp>
+and <samp><span class="file">/usr/local/stow/emacs</span></samp>.
+
+   <p><a name="index-installation-image-4"></a>An <dfn>installation image</dfn> is the layout of files and directories
+required by a package, relative to the target directory.  Thus, the
+installation image for Perl includes: a <samp><span class="file">bin</span></samp> directory containing
+<samp><span class="file">perl</span></samp> and <samp><span class="file">a2p</span></samp> (among others); an <samp><span class="file">info</span></samp> directory
+containing Texinfo documentation; a <samp><span class="file">lib/perl</span></samp> directory containing
+Perl libraries; and a <samp><span class="file">man/man1</span></samp> directory containing man pages.
+
+   <p><a name="index-package-directory-5"></a><a name="index-package-name-6"></a>A <dfn>package directory</dfn> is the root of a tree containing the
+installation image for a particular package.  Each package directory
+must reside in a stow directory &mdash; e.g., the package directory
+<samp><span class="file">/usr/local/stow/perl</span></samp> must reside in the stow directory
+<samp><span class="file">/usr/local/stow</span></samp>.  The <dfn>name</dfn> of a package is the name of its
+directory within the stow directory &mdash; e.g., <samp><span class="file">perl</span></samp>.
+
+   <p>Thus, the Perl executable might reside in
+<samp><span class="file">/usr/local/stow/perl/bin/perl</span></samp>, where <samp><span class="file">/usr/local</span></samp> is the
+target directory, <samp><span class="file">/usr/local/stow</span></samp> is the stow directory,
+<samp><span class="file">/usr/local/stow/perl</span></samp> is the package directory, and
+<samp><span class="file">bin/perl</span></samp> within is part of the installation image.
+
+   <p><a name="index-symlink-7"></a><a name="index-relative-symlink-8"></a><a name="index-absolute-symlink-9"></a>A <dfn>symlink</dfn> is a symbolic link.  A symlink can be <dfn>relative</dfn> or
+<dfn>absolute</dfn>.  An absolute symlink names a full path; that is, one
+starting from <samp><span class="file">/</span></samp>.  A relative symlink names a relative path; that
+is, one not starting from <samp><span class="file">/</span></samp>.  The target of a relative symlink is
+computed starting from the symlink's own directory.  Stow only
+creates relative symlinks.
+
+<!-- =========================================================================== -->
+   </body></html>
+

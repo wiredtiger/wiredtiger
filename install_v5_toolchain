@@ -1,0 +1,13 @@
+#!/bin/bash
+
+ARCH=$1
+shift
+[ $# -gt 0 ] && INSTALL_DIR=$1 || INSTALL_DIR=$(pwd)
+shift
+
+echo "ARCH=${ARCH}"
+echo "INSTALL_DIR=${INSTALL_DIR}"
+
+mkdir -p $INSTALL_DIR
+cd $INSTALL_DIR
+curl https://mciuploads.s3.amazonaws.com/toolchain-builder/${ARCH}/acdc1709a01126c67dbd4f0f37491e171f64ec29/toolchain_builder_${ARCH/-/_}_patch_acdc1709a01126c67dbd4f0f37491e171f64ec29_678697d84ad33b00070a840c_25_01_14_17_06_29.tar.gz | gunzip | tar --strip-components 1 -x

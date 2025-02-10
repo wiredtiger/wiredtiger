@@ -1,0 +1,113 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+require 5.006_001;
+
+use File::Find;
+use Getopt::Long;
+
+my $DEFAULT_TARGET = '/usr/local/';
+
+our $Wanted   = \&bad_links;
+our %Package  = ();
+our $Stow_dir = '';
+our $Target   = $DEFAULT_TARGET;
+
+# put the main loop into a block so that tests can load this as a module
+if ( not caller() ) {
+    if (@ARGV == 0) {
+        usage();
+    }
+    process_options();
+    #check_stow($Target, $Wanted);
+    check_stow();
+}
+
+sub process_options {
+    GetOptions(
+	'b|badlinks' => sub { $Wanted = \&bad_links },
+	'a|aliens'   => sub { $Wanted = \&aliens    },
+	'l|list'     => sub { $Wanted = \&list      },
+	't|target=s' => \$Target,
+	) or usage();
+    return;
+}
+
+sub usage {
+    print <<"EOT";
+USAGE: chkstow [options]
+
+Options:
+    -t DIR, --target=DIR  Set the target directory to DIR
+                          (default is $DEFAULT_TARGET)
+    -b, --badlinks        Report symlinks that point to non-existent files
+    -a, --aliens          Report non-symlinks in the target directory
+    -l, --list            List packages in the target directory
+
+--badlinks is the default mode.
+EOT
+    exit(0);
+}
+
+sub check_stow {
+    #my ($Target, $Wanted) = @_;
+
+    my (%options) = (
+        wanted     => $Wanted,
+        preprocess => \&skip_dirs,
+    );
+
+    find(\%options, $Target);
+
+    if ($Wanted == \&list) {
+        delete $Package{''};
+        delete $Package{'..'};
+
+        if (keys %Package) {
+            print map "$_\n", sort(keys %Package);
+        }
+    }
+    return;
+}
+
+sub skip_dirs {
+    # skip stow source and unstowed targets
+    if (-e ".stow" || -e ".notstowed" ) {
+        warn "skipping $File::Find::dir\n";
+        return ();
+    }
+    else {
+        return @_;
+    }
+}
+
+# checking for files that do not link to anything
+sub bad_links {
+    -l && !-e && print "Bogus link: $File::Find::name\n";
+}
+
+# checking for files that are not owned by stow
+sub aliens  {
+    !-l && !-d && print "Unstowed file: $File::Find::name\n";
+}
+
+# just list the packages in the the target directory
+# FIXME: what if the stow dir is not called 'stow'?
+sub list {
+    if (-l) {
+        $_ = readlink;
+        s{\A(?:\.\./)+stow/}{}g;
+        s{/.*}{}g;
+        $Package{$_} = 1;
+    }
+}
+
+1; # Hey, it's a module!
+
+# Local variables:
+# mode: perl
+# cperl-indent-level: 4
+# End:
+# vim: ft=perl

@@ -1,0 +1,98 @@
+<html lang="en">
+<head>
+<title>Target Maintenance - Stow</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="Stow">
+<meta name="generator" content="makeinfo 4.13">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="prev" href="Multiple-Stow-Directories.html#Multiple-Stow-Directories" title="Multiple Stow Directories">
+<link rel="next" href="Resource-Files.html#Resource-Files" title="Resource Files">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+This manual describes GNU Stow version 2.2.2
+(9 November 2015), a program for managing the installation of software
+packages.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+     Permission is granted to make and distribute verbatim copies of
+     this manual provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this manual under the conditions for verbatim copying, provided
+     also that the section entitled ``GNU General Public License'' is
+     included with the modified manual, and provided that the entire
+     resulting derived work is distributed under the terms of a
+     permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
+   -->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<a name="Target-Maintenance"></a>
+<p>
+Next:&nbsp;<a rel="next" accesskey="n" href="Resource-Files.html#Resource-Files">Resource Files</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Multiple-Stow-Directories.html#Multiple-Stow-Directories">Multiple Stow Directories</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="index.html#Top">Top</a>
+<hr>
+</div>
+
+<h2 class="chapter">10 Target Maintenance</h2>
+
+<p><a name="index-maintenance-35"></a>From time to time you will need to clean up your target tree.  Since
+version 2, Stow provides a new utility <samp><span class="command">chkstow</span></samp> to help with
+this.  It includes three operational modes which performs checks that
+would generally be too expensive to be performed during normal stow
+execution.
+
+   <p>The syntax of the <samp><span class="command">chkstow</span></samp> command is:
+
+<pre class="example">     chkstow [<var>options</var>]
+</pre>
+   <p class="noindent">The following options are supported:
+
+     <dl>
+<dt>&lsquo;<samp><span class="samp">-t </span><var>dir</var></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--target=</span><var>dir</var></samp>&rsquo;<dd>Set the target directory to <var>dir</var> instead of the parent of the stow
+directory.  Defaults to the parent of the stow directory, so it is typical to
+execute <samp><span class="command">stow</span></samp> from the directory <samp><span class="file">/usr/local/stow</span></samp>.
+
+     <br><dt>&lsquo;<samp><span class="samp">-b</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--badlinks</span></samp>&rsquo;<dd>Checks target directory for bogus symbolic links. That is, links that point to
+non-existent files.
+
+     <br><dt>&lsquo;<samp><span class="samp">-a</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--aliens</span></samp>&rsquo;<dd>Checks for files in the target directory that are not symbolic links. The
+target directory should be managed by stow alone, except for directories that
+contain a <samp><span class="file">.stow</span></samp> file.
+
+     <br><dt>&lsquo;<samp><span class="samp">-l</span></samp>&rsquo;<dt>&lsquo;<samp><span class="samp">--list</span></samp>&rsquo;<dd>Will display the target package for every symbolic link in the stow target
+directory.
+
+   </dl>
+
+<!-- =========================================================================== -->
+   </body></html>
+
