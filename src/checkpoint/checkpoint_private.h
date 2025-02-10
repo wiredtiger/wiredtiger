@@ -56,6 +56,16 @@ struct __wti_ckpt_handle_stats {
     uint64_t skip_time;       /* skipped handles gather time */
 };
 
+/*
+ * WTI_CKPT_PROGRESS --
+ *     Checkpoint progress.
+ */
+struct __wti_ckpt_progress {
+    uint64_t msg_count;
+    uint64_t write_bytes;
+    uint64_t write_pages;
+};
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 /* DO NOT EDIT: automatically built by prototypes.py: END */
