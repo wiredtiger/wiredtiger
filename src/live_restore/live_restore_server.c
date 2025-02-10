@@ -55,11 +55,11 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=true", NULL};
             WT_ERR(__wt_checkpoint_db(ctx->session, cfg, true));
 
-            if (__wti_live_restore_get_state(session, lr_fs) ==
-              WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
+            WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+
+            if (state == WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
                 WT_ERR(
                   __wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_CLEAN_UP));
-            }
 
             WT_ERR(__wti_live_restore_cleanup_stop_files(session));
 
@@ -70,9 +70,20 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
               "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
               S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
 
-            if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_COMPLETE)
+            if (state == WTI_LIVE_RESTORE_STATE_CLEAN_UP)
+                /*
+                 * Run a second forced checkpoint now that clean up has finished. Checkpointing the
+                 * files on or after the clean up stage will remove any hole list strings from the
+                 * metadata file. If any files still have a bitmap string in the metadata file it
+                 * will
+                 */
+                WT_ERR(__wt_checkpoint_db(ctx->session, cfg, true));
+
+            if (state != WTI_LIVE_RESTORE_STATE_COMPLETE)
                 WT_ERR(
                   __wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
+
+            // TODO - update the tech design. The state file is no longer deleted at this point
         }
         /*
          * Future proofing: in general unless the conn is closing the queue must be empty if there

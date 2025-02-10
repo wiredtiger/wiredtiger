@@ -197,10 +197,9 @@ __alloc_exent(WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 
 TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_import_export]")
 {
-    std::shared_ptr<mock_session> mock_session = mock_session::build_test_mock_session();
-    WT_SESSION_IMPL *session = mock_session->get_wt_session_impl();
-    WT_CONNECTION_IMPL *conn = mock_session->get_mock_connection()->get_wt_connection_impl();
-    F_SET(conn, WT_CONN_LIVE_RESTORE_FS);
+    live_restore_test_env env;
+    WT_SESSION_IMPL *session = env.session;
+    WT_SESSION *wt_session = (WT_SESSION *)session;
 
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     REQUIRE(__wt_calloc_one(session, &lr_fh) == 0);
@@ -210,10 +209,28 @@ TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_imp
 
     SECTION("Pass a complete live restore file handle")
     {
-        WT_UNUSED(string);
         lr_fh->destination.complete = true;
-        REQUIRE(__wt_live_restore_fh_extent_to_metadata(session, (WT_FILE_HANDLE *)lr_fh, NULL) ==
-          WT_NOTFOUND);
+        REQUIRE(
+          __wt_live_restore_fh_extent_to_metadata(session, (WT_FILE_HANDLE *)lr_fh, &string) == 0);
+        // FIXME WT-14014 - This should return ",live_restore=ffffffffffffffff" once we migrate to
+        // bitmaps.
+        REQUIRE(std::string((char *)string.data) == ",live_restore=");
+    }
+
+    SECTION(
+      "Pass a file handle when the live restore state is CLEAN_UP or COMPLETE, when all files must "
+      "be complete.")
+    {
+        WT_UNUSED(string);
+        WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
+
+        lr_fs->state = WTI_LIVE_RESTORE_STATE_CLEAN_UP;
+        REQUIRE(__wt_live_restore_fh_extent_to_metadata(
+                  session, (WT_FILE_HANDLE *)lr_fh, &string) == WT_NOTFOUND);
+
+        lr_fs->state = WTI_LIVE_RESTORE_STATE_COMPLETE;
+        REQUIRE(__wt_live_restore_fh_extent_to_metadata(
+                  session, (WT_FILE_HANDLE *)lr_fh, &string) == WT_NOTFOUND);
     }
 
     SECTION("Test a file handle with no extents")
@@ -253,6 +270,5 @@ TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_imp
         __wt_free(session, lr_fh->destination.hole_list_head);
     }
 
-    __wt_free(session, lr_fh);
     __wt_buf_free(session, &string);
 }
