@@ -44,14 +44,6 @@ __wt_block_disagg_addr_pack(uint8_t **pp, uint64_t page_id, uint64_t lsn, uint64
     WT_RET(__wt_vpack_uint(pp, 0, s));
     WT_RET(__wt_vpack_uint(pp, 0, c));
 
-    /*
-    fprintf(stderr, "__wt_block_disagg_addr_pack: 0x");
-    while (orig != *pp) {
-        fprintf(stderr, "%02x", *orig);
-        orig++;
-    }
-    fprintf(stderr, "\n");
-    */
     return (0);
 }
 

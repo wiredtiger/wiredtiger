@@ -363,7 +363,6 @@ __wt_layered_table_manager_add_table(
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
-    fprintf(stderr, "adding %u to layered table manager\n", ingest_id);
 
     WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
       "Adding a layered tree to tracking without the right dhandle context.");
@@ -421,13 +420,13 @@ __layered_table_manager_remove_table_inlock(
     if ((entry = manager->entries[ingest_id]) != NULL) {
         WT_STAT_CONN_DECR(session, layered_table_manager_tables);
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "__wt_layered_table_manager_remove_table %s", entry->stable_uri);
+          "__wt_layered_table_manager_remove_table stable_uri=%s ingest_id=%" PRIu32,
+          entry->stable_uri, ingest_id);
 
         /* Cursors get automatically closed via the session handle in shutdown. */
         if (!from_shutdown && entry->stable_cursor != NULL)
             entry->stable_cursor->close(entry->stable_cursor);
         __wt_free(session, entry);
-        fprintf(stderr, "layered table mgr clearing %u\n", ingest_id);
         manager->entries[ingest_id] = NULL;
     }
 }
