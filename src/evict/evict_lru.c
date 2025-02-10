@@ -880,8 +880,8 @@ __evict_get_ref(
     WT_EVICT_BUCKETSET *bucketset;
     WT_REF *ref;
     WT_REF_STATE previous_state;
-    int i, j;
-    bool is_app, dhandle_list_locked;
+    bool dhandle_list_locked, is_app;
+    int i, j, restarts;
 
     *btreep = NULL;
     conn = S2C(conn);
@@ -891,6 +891,7 @@ __evict_get_ref(
      */
     *previous_statep = WT_REF_MEM;
     *refp = ref = NULL;
+	restarts = 0;
 
     /*
      * Pick a dhandle from which to evict. The function picking the handle dictates the priority
@@ -937,33 +938,34 @@ __evict_get_ref(
      */
     for (i = WT_EVICT_LEVEL_CLEAN_LEAF; i <= WT_EVICT_LEVEL_INTERNAL; i++) {
         bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
+	  restart_bucketset:
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
             bucket = &bucketset->buckets[j];
             if (__wt_atomic_load64(&bucket->num_items) == 0)
                 continue;
             wt_spin_lock(session, &bucket->evict_queue_lock);
-            /*
-             * Iterate over the pages in the bucket until we find one that's not locked.
-             */
+			/* Iterate over the pages in the bucket until we find one that's available. */
             TAILQ_FOREACH (ref, &bucket->evict_queue, evict_q) {
                 /* Try to lock the reference. If it's already locked, skip it. */
                 if ((previous_state = WT_REF_GET_STATE(ref)) != WT_REF_MEM ||
                   !WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
+					WT_STAT_CONN_INCR(session, eviction_skipped_page_locked);
+					__wt_verbose_notice(session,  WT_VERB_EVICTION, "%s",
+										"eviction skipped a page because it was locked");
                     ref = NULL;
                     continue;
-                } else { /* found a reference */
-                    /*
-                     * Complain if the reference is in the first bucket, but has a high read
-                     * generation. This means that we missed a case when the page had to be upgraded
-                     * to a higher bucket.
-                     */
-                    if (j == 0 &&
-                      __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) <
-                        __wt_atomic_load64(&ref->page->read_gen))
-                        WT_ASSERT(session, "high-priority page in a low-priority bucket");
-                    break;
-                }
+                } else if (__wt_atomic_loadbool(&ref->evict_skip)) {
+					/* Reset, so we don't always skip this page */
+					__wt_atomic_storebool(&ref->evict_skip, false);
+					WT_STAT_CONN_INCR(session, eviction_skipped_page_flag);
+					__wt_verbose_notice(session,  WT_VERB_EVICTION, "%s",
+										"eviction skipped a page because skip flag was set");
+					ref = NULL;
+					continue;
+				} else /* found a reference */
+                    goto unlock;
             }
+		  unlock:
             wt_spin_unlock(session, &bucket->evict_queue_lock);
             if (ref != NULL)
                 goto done;
@@ -975,6 +977,23 @@ done:
         *btreep = ref->page->evict.dhandle->btree;
         *previous_statep = previous_state;
         *refp = ref;
+
+		/*
+		 * If the reference is in the first bucket, but has a high read
+		 * generation, we missed a case when the page had to be upgraded
+		 * to a higher bucket. This is not a critical error, because we are
+		 * okay to occasionally evict a page that's not the oldest, but we must
+		 * flag this in stats, because this must be debugged if happens frequently.
+		 */
+		if (ref != NULL && j == 0 &&
+			__wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) <
+			__wt_atomic_load64(&ref->page->read_gen)) {
+			WT_STAT_CONN_INCR(session, eviction_new_page_in_old_bucket);
+			__wt_verbose_notice(session,  WT_VERB_EVICTION,
+			  "eviction found a young page with read generation %lu in oldest bucket",
+								ref->page_read_gen);
+		}
+
     }
 
     ret = (*refp == NULL ? WT_NOTFOUND : 0);

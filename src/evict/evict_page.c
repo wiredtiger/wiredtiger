@@ -282,13 +282,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 
     if (0) {
 err:
-        /*
-         * In case something goes wrong, don't pick the same set of pages every time. Bumping the
-         * read generation will move the page to a lower-priority queue.
-         */
         if (!closing) {
-            __wti_evict_read_gen_bump(session, ref->page);
-            /* Put the page back into the list it belongs XXX */
+			/*
+			 * In case something goes wrong, don't pick the same set of pages every time.
+			 * Mark the page, so that eviction skips it once if it encounters it.
+			 */
+			__wt_atomic_storebool(&ref->evict_skip, true);
+            /* Put the page back into the list it belongs */
+			__evict_enqueue_page(session, session->dhandle, ref);
+			/* Release the page */
             __evict_exclusive_clear(session, ref, previous_state);
         }
         if (ebusy_only && ret != EBUSY)
