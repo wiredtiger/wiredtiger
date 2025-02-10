@@ -331,7 +331,7 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
 
 err:
     /* Quit the layered table server. */
-    WT_TRET(__wt_layered_table_manager_destroy(session, false));
+    WT_TRET(__wt_layered_table_manager_destroy(session));
     return (ret);
 }
 
@@ -409,8 +409,7 @@ __wt_layered_table_manager_add_table(
  *     Internal table remove implementation.
  */
 static void
-__layered_table_manager_remove_table_inlock(
-  WT_SESSION_IMPL *session, uint32_t ingest_id, bool from_shutdown)
+__layered_table_manager_remove_table_inlock(WT_SESSION_IMPL *session, uint32_t ingest_id)
 {
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
@@ -455,7 +454,7 @@ __wt_layered_table_manager_remove_table(WT_SESSION_IMPL *session, uint32_t inges
         manager_state == WT_LAYERED_TABLE_MANAGER_STOPPING,
       "Adding a layered table, but the manager isn't running");
     __wt_spin_lock(session, &manager->layered_table_lock);
-    __layered_table_manager_remove_table_inlock(session, ingest_id, false);
+    __layered_table_manager_remove_table_inlock(session, ingest_id);
 
     __wt_spin_unlock(session, &manager->layered_table_lock);
 }
@@ -524,7 +523,7 @@ __wt_layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD
  *     Destroy the layered table manager thread(s)
  */
 int
-__wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
+__wt_layered_table_manager_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LAYERED_TABLE_MANAGER *manager;
@@ -567,7 +566,7 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session, bool from_shutdown)
     /* Close any cursors and free any related memory */
     for (i = 0; i < manager->open_layered_table_count; i++) {
         if (manager->entries[i] != NULL)
-            __layered_table_manager_remove_table_inlock(session, i, from_shutdown);
+            __layered_table_manager_remove_table_inlock(session, i);
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
