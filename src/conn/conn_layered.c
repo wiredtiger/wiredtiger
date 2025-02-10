@@ -379,7 +379,6 @@ __wt_layered_table_manager_add_table(
     WT_RET(__wt_calloc_one(session, &entry));
     entry->ingest_id = ingest_id;
     entry->stable_id = stable_id;
-    entry->stable_cursor = NULL;
     entry->layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     /*
@@ -394,6 +393,7 @@ __wt_layered_table_manager_add_table(
      * it will live in the tracker here.
      */
     entry->stable_uri = layered->stable_uri;
+    entry->ingest_uri = layered->ingest_uri;
     WT_STAT_CONN_INCR(session, layered_table_manager_tables);
     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
       "__wt_layered_table_manager_add_table uri=%s ingest=%" PRIu32 " stable=%" PRIu32 " name=%s",
@@ -423,9 +423,6 @@ __layered_table_manager_remove_table_inlock(
           "__wt_layered_table_manager_remove_table stable_uri=%s ingest_id=%" PRIu32,
           entry->stable_uri, ingest_id);
 
-        /* Cursors get automatically closed via the session handle in shutdown. */
-        if (!from_shutdown && entry->stable_cursor != NULL)
-            entry->stable_cursor->close(entry->stable_cursor);
         __wt_free(session, entry);
         manager->entries[ingest_id] = NULL;
     }
@@ -486,18 +483,12 @@ __layered_table_get_constituent_cursor(
     if (entry == NULL)
         return (0);
 
-    if (entry->stable_cursor != NULL) {
-        *cursorp = entry->stable_cursor;
-        return (0);
-    }
-
     WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
     if (global_ckpt_id > entry->read_checkpoint)
         cfg[2] = "force=true";
 
     /* Open the cursor and keep a reference in the manager entry and our caller */
     WT_RET(__wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor));
-    entry->stable_cursor = stable_cursor;
     entry->read_checkpoint = global_ckpt_id;
     *cursorp = stable_cursor;
 
@@ -676,8 +667,12 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             conn->layered_table_manager.leader = leader = false;
         else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
             /* Drain the ingest tables before switching to leader. */
-            if (reconfig)
+            if (reconfig) {
+                WT_WITH_CHECKPOINT_LOCK(
+                  session, ret = __wt_disagg_begin_checkpoint(session, checkpoint_id + 1));
+                WT_ERR(ret);
                 WT_ERR(__layered_drain_ingest_tables(session));
+            }
 
             conn->layered_table_manager.leader = leader = true;
         } else
@@ -973,15 +968,21 @@ err:
  *     Move the updates of a key to the stable table
  */
 static int
-__layered_move_updates(WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds)
+__layered_move_updates(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upds)
 {
+    WT_DECL_RET;
+
     /* Search the page. */
-    WT_RET(__wt_row_search(cbt, key, true, NULL, false, NULL));
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, key, true, NULL, false, NULL));
+    WT_ERR(ret);
 
     /* Apply the modification. */
-    WT_RET(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
+    WT_ERR(__wt_row_modify(cbt, key, NULL, &upds, WT_UPDATE_INVALID, false, false));
 
-    return (0);
+err:
+    WT_TRET(__wt_btcur_reset(cbt));
+    return (ret);
 }
 
 /*
@@ -1005,16 +1006,19 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     char buf[256];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
+    stable_cursor = version_cursor = NULL;
+    WT_TIME_WINDOW_INIT(&tw);
+
     WT_ACQUIRE_READ(
       last_checkpoint_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
     WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
-    WT_RET(__wt_snprintf(buf, sizeof(buf),
+    WT_ERR(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,visible_only=true,timestamp_order=true,start_timestamp="
       "%" PRIx64 "))",
       last_checkpoint_timestamp));
     cfg[1] = buf;
-    WT_RET(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
+    WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
     /* We only care about binary data. */
     F_SET(version_cursor, WT_CURSTD_RAW);
 
@@ -1029,7 +1033,9 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         WT_ERR_NOTFOUND_OK(version_cursor->next(version_cursor), true);
         if (ret == WT_NOTFOUND) {
             if (key->size > 0 && upds != NULL) {
-                WT_ERR(__layered_move_updates(cbt, key, upds));
+                WT_WITH_DHANDLE(
+                  session, cbt->dhandle, ret = __layered_move_updates(session, cbt, key, upds));
+                WT_ERR(ret);
                 upds = NULL;
             } else
                 ret = 0;
@@ -1041,8 +1047,11 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
         if (cmp != 0) {
             WT_ASSERT(session, cmp <= 0);
 
-            if (upds != NULL)
-                WT_ERR(__layered_move_updates(cbt, key, upds));
+            if (upds != NULL) {
+                WT_WITH_DHANDLE(
+                  session, cbt->dhandle, ret = __layered_move_updates(session, cbt, key, upds));
+                WT_ERR(ret);
+            }
 
             upds = NULL;
             prev_upd = NULL;
@@ -1122,7 +1131,10 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &tmp_key);
     __wt_scr_free(session, &value);
-    WT_TRET(version_cursor->close(version_cursor));
+    if (version_cursor != NULL)
+        WT_TRET(version_cursor->close(version_cursor));
+    if (stable_cursor != NULL)
+        WT_TRET(stable_cursor->close(stable_cursor));
     return (ret);
 }
 
@@ -1133,11 +1145,17 @@ err:
 static int
 __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    WT_SESSION_IMPL *internal_session;
     size_t i;
 
-    manager = &S2C(session)->layered_table_manager;
+    conn = S2C(session);
+    manager = &conn->layered_table_manager;
+
+    WT_RET(__wt_open_internal_session(conn, "disagg-drain", false, 0, 0, &internal_session));
 
     /*
      * The table count never shrinks, so this is safe. It probably needs the layered table lock.
@@ -1146,8 +1164,10 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
      */
     for (i = 0; i < manager->open_layered_table_count; i++) {
         if ((entry = manager->entries[i]) != NULL)
-            WT_RET(__layered_drain_ingest_table(session, entry));
+            WT_ERR(__layered_drain_ingest_table(internal_session, entry));
     }
 
-    return (0);
+err:
+    WT_TRET(__wt_session_close_internal(internal_session));
+    return (ret);
 }

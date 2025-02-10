@@ -94,30 +94,26 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     WT_ERR(__cursor_checkvalue(cursor));
     WT_ERR(__cursor_checkvalue(file_cursor));
 
+    /*
+     * Unpack the metadata. We cannot use the standard get value function here because variable
+     * arguments cannot be partially extracted by different function calls.
+     */
+    WT_ASSERT(session, cursor->value.data != NULL);
+    p = (uint8_t *)cursor->value.data;
+    end = p + cursor->value.size;
+
+    WT_ERR(__pack_init(session, &pack, WT_CURVERSION_METADATA_FORMAT));
+    while ((ret = __pack_next(&pack, &pv)) == 0) {
+        WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
+        WT_UNPACK_PUT(session, pv, ap);
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
-        /* Extract metadata and value separately as raw data. */
-        metadata = va_arg(ap, WT_ITEM *);
-        metadata->data = cursor->value.data;
-        metadata->size = cursor->value.size;
         data = va_arg(ap, WT_ITEM *);
         data->data = file_cursor->value.data;
         data->size = file_cursor->value.size;
     } else {
-        /*
-         * Unpack the metadata. We cannot use the standard get value function here because variable
-         * arguments cannot be partially extracted by different function calls.
-         */
-        WT_ASSERT(session, cursor->value.data != NULL);
-        p = (uint8_t *)cursor->value.data;
-        end = p + cursor->value.size;
-
-        WT_ERR(__pack_init(session, &pack, WT_CURVERSION_METADATA_FORMAT));
-        while ((ret = __pack_next(&pack, &pv)) == 0) {
-            WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
-            WT_UNPACK_PUT(session, pv, ap);
-        }
-        WT_ERR_NOTFOUND_OK(ret, false);
-
         WT_ASSERT(session, p <= end);
         WT_ERR(__wti_cursor_get_valuev(file_cursor, ap));
     }
@@ -646,6 +642,8 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
 
         if (!__txn_visible_id(session, upd->txnid))
             continue;
+
+        break;
     }
 
     version_cursor->next_upd = upd;
