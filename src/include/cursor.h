@@ -355,6 +355,7 @@ struct __wt_cursor_hs {
     WT_CURSOR *file_cursor; /* Queries of regular history store data */
     WT_TIME_WINDOW time_window;
     uint32_t btree_id;
+    uint32_t hs_id;
     WT_ITEM *datastore_key;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
