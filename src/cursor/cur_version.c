@@ -78,7 +78,6 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     WT_CURSOR *file_cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_ITEM(data);
-    WT_DECL_ITEM(metadata);
     WT_DECL_PACK_VALUE(pv);
     WT_DECL_RET;
     WT_PACK pack;
