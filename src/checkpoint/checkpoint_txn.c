@@ -616,16 +616,6 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 }
 
 /*
- * __wt_checkpoint_started --
- *     Indicate whether a checkpoint has started or not.
- */
-bool
-__wt_checkpoint_started(WT_SESSION_IMPL *session)
-{
-    return (S2C(session)->ckpt.ckpt_api.timer_start.tv_sec > 0);
-}
-
-/*
  * __checkpoint_progress_clear --
  *     Clear checkpoint progress data.
  */
@@ -658,6 +648,16 @@ __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes)
     /* Periodically log checkpoint progress. */
     if (conn->ckpt.progress.write_pages % (5 * WT_THOUSAND) == 0)
         __checkpoint_progress(session, false);
+}
+
+/*
+ * __wt_checkpoint_verbose_timer_started --
+ *     Indicate whether the checkpoint verbose tracking timer has started.
+ */
+bool
+__wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
+{
+    return (S2C(session)->ckpt.ckpt_api.timer_start.tv_sec > 0);
 }
 
 /*
