@@ -391,13 +391,11 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     }
 
 err:
-    if (dirlist_source != NULL)
-        WT_TRET(lr_fs->os_file_system->fs_directory_list_free(
-          lr_fs->os_file_system, (WT_SESSION *)session, dirlist_source, num_source_files));
+    WT_TRET(lr_fs->os_file_system->fs_directory_list_free(
+      lr_fs->os_file_system, (WT_SESSION *)session, dirlist_source, num_source_files));
 
-    if (dirlist_dest != NULL)
-        WT_TRET(lr_fs->os_file_system->fs_directory_list_free(
-          lr_fs->os_file_system, (WT_SESSION *)session, dirlist_dest, num_source_files));
+    WT_TRET(lr_fs->os_file_system->fs_directory_list_free(
+      lr_fs->os_file_system, (WT_SESSION *)session, dirlist_dest, num_dest_files));
 
     return (ret);
 }

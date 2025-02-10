@@ -1738,6 +1738,7 @@ __live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
     WT_ASSERT(session, lr_fs->os_file_system != NULL);
     WT_RET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, wt_session));
 
+    __wt_rwlock_destroy(session, &lr_fs->state_lock);
     __wt_free(session, lr_fs->source.home);
     __wt_free(session, lr_fs);
     return (0);

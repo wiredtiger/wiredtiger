@@ -270,5 +270,6 @@ TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_imp
         __wt_free(session, lr_fh->destination.hole_list_head);
     }
 
+    __wt_free(session, lr_fh);
     __wt_buf_free(session, &string);
 }
