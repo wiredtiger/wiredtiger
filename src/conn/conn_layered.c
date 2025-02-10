@@ -664,17 +664,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     else {
         if (WT_CONFIG_LIT_MATCH("follower", cval))
             conn->layered_table_manager.leader = leader = false;
-        else if (WT_CONFIG_LIT_MATCH("leader", cval)) {
-            /* Drain the ingest tables before switching to leader. */
-            if (reconfig) {
-                WT_WITH_CHECKPOINT_LOCK(
-                  session, ret = __wt_disagg_begin_checkpoint(session, checkpoint_id + 1));
-                WT_ERR(ret);
-                WT_ERR(__layered_drain_ingest_tables(session));
-            }
-
+        else if (WT_CONFIG_LIT_MATCH("leader", cval))
             conn->layered_table_manager.leader = leader = true;
-        } else
+        else
             WT_ERR_MSG(session, EINVAL, "Invalid node role");
 
         /* Follower step-up. */
@@ -693,6 +685,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
+
+            /* Drain the ingest tables before switching to leader. */
+            WT_ERR(__layered_drain_ingest_tables(session));
         }
     }
 
