@@ -67,11 +67,12 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
             WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
             __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
             __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-            "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
-            S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
+              "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
+              S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
 
-            /* Finally, once we've deleted all stop files we can delete the state file */
-            WT_ERR(__wti_live_restore_delete_state_file(session, lr_fs));
+            if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_COMPLETE)
+                WT_ERR(
+                  __wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
         }
         /*
          * Future proofing: in general unless the conn is closing the queue must be empty if there
@@ -150,7 +151,10 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
     WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
-    /* Don't start work until we're in the correct state. This prevents the background migration threads from racing with log pre-copy. */
+    /*
+     * Don't start work until we're in the correct state. This prevents the background migration
+     * threads from racing with log pre-copy.
+     */
     if (state == WTI_LIVE_RESTORE_STATE_NONE || state == WTI_LIVE_RESTORE_STATE_LOG_COPY) {
         __wt_sleep(0, 10000);
         return (0);

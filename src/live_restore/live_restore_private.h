@@ -169,8 +169,6 @@ extern WT_LIVE_RESTORE_STATE __wti_live_restore_get_state(WT_SESSION_IMPL *sessi
   WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_live_restore_delete_state_file(WT_SESSION_IMPL *session,
-  WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)

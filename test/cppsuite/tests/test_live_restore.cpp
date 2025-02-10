@@ -285,12 +285,12 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
         }
 
         if (ran < 3) {
+            logger::log_msg(LOG_INFO, "Taking checkpoint");
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
-            logger::log_msg(LOG_INFO, "Taking checkpoint");
         } else if (ran < 5) {
-            reopen_conn(session, conn_config, home);
             logger::log_msg(LOG_INFO, "Reopening connection");
+            reopen_conn(session, conn_config, home);
 
             session = std::move(connection_manager::instance().create_session());
         } else if (ran < 9000) {
@@ -526,17 +526,11 @@ main(int argc, char *argv[])
     if (!recovery) {
         // Delete any existing source dir and home path.
         logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
-
         testutil_remove(SOURCE_PATH);
         testutil_remove(home_path.c_str());
 
         // We need to create a database to restore from initially.
         create_db(home_path, thread_count, coll_count, op_count, verbose_level);
-        testutil_move(home_path.c_str(), SOURCE_PATH);
-    } else {
-        // Assuming this run is following a -d "death" run then the previous home path will be the
-        // source path.
-        testutil_remove(SOURCE_PATH);
         testutil_move(home_path.c_str(), SOURCE_PATH);
     }
 

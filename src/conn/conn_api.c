@@ -2671,6 +2671,17 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
         }
     }
+
+    /*
+     * Live restore leaves the state file on disk after live restore has completed, otherwise we'll
+     * run into issues when the connection is reopened with a live restore config, but live restore
+     * has completed. To address this clean up the file when we open wiredtiger with a non-live
+     * restore config. This is expected to happen immediately after live restore completes.
+     */
+    if (!live_restore_enabled)
+        WT_RET(
+          __wt_live_restore_delete_complete_state_file(session, conn->file_system, conn->home));
+
     return (__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 }
 

@@ -63,11 +63,13 @@ __live_restore_state_from_string(
 /*
  * __live_restore_get_state_from_file --
  *     Read the live restore state from the on-disk file. If it doesn't exist we return NONE. The
- *     caller must already hold the live restore state lock.
+ *     caller must already hold the live restore state lock. This function takes a *non-live
+ *     restore* file system, for example the backing posix file system used when accessing the
+ *     source of destination directly.
  */
 static int
-__live_restore_get_state_from_file(
-  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs, WT_LIVE_RESTORE_STATE *statep)
+__live_restore_get_state_from_file(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs,
+  const char *backing_folder, WT_LIVE_RESTORE_STATE *statep)
 {
     WT_DECL_RET;
 
@@ -79,22 +81,21 @@ __live_restore_get_state_from_file(
 
     bool state_file_exists = false;
 
-    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_LIVE_RESTORE_STATE_FILE,
-      UINTMAX_MAX, UINT32_MAX, state_file_name));
-    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, &state_file_exists));
+    WT_ERR(__wt_filename_construct(session, backing_folder, WT_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX,
+      UINT32_MAX, state_file_name));
+    WT_ERR(
+      fs->fs_exist(fs, (WT_SESSION *)session, (char *)state_file_name->data, &state_file_exists));
 
     if (!state_file_exists)
         *statep = WTI_LIVE_RESTORE_STATE_NONE;
     else {
         char state_str[128];
 
-        WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-          (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_EXCLUSIVE, &fh));
+        WT_ERR(fs->fs_open_file(fs, (WT_SESSION *)session, (char *)state_file_name->data,
+          WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_EXCLUSIVE, &fh));
 
         wt_off_t file_size;
-        WT_ERR(lr_fs->os_file_system->fs_size(
-          lr_fs->os_file_system, (WT_SESSION *)session, (char *)state_file_name->data, &file_size));
+        WT_ERR(fs->fs_size(fs, (WT_SESSION *)session, (char *)state_file_name->data, &file_size));
 
         WT_ERR(fh->fh_read(fh, (WT_SESSION *)session, 0, (size_t)file_size, state_str));
 
@@ -148,9 +149,7 @@ __wti_live_restore_set_state(
         WT_ASSERT(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION);
         break;
     case WTI_LIVE_RESTORE_STATE_COMPLETE:
-        /* COMPLETE should only be set manually when we delete the state file. If we use this
-         * function it will attempt to write the state to the state file we just deleted. */
-        WT_ERR_MSG(session, EINVAL, "Attempting to set state to COMPLETE via set_state()");
+        WT_ASSERT(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_CLEAN_UP);
         break;
     }
 
@@ -214,7 +213,8 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
 
     WT_LIVE_RESTORE_STATE state;
 
-    WT_ERR(__live_restore_get_state_from_file(session, lr_fs, &state));
+    WT_ERR(__live_restore_get_state_from_file(
+      session, lr_fs->os_file_system, lr_fs->destination.home, &state));
 
     if (state != WTI_LIVE_RESTORE_STATE_NONE) {
         lr_fs->state = state;
@@ -247,45 +247,6 @@ err:
 }
 
 /*
- * __wti_live_restore_delete_state_file --
- *     At the end of live restore delete the state file. This is the atomic operation the finishes
- *     live restore.
- */
-int
-__wti_live_restore_delete_state_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
-{
-    WT_DECL_RET;
-    WT_FILE_HANDLE *fh = NULL;
-    bool state_file_exists = false;
-    WT_DECL_ITEM(state_file_name);
-    __wt_writelock(session, &lr_fs->state_lock);
-
-    WT_ASSERT_ALWAYS(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_CLEAN_UP,
-      "Cannot delete state file unless we've just finished cleaning up stop files!");
-
-    WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
-
-    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_LIVE_RESTORE_STATE_FILE,
-      UINTMAX_MAX, UINT32_MAX, state_file_name));
-    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, &state_file_exists));
-
-    WT_ERR(lr_fs->os_file_system->fs_remove(
-      lr_fs->os_file_system, (WT_SESSION *)session, (char *)state_file_name->data, 0));
-    lr_fs->state = WTI_LIVE_RESTORE_STATE_COMPLETE;
-
-err:
-
-    __wt_scr_free(session, &state_file_name);
-
-    if (fh != NULL)
-        WT_TRET(fh->close(fh, &session->iface));
-
-    __wt_writeunlock(session, &lr_fs->state_lock);
-    return (ret);
-}
-
-/*
  * __wti_live_restore_get_state --
  *     Get the live restore state. If it's not available in memory read it from the on-disk state
  *     file.
@@ -305,6 +266,40 @@ __wti_live_restore_get_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_f
 }
 
 /*
+ * __wt_live_restore_delete_complete_state_file --
+ *     Provided with a folder delete any live restore state file contained within, provided that the
+ *     file is in the COMPLETE state. This function takes a *non-live restore* file system as it is
+ *     expected to be called by non-live restore file systems after live restore has completed and
+ *     WiredTiger has stated in non-live restore mode
+ */
+int
+__wt_live_restore_delete_complete_state_file(
+  WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs, const char *folder)
+{
+    WT_DECL_RET;
+
+    WT_DECL_ITEM(lr_state_file);
+    WT_RET(__wt_scr_alloc(session, 0, &lr_state_file));
+    bool lr_state_file_exists = false;
+
+    WT_ERR(__wt_filename_construct(
+      session, folder, WT_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX, UINT32_MAX, lr_state_file));
+    WT_ERR(
+      fs->fs_exist(fs, (WT_SESSION *)session, (char *)lr_state_file->data, &lr_state_file_exists));
+
+    if (lr_state_file_exists) {
+        WT_LIVE_RESTORE_STATE source_state;
+        __live_restore_get_state_from_file(session, fs, folder, &source_state);
+        if (source_state == WTI_LIVE_RESTORE_STATE_COMPLETE)
+            WT_ERR(fs->fs_remove(fs, (WT_SESSION *)session, (char *)lr_state_file->data, 0));
+    }
+
+err:
+    __wt_scr_free(session, &lr_state_file);
+    return (ret);
+}
+
+/*
  * __wti_live_restore_validate_directories --
  *     Validate the source and destination directories are in a valid state on startup.
  */
@@ -318,6 +313,15 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
 
     char **dirlist_dest = NULL;
     uint32_t num_dest_files = 0;
+
+    /*
+     * If live restore has completed but a backup is taken before WiredTiger is restarted in
+     * non-live restore mode then the source may contain a state file in the COMPLETE state. This
+     * can be ignored and deleted.
+     */
+    // TODO - this breaks the "source" is read-only assumption. Discuss this
+    WT_RET(__wt_live_restore_delete_complete_state_file(
+      session, lr_fs->os_file_system, lr_fs->source.home));
 
     /* First up: Check that the source doesn't contain any live restore metadata files. */
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
@@ -340,7 +344,8 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     /* Now check the destination folder */
     WT_LIVE_RESTORE_STATE state;
     __wt_readlock(session, &lr_fs->state_lock);
-    WT_ERR(__live_restore_get_state_from_file(session, lr_fs, &state));
+    WT_ERR(__live_restore_get_state_from_file(
+      session, lr_fs->os_file_system, lr_fs->destination.home, &state));
     __wt_readunlock(session, &lr_fs->state_lock);
 
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
@@ -376,9 +381,12 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
         /* There's no invalid state to check in these cases. */
         break;
     case WTI_LIVE_RESTORE_STATE_COMPLETE:
-        /* This function is only called on WiredTiger open and COMPLETE can only be set when we
-         * finish live restore. */
-        WT_ASSERT_ALWAYS(session, false, "Unreachable state COMPLETE!");
+        for (uint32_t i = 0; i < num_dest_files; ++i) {
+            if (WT_SUFFIX_MATCH(dirlist_dest[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX))
+                WT_ERR_MSG(session, EINVAL,
+                  "Live restore is complete but live restore stop file '%s' still exists!",
+                  dirlist_dest[i]);
+        }
         break;
     }
 

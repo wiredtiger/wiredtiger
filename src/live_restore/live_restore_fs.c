@@ -1761,8 +1761,6 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
       "configured read size is %" WT_SIZET_FMT " bytes\n",
       lr_fs->source.home, lr_fs->destination.home, lr_fs->read_size);
 
-    WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
-
     if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
         /* There are no logs to copy across. Jump straight to background migration. */
         WT_RET(__wti_live_restore_set_state(
@@ -1770,7 +1768,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
         return (0);
     }
 
-    if (state != WTI_LIVE_RESTORE_STATE_LOG_COPY)
+    if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_LOG_COPY)
         return (0);
 
     WT_DECL_ITEM(filename);
