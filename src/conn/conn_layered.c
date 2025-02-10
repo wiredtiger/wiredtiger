@@ -1007,6 +1007,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
     stable_cursor = version_cursor = NULL;
+    prev_upd = tombstone = upd = upds = NULL;
     WT_TIME_WINDOW_INIT(&tw);
 
     WT_ACQUIRE_READ(
@@ -1021,8 +1022,6 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
     /* We only care about binary data. */
     F_SET(version_cursor, WT_CURSTD_RAW);
-
-    prev_upd = tombstone = upd = upds = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
