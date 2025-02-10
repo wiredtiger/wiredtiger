@@ -14,7 +14,7 @@
  *     Convert a live restore state to its string representation.
  */
 static void
-__live_restore_state_to_string(WT_LIVE_RESTORE_STATE state, char *state_strp)
+__live_restore_state_to_string(WTI_LIVE_RESTORE_STATE state, char *state_strp)
 {
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
@@ -41,7 +41,7 @@ __live_restore_state_to_string(WT_LIVE_RESTORE_STATE state, char *state_strp)
  */
 static int
 __live_restore_state_from_string(
-  WT_SESSION_IMPL *session, char *state_str, WT_LIVE_RESTORE_STATE *statep)
+  WT_SESSION_IMPL *session, char *state_str, WTI_LIVE_RESTORE_STATE *statep)
 {
 
     if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_NONE") == 0)
@@ -69,7 +69,7 @@ __live_restore_state_from_string(
  */
 static int
 __live_restore_get_state_from_file(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs,
-  const char *backing_folder, WT_LIVE_RESTORE_STATE *statep)
+  const char *backing_folder, WTI_LIVE_RESTORE_STATE *statep)
 {
     WT_DECL_RET;
 
@@ -81,8 +81,8 @@ __live_restore_get_state_from_file(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs,
 
     bool state_file_exists = false;
 
-    WT_ERR(__wt_filename_construct(session, backing_folder, WT_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX,
-      UINT32_MAX, state_file_name));
+    WT_ERR(__wt_filename_construct(session, backing_folder, WTI_LIVE_RESTORE_STATE_FILE,
+      UINTMAX_MAX, UINT32_MAX, state_file_name));
     WT_ERR(
       fs->fs_exist(fs, (WT_SESSION *)session, (char *)state_file_name->data, &state_file_exists));
 
@@ -118,7 +118,7 @@ err:
  */
 int
 __wti_live_restore_set_state(
-  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs, WT_LIVE_RESTORE_STATE new_state)
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs, WTI_LIVE_RESTORE_STATE new_state)
 {
 
     WT_DECL_RET;
@@ -158,7 +158,7 @@ __wti_live_restore_set_state(
 
     bool state_file_exists = false;
 
-    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_LIVE_RESTORE_STATE_FILE,
+    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WTI_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
     WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
       (char *)state_file_name->data, &state_file_exists));
@@ -206,12 +206,12 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
 
     WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
 
-    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_LIVE_RESTORE_STATE_FILE,
+    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WTI_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
     WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
       (char *)state_file_name->data, &state_file_exists));
 
-    WT_LIVE_RESTORE_STATE state;
+    WTI_LIVE_RESTORE_STATE state;
 
     WT_ERR(__live_restore_get_state_from_file(
       session, lr_fs->os_file_system, lr_fs->destination.home, &state));
@@ -251,10 +251,10 @@ err:
  *     Get the live restore state. If it's not available in memory read it from the on-disk state
  *     file.
  */
-WT_LIVE_RESTORE_STATE
+WTI_LIVE_RESTORE_STATE
 __wti_live_restore_get_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
 {
-    WT_LIVE_RESTORE_STATE state;
+    WTI_LIVE_RESTORE_STATE state;
     __wt_readlock(session, &lr_fs->state_lock);
     state = lr_fs->state;
     __wt_readunlock(session, &lr_fs->state_lock);
@@ -283,12 +283,12 @@ __wt_live_restore_delete_complete_state_file(
     bool lr_state_file_exists = false;
 
     WT_ERR(__wt_filename_construct(
-      session, folder, WT_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX, UINT32_MAX, lr_state_file));
+      session, folder, WTI_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX, UINT32_MAX, lr_state_file));
     WT_ERR(
       fs->fs_exist(fs, (WT_SESSION *)session, (char *)lr_state_file->data, &lr_state_file_exists));
 
     if (lr_state_file_exists) {
-        WT_LIVE_RESTORE_STATE source_state;
+        WTI_LIVE_RESTORE_STATE source_state;
         __live_restore_get_state_from_file(session, fs, folder, &source_state);
         if (source_state == WTI_LIVE_RESTORE_STATE_COMPLETE)
             WT_ERR(fs->fs_remove(fs, (WT_SESSION *)session, (char *)lr_state_file->data, 0));
@@ -333,7 +333,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
 
     for (uint32_t i = 0; i < num_source_files; ++i) {
         if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX) ||
-          strcmp(dirlist_source[i], WT_LIVE_RESTORE_STATE_FILE) == 0) {
+          strcmp(dirlist_source[i], WTI_LIVE_RESTORE_STATE_FILE) == 0) {
             WT_ERR_MSG(session, EINVAL,
               "Source directory contains live restore metadata file: %s. This implies it is a "
               "destination directory that hasn't finished restoration",
@@ -342,7 +342,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     }
 
     /* Now check the destination folder */
-    WT_LIVE_RESTORE_STATE state;
+    WTI_LIVE_RESTORE_STATE state;
     __wt_readlock(session, &lr_fs->state_lock);
     WT_ERR(__live_restore_get_state_from_file(
       session, lr_fs->os_file_system, lr_fs->destination.home, &state));
@@ -369,7 +369,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     case WTI_LIVE_RESTORE_STATE_LOG_COPY:
         for (uint32_t i = 0; i < num_dest_files; ++i) {
             if (!WT_SUFFIX_MATCH(dirlist_dest[i], ".log") &&
-              strcmp(dirlist_dest[i], WT_LIVE_RESTORE_STATE_FILE) != 0)
+              strcmp(dirlist_dest[i], WTI_LIVE_RESTORE_STATE_FILE) != 0)
                 WT_ERR_MSG(session, EINVAL,
                   "Live restore state is in log copy phase but the destination contains files "
                   "other than logs or the state file: %s",

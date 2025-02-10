@@ -29,7 +29,7 @@
 /* As extent ranges are inclusive we want >= and <= on both ends of the range. */
 #define WTI_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WTI_EXTENT_END(ext))
 
-#define WT_LIVE_RESTORE_STATE_FILE "WiredTigerLR.state"
+#define WTI_LIVE_RESTORE_STATE_FILE "WiredTigerLR.state"
 
 /*
  * __wti_live_restore_hole_node --
@@ -116,7 +116,7 @@ typedef enum {
     WTI_LIVE_RESTORE_STATE_CLEAN_UP = 3,
     /* We've completed the live restore. */
     WTI_LIVE_RESTORE_STATE_COMPLETE = 4
-} WT_LIVE_RESTORE_STATE;
+} WTI_LIVE_RESTORE_STATE;
 
 /*
  * __wti_live_restore_fs --
@@ -132,7 +132,7 @@ struct __wti_live_restore_fs {
     uint8_t background_threads_max;
     size_t read_size;
 
-    WT_LIVE_RESTORE_STATE state;
+    WTI_LIVE_RESTORE_STATE state;
     WT_RWLOCK state_lock;
 };
 
@@ -165,7 +165,7 @@ struct __wti_live_restore_server {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
-extern WT_LIVE_RESTORE_STATE __wti_live_restore_get_state(WT_SESSION_IMPL *session,
+extern WTI_LIVE_RESTORE_STATE __wti_live_restore_get_state(WT_SESSION_IMPL *session,
   WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -174,7 +174,7 @@ extern int __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_s
 extern int __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_set_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
-  WT_LIVE_RESTORE_STATE new_state) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WTI_LIVE_RESTORE_STATE new_state) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_validate_directories(WT_SESSION_IMPL *session,
   WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 

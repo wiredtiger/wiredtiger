@@ -318,7 +318,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
      * Once we're past the background migration stage we never need to access the source directory
      * again.
      */
-    WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
     // TODO - get input on this. It's a deviation from WT style
     if (state > WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
         goto done;
@@ -1218,7 +1218,7 @@ __wt_live_restore_fh_import_extents_from_string(
      * Once we're in the clean up stage or later all data has been migrated across to the
      * destination. There's nothing to import.
      */
-    WT_LIVE_RESTORE_STATE state =
+    WTI_LIVE_RESTORE_STATE state =
       __wti_live_restore_get_state(session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
     if (state >= WTI_LIVE_RESTORE_STATE_CLEAN_UP)
         return (0);
@@ -1318,7 +1318,7 @@ __wt_live_restore_fh_extent_to_metadata(
         return (WT_NOTFOUND);
 
     /* Once we're past the background migration stage there's no need to track hole information. */
-    WT_LIVE_RESTORE_STATE state =
+    WTI_LIVE_RESTORE_STATE state =
       __wti_live_restore_get_state(session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
     if (state >= WTI_LIVE_RESTORE_STATE_CLEAN_UP)
         return (WT_NOTFOUND);
@@ -1454,7 +1454,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
     /* Open it in the destination layer. */
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
 
-    WT_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
     if (have_stop || state > WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
         /*

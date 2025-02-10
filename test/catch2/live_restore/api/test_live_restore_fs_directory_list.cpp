@@ -67,7 +67,7 @@ file_list_equals(lr_files list, lr_files check)
     list.erase(WT_BASECONFIG);
     list.erase(WT_SINGLETHREAD);
     list.erase(WT_HS_FILE);
-    list.erase(WT_LIVE_RESTORE_STATE_FILE);
+    list.erase(WTI_LIVE_RESTORE_STATE_FILE);
 
     if (list != check) {
         std::cout << "Mismatch between list and check!" << std::endl;
