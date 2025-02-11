@@ -81,8 +81,6 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
             if (state != WTI_LIVE_RESTORE_STATE_COMPLETE)
                 WT_ERR(
                   __wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
-
-            // TODO - update the tech design. The state file is no longer deleted at this point
         }
         /*
          * Future proofing: in general unless the conn is closing the queue must be empty if there

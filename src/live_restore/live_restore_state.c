@@ -191,8 +191,8 @@ __wti_live_restore_set_state(
       (char *)state_file_name->data, &state_file_exists));
 
     /*
-     * The state file is either already present or created on live restore initialization. If it's not present we've called set state
-     * too early.
+     * The state file is either already present or created on live restore initialization. If it's
+     * not present we've called set state too early.
      */
     WT_ASSERT_ALWAYS(session, state_file_exists, "State file doesn't exist!");
 

@@ -1322,9 +1322,6 @@ __wt_live_restore_fh_extent_to_metadata(
         return (WT_NOTFOUND);
 
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    // TODO - Discuss. I've removed the if file->complete return (NOTFOUND) here. Once we have
-    // bitmaps "" is no longer a valid hole string so we don't need to worry about differentiation
-    // of empty extents and files that haven't started migrating.
 
     wt_off_t prev_off = 0;
     WTI_LIVE_RESTORE_HOLE_NODE *head = lr_fh->destination.hole_list_head;

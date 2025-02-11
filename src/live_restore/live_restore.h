@@ -8,7 +8,10 @@
 
 #pragma once
 
-// TODO - Intentionally separate from the state file states. Think about this.
+/*
+ * Live restore stats are reported to the server. These are less granular than the internal
+ * WTI_LIVE_RESTORE_STATE.
+ */
 #define WT_LIVE_RESTORE_INIT 0x0
 #define WT_LIVE_RESTORE_IN_PROGRESS 0x1
 #define WT_LIVE_RESTORE_COMPLETE 0x2
