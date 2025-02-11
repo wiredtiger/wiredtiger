@@ -1091,6 +1091,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), "", config, NULL};
 
     conn = S2C(session);
+
+    constituent_cfg = NULL;
     tablecfg = NULL;
     meta_value = NULL;
 
@@ -1164,11 +1166,13 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
+    __wt_free(session, constituent_cfg);
 
     if (conn->layered_table_manager.leader) {
         stable_cfg[1] = disagg_config->data;
         WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
+        __wt_free(session, constituent_cfg);
     }
 
 err:
@@ -1178,6 +1182,7 @@ err:
     __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
     __wt_free(session, tablecfg);
+    __wt_free(session, constituent_cfg);
 
     return (ret);
 }

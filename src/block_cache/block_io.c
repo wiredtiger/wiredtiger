@@ -64,8 +64,9 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     const WT_PAGE_HEADER *dsk;
     size_t compression_ratio, result_len;
     uint64_t time_diff, time_start, time_stop;
-    u_int count;
+    u_int count, results_count;
     bool blkcache_found, expect_conversion, found, skip_cache_put, timer;
+    int i;
 
     blkcache = &S2C(session)->blkcache;
     blkcache_item = NULL;
@@ -75,6 +76,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     encryptor = btree->kencryptor == NULL ? NULL : btree->kencryptor->encryptor;
     blkcache_found = found = false;
     skip_cache_put = (blkcache->type == WT_BLKCACHE_UNCONFIGURED);
+    results_count = 0;
 
     WT_ASSERT_ALWAYS(session, session->dhandle != NULL, "The block cache requires a dhandle");
     /*
@@ -134,8 +136,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
              * TODO: handle multiple results here.
              */
             WT_ASSERT(session, count == 1);
+            results_count = count;
             ip = &results[0];
-            /* TODO: track this buffer to make sure it is freed eventually. */
         } else
             WT_ERR(bm->read(bm, session, ip, &block_meta_tmp, addr, addr_size));
         if (timer) {
@@ -277,6 +279,14 @@ err:
     if (blkcache_found)
         (void)__wt_atomic_subv32(&blkcache_item->ref_count, 1);
 
+    /*
+     * Free the temporary buffers allocated for disagg. Do this in the reverse order, because the
+     *first item might hold all the memory used by the other items.
+     */
+    if (results_count > 0)
+        for (i = (int)results_count - 1; i >= 0; i--)
+            __wt_buf_free(session, &results[i]);
+
     __wt_scr_free(session, &tmp);
     __wt_scr_free(session, &etmp);
     return (ret);
@@ -385,6 +395,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_PAGE_BLOCK_META block_meta_tmp;
     const WT_PAGE_HEADER *dsk;
     uint32_t count, i;
+    uint8_t type;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -426,12 +437,13 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      */
     ip = &results[0];
     dsk = ip->data;
+    type = dsk->type;
 
     /*
      * Increment statistics before we do any more processing such as decompression or decryption on
      * the base image.
      */
-    if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+    if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
         WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
     else
         WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
@@ -455,12 +467,14 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         WT_ERR(__read_decompress(session, dsk, dsk->mem_size, ctmp, addr, addr_size));
         ip = ctmp;
     }
-    if (ip != &results[0])
+    if (ip != &results[0]) {
+        __wt_buf_free(session, &results[0]);
         WT_ITEM_MOVE(results[0], *ip);
+    }
     if (etmp != NULL && WT_DATA_IN_ITEM(etmp))
         __wt_scr_free(session, &etmp);
 
-    if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+    if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
         WT_STAT_CONN_INCRV(session, block_byte_read_intl, ip->size);
     else
         WT_STAT_CONN_INCRV(session, block_byte_read_leaf, ip->size);
@@ -491,7 +505,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
          * For each delta, increment statistics before we do any more processing such as
          * decompression or decryption.
          */
-        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+        if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
             WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
         else
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
@@ -508,12 +522,14 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
               __read_decompress(session, ip->data, delta_hdr->mem_size, ctmp, addr, addr_size));
             ip = ctmp;
         }
-        if (ip != &results[i])
+        if (ip != &results[i]) {
+            __wt_buf_free(session, &results[i]);
             WT_ITEM_MOVE(results[i], *ip);
+        }
         if (etmp != NULL && WT_DATA_IN_ITEM(etmp))
             __wt_scr_free(session, &etmp);
 
-        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+        if (type == WT_PAGE_COL_INT || type == WT_PAGE_ROW_INT)
             WT_STAT_CONN_INCRV(session, block_byte_read_intl, ip->size);
         else
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf, ip->size);
