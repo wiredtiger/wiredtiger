@@ -2674,9 +2674,10 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Live restore leaves the state file on disk after live restore has completed, otherwise we'll
-     * run into issues when the connection is reopened with a live restore config, but live restore
-     * has completed. To address this clean up the file when we open wiredtiger with a non-live
-     * restore config. This is expected to happen immediately after live restore completes.
+     * run into issues when the user reopens a WiredTiger with the same live restore config but
+     * WiredTiger will assume it's a brand new live restore. To manage this we clean up the file the
+     * next time we open wiredtiger with a non-live restore config. This is expected to be done by
+     * the user immediately after live restore completes.
      */
     if (!live_restore_enabled)
         WT_RET(
@@ -3154,12 +3155,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
         WT_ERR(__wt_live_restore_setup_recovery(session));
 #endif
-    WT_ERR(__conn_version_verify(session));
 
     /*
-     * If live restore is enabled then live restores log pre-copy must be run first. That logic
-     * creates the log folder which version verify needs to access to determine the log version
-     * we're using.
+     * If live restore is enabled then live restores setup recovery must be run before this
+     * function. Set up recovery creates the log folder in the destination which version accesses to
+     * determine the log version being used using.
      */
     WT_ERR(__conn_version_verify(session));
 

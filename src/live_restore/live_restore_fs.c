@@ -168,12 +168,12 @@ __live_restore_fs_create_stop_file(
       WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
     WT_ERR(fh->close(fh, &session->iface));
 
-    /* Check the live restore state hasn't changed during creation. If state has changed the stop
+    /*
+     * Check the live restore state hasn't changed during creation. If state has changed the stop
      * file is now redundant as we're at or after the CLEAN_UP stage when we delete all stop files.
      */
     if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
-        /* ENOENT is ok here. It's possible the stop file cleanup logic deleted the stop file before
-         * we could. */
+        /* ENOENT is ok here. The stop file cleanup logic might delete the file before we do. */
         WT_ERR_ERROR_OK(
           lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, &session->iface, path_marker, 0),
           ENOENT, false);
@@ -1214,14 +1214,20 @@ __wt_live_restore_fh_import_extents_from_string(
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
+    bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
+
     /*
      * Once we're in the clean up stage or later all data has been migrated across to the
-     * destination. There's nothing to import.
+     * destination. There's no need for hole tracking so nothing to import.
      */
     WTI_LIVE_RESTORE_STATE state =
       __wti_live_restore_get_state(session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
-    if (state >= WTI_LIVE_RESTORE_STATE_CLEAN_UP)
+    if (state >= WTI_LIVE_RESTORE_STATE_CLEAN_UP) {
+        WT_ASSERT_ALWAYS(session, extent_string_empty,
+          "Metadata extent list is not empty after background migration has finished!");
+        WT_ASSERT(session, lr_fh->destination.complete == true);
         return (0);
+    }
 
     /*
      * This function can be called for file handles that already have an in memory extent list. For
@@ -1236,7 +1242,6 @@ __wt_live_restore_fh_import_extents_from_string(
      *   necessary file length hole. We will also get an empty extent list string indicating a.wt is
      *   complete.
      */
-    bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
 
     if (lr_fh->destination.hole_list_head != NULL) {
         WT_ASSERT_ALWAYS(
@@ -1775,15 +1780,15 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
       "configured read size is %" WT_SIZET_FMT " bytes\n",
       lr_fs->source.home, lr_fs->destination.home, lr_fs->read_size);
 
+    if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_LOG_COPY)
+        return (0);
+
     if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
         /* There are no logs to copy across. Jump straight to background migration. */
         WT_RET(__wti_live_restore_set_state(
           session, lr_fs, WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION));
         return (0);
     }
-
-    if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_LOG_COPY)
-        return (0);
 
     WT_DECL_ITEM(filename);
     WT_FH *fh = NULL;

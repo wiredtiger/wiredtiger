@@ -65,27 +65,23 @@ __live_restore_state_from_string(
  *     Read the live restore state from the on-disk file. If it doesn't exist we return NONE. The
  *     caller must already hold the live restore state lock. This function takes a *non-live
  *     restore* file system, for example the backing posix file system used when accessing the
- *     source of destination directly.
+ *     source or destination directly.
  */
 static int
 __live_restore_get_state_from_file(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs,
   const char *backing_folder, WTI_LIVE_RESTORE_STATE *statep)
 {
     WT_DECL_RET;
-
-    WT_DECL_ITEM(state_file_name);
-
     WT_FILE_HANDLE *fh = NULL;
 
+    WT_DECL_ITEM(state_file_name);
     WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
-
-    bool state_file_exists = false;
-
     WT_ERR(__wt_filename_construct(session, backing_folder, WTI_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
+
+    bool state_file_exists = false;
     WT_ERR(
       fs->fs_exist(fs, (WT_SESSION *)session, (char *)state_file_name->data, &state_file_exists));
-
     if (!state_file_exists)
         *statep = WTI_LIVE_RESTORE_STATE_NONE;
     else {
@@ -96,7 +92,6 @@ __live_restore_get_state_from_file(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs,
 
         wt_off_t file_size;
         WT_ERR(fs->fs_size(fs, (WT_SESSION *)session, (char *)state_file_name->data, &file_size));
-
         WT_ERR(fh->fh_read(fh, (WT_SESSION *)session, 0, (size_t)file_size, state_str));
 
         WT_ERR(__live_restore_state_from_string(session, state_str, statep));
@@ -113,12 +108,12 @@ err:
 }
 
 /*
- * __live_restore_set_external_stat --
- *     WiredTiger reports a simplified version of live restore state to the server. They use this to
- *     determine when they should end live restore as a user of WiredTiger.
+ * __live_restore_set_public_state --
+ *     WiredTiger reports a simplified live restore state to the server which the server uses to
+ *     determine when they can end live restore.
  */
 static void
-__live_restore_set_external_stat(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_STATE state)
+__live_restore_set_public_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_STATE state)
 {
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
@@ -143,9 +138,7 @@ int
 __wti_live_restore_set_state(
   WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs, WTI_LIVE_RESTORE_STATE new_state)
 {
-
     WT_DECL_RET;
-    WT_FILE_HANDLE *fh = NULL;
 
     __wt_writelock(session, &lr_fs->state_lock);
 
@@ -162,8 +155,7 @@ __wti_live_restore_set_state(
      */
     switch (new_state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
-        /* We should never manually transition to NONE. This is a placeholder for when state is not
-         * set. */
+        /*  We should never transition to NONE. This is a placeholder when state is not set. */
         WT_ASSERT_ALWAYS(session, false, "Attempting to set Live Restore state to NONE!");
         break;
     case WTI_LIVE_RESTORE_STATE_LOG_COPY:
@@ -196,6 +188,7 @@ __wti_live_restore_set_state(
      */
     WT_ASSERT_ALWAYS(session, state_file_exists, "State file doesn't exist!");
 
+    WT_FILE_HANDLE *fh = NULL;
     char state_to_write[128];
     __live_restore_state_to_string(new_state, state_to_write);
     WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
@@ -203,7 +196,7 @@ __wti_live_restore_set_state(
     WT_ERR(fh->fh_write(fh, (WT_SESSION *)session, 0, 128, state_to_write));
 
     lr_fs->state = new_state;
-    __live_restore_set_external_stat(session, new_state);
+    __live_restore_set_public_state(session, new_state);
 
 err:
     __wt_writeunlock(session, &lr_fs->state_lock);
@@ -226,24 +219,15 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh = NULL;
-    bool state_file_exists = false;
-    WT_DECL_ITEM(state_file_name);
 
     __wt_writelock(session, &lr_fs->state_lock);
 
     WT_ASSERT_ALWAYS(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_NONE,
       "Attempting to initialize already initialized state!");
 
-    WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
-
-    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WTI_LIVE_RESTORE_STATE_FILE,
-      UINTMAX_MAX, UINT32_MAX, state_file_name));
-    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, &state_file_exists));
-
+    WT_DECL_ITEM(state_file_name);
     WTI_LIVE_RESTORE_STATE state;
-
-    WT_ERR(__live_restore_get_state_from_file(
+    WT_RET(__live_restore_get_state_from_file(
       session, lr_fs->os_file_system, lr_fs->destination.home, &state));
 
     if (state != WTI_LIVE_RESTORE_STATE_NONE) {
@@ -255,6 +239,10 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
          */
         char state_to_write[128];
         __live_restore_state_to_string(WTI_LIVE_RESTORE_STATE_LOG_COPY, state_to_write);
+
+        WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
+        WT_ERR(__wt_filename_construct(session, lr_fs->destination.home,
+          WTI_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX, UINT32_MAX, state_file_name));
 
         WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
           (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
@@ -344,7 +332,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     char **dirlist_dest = NULL;
     uint32_t num_dest_files = 0;
 
-    /* First up: Check that the source doesn't contain any live restore metadata files. */
+    /* First check that the source doesn't contain any live restore metadata files. */
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->source.home, "", &dirlist_source, &num_source_files));
 
@@ -355,7 +343,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     for (uint32_t i = 0; i < num_source_files; ++i) {
         if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
             WT_ERR_MSG(session, EINVAL,
-              "Source directory contains live restore metadata file: %s. This implies it is a "
+              "Source directory contains live restore stop file: %s. This implies it is a "
               "destination directory that hasn't finished restoration",
               dirlist_source[i]);
         }
@@ -397,7 +385,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
         /*
-         * We can't control for everything that the use might put into the folder, but we can
+         * We can't control for everything that the user might put into the folder, but we can
          * control for WiredTiger files.
          */
         for (uint32_t i = 0; i < num_dest_files; ++i) {
@@ -458,6 +446,6 @@ __wt_live_restore_init_stats(WT_SESSION_IMPL *session)
          */
         WTI_LIVE_RESTORE_FS *lr_fs = ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
         WTI_LIVE_RESTORE_STATE state = lr_fs->state;
-        __live_restore_set_external_stat(session, state);
+        __live_restore_set_public_state(session, state);
     }
 }

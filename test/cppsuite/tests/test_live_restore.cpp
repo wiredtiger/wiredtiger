@@ -387,20 +387,17 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     connection_manager::instance().close();
 }
 
-// Populate an initial database to be live restores. This will be used for the first live restore
+// Populate an initial database to be live restored. This will be used for the first live restore
 // and after that we can use the restored database from the prior iterations as the source.
 static void
 create_db(const std::string &home, const int64_t thread_count, const int64_t collection_count,
   const int64_t op_count, const int64_t verbose_level)
 {
-    /* Create a connection, set the cache size and specify the home directory. */
     const std::string conn_config = CONNECTION_CREATE +
       ",cache_size=5GB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,"
       "path=journal)";
 
-    /*
-     * Open the connection and create the log folder. In future runs this is copied by live restore.
-     */
+    // Open the connection and create the log folder. In future runs this is copied by live restore.
     connection_manager::instance().create(conn_config, home, true);
 
     auto crud_session = connection_manager::instance().create_session();

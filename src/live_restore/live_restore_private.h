@@ -107,11 +107,9 @@ typedef enum {
      */
     WTI_LIVE_RESTORE_STATE_NONE = 0,
     /*
-     * For background migration to identify which files that need migrating we must first restore
-     * the metadata file, which requires replaying and updating log files. This leaves us in a
-     * situation where we need to track log file's live restore metadata before we have full access
-     * to it. To resolve this we manually copy all log files at the start of live restore so we know
-     * they're always fully located in the destination directory.
+     * Log files aren't tracked in the metadata file, which we use to identify which files need
+     * background migrating. To resolve this we copy all log files to the destination at the start
+     * of live restore.
      */
     WTI_LIVE_RESTORE_STATE_LOG_COPY = 1,
     /*

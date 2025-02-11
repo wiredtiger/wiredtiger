@@ -8,9 +8,15 @@
 
 #pragma once
 
+// TODO - We should be able to expose these values to the server by exposing them in
+// wiredtiger.(h|in)
+//        Look into this.
 /*
- * Live restore stats are reported to the server. These are less granular than the internal
- * WTI_LIVE_RESTORE_STATE.
+ * Live restore state reported to the server so it knows when to terminate live restore.
+ *
+ * !!! The server doesn't have access to these macros and instead checks them by value. i.e. to
+ * know live restore has completed the server reads the stat and checks for the value 2. Do not
+ * change these values without updating the server.
  */
 #define WT_LIVE_RESTORE_INIT 0x0
 #define WT_LIVE_RESTORE_IN_PROGRESS 0x1

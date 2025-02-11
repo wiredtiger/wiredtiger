@@ -47,9 +47,7 @@ class test_live_restore01(wttest.WiredTigerTestCase):
     def expect_failure(self, config_str, expected_error):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.open_conn("DEST", config=config_str), expected_error)
-
         # No need to clean up the destination as WiredTiger failed to open.
-
 
     def test_live_restore01(self):
         # Close the default connection.
