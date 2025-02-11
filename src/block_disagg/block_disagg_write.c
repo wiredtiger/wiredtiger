@@ -208,6 +208,10 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     WT_STAT_CONN_INCR(session, disagg_block_put);
     WT_STAT_CONN_INCR(session, block_write);
     WT_STAT_CONN_INCRV(session, block_byte_write, buf->size);
+    if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS)) {
+        WT_STAT_CONN_INCR(session, disagg_block_hs_put);
+        WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_write, buf->size);
+    }
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, buf->size);
     time_stop = __wt_clock(session);

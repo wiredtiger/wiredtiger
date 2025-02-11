@@ -454,6 +454,11 @@ struct __wt_block_disagg {
      */
 
     WT_PAGE_LOG_HANDLE *plhandle;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_BLOCK_DISAGG_HS 0x1u
+    /*AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;
 };
 
 /*
