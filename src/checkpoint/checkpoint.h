@@ -47,19 +47,6 @@ struct __wt_ckpt_thread {
 };
 
 /*
- * WT_CKPT_TIMER --
- *     Time-related statistics.
- */
-struct __wt_ckpt_timer {
-    struct timespec timer_end;
-    struct timespec timer_start;
-    uint64_t max;
-    uint64_t min;
-    uint64_t recent;
-    uint64_t total;
-};
-
-/*
  * WT_CKPT_CONNECTION --
  *     Checkpoint information.
  */
@@ -72,9 +59,9 @@ struct __wt_ckpt_connection {
     WT_CKPT_THREAD server;
 
     /* Time-related stats. */
-    WT_CKPT_TIMER ckpt_api;
-    WT_CKPT_TIMER prepare;
-    WT_CKPT_TIMER scrub;
+    WTI_CKPT_TIMER ckpt_api;
+    WTI_CKPT_TIMER prepare;
+    WTI_CKPT_TIMER scrub;
 
     /* Clock value of most recent checkpoint. */
     wt_shared uint64_t most_recent;
@@ -181,6 +168,8 @@ struct __wt_checkpoint_cleanup {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern bool __wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
@@ -195,15 +184,16 @@ extern int __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_checkpoint_apply_or_skip_handle_stats(WT_SESSION_IMPL *session, uint64_t time_us);
 extern void __wt_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt);
+extern void __wt_checkpoint_handle_stats(
+  WT_SESSION_IMPL *session, uint64_t gathering_handles_time_us);
+extern void __wt_checkpoint_handle_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes);
-extern void __wt_checkpoint_reset_handle_stats(WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt);
-extern void __wt_checkpoint_set_handle_stats(
-  WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt, uint64_t gathering_handles_time_us);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
+extern void __wt_checkpoint_timer_stats(WT_SESSION_IMPL *session);
+extern void __wt_checkpoint_timer_stats_clear(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta);
-extern void __wt_checkpoint_update_handle_stats(
-  WT_SESSION_IMPL *session, WT_CKPT_CONNECTION *ckpt, uint64_t time_us);
 extern void __wt_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep);
 extern void __wt_ckptlist_saved_free(WT_SESSION_IMPL *session);
 
