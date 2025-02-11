@@ -1094,15 +1094,16 @@ __live_restore_encode_bitmap(
     if (lr_fh->destination.bitmap_size == 0 || lr_fh->destination.complete == true)
         return (0);
 
-    size_t walk_count = lr_fh->destination.bitmap_size / 8;
-    if (lr_fh->destination.bitmap_size % 8 != 0)
-        walk_count++;
-    WT_RET(__wt_buf_init(session, buf, (walk_count * 2) + 1));
-    /* Convert the bitmap to a hex string. */
-    for (size_t i = 0; i < walk_count; i++) {
-        WT_RET(__wt_buf_catfmt(session, buf, "%02x", lr_fh->destination.bitmap[i]));
-    }
-    ((char *)buf->data)[buf->size] = '\0';
+    WT_RET(__wt_raw_to_hex(session, lr_fh->destination.bitmap, lr_fh->destination.bitmap_size, buf));
+    // size_t walk_count = lr_fh->destination.bitmap_size / 8;
+    // if (lr_fh->destination.bitmap_size % 8 != 0)
+    //     walk_count++;
+    // WT_RET(__wt_buf_init(session, buf, (walk_count * 2) + 1));
+    // /* Convert the bitmap to a hex string. */
+    // for (size_t i = 0; i < walk_count; i++) {
+    //     WT_RET(__wt_buf_catfmt(session, buf, "%02x", lr_fh->destination.bitmap[i]));
+    // }
+    // ((char *)buf->data)[buf->size] = '\0';
     return (0);
 }
 
