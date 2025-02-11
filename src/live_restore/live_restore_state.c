@@ -396,11 +396,17 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
 
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
-        /* This is a brand new live restore. The destination folder shouldn't contain anything. If
-         * it does there's a risk we're overwriting a valid database. */
-        if (num_dest_files > 0) {
-            WT_ERR_MSG(session, EINVAL,
-              "Live restore state is about to start but destination directory is not empty!");
+        /*
+         * We can't control for everything that the use might put into the folder, but we can
+         * control for WiredTiger files.
+         */
+        for (uint32_t i = 0; i < num_dest_files; ++i) {
+            if (WT_PREFIX_MATCH(dirlist_dest[i], WT_WIREDTIGER) ||
+              WT_SUFFIX_MATCH(dirlist_dest[i], ".wt"))
+                WT_ERR_MSG(session, EINVAL,
+                  "Attempting to begin a live restore on a directory that already contains "
+                  "WiredTiger files '%s'! It's possible this file will be overwritten.",
+                  dirlist_dest[i]);
         }
         break;
     case WTI_LIVE_RESTORE_STATE_LOG_COPY:
