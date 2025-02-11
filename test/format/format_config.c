@@ -159,9 +159,10 @@ config_random(TABLE *table, bool table_only)
             uint32_t vbits, val_p2;
 
             max = log2((double)cp->maxrand);
+            testutil_assert(max < 32);
             min = log2((double)cp->min);
             vbits = mmrand(&g.data_rnd, (uint32_t)min, (uint32_t)max);
-            val_p2 = 1 << vbits;
+            val_p2 = (uint32_t)(1 << vbits);
             testutil_snprintf(buf, sizeof(buf), "%s=%" PRIu32, cp->name, val_p2);
         } else
             testutil_snprintf(
