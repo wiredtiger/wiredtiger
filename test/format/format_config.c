@@ -157,7 +157,6 @@ config_random(TABLE *table, bool table_only)
         else if (F_ISSET(cp, C_POW2)) {
             uint32_t vbits, val_p2;
 
-            /* NOTE: Right now, all power of 2 configuration settings are in KB. */
             vbits = mmrand(
               &g.data_rnd, (uint32_t)(log2((double)cp->min)), (uint32_t)(log2((double)cp->maxrand)));
             val_p2 = 1 << vbits;
