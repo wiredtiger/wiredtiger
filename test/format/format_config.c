@@ -2040,9 +2040,6 @@ config_single(TABLE *table, const char *s, bool explicit)
         }
     }
 
-    /* If a power of 2 is required, adjust the value after choosing. */
-    if (F_ISSET(cp, C_POW2))
-        v->v = __wt_rduppo2(v1, 1024);
     v->v = v1;
     v->set = explicit;
 
