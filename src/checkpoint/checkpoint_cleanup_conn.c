@@ -786,11 +786,11 @@ err:
 }
 
 /*
- * __wt_checkpoint_cleanup_create --
+ * __wt_obsolete_cleanup_create --
  *     Start the checkpoint cleanup thread.
  */
 int
-__wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -829,11 +829,11 @@ __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_checkpoint_cleanup_destroy --
+ * __wt_obsolete_cleanup_destroy --
  *     Destroy the checkpoint cleanup thread.
  */
 int
-__wt_checkpoint_cleanup_destroy(WT_SESSION_IMPL *session)
+__wt_obsolete_cleanup_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -858,11 +858,11 @@ __wt_checkpoint_cleanup_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_checkpoint_cleanup_trigger --
+ * __wt_obsolete_cleanup_trigger --
  *     Trigger the checkpoint cleanup thread.
  */
 void
-__wt_checkpoint_cleanup_trigger(WT_SESSION_IMPL *session)
+__wt_obsolete_cleanup_trigger(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
 
