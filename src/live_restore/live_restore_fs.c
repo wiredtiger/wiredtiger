@@ -409,10 +409,6 @@ __live_restore_fh_free_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
 {
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
-    printf("Freeing bitmap %p\n", (void *)lr_fh->destination.bitmap);
-    __wt_sleep(0, 10000);
-    uint8_t *bitmap_ptr_copy = lr_fh->destination.bitmap;
-    WT_UNUSED(bitmap_ptr_copy);
     __wt_free(session, lr_fh->destination.bitmap);
     lr_fh->destination.bitmap_size = 0;
     return;
@@ -444,7 +440,7 @@ __live_restore_fh_fill_hole_bitrange(
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
     "Live restore lock not taken when needed");
 
-    /* If the file is complete of the write is happening to chunks outside the bitmap return. */
+    /* If the file is complete or the write falls outside the bitmap return. */
     if (lr_fh->destination.complete || WTI_OFFSET_BIT(offset) >= lr_fh->destination.bitmap_size)
         return;
 
@@ -1296,46 +1292,45 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
         lr_fh->destination.complete = true;
     } else {
         if (source_exist) {
+            wt_off_t source_size;
             WT_ERR(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags, &source_path));
+            WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
+            WT_ASSERT(session, source_size != 0);
+            lr_fh->source_size = (size_t)source_size;
             if (!dest_exist) {
-                /*
-                 * We're creating a new destination file which is backed by a source file. It
-                 * currently has a length of zero, but we want its length to be the same as the
-                 * source file.
-                 */
-                wt_off_t source_size;
-
                 /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
-
-                WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
-                WT_ASSERT(session, source_size != 0);
-                __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-                  "Creating destination file backed by source file. Copying size (%" PRId64
-                  ") from source file",
-                  source_size);
-                lr_fh->source_size = (size_t)source_size;
                 if (file_type == WT_FS_OPEN_FILE_TYPE_REGULAR ||
-                  file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
-                    /* Copy over the file. */
+                    file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
+                    /*
+                     * Copy over the file. This will need to be atomic, either we succeed or we
+                     * don't, right now it is not.
+                     */
                     char buf[500];
                     __live_restore_fs_backing_filename(
-                      &lr_fs->destination, session, lr_fs->destination.home, name, &dest_path);
+                        &lr_fs->destination, session, lr_fs->destination.home, name, &dest_path);
                     __wt_verbose_info(session, WT_VERB_LIVE_RESTORE, "Copying file %s to %s",
-                      source_path, dest_path);
+                        source_path, dest_path);
                     WT_ASSERT(
-                      session, __wt_snprintf(buf, 500, "cp %s %s", source_path, dest_path) == 0);
+                        session, __wt_snprintf(buf, 500, "cp %s %s", source_path, dest_path) == 0);
                     WT_ERR(system(buf));
                     lr_fh->destination.complete = true;
                 } else {
+                    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+                        "Creating destination file backed by source file. Copying size (%" PRId64
+                        ") from source file",
+                        source_size);
+
                     WT_ERR(__live_restore_fs_open_in_destination(
-                      lr_fs, session, lr_fh, name, flags, !dest_exist));
+                        lr_fs, session, lr_fh, name, flags, !dest_exist));
                     /*
-                     * Set size by truncating. This is a positive length truncate so it actually
-                     * extends the file. We're bypassing the live_restore layer so we don't try to
-                     * modify the extents in hole_list_head.
-                     */
+                    * We're creating a new destination file which is backed by a source file. It
+                    * currently has a length of zero, but we want its length to be the same as the
+                    * source file. Set its size by truncating. This is a positive length truncate
+                    * so it actually extends the file. We're bypassing the live_restore layer so we
+                    * don't try to modify the relevant bitmap entries.
+                    */
                     WT_ERR(lr_fh->destination.fh->fh_truncate(
-                      lr_fh->destination.fh, wt_session, source_size));
+                        lr_fh->destination.fh, wt_session, source_size));
                     goto done;
                 }
             }
