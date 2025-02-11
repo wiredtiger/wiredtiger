@@ -71,7 +71,7 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_PAGE_LOG_GET_ARGS get_args;
     uint64_t time_start, time_stop;
     uint32_t orig_count, retry;
-    int32_t result, last;
+    int32_t i, last, result;
     uint8_t compatible_version, expected_magic;
     bool is_delta;
 
@@ -106,6 +106,12 @@ reread:
           ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
           retry, page_id, checkpoint_id, reconciliation_id, size, checksum);
         __wt_sleep(0, 10000 + retry * 5000);
+
+        if (*results_count > 0)
+            for (i = (int32_t)*results_count - 1; i >= 0; i--)
+                if (results_array[i].mem != NULL)
+                    __wt_buf_free(&results_array[i]);
+
         memset(results_array, 0, *results_count * sizeof(results_array[0]));
         *results_count = orig_count;
         ++retry;

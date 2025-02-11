@@ -65,8 +65,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     size_t compression_ratio, result_len;
     uint64_t time_diff, time_start, time_stop;
     u_int count, results_count;
-    bool blkcache_found, expect_conversion, found, skip_cache_put, timer;
     int i;
+    bool blkcache_found, expect_conversion, found, skip_cache_put, timer;
 
     blkcache = &S2C(session)->blkcache;
     blkcache_item = NULL;
