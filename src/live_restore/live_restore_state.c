@@ -344,15 +344,6 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     char **dirlist_dest = NULL;
     uint32_t num_dest_files = 0;
 
-    /*
-     * If live restore has completed but a backup is taken before WiredTiger is restarted in
-     * non-live restore mode then the source may contain a state file in the COMPLETE state. This
-     * can be ignored and deleted.
-     */
-    // TODO - this breaks the "source" is read-only assumption. Discuss this
-    WT_RET(__wt_live_restore_delete_complete_state_file(
-      session, lr_fs->os_file_system, lr_fs->source.home));
-
     /* First up: Check that the source doesn't contain any live restore metadata files. */
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->source.home, "", &dirlist_source, &num_source_files));
@@ -362,12 +353,28 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     }
 
     for (uint32_t i = 0; i < num_source_files; ++i) {
-        if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX) ||
-          strcmp(dirlist_source[i], WTI_LIVE_RESTORE_STATE_FILE) == 0) {
+        if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
             WT_ERR_MSG(session, EINVAL,
               "Source directory contains live restore metadata file: %s. This implies it is a "
               "destination directory that hasn't finished restoration",
               dirlist_source[i]);
+        }
+
+        /*
+         * FIXME-WT-14107 For now the validation check ignores a state file in the COMPLETE state.
+         * On completion of WT-14017 we can instead error out when a state file is found in the
+         * source folder.
+         */
+        if (strcmp(dirlist_source[i], WTI_LIVE_RESTORE_STATE_FILE) == 0) {
+            WTI_LIVE_RESTORE_STATE state;
+            WT_ERR(__live_restore_get_state_from_file(
+              session, lr_fs->os_file_system, lr_fs->source.home, &state));
+            if (state != WTI_LIVE_RESTORE_STATE_COMPLETE)
+                WT_ERR_MSG(session, EINVAL,
+                  "Source directory contains live restore state file %s that is not in the "
+                  "complete state. This implies it is a destination directory that hasn't finished "
+                  "restoration",
+                  dirlist_source[i]);
         }
     }
 
