@@ -686,11 +686,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
 
-            /*
-             * Drain the ingest tables before switching to leader.
-             *
-             * TODO: should we panic if we failed to step-up.
-             */
+            /* Drain the ingest tables before switching to leader. */
             WT_ERR(__layered_drain_ingest_tables(session));
         }
     }
@@ -752,6 +748,8 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     }
 
 err:
+    if (ret != 0 && reconfig && !was_leader && leader)
+        return (__wt_panic(session, ret, "failed to step-up as primary"));
     return (ret);
 }
 
