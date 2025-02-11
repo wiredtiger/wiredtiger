@@ -155,16 +155,12 @@ config_random(TABLE *table, bool table_only)
             testutil_snprintf(buf, sizeof(buf), "%s=%s", cp->name,
               mmrand(&g.data_rnd, 1, 100) <= cp->min ? "on" : "off");
         else if (F_ISSET(cp, C_POW2)) {
-            uint32_t val, val_p2;
-            val = mmrand(&g.data_rnd, cp->min, cp->maxrand);
-            /* If the random value isn't a power of 2, round up to the next power of 2. */
-            if (!__wt_ispo2(val)) {
-                val_p2 = 2;
-                val--;
-                while (val >>= 1)
-                    val_p2 <<= 1;
-            } else
-                val_p2 = val;
+            uint32_t vbits, val_p2;
+
+            /* NOTE: Right now, all power of 2 configuration settings are in KB. */
+            vbits = mmrand(
+              &g.data_rnd, (uint32_t)(log2((double)cp->min)), (uint32_t)(log2((double)cp->maxrand)));
+            val_p2 = 1 << vbits;
             testutil_snprintf(buf, sizeof(buf), "%s=%" PRIu32, cp->name, val_p2);
         } else
             testutil_snprintf(
