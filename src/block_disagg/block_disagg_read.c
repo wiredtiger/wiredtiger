@@ -93,6 +93,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
 
+    if (F_ISSET(block_disagg, WT_BLOCK_DISAGG_HS)) {
+        WT_STAT_CONN_INCR(session, disagg_block_hs_get);
+        WT_STAT_CONN_INCRV(session, disagg_block_hs_byte_read, size);
+    }
+
     orig_count = *results_count;
 
     if (0) {
