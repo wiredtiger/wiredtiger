@@ -429,16 +429,16 @@ __live_restore_fh_lock(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool lock)
 }
 
 /*
- * __live_restore_fh_fill_hole_bitrange --
+ * __live_restore_fh_fill_bit_range --
  *     Track that we wrote something by removing its hole from the extent list. Callers must hold
  *     the extent list write lock.
  */
 static void
-__live_restore_fh_fill_hole_bitrange(
+__live_restore_fh_fill_bit_range(
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
-    "Live restore lock not taken when needed");
+      "Live restore lock not taken when needed");
 
     /* If the file is complete or the write falls outside the bitmap return. */
     if (lr_fh->destination.complete || WTI_OFFSET_BIT(offset) >= lr_fh->destination.bitmap_size)
@@ -450,8 +450,8 @@ __live_restore_fh_fill_hole_bitrange(
         partial_fill = true;
         fill_end_bit = lr_fh->destination.bitmap_size - 1;
     }
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE %sHOLE %s: %" PRId64 "-%" PRId64,
-        partial_fill ? "PARTIAL " : "", lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE%s HOLE %s: %" PRId64 "-%" PRId64,
+      partial_fill ? " PARTIAL" : "", lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
     __bit_nset(lr_fh->destination.bitmap, WTI_OFFSET_BIT(offset), fill_end_bit);
     // TODO: Should we flag complete here?
     return;
@@ -539,7 +539,7 @@ __live_restore_fh_write_int(
       fh->name, offset, len);
 
     WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
-    __live_restore_fh_fill_hole_bitrange(lr_fh, session, offset, len);
+    __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
     return (0);
 }
 
@@ -662,16 +662,18 @@ err:
 }
 
 /*
- *  __live_restore_compute_read_end_bit --
+ * __live_restore_compute_read_end_bit --
  *     Compute the last possible bit for hole filling.
  */
 static uint64_t
-__live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t buf_size, uint64_t first_clear_bit)
+__live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
+  wt_off_t buf_size, uint64_t first_clear_bit)
 {
     wt_off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
     wt_off_t largest_possible_read = WT_MIN(((wt_off_t)lr_fh->source_size), read_start + buf_size);
     /* Sanity check. */
-    WT_ASSERT(session, lr_fh->destination.bitmap_size == WTI_OFFSET_BIT((wt_off_t)lr_fh->source_size));
+    WT_ASSERT(
+      session, lr_fh->destination.bitmap_size == WTI_OFFSET_BIT((wt_off_t)lr_fh->source_size));
     /* Subtract 1 as the read end is served from the bitmap_size - 1th bit.*/
     uint64_t max_read_bit = WTI_OFFSET_BIT(largest_possible_read) - 1;
     uint64_t end_bit = first_clear_bit;
@@ -706,7 +708,8 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
 
     /* We need walk the unset bit list up till read_size. */
     wt_off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
-    wt_off_t read_end = WTI_BIT_TO_OFFSET(__live_restore_compute_read_end_bit(session, lr_fh, buf_size, first_clear_bit) + 1);
+    wt_off_t read_end = WTI_BIT_TO_OFFSET(
+      __live_restore_compute_read_end_bit(session, lr_fh, buf_size, first_clear_bit) + 1);
     size_t read_size = (size_t)(read_end - read_start);
 
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
@@ -959,7 +962,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
 
     WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
       session, lr_fh,
-      __live_restore_fh_fill_hole_bitrange(
+      __live_restore_fh_fill_bit_range(
         lr_fh, session, truncate_start, (size_t)(truncate_end - truncate_start)););
 
     return (lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, len));
@@ -991,6 +994,10 @@ __live_restore_fs_open_in_source(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *se
     return (0);
 }
 
+/*
+ * __live_restore_decode_bitmap --
+ *     Decode a bitmap from a hex string.
+ */
 static int
 __live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str, uint64_t bitmap_size,
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
@@ -1003,7 +1010,7 @@ __live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str, u
     WT_ASSERT(session, string_len % 2 == 0);
     for (uint64_t i = 0; i < string_len; i += 2) {
         u_char byte;
-        WT_RET(__wti_hex2byte((u_char*)(bitmap_str + i), &byte));
+        WT_RET(__wti_hex2byte((u_char *)(bitmap_str + i), &byte));
         __bit_set_mask(lr_fh->destination.bitmap, i / 2, byte);
     }
     lr_fh->destination.bitmap_size = bitmap_size;
@@ -1011,12 +1018,12 @@ __live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str, u
 }
 
 /*
- * __wt_live_restore_fh_import_extents_from_string --
- *     Reconstruct the extent list in memory from a string representation. If the string is NULL
- *     mark the destination as complete. On error free any allocated extents.
+ * __wt_live_restore_fh_import_bitmap --
+ *     Reconstruct the bitmap list in memory from a string representation. On error free the
+ *     allocated bitmap.
  */
 int
-__wt_live_restore_fh_import_extents_from_string(
+__wt_live_restore_fh_import_bitmap(
   WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_LIVE_RESTORE_FH_META *lr_fh_meta)
 {
     WT_DECL_RET;
@@ -1026,6 +1033,7 @@ __wt_live_restore_fh_import_extents_from_string(
         return (0);
 
     /*
+     * TODO: Does this scenario still apply?
      * This function can be called for file handles that already have an in memory extent list.
      * For this to happen the destination file was created for the first time and a single file size
      * hole was initialized.
@@ -1044,24 +1052,20 @@ __wt_live_restore_fh_import_extents_from_string(
         return (0);
     }
 
-    //     if (extent_string_empty)
-    //         lr_fh->destination.complete = true;
-    //     else {
     __wt_readlock(session, &lr_fh->ext_lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
       "Importing extents for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
       lr_fh_meta->bitmap_size, lr_fh_meta->bitmap_str);
     if (lr_fh_meta->bitmap_size != 0) {
+        /* We shouldn't be importing a bitmap if the live restore has finished. */
+        WT_ASSERT(session, !lr_fh->destination.back_pointer->finished);
         /* Import a pre existing bitmap. */
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "%s metadata bitmap: %s", fh->name,
           lr_fh_meta->bitmap_str);
         WT_ERR(__live_restore_decode_bitmap(
           session, lr_fh_meta->bitmap_str, lr_fh_meta->bitmap_size, lr_fh));
     } else {
-        /* Allocate a new bitmap. */
-        /* Todo: we might need to check state here but without knownig the global state we can't
-         * tell if complete is valid. */
         if (lr_fh->source_size == 0)
             lr_fh->destination.complete = true;
         else {
@@ -1081,7 +1085,7 @@ err:
 
 /*
  * __live_restore_encode_bitmap --
- *     Encode a live restore bitmap as a hexidecimal string. The caller must free the bitmap string.
+ *     Encode a live restore bitmap as a hexadecimal string. The caller must free the bitmap string.
  */
 static int
 __live_restore_encode_bitmap(
@@ -1089,7 +1093,6 @@ __live_restore_encode_bitmap(
 {
     if (lr_fh->destination.bitmap_size == 0 || lr_fh->destination.complete == true)
         return (0);
-
 
     size_t walk_count = lr_fh->destination.bitmap_size / 8;
     if (lr_fh->destination.bitmap_size % 8 != 0)
@@ -1120,9 +1123,9 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
     WT_CLEAR(buf);
 
     WT_RET(__live_restore_encode_bitmap(session, lr_fh, &buf));
-    WT_RET(__wt_buf_catfmt(session, meta_string,
-      ",live_restore=(bitmap=%s,bitmap_size=%" PRIu64 ")",
-      buf.size == 0 ? "" : (char *)buf.data, lr_fh->destination.bitmap_size));
+    WT_RET(
+      __wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=%s,bitmap_size=%" PRIu64 ")",
+        buf.size == 0 ? "" : (char *)buf.data, lr_fh->destination.bitmap_size));
     if (lr_fh->destination.bitmap_size > 0)
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
           "Appending live restore bitmap (%s, %" PRIu64 ") for file handle %s", (char *)buf.data,
@@ -1161,7 +1164,7 @@ __live_restore_fs_open_in_destination(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMP
     lr_fh->destination.back_pointer = lr_fs;
 err:
     __wt_free(session, path);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1276,7 +1279,8 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
 
     bool create = LF_ISSET(WT_FS_OPEN_CREATE);
     if ((dest_exist || source_exist) && create && LF_ISSET(WT_FS_OPEN_EXCLUSIVE))
-        WT_RET_MSG(session, EEXIST, "File %s already exist, cannot be created due to excrlusive flag", name);
+        WT_RET_MSG(
+          session, EEXIST, "File %s already exist, cannot be created due to excrlusive flag", name);
     if (!dest_exist && !source_exist && !create)
         WT_RET_MSG(session, ENOENT, "File %s doesn't exist but create flag not specified", name);
     if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
@@ -1300,37 +1304,37 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
             if (!dest_exist) {
                 /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
                 if (file_type == WT_FS_OPEN_FILE_TYPE_REGULAR ||
-                    file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
+                  file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
                     /*
                      * Copy over the file. This will need to be atomic, either we succeed or we
                      * don't, right now it is not.
                      */
                     char buf[500];
                     __live_restore_fs_backing_filename(
-                        &lr_fs->destination, session, lr_fs->destination.home, name, &dest_path);
+                      &lr_fs->destination, session, lr_fs->destination.home, name, &dest_path);
                     __wt_verbose_info(session, WT_VERB_LIVE_RESTORE, "Copying file %s to %s",
-                        source_path, dest_path);
+                      source_path, dest_path);
                     WT_ASSERT(
-                        session, __wt_snprintf(buf, 500, "cp %s %s", source_path, dest_path) == 0);
+                      session, __wt_snprintf(buf, 500, "cp %s %s", source_path, dest_path) == 0);
                     WT_ERR(system(buf));
                     lr_fh->destination.complete = true;
                 } else {
                     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-                        "Creating destination file backed by source file. Copying size (%" PRId64
-                        ") from source file",
-                        source_size);
+                      "Creating destination file backed by source file. Copying size (%" PRId64
+                      ") from source file",
+                      source_size);
 
                     WT_ERR(__live_restore_fs_open_in_destination(
-                        lr_fs, session, lr_fh, name, flags, !dest_exist));
+                      lr_fs, session, lr_fh, name, flags, !dest_exist));
                     /*
-                    * We're creating a new destination file which is backed by a source file. It
-                    * currently has a length of zero, but we want its length to be the same as the
-                    * source file. Set its size by truncating. This is a positive length truncate
-                    * so it actually extends the file. We're bypassing the live_restore layer so we
-                    * don't try to modify the relevant bitmap entries.
-                    */
+                     * We're creating a new destination file which is backed by a source file. It
+                     * currently has a length of zero, but we want its length to be the same as the
+                     * source file. Set its size by truncating. This is a positive length truncate
+                     * so it actually extends the file. We're bypassing the live_restore layer so we
+                     * don't try to modify the relevant bitmap entries.
+                     */
                     WT_ERR(lr_fh->destination.fh->fh_truncate(
-                        lr_fh->destination.fh, wt_session, source_size));
+                      lr_fh->destination.fh, wt_session, source_size));
                     goto done;
                 }
             }
