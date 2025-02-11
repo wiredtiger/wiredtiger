@@ -22,8 +22,6 @@ __live_restore_worker_check(WT_SESSION_IMPL *session)
     return (true);
 }
 
-// TODO - We should be able to bypass starting the server and just call clean_up directly.
-// Discuss in review and either fix or do it in a new ticket.
 /*
  * __live_restore_clean_up --
  *     Clean up live restore metadata once background migration has completed. This will be called
@@ -93,6 +91,10 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     if (server->threads_working == 0) {
         /* If all the threads are stopped and the queue is empty background migration is done. */
         if (TAILQ_EMPTY(&server->work_queue))
+            /*
+             * FIXME-WT-14113 This is currently the only path the calls live restore clean up, but it requires us to start up the background migration threads first.
+             * When WiredTiger starts in a post-background migration state we should call this directly instead of spinning up the server.
+             */
             WT_ERR(__live_restore_clean_up(session, ctx));
 
         /*
