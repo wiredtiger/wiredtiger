@@ -409,7 +409,7 @@ __live_restore_fh_free_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
 {
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
-    printf("Freeing bitmap %p\n", lr_fh->destination.bitmap);
+    printf("Freeing bitmap %p\n", (void *)lr_fh->destination.bitmap);
     __wt_sleep(0, 10000);
     uint8_t *bitmap_ptr_copy = lr_fh->destination.bitmap;
     WT_UNUSED(bitmap_ptr_copy);
@@ -446,7 +446,7 @@ __live_restore_fh_fill_hole_bitrange(
       "Live restore lock not taken when needed");
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
       lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
-
+    WT_ASSERT(session, fill_end_bit - 1 < lr_fh->destination.bitmap_size);
     if (!lr_fh->destination.complete)
         __bit_nset(lr_fh->destination.bitmap, WTI_OFFSET_BIT(offset), fill_end_bit - 1);
     // TODO: Should we flag complete here?
@@ -658,6 +658,30 @@ err:
 }
 
 /*
+ *  __live_restore_compute_read_end_bit --
+ *     Compute the last possible bit for hole filling.
+ */
+static uint64_t
+__live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t buf_size, uint64_t first_clear_bit)
+{
+    wt_off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
+    wt_off_t largest_possible_read = WT_MIN(((wt_off_t)lr_fh->source_size), read_start + buf_size);
+    /* Sanity check. */
+    WT_ASSERT(session, lr_fh->destination.bitmap_size == WTI_OFFSET_BIT((wt_off_t)lr_fh->source_size));
+    /* Subtract 1 as the read end is served from the bitmap_size - 1th bit.*/
+    uint64_t max_read_bit = WTI_OFFSET_BIT(largest_possible_read) - 1;
+    uint64_t end_bit = first_clear_bit;
+    for (uint64_t current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++) {
+        if (current_bit >= lr_fh->destination.bitmap_size)
+            break;
+        if (__bit_test(lr_fh->destination.bitmap, current_bit))
+            break;
+        end_bit = current_bit;
+    }
+    return (end_bit);
+}
+
+/*
  * __live_restore_fill_hole --
  *     Fill a single hole in the destination file. If the hole list is empty indicate using the
  *     finished parameter. Must be called while holding the extent list write lock.
@@ -678,17 +702,7 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
 
     /* We need walk the unset bit list up till read_size. */
     wt_off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
-    /* If the configured background thread read_size is smaller than the file alloc size bump up our
-     */
-    uint64_t max_read_bit =
-      WTI_OFFSET_BIT(WT_MIN(((wt_off_t)lr_fh->source_size), read_start + buf_size));
-    uint64_t end_bit = 0;
-    for (uint64_t current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++) {
-        end_bit = current_bit;
-        if (__bit_test(lr_fh->destination.bitmap, current_bit))
-            break;
-    }
-    wt_off_t read_end = WTI_BIT_TO_OFFSET(end_bit);
+    wt_off_t read_end = WTI_BIT_TO_OFFSET(__live_restore_compute_read_end_bit(session, lr_fh, buf_size, first_clear_bit) + 1);
     size_t read_size = (size_t)(read_end - read_start);
 
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
