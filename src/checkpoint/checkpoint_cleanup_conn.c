@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1 /* 1 second */
+#define WT_OBSOLETE_CLEANUP_FILE_INTERVAL 1 /* 1 second */
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
@@ -726,7 +726,7 @@ __obsolete_cleanup_int(WT_SESSION_IMPL *session)
          * checkpoint cleanup on the regular workload.
          */
         __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
-          WT_CHECKPOINT_CLEANUP_FILE_INTERVAL * WT_MILLION, __obsolete_cleanup_run_chk);
+          WT_OBSOLETE_CLEANUP_FILE_INTERVAL * WT_MILLION, __obsolete_cleanup_run_chk);
 
         /* Check if we're quitting. */
         if (!__obsolete_cleanup_run_chk(session))
