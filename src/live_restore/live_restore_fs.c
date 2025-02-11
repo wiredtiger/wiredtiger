@@ -441,14 +441,22 @@ static void
 __live_restore_fh_fill_hole_bitrange(
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    uint64_t fill_end_bit = WTI_OFFSET_BIT(WTI_OFFSET_END(offset, len));
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
-      "Live restore lock not taken when needed");
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
-      lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
-    WT_ASSERT(session, fill_end_bit - 1 < lr_fh->destination.bitmap_size);
-    if (!lr_fh->destination.complete)
-        __bit_nset(lr_fh->destination.bitmap, WTI_OFFSET_BIT(offset), fill_end_bit - 1);
+    "Live restore lock not taken when needed");
+
+    /* If the file is complete of the write is happening to chunks outside the bitmap return. */
+    if (lr_fh->destination.complete || WTI_OFFSET_BIT(offset) >= lr_fh->destination.bitmap_size)
+        return;
+
+    uint64_t fill_end_bit = WTI_OFFSET_BIT(WTI_OFFSET_END(offset, len)) - 1;
+    bool partial_fill = false;
+    if (fill_end_bit >= lr_fh->destination.bitmap_size) {
+        partial_fill = true;
+        fill_end_bit = lr_fh->destination.bitmap_size - 1;
+    }
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE %sHOLE %s: %" PRId64 "-%" PRId64,
+        partial_fill ? "PARTIAL " : "", lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
+    __bit_nset(lr_fh->destination.bitmap, WTI_OFFSET_BIT(offset), fill_end_bit);
     // TODO: Should we flag complete here?
     return;
 }
