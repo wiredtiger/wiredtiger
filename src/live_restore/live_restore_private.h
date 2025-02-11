@@ -96,6 +96,10 @@ struct __wti_live_restore_fs_layer {
     WTI_LIVE_RESTORE_FS_LAYER_TYPE which;
 };
 
+/*
+ * Live restore states. As live restore progresses we will transition through each of these states
+ * one by one.
+ */
 typedef enum {
     /*
      * This is not a valid state. We return it when there is no state file on disk and therefore
@@ -103,8 +107,11 @@ typedef enum {
      */
     WTI_LIVE_RESTORE_STATE_NONE = 0,
     /*
-     * TODO - proper explanation for why we copy logs first. Something about the metafile needing to
-     * be populated before the migration threads come online.
+     * For background migration to identify which files that need migrating we must first restore
+     * the metadata file, which requires replaying and updating log files. This leaves us in a
+     * situation where we need to track log file's live restore metadata before we have full access
+     * to it. To resolve this we manually copy all log files at the start of live restore so we know
+     * they're always fully located in the destination directory.
      */
     WTI_LIVE_RESTORE_STATE_LOG_COPY = 1,
     /*

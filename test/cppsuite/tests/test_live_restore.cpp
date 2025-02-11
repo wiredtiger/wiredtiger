@@ -288,7 +288,7 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             logger::log_msg(LOG_INFO, "Taking checkpoint");
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
-        } else if (ran < 5) {
+        } else if (ran < 15) {
             logger::log_msg(LOG_INFO, "Reopening connection");
             reopen_conn(session, conn_config, home);
 

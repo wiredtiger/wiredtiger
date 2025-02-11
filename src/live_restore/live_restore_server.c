@@ -64,7 +64,6 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
             WT_ERR(__wti_live_restore_cleanup_stop_files(session));
 
             uint64_t time_diff_ms;
-            WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
             __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
             __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
               "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
@@ -355,13 +354,6 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__wt_spin_init(
       session, &conn->live_restore_server->queue_lock, "live restore migration work queue"));
-
-    /*
-     * Set the in progress state before we run the threads. If we do it after there's a chance we'll
-     * context switch and then this state will happen after the finish state. By setting it here it
-     * also means we transition through all valid states.
-     */
-    WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
 
     /*
      * Even if we start from an empty database the history store file will exist before we get here

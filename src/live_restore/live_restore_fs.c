@@ -1223,8 +1223,6 @@ __wt_live_restore_fh_import_extents_from_string(
     if (state >= WTI_LIVE_RESTORE_STATE_CLEAN_UP)
         return (0);
 
-    // TODO - this is solved by the bitmap change. An empty string means never copied (or fully
-    // copied, but at that point the state is CLEAN_UP or COMPLETE so we know not to copy.)
     /*
      * This function can be called for file handles that already have an in memory extent list. For
      * this to happen the destination file was created for the first time and a single file size

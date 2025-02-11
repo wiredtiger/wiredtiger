@@ -113,6 +113,29 @@ err:
 }
 
 /*
+ * __live_restore_set_external_stat --
+ *     WiredTiger reports a simplified version of live restore state to the server. They use this to
+ *     determine when they should end live restore as a user of WiredTiger.
+ */
+static void
+__live_restore_set_external_stat(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_STATE state)
+{
+    switch (state) {
+    case WTI_LIVE_RESTORE_STATE_NONE:
+        WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_INIT);
+        break;
+    case WTI_LIVE_RESTORE_STATE_LOG_COPY:
+    case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
+    case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
+        WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
+        break;
+    case WTI_LIVE_RESTORE_STATE_COMPLETE:
+        WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
+        break;
+    }
+}
+
+/*
  * __wti_live_restore_set_state --
  *     Update the live restore state in memory and persist it to the on-disk state file.
  */
@@ -126,18 +149,22 @@ __wti_live_restore_set_state(
 
     __wt_writelock(session, &lr_fs->state_lock);
 
-    /* State should always be initialized on start up. If we ever try to set state without first
-     * reading it something's gone wrong. */
+    /*
+     * State should always be initialized on start up. If we ever try to set state without first
+     * reading it something's gone wrong.
+     */
     WT_ASSERT_ALWAYS(
       session, lr_fs->state != WTI_LIVE_RESTORE_STATE_NONE, "Live restore state not initialized!");
 
-    /* Validity checking. There is a defined transition of states and we should never skip or repeat
-     * a state. */
+    /*
+     * Validity checking. There is a defined transition of states and we should never skip or repeat
+     * a state.
+     */
     switch (new_state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
         /* We should never manually transition to NONE. This is a placeholder for when state is not
          * set. */
-        WT_ASSERT(session, false);
+        WT_ASSERT_ALWAYS(session, false, "Attempting to set Live Restore state to NONE!");
         break;
     case WTI_LIVE_RESTORE_STATE_LOG_COPY:
         WT_ASSERT(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_NONE);
@@ -163,8 +190,10 @@ __wti_live_restore_set_state(
     WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
       (char *)state_file_name->data, &state_file_exists));
 
-    /* This should be created on live restore start up. If it's not present we've called set state
-     * too early. */
+    /*
+     * The state file is either already present or created on live restore initialization. If it's not present we've called set state
+     * too early.
+     */
     WT_ASSERT_ALWAYS(session, state_file_exists, "State file doesn't exist!");
 
     char state_to_write[128];
@@ -174,6 +203,7 @@ __wti_live_restore_set_state(
     WT_ERR(fh->fh_write(fh, (WT_SESSION *)session, 0, 128, state_to_write));
 
     lr_fs->state = new_state;
+    __live_restore_set_external_stat(session, new_state);
 
 err:
     __wt_writeunlock(session, &lr_fs->state_lock);
@@ -398,4 +428,23 @@ err:
       lr_fs->os_file_system, (WT_SESSION *)session, dirlist_dest, num_dest_files));
 
     return (ret);
+}
+
+/*
+ * __wt_live_restore_init_stats --
+ *     Initialize the live restore stats.
+ */
+void
+__wt_live_restore_init_stats(WT_SESSION_IMPL *session)
+{
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS)) {
+        /*
+         * The live restore external state is known on initialization, but at that time the stat
+         * server hasn't begun so we can't actually set the state. This must be called after the
+         * stat server starts.
+         */
+        WTI_LIVE_RESTORE_FS *lr_fs = ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
+        WTI_LIVE_RESTORE_STATE state = lr_fs->state;
+        __live_restore_set_external_stat(session, state);
+    }
 }
