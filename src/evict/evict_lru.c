@@ -9,6 +9,8 @@
 #include "wt_internal.h"
 
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
+static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref);
+static bool __evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, WT_REF *ref);
 
 #define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
 
@@ -958,10 +960,16 @@ __evict_get_ref(
 					/* Reset, so we don't always skip this page */
 					__wt_atomic_storebool(&ref->evict_skip, false);
 					WT_STAT_CONN_INCR(session, eviction_skipped_page_flag);
-					__wt_verbose_notice(session,  WT_VERB_EVICTION, "%s",
+					__wt_verbose_debug1(session,  WT_VERB_EVICTION, "%s",
 										"eviction skipped a page because skip flag was set");
+					WT_REF_UNLOCK(ref, previous_state);
 					ref = NULL;
 					continue;
+				} else if(__evict_skip_page(session, ref)) {
+					WT_STAT_CONN_INCR(session, eviction_skipped_page_dontwant);
+					WT_REF_UNLOCK(ref, previous_state);
+					ref = NULL;
+					continue
 				} else /* found a reference */
                     goto unlock;
             }
@@ -1858,4 +1866,101 @@ __wt_ref_assign_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
 
 	ref->page = page;
 	__wt_evict_init_ref(session, dhandle, ref);
+}
+
+
+/*
+ * __evict_skip_page --
+ *     Decide if we should skip this page for eviction.
+ */
+static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_EVICT *evict;
+	WT_PAGE *page;
+	bool modified, want_page;
+
+	btree = S2BT(session);
+    conn = S2C(session);
+    evict = conn->evict;
+    modified = __wt_page_is_modified(page);
+	page = ref->page;
+
+	/* Don't queue dirty pages in trees during checkpoints. */
+    if (modified && WT_BTREE_SYNCING(btree)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_dirty_pages_during_checkpoint);
+        return true;
+    }
+
+	/*
+     * It's possible (but unlikely) to visit a page without a read generation, if we race with the
+     * read instantiating the page. Set the page's read generation here to ensure a bug doesn't
+     * somehow leave a page without a read generation.
+     */
+    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_NOTSET)
+        __wti_evict_read_gen_new(session, page);
+
+	want_page = (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !modified) ||
+		(F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||
+		(F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL);
+    if (!want_page) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_pages);
+        return true;
+    }
+
+	/*
+     * Do not evict a clean metadata page that contains historical data needed to satisfy a reader.
+     * Since there is no history store for metadata, we won't be able to serve an older reader if we
+     * evict this page.
+     */
+    if (WT_IS_METADATA(session->dhandle) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN_HARD) &&
+      F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
+		!__wt_txn_visible_all(session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)) {
+        WT_STAT_CONN_INCR(session, eviction_server_skip_metatdata_with_history);
+        return true;
+    }
+
+	/*
+     * Don't attempt eviction of internal pages with children in cache.
+     */
+	if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) &&
+		__evict_internal_page_has_cached_children(session, ref))
+		return true;
+
+    /* Evaluate dirty page candidacy, when eviction is not aggressive. */
+    if (!__wt_evict_aggressive(session) && modified && __evict_skip_dirty_candidate(session, page))
+        return true;
+
+	/* If the page can't be evicted, give up. */
+    if (!__wt_page_can_evict(session, ref, NULL))
+		return true;
+
+	return false;
+}
+
+/*
+ * __evict_internal_page_has_cached_children --
+ *   Check if the internal page has children in cache.
+ */
+static bool
+__evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, WT_REF *ref)
+{
+	WT_PAGE_INDEX *pindex;
+	bool has_cached_children;
+    uint32_t slot;
+
+	has_cached_children = false;
+
+	WT_ENTER_PAGE_INDEX(session);
+	WT_INTL_INDEX_GET(session, ref->page, pindex);
+
+	for (slot = 0; slot < pindex->entries; slot++) {
+		if (WT_REF_GET_STATE(pindex->index[slot]) == WT_REF_MEM) {
+			has_cached_children = true;
+			break;
+		}
+	}
+	WT_LEAVE_PAGE_INDEX(session);
+	return has_cached_children;
 }
