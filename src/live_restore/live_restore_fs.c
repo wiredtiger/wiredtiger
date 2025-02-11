@@ -409,7 +409,12 @@ __live_restore_fh_free_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
 {
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
       "Live restore lock not taken when needed");
+    printf("Freeing bitmap %p\n", lr_fh->destination.bitmap);
+    __wt_sleep(0, 10000);
+    uint8_t *bitmap_ptr_copy = lr_fh->destination.bitmap;
+    WT_UNUSED(bitmap_ptr_copy);
     __wt_free(session, lr_fh->destination.bitmap);
+    lr_fh->destination.bitmap_size = 0;
     return;
 }
 
@@ -444,6 +449,7 @@ __live_restore_fh_fill_hole_bitrange(
 
     if (!lr_fh->destination.complete)
         __bit_nset(lr_fh->destination.bitmap, WTI_OFFSET_BIT(offset), fill_end_bit - 1);
+    // TODO: Should we flag complete here?
     return;
 }
 
@@ -750,7 +756,9 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * property we choose to sync then file over anyway.
      */
     WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
-
+    lr_fh->destination.complete = true;
+    WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+      session, lr_fh, __live_restore_fh_free_bitmap(session, lr_fh));
 err:
     __wt_free(session, buf);
 
@@ -965,19 +973,24 @@ __live_restore_fs_open_in_source(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *se
     return (0);
 }
 
-// int
-// __live_restore_decode_bitmap(const char *bitmap_str, size_t bitmap_size, uint64_t **bitmap)
-// {
-//     WT_ASSERT_ALWAYS(session, bitmap_str != NULL, "Bitmap string is NULL");
-//     WT_ASSERT_ALWAYS(session, bitmap_size != 0, "Bitmap size is 0");
+static int
+__live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str, uint64_t bitmap_size,
+  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
+{
+    WT_ASSERT_ALWAYS(session, bitmap_str != NULL, "Bitmap string is NULL");
+    WT_ASSERT_ALWAYS(session, bitmap_size != 0, "Bitmap size is 0");
 
-//     *bitmap = (uint64_t *)__wt_malloc(session, bitmap_size);
-//     WT_ASSERT_ALWAYS(session, *bitmap != NULL, "Failed to allocate bitmap");
-
-//     for (size_t i = 0; i < bitmap_size; i++) {
-//         (*bitmap)[i] = (uint64_t)bitmap_str[i];
-//     }
-// }
+    WT_RET(__bit_alloc(session, bitmap_size, &lr_fh->destination.bitmap));
+    uint64_t string_len = (uint64_t)strlen(bitmap_str);
+    WT_ASSERT(session, string_len % 2 == 0);
+    for (uint64_t i = 0; i < string_len; i += 2) {
+        u_char byte;
+        WT_RET(__wti_hex2byte((u_char*)(bitmap_str + i), &byte));
+        __bit_set_mask(lr_fh->destination.bitmap, i / 2, byte);
+    }
+    lr_fh->destination.bitmap_size = bitmap_size;
+    return (0);
+}
 
 /*
  * __wt_live_restore_fh_import_extents_from_string --
@@ -1009,8 +1022,7 @@ __wt_live_restore_fh_import_extents_from_string(
      */
 
     if (lr_fh->destination.bitmap != NULL) {
-        // WT_ASSERT_ALWAYS(
-        //   session, extent_string_empty, "Bitmap not empty while trying to import");
+        WT_ASSERT_ALWAYS(session, false, "Bitmap not empty while trying to import");
         return (0);
     }
 
@@ -1019,65 +1031,86 @@ __wt_live_restore_fh_import_extents_from_string(
     //     else {
     __wt_readlock(session, &lr_fh->ext_lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+      "Importing extents for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
+      lr_fh_meta->bitmap_size, lr_fh_meta->bitmap_str);
     if (lr_fh_meta->bitmap_size != 0) {
         /* Import a pre existing bitmap. */
-        // __live_restore_decode_bitmap(lr_fh_meta->bitmap_str, lr_fh_meta->bitmap_size,
-        // &lr_fh->destination.bitmap);
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s metadata bitmap: %s", fh->name,
+        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "%s metadata bitmap: %s", fh->name,
           lr_fh_meta->bitmap_str);
+        WT_ERR(__live_restore_decode_bitmap(
+          session, lr_fh_meta->bitmap_str, lr_fh_meta->bitmap_size, lr_fh));
     } else {
         /* Allocate a new bitmap. */
-        uint64_t bitmap_size = lr_fh->source_size / lr_fh_meta->allocsize;
-        WT_RET(__bit_alloc(session, bitmap_size, &lr_fh->destination.bitmap));
-        lr_fh->destination.bitmap_size = bitmap_size;
+        /* Todo: we might need to check state here but without knownig the global state we can't
+         * tell if complete is valid. */
+        if (lr_fh->source_size == 0)
+            lr_fh->destination.complete = true;
+        else {
+            uint64_t bitmap_size = lr_fh->source_size / lr_fh_meta->allocsize;
+            WT_ERR(__bit_alloc(session, bitmap_size, &lr_fh->destination.bitmap));
+            lr_fh->destination.bitmap_size = bitmap_size;
+        }
     }
-    WT_UNUSED(ret);
 
-    //     if (0) {
-    // err:
-    //         __live_restore_fh_free_bitmap(session, lr_fh);
-    //     }
-    if (__wt_rwlock_islocked(session, &lr_fh->ext_lock))
-        __wt_readunlock(session, &lr_fh->ext_lock);
+    if (0) {
+err:
+        __live_restore_fh_free_bitmap(session, lr_fh);
+    }
+    __wt_readunlock(session, &lr_fh->ext_lock);
     return (ret);
 }
 
 /*
- * __wt_live_restore_fh_extent_to_metadata --
- *     Given a WiredTiger file handle generate a string of its extents. If live restore is not
- *     running or the extent list is missing, which indicates the file is complete, return a
- *     WT_NOTFOUND error.
+ * __live_restore_encode_bitmap --
+ *     Encode a live restore bitmap as a hexidecimal string. The caller must free the bitmap string.
+ */
+static int
+__live_restore_encode_bitmap(
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_ITEM *buf)
+{
+    if (lr_fh->destination.bitmap_size == 0 || lr_fh->destination.complete == true)
+        return (0);
+
+
+    size_t walk_count = lr_fh->destination.bitmap_size / 8;
+    if (lr_fh->destination.bitmap_size % 8 != 0)
+        walk_count++;
+    WT_RET(__wt_buf_init(session, buf, (walk_count * 2) + 1));
+    /* Convert the bitmap to a hex string. */
+    for (size_t i = 0; i < walk_count; i++) {
+        WT_RET(__wt_buf_catfmt(session, buf, "%02x", lr_fh->destination.bitmap[i]));
+    }
+    ((char *)buf->data)[buf->size] = '\0';
+    return (0);
+}
+
+/*
+ * __wt_live_restore_fh_to_metadata --
+ *     Given a WiredTiger file handle generate a metadata string. If live restore is not running
+ *     return a WT_NOTFOUND error.
  */
 int
-__wt_live_restore_fh_extent_to_metadata(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_ITEM *extent_string)
+__wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_ITEM *meta_string)
 {
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (WT_NOTFOUND);
 
-    WT_UNUSED(fh);
-    WT_UNUSED(extent_string);
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
 
-    // WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    // if (lr_fh->destination.complete)
-    //     return (WT_NOTFOUND);
+    WT_ITEM buf;
+    WT_CLEAR(buf);
 
-    // wt_off_t prev_off = 0;
-    // WTI_LIVE_RESTORE_HOLE_NODE *head = lr_fh->destination.hole_list_head;
-    // WT_RET(__wt_buf_catfmt(session, extent_string, ",live_restore="));
-    // while (head != NULL) {
-    //     WT_RET(__wt_buf_catfmt(
-    //       session, extent_string, "%" PRId64 "-%" WT_SIZET_FMT, head->off - prev_off,
-    //       head->len));
-    //     prev_off = head->off;
-    //     if (head->next != NULL)
-    //         WT_RET(__wt_buf_catfmt(session, extent_string, ";"));
-    //     head = head->next;
-    // }
-    // __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-    //   "Appending live restore extents (%s) to metadata for file handle %s", fh->name,
-    //   (char *)extent_string->data);
+    WT_RET(__live_restore_encode_bitmap(session, lr_fh, &buf));
+    WT_RET(__wt_buf_catfmt(session, meta_string,
+      ",live_restore=(bitmap=%s,bitmap_size=%" PRIu64 ")",
+      buf.size == 0 ? "" : (char *)buf.data, lr_fh->destination.bitmap_size));
+    if (lr_fh->destination.bitmap_size > 0)
+        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+          "Appending live restore bitmap (%s, %" PRIu64 ") for file handle %s", (char *)buf.data,
+          lr_fh->destination.bitmap_size, fh->name);
 
+    __wt_buf_free(session, &buf);
     return (0);
 }
 
@@ -1087,8 +1120,9 @@ __wt_live_restore_fh_extent_to_metadata(
  */
 static int
 __live_restore_fs_open_in_destination(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *session,
-  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, const char *name, uint32_t flags, bool create, char **path)
+  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, const char *name, uint32_t flags, bool create)
 {
+    WT_DECL_RET;
     WT_FILE_HANDLE *fh;
 
     /* This function is only called for files. Directories are handled separately. */
@@ -1098,13 +1132,17 @@ __live_restore_fs_open_in_destination(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMP
     if (create)
         flags |= WT_FS_OPEN_CREATE;
 
+    char *path;
+
     /* Open the file in the layer. */
-    WT_RET(__live_restore_fs_backing_filename(
-      &lr_fs->destination, session, lr_fs->destination.home, name, path));
-    WT_RET(lr_fs->os_file_system->fs_open_file(
-      lr_fs->os_file_system, (WT_SESSION *)session, *path, lr_fh->file_type, flags, &fh));
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, name, &path));
+    WT_ERR(lr_fs->os_file_system->fs_open_file(
+      lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
     lr_fh->destination.fh = fh;
     lr_fh->destination.back_pointer = lr_fs;
+err:
+    __wt_free(session, path);
     return (0);
 }
 
@@ -1218,16 +1256,15 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
           __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
     }
 
-    bool create_exclusive = LF_ISSET(WT_FS_OPEN_CREATE) && LF_ISSET(WT_FS_OPEN_EXCLUSIVE);
-    if ((dest_exist || source_exist) && create_exclusive)
-        WT_RET_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
+    bool create = LF_ISSET(WT_FS_OPEN_CREATE);
+    if ((dest_exist || source_exist) && create && LF_ISSET(WT_FS_OPEN_EXCLUSIVE))
+        WT_RET_MSG(session, EEXIST, "File %s already exist, cannot be created due to excrlusive flag", name);
+    if (!dest_exist && !source_exist && !create)
+        WT_RET_MSG(session, ENOENT, "File %s doesn't exist but create flag not specified", name);
     if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
 
     char *dest_path = NULL, *source_path = NULL;
-    /* Open it in the destination layer. */
-    WT_ERR(__live_restore_fs_open_in_destination(
-      lr_fs, session, lr_fh, name, flags, !dest_exist, &dest_path));
 
     if (have_stop || lr_fs->finished) {
         /*
@@ -1249,33 +1286,43 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
                 /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
 
                 WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
+                WT_ASSERT(session, source_size != 0);
                 __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
                   "Creating destination file backed by source file. Copying size (%" PRId64
                   ") from source file",
                   source_size);
                 lr_fh->source_size = (size_t)source_size;
-                if (file_type == WT_FS_OPEN_FILE_TYPE_REGULAR) {
+                if (file_type == WT_FS_OPEN_FILE_TYPE_REGULAR ||
+                  file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
                     /* Copy over the file. */
                     char buf[500];
+                    __live_restore_fs_backing_filename(
+                      &lr_fs->destination, session, lr_fs->destination.home, name, &dest_path);
+                    __wt_verbose_info(session, WT_VERB_LIVE_RESTORE, "Copying file %s to %s",
+                      source_path, dest_path);
                     WT_ASSERT(
                       session, __wt_snprintf(buf, 500, "cp %s %s", source_path, dest_path) == 0);
                     WT_ERR(system(buf));
                     lr_fh->destination.complete = true;
                 } else {
-                    if (file_type != WT_FS_OPEN_FILE_TYPE_LOG)
-                        /*
-                         * Set size by truncating. This is a positive length truncate so it actually
-                         * extends the file. We're bypassing the live_restore layer so we don't try
-                         * to modify the extents in hole_list_head.
-                         */
-                        WT_RET(lr_fh->destination.fh->fh_truncate(
-                          lr_fh->destination.fh, wt_session, source_size));
+                    WT_ERR(__live_restore_fs_open_in_destination(
+                      lr_fs, session, lr_fh, name, flags, !dest_exist));
+                    /*
+                     * Set size by truncating. This is a positive length truncate so it actually
+                     * extends the file. We're bypassing the live_restore layer so we don't try to
+                     * modify the extents in hole_list_head.
+                     */
+                    WT_ERR(lr_fh->destination.fh->fh_truncate(
+                      lr_fh->destination.fh, wt_session, source_size));
+                    goto done;
                 }
             }
         } else
             lr_fh->destination.complete = true;
     }
 
+    WT_ERR(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
+done:
 err:
     __wt_free(session, source_path);
     __wt_free(session, dest_path);
@@ -1530,6 +1577,7 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 int
 __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
 {
+    WT_UNUSED(session);
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_DECL_RET;
 
@@ -1545,42 +1593,54 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
     u_int logcount = 0;
     char **logfiles = NULL;
     WT_DECL_ITEM(filename);
-    WT_FH *fh = NULL;
     uint32_t lognum;
 
     /* Get a list of actual log files. */
-    WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
-    for (u_int i = 0; i < logcount; i++) {
-        WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
-        /* Call log open file to generate the full path to the log file. */
-        WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
-        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-          "Transferring log file from source to dest: %s\n", fh->name);
-        /*
-         * We intentionally do not call the WiredTiger copy and sync function as we are copying
-         * between layers and that function copies between two paths. This is the same "path" from
-         * the perspective of a function higher in the stack.
-         */
-        ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
-        WT_TRET(__wt_close(session, &fh));
-        WT_ERR(ret);
-    }
-    WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
+    // WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    // for (u_int i = 0; i < logcount; i++) {
+    //     WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+    //     /* Call log open file to generate the full path to the log file. */
+    //     WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
+    //     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+    //       "Transferring log file from source to dest: %s\n", fh->name);
+    //     /*
+    //      * We intentionally do not call the WiredTiger copy and sync function as we are copying
+    //      * between layers and that function copies between two paths. This is the same "path"
+    //      from
+    //      * the perspective of a function higher in the stack.
+    //      */
+    //     ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
+    //     WT_TRET(__wt_close(session, &fh));
+    //     WT_ERR(ret);
+    // }
+    // WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
 
     /* Get a list of prep log files. */
     WT_ERR(__wt_log_get_files(session, WTI_LOG_PREPNAME, &logfiles, &logcount));
+    WT_ERR(__wt_scr_alloc(session, 0, &filename));
     for (u_int i = 0; i < logcount; i++) {
-        WT_ERR(__wt_scr_alloc(session, 0, &filename));
+        char buf[500];
+        char *path_dest;
+        char *path_src;
+        bool exists = false;
         WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
         /* We cannot utilize the log open file code as it doesn't support prep logs. */
         WT_ERR(__wt_log_filename(session, lognum, WTI_LOG_PREPNAME, filename));
+        WT_ERR(__wt_snprintf(buf, 500, "%s%s%s", lr_fs->destination.home, __wt_path_separator(),
+          (char *)filename->data));
+        WT_ERR(__live_restore_fs_has_file(lr_fs, &lr_fs->source, session, buf, &exists));
+        if (!exists)
+            continue;
+        WT_ERR(__live_restore_fs_backing_filename(
+          &lr_fs->destination, session, lr_fs->destination.home, buf, &path_dest));
+        WT_ERR(__live_restore_fs_backing_filename(
+          &lr_fs->source, session, lr_fs->destination.home, buf, &path_src));
         __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-          "Transferring prep log file from source to dest: %s\n", (char *)filename->data);
-        WT_ERR(__wt_open(
-          session, (char *)filename->data, WT_FS_OPEN_FILE_TYPE_LOG, WT_FS_OPEN_ACCESS_SEQ, &fh));
-        ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
-        WT_TRET(__wt_close(session, &fh));
-        WT_ERR(ret);
+          "Transferring prep log file from %s to %s\n", path_src, path_dest);
+        WT_ASSERT(session, __wt_snprintf(buf, 500, "cp %s %s", path_src, path_dest) == 0);
+        WT_ERR(system(buf));
+        __wt_free(session, path_dest);
+        __wt_free(session, path_src);
     }
 
 err:
@@ -1648,3 +1708,19 @@ err:
     }
     return (ret);
 }
+
+#ifdef HAVE_UNITTEST
+int
+__ut_live_restore_encode_bitmap(
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_ITEM *buf)
+{
+    return (__live_restore_encode_bitmap(session, lr_fh, buf));
+}
+
+int
+__ut_live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str,
+  uint64_t bitmap_size, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
+{
+    return (__live_restore_decode_bitmap(session, bitmap_str, bitmap_size, lr_fh));
+}
+#endif

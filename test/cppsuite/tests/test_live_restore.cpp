@@ -289,7 +289,7 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
             logger::log_msg(LOG_INFO, "Taking checkpoint");
-        } else if (ran < 5) {
+        } else if (ran < 5 && !fresh_start) {
             reopen_conn(session, conn_config, home);
             logger::log_msg(LOG_INFO, "Reopening connection");
 
@@ -297,10 +297,10 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
         } else if (ran < 9000) {
             // 90% Write.
             write(session, false);
-        } else if (ran <= 9980) {
+        } else if (ran <= 10000) {
             // 10% Read.
             read(session);
-        } else if (ran <= 10000) {
+        } else if (ran <= 10001) {
             // 0.2% fs_truncate
             trigger_fs_truncate(session);
         } else {

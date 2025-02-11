@@ -135,8 +135,6 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
             WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fh_meta->bitmap_str));
             WT_ERR(__wt_config_subgets(session, &v, "bitmap_size", &cval));
             lr_fh_meta->bitmap_size = (uint64_t)cval.val;
-            WT_ERR(__wt_config_subgets(session, &v, "state", &cval));
-            WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fh_meta->state));
         }
         /* All code paths that exist today overwrite ret but to be defensive we clear it here. */
         WT_NOT_READ(ret, 0);
@@ -1287,7 +1285,7 @@ __meta_live_restore_to_meta(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, W
         WT_ASSERT(session, bm->is_multi_handle == false);
         /* FIXME-WT-13897 Replace this with an API call into the block manager. */
         WT_FILE_HANDLE *fh = bm->block->fh->handle;
-        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_extent_to_metadata(session, fh, buf));
+        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_to_metadata(session, fh, buf));
     }
     return (0);
 }
