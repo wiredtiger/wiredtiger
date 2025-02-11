@@ -110,7 +110,7 @@ reread:
         if (*results_count > 0)
             for (i = (int32_t)*results_count - 1; i >= 0; i--)
                 if (results_array[i].mem != NULL)
-                    __wt_buf_free(&results_array[i]);
+                    __wt_buf_free(session, &results_array[i]);
 
         memset(results_array, 0, *results_count * sizeof(results_array[0]));
         *results_count = orig_count;
