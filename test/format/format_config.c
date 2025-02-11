@@ -155,10 +155,12 @@ config_random(TABLE *table, bool table_only)
             testutil_snprintf(buf, sizeof(buf), "%s=%s", cp->name,
               mmrand(&g.data_rnd, 1, 100) <= cp->min ? "on" : "off");
         else if (F_ISSET(cp, C_POW2)) {
+            double max, min;
             uint32_t vbits, val_p2;
 
-            vbits = mmrand(
-              &g.data_rnd, (uint32_t)(log2((double)cp->min)), (uint32_t)(log2((double)cp->maxrand)));
+            max = log2((double)cp->maxrand);
+            min = log2((double)cp->min);
+            vbits = mmrand(&g.data_rnd, (uint32_t)min, (uint32_t)max);
             val_p2 = 1 << vbits;
             testutil_snprintf(buf, sizeof(buf), "%s=%" PRIu32, cp->name, val_p2);
         } else
