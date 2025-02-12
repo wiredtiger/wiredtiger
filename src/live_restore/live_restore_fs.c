@@ -1343,7 +1343,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
                     char buf[500];
                     __live_restore_fs_backing_filename(
                       &lr_fs->destination, session, lr_fs->destination.home, name, &dest_path);
-                    __wt_verbose_info(session, WT_VERB_LIVE_RESTORE, "Copying file %s to %s",
+                    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "Copying file %s to %s",
                       source_path, dest_path);
                     WT_ASSERT(
                       session, __wt_snprintf(buf, 500, "cp %s %s", source_path, dest_path) == 0);

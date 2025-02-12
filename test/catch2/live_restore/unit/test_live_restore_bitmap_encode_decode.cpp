@@ -50,10 +50,14 @@ TEST_CASE("Encode various bitmaps", "[live_restore_bitmap]")
     WT_ITEM buf;
     WT_CLEAR(buf);
 
+    REQUIRE(__wt_rwlock_init(session, &lr_fh.bitmap_lock) == 0);
+
     for (const auto &test : test_bitmaps) {
         lr_fh.destination.bitmap = test.bitmap;
         lr_fh.destination.bitmap_size = test.bitmap_size;
+        __wt_readlock(session, &lr_fh.bitmap_lock);
         REQUIRE(__ut_live_restore_encode_bitmap(session, &lr_fh, &buf) == 0);
+        __wt_readunlock(session, &lr_fh.bitmap_lock);
         REQUIRE(std::string(static_cast<const char *>(buf.data)) == std::string(test.bitmap_str));
         REQUIRE(__ut_live_restore_decode_bitmap(
                   session, test.bitmap_str.c_str(), test.bitmap_size, &lr_fh2) == 0);
@@ -62,4 +66,5 @@ TEST_CASE("Encode various bitmaps", "[live_restore_bitmap]")
         __wt_buf_free(session, &buf);
         WT_CLEAR(buf);
     }
+    __wt_rwlock_destroy(session, &lr_fh.bitmap_lock);
 }
