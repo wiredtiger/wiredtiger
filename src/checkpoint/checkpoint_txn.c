@@ -1632,7 +1632,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 
     /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
     if (checkpoint_cleanup)
-        __wt_checkpoint_cleanup_trigger(session);
+        __wt_obsolete_cleanup_trigger(session);
 
     if (flush && flush_sync)
         WT_ERR(__checkpoint_flush_tier_wait(session, cfg));

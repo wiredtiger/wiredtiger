@@ -296,9 +296,9 @@ extern int __wt_call_log_timestamp_transaction_uint(WT_SESSION_IMPL *session, WT
 extern int __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_checkpoint_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
+extern int __wt_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_checkpoint_cleanup_destroy(WT_SESSION_IMPL *session)
+extern int __wt_obsolete_cleanup_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN *lsnp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1474,7 +1474,7 @@ extern void __wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_open(WT_CURSOR_BTREE *cbt);
 extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type);
-extern void __wt_checkpoint_cleanup_trigger(WT_SESSION_IMPL *session);
+extern void __wt_obsolete_cleanup_trigger(WT_SESSION_IMPL *session);
 extern void __wt_cond_auto_wait(
   WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress, bool (*run_func)(WT_SESSION_IMPL *));
 extern void __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool progress,

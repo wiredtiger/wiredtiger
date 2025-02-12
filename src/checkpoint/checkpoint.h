@@ -173,7 +173,7 @@ struct __wt_ckpt_snapshot {
     uint32_t snapshot_count;
 };
 
-struct __wt_checkpoint_cleanup {
+struct __wt_obsolete_cleanup {
     WT_SESSION_IMPL *session; /* checkpoint cleanup session */
     wt_thread_t tid;          /* checkpoint cleanup thread */
     int tid_set;              /* checkpoint cleanup thread set */
