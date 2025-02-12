@@ -92,8 +92,10 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         /* If all the threads are stopped and the queue is empty background migration is done. */
         if (TAILQ_EMPTY(&server->work_queue))
             /*
-             * FIXME-WT-14113 This is currently the only path the calls live restore clean up, but it requires us to start up the background migration threads first.
-             * When WiredTiger starts in a post-background migration state we should call this directly instead of spinning up the server.
+             * FIXME-WT-14113 This is currently the only path the calls live restore clean up, but
+             * it requires us to start up the background migration threads first. When WiredTiger
+             * starts in a post-background migration state we should call this directly instead of
+             * spinning up the server.
              */
             WT_ERR(__live_restore_clean_up(session, ctx));
 

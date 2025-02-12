@@ -319,7 +319,6 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
      * again.
      */
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
-    // TODO - get input on this. It's a deviation from WT style
     if (state > WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
         goto done;
 

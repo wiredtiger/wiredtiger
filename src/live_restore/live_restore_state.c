@@ -376,17 +376,12 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->destination.home, "", &dirlist_dest, &num_dest_files));
 
-    // TODO - run Sean's server test
-
-    // TODO - make sure we have tests that restart during the log copy stage
-
-    // TODO - New catch2 test explicitly for states
-
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
         /*
-         * We can't control for everything that the user might put into the folder, but we can
-         * control for WiredTiger files.
+         * Ideally we'd prevent live restore from starting when there are any files already present
+         * in the destination, but we can't control for everything that the user might put into the
+         * folder. Instead only check for WiredTiger files.
          */
         for (uint32_t i = 0; i < num_dest_files; ++i) {
             if (WT_PREFIX_MATCH(dirlist_dest[i], WT_WIREDTIGER) ||

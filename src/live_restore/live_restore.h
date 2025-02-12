@@ -8,9 +8,6 @@
 
 #pragma once
 
-// TODO - We should be able to expose these values to the server by exposing them in
-// wiredtiger.(h|in)
-//        Look into this.
 /*
  * Live restore state reported to the server so it knows when to terminate live restore.
  *
