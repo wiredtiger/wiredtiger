@@ -407,7 +407,7 @@ __live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *
 static void
 __live_restore_fh_free_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
     __wt_free(session, lr_fh->destination.bitmap);
     lr_fh->destination.bitmap_size = 0;
@@ -437,7 +437,7 @@ static void
 __live_restore_fh_fill_bit_range(
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
 
     /* If the file is complete or the write falls outside the bitmap return. */
@@ -454,7 +454,6 @@ __live_restore_fh_fill_bit_range(
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE%s HOLE %s: %" PRId64 "-%" PRId64,
       partial_fill ? " PARTIAL" : "", lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
     __bit_nset(lr_fh->destination.bitmap, offset_bit, fill_end_bit);
-    // TODO: Should we flag complete here?
     return;
 }
 
@@ -488,7 +487,7 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
       offset >= (wt_off_t)lr_fh->source_size)
         return (FULL);
 
-    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
     uint64_t read_end_bit = WTI_OFFSET_BIT(WTI_OFFSET_END(offset, len));
     uint64_t read_start_bit = WTI_OFFSET_BIT(offset);
@@ -540,7 +539,7 @@ __live_restore_fh_write_int(
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT,
       fh->name, offset, len);
@@ -564,7 +563,7 @@ __live_restore_fh_write(
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+    WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
       session, lr_fh, ret = __live_restore_fh_write_int(fh, wt_session, offset, len, buf));
     return (ret);
 }
@@ -590,7 +589,7 @@ __live_restore_fh_read(
 
     read_data = (char *)buf;
 
-    __wt_readlock(session, &lr_fh->ext_lock);
+    __wt_readlock(session, &lr_fh->bitmap_lock);
 
     /*
      * FIXME-WT-13828: WiredTiger will read the metadata file after creation but before anything has
@@ -662,7 +661,7 @@ err:
      *
      * Right now reads and writes are atomic if we unlock early we lose some guarantee of atomicity.
      */
-    __wt_readunlock(session, &lr_fh->ext_lock);
+    __wt_readunlock(session, &lr_fh->bitmap_lock);
     return (ret);
 }
 
@@ -729,7 +728,7 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
 {
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
-    WT_ASSERT(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock));
+    WT_ASSERT(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock));
     uint64_t first_clear_bit;
     if (__bit_ffc(lr_fh->destination.bitmap, lr_fh->destination.bitmap_size, &first_clear_bit) ==
       -1) {
@@ -791,7 +790,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     __wt_timer_start(session, &timer);
     while (!finished) {
 
-        WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, lr_fh,
+        WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh,
           ret = __live_restore_fill_hole(
             lr_fh, wt_session, buf, (wt_off_t)read_unit, &timer, &msg_count, &finished));
         WT_ERR(ret);
@@ -810,9 +809,10 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * property we choose to sync then file over anyway.
      */
     WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
+    __wt_writelock(session, &lr_fh->bitmap_lock);
     lr_fh->destination.complete = true;
-    WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
-      session, lr_fh, __live_restore_fh_free_bitmap(session, lr_fh));
+    __live_restore_fh_free_bitmap(session, lr_fh);
+    __wt_writeunlock(session, &lr_fh->bitmap_lock);
 err:
     __wt_free(session, buf);
 
@@ -917,9 +917,9 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
     }
 
-    WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+    WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
       session, lr_fh, __live_restore_fh_free_bitmap(session, lr_fh));
-    __wt_rwlock_destroy(session, &lr_fh->ext_lock);
+    __wt_rwlock_destroy(session, &lr_fh->bitmap_lock);
 
     if (lr_fh->source != NULL) /* It's possible that we never opened the file in the source. */
         lr_fh->source->close(lr_fh->source, wt_session);
@@ -976,7 +976,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
 
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
-    WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
+    WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
       session, lr_fh,
       __live_restore_fh_fill_bit_range(
         lr_fh, session, truncate_start, (size_t)(truncate_end - truncate_start)););
@@ -1068,7 +1068,7 @@ __wt_live_restore_fh_import_bitmap(
         return (0);
     }
 
-    __wt_readlock(session, &lr_fh->ext_lock);
+    __wt_readlock(session, &lr_fh->bitmap_lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
       "Importing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
@@ -1103,7 +1103,7 @@ __wt_live_restore_fh_import_bitmap(
 err:
         __live_restore_fh_free_bitmap(session, lr_fh);
     }
-    __wt_readunlock(session, &lr_fh->ext_lock);
+    __wt_readunlock(session, &lr_fh->bitmap_lock);
     return (ret);
 }
 
@@ -1115,7 +1115,7 @@ static int
 __live_restore_encode_bitmap(
   WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_ITEM *buf)
 {
-    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->ext_lock),
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
     if (lr_fh->destination.bitmap_size == 0 || lr_fh->destination.complete == true)
         return (0);
@@ -1142,7 +1142,7 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
     WT_ITEM buf;
     WT_CLEAR(buf);
 
-    __wt_readlock(session, &lr_fh->ext_lock);
+    __wt_readlock(session, &lr_fh->bitmap_lock);
 
     WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
     WT_ERR(
@@ -1157,7 +1157,7 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
           "Appending empty live restore for file handle %s", fh->name);
 
 err:
-    __wt_readunlock(session, &lr_fh->ext_lock);
+    __wt_readunlock(session, &lr_fh->bitmap_lock);
     __wt_buf_free(session, &buf);
 
     return (ret);
@@ -1420,7 +1420,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     lr_fh->iface.fh_extend = NULL;
     lr_fh->iface.fh_extend_nolock = NULL;
 
-    WT_ERR(__wt_rwlock_init(session, &lr_fh->ext_lock));
+    WT_ERR(__wt_rwlock_init(session, &lr_fh->bitmap_lock));
 
     /* FIXME-WT-13823 Handle the exclusive flag and other flags */
 

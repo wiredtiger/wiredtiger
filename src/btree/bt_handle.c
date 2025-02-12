@@ -181,7 +181,6 @@ err:
         WT_TRET(__wt_btree_close(session));
     }
     __wt_free(session, lr_fh_meta.bitmap_str);
-    __wt_free(session, lr_fh_meta.state);
     __wt_checkpoint_free(session, &ckpt);
 
     __wt_scr_free(session, &tmp);

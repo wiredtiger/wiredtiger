@@ -55,18 +55,18 @@ struct __wti_live_restore_file_handle {
 
     uint32_t allocsize;
     WT_FS_OPEN_FILE_TYPE file_type;
-    WT_RWLOCK ext_lock; /* File extent list lock */
+    WT_RWLOCK bitmap_lock;
 };
 
 /*
- * WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK --
- *     Acquire the extent list write lock and perform an operation.
+ * WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK --
+ *     Acquire the bitmap list write lock and perform an operation.
  */
-#define WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, lr_fh, op) \
-    do {                                                                 \
-        __wt_writelock((session), &(lr_fh)->ext_lock);                   \
-        op;                                                              \
-        __wt_writeunlock((session), &(lr_fh)->ext_lock);                 \
+#define WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh, op) \
+    do {                                                            \
+        __wt_writelock((session), &(lr_fh)->bitmap_lock);           \
+        op;                                                         \
+        __wt_writeunlock((session), &(lr_fh)->bitmap_lock);         \
     } while (0)
 
 typedef enum {
