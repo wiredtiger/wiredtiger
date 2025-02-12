@@ -175,20 +175,42 @@ __clayered_leave(WT_CURSOR_LAYERED *clayered)
 static int
 __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 {
+    WT_BTREE *ingest_btree;
     WT_CURSOR *c;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    bool locked;
 
     clayered->current_cursor = NULL;
-    if ((c = clayered->ingest_cursor) != NULL) {
-        WT_RET(c->close(c));
-        clayered->ingest_cursor = NULL;
-    }
+    locked = false;
     if ((c = clayered->stable_cursor) != NULL) {
         WT_RET(c->close(c));
         clayered->stable_cursor = NULL;
     }
 
+    if ((c = clayered->ingest_cursor) != NULL) {
+        if (clayered->checkpoint_timestamp != WT_TS_NONE) {
+            session = CUR2S(c);
+            ingest_btree = CUR2BT(c);
+            __wt_spin_lock(session, &ingest_btree->ts_min_heap_lock);
+            locked = true;
+            WT_ERR(
+              __wt_ts_min_heap_remove(&ingest_btree->ts_min_heap, clayered->checkpoint_timestamp));
+            WT_ERR(__wt_update_pinned_ts_ingest(session, ingest_btree));
+            __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
+            locked = false;
+        }
+        WT_ERR(c->close(c));
+        clayered->ingest_cursor = NULL;
+    }
+
+    clayered->checkpoint_timestamp = WT_TS_NONE;
     clayered->flags = 0;
-    return (0);
+
+err:
+    if (locked)
+        __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
+    return (ret);
 }
 
 /*
@@ -198,21 +220,26 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 static int
 __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 {
+    WT_BTREE *ingest_btree;
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
+    wt_timestamp_t checkpoint_timestamp;
     u_int cfg_pos;
     char random_config[1024];
     const char *ckpt_cfg[4];
-    bool defer_stable, leader;
+    bool defer_stable, leader, locked;
 
     c = &clayered->iface;
-    defer_stable = false;
+    defer_stable = locked = false;
     session = CUR2S(clayered);
+    conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)session->dhandle;
+    checkpoint_timestamp = WT_TS_NONE;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     /*
      * Query operations need a full set of cursors. Overwrite cursors do queries in service of
@@ -262,8 +289,12 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     }
 
     if (clayered->stable_cursor == NULL) {
-        leader = S2C(session)->layered_table_manager.leader;
-        if (!leader)
+        leader = conn->layered_table_manager.leader;
+        /* Read the checkpoint timestamp as the first step in case we race with picking up a new
+         * checkpoint. */
+        WT_ACQUIRE_READ(
+          checkpoint_timestamp, conn->disaggregated_storage.last_checkpoint_timestamp);
+        if (!leader) {
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
              * cursor on stable without a checkpoint. It will never return an invalid result (it's
@@ -272,6 +303,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * checkpoint across different WiredTiger instances eventually.
              */
             ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false,force=true";
+        }
         ckpt_cfg[cfg_pos] = NULL;
         ret = __wt_open_cursor(
           session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
@@ -293,6 +325,18 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
         WT_RET(ret);
         if (clayered->stable_cursor != NULL)
             F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+
+        if (!leader && checkpoint_timestamp != WT_TS_NONE) {
+            ingest_btree = CUR2BT(clayered->ingest_cursor);
+            __wt_spin_lock(session, &ingest_btree->ts_min_heap_lock);
+            locked = true;
+            WT_ERR(
+              __wt_ts_min_heap_insert(session, &ingest_btree->ts_min_heap, checkpoint_timestamp));
+            WT_ERR(__wt_update_pinned_ts_ingest(session, ingest_btree));
+            __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
+            locked = false;
+        }
+        clayered->checkpoint_timestamp = checkpoint_timestamp;
     }
 
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
@@ -311,8 +355,11 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
         }
     }
 
-    WT_RET(__clayered_copy_bounds(clayered));
+    WT_ERR(__clayered_copy_bounds(clayered));
 
+err:
+    if (locked)
+        __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
     return (ret);
 }
 

@@ -239,6 +239,7 @@ src/support/scratch.c
 src/support/stat.c
 src/support/thread_group.c
 src/support/timestamp.c
+src/support/ts_min_heap.c
 src/support/update_vector.c
 src/tiered/tiered_config.c
 src/tiered/tiered_handle.c

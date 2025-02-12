@@ -1659,6 +1659,16 @@ struct __wt_update_vector {
     size_t size;
 };
 
+/* WT_TS_MIN_HEAP --
+ * A resizable minimum heap to store the smallest timestamp needs to be pinned in the ingest table
+ * for layered table.
+ */
+struct __wt_ts_min_heap {
+    size_t size;
+    size_t capacity;
+    wt_timestamp_t *data;
+};
+
 /*
  * WT_MODIFY_MEM_FRACTION
  *	Limit update chains to a fraction of the base document size.

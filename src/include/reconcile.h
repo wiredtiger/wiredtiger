@@ -108,8 +108,8 @@ struct __wt_reconcile {
     /* Track the pinned stable timestamp at the time reconciliation started. */
     wt_timestamp_t rec_start_pinned_stable_ts;
 
-    /* Track the last disaggregated checkpoint timestamp reconciliation started. */
-    wt_timestamp_t rec_last_checkpoint_timestamp;
+    /* Track the pinned timestamp for the ingest table. */
+    wt_timestamp_t rec_pinned_ts_ingest;
 
     /* Track the page's maximum transaction/timestamp. */
     uint64_t max_txn;

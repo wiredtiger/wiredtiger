@@ -1397,6 +1397,14 @@ extern int __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ts_min_heap_get_min(WT_TS_MIN_HEAP *heap, wt_timestamp_t *tsp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ts_min_heap_init(WT_SESSION_IMPL *session, WT_TS_MIN_HEAP *heap)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ts_min_heap_insert(WT_SESSION_IMPL *session, WT_TS_MIN_HEAP *heap,
+  wt_timestamp_t ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_ts_min_heap_remove(WT_TS_MIN_HEAP *heap, wt_timestamp_t ts)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
@@ -1466,6 +1474,8 @@ extern int __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_unexpected_object_type(
   WT_SESSION_IMPL *session, const char *uri, const char *expect) WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_update_pinned_ts_ingest(WT_SESSION_IMPL *session, WT_BTREE *btree)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_update_vector_push(WT_UPDATE_VECTOR *updates, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2130,6 +2140,7 @@ extern void __wt_tiered_remove_work(WT_SESSION_IMPL *session, WT_TIERED *tiered,
 extern void __wt_tiered_requeue_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry);
 extern void __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry);
 extern void __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp);
+extern void __wt_ts_min_heap_free(WT_SESSION_IMPL *session, WT_TS_MIN_HEAP *heap);
 extern void __wt_txn_bump_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_close_checkpoint_cursor(WT_SESSION_IMPL *session, WT_TXN **txn_arg);
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);

@@ -174,6 +174,9 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         btree->evict_disabled_open = true;
     }
 
+    WT_ERR(__wt_spin_init(session, &btree->ts_min_heap_lock, "ts min heap lock"));
+    WT_ERR(__wt_ts_min_heap_init(session, &btree->ts_min_heap));
+
     if (0) {
 err:
         WT_TRET(__wt_btree_close(session));
@@ -240,6 +243,9 @@ __wt_btree_close(WT_SESSION_IMPL *session)
         /* Close the underlying block manager reference. */
         WT_TRET(bm->close(bm, session));
     }
+
+    __wt_spin_destroy(session, &btree->ts_min_heap_lock);
+    __wt_ts_min_heap_free(session, &btree->ts_min_heap);
 
     return (ret);
 }

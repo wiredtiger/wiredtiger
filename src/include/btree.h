@@ -272,6 +272,11 @@ struct __wt_btree {
     /* The next page ID available for allocation in disaggregated storage for this tree. */
     wt_shared uint64_t next_page_id;
 
+    WT_SPINLOCK ts_min_heap_lock;
+    WT_TS_MIN_HEAP ts_min_heap;
+    wt_shared wt_timestamp_t
+      pinned_ts_ingest; /* The pinned timestamp of the ingest table by the opening checkpoints */
+
 /*
  * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an
  * explanation.

@@ -1155,3 +1155,29 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     return (0);
 }
+
+/*
+ * __wt_update_pinned_ts_ingest --
+ *     Update the pinned timestamp for the ingest table.
+ */
+int
+__wt_update_pinned_ts_ingest(WT_SESSION_IMPL *session, WT_BTREE *btree)
+{
+    WT_DECL_RET;
+    wt_timestamp_t last_checkpoint_timestamp, min_ts;
+
+    min_ts = WT_TS_NONE;
+    WT_ERR_NOTFOUND_OK(__wt_ts_min_heap_get_min(&btree->ts_min_heap, &min_ts), false);
+    WT_ACQUIRE_READ(
+      last_checkpoint_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+    if (last_checkpoint_timestamp == WT_TS_NONE) {
+        WT_ASSERT(session, min_ts == WT_TS_NONE);
+        return (0);
+    }
+
+    WT_RELEASE_WRITE(btree->pinned_ts_ingest,
+      min_ts < last_checkpoint_timestamp ? min_ts : last_checkpoint_timestamp);
+
+err:
+    return (ret);
+}
