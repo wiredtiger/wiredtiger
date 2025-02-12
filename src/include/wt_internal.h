@@ -119,6 +119,8 @@ struct __wt_cell_unpack_addr;
 typedef struct __wt_cell_unpack_addr WT_CELL_UNPACK_ADDR;
 struct __wt_cell_unpack_common;
 typedef struct __wt_cell_unpack_common WT_CELL_UNPACK_COMMON;
+struct __wt_cell_unpack_delta_int;
+typedef struct __wt_cell_unpack_delta_int WT_CELL_UNPACK_DELTA_INT;
 struct __wt_cell_unpack_delta_leaf;
 typedef struct __wt_cell_unpack_delta_leaf WT_CELL_UNPACK_DELTA_LEAF;
 struct __wt_cell_unpack_kv;

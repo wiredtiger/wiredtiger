@@ -237,8 +237,20 @@ struct __wt_cell_unpack_kv {
 };
 
 /*
+ * WT_CELL_UNPACK_DELTA_INT --
+ *     Unpacked internal delta cell.
+ */
+struct __wt_cell_unpack_delta_int {
+    uint32_t __len;
+    const void *key;
+    uint32_t key_size;
+    const void *value;
+    uint32_t value_size;
+};
+
+/*
  * WT_CELL_UNPACK_DELTA_LEAF --
- *     Unpacked delta cell.
+ *     Unpacked leaf delta cell.
  */
 struct __wt_cell_unpack_delta_leaf {
     uint32_t __len;
