@@ -198,7 +198,7 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
             __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
             locked = false;
         }
-        WT_RET(c->close(c));
+        WT_ERR(c->close(c));
         clayered->stable_cursor = NULL;
     }
 
