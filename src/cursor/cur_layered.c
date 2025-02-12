@@ -307,7 +307,9 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * checkpoint across different WiredTiger instances eventually.
              */
             ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false,force=true";
-        }
+        } else
+            checkpoint_timestamp = WT_TS_NONE;
+
         ckpt_cfg[cfg_pos] = NULL;
         ret = __wt_open_cursor(
           session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
