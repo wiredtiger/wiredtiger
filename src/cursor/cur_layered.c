@@ -241,6 +241,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)session->dhandle;
     checkpoint_timestamp = WT_TS_NONE;
+    ingest_btree = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
