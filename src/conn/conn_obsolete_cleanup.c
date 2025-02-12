@@ -786,11 +786,11 @@ err:
 }
 
 /*
- * __wt_obsolete_cleanup_create --
+ * __wti_obsolete_cleanup_create --
  *     Start the obsolete cleanup thread.
  */
 int
-__wt_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -829,11 +829,11 @@ __wt_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_obsolete_cleanup_destroy --
+ * __wti_obsolete_cleanup_destroy --
  *     Destroy the obsolete cleanup thread.
  */
 int
-__wt_obsolete_cleanup_destroy(WT_SESSION_IMPL *session)
+__wti_obsolete_cleanup_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
