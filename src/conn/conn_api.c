@@ -3158,7 +3158,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /*
      * If live restore is enabled then live restores setup recovery must be run before this
-     * function. Set up recovery creates the log folder in the destination which version accesses to
+     * function. Set up recovery creates the log folder in the destination which version verify accesses to
      * determine the log version being used using.
      */
     WT_ERR(__conn_version_verify(session));

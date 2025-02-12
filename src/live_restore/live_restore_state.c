@@ -266,8 +266,7 @@ err:
 
 /*
  * __wti_live_restore_get_state --
- *     Get the live restore state. If it's not available in memory read it from the on-disk state
- *     file.
+ *     Get the live restore state.
  */
 WTI_LIVE_RESTORE_STATE
 __wti_live_restore_get_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
@@ -319,7 +318,7 @@ err:
 
 /*
  * __wti_live_restore_validate_directories --
- *     Validate the source and destination directories are in a valid state on startup.
+ *     Validate the source and destination directories are in the correct state on startup.
  */
 int
 __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
