@@ -835,10 +835,9 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, char *buf,
 
     /*
      * When encountering a large hole, break the read into small chunks. Split the hole into n
-     * chunks: the first n - 1 chunks will read a full WT_LIVE_RESTORE_READ_SIZE buffer, and the
-     * last chunk reads the remaining data. This loop is not obvious, effectively the read is
-     * shrinking the hole in the stack below us. This is why we always read from the start at the
-     * beginning of the loop.
+     * chunks: the first n - 1 chunks will read a full read_size buffer, and the last chunk reads
+     * the remaining data. This loop is not obvious, effectively the read is shrinking the hole in
+     * the stack below us. This is why we always read from the start at the beginning of the loop.
      */
     size_t read_size = WT_MIN(hole->len, lr_fh->destination.back_pointer->read_size);
     uint64_t time_diff_ms;
@@ -898,7 +897,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
      * data from source to destination should be safe. If the write doesn't complete then a hole
      * should remain and the same write will be performed on the startup. To avoid depending on that
-     * property we choose to sync then file over anyway.
+     * property we choose to sync the file over anyway.
      */
     WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
 
@@ -1736,7 +1735,7 @@ __live_restore_copy_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     /*
      * Break the copy into small chunks. Split the file into n chunks: the first n - 1 chunks will
-     * read a full WT_LIVE_RESTORE_READ_SIZE buffer, and the last chunk reads the remaining data.
+     * read a full read_size buffer, and the last chunk reads the remaining data.
      */
     for (size_t off = 0, len; off < lr_fh->source_size; off += len) {
         len = WT_MIN(lr_fh->source_size - off, read_size);
@@ -1752,7 +1751,7 @@ __live_restore_copy_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
      * data from source to destination should be safe. If the write doesn't complete then a hole
      * should remain and the same write will be performed on the startup. To avoid depending on that
-     * property we choose to sync then file over anyway.
+     * property we choose to sync the file over anyway.
      */
     WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
 
