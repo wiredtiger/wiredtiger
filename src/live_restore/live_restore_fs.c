@@ -835,10 +835,9 @@ __live_restore_fill_hole(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, char *buf,
 
     /*
      * When encountering a large hole, break the read into small chunks. Split the hole into n
-     * chunks: the first n - 1 chunks will read a full WT_LIVE_RESTORE_READ_SIZE buffer, and the
-     * last chunk reads the remaining data. This loop is not obvious, effectively the read is
-     * shrinking the hole in the stack below us. This is why we always read from the start at the
-     * beginning of the loop.
+     * chunks: the first n - 1 chunks will read a full read_size buffer, and the last chunk reads
+     * the remaining data. This loop is not obvious, effectively the read is shrinking the hole in
+     * the stack below us. This is why we always read from the start at the beginning of the loop.
      */
     size_t read_size = WT_MIN(hole->len, lr_fh->destination.back_pointer->read_size);
     uint64_t time_diff_ms;
@@ -898,7 +897,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
      * data from source to destination should be safe. If the write doesn't complete then a hole
      * should remain and the same write will be performed on the startup. To avoid depending on that
-     * property we choose to sync then file over anyway.
+     * property we choose to sync the file over anyway.
      */
     WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
 
@@ -1721,6 +1720,47 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 }
 
 /*
+ * __live_restore_copy_file --
+ *     Copy a file across for live restore.
+ */
+static int
+__live_restore_copy_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+    char *buf = NULL;
+    size_t read_size = lr_fh->destination.back_pointer->read_size;
+    WT_RET(__wt_calloc(session, 1, read_size, &buf));
+
+    /*
+     * Break the copy into small chunks. Split the file into n chunks: the first n - 1 chunks will
+     * read a full read_size buffer, and the last chunk reads the remaining data.
+     */
+    for (size_t off = 0, len; off < lr_fh->source_size; off += len) {
+        len = WT_MIN(lr_fh->source_size - off, read_size);
+        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, (wt_off_t)off, len, buf));
+        WT_ERR(lr_fh->destination.fh->fh_write(
+          lr_fh->destination.fh, wt_session, (wt_off_t)off, len, buf));
+
+        /* Check the system has not entered a panic state since the copy can take long time. */
+        WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
+    }
+
+    /*
+     * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
+     * data from source to destination should be safe. If the write doesn't complete then a hole
+     * should remain and the same write will be performed on the startup. To avoid depending on that
+     * property we choose to sync the file over anyway.
+     */
+    WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
+
+err:
+    __wt_free(session, buf);
+    return (ret);
+}
+
+/*
  * __wt_live_restore_setup_recovery --
  *     Perform necessary setup steps prior to recovery running. This is largely copying log files
  *     from the source to the destination. We also need to copy over prep log files as logging will
@@ -1761,7 +1801,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
          * between layers and that function copies between two paths. This is the same "path" from
          * the perspective of a function higher in the stack.
          */
-        ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
+        ret = __live_restore_copy_file(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
     }
@@ -1778,7 +1818,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
           "Transferring prep log file from source to dest: %s\n", (char *)filename->data);
         WT_ERR(__wt_open(
           session, (char *)filename->data, WT_FS_OPEN_FILE_TYPE_LOG, WT_FS_OPEN_ACCESS_SEQ, &fh));
-        ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
+        ret = __live_restore_copy_file(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
     }
