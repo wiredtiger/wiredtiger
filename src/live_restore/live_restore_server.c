@@ -177,8 +177,8 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
     /*
-     * Don't start work until we've reached the background migration stage. This prevents the background migration
-     * threads from racing with log pre-copy.
+     * Don't start work until we've reached the background migration stage. This prevents the
+     * background migration threads from racing with log pre-copy.
      */
     if (state < WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
         __wt_sleep(0, 10000);

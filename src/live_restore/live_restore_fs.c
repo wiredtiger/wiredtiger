@@ -285,6 +285,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     bool dest_folder_exists = false, source_folder_exists = false;
     uint32_t num_src_files = 0, num_dest_files = 0;
     WT_DECL_ITEM(filename);
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
     path_dest = path_src = temp_path = NULL;
@@ -318,7 +319,6 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
      * Once we're past the background migration stage we never need to access the source directory
      * again.
      */
-    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
     if (state > WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
         goto done;
 
@@ -1792,6 +1792,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(filename);
     WT_FH *fh = NULL;
     uint32_t lognum;
+    WT_FILE_HANDLE *log_folder_fh = NULL;
 
     /* Open and close the log folder. This creates it in the destination if it didn't exist. */
     WT_DECL_ITEM(log_folder_path);
@@ -1799,7 +1800,6 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
     WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, conn->log_mgr.log_path,
       UINTMAX_MAX, UINT32_MAX, log_folder_path));
 
-    WT_FILE_HANDLE *log_folder_fh = NULL;
     lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, (WT_SESSION *)session, log_folder_path->data,
       WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log_folder_fh);
     log_folder_fh->close(log_folder_fh, (WT_SESSION *)session);

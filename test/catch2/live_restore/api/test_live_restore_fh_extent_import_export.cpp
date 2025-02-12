@@ -199,7 +199,6 @@ TEST_CASE("Live Restore extent export", "[live_restore],[live_restore_extent_imp
 {
     live_restore_test_env env;
     WT_SESSION_IMPL *session = env.session;
-    WT_SESSION *wt_session = (WT_SESSION *)session;
 
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     REQUIRE(__wt_calloc_one(session, &lr_fh) == 0);

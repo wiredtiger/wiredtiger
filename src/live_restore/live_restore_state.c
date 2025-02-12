@@ -73,13 +73,13 @@ __live_restore_get_state_from_file(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs,
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh = NULL;
+    bool state_file_exists = false;
 
     WT_DECL_ITEM(state_file_name);
     WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
     WT_ERR(__wt_filename_construct(session, backing_folder, WTI_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
 
-    bool state_file_exists = false;
     WT_ERR(
       fs->fs_exist(fs, (WT_SESSION *)session, (char *)state_file_name->data, &state_file_exists));
     if (!state_file_exists)
@@ -139,6 +139,8 @@ __wti_live_restore_set_state(
   WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs, WTI_LIVE_RESTORE_STATE new_state)
 {
     WT_DECL_RET;
+    WT_FILE_HANDLE *fh = NULL;
+    bool state_file_exists = false;
 
     __wt_writelock(session, &lr_fs->state_lock);
 
@@ -175,8 +177,6 @@ __wti_live_restore_set_state(
     WT_DECL_ITEM(state_file_name);
     WT_ERR(__wt_scr_alloc(session, 0, &state_file_name));
 
-    bool state_file_exists = false;
-
     WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WTI_LIVE_RESTORE_STATE_FILE,
       UINTMAX_MAX, UINT32_MAX, state_file_name));
     WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
@@ -188,7 +188,6 @@ __wti_live_restore_set_state(
      */
     WT_ASSERT_ALWAYS(session, state_file_exists, "State file doesn't exist!");
 
-    WT_FILE_HANDLE *fh = NULL;
     char state_to_write[128];
     __live_restore_state_to_string(new_state, state_to_write);
     WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
