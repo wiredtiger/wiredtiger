@@ -183,6 +183,7 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 
     clayered->current_cursor = NULL;
     session = NULL;
+    ingest_btree = NULL;
     locked = false;
 
     if ((c = clayered->stable_cursor) != NULL) {
