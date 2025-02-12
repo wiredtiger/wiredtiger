@@ -1847,8 +1847,8 @@ struct __wt_session {
      * @configstart{WT_SESSION.checkpoint, see dist/api_data.py}
      * @config{debug = (, configure debug specific behavior on a checkpoint.  Generally only used
      * for internal testing purposes., a set of related configuration options defined as follows.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_cleanup, if true\, checkpoint cleanup thread is
-     * triggered to perform the checkpoint cleanup., a boolean flag; default \c false.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_cleanup, if true\, the obsolete cleanup thread is
+     * triggered during checkpoint., a boolean flag; default \c false.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_crash_point, non-negative number between 0 and
      * 1000 will trigger a controlled crash during the checkpoint process.  Lower values will
      * trigger crashes in the initial phase of checkpoint\, while higher values will result in
@@ -2097,14 +2097,14 @@ struct __wt_connection {
      * seconds to wait between each checkpoint; setting this value above 0 configures periodic
      * checkpoints., an integer between \c 0 and \c 100000; default \c 0.}
      * @config{ ),,}
-     * @config{checkpoint_cleanup = (, periodically checkpoint cleanup the database., a set of
-     * related configuration options defined as follows.}
+     * @config{checkpoint_cleanup = (, periodically perform obsolete cleanup on the database., a set
+     * of related configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;method,
      * control how aggressively obsolete content is removed by reading the internal pages.  Default
      * to none\, which means no additional work is done to find obsolete content., a string\, chosen
      * from the following options: \c "none"\, \c "reclaim_space"; default \c none.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint cleanup., an
-     * integer between \c 60 and \c 100000; default \c 300.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each cleanup., an integer
+     * between \c 60 and \c 100000; default \c 300.}
      * @config{ ),,}
      * @config{chunk_cache = (, chunk cache reconfiguration options., a set of related configuration
      * options defined as follows.}
@@ -2268,16 +2268,15 @@ struct __wt_connection {
      * a mechanism for quickly reverting to prior behavior in the field., a set of related
      * configuration options defined as follows.}
      * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * checkpoint_cleanup_obsolete_tw_pages_dirty_max, maximum number of obsolete time window pages
-     * that can be marked as dirty per btree in a single checkpoint by the checkpoint cleanup., an
-     * integer between \c 0 and \c 100000; default \c 100.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-     * eviction_obsolete_tw_pages_dirty_max, maximum number of obsolete time window pages that can
-     * be marked dirty per btree in a single checkpoint by the eviction threads., an integer between
-     * \c 0 and \c 100000; default \c 100.}
-     * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_btree_max,
-     * maximum number of btrees that can be checked for obsolete time window cleanup in a single
-     * checkpoint., an integer between \c 0 and \c 500000; default \c 100.}
+     * checkpoint_cleanup_obsolete_tw_pages_dirty_max, maximum number of obsolete pages that can be
+     * marked as dirty per btree in a single checkpoint., an integer between \c 0 and \c 100000;
+     * default \c 100.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction_obsolete_tw_pages_dirty_max,
+     * maximum number of obsolete pages that can be marked dirty per btree in a single checkpoint by
+     * the eviction threads., an integer between \c 0 and \c 100000; default \c 100.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_btree_max, maximum number of btrees that can be
+     * checked for obsolete time window cleanup in a single checkpoint., an integer between \c 0 and
+     * \c 500000; default \c 100.}
      * @config{ ),,}
      * @config{history_store = (, history store configuration options., a set of related
      * configuration options defined as follows.}
@@ -2883,15 +2882,14 @@ struct __wt_connection {
  * between each checkpoint; setting this value above 0 configures periodic checkpoints., an integer
  * between \c 0 and \c 100000; default \c 0.}
  * @config{ ),,}
- * @config{checkpoint_cleanup = (, periodically checkpoint cleanup the database., a set of related
- * configuration options defined as follows.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;method, control how
- * aggressively obsolete content is removed by reading the internal pages.  Default to none\, which
- * means no additional work is done to find obsolete content., a string\, chosen from the following
- * options: \c "none"\, \c "reclaim_space"; default \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait,
- * seconds to wait between each checkpoint cleanup., an integer between \c 60 and \c 100000; default
- * \c 300.}
+ * @config{checkpoint_cleanup = (, periodically perform obsolete cleanup on the database., a set of
+ * related configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;method,
+ * control how aggressively obsolete content is removed by reading the internal pages.  Default to
+ * none\, which means no additional work is done to find obsolete content., a string\, chosen from
+ * the following options: \c "none"\, \c "reclaim_space"; default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each cleanup., an integer between
+ * \c 60 and \c 100000; default \c 300.}
  * @config{ ),,}
  * @config{checkpoint_sync, flush files to stable storage when closing or writing checkpoints., a
  * boolean flag; default \c true.}
@@ -3118,16 +3116,15 @@ struct __wt_connection {
  * for quickly reverting to prior behavior in the field., a set of related configuration options
  * defined as follows.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * checkpoint_cleanup_obsolete_tw_pages_dirty_max, maximum number of obsolete time window pages that
- * can be marked as dirty per btree in a single checkpoint by the checkpoint cleanup., an integer
- * between \c 0 and \c 100000; default \c 100.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * eviction_obsolete_tw_pages_dirty_max, maximum number of obsolete time window pages that can be
- * marked dirty per btree in a single checkpoint by the eviction threads., an integer between \c 0
- * and \c 100000; default \c 100.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_btree_max, maximum
- * number of btrees that can be checked for obsolete time window cleanup in a single checkpoint., an
- * integer between \c 0 and \c 500000; default \c 100.}
+ * checkpoint_cleanup_obsolete_tw_pages_dirty_max, maximum number of obsolete pages that can be
+ * marked as dirty per btree in a single checkpoint., an integer between \c 0 and \c 100000; default
+ * \c 100.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction_obsolete_tw_pages_dirty_max, maximum number of
+ * obsolete pages that can be marked dirty per btree in a single checkpoint by the eviction
+ * threads., an integer between \c 0 and \c 100000; default \c 100.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;obsolete_tw_btree_max, maximum number of btrees that can be
+ * checked for obsolete time window cleanup in a single checkpoint., an integer between \c 0 and \c
+ * 500000; default \c 100.}
  * @config{ ),,}
  * @config{history_store = (, history store configuration options., a set of related configuration
  * options defined as follows.}
