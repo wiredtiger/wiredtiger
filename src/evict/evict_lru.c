@@ -406,7 +406,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /* Update the global eviction state. */
     __wt_atomic_store32(&evict->flags, flags);
 
-    return (F_ISSET(evict, WT_EVICT_CACHE_ALL | WT_EVICT_CACHE_URGENT));
+    return (F_ISSET(evict, WT_EVICT_CACHE_ANY | WT_EVICT_CACHE_URGENT));
 }
 
 /* !!!
@@ -652,7 +652,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
     if (evict->evict_tune_last_action_time.tv_sec == 0)
         evict->evict_tune_datapts_needed = EVICT_TUNE_DATAPT_MIN;
 
-    if (F_ISSET(evict, WT_EVICT_CACHE_ALL)) {
+    if (F_ISSET(evict, WT_EVICT_CACHE_ANY)) {
         cur_threads = (int32_t)__wt_atomic_load32(&conn->evict_threads.current_threads);
         target_threads = WT_MIN(cur_threads + EVICT_TUNE_BATCH, (int32_t)conn->evict_threads_max);
         /*
