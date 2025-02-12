@@ -182,7 +182,9 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
     bool locked;
 
     clayered->current_cursor = NULL;
+    session = NULL;
     locked = false;
+
     if ((c = clayered->stable_cursor) != NULL) {
         WT_RET(c->close(c));
         clayered->stable_cursor = NULL;
