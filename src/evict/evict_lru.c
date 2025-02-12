@@ -933,16 +933,24 @@ __evict_get_ref(
     WT_ASSERT(dhandle->handle->evict_handle.initialized);
 
     /*
-     * We iterate over bucket sets in eviction priority order: The highest priority for eviction are
-     * the clean leaf pages, then the dirty leaf pages, then the internal pages.
+     * We iterate over bucket sets in eviction priority order from highest to lowest is:
+	 * 1. Clean leaf pages.
+	 * 2. Clean internal pages.
+	 * 3. Dirty leaf pages.
+	 * 4. Dirty internal pages.
      *
-     * The iteration order of the bucket sets can change to enforce a different priority.
-     *
+     * The iteration order of the bucket sets can be changed if a different priority is desired.
+	 *
      * In each bucketset we iterate over the buckets starting with the smallest, because smaller
      * buckets will have pages with smaller read generations.
-     *
      */
-    for (i = WT_EVICT_LEVEL_CLEAN_LEAF; i <= WT_EVICT_LEVEL_INTERNAL; i++) {
+	int max_level = 0;
+	if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
+		max_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
+	if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
+		max_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
+
+    for (i = WT_EVICT_LEVEL_CLEAN_LEAF; i <= max_level; i++) {
         bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
 	  restart_bucketset:
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
@@ -961,7 +969,6 @@ __evict_get_ref(
                     ref = NULL;
                     continue;
                 }
-
 				/*
 				 * If we are here, we have a ref and it is locked.
 				 * Make sure we unlock it if we decide to skip.
@@ -1690,13 +1697,17 @@ __evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
     evict_handle = &dhandle->evict_handle_data;
 
     /* Find the bucket set for the page depending on its type */
-    if (WT_PAGE_IS_INTERNAL(page))
-        bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_INTERNAL];
-    else if (__wt_page_is_modified(page))
-        bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF];
-    else
-        bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF];
-
+    if (WT_PAGE_IS_INTERNAL(page)) {
+		if (__wt_page_is_modified(page))
+			bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL];
+		else
+			bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL];
+	} else { /* we have a leaf page */
+		if (__wt_page_is_modified(page))
+			bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF];
+		else
+			bucketset = &evict_handle->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF];
+	}
     /*
      * Find the right bucket. The page's read generation may change as we are looking for the right
      * bucket. In that case, the page will end up in a lower bucket than. it should be. That's okay,
