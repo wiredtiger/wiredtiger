@@ -493,7 +493,7 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
     if (lr_fh->destination.complete || lr_fh->source == NULL ||
       offset >= (wt_off_t)lr_fh->source_size)
         return (FULL);
-
+    WT_ASSERT(session, lr_fh->allocsize != 0);
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
     uint64_t read_end_bit = WTI_OFFSET_BIT(WTI_OFFSET_END(offset, len));
@@ -1330,7 +1330,11 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
          */
         lr_fh->destination.complete = true;
     } else {
-        if (source_exist) {
+        /* If the file is a regular file or log file and it already exists it must be complete. */
+        if (dest_exist &&
+          (file_type == WT_FS_OPEN_FILE_TYPE_REGULAR || file_type == WT_FS_OPEN_FILE_TYPE_LOG))
+            lr_fh->destination.complete = true;
+        else if (source_exist) {
             wt_off_t source_size;
             WT_ERR(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags, &source_path));
             WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
