@@ -52,29 +52,18 @@ rolling back any active transaction and closing the cursors that are still open.
 @section arch_session_thread Multithreading
 A session is always executed as a single thread, see @ref threads for more details.
 
-@section arch_session_error Errors and Sub-level Errors
-When WiredTiger operations encounter an error, a non-zero error code is returned
-which indicates the general type of error. Along with this, there are also sub-level error codes which are more specific.
-These sub-level error codes can accompany the error code, to better identify the source of error.
-Every session API call (except WT_SESSION::get_last_error) will be completed with a refreshed
-error_info struct containing an error code, a sub-level error code, and an error message. These are
-extracted by using WT_SESSION::get_last_error. The error code indicates the general type of error,
-while the sub-level error code and error message provide additional context.
-See @ref error_handling for details. When a session API call is made, API_SESSION_INIT is called and err_info is reset to an error code
-0, sub-level error code WT_NONE, and error message "the last API call was successful".
-Only the earliest error is saved and will not be overwritten by an error
-that occurs later. At the end of the API call, API_END is called, which does an additional check on
-the return value. If it is non-zero and it is not the same as the error code in err_info. It will
-attempt to save this error with a sub-level error code WT_NONE, and an error message as an empty string. The
-overwrite rules still apply, and will not overwrite a previously saved error within the API call.
+@section arch_session_error Error and Sub-level Errors Handling
+A session can track the return value of the prior API call through calling WT_SESSION::get_last_error. Alongside,
+sub-level error codes and messages are also accessible through calling the function providing contextual information 
+behind the call. The intended usage of the sub-level error code is to provide users more contextual information 
+on why an error has occurred, and allow users to programmatically make decisions based on sub-level error code.
 
-@subsection arch_session_error_ret Sub-level Errors - WT_RET_MSG and WT_RET_SUB
-When errors occur within the system, errors can be saved with four macros: WT_RET_MSG, WT_ERR_MSG,
-WT_RET_SUB, WT_ERR_SUB. WT_RET_MSG and WT_ERR_MSG save errors without a sub-level error code,
-defaulting the sub-level error code to WT_NONE. WT_RET_SUB and WT_ERR_SUB save errors with a
-sub-level error code. In all four macros, an error code must be included, and the error message is
-optional. In terms of saving errors, WT_RET_MSG and WT_ERR_MSG have the same behavior, and
-WT_RET_SUB and WT_ERR_MSG also behave the same.
+This performed through the WT_ERROR_INFO structure which tracks the previous session API call. The 
+WT_SESSION::get_last_error will return back any information recorded within the WT_ERROR_INFO structure. 
+An internal function set_last_error is utilised throughout the codebase to track any errors that may
+occur within WiredTiger. Developers should decide an appropiate time to utilise the WT_RET_SUB and 
+WT_RET_SUB macros when they need to provide more contextual information to the user on why an error has
+happened.
 
 @subsection arch_session_error_sessions Sub-level Errors - External & Internal Sessions
 When saving an error, the session must have the WT_SESSION_SAVE_ERRORS flag set, or the error will
@@ -82,11 +71,6 @@ not be saved. External sessions have this flag set while internal sessions do no
 internal sessions are not part of the session API and users do not have access to them. However, when an
 external session opens an internal session, it will inherit the external sessions flags including
 the WT_SESSION_SAVE_ERRORS flag. This allows any errors that occur to be saved within the internal
-session and propagate back to the external session, when the internal session is closed.
-
-@subsection arch_session_error_buffers Sub-level Errors - Static & Dynamic Buffers
-When setting err_info, if the error message is an empty string or "the last API call was successful", then a
-static buffer is used, otherwise a dynamic buffer is allocated. This saves the system from having to copy
-memory unnecessarily. When err_info is refreshed after
-each API call, if a dynamic buffer was allocated, it is freed.
+session and propagate back to the external session, when the internal session is closed. This was required
+for only schema-type operations.
 */

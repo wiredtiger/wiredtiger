@@ -31,20 +31,12 @@ exclusive access when the objects might be in active use by other threads.
 
 @section error_sub_level Sub-level errors
 
-Calls within the session API will complete with an error code, a sub-level error code, and
-an error message, which are extracted by calling the WT_SESSION::get_last_error method. Every call
-to the session API (except for WT_SESSION::get_last_error) will refresh these fields. The error
-code from WT_SESSION::get_last_error will be the same as the value returned from the last API call.
-The sub-level error code is for providing additional context. The error message also provides
-additional context, and is specific to the source of error.
-The error message string is owned by the session, and is invalidated after each session API call
-(except for WT_SESSION::get_last_error).
-
-The sub-level error code and error message are optional, and default to WT_NONE and an empty string
-respectively.
-
-If no other call has been made or there is no sub-level error, WT_SESSION::get_last_error will give
-the error code as 0, sub-level error code as WT_NONE, and error message as an empty string.
+From the addition of WT_SESSION::get_last_error function and sub-level error codes, users are now available to
+call the API in order to get the last error from the previous session API call attached with more contextual information.
+These contextual information come in the form of sub-level error codes and error messages, which aim to provide
+users the ability to programmatically decide what action to take based on information. The  sub-level error code and error message 
+are optional, and default to WT_NONE and an empty string respectively. The error message string is 
+owned by the session, and is invalidated after each session API call.
 
 If the last API call was successful, WT_SESSION::get_last_error will give the error code as 0,
 sub-level error code as WT_NONE, and error message as "last API call was successful".
