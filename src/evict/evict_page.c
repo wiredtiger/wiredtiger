@@ -205,11 +205,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         WT_ERR(__evict_exclusive(session, ref));
 
         /*
-         * Now the page is locked, remove it from the LRU eviction queue. We have to do this before
+         * Now the page is locked, remove it from its bucket. We have to do this before
          * freeing the page memory or otherwise touching the reference because eviction paths assume
-         * a non-NULL reference on the queue is pointing at valid memory.
+         * a non-NULL reference here.
          */
-        __wti_evict_list_clear_page(session, ref);
+		__wt_evict_remove(session, ref);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))

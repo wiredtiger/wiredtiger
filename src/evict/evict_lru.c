@@ -872,6 +872,10 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 /*
  * __evict_get_ref --
  *     Get a page for eviction.
+ *     The returned page is locked. It will be unlocked by the function that tries to
+ *     evict it from memory if eviction fails. The ref remains in its evict bucket. It
+ *     will be removed during eviction, just before reconciliation, and will be put back
+ *     in the event eviction fails.
  */
 static int
 __evict_get_ref(
@@ -951,29 +955,42 @@ __evict_get_ref(
                 /* Try to lock the reference. If it's already locked, skip it. */
                 if ((previous_state = WT_REF_GET_STATE(ref)) != WT_REF_MEM ||
                   !WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
-					WT_STAT_CONN_INCR(session, eviction_skipped_page_locked);
+					WT_STAT_CONN_INCR(session, eviction_skipped_page_locked_or_evicted);
 					__wt_verbose_notice(session,  WT_VERB_EVICTION, "%s",
-										"eviction skipped a page because it was locked");
+					  "eviction skipped a page because it was locked");
                     ref = NULL;
                     continue;
-                } else if (__wt_atomic_loadbool(&ref->evict_skip)) {
-					/* Reset, so we don't always skip this page */
+                }
+
+				/*
+				 * If we are here, we have a ref and it is locked.
+				 * Make sure we unlock it if we decide to skip.
+				 */
+				if (__wt_atomic_loadbool(&ref->evict_skip)) {
+					/*
+					 * We are skipping the page, because we recently skipped it and
+					 * the skip flag was set. Reset, the flag, so we don't skip it all the time.
+					 */
 					__wt_atomic_storebool(&ref->evict_skip, false);
+					WT_REF_UNLOCK(ref, previous_state);
+					ref = NULL;
+
 					WT_STAT_CONN_INCR(session, eviction_skipped_page_flag);
 					__wt_verbose_debug1(session,  WT_VERB_EVICTION, "%s",
-										"eviction skipped a page because skip flag was set");
-					WT_REF_UNLOCK(ref, previous_state);
-					ref = NULL;
+					  "eviction skipped a page because skip flag was set");
+
 					continue;
-				} else if(__evict_skip_page(session, ref)) {
-					WT_STAT_CONN_INCR(session, eviction_skipped_page_dontwant);
+				} else if(WT_WITH_DHANDLE(session, dhandle, __evict_skip_page(session, ref))) {
 					WT_REF_UNLOCK(ref, previous_state);
 					ref = NULL;
+
+					WT_STAT_CONN_INCR(session, eviction_skipped_page_dontwant);
+
 					continue
 				} else /* found a reference */
-                    goto unlock;
+                    goto unlock_bucket_and_done;
             }
-		  unlock:
+		  unlock_bucket_and_done:
             wt_spin_unlock(session, &bucket->evict_queue_lock);
             if (ref != NULL)
                 goto done;
@@ -985,6 +1002,11 @@ done:
         *btreep = ref->page->evict.dhandle->btree;
         *previous_statep = previous_state;
         *refp = ref;
+
+		/*
+         * Increment the busy count in the btree handle to prevent it from being closed under us.
+         */
+        (void)__wt_atomic_addv32(&(*btreep->evict_busy), 1);
 
 		/*
 		 * If the reference is in the first bucket, but has a high read
@@ -1787,12 +1809,13 @@ __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __evict_walk_choose_dhandle --
+ * __evict_choose_dhandle --
  *     Select a dhandle for eviction
  */
 static void
-__evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
+__evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
 {
+	WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle, *best_dhandle;
     uint64_t max_cache_footprint, min_readgen_size;
@@ -1806,12 +1829,57 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
 
     dhandle = TAILQ_FIRST(&conn->dhqh);
     for (int i = 0; i < conn->dhandle_count; i++) {
+		btree = dhandle->handle;
+
+		if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+            continue;
+		/* Skip files that don't allow eviction. */
+		if (btree->evict_disabled > 0) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_eviction_disabled);
+            continue;
+        }
+		/*
+         * Skip files that are checkpointing if we are only looking for dirty pages.
+         */
+        if (WT_BTREE_SYNCING(btree) &&
+          !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_checkpointing_trees);
+            continue;
+        }
+		/*
+         * Skip files that are configured to stick in cache until we become aggressive.
+         *
+         * If the file is contributing heavily to our cache usage then ignore the "stickiness" of
+         * its pages.
+         */
+        if (btree->evict_priority != 0 && !__wt_evict_aggressive(session) &&
+          !__evict_btree_dominating_cache(session, btree)) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_trees_stick_in_cache);
+            continue;
+        }
 #ifdef EVICT_MAX_FOOTPRINT
         if (__wt_bytes_inmem(dhandle) > max_cache_footprint) {
             best_dhandle = dhandle;
             max_cache_footprint = __wt_bytes_inmem(dhandle);
         }
-#else /* Find smallest readgen */
+#else
+		/* Dead trees are fast-tracked. */
+		if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
+			best_dhandle = dhandle;
+			break;
+		}
+	    /*
+		 * If history store dirty content is dominating the cache, we want to prioritize evicting
+		 * history store pages over other btree pages. This helps in keeping cache contents below
+		 * the configured cache size during checkpoints where reconciling non-HS pages can generate
+		 * a significant amount of HS dirty content very quickly.
+		 */
+		if (WT_IS_HS(dhandle) && __wti_evict_hs_dirty(session???)) {
+			WT_STAT_CONN_INCR(session, eviction_pages_queued_urgent_hs_dirty);
+			best_dhandle = dhandle;
+			break;
+		}
+        /* Find smallest readgen */
         if ((int smallest_readgen = __evict_smallest_bucket(dhandle)) < min_readgen_size) {
             best_dhandle = dhandle;
             min_readgen_size = smallest_readgen;
@@ -1873,7 +1941,8 @@ __wt_ref_assign_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *
  * __evict_skip_page --
  *     Decide if we should skip this page for eviction.
  */
-static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
+static bool
+__evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -1916,7 +1985,7 @@ static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (WT_IS_METADATA(session->dhandle) && F_ISSET(evict, WT_EVICT_CACHE_CLEAN_HARD) &&
       F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
-		!__wt_txn_visible_all(session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)) {
+		!__wt_txn_visible_all(session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)){
         WT_STAT_CONN_INCR(session, eviction_server_skip_metatdata_with_history);
         return true;
     }
