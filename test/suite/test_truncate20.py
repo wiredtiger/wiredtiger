@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 import os, wttest
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 #
 # Test to mimic oplog workload in MongoDB. Ensure the deleted pages are
 # cleaned up on disk and we are not using excessive disk space.
-class test_truncate20(test_cc_base):
+class test_truncate20(test_obsolete_cleanup_base):
     conn_config = 'statistics=(all),log=(enabled=true)'
 
     format_values = [
@@ -116,7 +116,7 @@ class test_truncate20(test_cc_base):
             self.evict_cursor(uri, ds, start_num, nrows)
 
             # Trigger obsolete cleanup and wait for it to make progress.
-            self.wait_for_cc_to_run()
+            self.wait_for_obsolete_cleanup_to_run()
 
             # Ensure the datasize is smaller than 600M
             self.assertGreater(600000000, os.path.getsize("oplog.wt"))

@@ -26,14 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_cc05.py
+# test_obsolete_cleanup05.py
 # Verify a locked checkpoint is not removed during garbage collection.
 
-class test_cc05(test_cc_base):
+class test_obsolete_cleanup05(test_obsolete_cleanup_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
     format_values = [
@@ -48,7 +48,7 @@ class test_cc05(test_cc_base):
     ]
     scenarios = make_scenarios(format_values, named_values)
 
-    def test_cc(self):
+    def test_obsolete_cleanup05(self):
         uri = "table:cc05"
         create_params = 'value_format=S,key_format=i'
         self.session.create(uri, create_params)
@@ -79,7 +79,7 @@ class test_cc05(test_cc_base):
 
         # Trigger obsolete cleanup and wait until it is done.
         ckpt_name = "checkpoint_one" if self.named else ""
-        self.check_cc_stats(ckpt_name=ckpt_name)
+        self.check_obsolete_cleanup_stats(ckpt_name=ckpt_name)
 
         # Open a cursor to the checkpoint just performed.
         if self.named:
@@ -101,7 +101,7 @@ class test_cc05(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(70))
 
         # Trigger obsolete cleanup and wait until it is done.
-        self.check_cc_stats()
+        self.check_obsolete_cleanup_stats()
 
         # Verify the open checkpoint still exists and contains the expected values.
         for i in range(0, nrows):

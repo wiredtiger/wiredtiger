@@ -27,16 +27,16 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# checkpoint:checkpoint_cleanup
+# obsolete_cleanup:obsolete_cleanup
 # [END_TAGS]
 
 import time, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 
-# test_cc01.py
-# Shared base class used by cc tests.
-class test_cc_base(wttest.WiredTigerTestCase):
+# test_obsolete_cleanup01.py
+# Shared base class used by obsolete cleanup tests.
+class test_obsolete_cleanup_base(wttest.WiredTigerTestCase):
 
     def get_stat(self, stat, uri = ""):
         stat_cursor = self.session.open_cursor(f'statistics:{uri}')
@@ -87,39 +87,39 @@ class test_cc_base(wttest.WiredTigerTestCase):
 
     # Trigger obsolete cleanup. The function waits for obsolete cleanup to make progress before
     # exiting.
-    def wait_for_cc_to_run(self, ckpt_name = ""):
+    def wait_for_obsolete_cleanup_to_run(self, ckpt_name = ""):
         c = self.session.open_cursor('statistics:')
-        cc_success = prev_cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+        obsolete_cleanup_success = prev_obsolete_cleanup_success = c[stat.conn.checkpoint_cleanup_success][2]
         c.close()
         ckpt_config = "debug=(checkpoint_cleanup=true)"
         if ckpt_name:
             ckpt_config += f",name={ckpt_name}"
         self.session.checkpoint(ckpt_config)
-        while cc_success - prev_cc_success == 0:
+        while obsolete_cleanup_success - prev_obsolete_cleanup_success == 0:
             time.sleep(0.1)
             c = self.session.open_cursor('statistics:')
-            cc_success = c[stat.conn.checkpoint_cleanup_success][2]
+            obsolete_cleanup_success = c[stat.conn.checkpoint_cleanup_success][2]
             c.close()
 
     # Trigger checkpoint clean up and check it has visited and removed pages.
-    def check_cc_stats(self, ckpt_name = ""):
-        self.wait_for_cc_to_run(ckpt_name=ckpt_name)
+    def check_obsolete_cleanup_stats(self, ckpt_name = ""):
+        self.wait_for_obsolete_cleanup_to_run(ckpt_name=ckpt_name)
         c = self.session.open_cursor('statistics:')
         self.assertGreaterEqual(c[stat.conn.checkpoint_cleanup_pages_visited][2], 0)
         self.assertGreaterEqual(c[stat.conn.checkpoint_cleanup_pages_removed][2], 0)
         c.close()
 
 # Test that checkpoint cleans the obsolete history store pages.
-class test_cc01(test_cc_base):
+class test_obsolete_cleanup01(test_obsolete_cleanup_base):
     # Force a small cache.
     conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80,'
                    'statistics=(all)')
 
-    def test_cc(self):
+    def test_obsolete_cleanup01(self):
         nrows = 10000
 
         # Create a table without logging.
-        uri = "table:cc01"
+        uri = "table:obsolete_cleanup01"
         ds = SimpleDataSet(self, uri, 0, key_format="i", value_format="S")
         ds.populate()
 
@@ -147,7 +147,7 @@ class test_cc01(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(100))
 
         # Trigger obsolete cleanup and wait until it is done. This should clean the history store.
-        self.check_cc_stats()
+        self.check_obsolete_cleanup_stats()
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue2, uri, nrows, 100)
@@ -179,7 +179,7 @@ class test_cc01(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(200))
 
         # Trigger obsolete cleanup and wait until it is done. This should clean the history store.
-        self.check_cc_stats()
+        self.check_obsolete_cleanup_stats()
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 200)
@@ -211,7 +211,7 @@ class test_cc01(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(300))
 
         # Trigger obsolete cleanup and wait until it is done. This should clean the history store.
-        self.check_cc_stats()
+        self.check_obsolete_cleanup_stats()
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue2, uri, nrows, 300)

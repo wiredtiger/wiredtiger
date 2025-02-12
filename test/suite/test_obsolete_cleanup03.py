@@ -26,22 +26,33 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
-# test_cc02.py
-# Test that checkpoint cleans the obsolete history store internal pages.
-class test_cc02(test_cc_base):
-    conn_config = 'cache_size=1GB,statistics=(all)'
+# test_obsolete_cleanup03.py
+# Test that checkpoint cleans the obsolete history store pages that are in-memory.
+class test_obsolete_cleanup03(test_obsolete_cleanup_base):
+    conn_config = 'cache_size=4GB,statistics=(all),statistics_log=(json,wait=0,on_close=true)'
 
-    def test_cc(self):
-        nrows = 100000
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
-        # Create a table without logging.
-        uri = "table:cc02"
+    def test_obsolete_cleanup03(self):
+        nrows = 10000
+
+        # Create a table.
+        uri = "table:cc03"
         ds = SimpleDataSet(self, uri, 0, key_format="i", value_format="S")
         ds.populate()
+
+        # Create an extra table.
+        uri_extra = "table:cc03_extra"
+        ds_extra = SimpleDataSet(self, uri_extra, 0, key_format="i", value_format="S")
+        ds_extra.populate()
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -62,14 +73,9 @@ class test_cc02(test_cc_base):
         # Check that old updates are seen.
         self.check(bigvalue, uri, nrows, 10)
 
-        # Trigger obsolete cleanup and ensure that the history store is checkpointed but not
-        # cleaned.
-        self.wait_for_cc_to_run()
-        c = self.session.open_cursor('statistics:')
-        self.assertEqual(c[stat.conn.checkpoint_cleanup_pages_evict][2], 0)
-        self.assertEqual(c[stat.conn.checkpoint_cleanup_pages_removed][2], 0)
-        self.assertGreater(c[stat.conn.checkpoint_cleanup_pages_visited][2], 0)
-        c.close()
+        # Trigger obsolete cleanup and ensure that the history store is populated but not visited.
+        self.wait_for_obsolete_cleanup_to_run()
+        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
 
         # Pin oldest and stable to timestamp 100.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100) +
@@ -83,14 +89,11 @@ class test_cc02(test_cc_base):
         self.large_modifies(uri, 'B', ds, 20, 1, nrows, 120)
         self.large_modifies(uri, 'C', ds, 30, 1, nrows, 130)
 
-        # Set of update operations with increased timestamp.
-        self.large_updates(uri, bigvalue, ds, nrows, 150)
-
-        # Set of update operations with increased timestamp.
-        self.large_updates(uri, bigvalue2, ds, nrows, 180)
-
-        # Set of update operations with increased timestamp.
+        # Second set of update operations with increased timestamp.
         self.large_updates(uri, bigvalue, ds, nrows, 200)
+
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(bigvalue, uri, nrows, 200)
 
         # Check that the modifies are seen.
         bigvalue_modA = bigvalue2[0:10] + 'A' + bigvalue2[11:]
@@ -100,21 +103,35 @@ class test_cc02(test_cc_base):
         self.check(bigvalue_modB, uri, nrows, 120)
         self.check(bigvalue_modC, uri, nrows, 130)
 
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue, uri, nrows, 150)
-
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue2, uri, nrows, 180)
-
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue, uri, nrows, 200)
+        # Check that old updates are seen.
+        self.check(bigvalue2, uri, nrows, 100)
 
         # Pin oldest and stable to timestamp 200.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(200) +
             ',stable_timestamp=' + self.timestamp_str(200))
 
-        # Trigger obsolete cleanup and wait until it is done. This should clean the history store.
-        self.check_cc_stats()
+        # Update on extra table.
+        self.large_updates(uri_extra, bigvalue, ds_extra, 100, 210)
+        self.large_updates(uri_extra, bigvalue2, ds_extra, 100, 220)
+
+        # Trigger obsolete cleanup and ensure that the history store is populated and pages are
+        # added for eviction.
+        self.wait_for_obsolete_cleanup_to_run()
+        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
+        self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 200)
+
+        # Pin oldest and stable to timestamp 300.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(300) +
+            ',stable_timestamp=' + self.timestamp_str(300))
+
+        self.large_updates(uri_extra, bigvalue, ds_extra, 100, 310)
+        self.large_updates(uri_extra, bigvalue2, ds_extra, 100, 320)
+
+        # Trigger obsolete cleanup and wait until it is done. This should clean the history store.
+        self.check_obsolete_cleanup_stats()
+
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(bigvalue, uri, nrows, 300)

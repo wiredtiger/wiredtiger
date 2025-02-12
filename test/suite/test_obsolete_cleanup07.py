@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_cc07.py
+# test_obsolete_cleanup07.py
 # Verify obsolete cleanup removes the obsolete time window from the pages.
-class test_cc07(test_cc_base):
+class test_obsolete_cleanup07(test_obsolete_cleanup_base):
     conn_config_common = 'cache_size=1GB,statistics=(all),statistics_log=(json,wait=1,on_close=true)'
 
     # These settings set a limit to the number of btrees/pages that can be cleaned up per btree per
@@ -47,7 +47,7 @@ class test_cc07(test_cc_base):
 
     scenarios = make_scenarios(conn_config_values)
 
-    def test_cc07(self):
+    def test_obsolete_cleanup07(self):
         if self.runningHook('tiered'):
             self.skipTest("obsolete cleanup cannot remove obsolete pages from tiered tables")
 
@@ -68,19 +68,19 @@ class test_cc07(test_cc_base):
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * (i + 1)))
 
         # Trigger obsolete cleanup and wait for it to make progress.
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
 
         # Retrieve the number of pages we have cleaned up so far.
-        btree_cc_stat = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_obsolete_tw, uri)
+        btree_obsolete_cleanup_stat = self.get_stat(stat.dsrc.checkpoint_cleanup_pages_obsolete_tw, uri)
         if self.expected_cleanup:
-            assert btree_cc_stat <= self.obsolete_tw_max, f"Unexpected number of pages with obsolete tw cleaned: {btree_cc_stat} (max {self.obsolete_tw_max})"
+            assert btree_obsolete_cleanup_stat <= self.obsolete_tw_max, f"Unexpected number of pages with obsolete tw cleaned: {btree_obsolete_cleanup_stat} (max {self.obsolete_tw_max})"
         else:
-            self.assertEqual(btree_cc_stat, 0)
+            self.assertEqual(btree_obsolete_cleanup_stat, 0)
 
         # Verify the connection-level stat.
-        conn_cc_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
+        conn_obsolete_cleanup_stat = self.get_stat(stat.conn.checkpoint_cleanup_pages_obsolete_tw)
         if self.expected_cleanup:
-            self.assertGreater(conn_cc_stat, 0)
+            self.assertGreater(conn_obsolete_cleanup_stat, 0)
         else:
-            self.assertEqual(conn_cc_stat, 0)
+            self.assertEqual(conn_obsolete_cleanup_stat, 0)
 

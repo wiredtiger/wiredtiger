@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
-# test_cc04.py
+# test_obsolete_cleanup04.py
 # Test that checkpoint must not clean the pages that are not obsolete.
-class test_cc04(test_cc_base):
+class test_obsolete_cleanup04(test_obsolete_cleanup_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
     def get_stat(self, stat):
@@ -41,7 +41,7 @@ class test_cc04(test_cc_base):
         stat_cursor.close()
         return val
 
-    def test_cc(self):
+    def test_obsolete_cleanup04(self):
         nrows = 10000
 
         # Create a table.
@@ -60,21 +60,21 @@ class test_cc04(test_cc_base):
 
         # Trigger obsolete cleanup and ensure that the history store is populated but not cleaned
         # up multiple times.
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 30)
 
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
 
         self.large_updates(uri, bigvalue2, ds, nrows, 40)
 
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
@@ -82,14 +82,14 @@ class test_cc04(test_cc_base):
         self.large_updates(uri, bigvalue, ds, nrows, 50)
         self.large_updates(uri, bigvalue2, ds, nrows, 60)
 
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 70)
 
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_removed), 0)
         self.assertGreater(self.get_stat(stat.conn.checkpoint_cleanup_pages_visited), 0)

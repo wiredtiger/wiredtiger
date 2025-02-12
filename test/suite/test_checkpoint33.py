@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from suite_subprocess import suite_subprocess
 from wiredtiger import stat
 import time
@@ -35,7 +35,7 @@ import time
 #
 # Test that checkpoint will not skip tables that have available space at the end that can be
 # reclaimed through truncation.
-class test_checkpoint33(test_cc_base, suite_subprocess):
+class test_checkpoint33(test_obsolete_cleanup_base, suite_subprocess):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,'
     # conn_config = 'verbose=[checkpoint:2]'
     uri = 'table:test_checkpoint33'
@@ -110,7 +110,7 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         self.prout(f'File size: {self.get_size()}')
 
         # Wait for obsolete cleanup to clean up all the deleted pages.
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
 
         # Checkpoint should recover the space by truncating the space made available by
         # obsolete cleanup. Multiple checkpoints are required to move the blocks around and

@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, wttest
+import wttest
 from compact_util import compact_util
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from wiredtiger import stat
 
 kilobyte = 1024
@@ -42,7 +42,7 @@ kilobyte = 1024
 # It checks that:
 #
 # - Compaction correctly rewrites pages in WT_REF_DELETED state but are still on disk.
-class test_compact12(compact_util, test_cc_base):
+class test_compact12(compact_util, test_obsolete_cleanup_base):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
     conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:4]'
     uri_prefix = 'table:test_compact12'
@@ -105,8 +105,8 @@ class test_compact12(compact_util, test_cc_base):
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
 
         # Trigger obsolete cleanup twice to remove the obsolete content.
-        self.wait_for_cc_to_run()
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
 
         self.assertGreater(self.get_fast_truncated_pages(), 0)
 

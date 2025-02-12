@@ -27,24 +27,24 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
-# test_cc08.py
+# test_obsolete_cleanup08.py
 # Verify obsolete cleanup cleans up logged tables when configured in aggressive mode.
-@wttest.skip_for_hook("tiered", "Checkpoint cleanup does not support tiered tables")
-class test_cc08(test_cc_base):
+@wttest.skip_for_hook("tiered", "Obsolete cleanup does not support tiered tables")
+class test_obsolete_cleanup08(test_obsolete_cleanup_base):
     conn_config = 'statistics=(all),statistics_log=(json,wait=1,on_close=true),log=(enabled=true)'
 
-    checkpoint_cleanup_methods = [
-        ('cc_method_none', dict(cc_aggressive=False, cc_config='checkpoint_cleanup=[method=none]')),
-        ('cc_method_reclaim_space', dict(cc_aggressive=True, cc_config='checkpoint_cleanup=[method=reclaim_space]')),
+    obsolete_cleanup_methods = [
+        ('obsolete_cleanup_method_none', dict(obsolete_cleanup_aggressive=False, obsolete_cleanup_config='checkpoint_cleanup=[method=none]')),
+        ('obsolete_cleanup_method_reclaim_space', dict(obsolete_cleanup_aggressive=True, obsolete_cleanup_config='checkpoint_cleanup=[method=reclaim_space]')),
     ]
 
-    scenarios = make_scenarios(checkpoint_cleanup_methods)
+    scenarios = make_scenarios(obsolete_cleanup_methods)
 
-    def test_cc08(self):
+    def test_obsolete_cleanup08(self):
         # Increase the likelihood of having internal pages since they are targeted by checkpoint
         # cleanup.
         create_params = 'key_format=i,value_format=S,allocation_size=512,internal_page_max=512,leaf_page_max=512'
@@ -59,18 +59,18 @@ class test_cc08(test_cc_base):
         self.session.checkpoint()
 
         # Restart and specify the obsolete cleanup's strategy.
-        self.reopen_conn(config=f'{self.conn_config},{self.cc_config}')
+        self.reopen_conn(config=f'{self.conn_config},{self.obsolete_cleanup_config}')
 
         # Open the table as we need the dhandle to be open for obsolete cleanup to process the
         # table.
         _ = self.session.open_cursor(uri, None, None)
 
         # Force obsolete cleanup and wait for it to make progress.
-        self.check_cc_stats()
+        self.check_obsolete_cleanup_stats()
 
         # Check stats.
         selected_pages = self.get_stat(stat.conn.checkpoint_cleanup_pages_read_reclaim_space)
-        if self.cc_aggressive:
+        if self.obsolete_cleanup_aggressive:
             self.assertGreater(selected_pages, 0)
         else:
             self.assertEqual(selected_pages, 0)

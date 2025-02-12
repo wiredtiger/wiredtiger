@@ -26,15 +26,15 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_cc01 import test_cc_base
+from test_obsolete_cleanup01 import test_obsolete_cleanup_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-# test_cc06.py
+# test_obsolete_cleanup06.py
 # Verify obsolete cleanup ignores the empty or newly created files.
 
-class test_cc06(test_cc_base):
+class test_obsolete_cleanup06(test_obsolete_cleanup_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
     format_values = [
@@ -45,7 +45,7 @@ class test_cc06(test_cc_base):
     ]
     scenarios = make_scenarios(format_values)
 
-    def test_cc(self):
+    def test_obsolete_cleanup06(self):
         uri = "table:cc06"
 
         ds = SimpleDataSet(
@@ -58,12 +58,12 @@ class test_cc06(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(10))
 
         # Trigger obsolete cleanup and check statistics.
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
         self.assertEqual(self.get_stat(stat.dsrc.checkpoint_cleanup_pages_visited, uri), 0)
 
         # Reopen the database.
         self.reopen_conn()
 
         # Trigger obsolete cleanup and check statistics.
-        self.wait_for_cc_to_run()
+        self.wait_for_obsolete_cleanup_to_run()
         self.assertEqual(self.get_stat(stat.dsrc.checkpoint_cleanup_pages_visited, uri), 0)
