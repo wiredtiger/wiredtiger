@@ -451,7 +451,7 @@ __obsolete_cleanup_page_skip(
         *skipp = true;
     else if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
         /* Only process logged tables when obsolete cleanup is configured to be aggressive. */
-        *skipp = !F_ISSET(S2C(session), WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE) ||
+        *skipp = !F_ISSET(S2C(session), WT_CONN_OBSOLETE_CLEANUP_RECLAIM_SPACE) ||
           !F_ISSET(S2BT(session), WT_BTREE_LOGGED);
         if (!*skipp)
             WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_read_reclaim_space);
@@ -806,7 +806,7 @@ __wt_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.method", &cval));
     if (WT_CONFIG_LIT_MATCH("reclaim_space", cval))
-        F_SET(conn, WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE);
+        F_SET(conn, WT_CONN_OBSOLETE_CLEANUP_RECLAIM_SPACE);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.wait", &cval));
     conn->obsolete_cleanup.interval = (uint64_t)cval.val;
