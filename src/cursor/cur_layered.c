@@ -196,10 +196,10 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
             locked = true;
             WT_ERR(
               __wt_ts_min_heap_remove(&ingest_btree->ts_min_heap, clayered->checkpoint_timestamp));
+            clayered->checkpoint_timestamp = WT_TS_NONE;
             WT_ERR(__wt_update_pinned_ts_ingest(session, ingest_btree));
             __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
             locked = false;
-            clayered->checkpoint_timestamp = NULL;
         }
     }
 
@@ -336,10 +336,10 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
             locked = true;
             WT_ERR(
               __wt_ts_min_heap_insert(session, &ingest_btree->ts_min_heap, checkpoint_timestamp));
+            clayered->checkpoint_timestamp = checkpoint_timestamp;
             WT_ERR(__wt_update_pinned_ts_ingest(session, ingest_btree));
             __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
             locked = false;
-            clayered->checkpoint_timestamp = checkpoint_timestamp;
         }
     }
 
