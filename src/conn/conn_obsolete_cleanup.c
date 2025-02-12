@@ -26,8 +26,8 @@ __obsolete_cleanup_limit_reached(WT_SESSION_IMPL *session)
     btree = S2BT(session);
 
     /* Check current progress against max. */
-    if (__wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) >=
-      conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max)
+    if (__wt_atomic_load32(&btree->obsolete_cleanup_tw_pages) >=
+      conn->heuristic_controls.obsolete_cleanup_tw_pages_dirty_max)
         return (true);
 
     /*
@@ -35,7 +35,7 @@ __obsolete_cleanup_limit_reached(WT_SESSION_IMPL *session)
      * another btree.
      */
     if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-      __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load32(&btree->obsolete_cleanup_tw_pages) == 0 &&
       __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
         conn->heuristic_controls.obsolete_tw_btree_max)
         return (true);
@@ -184,10 +184,10 @@ __obsolete_cleanup_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *r
          * update the number of pages made dirty for that tree.
          */
         if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-          __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
+          __wt_atomic_load32(&btree->obsolete_cleanup_tw_pages) == 0)
             __wt_atomic_addv32(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
 
-        __wt_atomic_addv32(&btree->checkpoint_cleanup_obsolete_tw_pages, 1);
+        __wt_atomic_addv32(&btree->obsolete_cleanup_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_obsolete_tw);
     }
 

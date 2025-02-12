@@ -699,7 +699,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Limit the number of btrees that can be cleaned up. */
     if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-      __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0 &&
+      __wt_atomic_load32(&btree->obsolete_cleanup_tw_pages) == 0 &&
       __wt_atomic_load32(&conn->heuristic_controls.obsolete_tw_btree_count) >=
         conn->heuristic_controls.obsolete_tw_btree_max)
         return (0);
@@ -747,7 +747,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
          * update the number of pages made dirty for that tree.
          */
         if (__wt_atomic_load32(&btree->eviction_obsolete_tw_pages) == 0 &&
-          __wt_atomic_load32(&btree->checkpoint_cleanup_obsolete_tw_pages) == 0)
+          __wt_atomic_load32(&btree->obsolete_cleanup_tw_pages) == 0)
             __wt_atomic_addv32(&conn->heuristic_controls.obsolete_tw_btree_count, 1);
         __wt_atomic_addv32(&btree->eviction_obsolete_tw_pages, 1);
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_dirty_obsolete_tw);

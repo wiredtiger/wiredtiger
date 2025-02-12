@@ -2157,7 +2157,7 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(
       session, cfg, "heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max", &cval));
-    conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max = (uint32_t)cval.val;
+    conn->heuristic_controls.obsolete_cleanup_tw_pages_dirty_max = (uint32_t)cval.val;
 
     WT_RET(__wt_config_gets(
       session, cfg, "heuristic_controls.eviction_obsolete_tw_pages_dirty_max", &cval));

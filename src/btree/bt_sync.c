@@ -251,7 +251,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * the checkpoint is finished.
          */
         __wt_atomic_store32(&btree->eviction_obsolete_tw_pages, 0);
-        __wt_atomic_store32(&btree->checkpoint_cleanup_obsolete_tw_pages, 0);
+        __wt_atomic_store32(&btree->obsolete_cleanup_tw_pages, 0);
         is_hs = WT_IS_HS(btree->dhandle);
 
         /* Add in history store reconciliation for standard files. */

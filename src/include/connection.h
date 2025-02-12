@@ -166,11 +166,11 @@ struct __wt_heuristic_controls {
      *   - The maximum number of btrees to process in a single checkpoint.
      */
 
-    /* Maximum number of pages that can be processed per btree by obsolete cleanup. */
-    uint32_t checkpoint_cleanup_obsolete_tw_pages_dirty_max;
-
     /* Maximum number of pages that can be processed per btree by eviction. */
     uint32_t eviction_obsolete_tw_pages_dirty_max;
+
+    /* Maximum number of pages that can be processed per btree by obsolete cleanup. */
+    uint32_t obsolete_cleanup_tw_pages_dirty_max;
 
     /* Maximum number of btrees that can be processed per checkpoint. */
     uint32_t obsolete_tw_btree_max;
