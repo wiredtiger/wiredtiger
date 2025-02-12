@@ -92,9 +92,10 @@ __ts_min_heapify(WT_TS_MIN_HEAP *heap, size_t index)
 static void
 __ts_min_heap_remove_min(WT_TS_MIN_HEAP *heap)
 {
-    if (heap->size == 1)
+    if (heap->size == 1) {
         heap->size--;
-    return;
+        return;
+    }
 
     heap->data[0] = heap->data[heap->size - 1];
     heap->size--;
