@@ -187,11 +187,6 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
     locked = false;
 
     if ((c = clayered->stable_cursor) != NULL) {
-        WT_RET(c->close(c));
-        clayered->stable_cursor = NULL;
-    }
-
-    if ((c = clayered->ingest_cursor) != NULL) {
         if (clayered->checkpoint_timestamp != WT_TS_NONE) {
             session = CUR2S(c);
             ingest_btree = CUR2BT(c);
@@ -203,6 +198,11 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
             __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
             locked = false;
         }
+        WT_RET(c->close(c));
+        clayered->stable_cursor = NULL;
+    }
+
+    if ((c = clayered->ingest_cursor) != NULL) {
         WT_ERR(c->close(c));
         clayered->ingest_cursor = NULL;
     }
