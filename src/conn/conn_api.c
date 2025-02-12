@@ -2901,7 +2901,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
       __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_page_log,
       __conn_add_storage_source, __conn_get_page_log, __conn_get_storage_source,
-      __conn_get_extension_api, NULL};
+      __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
       {"data", WT_DIRECT_IO_DATA}, {"log", WT_DIRECT_IO_LOG}, {NULL, 0}};
 

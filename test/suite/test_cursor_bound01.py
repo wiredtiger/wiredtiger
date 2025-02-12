@@ -35,7 +35,7 @@ from wtbound import bound_base
 #    Basic cursor bound API validation.
 class test_cursor_bound01(bound_base, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+                     + 'disaggregated=(page_log=palm),'
     file_name = 'test_cursor_bound01'
 
     types = [

@@ -2989,10 +2989,6 @@ struct __wt_connection {
      */
     WT_EXTENSION_API *__F(get_extension_api)(WT_CONNECTION *wt_conn);
     /*! @} */
-
-#if !defined(DOXYGEN)
-    char *stable_prefix;
-#endif
 };
 
 /*!
