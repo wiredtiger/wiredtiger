@@ -64,8 +64,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *b
     const WT_PAGE_HEADER *dsk;
     size_t compression_ratio, result_len;
     uint64_t time_diff, time_start, time_stop;
-    u_int count, results_count;
-    int i;
+    u_int count, i, results_count;
     bool blkcache_found, expect_conversion, found, skip_cache_put, timer;
 
     blkcache = &S2C(session)->blkcache;
@@ -279,13 +278,9 @@ err:
     if (blkcache_found)
         (void)__wt_atomic_subv32(&blkcache_item->ref_count, 1);
 
-    /*
-     * Free the temporary buffers allocated for disagg. Do this in the reverse order, because the
-     *first item might hold all the memory used by the other items.
-     */
-    if (results_count > 0)
-        for (i = (int)results_count - 1; i >= 0; i--)
-            __wt_buf_free(session, &results[i]);
+    /* Free the temporary buffers allocated for disagg. */
+    for (i = 0; i < results_count; i++)
+        __wt_buf_free(session, &results[i]);
 
     __wt_scr_free(session, &tmp);
     __wt_scr_free(session, &etmp);
