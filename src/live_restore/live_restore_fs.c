@@ -1722,7 +1722,7 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 
 /*
  * __live_restore_copy_file --
- *     Copy a file across during recovery.
+ *     Copy a file across for live restore.
  */
 static int
 __live_restore_copy_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
@@ -1738,7 +1738,7 @@ __live_restore_copy_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * Break the copy into small chunks. Split the file into n chunks: the first n - 1 chunks will
      * read a full WT_LIVE_RESTORE_READ_SIZE buffer, and the last chunk reads the remaining data.
      */
-    for (size_t off = 0, len; off < lr_fh->source_size; off += read_size) {
+    for (size_t off = 0, len; off < lr_fh->source_size; off += len) {
         len = WT_MIN(lr_fh->source_size - off, read_size);
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, (wt_off_t)off, len, buf));
         WT_ERR(lr_fh->destination.fh->fh_write(
