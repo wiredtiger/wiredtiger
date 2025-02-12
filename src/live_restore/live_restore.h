@@ -20,7 +20,6 @@ struct __wt_live_restore_fh_meta {
     char *bitmap_str;
     uint64_t bitmap_size;
     uint32_t allocsize;
-    char *state;
 };
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */

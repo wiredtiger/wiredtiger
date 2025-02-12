@@ -290,18 +290,18 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
             logger::log_msg(LOG_INFO, "Taking checkpoint");
-        } else if (ran < 1 && !fresh_start) {
+        } else if (ran < 5 && !fresh_start) {
             logger::log_msg(LOG_INFO, "Commencing connection reopen");
             reopen_conn(session, conn_config, home);
             session = std::move(connection_manager::instance().create_session());
         } else if (ran < 9000) {
             // 90% Write.
             write(session, false);
-        } else if (ran <= 10000) {
+        } else if (ran <= 9999) {
             // 10% Read.
             read(session);
-        } else if (ran <= 10001) {
-            // 0.2% fs_truncate
+        } else if (ran <= 10000) {
+            // 0.01% fs_truncate
             trigger_fs_truncate(session);
         } else {
             logger::log_msg(LOG_ERROR,
