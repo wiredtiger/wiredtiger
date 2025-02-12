@@ -725,7 +725,7 @@ __obsolete_cleanup_int(WT_SESSION_IMPL *session)
          * Wait here for some time before proceeding with another table to minimize the impact of
          * checkpoint cleanup on the regular workload.
          */
-        __wt_cond_wait(session, S2C(session)->cc_cleanup.cond,
+        __wt_cond_wait(session, S2C(session)->obsolete_cleanup.cond,
           WT_OBSOLETE_CLEANUP_FILE_INTERVAL * WT_MILLION, __obsolete_cleanup_run_chk);
 
         /* Check if we're quitting. */
@@ -758,7 +758,7 @@ __obsolete_cleanup(void *arg)
     __wt_seconds(session, &last);
     for (;;) {
         /* Check periodically in case the signal was missed. */
-        __wt_cond_wait_signal(session, conn->cc_cleanup.cond, 5 * WT_MILLION,
+        __wt_cond_wait_signal(session, conn->obsolete_cleanup.cond, 5 * WT_MILLION,
           __obsolete_cleanup_run_chk, &cv_signalled);
 
         /* Check if we're quitting. */
@@ -771,7 +771,7 @@ __obsolete_cleanup(void *arg)
          * See if it is time to checkpoint cleanup. Checkpoint cleanup is an operation that
          * typically involves many IO operations so skipping some should have little impact.
          */
-        if (!cv_signalled && (now - last < conn->cc_cleanup.interval))
+        if (!cv_signalled && (now - last < conn->obsolete_cleanup.interval))
             continue;
 
         WT_ERR(__obsolete_cleanup_int(session));
@@ -809,7 +809,7 @@ __wt_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
         F_SET(conn, WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint_cleanup.wait", &cval));
-    conn->cc_cleanup.interval = (uint64_t)cval.val;
+    conn->obsolete_cleanup.interval = (uint64_t)cval.val;
 
     /*
      * Checkpoint cleanup does enough I/O it may be called upon to perform slow operations for the
@@ -817,13 +817,13 @@ __wt_obsolete_cleanup_create(WT_SESSION_IMPL *session, const char *cfg[])
      */
     session_flags = WT_SESSION_CAN_WAIT;
     WT_RET(__wt_open_internal_session(
-      conn, "checkpoint-cleanup", true, session_flags, 0, &conn->cc_cleanup.session));
-    session = conn->cc_cleanup.session;
+      conn, "checkpoint-cleanup", true, session_flags, 0, &conn->obsolete_cleanup.session));
+    session = conn->obsolete_cleanup.session;
 
-    WT_RET(__wt_cond_alloc(session, "checkpoint cleanup", &conn->cc_cleanup.cond));
+    WT_RET(__wt_cond_alloc(session, "checkpoint cleanup", &conn->obsolete_cleanup.cond));
 
-    WT_RET(__wt_thread_create(session, &conn->cc_cleanup.tid, __obsolete_cleanup, session));
-    conn->cc_cleanup.tid_set = true;
+    WT_RET(__wt_thread_create(session, &conn->obsolete_cleanup.tid, __obsolete_cleanup, session));
+    conn->obsolete_cleanup.tid_set = true;
 
     return (0);
 }
@@ -841,17 +841,17 @@ __wt_obsolete_cleanup_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_CLEANUP);
-    if (conn->cc_cleanup.tid_set) {
-        __wt_cond_signal(session, conn->cc_cleanup.cond);
-        WT_TRET(__wt_thread_join(session, &conn->cc_cleanup.tid));
-        conn->cc_cleanup.tid_set = false;
+    if (conn->obsolete_cleanup.tid_set) {
+        __wt_cond_signal(session, conn->obsolete_cleanup.cond);
+        WT_TRET(__wt_thread_join(session, &conn->obsolete_cleanup.tid));
+        conn->obsolete_cleanup.tid_set = false;
     }
-    __wt_cond_destroy(session, &conn->cc_cleanup.cond);
+    __wt_cond_destroy(session, &conn->obsolete_cleanup.cond);
 
     /* Close the server thread's session. */
-    if (conn->cc_cleanup.session != NULL) {
-        WT_TRET(__wt_session_close_internal(conn->cc_cleanup.session));
-        conn->cc_cleanup.session = NULL;
+    if (conn->obsolete_cleanup.session != NULL) {
+        WT_TRET(__wt_session_close_internal(conn->obsolete_cleanup.session));
+        conn->obsolete_cleanup.session = NULL;
     }
 
     return (ret);
@@ -868,6 +868,6 @@ __wt_obsolete_cleanup_trigger(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (conn->cc_cleanup.tid_set)
-        __wt_cond_signal(session, conn->cc_cleanup.cond);
+    if (conn->obsolete_cleanup.tid_set)
+        __wt_cond_signal(session, conn->obsolete_cleanup.cond);
 }

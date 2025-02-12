@@ -459,7 +459,7 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
     WT_BLKCACHE blkcache;             /* Block cache */
-    WT_OBSOLETE_CLEANUP cc_cleanup;   /* Obsolete cleanup */
+    WT_OBSOLETE_CLEANUP obsolete_cleanup;   /* Obsolete cleanup */
     WT_CHUNKCACHE chunkcache;         /* Chunk cache */
 
     uint64_t *dh_bucket_count;         /* Locked: handles in each bucket */
