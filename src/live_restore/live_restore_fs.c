@@ -1119,8 +1119,10 @@ __live_restore_encode_bitmap(
       "Live restore lock not taken when needed");
     if (lr_fh->destination.bitmap_size == 0 || lr_fh->destination.complete == true)
         return (0);
-    return (
-      __wt_raw_to_hex(session, lr_fh->destination.bitmap, lr_fh->destination.bitmap_size, buf));
+    size_t bitmap_byte_count = lr_fh->destination.bitmap_size / 8;
+    if (lr_fh->destination.bitmap_size % 8 != 0)
+        bitmap_byte_count++;
+    return (__wt_raw_to_hex(session, lr_fh->destination.bitmap, bitmap_byte_count, buf));
 }
 
 /*

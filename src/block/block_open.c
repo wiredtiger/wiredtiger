@@ -253,7 +253,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      */
     WT_ERR(__wt_live_restore_fh_import_bitmap(session, block->fh->handle, lr_fh_meta));
 #else
-    WT_UNUSED(extent_str);
+    WT_UNUSED(lr_fh_meta);
 #endif
 
     /* Set the file's size. */
