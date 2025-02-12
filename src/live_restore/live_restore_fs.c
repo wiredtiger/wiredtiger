@@ -441,8 +441,15 @@ __live_restore_fh_fill_bit_range(
       "Live restore lock not taken when needed");
 
     /* If the file is complete or the write falls outside the bitmap return. */
+    if (lr_fh->destination.complete)
+        return;
+
+    /*
+     * Don't compute the offset before checking if the destination is complete, it depends on
+     * allocsize which may not exist if the destination is complete.
+     */
     uint64_t offset_bit = WTI_OFFSET_BIT(offset);
-    if (lr_fh->destination.complete || offset_bit >= lr_fh->destination.bitmap_size)
+    if (offset_bit >= lr_fh->destination.bitmap_size)
         return;
 
     uint64_t fill_end_bit = WTI_OFFSET_BIT(WTI_OFFSET_END(offset, len)) - 1;
