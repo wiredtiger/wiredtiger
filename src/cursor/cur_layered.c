@@ -187,9 +187,9 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
     locked = false;
 
     if ((c = clayered->stable_cursor) != NULL) {
-        if (clayered->checkpoint_timestamp != WT_TS_NONE) {
+        if (clayered->checkpoint_timestamp != WT_TS_NONE && clayered->ingest_cursor != NULL) {
             session = CUR2S(c);
-            ingest_btree = CUR2BT(c);
+            ingest_btree = CUR2BT(clayered->ingest_cursor);
             __wt_spin_lock(session, &ingest_btree->ts_min_heap_lock);
             locked = true;
             WT_ERR(
