@@ -1721,33 +1721,32 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 }
 
 /*
- * __live_restore_copy_log_file --
- *     Copy log across during recovery.
+ * __live_restore_copy_file --
+ *     Copy a file across during recovery.
  */
 static int
-__live_restore_copy_log_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+__live_restore_copy_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     char *buf = NULL;
-
-    WT_RET(
-      __wt_calloc(session, 1, ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system)->read_size, &buf));
+    size_t read_size = lr_fh->destination.back_pointer->read_size;
+    WT_RET(__wt_calloc(session, 1, read_size, &buf));
 
     /*
      * Break the copy into small chunks. Split the file into n chunks: the first n - 1 chunks will
      * read a full WT_LIVE_RESTORE_READ_SIZE buffer, and the last chunk reads the remaining data.
      */
-    size_t len = WT_MIN(lr_fh->source_size, lr_fh->destination.back_pointer->read_size);
-    for (size_t off = 0; off < lr_fh->source_size; off += len) {
+    for (size_t off = 0, len; off < lr_fh->source_size; off += read_size) {
+        len = WT_MIN(lr_fh->source_size - off, read_size);
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, (wt_off_t)off, len, buf));
         WT_ERR(lr_fh->destination.fh->fh_write(
           lr_fh->destination.fh, wt_session, (wt_off_t)off, len, buf));
-    }
 
-    /* Check the system has not entered a panic state since the copy can take long time. */
-    WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
+        /* Check the system has not entered a panic state since the copy can take long time. */
+        WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
+    }
 
     /*
      * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
@@ -1803,7 +1802,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
          * between layers and that function copies between two paths. This is the same "path" from
          * the perspective of a function higher in the stack.
          */
-        ret = __live_restore_copy_log_file(fh->handle, (WT_SESSION *)session);
+        ret = __live_restore_copy_file(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
     }
@@ -1820,7 +1819,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
           "Transferring prep log file from source to dest: %s\n", (char *)filename->data);
         WT_ERR(__wt_open(
           session, (char *)filename->data, WT_FS_OPEN_FILE_TYPE_LOG, WT_FS_OPEN_ACCESS_SEQ, &fh));
-        ret = __live_restore_copy_log_file(fh->handle, (WT_SESSION *)session);
+        ret = __live_restore_copy_file(fh->handle, (WT_SESSION *)session);
         WT_TRET(__wt_close(session, &fh));
         WT_ERR(ret);
     }
