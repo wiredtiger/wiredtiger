@@ -199,6 +199,7 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
             WT_ERR(__wt_update_pinned_ts_ingest(session, ingest_btree));
             __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
             locked = false;
+            clayered->checkpoint_timestamp = NULL;
         }
     }
 
@@ -293,11 +294,11 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
     if (clayered->stable_cursor == NULL) {
         leader = conn->layered_table_manager.leader;
-        /* Read the checkpoint timestamp as the first step in case we race with picking up a new
-         * checkpoint. */
-        WT_ACQUIRE_READ(
-          checkpoint_timestamp, conn->disaggregated_storage.last_checkpoint_timestamp);
         if (!leader) {
+            /* Read the checkpoint timestamp as the first step in case we race with picking up a new
+             * checkpoint. */
+            WT_ACQUIRE_READ(
+              checkpoint_timestamp, conn->disaggregated_storage.last_checkpoint_timestamp);
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
              * cursor on stable without a checkpoint. It will never return an invalid result (it's
@@ -338,8 +339,8 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
             WT_ERR(__wt_update_pinned_ts_ingest(session, ingest_btree));
             __wt_spin_unlock(session, &ingest_btree->ts_min_heap_lock);
             locked = false;
+            clayered->checkpoint_timestamp = checkpoint_timestamp;
         }
-        clayered->checkpoint_timestamp = checkpoint_timestamp;
     }
 
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
