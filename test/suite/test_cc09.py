@@ -32,14 +32,14 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # test_cc09.py
-# Verify checkpoint cleanup reads pages from the disk to remove any obsolete time window information
+# Verify obsolete cleanup reads pages from the disk to remove any obsolete time window information
 # present on the page.
 @wttest.skip_for_hook("tiered", "Checkpoint cleanup does not support tiered tables")
 class test_cc09(test_cc_base):
     conn_config_common = 'statistics=(all),statistics_log=(json,wait=1,on_close=true),verbose=(checkpoint_cleanup:0)'
 
     # These settings set a limit to the number of btrees/pages that can be cleaned up per btree per
-    # checkpoint by the checkpoint cleanup thread.
+    # checkpoint by the obsolete cleanup thread.
     conn_config_values = [
         ('no_btrees', dict(expected_cleanup=False, cc_obsolete_tw_max=0, conn_config=f'{conn_config_common},heuristic_controls=[obsolete_tw_btree_max=0]')),
         ('no_pages', dict(expected_cleanup=False, cc_obsolete_tw_max=0, conn_config=f'{conn_config_common},heuristic_controls=[checkpoint_cleanup_obsolete_tw_pages_dirty_max=0]')),
@@ -48,7 +48,7 @@ class test_cc09(test_cc_base):
         ('500_pages', dict(expected_cleanup=True, cc_obsolete_tw_max=500, conn_config=f'{conn_config_common},heuristic_controls=[checkpoint_cleanup_obsolete_tw_pages_dirty_max=500]')),
     ]
 
-    # Necessary conditions for checkpoint cleanup to run.
+    # Necessary conditions for obsolete cleanup to run.
     cc_scenarios = [
         ('newest_stop_durable_ts', dict(has_delete=True, bump_oldest_ts=False)),
         ('obsolete_ts', dict(has_delete=False, bump_oldest_ts=True)),
@@ -78,7 +78,7 @@ class test_cc09(test_cc_base):
         # Restart to have everything on disk.
         self.reopen_conn()
 
-        # Open the table as we need the dhandle to be open for checkpoint cleanup to process the
+        # Open the table as we need the dhandle to be open for obsolete cleanup to process the
         # table.
         cursor = self.session.open_cursor(uri, None, None)
 
@@ -92,7 +92,7 @@ class test_cc09(test_cc_base):
         if self.bump_oldest_ts:
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows))
 
-        # Force checkpoint cleanup and wait for it to make progress. It should read pages from the
+        # Force obsolete cleanup and wait for it to make progress. It should read pages from the
         # disk to clear the obsolete content if allowed to.
         self.wait_for_cc_to_run()
 

@@ -104,7 +104,7 @@ class test_compact12(compact_util, test_cc_base):
         self.truncate(uri, self.table_numkv // 10 * 9, self.table_numkv)
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(5)}')
 
-        # Trigger checkpoint cleanup twice to remove the obsolete content.
+        # Trigger obsolete cleanup twice to remove the obsolete content.
         self.wait_for_cc_to_run()
         self.wait_for_cc_to_run()
 

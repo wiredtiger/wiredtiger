@@ -477,14 +477,14 @@ connection_runtime_config = [
             min='0', max='100000'),
         ]),
     Config('checkpoint_cleanup', '', r'''
-        periodically checkpoint cleanup the database.''',
+        periodically perform obsolete cleanup on the database.''',
         type='category', subconfig=[
         Config('method', 'none', r'''
             control how aggressively obsolete content is removed by reading the internal pages.
             Default to none, which means no additional work is done to find obsolete content.
             ''', choices=['none', 'reclaim_space']),
         Config('wait', '300', r'''
-            seconds to wait between each checkpoint cleanup''',
+            seconds to wait between each cleanup''',
             min='60', max='100000'),
         ]),
     Config('debug_mode', '', r'''
@@ -673,12 +673,12 @@ connection_runtime_config = [
         reverting to prior behavior in the field''',
         type='category', subconfig=[
             Config('checkpoint_cleanup_obsolete_tw_pages_dirty_max', '100', r'''
-                maximum number of obsolete time window pages that can be marked as dirty per btree
-                in a single checkpoint by the checkpoint cleanup''',
+                maximum number of obsolete pages that can be marked as dirty per btree
+                in a single checkpoint''',
                 min=0, max=100000),
             Config('eviction_obsolete_tw_pages_dirty_max', '100', r'''
-                maximum number of obsolete time window pages that can be marked dirty per btree in a
-                single checkpoint by the eviction threads''',
+                maximum number of obsolete pages that can be marked dirty per btree in a single
+                checkpoint by the eviction threads''',
                 min=0, max=100000),
             Config('obsolete_tw_btree_max', '100', r'''
                 maximum number of btrees that can be checked for obsolete time window cleanup in a
@@ -1802,7 +1802,7 @@ methods = {
         purposes''',
         type='category', subconfig=[
         Config('checkpoint_cleanup', 'false', r'''
-            if true, checkpoint cleanup thread is triggered to perform the checkpoint cleanup''',
+            if true, the obsolete cleanup thread is triggered during checkpoint''',
             type='boolean'),
         Config('checkpoint_crash_point', '-1', r'''
             non-negative number between 0 and 1000 will trigger a controlled crash during the

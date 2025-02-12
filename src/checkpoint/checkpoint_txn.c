@@ -1565,7 +1565,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     uint32_t orig_flags;
-    bool checkpoint_cleanup, flush, flush_sync;
+    bool flush, flush_sync, obsolete_cleanup;
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ACTIVE);
     /*
@@ -1597,7 +1597,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
     F_SET(session, WTI_CHECKPOINT_SESSION_FLAGS);
 
     WT_RET(__wt_config_gets(session, cfg, "debug.checkpoint_cleanup", &cval));
-    checkpoint_cleanup = cval.val;
+    obsolete_cleanup = cval.val;
 
     /*
      * If this checkpoint includes a flush_tier then this call also must wait for any earlier
@@ -1630,8 +1630,8 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
           __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
     WT_ERR(ret);
 
-    /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */
-    if (checkpoint_cleanup)
+    /* Trigger the obsolete cleanup thread to remove the obsolete pages. */
+    if (obsolete_cleanup)
         __wt_obsolete_cleanup_trigger(session);
 
     if (flush && flush_sync)
@@ -2179,7 +2179,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             /*
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
-             * checkpoint cleanup.
+             * obsolete cleanup.
              */
             if (__checkpoint_apply_obsolete(session, btree, ckpt))
                 return (0);

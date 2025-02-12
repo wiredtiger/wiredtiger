@@ -174,11 +174,11 @@ struct __wt_ckpt_snapshot {
 };
 
 struct __wt_obsolete_cleanup {
-    WT_SESSION_IMPL *session; /* checkpoint cleanup session */
-    wt_thread_t tid;          /* checkpoint cleanup thread */
-    int tid_set;              /* checkpoint cleanup thread set */
-    WT_CONDVAR *cond;         /* checkpoint cleanup wait mutex */
-    uint64_t interval;        /* Checkpoint cleanup interval */
+    WT_SESSION_IMPL *session; /* session */
+    wt_thread_t tid;          /* thread id */
+    int tid_set;              /* thread set */
+    WT_CONDVAR *cond;         /* wait mutex */
+    uint64_t interval;        /* interval */
 };
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */

@@ -32,7 +32,7 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_cc06.py
-# Verify checkpoint cleanup ignores the empty or newly created files.
+# Verify obsolete cleanup ignores the empty or newly created files.
 
 class test_cc06(test_cc_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
@@ -57,13 +57,13 @@ class test_cc06(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
             ',stable_timestamp=' + self.timestamp_str(10))
 
-        # Trigger checkpoint cleanup and check statistics.
+        # Trigger obsolete cleanup and check statistics.
         self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.dsrc.checkpoint_cleanup_pages_visited, uri), 0)
 
         # Reopen the database.
         self.reopen_conn()
 
-        # Trigger checkpoint cleanup and check statistics.
+        # Trigger obsolete cleanup and check statistics.
         self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.dsrc.checkpoint_cleanup_pages_visited, uri), 0)

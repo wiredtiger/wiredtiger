@@ -231,8 +231,8 @@ struct __wt_btree {
     uint64_t clean_ckpt_timer;
 
     /*
-     * Track the number of obsolete time window pages that are changed into dirty page
-     * reconciliation by the checkpoint cleanup.
+     * Track the number of pages containing obsolete time windows that are changed into dirty page
+     * during reconciliation by the obsolete cleanup.
      */
     wt_shared uint32_t checkpoint_cleanup_obsolete_tw_pages;
 

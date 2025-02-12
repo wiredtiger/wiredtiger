@@ -85,7 +85,7 @@ class test_cc_base(wttest.WiredTigerTestCase):
             self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(k + 1))
         c.close()
 
-    # Trigger checkpoint cleanup. The function waits for checkpoint cleanup to make progress before
+    # Trigger obsolete cleanup. The function waits for obsolete cleanup to make progress before
     # exiting.
     def wait_for_cc_to_run(self, ckpt_name = ""):
         c = self.session.open_cursor('statistics:')
@@ -146,7 +146,7 @@ class test_cc01(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100) +
             ',stable_timestamp=' + self.timestamp_str(100))
 
-        # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
+        # Trigger obsolete cleanup and wait until it is done. This should clean the history store.
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
@@ -178,7 +178,7 @@ class test_cc01(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(200) +
             ',stable_timestamp=' + self.timestamp_str(200))
 
-        # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
+        # Trigger obsolete cleanup and wait until it is done. This should clean the history store.
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
@@ -210,7 +210,7 @@ class test_cc01(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(300) +
             ',stable_timestamp=' + self.timestamp_str(300))
 
-        # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
+        # Trigger obsolete cleanup and wait until it is done. This should clean the history store.
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.

@@ -166,7 +166,7 @@ struct __wt_heuristic_controls {
      *   - The maximum number of btrees to process in a single checkpoint.
      */
 
-    /* Maximum number of pages that can be processed per btree by checkpoint cleanup. */
+    /* Maximum number of pages that can be processed per btree by obsolete cleanup. */
     uint32_t checkpoint_cleanup_obsolete_tw_pages_dirty_max;
 
     /* Maximum number of pages that can be processed per btree by eviction. */
@@ -458,9 +458,9 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
     TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
-    WT_BLKCACHE blkcache;             /* Block cache */
-    WT_OBSOLETE_CLEANUP obsolete_cleanup;   /* Obsolete cleanup */
-    WT_CHUNKCACHE chunkcache;         /* Chunk cache */
+    WT_BLKCACHE blkcache;                 /* Block cache */
+    WT_CHUNKCACHE chunkcache;             /* Chunk cache */
+    WT_OBSOLETE_CLEANUP obsolete_cleanup; /* Obsolete cleanup */
 
     uint64_t *dh_bucket_count;         /* Locked: handles in each bucket */
     uint64_t dhandle_count;            /* Locked: handles in the queue */

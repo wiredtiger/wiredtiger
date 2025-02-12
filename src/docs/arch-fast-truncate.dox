@@ -5,7 +5,7 @@ This is known as <i>fast-truncate</i> or <i>fast-delete</i> (the terms are used
 interchangeably) and the pages it is done to are called <i>deleted pages</i>.
 
 There are also four other ways deleted pages can appear in a database.
-The checkpoint cleanup code (found in \c bt_sync.c) discards pages it finds to contain
+Obsolete cleanup code (found in \c bt_sync.c) discards pages it finds to contain
 only obsolete values.
 Pages that reconcile completely empty turn into deleted pages.
 In VLCS, an empty deleted page is inserted when loading an internal page whose start recno
@@ -49,7 +49,7 @@ under @ref ft_instantiation.
 When a page is deleted by fast-truncate, a \c WT_PAGE_DELETED structure is allocated,
 populated with information about the transaction containing the truncate, and inserted in
 the \c page_del field.
-When a page is discarded by checkpoint cleanup or other mechanisms that have already
+When a page is discarded by obsolete cleanup or other mechanisms that have already
 determined that all the prior data is obsolete, the \c page_del field is left \c NULL.
 
 Accessing the deletion information requires locking the \c WT_REF.
@@ -378,14 +378,14 @@ improved at some point.
 As mentioned earlier, there are four ways besides fast-truncate that deleted pages can
 appear.
 
-First, the checkpoint cleanup code in \c bt_sync.c discards pages that it finds contain
+First, the obsolete cleanup code in \c bt_sync.c discards pages that it finds contain
 only obsolete values, instead of writing them out.
 The ref state becomes \c WT_REF_DELETED, no \c page_del is generated, and when the
 checkpoint reaches the parent internal page any prior on-disk page image will be dropped
 and no cell will be produced.
 
 Second, pages that reconcile empty end up deleted.
-During a checkpoint this happens in the checkpoint cleanup; in eviction, it happens in the
+This happens through obsolete cleanup; in eviction, it happens in the
 \c WT_PM_REC_EMPTY case of \c __evict_page_dirty_update.
 The ref state becomes \c WT_REF_DELETED and no \c page_del is generated.
 (Also note that \c WT_REF_MEM pages with \c WT_PM_REC_EMPTY reconciliation results are
@@ -504,7 +504,7 @@ This is perhaps unfortunate because slow-truncating FLCS pages (which contain la
 numbers of rows with very small values) is particularly expensive.
 
 For FLCS, fast-truncate is inhibited by checking for it and clearing \c WT_READ_TRUNCATE
-in the page-walk code; similarly, checkpoint cleanup avoids discarding FLCS pages.
+in the page-walk code; similarly, obsolete cleanup avoids discarding FLCS pages.
 Because values are never deleted, pages never become empty; no special handling is needed
 to prevent deleted pages appearing via that mechanism.
 However, there is still a bit of FLCS-specific code there to avoid examining pages that

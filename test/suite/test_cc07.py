@@ -31,7 +31,7 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # test_cc07.py
-# Verify checkpoint cleanup removes the obsolete time window from the pages.
+# Verify obsolete cleanup removes the obsolete time window from the pages.
 class test_cc07(test_cc_base):
     conn_config_common = 'cache_size=1GB,statistics=(all),statistics_log=(json,wait=1,on_close=true)'
 
@@ -49,7 +49,7 @@ class test_cc07(test_cc_base):
 
     def test_cc07(self):
         if self.runningHook('tiered'):
-            self.skipTest("checkpoint cleanup cannot remove obsolete pages from tiered tables")
+            self.skipTest("obsolete cleanup cannot remove obsolete pages from tiered tables")
 
         create_params = 'key_format=i,value_format=S'
         nrows = 1000
@@ -67,7 +67,7 @@ class test_cc07(test_cc_base):
             self.session.checkpoint()
             self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nrows * (i + 1)))
 
-        # Trigger checkpoint cleanup and wait for it to make progress.
+        # Trigger obsolete cleanup and wait for it to make progress.
         self.wait_for_cc_to_run()
 
         # Retrieve the number of pages we have cleaned up so far.

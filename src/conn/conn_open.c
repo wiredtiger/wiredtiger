@@ -288,7 +288,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Start pre-fetch utilities. */
     WT_RET(__wti_prefetch_create(session, cfg));
 
-    /* Start the checkpoint cleanup thread. */
+    /* Start the obsolete cleanup thread. */
     WT_RET(__wt_obsolete_cleanup_create(session, cfg));
 
     __wt_verbose_info(

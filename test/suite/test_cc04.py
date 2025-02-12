@@ -58,7 +58,7 @@ class test_cc04(test_cc_base):
         self.large_updates(uri, bigvalue, ds, nrows, 10)
         self.large_updates(uri, bigvalue2, ds, nrows, 20)
 
-        # Trigger checkpoint cleanup and ensure that the history store is populated but not cleaned
+        # Trigger obsolete cleanup and ensure that the history store is populated but not cleaned
         # up multiple times.
         self.wait_for_cc_to_run()
         self.assertEqual(self.get_stat(stat.conn.checkpoint_cleanup_pages_evict), 0)

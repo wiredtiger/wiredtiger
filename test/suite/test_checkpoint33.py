@@ -109,11 +109,11 @@ class test_checkpoint33(test_cc_base, suite_subprocess):
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(5)}')
         self.prout(f'File size: {self.get_size()}')
 
-        # Wait for checkpoint cleanup to clean up all the deleted pages.
+        # Wait for obsolete cleanup to clean up all the deleted pages.
         self.wait_for_cc_to_run()
 
         # Checkpoint should recover the space by truncating the space made available by
-        # checkpoint cleanup. Multiple checkpoints are required to move the blocks around and
+        # obsolete cleanup. Multiple checkpoints are required to move the blocks around and
         # eventually reach the minimum file size of 12KB.
         checkpoints = 0
         max_checkpoints = 10

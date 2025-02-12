@@ -32,7 +32,7 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 # test_cc08.py
-# Verify checkpoint cleanup cleans up logged tables when configured in aggressive mode.
+# Verify obsolete cleanup cleans up logged tables when configured in aggressive mode.
 @wttest.skip_for_hook("tiered", "Checkpoint cleanup does not support tiered tables")
 class test_cc08(test_cc_base):
     conn_config = 'statistics=(all),statistics_log=(json,wait=1,on_close=true),log=(enabled=true)'
@@ -58,14 +58,14 @@ class test_cc08(test_cc_base):
         # Write everything to disk.
         self.session.checkpoint()
 
-        # Restart and specify the checkpoint cleanup's strategy.
+        # Restart and specify the obsolete cleanup's strategy.
         self.reopen_conn(config=f'{self.conn_config},{self.cc_config}')
 
-        # Open the table as we need the dhandle to be open for checkpoint cleanup to process the
+        # Open the table as we need the dhandle to be open for obsolete cleanup to process the
         # table.
         _ = self.session.open_cursor(uri, None, None)
 
-        # Force checkpoint cleanup and wait for it to make progress.
+        # Force obsolete cleanup and wait for it to make progress.
         self.check_cc_stats()
 
         # Check stats.

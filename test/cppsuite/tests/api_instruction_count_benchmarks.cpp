@@ -43,7 +43,7 @@ namespace test_harness {
  *  - Capacity server, disabled by in_memory.
  *  - Checkpoint server, disabled by in_memory.
  *  - Eviction, still runs but ideally we don't cross any threshold to trigger it.
- *  - Checkpoint cleanup, disabled by in_memory.
+ *  - Obsolete cleanup, disabled by in_memory.
  *
  * Additionally to avoid I/O the connection is set to in_memory.
  */

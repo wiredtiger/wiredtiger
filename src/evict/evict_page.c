@@ -725,7 +725,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
     else if (__wt_ref_addr_copy(session, ref, &addr))
         WT_TIME_AGGREGATE_COPY(&newest_ta, &addr.ta);
 
-    /* The pages that are removed are eliminated during the checkpoint cleanup procedure. */
+    /* The pages that are removed are eliminated during the obsolete cleanup procedure. */
     if (WT_TIME_AGGREGATE_HAS_STOP(&newest_ta))
         return (0);
 

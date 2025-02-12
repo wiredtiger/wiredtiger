@@ -46,7 +46,7 @@
  *
  * There are two other ways pages can be marked deleted: if they reconcile empty, or if they are
  * found to be eligible for deletion and contain only obsolete items. (The latter is known as
- * "checkpoint cleanup" and happens in bt_sync.c.) There are also two cases in which deleted pages
+ * "obsolete cleanup" and happens in bt_sync.c.) There are also two cases in which deleted pages
  * are manufactured out of thin air: in VLCS, if a key-space gap exists between the start recno of
  * an internal page and the start recno of its first child, a deleted page is created to cover this
  * space; and, when new trees are created they are created with a single deleted leaf page. In these

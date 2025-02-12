@@ -1178,7 +1178,7 @@ struct __wt_ref {
      * performed the truncate. It can be discarded and set to NULL when that transaction reaches
      * global visibility.
      *
-     * Operations other than truncate that produce deleted pages (checkpoint cleanup, reconciliation
+     * Operations other than truncate that produce deleted pages (obsolete cleanup, reconciliation
      * as empty, etc.) leave the page_del field NULL as in these cases the deletion is already
      * globally visible.
      *
