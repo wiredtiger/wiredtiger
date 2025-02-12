@@ -20,6 +20,8 @@ __wt_ts_min_heap_init(WT_SESSION_IMPL *session, WT_TS_MIN_HEAP *heap)
     heap->size = 0;
     heap->capacity = WT_TS_MIN_HEAP_DEFAULT_CAPACITY;
     WT_RET(__wt_calloc(session, heap->capacity, sizeof(wt_timestamp_t), &heap->data));
+
+    return (0);
 }
 
 /*
