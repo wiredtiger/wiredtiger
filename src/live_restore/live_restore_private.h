@@ -25,21 +25,6 @@
  * length=1024 WTI_OFFSET_END returns 1023
  */
 #define WTI_OFFSET_END(offset, len) (offset + (wt_off_t)len)
-#define WTI_EXTENT_END(ext) WTI_OFFSET_END((ext)->off, (ext)->len)
-/* As extent ranges are inclusive we want >= and <= on both ends of the range. */
-#define WTI_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WTI_EXTENT_END(ext))
-
-/*
- * __wti_live_restore_hole_node --
- *     A linked list of extents. Each extent represents a hole in the destination file that needs to
- *     be read from the source file.
- */
-struct __wti_live_restore_hole_node {
-    wt_off_t off;
-    size_t len;
-
-    WTI_LIVE_RESTORE_HOLE_NODE *next;
-};
 
 /*
  * __wti_live_restore_file_handle --
@@ -57,14 +42,15 @@ struct __wti_live_restore_file_handle {
         /* We need to get back to the file system when checking for stop files. */
         WTI_LIVE_RESTORE_FS *back_pointer;
 
-        /*
-         * The hole list bitmap tracks which ranges in the file are holes. As the migration
-         * continues the holes will be gradually filled by either data from the source or new
-         * writes.
-         */
         /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
         uint64_t bitmap_size;
         uint8_t *bitmap;
+        /*
+         * Whether the file was newly created in the destination. This allows us to handle cases
+         * where we need to differentiate between new files and existing files that have completed
+         * migration.
+         */
+        bool newly_created;
     } destination;
 
     uint32_t allocsize;
