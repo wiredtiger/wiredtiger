@@ -1202,7 +1202,9 @@ done:
         /* Time since the rollback to stable has started. */
         __wt_timer_evaluate_ms(session, &rts_timer, &conn->recovery_timeline.rts_ms);
         __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
-          " and ran for %" PRIu64 " milliseconds", conn->recovery_timeline.rts_ms);
+            "recovery rollback to stable has successfully finished and ran for %" PRIu64
+            " milliseconds",
+            conn->recovery_timeline.rts_ms);
     }
 
     /*

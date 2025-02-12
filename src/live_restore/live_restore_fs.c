@@ -1018,19 +1018,19 @@ static int
 __live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str, uint64_t bitmap_size,
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_ASSERT_ALWAYS(session, bitmap_str != NULL, "Bitmap string is NULL");
-    WT_ASSERT_ALWAYS(session, bitmap_size != 0, "Bitmap size is 0");
+    WT_DECL_RET;
+    WT_ASSERT_ALWAYS(session, bitmap_str != NULL, "Live restore bitmap string is NULL");
 
     WT_RET(__bit_alloc(session, bitmap_size, &lr_fh->destination.bitmap));
-    uint64_t string_len = (uint64_t)strlen(bitmap_str);
-    WT_ASSERT(session, string_len % 2 == 0);
-    for (uint64_t i = 0; i < string_len; i += 2) {
-        u_char byte;
-        WT_RET(__wti_hex2byte((u_char *)(bitmap_str + i), &byte));
-        __bit_set_mask(lr_fh->destination.bitmap, i / 2, byte);
-    }
     lr_fh->destination.bitmap_size = bitmap_size;
-    return (0);
+
+    WT_ITEM buf;
+    WT_CLEAR(buf);
+    WT_ERR(__wt_hex_to_raw(session, bitmap_str, &buf));
+    memcpy(lr_fh->destination.bitmap, buf.mem, buf.size);
+err:
+    __wt_buf_free(session, &buf);
+    return (ret);
 }
 
 /*
