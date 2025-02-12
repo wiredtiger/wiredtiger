@@ -813,7 +813,7 @@ __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
      * data from source to destination should be safe. If the write doesn't complete then a hole
      * should remain and the same write will be performed on the startup. To avoid depending on that
-     * property we choose to sync then file over anyway.
+     * property we choose to sync the file over anyway.
      */
     WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
     __wt_writelock(session, &lr_fh->bitmap_lock);
@@ -1345,8 +1345,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
               source_size);
             if (!dest_exist) {
                 /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
-                if (file_type == WT_FS_OPEN_FILE_TYPE_REGULAR ||
-                  file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
+                if (file_type == WT_FS_OPEN_FILE_TYPE_REGULAR) {
                     /*
                      * Copy over the file. This will need to be atomic, either we succeed or we
                      * don't, right now it is not.
@@ -1361,6 +1360,8 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
                     WT_ERR(system(buf));
                     lr_fh->destination.complete = true;
                 } else {
+                    /* This should be unreachable for log files, check that. */
+                    WT_ASSERT(session, file_type == WT_FS_OPEN_FILE_TYPE_DATA);
                     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
                       "Creating destination file %s backed by source file", lr_fh->iface.name);
 
@@ -1630,6 +1631,47 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
 }
 
 /*
+ * __live_restore_copy_file --
+ *     Copy a file across for live restore.
+ */
+static int
+__live_restore_copy_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+    char *buf = NULL;
+    size_t read_size = lr_fh->destination.back_pointer->read_size;
+    WT_RET(__wt_calloc(session, 1, read_size, &buf));
+
+    /*
+     * Break the copy into small chunks. Split the file into n chunks: the first n - 1 chunks will
+     * read a full read_size buffer, and the last chunk reads the remaining data.
+     */
+    for (size_t off = 0, len; off < lr_fh->source_size; off += len) {
+        len = WT_MIN(lr_fh->source_size - off, read_size);
+        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, (wt_off_t)off, len, buf));
+        WT_ERR(lr_fh->destination.fh->fh_write(
+          lr_fh->destination.fh, wt_session, (wt_off_t)off, len, buf));
+
+        /* Check the system has not entered a panic state since the copy can take long time. */
+        WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
+    }
+
+    /*
+     * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
+     * data from source to destination should be safe. If the write doesn't complete then a hole
+     * should remain and the same write will be performed on the startup. To avoid depending on that
+     * property we choose to sync the file over anyway.
+     */
+    WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
+
+err:
+    __wt_free(session, buf);
+    return (ret);
+}
+
+/*
  * __wt_live_restore_setup_recovery --
  *     Perform necessary setup steps prior to recovery running. This is largely copying log files
  *     from the source to the destination. We also need to copy over prep log files as logging will
@@ -1656,53 +1698,42 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
     char **logfiles = NULL;
     WT_DECL_ITEM(filename);
     uint32_t lognum;
+    WT_FH *fh = NULL;
 
     /* Get a list of actual log files. */
-    // WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
-    // for (u_int i = 0; i < logcount; i++) {
-    //     WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
-    //     /* Call log open file to generate the full path to the log file. */
-    //     WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
-    //     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-    //       "Transferring log file from source to dest: %s\n", fh->name);
-    //     /*
-    //      * We intentionally do not call the WiredTiger copy and sync function as we are copying
-    //      * between layers and that function copies between two paths. This is the same "path"
-    //      from
-    //      * the perspective of a function higher in the stack.
-    //      */
-    //     ret = __wti_live_restore_fs_fill_holes(fh->handle, (WT_SESSION *)session);
-    //     WT_TRET(__wt_close(session, &fh));
-    //     WT_ERR(ret);
-    // }
-    // WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
+    WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    for (u_int i = 0; i < logcount; i++) {
+        WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+        /* Call log open file to generate the full path to the log file. */
+        WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
+        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+          "Transferring log file from source to dest: %s\n", fh->name);
+        /*
+         * We intentionally do not call the WiredTiger copy and sync function as we are copying
+         * between layers and that function copies between two paths. This is the same "path" from
+         * the perspective of a function higher in the stack.
+         */
+        ret = __live_restore_copy_file(fh->handle, (WT_SESSION *)session);
+        WT_TRET(__wt_close(session, &fh));
+        WT_ERR(ret);
+    }
+    WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
 
     /* Get a list of prep log files. */
     WT_ERR(__wt_log_get_files(session, WTI_LOG_PREPNAME, &logfiles, &logcount));
     WT_ERR(__wt_scr_alloc(session, 0, &filename));
     for (u_int i = 0; i < logcount; i++) {
-        char buf[500];
-        char *path_dest;
-        char *path_src;
-        bool exists = false;
+        WT_ERR(__wt_scr_alloc(session, 0, &filename));
         WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
         /* We cannot utilize the log open file code as it doesn't support prep logs. */
         WT_ERR(__wt_log_filename(session, lognum, WTI_LOG_PREPNAME, filename));
-        WT_ERR(__wt_snprintf(buf, 500, "%s%s%s", lr_fs->destination.home, __wt_path_separator(),
-          (char *)filename->data));
-        WT_ERR(__live_restore_fs_has_file(lr_fs, &lr_fs->source, session, buf, &exists));
-        if (!exists)
-            continue;
-        WT_ERR(__live_restore_fs_backing_filename(
-          &lr_fs->destination, session, lr_fs->destination.home, buf, &path_dest));
-        WT_ERR(__live_restore_fs_backing_filename(
-          &lr_fs->source, session, lr_fs->destination.home, buf, &path_src));
         __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-          "Transferring prep log file from %s to %s", path_src, path_dest);
-        WT_ASSERT(session, __wt_snprintf(buf, 500, "cp %s %s", path_src, path_dest) == 0);
-        WT_ERR(system(buf));
-        __wt_free(session, path_dest);
-        __wt_free(session, path_src);
+          "Transferring prep log file from source to dest: %s\n", (char *)filename->data);
+        WT_ERR(__wt_open(
+          session, (char *)filename->data, WT_FS_OPEN_FILE_TYPE_LOG, WT_FS_OPEN_ACCESS_SEQ, &fh));
+        ret = __live_restore_copy_file(fh->handle, (WT_SESSION *)session);
+        WT_TRET(__wt_close(session, &fh));
+        WT_ERR(ret);
     }
 
 err:
