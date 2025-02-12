@@ -651,6 +651,23 @@ __wt_checkpoint_progress_stats(WT_SESSION_IMPL *session, uint64_t write_bytes)
 }
 
 /*
+ * __wt_checkpoint_snapshot_clear --
+ *     Clear checkpoint snapshot data.
+ */
+void
+__wt_checkpoint_snapshot_clear(WT_CKPT_SNAPSHOT *snapshot)
+{
+    snapshot->ckpt_id = 0;
+    snapshot->oldest_ts = WT_TS_NONE;
+    snapshot->snapshot_count = 0;
+    snapshot->snapshot_max = WT_TXN_MAX;
+    snapshot->snapshot_min = WT_TXN_MAX;
+    snapshot->snapshot_txns = NULL;
+    snapshot->snapshot_write_gen = 0;
+    snapshot->stable_ts = WT_TS_NONE;
+}
+
+/*
  * __wt_checkpoint_verbose_timer_started --
  *     Indicate whether the checkpoint verbose tracking timer has started.
  */
