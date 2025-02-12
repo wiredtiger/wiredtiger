@@ -245,6 +245,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     }
 
     __wt_spin_destroy(session, &btree->ts_min_heap_lock);
+    WT_ASSERT(session, btree->ts_min_heap.size == 0);
     __wt_ts_min_heap_free(session, &btree->ts_min_heap);
 
     return (ret);
