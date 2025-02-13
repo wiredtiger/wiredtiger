@@ -282,6 +282,22 @@ __wti_live_restore_get_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_f
 }
 
 /*
+ * __wti_live_restore_get_state_no_lock --
+ *     Get the live restore state without taking a lock. The caller must hold the state lock when
+ *     calling this function.
+ */
+WTI_LIVE_RESTORE_STATE
+__wti_live_restore_get_state_no_lock(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
+{
+    WTI_LIVE_RESTORE_STATE state = lr_fs->state;
+
+    /* We initialize state on startup. This shouldn't be possible. */
+    WT_ASSERT_ALWAYS(session, state != WTI_LIVE_RESTORE_STATE_NONE, "State not initialized!");
+
+    return (state);
+}
+
+/*
  * __wt_live_restore_delete_complete_state_file --
  *     Provided with a folder delete any live restore state file contained within, provided that the
  *     file is in the COMPLETE state. This function takes a *non-live restore* file system as it is

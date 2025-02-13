@@ -151,8 +151,13 @@ __live_restore_fs_create_stop_file(
     lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
 
-    if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
+    __wt_readlock(session, &lr_fs->state_lock);
+
+    if (__wti_live_restore_get_state_no_lock(session, lr_fs) >
+      WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
+        __wt_readunlock(session, &lr_fs->state_lock);
         return (0);
+    }
 
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, name, &path));
@@ -168,19 +173,11 @@ __live_restore_fs_create_stop_file(
       WT_FS_OPEN_FILE_TYPE_DATA, open_flags, &fh));
     WT_ERR(fh->close(fh, &session->iface));
 
-    /*
-     * Check the live restore state hasn't changed during creation. If state has changed the stop
-     * file is now redundant since we're at or after the CLEAN_UP stage and can be deleted.
-     */
-    if (__wti_live_restore_get_state(session, lr_fs) != WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
-        /* ENOENT is ok here. The another thread might delete the file before we do. */
-        WT_ERR_ERROR_OK(
-          lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, &session->iface, path_marker, 0),
-          ENOENT, false);
-
 err:
     __wt_free(session, path);
     __wt_free(session, path_marker);
+
+    __wt_readunlock(session, &lr_fs->state_lock);
 
     return (ret);
 }
@@ -943,12 +940,7 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
               session, fs->destination.home, files[i], UINTMAX_MAX, UINT32_MAX, filepath));
             __wt_verbose_info(
               session, WT_VERB_LIVE_RESTORE, "Removing stop file %s", (char *)filepath->data);
-            /*
-             * ENOENT is ok here. It's possible another thread has deleted the stop file. We're not
-             * worried as we just want to delete all stop files.
-             */
-            WT_ERR_ERROR_OK(
-              os_fs->fs_remove(os_fs, wt_session, (char *)filepath->data, 0), ENOENT, false);
+            WT_ERR(os_fs->fs_remove(os_fs, wt_session, (char *)filepath->data, 0));
         }
     }
     if (F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
@@ -970,11 +962,7 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
                 WT_ERR(__wt_buf_fmt(session, buf, "%s/%s", (char *)filepath->data, files[i]));
                 __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
                   "Removing log directory stop file %s", (char *)buf->data);
-                /*
-                 * ENOENT is ok here. It's possible another thread has deleted the stop file. We're
-                 * not worried as we just want to delete all stop files.
-                 */
-                WT_ERR_ERROR_OK(os_fs->fs_remove(os_fs, wt_session, buf->data, 0), ENOENT, false);
+                WT_ERR(os_fs->fs_remove(os_fs, wt_session, buf->data, 0));
             }
         }
     }
