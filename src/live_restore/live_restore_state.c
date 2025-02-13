@@ -61,6 +61,34 @@ __live_restore_state_from_string(
 }
 
 /*
+ * __live_restore_get_state_file_path --
+ *     Given a directory return the path of a live restore state file inside the directory and
+ *     whether the file exists.
+ */
+static int
+__live_restore_get_state_file_path(WT_SESSION_IMPL *session, const char *directory,
+  WT_FILE_SYSTEM *fs, WT_ITEM **state_file_namep, bool *file_existsp)
+{
+    WT_DECL_RET;
+
+    WT_RET(__wt_scr_alloc(session, 0, state_file_namep));
+    WT_ERR(__wt_filename_construct(
+      session, directory, WTI_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX, UINT32_MAX, *state_file_namep));
+
+    if (file_existsp != NULL) {
+        WT_ERR(
+          fs->fs_exist(fs, (WT_SESSION *)session, (char *)(*state_file_namep)->data, file_existsp));
+    }
+
+    if (0) {
+err:
+        __wt_scr_free(session, state_file_namep);
+    }
+
+    return (ret);
+}
+
+/*
  * __live_restore_get_state_from_file --
  *     Read the live restore state from the on-disk file. If it doesn't exist we return NONE. The
  *     caller must already hold the live restore state lock. This function takes a *non-live
@@ -72,16 +100,14 @@ __live_restore_get_state_from_file(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs,
   const char *backing_folder, WTI_LIVE_RESTORE_STATE *statep)
 {
     WT_DECL_RET;
+
+    WT_DECL_ITEM(state_file_name);
     WT_FILE_HANDLE *fh = NULL;
     bool state_file_exists = false;
 
-    WT_DECL_ITEM(state_file_name);
-    WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
-    WT_ERR(__wt_filename_construct(session, backing_folder, WTI_LIVE_RESTORE_STATE_FILE,
-      UINTMAX_MAX, UINT32_MAX, state_file_name));
+    WT_ERR(__live_restore_get_state_file_path(
+      session, backing_folder, fs, &state_file_name, &state_file_exists));
 
-    WT_ERR(
-      fs->fs_exist(fs, (WT_SESSION *)session, (char *)state_file_name->data, &state_file_exists));
     if (!state_file_exists)
         *statep = WTI_LIVE_RESTORE_STATE_NONE;
     else {
@@ -174,12 +200,8 @@ __wti_live_restore_set_state(
     }
 
     WT_DECL_ITEM(state_file_name);
-    WT_ERR(__wt_scr_alloc(session, 0, &state_file_name));
-
-    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WTI_LIVE_RESTORE_STATE_FILE,
-      UINTMAX_MAX, UINT32_MAX, state_file_name));
-    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, &state_file_exists));
+    WT_ERR(__live_restore_get_state_file_path(session, lr_fs->destination.home,
+      lr_fs->os_file_system, &state_file_name, &state_file_exists));
 
     /*
      * The state file is either already present or created on live restore initialization. If it's
@@ -238,9 +260,8 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
         char state_to_write[128];
         __live_restore_state_to_string(WTI_LIVE_RESTORE_STATE_LOG_COPY, state_to_write);
 
-        WT_RET(__wt_scr_alloc(session, 0, &state_file_name));
-        WT_ERR(__wt_filename_construct(session, lr_fs->destination.home,
-          WTI_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX, UINT32_MAX, state_file_name));
+        WT_ERR(__live_restore_get_state_file_path(
+          session, lr_fs->destination.home, NULL, &state_file_name, NULL));
 
         WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
           (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
@@ -308,13 +329,9 @@ __wt_live_restore_delete_complete_state_file(
     WT_DECL_RET;
 
     WT_DECL_ITEM(lr_state_file);
-    WT_RET(__wt_scr_alloc(session, 0, &lr_state_file));
     bool lr_state_file_exists = false;
-
-    WT_ERR(__wt_filename_construct(
-      session, directory, WTI_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX, UINT32_MAX, lr_state_file));
-    WT_ERR(
-      fs->fs_exist(fs, (WT_SESSION *)session, (char *)lr_state_file->data, &lr_state_file_exists));
+    WT_ERR(__live_restore_get_state_file_path(
+      session, directory, fs, &lr_state_file, &lr_state_file_exists));
 
     if (lr_state_file_exists) {
         WTI_LIVE_RESTORE_STATE source_state;
