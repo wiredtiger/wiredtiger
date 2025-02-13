@@ -224,8 +224,7 @@ functions:
         echo "startup --output_user_root=${workdir}/bazel-output-root" >> ~/.bazelrc
         echo "BAZELISK_HOME=${workdir}/bazelisk_home" >> ~/.bazeliskrc
 
-        ./buildscripts/scons.py --variables-files=etc/scons/mongodbtoolchain_stable_gcc.vars --link-model=dynamic --ninja generate-ninja ICECC=icecc CCACHE=ccache
-        ninja -j$(nproc --all) install-mongod
+        bazel build --mongo_toolchain_version=v4 --build_enterprise=False install-mongod
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
@@ -4054,7 +4053,7 @@ tasks:
             source venv/bin/activate
             # Need both pymongo and pymongo[srv] as upload-results-atlas.py uses mongo+srv for the URI.
             pip3 install lorem==0.1.1 pymongo==3.12.2 "pymongo[srv]==3.12.2"
-            mongod_path=$(find -L ../../mongo/build -executable -type f -path \*/bin/mongod)
+            mongod_path=$(find -L ../../mongo/bazel-bin -executable -type f -path \*/install-mongod/bin/mongod)
             echo "mongod_path = '$mongod_path'"
             # Log the actual path, using ls to display any symlinks
             ls -l $mongod_path
