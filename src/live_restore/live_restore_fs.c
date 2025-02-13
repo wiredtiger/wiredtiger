@@ -153,8 +153,8 @@ __live_restore_fs_create_stop_file(
 
     __wt_readlock(session, &lr_fs->state_lock);
 
-    if (__wti_live_restore_get_state_no_lock(session, lr_fs) >
-      WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state_no_lock(session, lr_fs);
+    if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state)) {
         __wt_readunlock(session, &lr_fs->state_lock);
         return (0);
     }
@@ -316,7 +316,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
      * Once we're past the background migration stage we never need to access the source directory
      * again.
      */
-    if (state > WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION)
+    if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state))
         goto done;
 
     /* Get files from source. */
@@ -1209,7 +1209,7 @@ __wt_live_restore_fh_import_extents_from_string(
      */
     WTI_LIVE_RESTORE_STATE state =
       __wti_live_restore_get_state(session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
-    if (state >= WTI_LIVE_RESTORE_STATE_CLEAN_UP) {
+    if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state)) {
         WT_ASSERT_ALWAYS(session, extent_string_empty,
           "Metadata extent list is not empty after background migration has finished!");
         WT_ASSERT(session, lr_fh->destination.complete == true);
@@ -1310,7 +1310,7 @@ __wt_live_restore_fh_extent_to_metadata(
     /* Once we're past the background migration stage there's no need to track hole information. */
     WTI_LIVE_RESTORE_STATE state =
       __wti_live_restore_get_state(session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
-    if (state >= WTI_LIVE_RESTORE_STATE_CLEAN_UP)
+    if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state))
         return (WT_NOTFOUND);
 
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
@@ -1443,7 +1443,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
 
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
-    if (have_stop || state > WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
+    if (have_stop || WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state)) {
         /*
          * Set the complete flag, we know that if there is a stop file we should never look in the
          * source. Therefore the destination must be complete. It's also possible we've moved past

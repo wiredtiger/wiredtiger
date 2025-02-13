@@ -98,31 +98,34 @@ struct __wti_live_restore_fs_layer {
 
 /*
  * Live restore states. As live restore progresses we will transition through each of these states
- * one by one.
+ * one by one. Live restore transitions through each state in the order they are listed below.
  */
 typedef enum {
     /*
      * This is not a valid state. We return it when there is no state file on disk and therefore
      * we're not in live restore yet.
      */
-    WTI_LIVE_RESTORE_STATE_NONE = 0,
+    WTI_LIVE_RESTORE_STATE_NONE,
     /*
      * Log files aren't tracked in the metadata file, which we use to identify which files need
      * background migrating. To resolve this we copy all log files to the destination at the start
      * of live restore.
      */
-    WTI_LIVE_RESTORE_STATE_LOG_COPY = 1,
+    WTI_LIVE_RESTORE_STATE_LOG_COPY,
     /*
      * The background migration state is where the majority is where the majority of work takes
      * place. Users can perform reads/writes while we copy backing data to the destination in the
      * background.
      */
-    WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION = 2,
+    WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION,
     /* We've completed background migration and are now cleaning up any live restore metadata. */
-    WTI_LIVE_RESTORE_STATE_CLEAN_UP = 3,
+    WTI_LIVE_RESTORE_STATE_CLEAN_UP,
     /* We've completed the live restore. */
-    WTI_LIVE_RESTORE_STATE_COMPLETE = 4
+    WTI_LIVE_RESTORE_STATE_COMPLETE
 } WTI_LIVE_RESTORE_STATE;
+
+#define WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state) \
+    ((state) == WTI_LIVE_RESTORE_STATE_CLEAN_UP || (state) == WTI_LIVE_RESTORE_STATE_COMPLETE)
 
 /*
  * __wti_live_restore_fs --
