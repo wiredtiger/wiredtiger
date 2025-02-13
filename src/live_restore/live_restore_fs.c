@@ -1779,8 +1779,8 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
 
     WT_DECL_ITEM(filename);
     WT_FH *fh = NULL;
-    uint32_t lognum;
     WT_FILE_HANDLE *log_folder_fh = NULL;
+    uint32_t lognum;
 
     /* Open and close the log folder. This creates it in the destination if it didn't exist. */
     WT_DECL_ITEM(log_folder_path);

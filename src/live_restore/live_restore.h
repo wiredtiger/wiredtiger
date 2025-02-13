@@ -9,11 +9,11 @@
 #pragma once
 
 /*
- * Live restore state reported to the server so it knows when to terminate live restore.
+ * Live restore state reported to the application so it knows when to terminate live restore.
  *
- * !!! The server doesn't have access to these macros and instead checks them by value. i.e. to
- * know live restore has completed the server reads the stat and checks for the value 2. Do not
- * change these values without updating the server.
+ * !!! MongoDB doesn't have access to these macros and instead checks them by value. i.e. to
+ * know live restore has completed the server layer reads the stat and checks for the value 2. Do
+ * not change these values without updating the relevant code in the server layer.
  */
 #define WT_LIVE_RESTORE_INIT 0x0
 #define WT_LIVE_RESTORE_IN_PROGRESS 0x1
@@ -22,7 +22,7 @@
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wt_live_restore_delete_complete_state_file(WT_SESSION_IMPL *session,
-  WT_FILE_SYSTEM *fs, const char *folder) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_FILE_SYSTEM *fs, const char *directory) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_fh_extent_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh,
   WT_ITEM *extent_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_fh_import_extents_from_string(WT_SESSION_IMPL *session,

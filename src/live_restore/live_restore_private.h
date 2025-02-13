@@ -113,8 +113,9 @@ typedef enum {
      */
     WTI_LIVE_RESTORE_STATE_LOG_COPY = 1,
     /*
-     * Where the majority of work takes place. Users can perform reads/writes while we copy backing
-     * data to the destination in the background.
+     * The background migration state is where the majority is where the majority of work takes
+     * place. Users can perform reads/writes while we copy backing data to the destination in the
+     * background.
      */
     WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION = 2,
     /* We've completed background migration and are now cleaning up any live restore metadata. */
