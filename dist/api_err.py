@@ -188,6 +188,10 @@ sub_errors = [
         "Another thread currently holds the checkpoint lock", '''
         This sub-level error indicates that a concurrent operation is performing
         a checkpoint.'''),
+    Error('WT_CONFLICT_LIVE_RESTORE', -32013,
+        "Conflict performing operation due to running live restore", '''
+        This sub-level error indicates that there is conflict perform the operation
+        because of a running live restore in the system.'''),
 ]
 
 # Update the #defines in the wiredtiger.in file.

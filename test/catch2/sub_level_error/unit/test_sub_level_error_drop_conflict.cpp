@@ -26,6 +26,7 @@
 #define CONFLICT_CHECKPOINT_LOCK_MSG "another thread is currently holding the checkpoint lock"
 #define CONFLICT_SCHEMA_LOCK_MSG "another thread is currently holding the schema lock"
 #define CONFLICT_TABLE_LOCK_MSG "another thread is currently holding the table lock"
+#define CONFLICT_LIVE_RESTORE_WITH_BACKUP_MSG "backup cannot be taken when live restore is enabled"
 
 /*
  * This test case covers EBUSY errors resulting from drop while cursors are still open on the table.
@@ -183,4 +184,27 @@ TEST_CASE("Test conflicts with checkpoint/schema/table locks", "[sub_level_error
     /* Drop the table once the tests are completed. */
     REQUIRE(session_a->drop(session_a, URI, NULL) == 0);
     utils::check_error_info(err_info_a, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+}
+
+/*
+ * This test case covers EBUSY errors resulting from live restore conflicts with other operations.
+ */
+TEST_CASE(
+  "Test WT_CONFLICT_LIVE_RESTORE", "[sub_level_error_live_restore_conflict],[sub_level_error]")
+{
+    WT_SESSION *session = NULL;
+    WT_ERROR_INFO *err_info = NULL;
+    WT_CURSOR *cursor;
+
+    SECTION("Test WT_CONFLICT_LIVE_RESTORE while opening backup cursor")
+    {
+        connection_wrapper conn_wrapper =
+          connection_wrapper(".", "create=true,live_restore=(enabled=true, path=WT_LR_SOURCE)");
+        utils::prepare_session_and_error(&conn_wrapper, &session, &err_info);
+
+        REQUIRE(session->open_cursor(session, "backup:", NULL, NULL, &cursor) == EBUSY);
+        REQUIRE(cursor == NULL);
+        utils::check_error_info(
+          err_info, EBUSY, WT_CONFLICT_LIVE_RESTORE, CONFLICT_LIVE_RESTORE_WITH_BACKUP_MSG);
+    }
 }
