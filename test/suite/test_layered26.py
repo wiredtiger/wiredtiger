@@ -107,4 +107,12 @@ class test_layered26(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor_follow.close()
         self.assertEqual(item_count, self.nitems)
 
-
+        # TODO: once we start really thinking about failover, extend this test
+        # to step up the secondary and make sure it can do "normal" things like
+        # inserts and checkpoints:
+        #
+        # conn_follow.reconfigure('disaggregated=(role="leader")')
+        #
+        # It's broken right now because the table-draining code needs to do some
+        # stuff like using internal sessions to open cursors, and that's being done
+        # in SLS-1226.
