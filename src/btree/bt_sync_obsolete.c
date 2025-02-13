@@ -758,8 +758,8 @@ __checkpoint_cleanup(void *arg)
     __wt_seconds(session, &last);
     for (;;) {
         /* Check periodically in case the signal was missed. */
-        __wt_cond_wait_signal(session, conn->cc_cleanup.cond, 5 * WT_MILLION,
-          __checkpoint_cleanup_run_chk, &cv_signalled);
+        __wt_cond_wait_signal(session, conn->cc_cleanup.cond,
+          conn->cc_cleanup.interval * WT_MILLION, __checkpoint_cleanup_run_chk, &cv_signalled);
 
         /* Check if we're quitting. */
         if (!__checkpoint_cleanup_run_chk(session))
