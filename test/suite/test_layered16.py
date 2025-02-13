@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                + 'disaggregated=(stable_prefix=.,page_log=palm,role="leader"),'
+                + 'disaggregated=(page_log=palm,role="leader"),'
 
     create_session_config = 'key_format=S,value_format=S'
 

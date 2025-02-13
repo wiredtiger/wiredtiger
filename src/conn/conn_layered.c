@@ -710,8 +710,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     /* Remember the configuration. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.page_log));
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.stable_prefix", &cval));
-    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->disaggregated_storage.stable_prefix));
 
     /* Setup any configured page log. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
@@ -801,8 +799,6 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     }
 
     __wt_free(session, disagg->page_log);
-    __wt_free(session, disagg->stable_prefix);
-    __wt_free(session, disagg->storage_source);
     return (ret);
 }
 

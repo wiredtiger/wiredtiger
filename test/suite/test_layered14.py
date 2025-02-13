@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+                     + 'disaggregated=(page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered14', disagg_only = True)
     uri = "layered:test_layered13"
     nitems = 1000
