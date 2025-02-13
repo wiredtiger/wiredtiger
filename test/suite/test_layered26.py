@@ -37,15 +37,16 @@ from wtscenario import make_scenarios
 class test_layered26(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 5000
 
-    conn_base_config = 'checkpoint=(precise=true),disaggregated=(stable_prefix=.,page_log=palm),'
+    conn_base_config = 'checkpoint=(precise=true),disaggregated=(page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
 
-    table_config = 'key_format=S,value_format=S'
-
-    uri = 'layered:test_layered26'
+    session_create_config = 'key_format=S,value_format=S,'
 
     disagg_storages = gen_disagg_storages('test_layered26', disagg_only = True)
-    scenarios = make_scenarios(disagg_storages)
+    scenarios = make_scenarios(disagg_storages, [
+        ('layered-prefix', dict(prefix='layered:', table_config='')),
+        ('layered-type', dict(prefix='table:', table_config='block_manager=disagg,type=layered,')),
+    ])
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
@@ -60,6 +61,8 @@ class test_layered26(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     def test_layered26(self):
+        self.uri = self.prefix + 'test_layered26'
+
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
 
@@ -68,8 +71,8 @@ class test_layered26(wttest.WiredTigerTestCase, DisaggConfigMixin):
         session_follow = conn_follow.open_session('')
 
         # Create tables on both primary and secondary
-        self.session.create(self.uri, self.table_config)
-        session_follow.create(self.uri, self.table_config)
+        self.session.create(self.uri, self.session_create_config + self.table_config)
+        session_follow.create(self.uri, self.session_create_config + self.table_config)
 
         # Put data into the primary
         value_prefix1 = 'aaa'
