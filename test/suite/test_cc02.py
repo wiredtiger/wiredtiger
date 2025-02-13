@@ -114,6 +114,7 @@ class test_cc02(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(200))
 
         # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
+        # TODO - Why is it failing?
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
