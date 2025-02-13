@@ -679,7 +679,6 @@ static int
 __schema_open_layered(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
-    WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     const char **layered_cfg;
 
@@ -693,17 +692,6 @@ __schema_open_layered(WT_SESSION_IMPL *session)
     /* TODO: Setup collator information */
     layered->collator = NULL;
     layered->collator_owned = 0;
-
-    /* Save the stable prefix. */
-    WT_RET_NOTFOUND_OK(
-      ret = __wt_config_gets(session, layered_cfg, "disaggregated.stable_prefix", &cval));
-    if (ret == WT_NOTFOUND) {
-        if (S2C(session)->disaggregated_storage.stable_prefix == NULL)
-            WT_RET(EINVAL);
-        WT_RET(__wt_strdup(session, S2C(session)->disaggregated_storage.stable_prefix,
-          &S2C(session)->iface.stable_prefix));
-    } else
-        WT_RET(__wt_strndup(session, cval.str, cval.len, &S2C(session)->iface.stable_prefix));
 
     WT_RET(__wt_config_gets(session, layered_cfg, "key_format", &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &layered->key_format));

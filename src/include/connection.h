@@ -166,8 +166,6 @@ struct __wt_layered_table_manager {
  */
 struct __wt_disaggregated_storage {
     char *page_log;
-    char *stable_prefix;
-    char *storage_source;
 
     wt_shared uint64_t global_checkpoint_id;     /* The ID of the currently opened checkpoint. */
                                                  /* Updates are protected by the checkpoint lock. */

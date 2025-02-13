@@ -38,7 +38,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class
 class test_layered24(wttest.WiredTigerTestCase, DisaggConfigMixin):
     uri = "layered:test_layered24"
 
-    conn_base_config = "disaggregated=(stable_prefix=.,page_log=palm),"
+    conn_base_config = "disaggregated=(page_log=palm),"
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     nitems = 10000

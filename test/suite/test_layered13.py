@@ -37,7 +37,7 @@ class test_layered13(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+                     + 'disaggregated=(page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
