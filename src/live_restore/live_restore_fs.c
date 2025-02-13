@@ -1489,8 +1489,8 @@ err:
 
 /*
  * __live_restore_setup_lr_fh_file_data --
- *     Open a b-tree of "data" file type. In live restore these are the only types of files that we
- *     track holes for.
+ *     Open a data file type (probably a b-tree). In live restore these are the only types of files
+ *     that we track holes for.
  */
 static int
 __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
@@ -1521,7 +1521,7 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
              * has a length of zero, but we want its length to be the same as the source file. Set
              * its size by truncating. This is a positive length truncate so it actually extends the
              * file. We're bypassing the live_restore layer so we don't try to modify the relevant
-             * bitmap entries.
+             * extent entries.
              */
             WT_RET(
               lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, source_size));
@@ -1571,16 +1571,12 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
      *  - WT_FS_OPEN_FILE_TYPE_LOG
      *  - WT_FS_OPEN_FILE_TYPE_REGULAR
      *
-     * Right now we handle everything but the checkpoint type, the log and regular type files are
-     * assumed to be complete. Log files are special in that they are copied prior to live restore
-     * commencing which means they are automatically complete. Regular files are copied on open,
-     * this would be metadata files like the turtle file and the base config files, etc.
-     *
-     * Given our copy on open philosophy it may be possible to remove the log pre-copy phase
-     * completely and also make log files copy on open.
+     * Right now we handle everything but the checkpoint type which appears to be unused. Log and
+     * regular files are treated the same in that they are atomically copied on open. Then for any
+     * subsequent open they will be immediately complete.
      *
      * Data type files are the b-trees, they are not copied on open and are expected to go through
-     * the bitmap import path which will initialize a file size bitmap for them.
+     * the extent import path which will initialize the relevant extent lists.
      */
     WT_ASSERT(session, file_type != WT_FS_OPEN_FILE_TYPE_CHECKPOINT);
 
