@@ -468,7 +468,7 @@ __wt_live_restore_init_stats(WT_SESSION_IMPL *session)
          * stat server starts.
          */
         WTI_LIVE_RESTORE_FS *lr_fs = ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
-        WTI_LIVE_RESTORE_STATE state = lr_fs->state;
+        WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
         __live_restore_report_state_to_application(session, state);
     }
 }
