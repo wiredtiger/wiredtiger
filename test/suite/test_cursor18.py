@@ -556,6 +556,8 @@ class test_cursor18(wttest.WiredTigerTestCase):
         version_cursor.set_key(1)
         self.assertEquals(version_cursor.search(), 0)
         self.assertEquals(version_cursor.get_key(), 1)
+        self.verify_value(version_cursor, 1, 1, WT_TS_MAX, WT_TS_MAX, 3, 0, 64, 0, 0)
+        self.assertEquals(version_cursor.next(), 0)
         self.verify_value(version_cursor, 1, 1, WT_TS_MAX, WT_TS_MAX, 3, 0, 0, 1, 0)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
