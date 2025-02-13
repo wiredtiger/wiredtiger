@@ -1199,10 +1199,6 @@ __wt_live_restore_fh_import_extents_from_string(
         return (0);
 
     /*
-     * This function can be called for file handles that already have an in memory extent list. For
-     * this to happen the destination file was created for the first time and a single file size
-     * hole was initialized.
-     *
      * FIXME-WT-14079 there is a tricky scenario here:
      *   - Open a file that exists in the source, a.wt.
      *   - Create a new file in the destination to begin migrating the file to.
@@ -1213,15 +1209,13 @@ __wt_live_restore_fh_import_extents_from_string(
      */
     bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
 
-    if (lr_fh->destination.hole_list_head != NULL) {
-        WT_ASSERT_ALWAYS(
-          session, extent_string_empty, "Extent list not empty while trying to import");
-        return (0);
-    }
-
-    if (extent_string_empty)
-        lr_fh->destination.complete = true;
-    else {
+    if (extent_string_empty) {
+        if (lr_fh->destination.newly_created)
+            WT_ERR(__live_restore_alloc_extent(
+              session, 0, lr_fh->source_size, NULL, &lr_fh->destination.hole_list_head));
+        else
+            lr_fh->destination.complete = true;
+    } else {
         __wt_readlock(session, &lr_fh->ext_lock);
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s metadata extent list string: %s",
           fh->name, extent_str);
@@ -1395,90 +1389,244 @@ err:
 }
 
 /*
+ * __live_restore_remove_temporary_file --
+ *     Remove a temporary file if it exists. If it does exist, log a warning.
+ */
+static int
+__live_restore_remove_temporary_file(
+  WT_SESSION_IMPL *session, WT_FILE_SYSTEM *os_fs, char *dest_path, char **tmp_file_path)
+{
+    size_t tmp_file_path_len = strlen(dest_path) + strlen(".lr_tmp") + 1;
+    WT_RET(__wt_calloc(session, 1, tmp_file_path_len, tmp_file_path));
+    WT_RET(__wt_snprintf(*tmp_file_path, tmp_file_path_len, "%s.lr_tmp", dest_path));
+    /* Delete any existing temporary file. Also report a warning if it existed already. */
+    bool exists = false;
+    WT_RET(os_fs->fs_exist(os_fs, (WT_SESSION *)session, *tmp_file_path, &exists));
+    if (!exists)
+        return (0);
+    __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+      "Found existing temporary file: %s deleting it!", *tmp_file_path);
+    return (os_fs->fs_remove(os_fs, (WT_SESSION *)session, *tmp_file_path, 0));
+}
+
+/*
+ * __live_restore_fs_atomic_copy_file --
+ *     Copy a file across for live restore. We intentionally do not call the WiredTiger copy and
+ *     sync function as we are copying between layers and that function copies between two paths.
+ *     This is the same "path" from the perspective of a function higher in the stack.
+ */
+static int
+__live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
+  WT_FS_OPEN_FILE_TYPE type, const char *filename)
+{
+    WT_DECL_RET;
+    WT_SESSION *wt_session = (WT_SESSION *)session;
+    char *buf = NULL, *source_path = NULL, *dest_path = NULL, *tmp_dest_path = NULL;
+    bool dest_closed = false;
+    size_t read_size = lr_fs->read_size;
+
+    WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+      "Transferring %s file (%s) from source to dest.\n",
+      type == WT_FS_OPEN_FILE_TYPE_LOG ? "log" : "regular", filename);
+
+    wt_off_t source_size;
+    size_t len;
+    WT_FILE_HANDLE *source_fh = NULL, *dest_fh = NULL;
+
+    /* Get the full source and destination file names. */
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->source, session, lr_fs->destination.home, filename, &source_path));
+    WT_ERR(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, filename, &dest_path));
+
+    WT_ERR(__live_restore_remove_temporary_file(
+      session, lr_fs->os_file_system, dest_path, &tmp_dest_path));
+
+    /* Open both files and create the temporary destination file. */
+    WT_ERR(lr_fs->os_file_system->fs_open_file(
+      lr_fs->os_file_system, wt_session, source_path, type, WT_FS_OPEN_EXCLUSIVE, &source_fh));
+    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, wt_session, tmp_dest_path,
+      type, WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &dest_fh));
+
+    WT_ERR(
+      lr_fs->os_file_system->fs_size(lr_fs->os_file_system, wt_session, source_path, &source_size));
+
+    /*
+     * Break the copy into small chunks. Split the file into n chunks: the first n - 1 chunks will
+     * read a full read_size buffer, and the last chunk reads the remaining data.
+     */
+    WT_ERR(__wt_calloc(session, 1, read_size, &buf));
+    for (wt_off_t off = 0; off < source_size; off += (wt_off_t)len) {
+        len = WT_MIN((size_t)(source_size - off), read_size);
+        WT_ERR(source_fh->fh_read(source_fh, wt_session, off, len, buf));
+        WT_ERR(dest_fh->fh_write(dest_fh, wt_session, off, len, buf));
+
+        /* Check the system has not entered a panic state since the copy can take a long time. */
+        WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
+    }
+
+    /*
+     * Sync the file over. Then rename it so on completion it is an "atomic" operation.
+     */
+    WT_ERR(dest_fh->fh_sync(dest_fh, wt_session));
+    WT_ERR(dest_fh->close(dest_fh, wt_session));
+    dest_closed = true;
+    WT_ERR(lr_fs->os_file_system->fs_rename(
+      lr_fs->os_file_system, wt_session, tmp_dest_path, dest_path, 0));
+
+err:
+    if (source_fh != NULL)
+        WT_TRET(source_fh->close(source_fh, wt_session));
+    if (!dest_closed && dest_fh != NULL)
+        WT_TRET(dest_fh->close(dest_fh, wt_session));
+    __wt_free(session, buf);
+    __wt_free(session, source_path);
+    __wt_free(session, dest_path);
+    __wt_free(session, tmp_dest_path);
+    return (ret);
+}
+
+/*
+ * __live_restore_setup_lr_fh_file_data --
+ *     Open a b-tree of "data" file type. In live restore these are the only types of files that we
+ *     track holes for.
+ */
+static int
+__live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
+  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool have_stop,
+  bool dest_exist, bool source_exist)
+{
+    if (have_stop || lr_fs->finished || !source_exist)
+        lr_fh->destination.complete = true;
+    else {
+        wt_off_t source_size;
+        WT_SESSION *wt_session = (WT_SESSION *)session;
+        WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
+        WT_RET(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
+        WT_ASSERT(session, source_size != 0);
+        lr_fh->source_size = (size_t)source_size;
+        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+          "Opening source file for fh %s, source size is: (%" PRId64 ")", lr_fh->iface.name,
+          source_size);
+        if (!dest_exist) {
+            /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
+            __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+              "Creating destination file %s backed by source file", lr_fh->iface.name);
+
+            WT_RET(__live_restore_fs_open_in_destination(
+              lr_fs, session, lr_fh, name, flags, !dest_exist));
+            /*
+             * We're creating a new destination file which is backed by a source file. It currently
+             * has a length of zero, but we want its length to be the same as the source file. Set
+             * its size by truncating. This is a positive length truncate so it actually extends the
+             * file. We're bypassing the live_restore layer so we don't try to modify the relevant
+             * bitmap entries.
+             */
+            WT_RET(
+              lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, source_size));
+            lr_fh->destination.newly_created = true;
+            goto done;
+        }
+    }
+    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
+done:
+    return (0);
+}
+
+/*
+ * __live_restore_setup_lr_fh_file_regular --
+ *     Populate a live restore file handle for a regular file. Regular files include log files and
+ *     are copied on open.
+ */
+static int
+__live_restore_setup_lr_fh_file_regular(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
+  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_FS_OPEN_FILE_TYPE type,
+  bool dest_exist, bool source_exist)
+{
+    if (!dest_exist && source_exist) {
+        /* Atomically copy across the file. */
+        WT_RET(__live_restore_fs_atomic_copy_file(session, lr_fs, type, name));
+    }
+
+    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
+    lr_fh->destination.complete = true;
+    return (0);
+}
+
+/*
  * __live_restore_setup_lr_fh_file --
- *     Populate a live restore file handle for a normal (non-directory) file.
+ *     Setup a live restore file handle for a file. This function does some initial file state
+ *     investigation before calling separate functions depending on the type of file.
  */
 static int
 __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
-  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
+  const char *name, WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags,
+  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    bool dest_exist = false, source_exist = false, have_stop = false;
-    WT_SESSION *wt_session = (WT_SESSION *)session;
+    /*!!!
+     * All non directory open file calls end up here, which means we need to handle:
+     *  - WT_FS_OPEN_FILE_TYPE_CHECKPOINT
+     *  - WT_FS_OPEN_FILE_TYPE_DATA
+     *  - WT_FS_OPEN_FILE_TYPE_LOG
+     *  - WT_FS_OPEN_FILE_TYPE_REGULAR
+     *
+     * Right now we handle everything but the checkpoint type, the log and regular type files are
+     * assumed to be complete. Log files are special in that they are copied prior to live restore
+     * commencing which means they are automatically complete. Regular files are copied on open,
+     * this would be metadata files like the turtle file and the base config files, etc.
+     *
+     * Given our copy on open philosophy it may be possible to remove the log pre-copy phase
+     * completely and also make log files copy on open.
+     *
+     * Data type files are the b-trees, they are not copied on open and are expected to go through
+     * the bitmap import path which will initialize a file size bitmap for them.
+     */
+    WT_ASSERT(session, file_type != WT_FS_OPEN_FILE_TYPE_CHECKPOINT);
+
+    /*!!!
+     * We need to handle a number of scenario in this function providing us with a somewhat complex
+     * decision tree. The relevant pieces of state for any file are:
+     *   - Whether the live restore is complete or not.
+     *   - Whether a stop file exists for that file.
+     *   - Whether that file exists in the destination or the source.
+     *   - Various flag combinations such as create and exclusive.
+     *
+     * We also cannot check these all at the very beginning as the source file exists check should
+     * only take place if the stop file doesn't exist and the live restore is not complete. But the
+     * stop file check also can only happen if the live restore is not complete.
+     */
+
+    bool dest_exist = false, have_stop = false, check_source = !lr_fs->finished;
 
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
-    WT_RET_NOTFOUND_OK(
-      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
-    WT_RET(__dest_has_stop_file(lr_fs, (char *)name, session, &have_stop));
+    if (check_source) {
+        WT_RET(__dest_has_stop_file(lr_fs, (char *)name, session, &have_stop));
+        check_source = !have_stop;
+    }
 
-    if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
-        WT_RET_MSG(session, ENOENT, "File %s does not exist in source or destination", name);
+    bool source_exist = false;
+    if (check_source) {
+        WT_RET_NOTFOUND_OK(
+          __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
+    }
 
+    bool create = LF_ISSET(WT_FS_OPEN_CREATE);
+    if ((dest_exist || source_exist) && create && LF_ISSET(WT_FS_OPEN_EXCLUSIVE))
+        WT_RET_MSG(
+          session, EEXIST, "File %s already exist, cannot be created due to exclusive flag", name);
+    if (!dest_exist && !source_exist && !create)
+        WT_RET_MSG(session, ENOENT, "File %s doesn't exist but create flag not specified", name);
     if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
 
-    /* Open it in the destination layer. */
-    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
-
-    if (have_stop || lr_fs->finished) {
-        /*
-         * Set the complete flag, we know that if there is a stop file we should never look in the
-         * source. Therefore the destination must be complete.
-         */
-        lr_fh->destination.complete = true;
-        /* Opening files is single threaded but the remove extlist free requires the lock. */
-        WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(
-          session, lr_fh, __live_restore_fs_free_extent_list(session, lr_fh));
-    } else {
-        /*
-         * If it exists in the source, open it. If it doesn't exist in the source then by definition
-         * the destination file is complete.
-         */
-        WT_RET_NOTFOUND_OK(
-          __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
-        if (source_exist) {
-            WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
-
-            if (!dest_exist) {
-                /*
-                 * We're creating a new destination file which is backed by a source file. It
-                 * currently has a length of zero, but we want its length to be the same as the
-                 * source file.
-                 */
-                wt_off_t source_size;
-
-                /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
-
-                WT_RET(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
-                __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-                  "Creating destination file backed by source file. Copying size (%" PRId64
-                  ") from source file",
-                  source_size);
-                lr_fh->source_size = (size_t)source_size;
-
-                /*
-                 * Set size by truncating. This is a positive length truncate so it actually extends
-                 * the file. We're bypassing the live_restore layer so we don't try to modify the
-                 * extents in hole_list_head.
-                 */
-                WT_RET(lr_fh->destination.fh->fh_truncate(
-                  lr_fh->destination.fh, wt_session, source_size));
-
-                /*
-                 * FIXME-WT-14078: The log file transfer stage and new file creation depend on this
-                 * allocation. Ideally we should be able to simplify the code and remove it.
-                 *
-                 * Initialize the extent as one hole covering the entire file. We need to read
-                 * everything from source.
-                 */
-                WT_ASSERT(session, lr_fh->destination.hole_list_head == NULL);
-                WT_RET(__live_restore_alloc_extent(
-                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list_head));
-            }
-        } else
-            lr_fh->destination.complete = true;
-    }
-
+    if (file_type == WT_FILE_TYPE_DATA)
+        WT_RET(__live_restore_setup_lr_fh_file_data(
+          session, lr_fs, name, flags, lr_fh, have_stop, dest_exist, source_exist));
+    else
+        WT_RET(__live_restore_setup_lr_fh_file_regular(
+          session, lr_fs, name, flags, lr_fh, file_type, dest_exist, source_exist));
     return (0);
 }
 
@@ -1528,7 +1676,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY)
         WT_ERR(__live_restore_setup_lr_fh_directory(session, lr_fs, name, flags, lr_fh));
     else
-        WT_ERR(__live_restore_setup_lr_fh_file(session, lr_fs, name, flags, lr_fh));
+        WT_ERR(__live_restore_setup_lr_fh_file(session, lr_fs, name, file_type, flags, lr_fh));
 
     *file_handlep = (WT_FILE_HANDLE *)lr_fh;
 
@@ -1717,116 +1865,6 @@ __validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
     WT_RET(
       fs->fs_open_file(fs, (WT_SESSION *)session, path, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &fh));
     return (fh->close(fh, (WT_SESSION *)session));
-}
-
-/*
- * __live_restore_copy_file --
- *     Copy a file across for live restore.
- */
-static int
-__live_restore_copy_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
-    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    char *buf = NULL;
-    size_t read_size = lr_fh->destination.back_pointer->read_size;
-    WT_RET(__wt_calloc(session, 1, read_size, &buf));
-
-    /*
-     * Break the copy into small chunks. Split the file into n chunks: the first n - 1 chunks will
-     * read a full read_size buffer, and the last chunk reads the remaining data.
-     */
-    for (size_t off = 0, len; off < lr_fh->source_size; off += len) {
-        len = WT_MIN(lr_fh->source_size - off, read_size);
-        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, (wt_off_t)off, len, buf));
-        WT_ERR(lr_fh->destination.fh->fh_write(
-          lr_fh->destination.fh, wt_session, (wt_off_t)off, len, buf));
-
-        /* Check the system has not entered a panic state since the copy can take long time. */
-        WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
-    }
-
-    /*
-     * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
-     * data from source to destination should be safe. If the write doesn't complete then a hole
-     * should remain and the same write will be performed on the startup. To avoid depending on that
-     * property we choose to sync the file over anyway.
-     */
-    WT_ERR(lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
-
-err:
-    __wt_free(session, buf);
-    return (ret);
-}
-
-/*
- * __wt_live_restore_setup_recovery --
- *     Perform necessary setup steps prior to recovery running. This is largely copying log files
- *     from the source to the destination. We also need to copy over prep log files as logging will
- *     expect these are available to be used. This needs to happen after __wt_logmgr_config to
- *     ensure the relevant logging configuration has been parsed.
- */
-int
-__wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_DECL_RET;
-
-    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
-    __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
-      "WiredTiger started in live restore mode. Source path is: %s, Destination path is %s. The "
-      "configured read size is %" WT_SIZET_FMT " bytes\n",
-      lr_fs->source.home, lr_fs->destination.home, lr_fs->read_size);
-
-    if (!F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED))
-        return (0);
-
-    u_int logcount = 0;
-    char **logfiles = NULL;
-    WT_DECL_ITEM(filename);
-    WT_FH *fh = NULL;
-    uint32_t lognum;
-
-    /* Get a list of actual log files. */
-    WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
-    for (u_int i = 0; i < logcount; i++) {
-        WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
-        /* Call log open file to generate the full path to the log file. */
-        WT_ERR(__wt_log_openfile(session, lognum, 0, &fh));
-        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-          "Transferring log file from source to dest: %s\n", fh->name);
-        /*
-         * We intentionally do not call the WiredTiger copy and sync function as we are copying
-         * between layers and that function copies between two paths. This is the same "path" from
-         * the perspective of a function higher in the stack.
-         */
-        ret = __live_restore_copy_file(fh->handle, (WT_SESSION *)session);
-        WT_TRET(__wt_close(session, &fh));
-        WT_ERR(ret);
-    }
-    WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
-
-    /* Get a list of prep log files. */
-    WT_ERR(__wt_log_get_files(session, WTI_LOG_PREPNAME, &logfiles, &logcount));
-    for (u_int i = 0; i < logcount; i++) {
-        WT_ERR(__wt_scr_alloc(session, 0, &filename));
-        WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
-        /* We cannot utilize the log open file code as it doesn't support prep logs. */
-        WT_ERR(__wt_log_filename(session, lognum, WTI_LOG_PREPNAME, filename));
-        __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-          "Transferring prep log file from source to dest: %s\n", (char *)filename->data);
-        WT_ERR(__wt_open(
-          session, (char *)filename->data, WT_FS_OPEN_FILE_TYPE_LOG, WT_FS_OPEN_ACCESS_SEQ, &fh));
-        ret = __live_restore_copy_file(fh->handle, (WT_SESSION *)session);
-        WT_TRET(__wt_close(session, &fh));
-        WT_ERR(ret);
-    }
-
-err:
-    WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
-    __wt_scr_free(session, &filename);
-    return (ret);
 }
 
 /*

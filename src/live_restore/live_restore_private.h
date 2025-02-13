@@ -63,6 +63,7 @@ struct __wti_live_restore_file_handle {
          * writes. Holes in these extents should only shrink and never grow.
          */
         WTI_LIVE_RESTORE_HOLE_NODE *hole_list_head;
+        bool newly_created;
     } destination;
 
     WT_FS_OPEN_FILE_TYPE file_type;
