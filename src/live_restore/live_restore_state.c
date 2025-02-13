@@ -107,12 +107,12 @@ err:
 }
 
 /*
- * __live_restore_set_public_state --
- *     WiredTiger reports a simplified live restore state to the application which is used to
- *     determine when the application can restart once live restore has completed.
+ * __live_restore_report_state_to_application --
+ *     WiredTiger reports a simplified live restore state to the application which lets it know it
+ *     can restart on completion of live restore.
  */
 static void
-__live_restore_set_public_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_STATE state)
+__live_restore_report_state_to_application(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_STATE state)
 {
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
@@ -194,7 +194,7 @@ __wti_live_restore_set_state(
     WT_ERR(fh->fh_write(fh, (WT_SESSION *)session, 0, 128, state_to_write));
 
     lr_fs->state = new_state;
-    __live_restore_set_public_state(session, new_state);
+    __live_restore_report_state_to_application(session, new_state);
 
 err:
     __wt_writeunlock(session, &lr_fs->state_lock);
@@ -452,6 +452,6 @@ __wt_live_restore_init_stats(WT_SESSION_IMPL *session)
          */
         WTI_LIVE_RESTORE_FS *lr_fs = ((WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
         WTI_LIVE_RESTORE_STATE state = lr_fs->state;
-        __live_restore_set_public_state(session, state);
+        __live_restore_report_state_to_application(session, state);
     }
 }
