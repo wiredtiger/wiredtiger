@@ -101,8 +101,7 @@ err:
     if (fh != NULL)
         WT_TRET(fh->close(fh, &session->iface));
 
-    if (state_file_name != NULL)
-        __wt_scr_free(session, &state_file_name);
+    __wt_scr_free(session, &state_file_name);
 
     return (ret);
 }
