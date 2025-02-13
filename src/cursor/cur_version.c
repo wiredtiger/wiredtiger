@@ -78,6 +78,7 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     WT_CURSOR *file_cursor;
     WT_CURSOR_VERSION *version_cursor;
     WT_DECL_ITEM(data);
+    WT_DECL_ITEM(metadata);
     WT_DECL_PACK_VALUE(pv);
     WT_DECL_RET;
     WT_PACK pack;
@@ -93,26 +94,30 @@ __curversion_get_value(WT_CURSOR *cursor, ...)
     WT_ERR(__cursor_checkvalue(cursor));
     WT_ERR(__cursor_checkvalue(file_cursor));
 
-    /*
-     * Unpack the metadata. We cannot use the standard get value function here because variable
-     * arguments cannot be partially extracted by different function calls.
-     */
-    WT_ASSERT(session, cursor->value.data != NULL);
-    p = (uint8_t *)cursor->value.data;
-    end = p + cursor->value.size;
-
-    WT_ERR(__pack_init(session, &pack, WT_CURVERSION_METADATA_FORMAT));
-    while ((ret = __pack_next(&pack, &pv)) == 0) {
-        WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
-        WT_UNPACK_PUT(session, pv, ap);
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-
     if (F_ISSET(cursor, WT_CURSTD_RAW)) {
+        /* Extract metadata and value separately as raw data. */
+        metadata = va_arg(ap, WT_ITEM *);
+        metadata->data = cursor->value.data;
+        metadata->size = cursor->value.size;
         data = va_arg(ap, WT_ITEM *);
         data->data = file_cursor->value.data;
         data->size = file_cursor->value.size;
     } else {
+        /*
+         * Unpack the metadata. We cannot use the standard get value function here because variable
+         * arguments cannot be partially extracted by different function calls.
+         */
+        WT_ASSERT(session, cursor->value.data != NULL);
+        p = (uint8_t *)cursor->value.data;
+        end = p + cursor->value.size;
+
+        WT_ERR(__pack_init(session, &pack, WT_CURVERSION_METADATA_FORMAT));
+        while ((ret = __pack_next(&pack, &pv)) == 0) {
+            WT_ERR(__unpack_read(session, &pv, &p, (size_t)(end - p)));
+            WT_UNPACK_PUT(session, pv, ap);
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+
         WT_ASSERT(session, p <= end);
         WT_ERR(__wti_cursor_get_valuev(file_cursor, ap));
     }
@@ -913,6 +918,13 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     if (ret == 0) {
         if (cval.val)
             F_SET(version_cursor, WT_CURVERSION_VISIBLE_ONLY);
+    }
+
+    WT_ERR_NOTFOUND_OK(
+      __wt_config_gets_def(session, cfg, "debug.dump_version.raw_key_value", 0, &cval), true);
+    if (ret == 0) {
+        if (cval.val)
+            F_SET(version_cursor->file_cursor, WT_CURSTD_RAW);
     }
 
     WT_ERR_NOTFOUND_OK(

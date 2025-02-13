@@ -1011,13 +1011,12 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
-      "debug=(dump_version=(enabled=true,visible_only=true,timestamp_order=true,start_timestamp="
+      "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
+      "start_timestamp="
       "%" PRIx64 "))",
       last_checkpoint_timestamp));
     cfg[1] = buf;
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
-    /* We only care about binary data. */
-    F_SET(version_cursor, WT_CURSTD_RAW);
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp_key));
