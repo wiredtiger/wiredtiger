@@ -66,6 +66,7 @@ class test_cc08(test_cc_base):
         _ = self.session.open_cursor(uri, None, None)
 
         # Force checkpoint cleanup and wait for it to make progress.
+        # TODO - self.wait_for_cc_to_run(), why are the other stats not updated?
         self.check_cc_stats()
 
         # Check stats.
