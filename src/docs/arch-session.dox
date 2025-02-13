@@ -53,15 +53,15 @@ rolling back any active transaction and closing the cursors that are still open.
 A session is always executed as a single thread, see @ref threads for more details.
 
 @section arch_session_error Error and Sub-level Errors Handling
-The WT_SESSION::get_last_error can be utilised to provide more verbose information about the last 
+The WT_SESSION::get_last_error can be utilized to provide more verbose information about the last
 session API call. The information will include a sub-level error code and message providing
 contextual information. The intended usage of the sub-level error code is to allow users to
 programmatically make decisions on the application level.
 
 Internal to WiredTiger the WT_ERROR_INFO structure lives within the session object and
 tracks any errors that occur during a session API call. The WT_SESSION::get_last_error will return
-back any information recorded within the WT_ERROR_INFO structure. An internal function 
-set_last_error has been created and utilised throughout the codebase to set any errors that may
+back any information recorded within the WT_ERROR_INFO structure. An internal function
+set_last_error has been created and utilized throughout the code base to set any errors that may
 occur within WiredTiger.
 
 @subsection arch_session_error_sessions Sub-level Errors - External & Internal Sessions
