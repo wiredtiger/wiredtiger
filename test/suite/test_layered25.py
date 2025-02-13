@@ -47,8 +47,9 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     disagg_storages = gen_disagg_storages('test_layered25', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
-        ('layered', dict(prefix='layered:')),
-        ('shared', dict(prefix='table:')),
+        ('layered-prefix', dict(prefix='layered:', table_config='')),
+        ('layered-type', dict(prefix='table:', table_config='block_manager=disagg,type=layered')),
+        ('shared', dict(prefix='table:', table_config='block_manager=disagg,log=(enabled=false)')),
     ])
 
     num_restarts = 0
@@ -91,10 +92,8 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Create table
         self.uri = self.prefix + self.table_name
-        table_config = self.create_session_config
-        if not self.uri.startswith('layered'):
-            table_config += ',block_manager=disagg,log=(enabled=false)'
-        self.session.create(self.uri, table_config)
+        config = self.create_session_config + ',' + self.table_config
+        self.session.create(self.uri, config)
 
         # Put data to the table
         value_prefix1 = 'aaa'
