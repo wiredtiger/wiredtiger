@@ -41,7 +41,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    layered_uris = ["layered:test_layered15a", "layered:test_layered15b"]
+    layered_uris = ["table:test_layered15a", "layered:test_layered15b"]
     file_uris = ["file:test_layered15c"]
     table_uris = ["table:test_layered15d"]
     all_uris = layered_uris + file_uris + table_uris
@@ -118,7 +118,10 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.all_uris:
             cfg = self.create_session_config
             if not uri.startswith('layered'):
-                cfg += ',block_manager=disagg,log=(enabled=false)'
+                if uri in self.layered_uris:
+                    cfg += ',block_manager=disagg,type=layered'
+                else:
+                    cfg += ',block_manager=disagg,log=(enabled=false)'
             self.session.create(uri, cfg)
 
         # Put data to tables
