@@ -357,7 +357,7 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     if (recovery)
         connection_manager::instance().reopen(conn_config, home);
     else
-        connection_manager::instance().create(conn_config, home, false);
+        connection_manager::instance().create(conn_config, home, true);
 
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)

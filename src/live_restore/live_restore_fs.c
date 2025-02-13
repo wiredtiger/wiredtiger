@@ -1779,18 +1779,7 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
 
     WT_DECL_ITEM(filename);
     WT_FH *fh = NULL;
-    WT_FILE_HANDLE *log_folder_fh = NULL;
     uint32_t lognum;
-
-    /* Open and close the log folder. This creates it in the destination if it didn't exist. */
-    WT_DECL_ITEM(log_folder_path);
-    WT_RET(__wt_scr_alloc(session, 0, &log_folder_path));
-    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, conn->log_mgr.log_path,
-      UINTMAX_MAX, UINT32_MAX, log_folder_path));
-
-    lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, (WT_SESSION *)session, log_folder_path->data,
-      WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &log_folder_fh);
-    log_folder_fh->close(log_folder_fh, (WT_SESSION *)session);
 
     /* Get a list of actual log files. */
     WT_ERR(__wt_log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
@@ -1833,7 +1822,6 @@ __wt_live_restore_setup_recovery(WT_SESSION_IMPL *session)
 err:
     WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
     __wt_scr_free(session, &filename);
-    __wt_scr_free(session, &log_folder_path);
     return (ret);
 }
 
