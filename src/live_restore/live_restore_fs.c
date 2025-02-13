@@ -1420,19 +1420,17 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
   WT_FS_OPEN_FILE_TYPE type, const char *filename)
 {
     WT_DECL_RET;
+    WT_FILE_HANDLE *source_fh = NULL, *dest_fh = NULL;
     WT_SESSION *wt_session = (WT_SESSION *)session;
+    size_t read_size = lr_fs->read_size, len;
+    wt_off_t source_size;
     char *buf = NULL, *source_path = NULL, *dest_path = NULL, *tmp_dest_path = NULL;
     bool dest_closed = false;
-    size_t read_size = lr_fs->read_size;
 
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
       "Transferring %s file (%s) from source to dest.\n",
       type == WT_FS_OPEN_FILE_TYPE_LOG ? "log" : "regular", filename);
-
-    wt_off_t source_size;
-    size_t len;
-    WT_FILE_HANDLE *source_fh = NULL, *dest_fh = NULL;
 
     /* Get the full source and destination file names. */
     WT_ERR(__live_restore_fs_backing_filename(
