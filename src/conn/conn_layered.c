@@ -602,6 +602,75 @@ err:
 }
 
 /*
+ * __layered_stepup_ensure_stable_components --
+ *     Make sure none of our layered tables are missing a stable component.
+ */
+static int
+__layered_stepup_ensure_stable_components(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *md_cursor;
+    WT_DECL_ITEM(disagg_cfg);
+    WT_DECL_ITEM(stable_uri_buf);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *stepup_session;
+    const char *merged_cfg, *metadata_key, *stable_uri, *tablename;
+    const char *stable_cfg[3] = {WT_CONFIG_BASE(session, table_meta), "", NULL};
+
+    conn = S2C(session);
+    md_cursor = NULL;
+    merged_cfg = NULL;
+    stepup_session = NULL;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &disagg_cfg));
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
+
+    fprintf(stderr, "layered stepup ensure stable\n");
+
+    WT_ERR(__wt_open_internal_session(conn, "stepup-ensure-stable", false, 0, 0, &stepup_session));
+
+    WT_ERR(__wt_buf_fmt(stepup_session, disagg_cfg, "disaggregated=(page_log=%s)",
+      conn->disaggregated_storage.page_log ? conn->disaggregated_storage.page_log : ""));
+    stable_cfg[1] = disagg_cfg->data;
+    WT_ERR(__wt_config_merge(stepup_session, stable_cfg, NULL, &merged_cfg));
+
+    WT_ERR(__wt_metadata_cursor(stepup_session, &md_cursor));
+    while ((ret = md_cursor->next(md_cursor)) == 0) {
+        WT_ERR(md_cursor->get_key(md_cursor, &metadata_key));
+        fprintf(stderr, "stepup_ensure_stable: saw %s\n", metadata_key);
+        if (WT_PREFIX_MATCH(metadata_key, "layered:")) {
+            tablename = metadata_key;
+            WT_PREFIX_SKIP_REQUIRED(stepup_session, tablename, "layered:");
+            WT_ERR(__wt_buf_fmt(stepup_session, stable_uri_buf, "file:%s.wt_stable", tablename));
+            stable_uri = stable_uri_buf->data;
+
+            md_cursor->set_key(md_cursor, stable_uri);
+            if ((ret = md_cursor->search(md_cursor)) == WT_NOTFOUND) {
+                WT_WITH_SCHEMA_LOCK(
+                  stepup_session, ret = __wt_schema_create(stepup_session, stable_uri, merged_cfg));
+                WT_ERR(ret);
+            }
+            WT_ERR(ret);
+
+            md_cursor->set_key(md_cursor, metadata_key);
+            /* Reset the cursor back to where it was before we (possibly) inserted. */
+            WT_ERR(md_cursor->search(md_cursor));
+        }
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    __wt_free(stepup_session, merged_cfg);
+    __wt_scr_free(session, &disagg_cfg);
+    __wt_scr_free(session, &stable_uri_buf);
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(stepup_session, &md_cursor));
+    if (stepup_session != NULL)
+        WT_TRET(__wt_session_close_internal(stepup_session));
+    return (ret);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -685,6 +754,13 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
+
+            /*
+             * We may have seen a table created while we were a secondary, but since we're stepping
+             * up, it's possible that the primary that created the table didn't survive until the
+             * next checkpoint. This means we need to create the stable component of the table.
+             */
+            WT_ERR(__layered_stepup_ensure_stable_components(session));
 
             /* Drain the ingest tables before switching to leader. */
             WT_ERR(__layered_drain_ingest_tables(session));
