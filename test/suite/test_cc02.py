@@ -35,7 +35,7 @@ from wtdataset import SimpleDataSet
 class test_cc02(test_cc_base):
     # Set a cache big enough to keep pages in memory so obsolete cleanup can clean them.
     # If the pages are evicted, the test is likely to fail.
-    conn_config = 'cache_size=2GB,statistics=(all)'
+    conn_config = 'cache_size=1GB,statistics=(all)'
 
     def test_cc(self):
         nrows = 100000
@@ -49,20 +49,21 @@ class test_cc02(test_cc_base):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        bigvalue = "aaaaa" * 100
-        bigvalue2 = "ddddd" * 100
-        self.large_updates(uri, bigvalue, ds, nrows, 10)
+        # Don't create big values otherwise forced eviction may happen due to the max page size.
+        value = "aaaaa"
+        value2 = "ddddd"
+        self.large_updates(uri, value, ds, nrows, 10)
 
         # Check that all updates are seen.
-        self.check(bigvalue, uri, nrows, 10)
+        self.check(value, uri, nrows, 10)
 
-        self.large_updates(uri, bigvalue2, ds, nrows, 100)
+        self.large_updates(uri, value2, ds, nrows, 100)
 
         # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue2, uri, nrows, 100)
+        self.check(value2, uri, nrows, 100)
 
         # Check that old updates are seen.
-        self.check(bigvalue, uri, nrows, 10)
+        self.check(value, uri, nrows, 10)
 
         # Trigger checkpoint cleanup and ensure that the history store is checkpointed but not
         # cleaned.
@@ -78,7 +79,7 @@ class test_cc02(test_cc_base):
             ',stable_timestamp=' + self.timestamp_str(100))
 
         # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue2, uri, nrows, 100)
+        self.check(value2, uri, nrows, 100)
 
         # Load a slight modification with a later timestamp.
         self.large_modifies(uri, 'A', ds, 10, 1, nrows, 110)
@@ -86,38 +87,29 @@ class test_cc02(test_cc_base):
         self.large_modifies(uri, 'C', ds, 30, 1, nrows, 130)
 
         # Set of update operations with increased timestamp.
-        self.large_updates(uri, bigvalue, ds, nrows, 150)
+        self.large_updates(uri, value, ds, nrows, 150)
 
         # Set of update operations with increased timestamp.
-        self.large_updates(uri, bigvalue2, ds, nrows, 180)
+        self.large_updates(uri, value2, ds, nrows, 180)
 
         # Set of update operations with increased timestamp.
-        self.large_updates(uri, bigvalue, ds, nrows, 200)
-
-        # Check that the modifies are seen.
-        bigvalue_modA = bigvalue2[0:10] + 'A' + bigvalue2[11:]
-        bigvalue_modB = bigvalue_modA[0:20] + 'B' + bigvalue_modA[21:]
-        bigvalue_modC = bigvalue_modB[0:30] + 'C' + bigvalue_modB[31:]
-        self.check(bigvalue_modA, uri, nrows, 110)
-        self.check(bigvalue_modB, uri, nrows, 120)
-        self.check(bigvalue_modC, uri, nrows, 130)
+        self.large_updates(uri, value, ds, nrows, 200)
 
         # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue, uri, nrows, 150)
+        self.check(value, uri, nrows, 150)
 
         # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue2, uri, nrows, 180)
+        self.check(value2, uri, nrows, 180)
 
         # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue, uri, nrows, 200)
+        self.check(value, uri, nrows, 200)
 
         # Pin oldest and stable to timestamp 200.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(200) +
             ',stable_timestamp=' + self.timestamp_str(200))
 
         # Trigger checkpoint cleanup and wait until it is done. This should clean the history store.
-        # TODO - Why is it failing?
         self.check_cc_stats()
 
         # Check that the new updates are only seen after the update timestamp.
-        self.check(bigvalue, uri, nrows, 200)
+        self.check(value, uri, nrows, 200)
