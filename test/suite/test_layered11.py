@@ -77,6 +77,7 @@ class test_layered11(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
             cursor.close()
             time.sleep(1)
+            self.session.checkpoint()
             self.reopen_conn()
 
             self.pr('opening cursor')

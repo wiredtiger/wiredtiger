@@ -144,6 +144,7 @@ class test_truncate_fast_delete(test_truncate_base):
 
         # TODO: disaggregated storage cannot handle checkpoint id after restart.
         if self.type != 'layered:':
+            self.session.checkpoint()
         # Close and re-open it so we get a disk image, not an insert skiplist.
             self.reopen_conn()
 
