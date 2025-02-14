@@ -127,9 +127,6 @@ disaggregated_config_common = [
         The page log service used as a backing for this table. This is used experimentally
         by layered tables to back their stable component in shared/object based storage''',
         type='string', undoc=True),
-    Config('stable_prefix', '', r'''
-        directory of stable table in a layered table configuration''',
-        type='string', undoc=True),
 ]
 # FIXME: We cannot set undoc=True, because an undocumented category must be the same for all
 # methods, but we need different sets supported fields for connection open, reconfigure, and create.
@@ -950,6 +947,7 @@ connection_runtime_config = [
             'compact',
             'compact_progress',
             'configuration',
+            'disaggregated_storage',
             'error_returns',
             'evict',
             'evict_stuck',

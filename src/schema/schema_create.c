@@ -1074,7 +1074,6 @@ err:
 static int
 __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
-    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(disagg_config);
     WT_DECL_ITEM(ingest_uri_buf);
@@ -1091,6 +1090,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), "", config, NULL};
 
     conn = S2C(session);
+
+    constituent_cfg = NULL;
     tablecfg = NULL;
     meta_value = NULL;
 
@@ -1122,9 +1123,8 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
       "Can't create a layered table on a read only connection");
 
     /* Remember the relevant configuration. */
-    WT_ERR(__wt_buf_fmt(session, disagg_config, "disaggregated=(page_log=%s,stable_prefix=%s)",
-      conn->disaggregated_storage.page_log ? conn->disaggregated_storage.page_log : "",
-      conn->disaggregated_storage.stable_prefix ? conn->disaggregated_storage.stable_prefix : ""));
+    WT_ERR(__wt_buf_fmt(session, disagg_config, "disaggregated=(page_log=%s)",
+      conn->disaggregated_storage.page_log ? conn->disaggregated_storage.page_log : ""));
     layered_cfg[1] = disagg_config->data;
 
     /*
@@ -1135,17 +1135,6 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     layered_cfg[3] = tmp->data;
 
     WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
-
-    WT_ERR_NOTFOUND_OK(
-      __wt_config_gets(session, layered_cfg, "disaggregated.stable_prefix", &cval), true);
-    if (ret == WT_NOTFOUND) {
-        if (conn->disaggregated_storage.stable_prefix == NULL)
-            WT_ERR(EINVAL);
-        WT_ERR(__wt_strdup(
-          session, conn->disaggregated_storage.stable_prefix, &conn->iface.stable_prefix));
-    } else
-        WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->iface.stable_prefix));
-
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     /*
@@ -1164,11 +1153,13 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      */
     WT_ERR(__wt_config_merge(session, ingest_cfg, NULL, &constituent_cfg));
     WT_ERR(__wt_schema_create(session, ingest_uri, constituent_cfg));
+    __wt_free(session, constituent_cfg);
 
     if (conn->layered_table_manager.leader) {
         stable_cfg[1] = disagg_config->data;
         WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
+        __wt_free(session, constituent_cfg);
     }
 
 err:
@@ -1178,6 +1169,7 @@ err:
     __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
     __wt_free(session, tablecfg);
+    __wt_free(session, constituent_cfg);
 
     return (ret);
 }

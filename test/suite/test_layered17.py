@@ -38,7 +38,7 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'checkpoint=(precise=true),disaggregated=(stable_prefix=.,page_log=palm),'
+                     + 'checkpoint=(precise=true),disaggregated=(page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -47,8 +47,9 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     disagg_storages = gen_disagg_storages('test_layered17', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
-        ('layered', dict(prefix='layered:')),
-        ('shared', dict(prefix='table:')),
+        ('layered-prefix', dict(prefix='layered:', table_config='')),
+        ('layered-type', dict(prefix='table:', table_config='block_manager=disagg,type=layered')),
+        ('shared', dict(prefix='table:', table_config='block_manager=disagg,log=(enabled=false)')),
     ])
 
     def __init__(self, *args, **kwargs):
@@ -73,10 +74,8 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Create table
         self.uri = self.prefix + self.table_name
-        table_config = self.create_session_config
-        if not self.uri.startswith('layered'):
-            table_config += ',block_manager=disagg,log=(enabled=false)'
-        self.session.create(self.uri, table_config)
+        config = self.create_session_config + ',' + self.table_config
+        self.session.create(self.uri, config)
 
         #
         # Phase 1: Add data at timestamp 100, stable timestamp 100

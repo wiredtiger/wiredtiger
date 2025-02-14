@@ -47,7 +47,7 @@ class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),verbose=[read],' \
+                     + 'disaggregated=(page_log=palm),verbose=[read],' \
                      + 'eviction=(reconcile_avail_lag=1000),'
     disagg_storages = gen_disagg_storages('test_layered08', disagg_only = True)
 

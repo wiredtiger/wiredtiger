@@ -146,6 +146,8 @@ __wt_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const cha
     WT_CONN_BLOCK_INSERT(conn, (WT_BLOCK *)block_disagg, bucket);
 
     WT_ERR(__wt_strdup(session, filename, &block_disagg->name));
+    if (WT_STREQ(block_disagg->name, WT_HS_FILE_SHARED))
+        F_SET(block_disagg, WT_BLOCK_DISAGG_HS);
 
     WT_ERR(S2BT(session)->page_log->pl_open_handle(
       S2BT(session)->page_log, &session->iface, S2BT(session)->id, &block_disagg->plhandle));

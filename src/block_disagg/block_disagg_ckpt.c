@@ -212,7 +212,29 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
         if (WT_SUFFIX_MATCH(block_disagg->name, ".wt_stable")) {
             /* TODO: Change this hack to a nicer way of finding related metadata. */
 
+            WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", block_disagg->name));
+            md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
+            md_cursor->set_key(md_cursor, md_key);
+            WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+            if (ret == 0) {
+                WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+                WT_SAVE_DHANDLE(session,
+                  ret = __block_disagg_update_shared_metadata(bm, session, md_key, md_value));
+                WT_ERR(ret);
+            }
+
             WT_ERR(__wt_snprintf(md_key, len, "layered:%s", block_disagg->name));
+            md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
+            md_cursor->set_key(md_cursor, md_key);
+            WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
+            if (ret == 0) {
+                WT_ERR(md_cursor->get_value(md_cursor, &md_value));
+                WT_SAVE_DHANDLE(session,
+                  ret = __block_disagg_update_shared_metadata(bm, session, md_key, md_value));
+                WT_ERR(ret);
+            }
+
+            WT_ERR(__wt_snprintf(md_key, len, "table:%s", block_disagg->name));
             md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
             md_cursor->set_key(md_cursor, md_key);
             WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
@@ -246,7 +268,6 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
   size_t addr_size, uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
     WT_BLOCK_DISAGG *block_disagg;
-    unsigned i;
     uint64_t checkpoint_id, lsn, reconciliation_id, root_id;
     uint32_t root_size, root_checksum;
     uint8_t *endp;
@@ -273,11 +294,10 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
       &endp, root_id, lsn, checkpoint_id, reconciliation_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
-    fprintf(stderr, "[%s] __wt_block_disagg_checkpoint_load(): 0x", S2C(session)->home);
-    for (i = 0; i < *root_addr_sizep; i++) {
-        fprintf(stderr, "%02x", root_addr[i]);
-    }
-    fprintf(stderr, "\n");
+    __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+      "Loading checkpoint: root_id=%" PRIu64 " lsn=%" PRIu64 " checkpoint_id=%" PRIu64
+      " reconciliation_id=%" PRIu64 " root_size=%" PRIu32 " root_checksum=%" PRIx32,
+      root_id, lsn, checkpoint_id, reconciliation_id, root_size, root_checksum);
 
     return (0);
 }

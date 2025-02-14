@@ -42,7 +42,7 @@ from wtscenario import make_scenarios
 
 class test_truncate_base(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+                     + 'disaggregated=(page_log=palm),'
     disagg_storages = gen_disagg_storages('test_truncate', disagg_only = True)
 
     def __init__(self, *args, **kwargs):

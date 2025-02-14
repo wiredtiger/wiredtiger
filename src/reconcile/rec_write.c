@@ -798,15 +798,8 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     btree = S2BT(session);
 
-    /*
-     * The history store cursor cannot be shared across btrees now that we can have more than one
-     * history store table, so close it. We need to do this because the reconciliation struct could
-     * be reused for a different btree.
-     */
-    if (r->hs_cursor != NULL) {
-        WT_RET(r->hs_cursor->close(r->hs_cursor));
-        r->hs_cursor = NULL;
-    }
+    if (r->hs_cursor != NULL)
+        WT_RET(r->hs_cursor->reset(r->hs_cursor));
 
     if (btree->type == BTREE_ROW)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
@@ -3249,6 +3242,7 @@ __wti_rec_hs_clear_on_tombstone(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, WT_ITEM *rowkey, bool reinsert)
 {
     WT_BTREE *btree;
+    WT_DECL_RET;
     WT_ITEM hs_recno_key, *key;
     uint8_t hs_recno_key_buf[WT_INTPACK64_MAXSIZE], *p;
 
@@ -3267,9 +3261,20 @@ __wti_rec_hs_clear_on_tombstone(
         key = &hs_recno_key;
     }
 
-    /* Open a history store cursor if we don't yet have one. */
+    /*
+     * Open a history store cursor if we don't yet have one. If we already have it, check if it
+     * matches the current btree and attempt to reuse it if it does not.
+     */
     if (r->hs_cursor == NULL)
         WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+    else if (__wt_curhs_get_btree_id(session, r->hs_cursor) != btree->id) {
+        WT_RET_ERROR_OK(ret = __wt_curhs_set_btree_id(session, r->hs_cursor, btree->id), EINVAL);
+        if (ret != 0) {
+            WT_RET(r->hs_cursor->close(r->hs_cursor));
+            r->hs_cursor = NULL;
+            WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+        }
+    }
 
     /*
      * From WT_TS_NONE delete/reinsert all the history store content of the key. The test of

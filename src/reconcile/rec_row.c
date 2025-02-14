@@ -612,7 +612,7 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
     if (WT_TXNID_LT(first_upd->txnid, r->last_running) &&
       r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
       first_upd->durable_ts <= r->rec_last_checkpoint_timestamp) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s",
           "layered table record garbage collected 5");
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         /*
