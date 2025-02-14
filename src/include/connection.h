@@ -584,6 +584,13 @@ struct __wt_connection_impl {
     wt_shared volatile uint64_t cache_size; /* Cache size (either statically
                                      configured or the current size
                                      within a cache pool). */
+    /*
+     * Facilitate disaggregated storage cache management - start tracking a read-availability lag
+     * and never evict a clean page that is newer than that threshold. Also setup transactions to be
+     * aborted if the cache becomes full.
+     */
+    uint64_t reconcile_avail_lag;   /* Lag between when a page is written and could be read */
+    bool evict_abort_on_cache_full; /* Configure page reads to trigger abort if the cache is full */
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 

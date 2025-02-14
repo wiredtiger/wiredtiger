@@ -1429,8 +1429,19 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         __wt_atomic_store64(&page->read_gen, orig_read_gen);
 
     /*
-     * Mark the page as dirty for future garbage collection through reconciliation. We only end here
-     * if we have content to clean up in the future.
+     * Set a timer if the page didn't have saved updates, that is a scrub eviction and we might want
+     * to keep it in cache until it's available later.
+     */
+    if (!instantiate_upd) {
+        page->last_cleaned_time = __wt_clock(session);
+        WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
+    }
+
+    /*
+     * Mark the page as dirty for future garbage collection through reconciliation if there were
+     * updates to restore. There are two paths to get here - a scrub eviction wants to keep a clean
+     * page in cache or a reconciliation could not include all content, and any not yet reconciled
+     * content needs to remain on a dirty page in cache.
      */
     if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
         WT_RET(__wt_page_modify_init(session, ref->page));

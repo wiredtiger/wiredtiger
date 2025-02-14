@@ -2498,9 +2498,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
+    double clean_full;
     uint64_t cache_max_wait_us, initial_progress, max_progress;
     uint64_t elapsed, time_start, time_stop;
-    bool app_thread;
+    bool abort_clean_full, abort_op_timeout, app_thread;
 
     WT_TRACK_OP_INIT(session);
 
@@ -2624,15 +2625,23 @@ err:
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
         session->cache_wait_us += elapsed;
+
         /*
          * Check if a rollback is required only if there has not been an error. Returning an error
          * takes precedence over asking for a rollback. We can not do both.
          */
-        if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
+        abort_clean_full = conn->evict_abort_on_cache_full &&
+          __wt_eviction_clean_needed(session, &clean_full) && clean_full > 86;
+        abort_op_timeout = cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us;
+        if (ret == 0 && (abort_clean_full || abort_op_timeout)) {
             ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
             if (__wt_atomic_load32(&cache->evict_aggressive_score) > 0)
                 (void)__wt_atomic_subv32(&cache->evict_aggressive_score, 1);
-            WT_STAT_CONN_INCR(session, cache_timed_out_ops);
+            if (abort_op_timeout)
+                WT_STAT_CONN_INCR(session, cache_timed_out_ops);
+            else
+                WT_STAT_CONN_INCR(session, cache_timed_out_full);
+
             __wt_verbose_notice(
               session, WT_VERB_TRANSACTION, "rollback reason: %s", session->txn->rollback_reason);
         }

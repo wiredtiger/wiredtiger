@@ -85,9 +85,9 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
         WT_CLEAR(*block_meta);
 
     __wt_verbose(session, WT_VERB_READ,
-      "page_id %" PRIu64 ", lsn %" PRIu64 ", checkpoint_id %" PRIu64 ", reconciliation_id %" PRIu64
-      ", size %" PRIu32 ", checksum %" PRIx32,
-      page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
+      "table: %s, page_id %" PRIu64 ", lsn %" PRIu64 ", checkpoint_id %" PRIu64
+      ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
+      session->dhandle->name, page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
 
     WT_STAT_CONN_INCR(session, disagg_block_get);
     WT_STAT_CONN_INCR(session, block_read);

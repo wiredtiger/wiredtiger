@@ -457,9 +457,10 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * If the page state changed, the page has been written since reconciliation started and
          * remains dirty (that can't happen when evicting, the page is exclusively locked).
          */
-        if (__wt_atomic_cas32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
+        if (__wt_atomic_cas32(&mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN)) {
             __wt_cache_dirty_decr(session, page);
-        else
+            page->last_cleaned_time = __wt_clock(session);
+        } else
             WT_ASSERT_ALWAYS(
               session, !F_ISSET(r, WT_REC_EVICT), "Page state has been modified during eviction");
     }

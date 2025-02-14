@@ -827,6 +827,7 @@ struct __wt_page {
     /* 1 byte hole expected. */
 
     wt_shared size_t memory_footprint; /* Memory attached to the page */
+    uint64_t last_cleaned_time;        /* Time this page was previously cleaned */
 
     /* Page's on-disk representation: NULL for pages created in memory. */
     const WT_PAGE_HEADER *dsk;

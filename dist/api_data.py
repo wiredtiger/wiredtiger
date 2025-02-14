@@ -729,6 +729,17 @@ connection_runtime_config = [
                 If no in-memory ref is found on the root page, attempt to locate a random
                 in-memory page by examining all entries on the root page.''',
                 type='boolean'),
+            Config('evict_abort_on_cache_full', 'true', r'''
+                Force operations to abort if the cache is full and they attempt to read more
+                pages in.''',
+                type='boolean'),
+            Config('reconcile_avail_lag', '0', r'''
+                A testing mode that simulates a network filesystem that has a lag between a
+                write completing and the content becoming available for read. There is a mode
+                in WiredTiger that forces pages to remain in cache until they would be
+                available. This is really intended as a stepping stone towards testing load
+                shedding when the cache becomes full. Lag time measured in milliseconds''',
+                undoc=True),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
