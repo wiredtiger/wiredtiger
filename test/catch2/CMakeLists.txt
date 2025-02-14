@@ -54,9 +54,9 @@ endif()
 
 # Live restore is not supported on Windows
 if(NOT WT_WIN)
-    set(unittests live_restore/api/test_live_restore_fh_extent_import_export.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fs_directory_list.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fs_open_file.cpp ${unittests})
+    set(unittests live_restore/unit/test_live_restore_bitmap_encode_decode.cpp ${unittests})
 endif()
 
 set(unittest_sources
