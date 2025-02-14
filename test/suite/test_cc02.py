@@ -25,13 +25,17 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# checkpoint:checkpoint_cleanup
+# [END_TAGS]
 
 from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
 # test_cc02.py
-# Test that checkpoint cleans the obsolete history store internal pages.
+# Test that checkpoint cleans the obsolete history store pages.
 class test_cc02(test_cc_base):
     # Set a cache big enough to keep pages in memory so obsolete cleanup can clean them.
     # If the pages are evicted, the test is likely to fail.
