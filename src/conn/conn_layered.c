@@ -999,7 +999,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     wt_timestamp_t last_checkpoint_timestamp;
     uint8_t flags, location, prepare, type;
     int cmp;
-    char buf[256];
+    char buf[256], buf2[256];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
     stable_cursor = version_cursor = NULL;
@@ -1010,11 +1010,15 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
       last_checkpoint_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
     WT_RET(__layered_table_get_constituent_cursor(session, entry->ingest_id, &stable_cursor));
     cbt = (WT_CURSOR_BTREE *)stable_cursor;
+    if (last_checkpoint_timestamp != WT_TS_NONE)
+        WT_ERR(__wt_snprintf(
+          buf2, sizeof(buf2), "start_timestamp=%" PRIx64 "", last_checkpoint_timestamp));
+    else
+        buf2[0] = '\0';
     WT_ERR(__wt_snprintf(buf, sizeof(buf),
       "debug=(dump_version=(enabled=true,raw_key_value=true,visible_only=true,timestamp_order=true,"
-      "start_timestamp="
-      "%" PRIx64 "))",
-      last_checkpoint_timestamp));
+      "%s))",
+      buf2));
     cfg[1] = buf;
     WT_ERR(__wt_open_cursor(session, entry->ingest_uri, NULL, cfg, &version_cursor));
 
