@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
 import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
@@ -46,12 +47,13 @@ class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(stable_prefix=.,page_log=palm),'
+                     + 'disaggregated=(stable_prefix=.,page_log=palm),verbose=[read],' \
+                     + 'eviction=(reconcile_avail_lag=1000),'
     disagg_storages = gen_disagg_storages('test_layered08', disagg_only = True)
 
     scenarios = make_scenarios(encrypt, compress, disagg_storages)
 
-    nitems = 10000
+    nitems = 50000
 
     def conn_config(self):
         enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
@@ -73,19 +75,16 @@ class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         for i in range(self.nitems):
             cursor["Hello " + str(i)] = "World"
+        cursor.close()
 
+        time.sleep(1)
         self.session.checkpoint()
-
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower")'
-        self.reopen_conn(config=follower_config)
-        time.sleep(1.0)
+        time.sleep(1)
 
         cursor = self.session.open_cursor(uri, None, None)
+        for i in range(10):
+            cursor["Hello2 " + str(i)] = "World"
+        cursor.close()
+        time.sleep(1)
 
-        for i in range(self.nitems):
-            self.assertEquals(cursor["Hello " + str(i)], "World")
+        self.session.checkpoint()

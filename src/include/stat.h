@@ -506,6 +506,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_eviction_blocked_avail_lag;
     int64_t cache_eviction_get_ref;
     int64_t cache_eviction_get_ref_empty;
     int64_t cache_eviction_get_ref_empty2;
@@ -617,6 +618,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_app_dirty;
     int64_t cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
     int64_t cache_read_delta;
+    int64_t cache_timed_out_full;
     int64_t cache_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -649,6 +651,7 @@ struct __wt_connection_stats {
     int64_t cache_write_restore;
     int64_t cache_overhead;
     int64_t cache_eviction_blocked_recently_modified;
+    int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
@@ -1224,6 +1227,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t cache_eviction_blocked_avail_lag;
     int64_t cache_eviction_fail;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_2;
@@ -1289,6 +1293,7 @@ struct __wt_dsrc_stats {
     int64_t cache_write;
     int64_t cache_write_restore;
     int64_t cache_eviction_blocked_recently_modified;
+    int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;

@@ -1908,6 +1908,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    uint64_t time_since_clean;
     bool modified;
 
     if (inmem_splitp != NULL)
@@ -1923,6 +1924,20 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      */
     if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
         return (false);
+
+    /*
+     * If WiredTiger is required to keep content in cache until it is available to be read back in,
+     * then enforce that here. Only apply this check to clean pages - dirty pages can be
+     * re-reconciled and returned to the cache clean via scrub eviction.
+     */
+    if (!__wt_page_is_modified(page) && S2C(session)->reconcile_avail_lag != 0 &&
+      page->last_cleaned_time != 0) {
+        time_since_clean = WT_CLOCKDIFF_MS(__wt_clock(session), page->last_cleaned_time);
+        if (time_since_clean < S2C(session)->reconcile_avail_lag) {
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_avail_lag);
+            return (false);
+        }
+    }
 
     /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
     if (mod == NULL)

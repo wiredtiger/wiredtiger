@@ -158,6 +158,12 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "eviction.evict_sample_inmem", &cval));
     conn->evict_sample_inmem = cval.val != 0;
 
+    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_abort_on_cache_full", &cval));
+    conn->evict_abort_on_cache_full = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.reconcile_avail_lag", &cval));
+    conn->reconcile_avail_lag = (uint64_t)cval.val;
+
     /* Retrieve the wait time and convert from milliseconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
     cache->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);

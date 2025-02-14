@@ -74,6 +74,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         return (ret == 0 ? EBUSY : ret);
     }
 
+    fprintf(stdout, "Release evict from %s with btree id: %" PRIu32 "\n", session->dhandle->name,
+      btree->id);
     evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
     FLD_SET(evict_flags, WT_EVICT_CALL_URGENT);
 
