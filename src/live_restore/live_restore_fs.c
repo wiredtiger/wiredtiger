@@ -1209,6 +1209,12 @@ __wt_live_restore_fh_import_extents_from_string(
      */
     bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
 
+    if (lr_fh->destination.hole_list_head != NULL) {
+        WT_ASSERT_ALWAYS(
+          session, extent_string_empty, "Extent list not empty while trying to import");
+        return (0);
+    }
+
     if (extent_string_empty) {
         if (lr_fh->destination.newly_created)
             WT_ERR(__live_restore_alloc_extent(
@@ -1396,9 +1402,10 @@ static int
 __live_restore_remove_temporary_file(
   WT_SESSION_IMPL *session, WT_FILE_SYSTEM *os_fs, char *dest_path, char **tmp_file_path)
 {
-    size_t tmp_file_path_len = strlen(dest_path) + strlen(".lr_tmp") + 1;
+    size_t tmp_file_path_len = strlen(dest_path) + strlen(WTI_LIVE_RESTORE_TEMP_FILE_SUFFIX) + 1;
     WT_RET(__wt_calloc(session, 1, tmp_file_path_len, tmp_file_path));
-    WT_RET(__wt_snprintf(*tmp_file_path, tmp_file_path_len, "%s.lr_tmp", dest_path));
+    WT_RET(__wt_snprintf(
+      *tmp_file_path, tmp_file_path_len, "%s" WTI_LIVE_RESTORE_TEMP_FILE_SUFFIX, dest_path));
     /* Delete any existing temporary file. Also report a warning if it existed already. */
     bool exists = false;
     WT_RET(os_fs->fs_exist(os_fs, (WT_SESSION *)session, *tmp_file_path, &exists));
@@ -1411,9 +1418,10 @@ __live_restore_remove_temporary_file(
 
 /*
  * __live_restore_fs_atomic_copy_file --
- *     Copy a file across for live restore. We intentionally do not call the WiredTiger copy and
- *     sync function as we are copying between layers and that function copies between two paths.
- *     This is the same "path" from the perspective of a function higher in the stack.
+ *     Atomically copy an entire file from the source to the destination. This replaces the normal
+ *     background migration logic. We intentionally do not call the WiredTiger copy and sync
+ *     function as we are copying between layers and that function copies between two paths. This is
+ *     the same "path" from the perspective of a function higher in the stack.
  */
 static int
 __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
@@ -1429,7 +1437,7 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
 
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
-      "Transferring %s file (%s) from source to dest.\n",
+      "Atomically copying %s file (%s) from source to dest.\n",
       type == WT_FS_OPEN_FILE_TYPE_LOG ? "log" : "regular", filename);
 
     /* Get the full source and destination file names. */
@@ -1505,12 +1513,11 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
         WT_ASSERT(session, source_size != 0);
         lr_fh->source_size = (size_t)source_size;
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-          "Opening source file for fh %s, source size is: (%" PRId64 ")", lr_fh->iface.name,
-          source_size);
+          "%s: Opening source file, source size is: (%" PRId64 ")", lr_fh->iface.name, source_size);
         if (!dest_exist) {
             /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
             __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-              "Creating destination file %s backed by source file", lr_fh->iface.name);
+              "%s: Creating destination file backed by source file", lr_fh->iface.name);
 
             WT_RET(__live_restore_fs_open_in_destination(
               lr_fs, session, lr_fh, name, flags, !dest_exist));
@@ -1542,10 +1549,9 @@ __live_restore_setup_lr_fh_file_regular(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
   const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_FS_OPEN_FILE_TYPE type,
   bool dest_exist, bool source_exist)
 {
-    if (!dest_exist && source_exist) {
+    if (!dest_exist && source_exist)
         /* Atomically copy across the file. */
         WT_RET(__live_restore_fs_atomic_copy_file(session, lr_fs, type, name));
-    }
 
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
     lr_fh->destination.complete = true;
@@ -1584,11 +1590,10 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
      *   - Whether the live restore is complete or not.
      *   - Whether a stop file exists for that file.
      *   - Whether that file exists in the destination or the source.
-     *   - Various flag combinations such as create and exclusive.
+     *   - Flag combinations such as create and exclusive.
      *
-     * We also cannot check these all at the very beginning as the source file exists check should
-     * only take place if the stop file doesn't exist and the live restore is not complete. But the
-     * stop file check also can only happen if the live restore is not complete.
+     * First determine if live restore is complete, whether the stop file exists and if we need to
+     * check the source file based off that information.
      */
 
     bool dest_exist = false, have_stop = false, check_source = !lr_fs->finished;

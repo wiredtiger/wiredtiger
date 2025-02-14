@@ -19,7 +19,7 @@
  *  - It may have been renamed, again we create a stop file in case it is recreated.
  */
 #define WTI_LIVE_RESTORE_STOP_FILE_SUFFIX ".stop"
-
+#define WTI_LIVE_RESTORE_TEMP_FILE_SUFFIX ".lr_tmp"
 /*
  * WTI_OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
  * length=1024 WTI_OFFSET_END returns 1023
