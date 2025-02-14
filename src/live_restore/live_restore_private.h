@@ -24,7 +24,7 @@
  * WTI_OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
  * length=1024 WTI_OFFSET_END returns 1023
  */
-#define WTI_OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
+#define WTI_OFFSET_END(offset, len) (offset + (wt_off_t)len)
 #define WTI_OFFSET_BIT(offset) (uint64_t)((offset) / (wt_off_t)lr_fh->allocsize)
 #define WTI_BIT_TO_OFFSET(bit) (wt_off_t)((bit)*lr_fh->allocsize)
 

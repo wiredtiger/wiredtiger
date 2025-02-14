@@ -1079,7 +1079,7 @@ __wt_live_restore_fh_import_bitmap(
 
     __wt_readlock(session, &lr_fh->bitmap_lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
       "Importing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
       lr_fh_meta->bitmap_size, lr_fh_meta->bitmap_str);
     if (lr_fh_meta->bitmap_size != 0) {
@@ -1158,11 +1158,11 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
       __wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=%s,bitmap_size=%" PRIu64 ")",
         buf.size == 0 ? "" : (char *)buf.data, lr_fh->destination.bitmap_size));
     if (lr_fh->destination.bitmap_size > 0)
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Appending live restore bitmap (%s, %" PRIu64 ") for file handle %s", (char *)buf.data,
           lr_fh->destination.bitmap_size, fh->name);
     else
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Appending empty live restore for file handle %s", fh->name);
 
 err:
