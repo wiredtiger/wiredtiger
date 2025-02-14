@@ -1184,13 +1184,13 @@ err:
 }
 
 /*
- * __wt_live_restore_fh_import_extents_from_string --
+ * __wt_live_restore_fh_import_bitmap --
  *     Reconstruct the extent list in memory from a string representation. If the string is NULL
  *     mark the destination as complete. On error free any allocated extents.
  */
 int
-__wt_live_restore_fh_import_extents_from_string(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, const char *extent_str)
+__wt_live_restore_fh_import_bitmap(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_LIVE_RESTORE_FH_META *lr_fh_meta)
 {
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
@@ -1278,13 +1278,13 @@ err:
 }
 
 /*
- * __wt_live_restore_fh_extent_to_metadata --
+ * __wt_live_restore_fh_to_metadata --
  *     Given a WiredTiger file handle generate a string of its extents. If live restore is not
  *     running or the extent list is missing, which indicates the file is complete, return a
  *     WT_NOTFOUND error.
  */
 int
-__wt_live_restore_fh_extent_to_metadata(
+__wt_live_restore_fh_to_metadata(
   WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_ITEM *extent_string)
 {
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))

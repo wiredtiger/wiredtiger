@@ -12,12 +12,22 @@
 #define WT_LIVE_RESTORE_IN_PROGRESS 0x1
 #define WT_LIVE_RESTORE_COMPLETE 0x2
 
+/*
+ * __wt_live_restore_fh_meta --
+ *     File handle metadata persisted to the WiredTiger metadata file.
+ */
+struct __wt_live_restore_fh_meta {
+    char *bitmap_str;
+    uint64_t bitmap_size;
+    uint32_t allocsize;
+};
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
-extern int __wt_live_restore_fh_extent_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh,
+extern int __wt_live_restore_fh_import_bitmap(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh,
+  WT_LIVE_RESTORE_FH_META *lr_fh_meta) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh,
   WT_ITEM *extent_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_live_restore_fh_import_extents_from_string(WT_SESSION_IMPL *session,
-  WT_FILE_HANDLE *fh, const char *extent_str) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
