@@ -8,7 +8,8 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1 /* 1 second */
+#define WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL 5 /* 5 seconds */
+#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1            /* 1 second */
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
@@ -758,7 +759,8 @@ __checkpoint_cleanup(void *arg)
     __wt_seconds(session, &last);
     for (;;) {
         /* We want to ensure the thread checks often enough if it is supposed to work. */
-        cleanup_interval = WT_MIN(conn->cc_cleanup.interval, 5);
+        cleanup_interval =
+          WT_MIN(conn->cc_cleanup.interval, WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL);
 
         /* Check periodically in case the signal was missed. */
         __wt_cond_wait_signal(session, conn->cc_cleanup.cond, cleanup_interval * WT_MILLION,
