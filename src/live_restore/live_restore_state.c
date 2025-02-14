@@ -311,8 +311,9 @@ __wti_live_restore_get_state_no_lock(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
 {
     WTI_LIVE_RESTORE_STATE state = lr_fs->state;
 
-    /* Note this can only check that the lock is held *a* thread. We can't guarantee it's held by *this* thread. */
-    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fs->state_lock), "Accessing state without lock");
+    /* This only checks the lock is held. We can't guarantee it's held by *this* thread. */
+    WT_ASSERT_ALWAYS(
+      session, __wt_rwlock_islocked(session, &lr_fs->state_lock), "Accessing state without lock");
 
     /* We initialize state on startup. This shouldn't be possible. */
     WT_ASSERT_ALWAYS(session, state != WTI_LIVE_RESTORE_STATE_NONE, "State not initialized!");
