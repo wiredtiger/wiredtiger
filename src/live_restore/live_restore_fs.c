@@ -1396,7 +1396,7 @@ err:
 
 /*
  * __live_restore_remove_temporary_file --
- *     Remove a temporary file if it exists. If it does exist, log a warning.
+ *     Remove a temporary file if it exists. If it does exist, log a message.
  */
 static int
 __live_restore_remove_temporary_file(
@@ -1446,6 +1446,7 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, filename, &dest_path));
 
+    /* In theory we may have crashed during a temporary file copy, remove that file now. */
     WT_ERR(__live_restore_remove_temporary_file(
       session, lr_fs->os_file_system, dest_path, &tmp_dest_path));
 
