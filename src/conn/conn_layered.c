@@ -999,7 +999,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
     wt_timestamp_t last_checkpoint_timestamp;
     uint8_t flags, location, prepare, type;
     int cmp;
-    char buf[256], buf2[256];
+    char buf[256], buf2[64];
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL, NULL};
 
     stable_cursor = version_cursor = NULL;
