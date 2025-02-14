@@ -937,7 +937,7 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets_def(session, cfg, "debug.dump_version.start_timestamp", 0, &cval), true);
     if (ret == 0)
-        WT_ERR(__wt_txn_parse_timestamp(session, "end", &version_cursor->start_timestamp, &cval));
+        WT_ERR(__wt_txn_parse_timestamp(session, "start_timestamp", &version_cursor->start_timestamp, &cval));
     else
         ret = 0;
 
