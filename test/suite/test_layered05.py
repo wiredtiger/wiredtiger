@@ -72,6 +72,7 @@ class test_layered05(wttest.WiredTigerTestCase):
         cursor.close()
         time.sleep(1)
 
+        self.session.checkpoint()
         self.reopen_conn(config=self.base_conn_config + 'disaggregated=(role="follower")')
 
         cursor = self.session.open_cursor(self.uri, None, None)
