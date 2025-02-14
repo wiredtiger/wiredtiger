@@ -423,8 +423,6 @@ struct __wti_live_restore_fs;
 typedef struct __wti_live_restore_fs WTI_LIVE_RESTORE_FS;
 struct __wti_live_restore_fs_layer;
 typedef struct __wti_live_restore_fs_layer WTI_LIVE_RESTORE_FS_LAYER;
-struct __wti_live_restore_hole_node;
-typedef struct __wti_live_restore_hole_node WTI_LIVE_RESTORE_HOLE_NODE;
 struct __wti_live_restore_server;
 typedef struct __wti_live_restore_server WTI_LIVE_RESTORE_SERVER;
 struct __wti_live_restore_work_item;

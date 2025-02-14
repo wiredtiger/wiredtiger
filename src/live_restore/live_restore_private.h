@@ -25,21 +25,8 @@
  * length=1024 WTI_OFFSET_END returns 1023
  */
 #define WTI_OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
-#define WTI_EXTENT_END(ext) WTI_OFFSET_END((ext)->off, (ext)->len)
-/* As extent ranges are inclusive we want >= and <= on both ends of the range. */
-#define WTI_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WTI_EXTENT_END(ext))
-
-/*
- * __wti_live_restore_hole_node --
- *     A linked list of extents. Each extent represents a hole in the destination file that needs to
- *     be read from the source file.
- */
-struct __wti_live_restore_hole_node {
-    wt_off_t off;
-    size_t len;
-
-    WTI_LIVE_RESTORE_HOLE_NODE *next;
-};
+#define WTI_OFFSET_BIT(offset) (uint64_t)((offset) / (wt_off_t)lr_fh->allocsize)
+#define WTI_BIT_TO_OFFSET(bit) (wt_off_t)((bit)*lr_fh->allocsize)
 
 /*
  * __wti_live_restore_file_handle --
@@ -57,28 +44,26 @@ struct __wti_live_restore_file_handle {
         /* We need to get back to the file system when checking for stop files. */
         WTI_LIVE_RESTORE_FS *back_pointer;
 
-        /*
-         * The hole list tracks which ranges in the destination file are holes. As the migration
-         * continues the holes will be gradually filled by either data from the source or new
-         * writes. Holes in these extents should only shrink and never grow.
-         */
-        WTI_LIVE_RESTORE_HOLE_NODE *hole_list_head;
+        /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
+        uint64_t bitmap_size;
+        uint8_t *bitmap;
         bool newly_created;
     } destination;
 
+    uint32_t allocsize;
     WT_FS_OPEN_FILE_TYPE file_type;
-    WT_RWLOCK ext_lock; /* File extent list lock */
+    WT_RWLOCK bitmap_lock;
 };
 
 /*
- * WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK --
- *     Acquire the extent list write lock and perform an operation.
+ * WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK --
+ *     Acquire the bitmap list write lock and perform an operation.
  */
-#define WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, lr_fh, op) \
-    do {                                                                 \
-        __wt_writelock((session), &(lr_fh)->ext_lock);                   \
-        op;                                                              \
-        __wt_writeunlock((session), &(lr_fh)->ext_lock);                 \
+#define WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh, op) \
+    do {                                                            \
+        __wt_writelock((session), &(lr_fh)->bitmap_lock);           \
+        op;                                                         \
+        __wt_writeunlock((session), &(lr_fh)->bitmap_lock);         \
     } while (0)
 
 typedef enum {

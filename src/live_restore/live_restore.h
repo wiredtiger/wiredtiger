@@ -27,7 +27,7 @@ struct __wt_live_restore_fh_meta {
 extern int __wt_live_restore_fh_import_bitmap(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh,
   WT_LIVE_RESTORE_FH_META *lr_fh_meta) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh,
-  WT_ITEM *extent_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_ITEM *meta_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
@@ -36,6 +36,12 @@ extern int __wt_os_live_restore_fs(WT_SESSION_IMPL *session, const char *cfg[],
   const char *destination, WT_FILE_SYSTEM **fsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
 #ifdef HAVE_UNITTEST
+extern int __ut_live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str,
+  uint64_t bitmap_size, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_live_restore_encode_bitmap(
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_ITEM *buf)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
 #endif
 
