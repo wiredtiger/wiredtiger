@@ -1435,6 +1435,12 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
     char *buf = NULL, *source_path = NULL, *dest_path = NULL, *tmp_dest_path = NULL;
     bool dest_closed = false;
 
+    /*
+     * FIXME-WT-14040: We expect that most of these copies will happen prior to the migration phase.
+     * But definitely by the end of the migration this function should not be called. We should
+     * assert that.
+     */
+
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
       "Atomically copying %s file (%s) from source to dest.\n",
