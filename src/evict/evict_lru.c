@@ -687,22 +687,21 @@ __evict_update_work(WT_SESSION_IMPL *session)
     if (__wt_cache_aggressive(session) && LF_ISSET(WT_CACHE_EVICT_CLEAN_HARD))
         LF_SET(WT_CACHE_EVICT_DIRTY);
 
-    /*
-     * Configure scrub - which reinstates clean equivalents of reconciled dirty pages. This is
-     * useful because an evicted dirty page isn't necessarily a good proxy for knowing if the page
-     * will be accessed again soon. Be more aggressive about scrubbing in disaggregated storage
-     * because the cost of retrieving a recently reconciled page is higher in that configuration. In
-     * the local storage case use scrub if we are less than half way to the clean, dirty or updates
-     * triggers.
-     */
-    if (__wt_conn_is_disagg(session) && bytes_inuse < (uint64_t)(trigger * bytes_max) / 100)
-        LF_SET(WT_CACHE_EVICT_SCRUB);
-    else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
+        /*
+         * Configure scrub - which reinstates clean equivalents of reconciled dirty pages. This is
+         * useful because an evicted dirty page isn't necessarily a good proxy for knowing if the
+         * page will be accessed again soon. Unconditionally scrub pages in disaggregated storage -
+         * we need to keep the clean versions until they are available in the page service.
+         */
+    if (__wt_conn_is_disagg(session))
+    LF_SET(WT_CACHE_EVICT_SCRUB);
+    else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200)
+    {
         if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
           bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200)
             LF_SET(WT_CACHE_EVICT_SCRUB);
-    } else
-        LF_SET(WT_CACHE_EVICT_NOKEEP);
+    }
+    else LF_SET(WT_CACHE_EVICT_NOKEEP);
 
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT)) {
         LF_SET(WT_CACHE_EVICT_SCRUB);
@@ -2122,13 +2121,18 @@ rand_next:
 
         /*
          * Skip pages we don't want. For btrees in-memory, only evict dirty pages. No point to evict
-         * clean pages as they should stay in memory.
+         * clean pages as they should stay in memory. Cascade through clean, dirty and updates
+         * checks.
          */
         want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
-                      !modified) ||
-          (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
-          (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
-            page->modify != NULL);
+          !modified);
+        if (!want_page)
+            want_page = F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified;
+        /* Avoid tiny pages in cases where updates cache pressure isn't too high */
+        if (!want_page &&
+          (!F_ISSET(cache, WT_CACHE_EVICT_UPDATES_HARD) && page->memory_footprint < 2048))
+            want_page = F_ISSET(cache, WT_CACHE_EVICT_UPDATES) &&
+              !F_ISSET(btree, WT_BTREE_IN_MEMORY) && page->modify != NULL;
         if (!want_page) {
             WT_STAT_CONN_INCR(session, cache_eviction_server_skip_unwanted_pages);
             continue;
