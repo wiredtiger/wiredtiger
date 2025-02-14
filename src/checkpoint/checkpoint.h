@@ -173,14 +173,6 @@ struct __wt_ckpt_snapshot {
     uint32_t snapshot_count;
 };
 
-struct __wt_obsolete_cleanup {
-    WT_SESSION_IMPL *session; /* session */
-    wt_thread_t tid;          /* thread id */
-    int tid_set;              /* thread set */
-    WT_CONDVAR *cond;         /* wait mutex */
-    uint64_t interval;        /* interval */
-};
-
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern int __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)

@@ -356,6 +356,18 @@ extern const WT_NAME_FLAG __wt_stress_types[];
 #define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
 
 /*
+ * WT_OBSOLETE_CLEANUP --
+ *   Obsolete cleanup server information.
+ */
+struct __wt_obsolete_cleanup {
+    WT_SESSION_IMPL *session; /* session */
+    wt_thread_t tid;          /* thread id */
+    int tid_set;              /* thread set */
+    WT_CONDVAR *cond;         /* wait mutex */
+    uint64_t interval;        /* interval */
+};
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
