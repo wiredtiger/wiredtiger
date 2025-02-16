@@ -1396,7 +1396,7 @@ err:
 
 /*
  * __live_restore_remove_temporary_file --
- *     Remove a temporary file if it exists. If it does exist, log a message.
+ *     Remove a temporary file and log a message if it exists.
  */
 static int
 __live_restore_remove_temporary_file(
