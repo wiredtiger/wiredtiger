@@ -6,8 +6,8 @@ A checkpoint is a known point in time from which WiredTiger can recover in the e
 crash or unexpected shutdown. Both checkpoints and @ref arch-logging "logging" provide durability guarantees. During
 recovery WiredTiger can start up from the last known checkpoint and replay the log, recovering the
 lost operations. WiredTiger checkpoints are created either via the API
-WT_SESSION::checkpoint, or internally. Internally checkpoints are created on startup, shutdown
-and during compaction.
+WT_SESSION::checkpoint, or internally. See @ref checkpoint-internal-callers "Internal Callers" for 
+when checkpoint can be called internally by WiredTiger.
 
 A checkpoint is performed within the context of a @ref arch-snapshot "snapshot isolation" transaction, as such the
 checkpoint has a consistent view of the database from beginning to end. Typically when running a
@@ -31,7 +31,7 @@ A checkpoint can be broken up into the following stages:
 ## Locking ##
 
 The first stage of checkpoint is to gather the necessary checkpoint locks. The most important being
-the checkpoint_lock. This lock ensures only one checkpoint takes place at time. More granular locks
+the \c checkpoint_lock. This lock ensures only one checkpoint takes place at time. More granular locks
 such as, dhandle, schema and flush locks are taken throughout the checkpoint process.
 
 ## Eviction ##
@@ -39,8 +39,8 @@ such as, dhandle, schema and flush locks are taken throughout the checkpoint pro
 Before the checkpoint transaction begins (pinning content), the @ref arch-eviction "eviction server" is leveraged to
 reduce the dirty content in the cache. This has the benefit of utilizing the multi-threaded
 functionality of eviction and reduces the work required during the critical section of the
-checkpoint. The thread performing the checkpoint operation will wait (not forever) for eviction to
-reach the target dirty content ratio.
+checkpoint. The thread performing the checkpoint operation will wait for eviction to
+reach the target dirty content ratio unless no progress is made..
 
 ## Prepare ##
 
@@ -55,7 +55,7 @@ configuration. Additionally clean b-trees, i.e. b-trees without any modification
 the list, with an exception for specific checkpoint configuration scenarios. See
 \ref skipping-checkpoints "Skipping checkpoints" for scenarios where b-trees are skipped during
 checkpoint. B-trees included in the checkpoint list then have all earlier checkpoints marked for
-deletion.
+deletion. Previous checkpoints can only be discarded if the associated blocks are no longer used.
 
 ## Data files checkpoint ##
 
@@ -114,6 +114,7 @@ as it may be referenced by older checkpoints, once the older checkpoint is delet
 to be used. If the freed pages exist at the end of the file the file can be truncated. Otherwise
 compaction will need to be initiated to shrink the file, see: WT_SESSION::compact.
 
+\anchor checkpoint-internal-callers
 # Internal callers #
 WiredTiger may call checkpoint internally at any time. These can occur during:
 - Recovery
