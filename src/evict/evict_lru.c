@@ -2150,15 +2150,23 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     switch (btree->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
-            /* Alternate with rand_prev so that the start of the tree is visited more often */
-            goto rand_prev;
+        if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1) {
+            if (S2C(session)->evict->use_npos_in_pass)
+                /* Alternate with rand_prev so that the start of the tree is visited more often */
+                goto rand_prev;
+            else
+                goto rand_next;
+        }
         break;
     case WT_EVICT_WALK_PREV:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1)
-            /* Alternate with rand_next so that the end of the tree is visited more often */
-            goto rand_next;
+        if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1) {
+            if (S2C(session)->evict->use_npos_in_pass)
+                /* Alternate with rand_next so that the end of the tree is visited more often */
+                goto rand_next;
+            else
+                goto rand_prev;
+        }
         FLD_SET(*walk_flagsp, WT_READ_PREV);
         break;
     case WT_EVICT_WALK_RAND_PREV:
@@ -2805,7 +2813,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
  * The function returns an error code from either __evict_page or __wt_txn_is_blocking.
  */
 int
-__wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, double pct_full)
+__wti_evict_app_assist_worker(
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, double pct_full)
 {
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
@@ -2860,8 +2869,9 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
                 if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
                     (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
-                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
-                  session->txn->rollback_reason);
+                if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                      session->err_info.err_msg);
             }
             WT_ERR(ret);
         }
@@ -2874,13 +2884,13 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
          * Additionally we don't return rollback which could confuse the caller.
          */
         if (__wt_op_timer_fired(session))
-            goto err;
+            break;
 
         /* Check if we have exceeded the global or the session timeout for waiting on the cache. */
         if (time_start != 0 && cache_max_wait_us != 0) {
             uint64_t time_stop = __wt_clock(session);
             if (session->cache_wait_us + WT_CLOCKDIFF_US(time_stop, time_start) > cache_max_wait_us)
-                goto err;
+                break;
         }
 
         /*
@@ -2900,28 +2910,23 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
         if (!__wt_evict_needed(session, busy, readonly, &pct_full) ||
           (pct_full < 100.0 &&
             (__wt_atomic_loadv64(&evict->eviction_progress) > initial_progress + max_progress)))
-            goto err;
+            break;
 
-        if (!__evict_check_user_ok_with_eviction(session, busy))
-            /* At this point ret can only be 0, so it's a clean exit from the loop. */
-            goto err;
+        if (!__evict_check_user_ok_with_eviction(session, interruptible))
+            break;
 
         /* Evict a page. */
-        switch (ret = __evict_page(session, false)) {
-        case 0:
+        ret = __evict_page(session, false);
+        if (ret == 0) {
+            /* If the caller holds resources, we can stop after a successful eviction. */
             if (busy)
-                goto err;
-        /* FALLTHROUGH */
-        case EBUSY:
-            break; /* Continue the loop. */
-        case WT_NOTFOUND:
+                break;
+        } else if (ret == WT_NOTFOUND) {
             /* Allow the queue to re-populate before retrying. */
             __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
             evict->app_waits++;
-            break; /* Continue the loop. */
-        default:
-            goto err;
-        }
+        } else if (ret != EBUSY)
+            WT_ERR(ret);
     }
 
 err:
@@ -2931,14 +2936,14 @@ err:
         WT_STAT_CONN_INCR(session, application_cache_ops);
         WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
         WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
-        if (busy) {
-            WT_STAT_CONN_INCR(session, application_cache_busy_ops);
-            WT_STAT_CONN_INCRV(session, application_cache_busy_time, elapsed);
-            WT_STAT_SESSION_INCRV(session, cache_time_busy, elapsed);
+        if (!interruptible) {
+            WT_STAT_CONN_INCR(session, application_cache_uninterruptible_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
         } else {
-            WT_STAT_CONN_INCR(session, application_cache_idle_ops);
-            WT_STAT_CONN_INCRV(session, application_cache_idle_time, elapsed);
-            WT_STAT_SESSION_INCRV(session, cache_time_idle, elapsed);
+            WT_STAT_CONN_INCR(session, application_cache_interruptible_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
         }
         session->cache_wait_us += elapsed;
         /*
@@ -2946,12 +2951,15 @@ err:
          * takes precedence over asking for a rollback. We can not do both.
          */
         if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
+            ret = WT_ROLLBACK;
+            __wt_session_set_last_error(
+              session, ret, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
             if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
                 (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
             WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
-            __wt_verbose_notice(
-              session, WT_VERB_TRANSACTION, "rollback reason: %s", session->txn->rollback_reason);
+            if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                __wt_verbose_notice(
+                  session, WT_VERB_TRANSACTION, "rollback reason: %s", session->err_info.err_msg);
         }
     }
 

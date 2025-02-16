@@ -7,7 +7,6 @@ if(HAVE_UNITTEST_ASSERTS)
 else()
     set(unittests
         misc_tests/test_acquire_release_macros.cpp
-        misc_tests/test_api_end.cpp
         misc_tests/test_binary_search_string.cpp
         misc_tests/test_bitmap.cpp
         misc_tests/test_crc32.cpp
@@ -15,17 +14,11 @@ else()
         misc_tests/test_fnv.cpp
         misc_tests/test_futex.cpp
         misc_tests/test_intpack.cpp
-        misc_tests/test_is_valid_sub_level_error.cpp
         misc_tests/test_mock_session.cpp
-        misc_tests/test_msg_macros.cpp
         misc_tests/test_pow.cpp
-        misc_tests/test_msg_macros.cpp
         misc_tests/test_prepare_mod_sort.cpp
         misc_tests/test_reconciliation_tracking.cpp
         misc_tests/test_session_config.cpp
-        misc_tests/test_session_get_last_error.cpp
-        misc_tests/test_session_set_last_error.cpp
-        misc_tests/test_strerror.cpp
         misc_tests/test_string_match.cpp
         misc_tests/test_tailq.cpp
         block/api/test_block_api_misc.cpp
@@ -45,6 +38,16 @@ else()
         cursors/api/test_bulk_cursor.cpp
         cursors/unit/test_bounds_restore.cpp
         cursors/unit/test_cursor_get_raw_key_value.cpp
+        sub_level_error/api/test_sub_level_error_session_get_last_error.cpp
+        sub_level_error/api/test_sub_level_error_strerror.cpp
+        sub_level_error/unit/test_sub_level_error_api_end.cpp
+        sub_level_error/unit/test_sub_level_error_compact.cpp
+        sub_level_error/unit/test_sub_level_error_drop_conflict.cpp
+        sub_level_error/unit/test_sub_level_error_drop_uncommitted_dirty.cpp
+        sub_level_error/unit/test_sub_level_error_is_valid_sub_level_error.cpp
+        sub_level_error/unit/test_sub_level_error_msg_macros.cpp
+        sub_level_error/unit/test_sub_level_error_rollback.cpp
+        sub_level_error/unit/test_sub_level_error_session_set_last_error.cpp
     )
 endif()
 
@@ -60,6 +63,7 @@ set(unittest_sources
     utils.cpp
     block/util_block.cpp
     block/utils_extlist.cpp
+    sub_level_error/utils_sub_level_error.cpp
     wrappers/block_mods.cpp
     wrappers/config_parser.cpp
     wrappers/connection_wrapper.cpp

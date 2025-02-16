@@ -880,6 +880,7 @@ inmem
 inmemory
 inserters
 instantiation
+interruptible
 intl
 intnum
 intpack
@@ -1017,6 +1018,7 @@ multiblock
 multicycle
 multiprocess
 multithreaded
+multithreading
 munmap
 mutex
 mutexes

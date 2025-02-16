@@ -1650,7 +1650,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
          * WT_SESSION.begin_transaction API can't, continue on.
          */
         WT_RET_ERROR_OK(
-          __wt_evict_app_assist_worker_check(session, false, true, NULL), WT_ROLLBACK);
+          __wt_evict_app_assist_worker_check(session, false, true, true, NULL), WT_ROLLBACK);
 
         __wt_txn_get_snapshot(session);
     }
@@ -1705,7 +1705,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
       __wt_atomic_loadv64(&txn_shared->pinned_id) == WT_TXN_NONE)
-        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, NULL));
+        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, true, NULL));
 
     return (0);
 }
@@ -1930,7 +1930,9 @@ __txn_modify_block(
         }
 
         WT_STAT_CONN_DSRC_INCR(session, txn_update_conflict);
-        ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CONFLICT);
+        ret = WT_ROLLBACK;
+        __wt_session_set_last_error(
+          session, ret, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
     }
 
     /*
@@ -1992,7 +1994,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         txn_global = &S2C(session)->txn_global;
         if (txn_global->debug_rollback != 0 &&
           ++txn_global->debug_ops % txn_global->debug_rollback == 0)
-            return (__wt_txn_rollback_required(session, "debug mode simulated conflict"));
+            WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, "debug mode simulated conflict");
     }
     return (0);
 }
