@@ -3127,21 +3127,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * we may need the log path and encryption and compression settings.
      */
     WT_ERR(__wt_logmgr_config(session, cfg, false));
-
-#ifndef _MSC_VER
-    /*
-     * Recovery replays the log files to rebuild the metadata file that live restore depends on,
-     * because of this we copy them across prior to recovery commencing. This also helps ensure that
-     * the system is in a valid state for the log subsystem as it does some less common file
-     * manipulations.
-     *
-     * Note: The function __conn_version_verify opens a single log file to check version details.
-     * This has to happen after live restore has completed the log file transfer otherwise the
-     * extent lists will be incorrect for that log file.
-     */
-    if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
-        WT_ERR(__wt_live_restore_setup_recovery(session));
-#endif
     WT_ERR(__conn_version_verify(session));
 
     /*
