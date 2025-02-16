@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wiredtiger, wttest
+import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
-from wtdataset import SimpleDataSet
 
 # test_layered23.py
 #    Test the basic ability to insert on a follower.
@@ -124,10 +123,9 @@ class Oplog(object):
         incr = len(entlist)//count
         if incr == 0:
             incr = 1
-        pos = 0
         for i in range(0, count):
             # entindex is the entry we'll update
-            entindex = entlist[pos]
+            entindex = entlist[i]
             (gottable,k,v) = self._entries[entindex]
             if gottable != table:
                 raise Exception(f'oplog internal error: intindex for {table} ' + \
@@ -212,7 +210,7 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    scenarios = gen_disagg_storages('test_layered17', disagg_only = True)
+    scenarios = gen_disagg_storages('test_layered23', disagg_only = True)
 
     uri = "layered:test_layered23"
 

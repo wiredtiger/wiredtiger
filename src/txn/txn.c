@@ -2708,27 +2708,35 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg");
 
         s = NULL;
-        WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
-        if (s != NULL) {
-            const char *checkpoint_cfg[] = {
-              WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
+        /*
+         * Do shutdown checkpoint if we are not using disaggregated storage. For disaggregated
+         * storage, we should do a checkpoint and then step-down as the leader before we close the
+         * connection.
+         */
+        if (!conn_is_disagg) {
+            WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
+            if (s != NULL) {
+                const char *checkpoint_cfg[] = {
+                  WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
 
-            __wt_timer_start(session, &timer);
+                __wt_timer_start(session, &timer);
 
-            WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
+                WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
 
-            /*
-             * Mark the metadata dirty so we flush it on close, allowing recovery to be skipped.
-             */
-            WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
+                /*
+                 * Mark the metadata dirty so we flush it on close, allowing recovery to be skipped.
+                 */
+                WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
 
-            WT_TRET(__wt_session_close_internal(s));
+                WT_TRET(__wt_session_close_internal(s));
 
-            /* Time since the shutdown checkpoint has started. */
-            __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
-            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
-              conn->shutdown_timeline.checkpoint_ms);
+                /* Time since the shutdown checkpoint has started. */
+                __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
+                __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+                  "shutdown checkpoint has successfully finished and ran for %" PRIu64
+                  " milliseconds",
+                  conn->shutdown_timeline.checkpoint_ms);
+            }
         }
     }
 

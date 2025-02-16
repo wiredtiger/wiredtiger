@@ -484,6 +484,7 @@ class test_truncate_cursor(test_truncate_base):
                 # Optionally close and re-open the object to get a disk image
                 # instead of a big insert list.
                 if self.reopen:
+                    self.session.checkpoint()
                     self.reopen_conn()
 
                 # Optionally insert initial skipped records.
@@ -574,6 +575,7 @@ class test_truncate_cursor(test_truncate_base):
             # Optionally close and re-open the object to get a disk image
             # instead of a big insert list.
             if self.reopen:
+                self.session.checkpoint()
                 self.reopen_conn()
 
             self.truncateRangeAndCheck(ds, uri, begin, end, expected)

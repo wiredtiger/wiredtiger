@@ -1673,6 +1673,10 @@ methods = {
                     updates and updates that are from the same transaction with the same timestamp.
                     ''',
                     type='boolean', undoc=True),
+                Config('raw_key_value', 'false', r'''
+                    Return the key, value as raw data.
+                    ''',
+                    type='boolean', undoc=True),
         ]),
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',

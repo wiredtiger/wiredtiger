@@ -646,6 +646,8 @@ __curversion_skip_starting_updates(WT_SESSION_IMPL *session, WT_CURSOR_VERSION *
 
         if (!__txn_visible_id(session, upd->txnid))
             continue;
+
+        break;
     }
 
     version_cursor->next_upd = upd;
@@ -919,6 +921,13 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     }
 
     WT_ERR_NOTFOUND_OK(
+      __wt_config_gets_def(session, cfg, "debug.dump_version.raw_key_value", 0, &cval), true);
+    if (ret == 0) {
+        if (cval.val)
+            F_SET(version_cursor->file_cursor, WT_CURSTD_RAW);
+    }
+
+    WT_ERR_NOTFOUND_OK(
       __wt_config_gets_def(session, cfg, "debug.dump_version.timestamp_order", 0, &cval), true);
     if (ret == 0) {
         if (cval.val)
@@ -928,7 +937,8 @@ __wt_curversion_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner
     WT_ERR_NOTFOUND_OK(
       __wt_config_gets_def(session, cfg, "debug.dump_version.start_timestamp", 0, &cval), true);
     if (ret == 0)
-        WT_ERR(__wt_txn_parse_timestamp(session, "end", &version_cursor->start_timestamp, &cval));
+        WT_ERR(__wt_txn_parse_timestamp(
+          session, "start_timestamp", &version_cursor->start_timestamp, &cval));
     else
         ret = 0;
 
