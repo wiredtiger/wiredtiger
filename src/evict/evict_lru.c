@@ -2839,7 +2839,7 @@ __wti_evict_app_assist_worker(
     WT_ERR(__wt_curhs_cache(session));
 
     /*
-     * It is not safe to proceed if the eviction server threads aren't setup yet. Also, if the 
+     * It is not safe to proceed if the eviction server threads aren't setup yet. Also, if the
      * caller is holding shared resources, only evict if the cache is at any of its eviction
      * targets.
      */
