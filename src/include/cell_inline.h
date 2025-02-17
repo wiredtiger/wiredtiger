@@ -1321,13 +1321,13 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
     p = (uint8_t *)&cell->__chunk[1];
 
     /* Unpack the key. */
-    __wt_cell_unpack_kv(session, page_dsk, (WT_CELL *)p, unpack_delta->key);
-    p += unpack_delta->key->__len;
+    __wt_cell_unpack_kv(session, page_dsk, (WT_CELL *)p, &unpack_delta->key);
+    p += unpack_delta->key.__len;
 
     /* Optionally unpack the value if it exists. */
     if (!LF_ISSET(WT_DELTA_IS_DELETE)) {
-        __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, unpack_delta->value);
-        p += unpack_delta->value->__len;
+        __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, &unpack_delta->value);
+        p += unpack_delta->value.__len;
     }
 
     unpack_delta->__len = (uint32_t)WT_PTRDIFF(p, &cell->__chunk[0]);
