@@ -1308,7 +1308,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
  */
 static WT_INLINE void
 __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_dsk,
-  const WT_DELTA_HEADER *dsk, WT_DELTA_INT_CELL *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
+  const WT_DELTA_HEADER *dsk, WT_DELTA_CELL_INT *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
 {
     WT_DECL_RET;
     uint8_t flags;
@@ -1340,7 +1340,7 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
  */
 static WT_INLINE void
 __wt_cell_unpack_delta_leaf(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk,
-  WT_DELTA_LEAF_CELL *cell, WT_CELL_UNPACK_DELTA_LEAF *unpack)
+  WT_DELTA_CELL_LEAF *cell, WT_CELL_UNPACK_DELTA_LEAF *unpack)
 {
     WT_DECL_RET;
     uint64_t v;
@@ -1526,14 +1526,14 @@ __wt_page_cell_data_ref_kv(
         for (__cell = WT_DELTA_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
              __cell += (unpack).__len, --__i) {                                                  \
             __wt_cell_unpack_delta_int(                                                          \
-              session, page_dsk, dsk, (WT_DELTA_INT_CELL *)__cell, &(unpack));
+              session, page_dsk, dsk, (WT_DELTA_CELL_INT *)__cell, &(unpack));
 #define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                                         \
     do {                                                                                         \
         uint32_t __i;                                                                            \
         uint8_t *__cell;                                                                         \
         for (__cell = WT_DELTA_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
              __cell += (unpack).__len, --__i) {                                                  \
-            __wt_cell_unpack_delta_leaf(session, dsk, (WT_DELTA_LEAF_CELL *)__cell, &(unpack));
+            __wt_cell_unpack_delta_leaf(session, dsk, (WT_DELTA_CELL_LEAF *)__cell, &(unpack));
 #define WT_CELL_FOREACH_ADDR(session, dsk, unpack)                                              \
     do {                                                                                        \
         uint32_t __i;                                                                           \
