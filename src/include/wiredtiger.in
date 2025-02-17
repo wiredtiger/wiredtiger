@@ -4104,8 +4104,8 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
 #define	WT_OLDEST_FOR_EVICTION	(-32005)
 /*!
  * Conflict performing operation due to running backup.
- * This sub-level error indicates that there is conflict perform the operation
- * because of a running backup in the system.
+ * This sub-level error indicates that there is a conflict performing the
+ * operation because of a running backup in the system.
  */
 #define	WT_CONFLICT_BACKUP	(-32006)
 /*!
@@ -4142,6 +4142,12 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * checkpoint.
  */
 #define	WT_CONFLICT_CHECKPOINT_LOCK	(-32012)
+/*!
+ * Conflict performing operation due to an in-progress live restore.
+ * This sub-level error indicates that there is a conflict performing the
+ * operation because of a running live restore in the system.
+ */
+#define	WT_CONFLICT_LIVE_RESTORE	(-32013)
 /*
  * Sub-level error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.
