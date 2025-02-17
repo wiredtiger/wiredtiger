@@ -1311,7 +1311,6 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
   const WT_DELTA_HEADER *dsk, WT_DELTA_CELL *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
 {
     WT_DECL_RET;
-    uint64_t v;
     uint8_t flags;
     const uint8_t *p;
 
