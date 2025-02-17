@@ -6,7 +6,7 @@ A checkpoint is a known point in time from which WiredTiger can recover in the e
 crash or unexpected shutdown. Both checkpoints and @ref arch-logging "logging" provide durability guarantees. During
 recovery WiredTiger can start up from the last known checkpoint and replay the log, recovering the
 lost operations. WiredTiger checkpoints are created either via the API
-WT_SESSION::checkpoint, or internally. See @ref checkpoint-internal-callers "Internal Callers" for 
+WT_SESSION::checkpoint, or internally. See @ref checkpoint-internal-callers "Internal Callers" for
 when checkpoint can be called internally by WiredTiger.
 
 A checkpoint is performed within the context of a @ref arch-snapshot "snapshot isolation" transaction, as such the
