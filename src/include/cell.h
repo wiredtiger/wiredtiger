@@ -155,10 +155,22 @@ struct __wt_cell {
 };
 
 /*
- * WT_DELTA_CELL --
- *	Variable-length, delta cell header.
+ * WT_DELTA_INT_CELL --
+ *  Variable-length, delta internal cell header.
  */
-struct __wt_delta_cell {
+struct __wt_delta_int_cell {
+    /*
+     * Maximum of 1 byte:
+     *  1: cell descriptor byte
+     */
+    uint8_t __chunk[1];
+};
+
+/*
+ * WT_DELTA_LEAF_CELL --
+ *	Variable-length, delta leaf cell header.
+ */
+struct __wt_delta_leaf_cell {
     /*
      * Maximum of 47 bytes:
      *  1: cell descriptor byte
