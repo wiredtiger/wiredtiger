@@ -242,9 +242,9 @@ struct __wt_cell_unpack_kv {
  */
 struct __wt_cell_unpack_delta_int {
     uint32_t __len;
-    const void *key;
+    WT_CELL_UNPACK_KV *key;
     uint32_t key_size;
-    const void *value;
+    WT_CELL_UNPACK_ADDR *value;
     uint32_t value_size;
 };
 

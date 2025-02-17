@@ -1310,9 +1310,6 @@ static WT_INLINE void
 __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_dsk,
   const WT_DELTA_HEADER *dsk, WT_DELTA_CELL *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
 {
-    WT_CELL c;
-    WT_CELL_UNPACK_ADDR delta_value;
-    WT_CELL_UNPACK_KV delta_key;
     WT_DECL_RET;
     uint64_t v;
     uint8_t flags;
@@ -1320,35 +1317,29 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
 
     WT_UNUSED(dsk);
 
-    /* Copy the delta cell into a generic WT_CELL structure so that we can utilize existing pack and
-     * unpack functions. */
-    c.__chunk[0] = cell->__chunk[0];
-
     flags = cell->__chunk[0];
     p = (uint8_t *)&cell->__chunk[1];
 
-    /* Unpack the key and value sizes. */
+    /* Unpack the key size. */
     ret = __wt_vunpack_uint(&p, 0, &v);
     WT_ASSERT(session, ret == 0);
     unpack_delta->key_size = (uint32_t)v;
-    ret = __wt_vunpack_uint(&p, 0, &v);
-    WT_ASSERT(session, ret == 0);
-    unpack_delta->value_size = (uint32_t)v;
 
-    if (LF_ISSET(WT_DELTA_IS_DELETE)) {
-        /* Unpack the key only. */
-        __wt_cell_unpack_kv(session, page_dsk, &c, &delta_key);
-        unpack_delta->key = &delta_key;
-    } else {
-        /* Unpack the key and value. */
-        __wt_cell_unpack_kv(session, page_dsk, &c, &delta_key);
-        unpack_delta->key = &delta_key;
-        __wt_cell_unpack_addr(session, page_dsk, &c, &delta_value);
-        unpack_delta->value = &delta_value;
+    /* Optionally unpack the value size if one exists. */
+    if (!LF_ISSET(WT_DELTA_IS_DELETE)) {
+        ret = __wt_vunpack_uint(&p, 0, &v);
+        WT_ASSERT(session, ret == 0);
+        unpack_delta->value_size = (uint32_t)v;
     }
 
-    unpack_delta->__len = (uint32_t)WT_PTRDIFF(
-      p + unpack_delta->key_size + unpack_delta->value_size, &cell->__chunk[0]);
+    /* Unpack the key. */
+    __wt_cell_unpack_kv(session, page_dsk, (WT_CELL *)p, unpack_delta->key);
+    p += unpack_delta->key_size;
+
+    /* Optionally unpack the value if it exists. */
+    __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, unpack_delta->value);
+
+    unpack_delta->__len = (uint32_t)WT_PTRDIFF(p + unpack_delta->value_size, &cell->__chunk[0]);
 
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 }
