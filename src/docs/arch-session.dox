@@ -64,6 +64,12 @@ back any information recorded within the WT_ERROR_INFO structure. An internal fu
 set_last_error has been created and utilized throughout the code base to set any errors that may
 occur within WiredTiger.
 
+There is an assumption made in the code base that an error returned with a sub-level error code or
+message will be not changed. Therefore when multiple errors happen within one session API call,
+the first error that returns with a sub-level error code or message will be returnde to the user.
+In the case that none of the errors have a sub-level error code or message, the last error code is
+returned.
+
 @subsection arch_session_error_sessions Sub-level Errors - External & Internal Sessions
 When saving an error, the session must have the WT_SESSION_SAVE_ERRORS flag set, or the error will
 not be saved. External sessions have this flag set while internal sessions do not. This is because

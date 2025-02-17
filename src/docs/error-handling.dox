@@ -32,10 +32,9 @@ exclusive access when the objects might be in active use by other threads.
 @section error_sub_level Sub-level errors
 
 From the addition of WT_SESSION::get_last_error function and sub-level error codes, users
-are available to get the provide more verbose information about the last
-session API call. The information will include a sub-level error code and message providing
-contextual information. The intended usage of the sub-level error code is to allow users to
-programmatically make decisions on the application level.
+can get more detailed information about the last session API call. The information includes an
+error code, a sub-level error code and message. The intended usage of the sub-level error code
+is to allow users to programmatically make decisions on the application level.
 
 The sub-level error code and error messages are optional and default to WT_NONE and an empty
 string respectively. The error message string is owned by the session, and is invalidated after
