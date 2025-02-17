@@ -43,7 +43,6 @@ static int
 __live_restore_state_from_string(
   WT_SESSION_IMPL *session, char *state_str, WTI_LIVE_RESTORE_STATE *statep)
 {
-
     if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_NONE") == 0)
         *statep = WTI_LIVE_RESTORE_STATE_NONE;
     else if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_LOG_COPY") == 0)
@@ -61,34 +60,6 @@ __live_restore_state_from_string(
 }
 
 /*
- * __live_restore_get_state_file_path --
- *     Given a directory return the path of a live restore state file inside the directory and
- *     whether the file exists.
- */
-static int
-__live_restore_get_state_file_path(WT_SESSION_IMPL *session, const char *directory,
-  WT_FILE_SYSTEM *fs, WT_ITEM **state_file_namep, bool *file_existsp)
-{
-    WT_DECL_RET;
-
-    WT_RET(__wt_scr_alloc(session, 0, state_file_namep));
-    WT_ERR(__wt_filename_construct(
-      session, directory, WTI_LIVE_RESTORE_STATE_FILE, UINTMAX_MAX, UINT32_MAX, *state_file_namep));
-
-    if (file_existsp != NULL) {
-        WT_ERR(
-          fs->fs_exist(fs, (WT_SESSION *)session, (char *)(*state_file_namep)->data, file_existsp));
-    }
-
-    if (0) {
-err:
-        __wt_scr_free(session, state_file_namep);
-    }
-
-    return (ret);
-}
-
-/*
  * __live_restore_get_state_from_file --
  *     Read the live restore state from the on-disk file. If it doesn't exist we return NONE. The
  *     caller must already hold the live restore state lock. This function takes a *non-live
@@ -96,38 +67,43 @@ err:
  *     source or destination directly.
  */
 static int
-__live_restore_get_state_from_file(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs,
-  const char *backing_folder, WTI_LIVE_RESTORE_STATE *statep)
+__live_restore_get_state_from_file(
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs, WTI_LIVE_RESTORE_STATE *statep)
 {
     WT_DECL_RET;
 
-    WT_DECL_ITEM(state_file_name);
-    WT_FILE_HANDLE *fh = NULL;
-    bool state_file_exists = false;
+    WT_DECL_ITEM(dest_turt_path);
+    bool turtle_in_dest = false;
 
-    WT_ERR(__live_restore_get_state_file_path(
-      session, backing_folder, fs, &state_file_name, &state_file_exists));
+    WTI_LIVE_RESTORE_STATE state_from_file;
 
-    if (!state_file_exists)
-        *statep = WTI_LIVE_RESTORE_STATE_NONE;
+    WT_RET(__wt_scr_alloc(session, 0, &dest_turt_path));
+    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_METADATA_TURTLE,
+      UINTMAX_MAX, UINT32_MAX, dest_turt_path));
+
+    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
+      (char *)(dest_turt_path)->data, &turtle_in_dest));
+
+    if (!turtle_in_dest)
+        state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
     else {
-        char state_str[128];
+        char *lr_metadata = NULL;
+        WT_ERR(__wt_metadata_search(session, WT_METADATA_LIVE_RESTORE, &lr_metadata));
 
-        WT_ERR(fs->fs_open_file(fs, (WT_SESSION *)session, (char *)state_file_name->data,
-          WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_EXCLUSIVE, &fh));
+        char lr_metadata_string[128];
+        if ((sscanf(lr_metadata, "state=%127s", lr_metadata_string)) != 1)
+            WT_ASSERT_ALWAYS(
+              session, false, "failed to parse live restore metadata from the turtle file!");
 
-        wt_off_t file_size;
-        WT_ERR(fs->fs_size(fs, (WT_SESSION *)session, (char *)state_file_name->data, &file_size));
-        WT_ERR(fh->fh_read(fh, (WT_SESSION *)session, 0, (size_t)file_size, state_str));
-
-        WT_ERR(__live_restore_state_from_string(session, state_str, statep));
+        ret = 0;
+        __live_restore_state_from_string(session, lr_metadata_string, &state_from_file);
     }
 
-err:
-    if (fh != NULL)
-        WT_TRET(fh->close(fh, &session->iface));
+    *statep = state_from_file;
 
-    __wt_scr_free(session, &state_file_name);
+err:
+
+    __wt_scr_free(session, &dest_turt_path);
 
     return (ret);
 }
@@ -157,7 +133,7 @@ __live_restore_report_state_to_application(WT_SESSION_IMPL *session, WTI_LIVE_RE
 
 /*
  * __wti_live_restore_set_state --
- *     Update the live restore state in memory and persist it to the on-disk state file.
+ *     Update the live restore state in memory and persist it to the turtle file.
  */
 int
 __wti_live_restore_set_state(
@@ -165,16 +141,11 @@ __wti_live_restore_set_state(
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh = NULL;
-    bool state_file_exists = false;
 
-    __wt_writelock(session, &lr_fs->state_lock);
+    bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
 
-    /*
-     * State should always be initialized on start up. If we ever try to set state without first
-     * reading it something's gone wrong.
-     */
-    WT_ASSERT_ALWAYS(
-      session, lr_fs->state != WTI_LIVE_RESTORE_STATE_NONE, "Live restore state not initialized!");
+    if (!reentrant)
+        __wt_spin_lock(session, &lr_fs->state_lock);
 
     /*
      * Validity checking. There is a defined transition of states and we should never skip or repeat
@@ -199,32 +170,19 @@ __wti_live_restore_set_state(
         break;
     }
 
-    WT_DECL_ITEM(state_file_name);
-    WT_ERR(__live_restore_get_state_file_path(session, lr_fs->destination.home,
-      lr_fs->os_file_system, &state_file_name, &state_file_exists));
-
-    /*
-     * The state file is either already present or created on live restore initialization. If it's
-     * not present we've called set state too early.
-     */
-    WT_ASSERT_ALWAYS(session, state_file_exists, "State file doesn't exist!");
-
-    char state_to_write[128];
-    __live_restore_state_to_string(new_state, state_to_write);
-    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR, WT_FS_OPEN_EXCLUSIVE, &fh));
-    WT_ERR(fh->fh_write(fh, (WT_SESSION *)session, 0, 128, state_to_write));
-
     lr_fs->state = new_state;
+
+    /* Bumping the turtle file will automatically write the latest live restore state. */
+    WT_WITH_TURTLE_LOCK(session, ret = __wt_metadata_bump_turtle(session));
+    WT_ERR(ret);
     __live_restore_report_state_to_application(session, new_state);
 
 err:
-    __wt_writeunlock(session, &lr_fs->state_lock);
+    if (!reentrant)
+        __wt_spin_unlock(session, &lr_fs->state_lock);
 
     if (fh != NULL)
         WT_TRET(fh->close(fh, &session->iface));
-
-    __wt_scr_free(session, &state_file_name);
 
     return (ret);
 }
@@ -238,115 +196,75 @@ int
 __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
 {
     WT_DECL_RET;
-    WT_FILE_HANDLE *fh = NULL;
 
-    __wt_writelock(session, &lr_fs->state_lock);
+    __wt_spin_lock(session, &lr_fs->state_lock);
 
     WT_ASSERT_ALWAYS(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_NONE,
       "Attempting to initialize already initialized state!");
 
     WT_DECL_ITEM(state_file_name);
     WTI_LIVE_RESTORE_STATE state;
-    WT_RET(__live_restore_get_state_from_file(
-      session, lr_fs->os_file_system, lr_fs->destination.home, &state));
+    WT_RET(__live_restore_get_state_from_file(session, lr_fs, &state));
 
     if (state != WTI_LIVE_RESTORE_STATE_NONE) {
         lr_fs->state = state;
     } else {
         /*
-         * The state file doesn't exist which means we're starting a brand new live restore. Create
-         * the state file in the log copy state.
+         * Only set the in memory state, don't write it to the turtle file. This is because creating
+         * the turtle file now will means WiredTiger will expect to find a metadata file, and will
+         * panic if it doesn't. Since this is the first legal live restore state we'll always come
+         * back to this on a restart if we didn't get around to writing the turtle.
          */
-        char state_to_write[128];
-        __live_restore_state_to_string(WTI_LIVE_RESTORE_STATE_LOG_COPY, state_to_write);
-
-        WT_ERR(__live_restore_get_state_file_path(
-          session, lr_fs->destination.home, NULL, &state_file_name, NULL));
-
-        WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session,
-          (char *)state_file_name->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
-          WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &fh));
-
-        fh->fh_write(fh, (WT_SESSION *)session, 0, 128, state_to_write);
-
+        // TODO - Maybe fix this? idk
         lr_fs->state = WTI_LIVE_RESTORE_STATE_LOG_COPY;
     }
 
-err:
-
-    __wt_writeunlock(session, &lr_fs->state_lock);
+    __wt_spin_unlock(session, &lr_fs->state_lock);
     __wt_scr_free(session, &state_file_name);
-
-    if (fh != NULL)
-        WT_TRET(fh->close(fh, &session->iface));
 
     return (ret);
 }
 
 /*
+ * __wt_live_restore_get_state_string --
+ *     Get the live restore state in string form.
+ */
+int
+__wt_live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_str)
+{
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WT_ASSERT_ALWAYS(session, F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS), "Live restore not enabled!");
+
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+
+    char str[128];
+    __live_restore_state_to_string(state, str);
+    WT_RET(__wt_buf_fmt(session, lr_state_str, "%s", str));
+
+    return (0);
+}
+
+/*
  * __wti_live_restore_get_state --
- *     Get the live restore state.
+ *     Get the live restore state. Take the state lock if it isn't already held.
  */
 WTI_LIVE_RESTORE_STATE
 __wti_live_restore_get_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
 {
     WTI_LIVE_RESTORE_STATE state;
-    __wt_readlock(session, &lr_fs->state_lock);
-    state = lr_fs->state;
-    __wt_readunlock(session, &lr_fs->state_lock);
-
-    /* We initialize state on startup. This shouldn't be possible. */
-    WT_ASSERT_ALWAYS(session, state != WTI_LIVE_RESTORE_STATE_NONE, "State not initialized!");
-
-    return (state);
-}
-
-/*
- * __wti_live_restore_get_state_no_lock --
- *     Get the live restore state without taking a lock. The caller must hold the state lock when
- *     calling this function.
- */
-WTI_LIVE_RESTORE_STATE
-__wti_live_restore_get_state_no_lock(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
-{
-    WTI_LIVE_RESTORE_STATE state = lr_fs->state;
-
-    /* This only checks the lock is held. We can't guarantee it's held by *this* thread. */
-    WT_ASSERT_ALWAYS(
-      session, __wt_rwlock_islocked(session, &lr_fs->state_lock), "Accessing state without lock");
-
-    /* We initialize state on startup. This shouldn't be possible. */
-    WT_ASSERT_ALWAYS(session, state != WTI_LIVE_RESTORE_STATE_NONE, "State not initialized!");
-
-    return (state);
-}
-
-/*
- * __wt_live_restore_delete_complete_state_file --
- *     If the state file in the given directory is in the COMPLETE state, then it can be deleted.
- *     This function takes a non-live restore backing file system.
- */
-int
-__wt_live_restore_delete_complete_state_file(
-  WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs, const char *directory)
-{
-    WT_DECL_RET;
-
-    WT_DECL_ITEM(lr_state_file);
-    bool lr_state_file_exists = false;
-    WT_ERR(__live_restore_get_state_file_path(
-      session, directory, fs, &lr_state_file, &lr_state_file_exists));
-
-    if (lr_state_file_exists) {
-        WTI_LIVE_RESTORE_STATE source_state;
-        __live_restore_get_state_from_file(session, fs, directory, &source_state);
-        if (source_state == WTI_LIVE_RESTORE_STATE_COMPLETE)
-            WT_ERR(fs->fs_remove(fs, (WT_SESSION *)session, (char *)lr_state_file->data, 0));
+    if (__wt_spin_owned(session, &lr_fs->state_lock))
+        state = lr_fs->state;
+    else {
+        __wt_spin_lock(session, &lr_fs->state_lock);
+        state = lr_fs->state;
+        __wt_spin_unlock(session, &lr_fs->state_lock);
     }
 
-err:
-    __wt_scr_free(session, &lr_state_file);
-    return (ret);
+    /* We initialize state on startup. This shouldn't be possible. */
+    WT_ASSERT_ALWAYS(session, state != WTI_LIVE_RESTORE_STATE_NONE, "State not initialized!");
+
+    return (state);
 }
 
 /*
@@ -364,6 +282,8 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     char **dirlist_dest = NULL;
     uint32_t num_dest_files = 0;
 
+    WTI_LIVE_RESTORE_STATE state;
+
     /* First check that the source doesn't contain any live restore metadata files. */
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->source.home, "", &dirlist_source, &num_source_files));
@@ -372,6 +292,13 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
         WT_ERR_MSG(session, EINVAL, "Source directory is empty. Nothing to restore!");
     }
 
+    // TODO - add check for state from source folder
+    // prob need to do this when fs is unix not live restore
+
+    // TODO - review this with the new state file assumptions
+    // e.g.
+    // - need to check the contents of the source turtle. Should not contain any live restore
+    // metadata
     for (uint32_t i = 0; i < num_source_files; ++i) {
         if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
             WT_ERR_MSG(session, EINVAL,
@@ -379,31 +306,10 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
               "destination directory that hasn't finished restoration",
               dirlist_source[i]);
         }
-
-        /*
-         * FIXME-WT-14107 For now the validation check ignores a state file in the COMPLETE state.
-         * On completion of WT-14017 we can instead error out when a state file is found in the
-         * source folder.
-         */
-        if (strcmp(dirlist_source[i], WTI_LIVE_RESTORE_STATE_FILE) == 0) {
-            WTI_LIVE_RESTORE_STATE state;
-            WT_ERR(__live_restore_get_state_from_file(
-              session, lr_fs->os_file_system, lr_fs->source.home, &state));
-            if (state != WTI_LIVE_RESTORE_STATE_COMPLETE)
-                WT_ERR_MSG(session, EINVAL,
-                  "Source directory contains live restore state file %s that is not in the "
-                  "complete state. This implies it is a destination directory that hasn't finished "
-                  "restoration",
-                  dirlist_source[i]);
-        }
     }
 
     /* Now check the destination folder */
-    WTI_LIVE_RESTORE_STATE state;
-    __wt_readlock(session, &lr_fs->state_lock);
-    WT_ERR(__live_restore_get_state_from_file(
-      session, lr_fs->os_file_system, lr_fs->destination.home, &state));
-    __wt_readunlock(session, &lr_fs->state_lock);
+    state = __wti_live_restore_get_state(session, lr_fs);
 
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->destination.home, "", &dirlist_dest, &num_dest_files));
@@ -425,14 +331,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
         }
         break;
     case WTI_LIVE_RESTORE_STATE_LOG_COPY:
-        for (uint32_t i = 0; i < num_dest_files; ++i) {
-            if (!WT_SUFFIX_MATCH(dirlist_dest[i], ".log") &&
-              strcmp(dirlist_dest[i], WTI_LIVE_RESTORE_STATE_FILE) != 0)
-                WT_ERR_MSG(session, EINVAL,
-                  "Live restore state is in log copy phase but the destination contains files "
-                  "other than logs or the state file: %s",
-                  dirlist_dest[i]);
-        }
+        // TODO - this'll disappear on rebase.
         break;
     case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
     case WTI_LIVE_RESTORE_STATE_CLEAN_UP:

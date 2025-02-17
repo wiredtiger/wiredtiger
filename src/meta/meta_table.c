@@ -24,6 +24,11 @@ __metadata_turtle(const char *key)
         if (strcmp(key, WT_METAFILE_URI) == 0)
             return (true);
         break;
+    // TODO -> do we even need this?
+    case 'L':
+        if (strcmp(key, WT_METADATA_LIVE_RESTORE) == 0)
+            return (true);
+        break;
     case 'W':
         if (strcmp(key, WT_METADATA_VERSION) == 0)
             return (true);
@@ -201,6 +206,25 @@ __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *valu
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
+}
+
+// TODO - I don't wanna rewrite all the turtle logic, but think about it I guess.
+/*
+ * __wt_metadata_bump_turtle --
+ *     Rewrite the turtle file with it's existing configuration. This has the side effect of
+ *     updating the live restore metadata.
+ */
+int
+__wt_metadata_bump_turtle(WT_SESSION_IMPL *session)
+{
+    /* Require single-threading. */
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->turtle_lock);
+
+    char *unused_value;
+    WT_RET(__wti_turtle_read(session, WT_METAFILE_URI, &unused_value));
+    WT_RET(__wti_turtle_update(session, WT_METAFILE_URI, unused_value));
+    return (0);
 }
 
 /*

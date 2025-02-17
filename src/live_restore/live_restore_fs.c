@@ -151,11 +151,14 @@ __live_restore_fs_create_stop_file(
     lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
 
-    __wt_readlock(session, &lr_fs->state_lock);
+    bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
+    if (!reentrant)
+        __wt_spin_lock(session, &lr_fs->state_lock);
 
-    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state_no_lock(session, lr_fs);
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
     if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state)) {
-        __wt_readunlock(session, &lr_fs->state_lock);
+        if (!reentrant)
+            __wt_spin_unlock(session, &lr_fs->state_lock);
         return (0);
     }
 
@@ -177,7 +180,8 @@ err:
     __wt_free(session, path);
     __wt_free(session, path_marker);
 
-    __wt_readunlock(session, &lr_fs->state_lock);
+    if (!reentrant)
+        __wt_spin_unlock(session, &lr_fs->state_lock);
 
     return (ret);
 }
@@ -1725,7 +1729,7 @@ __live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
     WT_ASSERT(session, lr_fs->os_file_system != NULL);
     WT_RET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, wt_session));
 
-    __wt_rwlock_destroy(session, &lr_fs->state_lock);
+    __wt_spin_destroy(session, &lr_fs->state_lock);
     __wt_free(session, lr_fs->source.home);
     __wt_free(session, lr_fs);
     return (0);
@@ -1872,11 +1876,19 @@ __wt_os_live_restore_fs(
     if (!__wt_ispo2((uint32_t)lr_fs->read_size))
         WT_ERR_MSG(session, EINVAL, "the live restore read size must be a power of two");
 
-    WT_ERR(__wt_rwlock_init(session, &lr_fs->state_lock));
-    WT_ERR(__wti_live_restore_validate_directories(session, lr_fs));
-    WT_ERR(__wti_live_restore_init_state(session, lr_fs));
+    WT_ERR(__wt_spin_init(session, &lr_fs->state_lock, "live restore state lock"));
 
-    /* Update the callers pointer. */
+    /*
+     * To initialize the live restore file system we need to read its state from the turtle file,
+     * but to open the turtle file we need a working file system. Temporarily set Wiredtiger's file
+     * system (posix or otherwise) to access the turtle file and then overwrite it with the live
+     * restore file system as soon as possible.
+     */
+    *fsp = lr_fs->os_file_system;
+    WT_ERR(__wti_live_restore_init_state(session, lr_fs));
+    WT_ERR(__wti_live_restore_validate_directories(session, lr_fs));
+
+    /* Now set the proper live restore file system. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
 
     /* Flag that a live restore file system is in use. */

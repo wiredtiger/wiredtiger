@@ -29,8 +29,6 @@
 /* As extent ranges are inclusive we want >= and <= on both ends of the range. */
 #define WTI_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WTI_EXTENT_END(ext))
 
-#define WTI_LIVE_RESTORE_STATE_FILE "WiredTigerLR.state"
-
 /*
  * __wti_live_restore_hole_node --
  *     A linked list of extents. Each extent represents a hole in the destination file that needs to
@@ -142,7 +140,7 @@ struct __wti_live_restore_fs {
     size_t read_size;
 
     WTI_LIVE_RESTORE_STATE state;
-    WT_RWLOCK state_lock;
+    WT_SPINLOCK state_lock;
 };
 
 /*
@@ -175,8 +173,6 @@ struct __wti_live_restore_server {
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 extern WTI_LIVE_RESTORE_STATE __wti_live_restore_get_state(WT_SESSION_IMPL *session,
-  WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern WTI_LIVE_RESTORE_STATE __wti_live_restore_get_state_no_lock(WT_SESSION_IMPL *session,
   WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

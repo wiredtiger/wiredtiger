@@ -687,6 +687,8 @@ __wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value
     int vmajor, vminor, vpatch;
     const char *version;
 
+    WT_DECL_ITEM(state_str);
+
     fs = NULL;
     conn = S2C(session);
 
@@ -709,6 +711,20 @@ __wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value
           "major=%" PRIu16 ",minor=%" PRIu16 "\n",
           WT_METADATA_COMPAT, conn->compat_version.major, conn->compat_version.minor));
 
+    /* Only write live restore state to the turtle file when live restore is enabled. */
+    // TODO - think about what happens when we clean it up in non-LR mode. We need to check the
+    // contents are COMPLETE before removing. This is also a problem if the turtle is writen before
+    // we can explcitly check. ugh.
+    if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS)) {
+        WT_ERR(__wt_scr_alloc(session, 128, &state_str));
+        WT_ERR(__wt_live_restore_get_state_string(session, state_str));
+
+        WT_ERR(__wt_fprintf(session, fs,
+          "%s\n"
+          "state=%s\n",
+          WT_METADATA_LIVE_RESTORE, (char *)state_str->data));
+    }
+
     version = wiredtiger_version(&vmajor, &vminor, &vpatch);
     WT_ERR(__wt_fprintf(session, fs,
       "%s\n%s\n%s\n"
@@ -726,6 +742,7 @@ __wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value
 err:
     WT_TRET(__wt_fclose(session, &fs));
     WT_TRET(__wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false));
+    __wt_scr_free(session, &state_str);
 
     /*
      * An error updating the turtle file means something has gone horribly wrong -- we're done.

@@ -2672,21 +2672,6 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
         }
     }
 
-#ifndef _MSC_VER
-    /* FIXME-WT-14051 Add windows support. */
-
-    /*
-     * Live restore leaves the state file on disk after live restore has completed, otherwise we'll
-     * run into issues when the user reopens a WiredTiger with the same live restore config but
-     * WiredTiger will assume it's a brand new live restore. To manage this we clean up the file the
-     * next time we open wiredtiger with a non-live restore config. This is expected to be done by
-     * the user immediately after live restore completes.
-     */
-    if (!live_restore_enabled)
-        WT_RET(
-          __wt_live_restore_delete_complete_state_file(session, conn->file_system, conn->home));
-#endif
-
     return (__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 }
 

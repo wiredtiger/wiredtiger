@@ -23,13 +23,13 @@ live_restore_test_env::live_restore_test_env()
     testutil_recreate_dir(DB_DEST.c_str());
     testutil_recreate_dir(DB_SOURCE.c_str());
 
-    /*
-     * In normal operation WiredTiger requires that the source directory contains content to be
-     * copied into the destination. For unit testing we can ignore that. Create a dummy file to
-     * bypass the "empty source" check that runs on startup.
-     */
-    std::string temp_file = DB_SOURCE + "/temp.txt";
-    testutil_mkdir(temp_file.c_str());
+    // WiredTiger stores state in the turtle file so we always need to have a valid database in
+    // the source folder. Open and close a connection to initialise the source folder.
+    {
+        static std::string cfg_string2 = "create=true";
+        conn = std::make_unique<connection_wrapper>(DB_SOURCE.c_str(), cfg_string2.c_str());
+        conn->clear_do_cleanup();
+    }
 
     /*
      * We're using a connection to set up the file system and let us print WT traces, but all of our
@@ -42,7 +42,6 @@ live_restore_test_env::live_restore_test_env()
       "create=true,live_restore=(enabled=true, path=" + DB_SOURCE + ",threads_max=0)";
     conn = std::make_unique<connection_wrapper>(DB_DEST.c_str(), cfg_string.c_str());
 
-    testutil_remove(temp_file.c_str());
     session = conn->create_session();
     lr_fs = (WTI_LIVE_RESTORE_FS *)conn->get_wt_connection_impl()->file_system;
 }
