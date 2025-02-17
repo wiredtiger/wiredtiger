@@ -216,7 +216,7 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
          * back to this on a restart if we didn't get around to writing the turtle.
          */
         // TODO - Maybe fix this? idk
-        lr_fs->state = WTI_LIVE_RESTORE_STATE_LOG_COPY;
+        lr_fs->state = WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION;
     }
 
     __wt_spin_unlock(session, &lr_fs->state_lock);

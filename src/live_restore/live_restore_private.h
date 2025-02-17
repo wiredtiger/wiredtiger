@@ -19,7 +19,7 @@
  *  - It may have been renamed, again we create a stop file in case it is recreated.
  */
 #define WTI_LIVE_RESTORE_STOP_FILE_SUFFIX ".stop"
-
+#define WTI_LIVE_RESTORE_TEMP_FILE_SUFFIX ".lr_tmp"
 /*
  * WTI_OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
  * length=1024 WTI_OFFSET_END returns 1023
@@ -63,6 +63,7 @@ struct __wti_live_restore_file_handle {
          * writes. Holes in these extents should only shrink and never grow.
          */
         WTI_LIVE_RESTORE_HOLE_NODE *hole_list_head;
+        bool newly_created;
     } destination;
 
     WT_FS_OPEN_FILE_TYPE file_type;
@@ -121,6 +122,8 @@ typedef enum {
     /* We've completed the live restore. */
     WTI_LIVE_RESTORE_STATE_COMPLETE
 } WTI_LIVE_RESTORE_STATE;
+
+// TODO - drop LOG_COPY
 
 #define WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state) \
     ((state) == WTI_LIVE_RESTORE_STATE_CLEAN_UP || (state) == WTI_LIVE_RESTORE_STATE_COMPLETE)

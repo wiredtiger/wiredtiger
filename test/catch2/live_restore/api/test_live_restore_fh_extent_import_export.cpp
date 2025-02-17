@@ -29,14 +29,16 @@ TEST_CASE("Live Restore extent import", "[live_restore],[live_restore_extent_imp
     std::string source_file = env.source_file_path(file_name);
     std::string dest_file = env.dest_file_path(file_name);
     SECTION(
-      "When opening a file instantiates a new destination file it will have a single hole which "
-      "matches it's size without importing a string")
+      "When opening a file instantiates a new destination file it will have a single hole created "
+      "when importing an empty string")
     {
         WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
         create_file(source_file.c_str(), 4096);
         // This call creates the file in destination and a hole in that file the same size as the
         // source file.
         testutil_check(open_lr_fh(env, dest_file.c_str(), &lr_fh, WT_FS_OPEN_CREATE));
+        REQUIRE(__wt_live_restore_fh_import_extents_from_string(
+                  session, (WT_FILE_HANDLE *)lr_fh, nullptr) == 0);
         REQUIRE(extent_list_str(lr_fh) == "(0-4096)");
         REQUIRE(lr_fh->iface.close(reinterpret_cast<WT_FILE_HANDLE *>(lr_fh), wt_session) == 0);
     }

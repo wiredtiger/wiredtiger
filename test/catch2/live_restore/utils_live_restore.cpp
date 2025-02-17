@@ -47,7 +47,7 @@ open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
     // Make sure we're always opening the file in the destination directory.
     REQUIRE(strncmp(dest_file.c_str(), env.DB_DEST.c_str(), env.DB_DEST.size()) == 0);
     return lr_fs->iface.fs_open_file(reinterpret_cast<WT_FILE_SYSTEM *>(lr_fs), wt_session,
-      dest_file.c_str(), WT_FS_OPEN_FILE_TYPE_REGULAR, flags,
+      dest_file.c_str(), WT_FS_OPEN_FILE_TYPE_DATA, flags,
       reinterpret_cast<WT_FILE_HANDLE **>(lr_fhp));
 }
 
