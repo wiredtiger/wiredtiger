@@ -40,13 +40,13 @@ PREBUILT_URL="${S3_URL}/build/wt_prebuilt_tcmalloc/${PATCHED_SRC}/${PREBUILT_TGZ
 echo "Attempting to download prebuilt tcmalloc: ${PREBUILT_URL}"
 aws s3 cp --quiet ${PREBUILT_URL} ${PREBUILT_TGZ}
 aws_ret=$?
-if [[ $aws_ret -eq 0 ]]; then
-    tar zxf $PREBUILT_TGZ
-    exit $?
-elif [[ $aws_ret -ne 1 ]]; then
-    echo "ERROR aws s3 download failed with code ${aws_ret}"
-    exit $aws_ret
-fi
+# if [[ $aws_ret -eq 0 ]]; then
+#     tar zxf $PREBUILT_TGZ
+#     exit $?
+# elif [[ $aws_ret -ne 1 ]]; then
+#     echo "ERROR aws s3 download failed with code ${aws_ret}"
+#     #exit $aws_ret
+# fi
 
 # Downloading a prebuilt copy failed. Assume it is because it doesn't exist for this build
 # variant. Attempt to create a shared object for this build variant and upload it.
