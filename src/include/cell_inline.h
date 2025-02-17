@@ -1337,7 +1337,8 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
     p += unpack_delta->key_size;
 
     /* Optionally unpack the value if it exists. */
-    __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, unpack_delta->value);
+    if (!LF_ISSET(WT_DELTA_IS_DELETE))
+        __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, unpack_delta->value);
 
     unpack_delta->__len = (uint32_t)WT_PTRDIFF(p + unpack_delta->value_size, &cell->__chunk[0]);
 
