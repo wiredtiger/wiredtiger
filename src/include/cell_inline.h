@@ -1307,26 +1307,48 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
  *     Unpack an internal delta cell into a structure.
  */
 static WT_INLINE void
-__wt_cell_unpack_delta_int(
-  WT_SESSION_IMPL *session, WT_DELTA_CELL *cell, WT_CELL_UNPACK_DELTA_INT *unpack)
+__wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_dsk,
+  const WT_DELTA_HEADER *dsk, WT_DELTA_CELL *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
 {
+    WT_CELL c;
+    WT_CELL_UNPACK_ADDR delta_value;
+    WT_CELL_UNPACK_KV delta_key;
     WT_DECL_RET;
     uint64_t v;
+    uint8_t flags;
     const uint8_t *p;
 
-    p = (uint8_t *)&cell->__chunk[0];
+    WT_UNUSED(dsk);
 
+    /* Copy the delta cell into a generic WT_CELL structure so that we can utilize existing pack and
+     * unpack functions. */
+    c.__chunk[0] = cell->__chunk[0];
+
+    flags = cell->__chunk[0];
+    p = (uint8_t *)&cell->__chunk[1];
+
+    /* Unpack the key and value sizes. */
     ret = __wt_vunpack_uint(&p, 0, &v);
     WT_ASSERT(session, ret == 0);
-    unpack->key_size = (uint32_t)v;
+    unpack_delta->key_size = (uint32_t)v;
     ret = __wt_vunpack_uint(&p, 0, &v);
     WT_ASSERT(session, ret == 0);
-    unpack->value_size = (uint32_t)v;
+    unpack_delta->value_size = (uint32_t)v;
 
-    unpack->key = p;
-    p += unpack->key_size;
-    unpack->value = p;
-    unpack->__len = (uint32_t)WT_PTRDIFF(p + unpack->value_size, &cell->__chunk[0]);
+    if (LF_ISSET(WT_DELTA_IS_DELETE)) {
+        /* Unpack the key only. */
+        __wt_cell_unpack_kv(session, page_dsk, &c, &delta_key);
+        unpack_delta->key = &delta_key;
+    } else {
+        /* Unpack the key and value. */
+        __wt_cell_unpack_kv(session, page_dsk, &c, &delta_key);
+        unpack_delta->key = &delta_key;
+        __wt_cell_unpack_addr(session, page_dsk, &c, &delta_value);
+        unpack_delta->value = &delta_value;
+    }
+
+    unpack_delta->__len = (uint32_t)WT_PTRDIFF(
+      p + unpack_delta->key_size + unpack_delta->value_size, &cell->__chunk[0]);
 
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 }
@@ -1516,13 +1538,13 @@ __wt_page_cell_data_ref_kv(
  * WT_CELL_FOREACH --
  *	Walk the cells on a page.
  */
-#define WT_CELL_FOREACH_DELTA_INT(session, dsk, unpack)                                          \
+#define WT_CELL_FOREACH_DELTA_INT(session, page_dsk, dsk, unpack)                                \
     do {                                                                                         \
         uint32_t __i;                                                                            \
         uint8_t *__cell;                                                                         \
         for (__cell = WT_DELTA_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
              __cell += (unpack).__len, --__i) {                                                  \
-            __wt_cell_unpack_delta_int(session, dsk, (WT_DELTA_CELL *)__cell, &(unpack));
+            __wt_cell_unpack_delta_int(session, page_dsk, dsk, (WT_DELTA_CELL *)__cell, &(unpack));
 #define WT_CELL_FOREACH_DELTA_LEAF(session, dsk, unpack)                                         \
     do {                                                                                         \
         uint32_t __i;                                                                            \
