@@ -651,6 +651,8 @@ __schema_open_layered_member(
         return (0);
     }
 
+    WT_RET(ret);
+
     /* Reference the dhandle and set it in the tier array. */
     (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
     if (ingest) {
@@ -663,9 +665,8 @@ __schema_open_layered_member(
          * dereferencing the dhandle pointer, but that's been freed.
          */
         layered->ingest_btree_id = ((WT_BTREE *)session->dhandle->handle)->id;
-    } else {
+    } else
         layered->stable = session->dhandle;
-    }
 
     WT_RET(__wt_session_release_dhandle(session));
     return (0);
@@ -759,5 +760,6 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     F_SET(((WT_BTREE *)layered->ingest->handle), WT_BTREE_GARBAGE_COLLECT);
 
     WT_RET(__wt_layered_table_manager_add_table(session, ingest_id, stable_id));
-    return (ret);
+
+    return (0);
 }
