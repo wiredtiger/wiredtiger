@@ -204,7 +204,6 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
          * panic if it doesn't. Since this is the first legal live restore state we'll always come
          * back to this on a restart if we didn't get around to writing the turtle.
          */
-        // TODO - Maybe fix this? idk
         lr_fs->state = WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION;
     }
 

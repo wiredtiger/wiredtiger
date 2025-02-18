@@ -713,8 +713,8 @@ __wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value
 
     /* Only write live restore state to the turtle file when live restore is enabled. */
     // TODO - think about what happens when we clean it up in non-LR mode. We need to check the
-    // contents are COMPLETE before removing. This is also a problem if the turtle is writen before
-    // we can explcitly check. ugh.
+    // contents are COMPLETE before removing. This is also a problem if the turtle is written before
+    // we can explicitly check. ugh.
     if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS)) {
         WT_ERR(__wt_scr_alloc(session, 128, &state_str));
         WT_ERR(__wt_live_restore_get_state_string(session, state_str));

@@ -1459,11 +1459,9 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
     char *buf = NULL, *source_path = NULL, *dest_path = NULL, *tmp_dest_path = NULL;
     bool dest_closed = false;
 
-    /*
-     * FIXME-WT-14040: We expect that most of these copies will happen prior to the migration phase.
-     * But definitely by the end of the migration this function should not be called. We should
-     * assert that.
-     */
+    WT_ASSERT_ALWAYS(session,
+      __wti_live_restore_get_state(session, lr_fs) == WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION,
+      "Attempting to atomically copy a file outside of the migration phase!");
 
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
@@ -1631,7 +1629,8 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
      */
 
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
-    bool dest_exist = false, have_stop = false, check_source = !WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state);
+    bool dest_exist = false, have_stop = false,
+         check_source = !WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state);
 
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
@@ -1953,7 +1952,7 @@ __wt_os_live_restore_fs(
 
     /*
      * To initialize the live restore file system we need to read its state from the turtle file,
-     * but to open the turtle file we need a working file system. Temporarily set Wiredtiger's file
+     * but to open the turtle file we need a working file system. Temporarily set WiredTiger's file
      * system (posix or otherwise) to access the turtle file and then overwrite it with the live
      * restore file system as soon as possible.
      */

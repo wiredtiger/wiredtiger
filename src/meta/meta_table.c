@@ -24,7 +24,6 @@ __metadata_turtle(const char *key)
         if (strcmp(key, WT_METAFILE_URI) == 0)
             return (true);
         break;
-    // TODO -> do we even need this?
     case 'L':
         if (strcmp(key, WT_METADATA_LIVE_RESTORE) == 0)
             return (true);
