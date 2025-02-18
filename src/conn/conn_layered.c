@@ -314,6 +314,8 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     manager->open_layered_table_count = conn->next_file_id + 1000;
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
+    manager->entries_allocated =
+      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY);
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
@@ -357,6 +359,7 @@ __wt_layered_table_manager_add_table(
   WT_SESSION_IMPL *session, uint32_t ingest_id, uint32_t stable_id)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
@@ -372,11 +375,18 @@ __wt_layered_table_manager_add_table(
       __wt_atomic_load32(&manager->state) == WT_LAYERED_TABLE_MANAGER_RUNNING,
       "Adding a layered table, but the manager isn't running");
     __wt_spin_lock(session, &manager->layered_table_lock);
+
+    if (ingest_id >= manager->open_layered_table_count) {
+        WT_ERR(__wt_realloc_def(session, &manager->entries_allocated,
+          manager->open_layered_table_count * 2, &manager->entries));
+        manager->open_layered_table_count *= 2;
+    }
+
     /* Diagnostic sanity check - don't keep adding the same table */
     if (manager->entries[ingest_id] != NULL)
         WT_IGNORE_RET(__wt_panic(session, WT_PANIC,
           "Internal server error: opening the same layered table multiple times"));
-    WT_RET(__wt_calloc_one(session, &entry));
+    WT_ERR(__wt_calloc_one(session, &entry));
     entry->ingest_id = ingest_id;
     entry->stable_id = stable_id;
     entry->layered_table = (WT_LAYERED_TABLE *)session->dhandle;
@@ -400,8 +410,10 @@ __wt_layered_table_manager_add_table(
       entry->stable_uri, ingest_id, stable_id, session->dhandle->name);
     manager->entries[ingest_id] = entry;
 
+err:
     __wt_spin_unlock(session, &manager->layered_table_lock);
-    return (0);
+
+    return (ret);
 }
 
 /*
@@ -1155,17 +1167,16 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_open_internal_session(conn, "disagg-drain", false, 0, 0, &internal_session));
 
-    /*
-     * The table count never shrinks, so this is safe. It probably needs the layered table lock.
-     *
-     * TODO: skip empty ingest tables.
-     */
+    __wt_spin_lock(session, &manager->layered_table_lock);
+
+    /* TODO: skip empty ingest tables. */
     for (i = 0; i < manager->open_layered_table_count; i++) {
         if ((entry = manager->entries[i]) != NULL)
             WT_ERR(__layered_drain_ingest_table(internal_session, entry));
     }
 
 err:
+    __wt_spin_unlock(session, &manager->layered_table_lock);
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
