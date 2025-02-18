@@ -50,7 +50,7 @@ usage(void)
       "incompatible with "
       "the -f option",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
-      "dump in JSON format", "-k", "specify a key too look for", "-l lower bound",
+      "dump in JSON format", "-k", "specify a key to look for", "-l lower bound",
       "lower bound of the key range to dump", "-n",
       "if the specified key to look for cannot be found, return the result from search_near", "-p",
       "dump in human readable format (pretty-print). The -p flag can be combined with -x. In this "
