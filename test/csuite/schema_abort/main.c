@@ -512,14 +512,17 @@ get_all_committed_ts(void)
 
 /*
  * is_set_timestamp_required --
- *     Return if set_timestamp is required.
+ *     Return True if set_timestamp is required.
  */
 static bool
 is_set_timestamp_required(uint64_t last_ts, uint64_t oldest_ts)
 {
-    int64_t ts_diff = (int64_t)(oldest_ts - last_ts);
+    /*
+     * The set_timestamp should be invoked only when current_oldest_ts is greater than
+     * last_oldest_ts and the difference is greater than the STABLE_PERIOD.
+     */
     return ((oldest_ts == stop_timestamp && oldest_ts != last_ts) ||
-      (oldest_ts != UINT64_MAX && ts_diff > STABLE_PERIOD));
+      (oldest_ts != UINT64_MAX && oldest_ts > last_ts && oldest_ts - last_ts > STABLE_PERIOD));
 }
 
 /*
