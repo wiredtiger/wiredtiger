@@ -1630,7 +1630,8 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
      * check the source file based off that information.
      */
 
-    bool dest_exist = false, have_stop = false, check_source = !lr_fs->finished;
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+    bool dest_exist = false, have_stop = false, check_source = !WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state);
 
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
