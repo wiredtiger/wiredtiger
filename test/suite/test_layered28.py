@@ -70,6 +70,27 @@ class test_layered28(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
+    # Restart the node without local files
+    def restart_without_local_files(self):
+        # Close the current connection
+        self.close_conn()
+
+        # Move the local files to another directory
+        self.num_restarts += 1
+        dir = f'SAVE.{self.num_restarts}'
+        os.mkdir(dir)
+        for f in os.listdir():
+            if os.path.isdir(f):
+                continue
+            if f.startswith('WiredTiger') or f.startswith('test_'):
+                os.rename(f, os.path.join(dir, f))
+
+        # Also save the PALM database (to aid debugging)
+        shutil.copytree('kv_home', os.path.join(dir, 'kv_home'))
+
+        # Reopen the connection
+        self.open_conn()
+
     # Test creating an empty table.
     def test_layered28(self):
         # The node started as a follower, so step it up as the leader
@@ -90,13 +111,33 @@ class test_layered28(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Create a checkpoint
         self.session.checkpoint()
 
-        # Create the follower
+        #
+        # Part 1: Check the new table in the follower
+        #
+
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_config)
         self.disagg_advance_checkpoint(conn_follow)
         session_follow = conn_follow.open_session('')
 
         # Check that the table exists in the follower
         cursor = session_follow.open_cursor(self.uri, None, None)
+        item_count = 0
+        while cursor.next() == 0:
+            item_count += 1
+        cursor.close()
+        self.assertEqual(item_count, 0)
+
+        #
+        # Part 2: Check the new table after restart
+        #
+
+        checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
+        self.restart_without_local_files()
+        self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
+        self.conn.reconfigure(f'disaggregated=(role="leader")')
+
+        # Check that the table
+        cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0
         while cursor.next() == 0:
             item_count += 1
