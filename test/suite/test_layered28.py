@@ -136,7 +136,7 @@ class test_layered28(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.conn.reconfigure(f'disaggregated=(role="leader")')
 
-        # Check that the table
+        # Check that the table exists and is empty
         cursor = self.session.open_cursor(self.uri, None, None)
         item_count = 0
         while cursor.next() == 0:
