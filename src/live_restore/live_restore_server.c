@@ -171,18 +171,6 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
     uint64_t time_diff_ms;
 
-    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
-    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
-
-    /*
-     * Wait until we're out of the log pre-copy stage. Otherwise we might race with the log copy
-     * thread.
-     */
-    if (state == WTI_LIVE_RESTORE_STATE_NONE || state == WTI_LIVE_RESTORE_STATE_LOG_COPY) {
-        __wt_sleep(0, 10000);
-        return (0);
-    }
-
     __wt_spin_lock(session, &server->queue_lock);
     if (TAILQ_EMPTY(&server->work_queue)) {
         /* Stop our thread from running. This will call the stop_func and trigger state cleanup. */

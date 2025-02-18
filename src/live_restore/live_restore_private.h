@@ -106,12 +106,6 @@ typedef enum {
      */
     WTI_LIVE_RESTORE_STATE_NONE,
     /*
-     * Log files aren't tracked in the metadata file, which we use to identify which files need
-     * background migrating. To resolve this we copy all log files to the destination at the start
-     * of live restore.
-     */
-    WTI_LIVE_RESTORE_STATE_LOG_COPY,
-    /*
      * The background migration state is where the majority is where the majority of work takes
      * place. Users can perform reads/writes while we copy backing data to the destination in the
      * background.
@@ -122,8 +116,6 @@ typedef enum {
     /* We've completed the live restore. */
     WTI_LIVE_RESTORE_STATE_COMPLETE
 } WTI_LIVE_RESTORE_STATE;
-
-// TODO - drop LOG_COPY
 
 #define WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state) \
     ((state) == WTI_LIVE_RESTORE_STATE_CLEAN_UP || (state) == WTI_LIVE_RESTORE_STATE_COMPLETE)

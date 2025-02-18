@@ -20,9 +20,6 @@ __live_restore_state_to_string(WTI_LIVE_RESTORE_STATE state, char *state_strp)
     case WTI_LIVE_RESTORE_STATE_NONE:
         strcpy(state_strp, "WTI_LIVE_RESTORE_STATE_NONE");
         break;
-    case WTI_LIVE_RESTORE_STATE_LOG_COPY:
-        strcpy(state_strp, "WTI_LIVE_RESTORE_STATE_LOG_COPY");
-        break;
     case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
         strcpy(state_strp, "WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION");
         break;
@@ -45,8 +42,6 @@ __live_restore_state_from_string(
 {
     if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_NONE") == 0)
         *statep = WTI_LIVE_RESTORE_STATE_NONE;
-    else if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_LOG_COPY") == 0)
-        *statep = WTI_LIVE_RESTORE_STATE_LOG_COPY;
     else if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION") == 0)
         *statep = WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION;
     else if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_CLEAN_UP") == 0)
@@ -120,7 +115,6 @@ __live_restore_report_state_to_application(WT_SESSION_IMPL *session, WTI_LIVE_RE
     case WTI_LIVE_RESTORE_STATE_NONE:
         WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_INIT);
         break;
-    case WTI_LIVE_RESTORE_STATE_LOG_COPY:
     case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
     case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
         WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
@@ -156,11 +150,8 @@ __wti_live_restore_set_state(
         /*  We should never transition to NONE. This is a placeholder when state is not set. */
         WT_ASSERT_ALWAYS(session, false, "Attempting to set Live Restore state to NONE!");
         break;
-    case WTI_LIVE_RESTORE_STATE_LOG_COPY:
-        WT_ASSERT(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_NONE);
-        break;
     case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
-        WT_ASSERT(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_LOG_COPY);
+        WT_ASSERT(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_NONE);
         break;
     case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
         WT_ASSERT(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION);
@@ -195,8 +186,6 @@ err:
 int
 __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
 {
-    WT_DECL_RET;
-
     __wt_spin_lock(session, &lr_fs->state_lock);
 
     WT_ASSERT_ALWAYS(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_NONE,
@@ -222,7 +211,7 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
     __wt_spin_unlock(session, &lr_fs->state_lock);
     __wt_scr_free(session, &state_file_name);
 
-    return (ret);
+    return (0);
 }
 
 /*
@@ -329,9 +318,6 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
                   "WiredTiger files '%s'! It's possible this file will be overwritten.",
                   dirlist_dest[i]);
         }
-        break;
-    case WTI_LIVE_RESTORE_STATE_LOG_COPY:
-        // TODO - this'll disappear on rebase.
         break;
     case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
     case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
