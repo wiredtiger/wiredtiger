@@ -1957,8 +1957,8 @@ __wt_os_live_restore_fs(
      * restore file system as soon as possible.
      */
     *fsp = lr_fs->os_file_system;
-    WT_ERR(__wti_live_restore_init_state(session, lr_fs));
     WT_ERR(__wti_live_restore_validate_directories(session, lr_fs));
+    WT_ERR(__wti_live_restore_init_state(session, lr_fs));
 
     /* Now set the proper live restore file system. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;

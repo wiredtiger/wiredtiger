@@ -56,10 +56,8 @@ __live_restore_state_from_string(
 
 /*
  * __live_restore_get_state_from_file --
- *     Read the live restore state from the on-disk file. If it doesn't exist we return NONE. The
- *     caller must already hold the live restore state lock. This function takes a *non-live
- *     restore* file system, for example, the backing posix file system, used when accessing the
- *     source or destination directly.
+ *     Read the live restore state from the turtle file. If it doesn't exist we return NONE. The
+ *     caller must already hold the live restore state lock.
  */
 static int
 __live_restore_get_state_from_file(
@@ -83,15 +81,19 @@ __live_restore_get_state_from_file(
         state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
     else {
         char *lr_metadata = NULL;
-        WT_ERR(__wt_metadata_search(session, WT_METADATA_LIVE_RESTORE, &lr_metadata));
+        WT_ERR_NOTFOUND_OK(
+          __wt_metadata_search(session, WT_METADATA_LIVE_RESTORE, &lr_metadata), true);
+        if (ret == WT_NOTFOUND) {
+            state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
+            ret = 0;
+        } else {
+            char lr_metadata_string[128];
+            if ((sscanf(lr_metadata, "state=%127s", lr_metadata_string)) != 1)
+                WT_ASSERT_ALWAYS(
+                  session, false, "failed to parse live restore metadata from the turtle file!");
 
-        char lr_metadata_string[128];
-        if ((sscanf(lr_metadata, "state=%127s", lr_metadata_string)) != 1)
-            WT_ASSERT_ALWAYS(
-              session, false, "failed to parse live restore metadata from the turtle file!");
-
-        ret = 0;
-        __live_restore_state_from_string(session, lr_metadata_string, &state_from_file);
+            __live_restore_state_from_string(session, lr_metadata_string, &state_from_file);
+        }
     }
 
     *statep = state_from_file;
@@ -270,7 +272,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     char **dirlist_dest = NULL;
     uint32_t num_dest_files = 0;
 
-    WTI_LIVE_RESTORE_STATE state;
+    WTI_LIVE_RESTORE_STATE state_from_file;
 
     /* First check that the source doesn't contain any live restore metadata files. */
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
@@ -280,13 +282,6 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
         WT_ERR_MSG(session, EINVAL, "Source directory is empty. Nothing to restore!");
     }
 
-    // TODO - add check for state from source folder
-    // prob need to do this when fs is unix not live restore
-
-    // TODO - review this with the new state file assumptions
-    // e.g.
-    // - need to check the contents of the source turtle. Should not contain any live restore
-    // metadata
     for (uint32_t i = 0; i < num_source_files; ++i) {
         if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
             WT_ERR_MSG(session, EINVAL,
@@ -297,12 +292,14 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     }
 
     /* Now check the destination folder */
-    state = __wti_live_restore_get_state(session, lr_fs);
+
+    /* Read state directly from the turtle file in the destination. */
+    WT_ERR(__live_restore_get_state_from_file(session, lr_fs, &state_from_file));
 
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->destination.home, "", &dirlist_dest, &num_dest_files));
 
-    switch (state) {
+    switch (state_from_file) {
     case WTI_LIVE_RESTORE_STATE_NONE:
         /*
          * Ideally we'd prevent live restore from starting when there are any files already present

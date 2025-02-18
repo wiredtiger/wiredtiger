@@ -664,10 +664,11 @@ err:
 
     /*
      * A file error or a missing key/value pair in the turtle file means something has gone horribly
-     * wrong, except for the compatibility setting which is optional. Failure to read the turtle
-     * file when salvaging means it can't be used for salvage.
+     * wrong, except for the compatibility setting or live restore metadata which are optional.
+     * Failure to read the turtle file when salvaging means it can't be used for salvage.
      */
-    if (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 || F_ISSET(S2C(session), WT_CONN_SALVAGE))
+    if (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 ||
+      strcmp(key, WT_METADATA_LIVE_RESTORE) == 0 || F_ISSET(S2C(session), WT_CONN_SALVAGE))
         return (ret);
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
     WT_RET_PANIC(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error %d at %s",
