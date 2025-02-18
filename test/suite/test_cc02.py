@@ -75,7 +75,6 @@ class test_cc02(test_cc_base):
         self.conn.set_timestamp(f'stable_timestamp={new_ts}')
         self.session.checkpoint()
 
-        # Cleanup of obsolete content can be triggered 
         if not self.in_memory:
             # Evict everything from the HS.
             session_evict = self.conn.open_session("debug=(release_evict_page=true)")
@@ -84,7 +83,7 @@ class test_cc02(test_cc_base):
             for i in range(0, nrows):
                 evict_cursor.set_key(i)
                 evict_cursor.search()
-                # Check we are getting the value in the HS.
+                # Check we are getting the value from the HS.
                 self.assertEqual(evict_cursor.get_value(), old_value)
                 evict_cursor.reset()
             session_evict.rollback_transaction()
@@ -93,9 +92,9 @@ class test_cc02(test_cc_base):
         # Make the updates in the HS obsolete.
         self.conn.set_timestamp(f'oldest_timestamp={new_ts}')
 
-        # Trigger obsolete cleanup. We should see that we have clean content that contains obsolete
-        # time window information. Obsolete cleanup should mark those pages dirty so eviction can
-        # process them and discard the obsolete information.
+        # Trigger obsolete cleanup.
+        # Depending whether the obsolete pages are on disk or in-memory, they should be flagged and
+        # discarded.
         self.wait_for_cc_to_run()
         c = self.session.open_cursor('statistics:')
         visited = c[stat.conn.checkpoint_cleanup_pages_visited][2]
