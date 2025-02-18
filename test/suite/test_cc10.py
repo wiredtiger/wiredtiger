@@ -75,7 +75,7 @@ class test_cc10(test_cc_base):
         # We don't use the debug option to force cleanup as the thread should be running in the
         # background.
         time.sleep(5)
-        self.check_cc_stats(force_cleanup=False)
+        self.wait_for_cc_to_run()
 
         c = self.session.open_cursor('statistics:')
         visited = c[stat.conn.checkpoint_cleanup_pages_visited][2]
