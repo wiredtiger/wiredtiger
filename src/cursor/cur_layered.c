@@ -198,10 +198,12 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 static int
 __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
+    uint64_t checkpoint_id;
     u_int cfg_pos;
     char random_config[1024];
     const char *ckpt_cfg[4];
@@ -210,9 +212,11 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     c = &clayered->iface;
     defer_stable = false;
     session = CUR2S(clayered);
+    conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)session->dhandle;
+    checkpoint_id = 0;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     /*
      * Query operations need a full set of cursors. Overwrite cursors do queries in service of
@@ -262,27 +266,42 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     }
 
     if (clayered->stable_cursor == NULL) {
-        leader = S2C(session)->layered_table_manager.leader;
-        if (!leader)
+        leader = conn->layered_table_manager.leader;
+        if (!leader) {
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
              * cursor on stable without a checkpoint. It will never return an invalid result (it's
              * content is by definition trailing the ingest cursor. It is just slightly less
              * efficient, and also not an accurate reflection of what we want in terms of sharing
              * checkpoint across different WiredTiger instances eventually.
+             *
+             * The global checkpoint id is the id of the next checkpoint. As follower, we need to
+             * know the previous checkpoint, so subtract 1.
              */
-            ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false,force=true";
+            WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+
+            /*
+             * Either we've never received a checkpoint, making the id zero, or we received a
+             * non-zero checkpoint, so the next checkpoint is greater than one.
+             */
+            WT_ASSERT(session, checkpoint_id != 1);
+
+            if (checkpoint_id > 0)
+                checkpoint_id -= 1;
+
+            if (checkpoint_id == 0) {
+                /* We've never picked up a checkpoint. */
+                ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false";
+                F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
+            } else
+                ckpt_cfg[cfg_pos++] =
+                  ",checkpoint_use_history=false,checkpoint=WiredTigerCheckpoint";
+        }
         ckpt_cfg[cfg_pos] = NULL;
         ret = __wt_open_cursor(
           session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
 
-        if (ret == WT_NOTFOUND && !leader) {
-            ckpt_cfg[1] = "";
-            ret = __wt_open_cursor(
-              session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
-            if (ret == 0)
-                F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
-        } else if (ret == ENOENT && !leader) {
+        if (ret == ENOENT && !leader) {
             /* This is fine, we may not have seen a checkpoint with this table yet. */
             ret = 0;
             defer_stable = true;
@@ -293,6 +312,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
         WT_RET(ret);
         if (clayered->stable_cursor != NULL)
             F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+        clayered->checkpoint_id = checkpoint_id;
     }
 
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {

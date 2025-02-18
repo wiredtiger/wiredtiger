@@ -57,7 +57,7 @@ class Oplog(object):
 
         # For debugging - when _use_timestamps is false, don't actually
         # use the internally generated timestamps with WT calls.
-        self._use_timestamps = True
+        self._use_timestamps = False   #TODO
 
     def add_uri(self, uri):
         self._uris.append((uri,[]))

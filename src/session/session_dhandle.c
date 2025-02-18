@@ -477,6 +477,20 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
         return (__wt_session_get_dhandle(session, uri, NULL, cfg, flags));
     }
 
+    /* For now, open a stable Btree at a checkpoint in a simple way, ignoring history. */
+    if (strstr(uri, ".wt_stable") != NULL) {
+        /*
+         * TODO: we're skipping a lot of good stuff below - in particular, we'd like to get the
+         * shared history file that matches our checkpoint.
+         */
+
+        /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
+        WT_RET(__wt_meta_checkpoint_last_name(session, uri, &checkpoint, NULL, NULL));
+
+        ret = __wt_session_get_dhandle(session, uri, checkpoint, cfg, flags);
+        goto err;
+    }
+
     /*
      * Here and below is only for checkpoints.
      *
