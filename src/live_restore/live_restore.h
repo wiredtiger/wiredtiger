@@ -11,9 +11,9 @@
 /*
  * Live restore state reported to the application so it knows when to terminate live restore.
  *
- * !!! MongoDB doesn't have access to these macros and instead checks them by value. i.e. to
- * know live restore has completed the server layer reads the stat and checks for the value 2. Do
- * not change these values without updating the relevant code in the server layer.
+ * !!! Applications don't have access to these macros and instead checks them by value. i.e. to
+ * know live restore has completed the application reads the stat and checks for the value 2. Do
+ * not change these values without updating the relevant code in the application.
  */
 #define WT_LIVE_RESTORE_INIT 0x0
 #define WT_LIVE_RESTORE_IN_PROGRESS 0x1
