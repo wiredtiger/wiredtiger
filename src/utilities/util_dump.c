@@ -110,6 +110,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     const char *end_key, *key, *start_key;
     bool explore, hex, json, pretty, reverse, search_near;
+    bool in_json_table = false;
 
     session_impl = (WT_SESSION_IMPL *)session;
     window = 0;
@@ -213,6 +214,10 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (json && i > 0)
             if (dump_json_separator(session) != 0)
                 goto err;
+
+        if (json)
+            in_json_table = true;
+
         util_free(uri);
         util_free(simpleuri);
         uri = simpleuri = NULL;
@@ -297,14 +302,20 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             (void)util_err(session, ret, NULL);
             goto err;
         }
+
+        in_json_table = false;
     }
-    if (json && dump_json_end(session) != 0)
-        goto err;
 
     if (0) {
 err:
         ret = 1;
     }
+
+    if (in_json_table)
+        dump_json_table_end(session);
+
+    if (json)
+        dump_json_end(session);
 
     if (cursor != NULL) {
         if (hs_dump_cursor != NULL)
