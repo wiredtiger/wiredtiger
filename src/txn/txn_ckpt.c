@@ -442,6 +442,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
 
+    if (F_ISSET(btree, WT_BTREE_FORCE_CHECKPOINT))
+        force = true;
+
     /*
      * Skip files that are never involved in a checkpoint. Skip the history store file as it is,
      * checkpointed manually later.
@@ -2430,7 +2433,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * to use the bulk-load's fake checkpoint to delete a physical checkpoint, and that will end in
      * tears.
      */
-    if (is_checkpoint && btree->original) {
+    if (is_checkpoint && btree->original && !F_ISSET(btree, WT_BTREE_FORCE_CHECKPOINT)) {
         __wt_checkpoint_tree_reconcile_update(session, &ta);
 
         fake_ckpt = true;
@@ -2531,6 +2534,10 @@ err:
     /* Resolved the checkpoint for the block manager in the error path. */
     if (resolve_bm)
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
+
+    /* If the checkpoint completed, remove the force-checkpoint flag. */
+    if (ret == 0)
+        F_CLR(btree, WT_BTREE_FORCE_CHECKPOINT);
 
     /*
      * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.

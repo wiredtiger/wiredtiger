@@ -1169,3 +1169,87 @@ err:
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
+
+/*
+ * __wt_disagg_update_shared_metadata --
+ *     Update the shared metadata.
+ */
+int
+__wt_disagg_update_shared_metadata(WT_SESSION_IMPL *session, const char *key, const char *value)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+
+    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+
+    cursor = NULL;
+
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    cursor->set_key(cursor, key);
+    cursor->set_value(cursor, value);
+    WT_ERR(cursor->insert(cursor));
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
+ * __disagg_copy_shared_metadata --
+ *     Copy shared metadata from the main metadata table to the shared metadata table.
+ */
+static int
+__disagg_copy_shared_metadata(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *key)
+{
+    WT_DECL_RET;
+    const char *md_value;
+
+    md_value = NULL;
+
+    md_cursor->set_key(md_cursor, key);
+    WT_RET(md_cursor->search(md_cursor));
+    WT_RET(md_cursor->get_value(md_cursor, &md_value));
+    WT_SAVE_DHANDLE(session, ret = __wt_disagg_update_shared_metadata(session, key, md_value));
+    WT_RET(ret);
+
+    return (0);
+}
+
+/*
+ * __wt_disagg_copy_shared_metadata_layered --
+ *     Copy all metadata relevant to the given base name (without prefix or suffix) from the main
+ *     metadata table to the shared metadata table.
+ */
+int
+__wt_disagg_copy_shared_metadata_layered(WT_SESSION_IMPL *session, const char *name)
+{
+    WT_CURSOR *md_cursor;
+    WT_DECL_RET;
+    size_t len;
+    char *md_key;
+
+    md_cursor = NULL;
+    md_key = NULL;
+
+    len = strlen(name) + 16;
+    WT_ERR(__wt_calloc_def(session, len, &md_key));
+    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+
+    WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", name));
+    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
+
+    WT_ERR(__wt_snprintf(md_key, len, "layered:%s", name));
+    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
+
+    WT_ERR(__wt_snprintf(md_key, len, "table:%s", name));
+    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
+
+err:
+    __wt_free(session, md_key);
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+
+    return (ret);
+}

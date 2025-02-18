@@ -1160,6 +1160,13 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
         WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
         __wt_free(session, constituent_cfg);
+
+        /*
+         * Mark the btree to participate in the next checkpoint even if it is empty, in order for
+         * the new table to appear in the shared metadata table.
+         */
+        WT_ERR(__wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0));
+        F_SET(S2BT(session), WT_BTREE_FORCE_CHECKPOINT);
     }
 
 err:
