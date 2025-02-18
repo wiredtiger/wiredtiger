@@ -155,10 +155,22 @@ struct __wt_cell {
 };
 
 /*
- * WT_DELTA_CELL --
- *	Variable-length, delta cell header.
+ * WT_DELTA_CELL_INT --
+ *  Variable-length, delta internal cell header.
  */
-struct __wt_delta_cell {
+struct __wt_delta_cell_int {
+    /*
+     * Maximum of 1 byte:
+     *  1: cell descriptor byte
+     */
+    uint8_t __chunk[1];
+};
+
+/*
+ * WT_DELTA_CELL_LEAF --
+ *	Variable-length, delta leaf cell header.
+ */
+struct __wt_delta_cell_leaf {
     /*
      * Maximum of 47 bytes:
      *  1: cell descriptor byte
@@ -237,10 +249,20 @@ struct __wt_cell_unpack_kv {
 };
 
 /*
- * WT_CELL_UNPACK_DELTA --
- *     Unpacked delta cell.
+ * WT_CELL_UNPACK_DELTA_INT --
+ *     Unpacked internal delta cell.
  */
-struct __wt_cell_unpack_delta {
+struct __wt_cell_unpack_delta_int {
+    uint32_t __len;
+    WT_CELL_UNPACK_KV key;
+    WT_CELL_UNPACK_ADDR value;
+};
+
+/*
+ * WT_CELL_UNPACK_DELTA_LEAF --
+ *     Unpacked leaf delta cell.
+ */
+struct __wt_cell_unpack_delta_leaf {
     uint32_t __len;
     const void *key;
     uint32_t key_size;
