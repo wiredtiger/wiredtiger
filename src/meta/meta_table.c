@@ -207,7 +207,6 @@ err:
     return (ret);
 }
 
-// TODO - I don't wanna rewrite all the turtle logic, but think about it I guess.
 /*
  * __wt_metadata_bump_turtle --
  *     Rewrite the turtle file with it's existing configuration. This has the side effect of

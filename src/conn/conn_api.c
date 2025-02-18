@@ -2672,6 +2672,9 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
         }
     }
 
+    if (!live_restore_enabled)
+        WT_RET(__wt_live_restore_validate_non_lr_system(session));
+
     return (__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 }
 

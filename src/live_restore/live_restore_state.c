@@ -57,11 +57,12 @@ __live_restore_state_from_string(
 /*
  * __live_restore_get_state_from_file --
  *     Read the live restore state from the turtle file. If it doesn't exist we return NONE. The
- *     caller must already hold the live restore state lock.
+ *     caller must already hold the live restore state lock. This function takes a non-live restore
+ *     file system as it can be called in non-live restore modes.
  */
 static int
 __live_restore_get_state_from_file(
-  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs, WTI_LIVE_RESTORE_STATE *statep)
+  WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs, WTI_LIVE_RESTORE_STATE *statep)
 {
     WT_DECL_RET;
 
@@ -71,11 +72,11 @@ __live_restore_get_state_from_file(
     WTI_LIVE_RESTORE_STATE state_from_file;
 
     WT_RET(__wt_scr_alloc(session, 0, &dest_turt_path));
-    WT_ERR(__wt_filename_construct(session, lr_fs->destination.home, WT_METADATA_TURTLE,
-      UINTMAX_MAX, UINT32_MAX, dest_turt_path));
+    WT_ERR(__wt_filename_construct(
+      session, S2C(session)->home, WT_METADATA_TURTLE, UINTMAX_MAX, UINT32_MAX, dest_turt_path));
 
-    WT_ERR(lr_fs->os_file_system->fs_exist(lr_fs->os_file_system, (WT_SESSION *)session,
-      (char *)(dest_turt_path)->data, &turtle_in_dest));
+    WT_ERR(
+      fs->fs_exist(fs, (WT_SESSION *)session, (char *)(dest_turt_path)->data, &turtle_in_dest));
 
     if (!turtle_in_dest)
         state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
@@ -195,7 +196,7 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
 
     WT_DECL_ITEM(state_file_name);
     WTI_LIVE_RESTORE_STATE state;
-    WT_RET(__live_restore_get_state_from_file(session, lr_fs, &state));
+    WT_RET(__live_restore_get_state_from_file(session, lr_fs->os_file_system, &state));
 
     if (state != WTI_LIVE_RESTORE_STATE_NONE) {
         lr_fs->state = state;
@@ -294,7 +295,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     /* Now check the destination folder */
 
     /* Read state directly from the turtle file in the destination. */
-    WT_ERR(__live_restore_get_state_from_file(session, lr_fs, &state_from_file));
+    WT_ERR(__live_restore_get_state_from_file(session, lr_fs->os_file_system, &state_from_file));
 
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->destination.home, "", &dirlist_dest, &num_dest_files));
@@ -337,6 +338,23 @@ err:
       lr_fs->os_file_system, (WT_SESSION *)session, dirlist_dest, num_dest_files));
 
     return (ret);
+}
+
+/*
+ * __wt_live_restore_validate_non_lr_system --
+ *     When starting in non-live restore mode make sure we're not in the middle of a live restore.
+ */
+int
+__wt_live_restore_validate_non_lr_system(WT_SESSION_IMPL *session)
+{
+    /* The turtle file should indicate we're not in the middle of a live restore. */
+    WTI_LIVE_RESTORE_STATE state;
+    __live_restore_get_state_from_file(session, S2C(session)->file_system, &state);
+    if (state != WTI_LIVE_RESTORE_STATE_NONE && state != WTI_LIVE_RESTORE_STATE_COMPLETE)
+        WT_RET_MSG(session, EINVAL,
+          "Cannot start in non-live restore mode while a live restore is in progress!");
+
+    return (0);
 }
 
 /*
