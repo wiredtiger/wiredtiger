@@ -506,11 +506,16 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
                   offset, len, WTI_BIT_TO_OFFSET(current_bit));
             continue;
         }
+        /*
+         * The following checks allows us to determine what portion of the read will be serviced
+         * from the destination or source.
+         */
         if (current_bit == read_start_bit)
             read_begins_in_hole = true;
         if (current_bit == read_end_bit - 1)
             read_ends_in_hole = true;
         if (!hole_bit_set) {
+            /* We've found a hole return its offset to the caller. */
             *hole_begin_off = WTI_BIT_TO_OFFSET(current_bit);
             hole_bit_set = true;
         }
@@ -734,6 +739,10 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
 
     WT_ASSERT(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock));
     uint64_t first_clear_bit;
+    /*
+     * If there are no clear bits then every hole in the file has been filled. Indicate that the
+     * file has finished restoring.
+     */
     if (__bit_ffc(lr_fh->destination.bitmap, lr_fh->destination.nbits, &first_clear_bit) == -1) {
         *finishedp = true;
         return (0);
@@ -1045,12 +1054,11 @@ err:
 }
 
 /*
- * __wt_live_restore_fh_import_bitmap --
- *     Reconstruct the bitmap list in memory from a string representation. On error free the
- *     allocated bitmap.
+ * __wt_live_restore_metadata_to_fh --
+ *     Reconstruct the bitmap in memory from the relevant metadata entries for the given file.
  */
 int
-__wt_live_restore_fh_import_bitmap(
+__wt_live_restore_metadata_to_fh(
   WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, WT_LIVE_RESTORE_FH_META *lr_fh_meta)
 {
     WT_DECL_RET;
@@ -1069,16 +1077,17 @@ __wt_live_restore_fh_import_bitmap(
      */
 
     if (lr_fh->destination.bitmap != NULL) {
-        WT_ASSERT_ALWAYS(session, false, "Bitmap not empty while trying to import");
+        WT_ASSERT_ALWAYS(session, false, "Bitmap not empty while trying to parse");
         return (0);
     }
 
     __wt_readlock(session, &lr_fh->bitmap_lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
+    /*
+     * Only allocate a bitmap for a file that has been newly created in the destination and has a
+     * backing source file.
+     */
     if (lr_fh->destination.newly_created) {
-        /*
-         * Only allocate a bitmap for a file that has been created in the destination for this run.
-         */
         uint64_t nbits = lr_fh->source_size / lr_fh_meta->allocsize;
         WT_ERR(__bit_alloc(session, nbits, &lr_fh->destination.bitmap));
         lr_fh->destination.nbits = nbits;
@@ -1086,12 +1095,12 @@ __wt_live_restore_fh_import_bitmap(
         return (0);
     }
     if (lr_fh_meta->nbits != 0) {
-        /* We shouldn't be importing a bitmap if the live restore has finished. */
+        /* We shouldn't be reconstructing a bitmap if the live restore has finished. */
         WT_ASSERT(session, !lr_fh->destination.back_pointer->finished);
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-          "Importing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
+          "Reconstructing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
-        /* Import a pre-existing bitmap. */
+        /* Reconstruct a pre-existing bitmap. */
         WT_ERR(
           __live_restore_decode_bitmap(session, lr_fh_meta->bitmap_str, lr_fh_meta->nbits, lr_fh));
     } else

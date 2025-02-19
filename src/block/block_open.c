@@ -251,7 +251,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * further down which requires the extent lists to be initialized. Even if the extent list is
      * NULL there is bookkeeping to do.
      */
-    WT_ERR(__wt_live_restore_fh_import_bitmap(session, block->fh->handle, lr_fh_meta));
+    WT_ERR(__wt_live_restore_metadata_to_fh(session, block->fh->handle, lr_fh_meta));
 #else
     WT_UNUSED(lr_fh_meta);
 #endif
