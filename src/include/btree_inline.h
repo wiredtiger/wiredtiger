@@ -274,6 +274,49 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
 }
 
 /*
+ * __wt_btree_shared_base_name --
+ *     Given a tree's URI, break it down into its base name, in a returned buffer, and the
+ *     checkpoint id string.
+ */
+static WT_INLINE int
+__wt_btree_shared_base_name(WT_SESSION_IMPL *session, const char **namep, const char **checkpointp,
+  WT_ITEM **name_buf, WT_ITEM **checkpoint_buf)
+{
+    size_t len;
+    const char *name, *suffix;
+
+    name = *namep;
+
+    /* If there is no trailing checkpoint id, there's nothing to do or allocate. */
+    suffix = strchr(name, '/');
+    if (suffix == NULL)
+        return (0);
+
+    /* The returned name is the part before the suffix */
+    len = (size_t)(suffix - name);
+    WT_RET(__wt_scr_alloc(session, len + 1, name_buf));
+    WT_RET(__wt_buf_catfmt(session, *name_buf, "%*s", (int)len, name));
+
+    /* TODO - Shouldn't be needed, since we used a length specifier with catfmt?? */
+    ((char *)(*name_buf)->data)[len] = '\0';
+
+    *namep = (const char *)(*name_buf)->data;
+
+    /*
+     * If the caller wants a checkpoint string returned, it looks like "WiredTigerCheckpoint.NNN".
+     * The NNN is an integer (the disagg checkpoint id) that appears after the slash in the input
+     * name. We don't do any verification (that is is an integer), it's guaranteed elsewhere.
+     */
+    if (checkpointp != NULL) {
+        WT_RET(__wt_scr_alloc(session, 0, checkpoint_buf));
+        WT_RET(__wt_buf_catfmt(session, *checkpoint_buf, WT_CHECKPOINT ".%s", suffix + 1));
+        *checkpointp = (const char *)(*checkpoint_buf)->data;
+    }
+
+    return (0);
+}
+
+/*
  * __wt_cache_page_inmem_incr --
  *     Increment a page's memory footprint in the cache.
  */

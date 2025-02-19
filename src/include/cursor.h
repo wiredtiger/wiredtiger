@@ -636,6 +636,8 @@ struct __wt_cursor_layered {
     WT_CURSOR *ingest_cursor;  /* The ingest table */
     WT_CURSOR *stable_cursor;  /* The stable table */
 
+    uint64_t checkpoint_id; /* The id corresponding to the stable table */
+
     int64_t next_random_seed;
     u_int next_random_sample_size;
 

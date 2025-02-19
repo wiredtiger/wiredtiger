@@ -37,21 +37,26 @@ static int
 __conn_dhandle_config_set(WT_SESSION_IMPL *session)
 {
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(name_buf);
     WT_DECL_RET;
     char *metaconf, *tmp;
-    const char *base, *cfg[4], *strip;
+    const char *base, *cfg[4], *dhandle_name, *strip;
 
     dhandle = session->dhandle;
+    dhandle_name = dhandle->name;
     base = NULL;
     tmp = NULL;
+
+    /* Adjust the dhandle name for disaggregated storage. */
+    WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, NULL, &name_buf, NULL));
 
     /*
      * Read the object's entry from the metadata file, we're done if we don't find one.
      */
-    if ((ret = __wt_metadata_search(session, dhandle->name, &metaconf)) != 0) {
+    if ((ret = __wt_metadata_search(session, dhandle_name, &metaconf)) != 0) {
         if (ret == WT_NOTFOUND)
             ret = __wt_set_return(session, ENOENT);
-        WT_RET(ret);
+        WT_ERR(ret);
     }
 
     /*
@@ -124,12 +129,14 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         dhandle->orig_meta_hash = dhandle->meta_hash;
         dhandle->orig_upd = dhandle->base_upd;
     }
+    __wt_scr_free(session, &name_buf);
     return (0);
 
 err:
     __wt_free(session, base);
     __wt_free(session, metaconf);
     __wt_free(session, tmp);
+    __wt_scr_free(session, &name_buf);
     return (ret);
 }
 

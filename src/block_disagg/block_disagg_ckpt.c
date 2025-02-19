@@ -127,10 +127,11 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_CURSOR *md_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    int namelen;
     size_t len;
     uint64_t checkpoint_id, checkpoint_timestamp, lsn;
     char *md_key;
-    const char *md_value;
+    const char *md_value, *suffix;
 
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
     conn = S2C(session);
@@ -160,7 +161,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
      * Store the metadata of regular shared tables in the shared metadata table. Store the metadata
      * of the shared metadata table in the system-level metadata (similar to the turtle file).
      */
-    if (strcmp(block_disagg->name, WT_DISAGG_METADATA_FILE) == 0) {
+    if (strstr(block_disagg->name, WT_DISAGG_METADATA_FILE) != NULL) {
         /* Get the config we want to print to the metadata file */
         WT_ERR(__wt_config_getones(session, md_value, "checkpoint", &cval));
         checkpoint_timestamp = conn->disaggregated_storage.cur_checkpoint_timestamp;
@@ -209,11 +210,12 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
         }
 
         /* Check if we need to include any other metadata keys for layered tables. */
-        if (WT_SUFFIX_MATCH(block_disagg->name, ".wt_stable")) {
+        if ((suffix = strstr(block_disagg->name, ".wt_stable")) != NULL) {
             /* TODO: Change this hack to a nicer way of finding related metadata. */
 
-            WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", block_disagg->name));
-            md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
+            /* Get the name length without the .wt_stable suffix */
+            namelen = (int)(strlen(block_disagg->name) - (size_t)(suffix - block_disagg->name));
+            WT_ERR(__wt_snprintf(md_key, len, "colgroup:%*s", namelen, block_disagg->name));
             md_cursor->set_key(md_cursor, md_key);
             WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
             if (ret == 0) {
@@ -223,8 +225,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
                 WT_ERR(ret);
             }
 
-            WT_ERR(__wt_snprintf(md_key, len, "layered:%s", block_disagg->name));
-            md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
+            WT_ERR(__wt_snprintf(md_key, len, "layered:%*s", namelen, block_disagg->name));
             md_cursor->set_key(md_cursor, md_key);
             WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
             if (ret == 0) {
@@ -234,8 +235,7 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
                 WT_ERR(ret);
             }
 
-            WT_ERR(__wt_snprintf(md_key, len, "table:%s", block_disagg->name));
-            md_key[strlen(md_key) - 10] = '\0'; /* Remove the .wt_stable suffix */
+            WT_ERR(__wt_snprintf(md_key, len, "table:%*s", namelen, block_disagg->name));
             md_cursor->set_key(md_cursor, md_key);
             WT_ERR_NOTFOUND_OK(md_cursor->search(md_cursor), true);
             if (ret == 0) {
