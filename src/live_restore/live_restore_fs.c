@@ -495,7 +495,7 @@ __live_restore_dump_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDL
 
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
       "%s: Dumping bitmap, nbits (%" PRIu64 "), address (%p)", lr_fh->iface.name,
-      lr_fh->destination.nbits, lr_fh->destination.bitmap);
+      lr_fh->destination.nbits, (void*)lr_fh->destination.bitmap);
     if (lr_fh->destination.nbits > 0) {
         WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
         __wt_verbose_debug1(
