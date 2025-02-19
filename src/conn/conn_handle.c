@@ -40,6 +40,9 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->lsm_manager.appqh);
     TAILQ_INIT(&conn->lsm_manager.managerqh);
 
+    /* Disaggregated storage. */
+    TAILQ_INIT(&conn->disaggregated_storage.copy_metadata_qh);
+
     /* Random numbers. */
     __wt_random_init(&session->rnd);
 

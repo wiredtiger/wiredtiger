@@ -1162,11 +1162,10 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
         __wt_free(session, constituent_cfg);
 
         /*
-         * Mark the btree to participate in the next checkpoint even if it is empty, in order for
-         * the new table to appear in the shared metadata table.
+         * Ensure that the new table's metadata would be included in the checkpoint even if it is
+         * empty, in order for the new table to appear in the shared metadata table.
          */
-        WT_ERR(__wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0));
-        F_SET(S2BT(session), WT_BTREE_FORCE_CHECKPOINT);
+        WT_ERR(__wt_disagg_copy_metadata_later(session, stable_uri, tablename));
     }
 
 err:

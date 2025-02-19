@@ -127,6 +127,10 @@ class test_layered28(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
         self.assertEqual(item_count, 0)
 
+        # Clean up
+        session_follow.close()
+        conn_follow.close()
+
         #
         # Part 2: Check the new table after restart
         #

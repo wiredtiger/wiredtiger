@@ -442,9 +442,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
 
-    if (F_ISSET(btree, WT_BTREE_FORCE_CHECKPOINT))
-        force = true;
-
     /*
      * Skip files that are never involved in a checkpoint. Skip the history store file as it is,
      * checkpointed manually later.
@@ -1290,6 +1287,16 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     time_stop_ckpt_tree = __wt_clock(session);
     ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
     WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
+
+    /*
+     * Copy any additional metadata to the shared metadata table, especially to ensure that the
+     * shared metadata table contains entries even for empty tables that would not otherwise
+     * participate in the checkpoint. This could include metadata that we already copied as a part
+     * of the checkpointing process above, but that's ok, as we would just overwrite the new
+     * metadata with exactly the same value. We should make this more efficient in the future.
+     */
+    if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader)
+        WT_ERR(__wt_disagg_copy_metadata_process(session));
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
@@ -2433,7 +2440,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * to use the bulk-load's fake checkpoint to delete a physical checkpoint, and that will end in
      * tears.
      */
-    if (is_checkpoint && btree->original && !F_ISSET(btree, WT_BTREE_FORCE_CHECKPOINT)) {
+    if (is_checkpoint && btree->original) {
         __wt_checkpoint_tree_reconcile_update(session, &ta);
 
         fake_ckpt = true;
@@ -2534,10 +2541,6 @@ err:
     /* Resolved the checkpoint for the block manager in the error path. */
     if (resolve_bm)
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
-
-    /* If the checkpoint completed, remove the force-checkpoint flag. */
-    if (ret == 0)
-        F_CLR(btree, WT_BTREE_FORCE_CHECKPOINT);
 
     /*
      * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.
