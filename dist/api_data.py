@@ -485,7 +485,7 @@ connection_runtime_config = [
             ''', choices=['none', 'reclaim_space']),
         Config('wait', '300', r'''
             seconds to wait between each checkpoint cleanup''',
-            min='60', max='100000'),
+            min='1', max='100000'),
         ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
@@ -1392,8 +1392,8 @@ methods = {
 'WT_SESSION.create' : Method(file_config + tiered_config +
         source_meta + index_only_config + table_only_config + [
     Config('exclusive', 'false', r'''
-        fail if the object exists. When false (the default), if the object exists, check that its
-        settings match the specified configuration''',
+        explicitly fail with EEXIST if the object exists. When false (the default), if the object 
+        exists, silently fail without creating a new object.''',
         type='boolean'),
     Config('import', '', r'''
         configure import of an existing object into the currently running database''',
