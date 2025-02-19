@@ -480,7 +480,6 @@ __live_restore_encode_bitmap(
     return (__wt_raw_to_hex(session, lr_fh->destination.bitmap, bitmap_byte_count, buf));
 }
 
-
 /*
  * __live_restore_dump_bitmap --
  *     Dump the live restore bitmap for a file handle. This function should only be called in the
@@ -489,13 +488,13 @@ __live_restore_encode_bitmap(
 static int
 __live_restore_dump_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
+    WT_CLEAR(buf);
     WT_DECL_RET;
     WT_ITEM buf;
-    WT_CLEAR(buf);
 
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
       "%s: Dumping bitmap, nbits (%" PRIu64 "), address (%p)", lr_fh->iface.name,
-      lr_fh->destination.nbits, (void*)lr_fh->destination.bitmap);
+      lr_fh->destination.nbits, (void *)lr_fh->destination.bitmap);
     if (lr_fh->destination.nbits > 0) {
         WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
         __wt_verbose_debug1(
