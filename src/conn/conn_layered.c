@@ -306,11 +306,7 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_spin_init(session, &manager->layered_table_lock, "layered table manager"));
 
-    /*
-     * TODO Be lazy for now, allow for up to 1000 files to be allocated. In the future this should
-     * be able to grow dynamically and a more conservative number used here. Until then layered
-     * table application will crash in a system with more than 1000 files.
-     */
+    /* Allow for up to 1000 files to be allocated at start. */
     manager->open_layered_table_count = conn->next_file_id + 1000;
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
@@ -376,10 +372,11 @@ __wt_layered_table_manager_add_table(
       "Adding a layered table, but the manager isn't running");
     __wt_spin_lock(session, &manager->layered_table_lock);
 
+    WT_ASSERT(session, manager->open_layered_table_count > 0);
     if (ingest_id >= manager->open_layered_table_count) {
-        WT_ERR(__wt_realloc_def(session, &manager->entries_allocated,
-          manager->open_layered_table_count * 2, &manager->entries));
-        manager->open_layered_table_count *= 2;
+        WT_ERR(
+          __wt_realloc_def(session, &manager->entries_allocated, ingest_id * 2, &manager->entries));
+        manager->open_layered_table_count = ingest_id * 2;
     }
 
     /* Diagnostic sanity check - don't keep adding the same table */
@@ -1160,7 +1157,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     WT_SESSION_IMPL *internal_session;
-    size_t i;
+    size_t i, table_count;
 
     conn = S2C(session);
     manager = &conn->layered_table_manager;
@@ -1169,14 +1166,17 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     __wt_spin_lock(session, &manager->layered_table_lock);
 
+    table_count = manager->open_layered_table_count;
+
+    __wt_spin_unlock(session, &manager->layered_table_lock);
+
     /* TODO: skip empty ingest tables. */
-    for (i = 0; i < manager->open_layered_table_count; i++) {
+    for (i = 0; i < table_count; i++) {
         if ((entry = manager->entries[i]) != NULL)
             WT_ERR(__layered_drain_ingest_table(internal_session, entry));
     }
 
 err:
-    __wt_spin_unlock(session, &manager->layered_table_lock);
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
