@@ -45,7 +45,9 @@ TEST_CASE("Encode various bitmaps", "[live_restore_bitmap]")
     test_data test6 = test_data("0000", 9, new uint8_t[2]{0x0, 0x0});
     test_data test7 = test_data("0004", 9, new uint8_t[2]{0x0, 0x4});
     test_data test8 = test_data("0400", 15, new uint8_t[2]{0x4, 0x0});
-    std::vector<test_data> test_bitmaps = {test1, test2, test3, test4, test5, test6, test7, test8};
+    test_data test9 = test_data("", 0, nullptr);
+    std::vector<test_data> test_bitmaps = {
+      test1, test2, test3, test4, test5, test6, test7, test8, test9};
 
     WT_ITEM buf;
     WT_CLEAR(buf);
@@ -58,10 +60,15 @@ TEST_CASE("Encode various bitmaps", "[live_restore_bitmap]")
         __wt_readlock(session, &lr_fh.bitmap_lock);
         REQUIRE(__ut_live_restore_encode_bitmap(session, &lr_fh, &buf) == 0);
         __wt_readunlock(session, &lr_fh.bitmap_lock);
-        REQUIRE(std::string(static_cast<const char *>(buf.data)) == std::string(test.bitmap_str));
-        REQUIRE(__ut_live_restore_decode_bitmap(
-                  session, test.bitmap_str.c_str(), test.nbits, &lr_fh2) == 0);
-        REQUIRE(memcmp(lr_fh2.destination.bitmap, test.bitmap, test.nbits / 8) == 0);
+        // In the live restore code we only call decode if nbits is not zero.
+        if (test.nbits != 0) {
+            REQUIRE(
+              std::string(static_cast<const char *>(buf.data)) == std::string(test.bitmap_str));
+            REQUIRE(__ut_live_restore_decode_bitmap(
+                      session, test.bitmap_str.c_str(), test.nbits, &lr_fh2) == 0);
+        }
+        if (test.nbits != 0)
+            REQUIRE(memcmp(lr_fh2.destination.bitmap, test.bitmap, test.nbits / 8) == 0);
         __wt_free(session, lr_fh2.destination.bitmap);
         __wt_buf_free(session, &buf);
         WT_CLEAR(buf);

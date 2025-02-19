@@ -1150,18 +1150,18 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
     WT_CLEAR(buf);
 
     __wt_readlock(session, &lr_fh->bitmap_lock);
-
-    WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
-    WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=%s,nbits=%" PRIu64 ")",
-      buf.size == 0 ? "" : (char *)buf.data, lr_fh->destination.nbits));
-    if (lr_fh->destination.nbits > 0)
+    if (lr_fh->destination.nbits > 0) {
+        WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
+        WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=%s,nbits=%" PRIu64 ")",
+          (char *)buf.data, lr_fh->destination.nbits));
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-          "Appending live restore bitmap (%s, %" PRIu64 ") for file handle %s", (char *)buf.data,
-          lr_fh->destination.nbits, fh->name);
-    else
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-          "Appending empty live restore for file handle %s", fh->name);
-
+          "%s: Appending live restore bitmap (%s, %" PRIu64 ") to metadata", fh->name,
+          (char *)buf.data, lr_fh->destination.nbits);
+    } else {
+        WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore="));
+        __wt_verbose_debug3(
+          session, WT_VERB_LIVE_RESTORE, "%s: Appending empty live restore metadata", fh->name);
+    }
 err:
     __wt_readunlock(session, &lr_fh->bitmap_lock);
     __wt_buf_free(session, &buf);
