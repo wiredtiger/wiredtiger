@@ -66,11 +66,10 @@ __live_restore_get_state_from_file(
 {
     WT_DECL_RET;
 
-    WT_DECL_ITEM(dest_turt_path);
     bool turtle_in_dest = false;
-
     WTI_LIVE_RESTORE_STATE state_from_file;
 
+    WT_DECL_ITEM(dest_turt_path);
     WT_RET(__wt_scr_alloc(session, 0, &dest_turt_path));
     WT_ERR(__wt_filename_construct(
       session, S2C(session)->home, WT_METADATA_TURTLE, UINTMAX_MAX, UINT32_MAX, dest_turt_path));
@@ -88,7 +87,7 @@ __live_restore_get_state_from_file(
             state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
             ret = 0;
         } else {
-            char lr_metadata_string[128];
+            char lr_metadata_string[WT_LIVE_RESTORE_STATE_STRING_MAX];
             if ((sscanf(lr_metadata, "state=%127s", lr_metadata_string)) != 1)
                 WT_ASSERT_ALWAYS(
                   session, false, "failed to parse live restore metadata from the turtle file!");
@@ -137,10 +136,8 @@ __wti_live_restore_set_state(
   WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs, WTI_LIVE_RESTORE_STATE new_state)
 {
     WT_DECL_RET;
-    WT_FILE_HANDLE *fh = NULL;
 
     bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
-
     if (!reentrant)
         __wt_spin_lock(session, &lr_fs->state_lock);
 
@@ -175,9 +172,6 @@ err:
     if (!reentrant)
         __wt_spin_unlock(session, &lr_fs->state_lock);
 
-    if (fh != NULL)
-        WT_TRET(fh->close(fh, &session->iface));
-
     return (ret);
 }
 
@@ -194,25 +188,21 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
     WT_ASSERT_ALWAYS(session, lr_fs->state == WTI_LIVE_RESTORE_STATE_NONE,
       "Attempting to initialize already initialized state!");
 
-    WT_DECL_ITEM(state_file_name);
     WTI_LIVE_RESTORE_STATE state;
     WT_RET(__live_restore_get_state_from_file(session, lr_fs->os_file_system, &state));
 
-    if (state != WTI_LIVE_RESTORE_STATE_NONE) {
+    if (state != WTI_LIVE_RESTORE_STATE_NONE)
         lr_fs->state = state;
-    } else {
+    else
         /*
-         * Only set the in memory state, don't write it to the turtle file. This is because creating
-         * the turtle file now will means WiredTiger will expect to find a metadata file, and will
-         * panic if it doesn't. Since this is the first legal live restore state we'll always come
-         * back to this on a restart if we didn't get around to writing the turtle.
+         * Only set the in memory state, don't write it to the turtle file. Creating the turtle file
+         * here means WiredTiger will expect to find a metadata file and panic when it can't find
+         * it. Since background migration is the first legal live restore state we'll always come
+         * back to this state on a restart if we didn't persist state in the turtle file.
          */
         lr_fs->state = WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION;
-    }
 
     __wt_spin_unlock(session, &lr_fs->state_lock);
-    __wt_scr_free(session, &state_file_name);
-
     return (0);
 }
 
@@ -224,12 +214,13 @@ int
 __wt_live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_str)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_ASSERT_ALWAYS(session, F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS), "Live restore not enabled!");
+    WT_ASSERT_ALWAYS(session, F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS),
+      "Can't fetch state string when live restore is not enabled!");
 
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
-    char str[128];
+    char str[WT_LIVE_RESTORE_STATE_STRING_MAX];
     __live_restore_state_to_string(state, str);
     WT_RET(__wt_buf_fmt(session, lr_state_str, "%s", str));
 
@@ -267,30 +258,23 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
 {
     WT_DECL_RET;
 
-    char **dirlist_source = NULL;
-    uint32_t num_source_files = 0;
-
-    char **dirlist_dest = NULL;
-    uint32_t num_dest_files = 0;
-
+    char **dirlist_source = NULL, **dirlist_dest = NULL;
+    uint32_t num_source_files = 0, num_dest_files = 0;
     WTI_LIVE_RESTORE_STATE state_from_file;
 
     /* First check that the source doesn't contain any live restore metadata files. */
     WT_ERR(lr_fs->os_file_system->fs_directory_list(lr_fs->os_file_system, (WT_SESSION *)session,
       lr_fs->source.home, "", &dirlist_source, &num_source_files));
 
-    if (num_source_files == 0) {
+    if (num_source_files == 0)
         WT_ERR_MSG(session, EINVAL, "Source directory is empty. Nothing to restore!");
-    }
 
-    for (uint32_t i = 0; i < num_source_files; ++i) {
-        if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
+    for (uint32_t i = 0; i < num_source_files; ++i)
+        if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX))
             WT_ERR_MSG(session, EINVAL,
               "Source directory contains live restore stop file: %s. This implies it is a "
               "destination directory that hasn't finished restoration",
               dirlist_source[i]);
-        }
-    }
 
     /* Now check the destination folder */
 

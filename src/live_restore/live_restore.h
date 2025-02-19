@@ -13,11 +13,13 @@
  *
  * !!! Applications don't have access to these macros and instead checks them by value. i.e. to
  * know live restore has completed the application reads the stat and checks for the value 2. Do
- * not change these values without updating the relevant code in the application.
+ * not change these values without updating the relevant code in the application layer.
  */
 #define WT_LIVE_RESTORE_INIT 0x0
 #define WT_LIVE_RESTORE_IN_PROGRESS 0x1
 #define WT_LIVE_RESTORE_COMPLETE 0x2
+
+#define WT_LIVE_RESTORE_STATE_STRING_MAX 128
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 

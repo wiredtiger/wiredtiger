@@ -209,8 +209,8 @@ err:
 
 /*
  * __wt_metadata_bump_turtle --
- *     Rewrite the turtle file with it's existing configuration. This has the side effect of
- *     updating the live restore metadata.
+ *     Rewrite the turtle file with its current configuration. This has the side effect of updating
+ *     the live restore metadata.
  */
 int
 __wt_metadata_bump_turtle(WT_SESSION_IMPL *session)

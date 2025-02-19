@@ -1208,7 +1208,7 @@ __wt_live_restore_fh_import_extents_from_string(
 
     /*
      * Once we're in the clean up stage or later all data has been migrated across to the
-     * destination. There's no need for hole tracking so nothing to import.
+     * destination. There's no need for hole tracking and therefore nothing to import.
      */
     WTI_LIVE_RESTORE_STATE state =
       __wti_live_restore_get_state(session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
@@ -1532,9 +1532,7 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
   const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool have_stop,
   bool dest_exist, bool source_exist)
 {
-
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
-
     if (have_stop || WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state) || !source_exist)
         lr_fh->destination.complete = true;
     else {
@@ -1953,8 +1951,8 @@ __wt_os_live_restore_fs(
     /*
      * To initialize the live restore file system we need to read its state from the turtle file,
      * but to open the turtle file we need a working file system. Temporarily set WiredTiger's file
-     * system (posix or otherwise) to access the turtle file and then overwrite it with the live
-     * restore file system as soon as possible.
+     * system to the underlying file system so we can open the turtle file in the destination. We'll
+     * set the correct live restore file as soon as possible.
      */
     *fsp = lr_fs->os_file_system;
     WT_ERR(__wti_live_restore_validate_directories(session, lr_fs));
