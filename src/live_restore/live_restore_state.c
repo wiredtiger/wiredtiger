@@ -13,23 +13,30 @@
  * __live_restore_state_to_string --
  *     Convert a live restore state to its string representation.
  */
-static void
-__live_restore_state_to_string(WTI_LIVE_RESTORE_STATE state, char *state_strp)
+static int
+__live_restore_state_to_string(
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_STATE state, char **state_strp)
 {
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
-        strcpy(state_strp, "WTI_LIVE_RESTORE_STATE_NONE");
+        WT_RET(__wt_strndup(
+          session, "WTI_LIVE_RESTORE_STATE_NONE", WT_LIVE_RESTORE_STATE_STRING_MAX, state_strp));
         break;
     case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
-        strcpy(state_strp, "WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION");
+        WT_RET(__wt_strndup(session, "WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION",
+          WT_LIVE_RESTORE_STATE_STRING_MAX, state_strp));
         break;
     case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
-        strcpy(state_strp, "WTI_LIVE_RESTORE_STATE_CLEAN_UP");
+        WT_RET(__wt_strndup(session, "WTI_LIVE_RESTORE_STATE_CLEAN_UP",
+          WT_LIVE_RESTORE_STATE_STRING_MAX, state_strp));
         break;
     case WTI_LIVE_RESTORE_STATE_COMPLETE:
-        strcpy(state_strp, "WTI_LIVE_RESTORE_STATE_COMPLETE");
+        WT_RET(__wt_strndup(session, "WTI_LIVE_RESTORE_STATE_COMPLETE",
+          WT_LIVE_RESTORE_STATE_STRING_MAX, state_strp));
         break;
     }
+
+    return (0);
 }
 
 /*
@@ -40,13 +47,15 @@ static int
 __live_restore_state_from_string(
   WT_SESSION_IMPL *session, char *state_str, WTI_LIVE_RESTORE_STATE *statep)
 {
-    if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_NONE") == 0)
+    size_t str_len = __wt_strnlen(state_str, WT_LIVE_RESTORE_STATE_STRING_MAX);
+
+    if (WT_STRING_LIT_MATCH("WTI_LIVE_RESTORE_STATE_NONE", state_str, str_len))
         *statep = WTI_LIVE_RESTORE_STATE_NONE;
-    else if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION") == 0)
+    else if (WT_STRING_LIT_MATCH("WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION", state_str, str_len))
         *statep = WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION;
-    else if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_CLEAN_UP") == 0)
+    else if (WT_STRING_LIT_MATCH("WTI_LIVE_RESTORE_STATE_CLEAN_UP", state_str, str_len))
         *statep = WTI_LIVE_RESTORE_STATE_CLEAN_UP;
-    else if (strcmp(state_str, "WTI_LIVE_RESTORE_STATE_COMPLETE") == 0)
+    else if (WT_STRING_LIT_MATCH("WTI_LIVE_RESTORE_STATE_COMPLETE", state_str, str_len))
         *statep = WTI_LIVE_RESTORE_STATE_COMPLETE;
     else
         WT_RET_MSG(session, EINVAL, "Invalid state string: '%s' ", state_str);
@@ -56,15 +65,26 @@ __live_restore_state_from_string(
 
 /*
  * __live_restore_get_state_from_file --
- *     Read the live restore state from the turtle file. If it doesn't exist we return NONE. The
- *     caller must already hold the live restore state lock. This function takes a non-live restore
- *     file system as it can be called in non-live restore modes.
+ *     Read the live restore state from the turtle file. If it doesn't exist we return NONE. In live
+ *     restore mode the caller must already hold the live restore state lock. This function takes a
+ *     non-live restore file system as it can be called in non-live restore modes.
  */
 static int
 __live_restore_get_state_from_file(
   WT_SESSION_IMPL *session, WT_FILE_SYSTEM *fs, WTI_LIVE_RESTORE_STATE *statep)
 {
     WT_DECL_RET;
+
+    /*
+     * In live restore mode check we hold the state lock. For non-live restore file systems we don't
+     * need this lock as we'll never modify the state.
+     */
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS)) {
+        WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
+        WT_ASSERT_ALWAYS(session, __wt_spin_owned(session, &lr_fs->state_lock),
+          "Live restore state lock not held!");
+    }
 
     bool turtle_in_dest = false;
     WTI_LIVE_RESTORE_STATE state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
@@ -73,14 +93,16 @@ __live_restore_get_state_from_file(
     WT_DECL_ITEM(dest_turt_path);
     WT_RET(__wt_scr_alloc(session, 0, &dest_turt_path));
     WT_ERR(__wt_filename_construct(
-      session, S2C(session)->home, WT_METADATA_TURTLE, UINTMAX_MAX, UINT32_MAX, dest_turt_path));
+      session, conn->home, WT_METADATA_TURTLE, UINTMAX_MAX, UINT32_MAX, dest_turt_path));
 
     WT_ERR(
       fs->fs_exist(fs, (WT_SESSION *)session, (char *)(dest_turt_path)->data, &turtle_in_dest));
 
-    if (!turtle_in_dest)
-        state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
-    else {
+    /*
+     * If the turtle file isn't present in the destination we've already default initialized the
+     * state to NONE.
+     */
+    if (turtle_in_dest) {
         WT_ERR_NOTFOUND_OK(
           __wt_metadata_search(session, WT_METADATA_LIVE_RESTORE, &lr_metadata), true);
         if (ret == WT_NOTFOUND) {
@@ -99,7 +121,6 @@ __live_restore_get_state_from_file(
     *statep = state_from_file;
 
 err:
-
     __wt_free(session, lr_metadata);
     __wt_scr_free(session, &dest_turt_path);
 
@@ -221,8 +242,8 @@ __wt_live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_s
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
-    char str[WT_LIVE_RESTORE_STATE_STRING_MAX];
-    __live_restore_state_to_string(state, str);
+    char *str = NULL;
+    WT_RET(__live_restore_state_to_string(session, state, &str));
     WT_RET(__wt_buf_fmt(session, lr_state_str, "%s", str));
 
     return (0);

@@ -345,7 +345,10 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
              * Stop files should never exist in the source directory. We check this on startup but
              * add a sanity check here.
              */
-            WT_ASSERT(session, !WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX));
+            WT_ASSERT_ALWAYS(session,
+              !WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX),
+              "'%s' found in the source directory! Stop files should only exist in the destination",
+              dirlist_src[i]);
             if (!dest_folder_exists)
                 add_source_file = true;
             else {
@@ -1459,8 +1462,8 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
     char *buf = NULL, *source_path = NULL, *dest_path = NULL, *tmp_dest_path = NULL;
     bool dest_closed = false;
 
-    WT_ASSERT_ALWAYS(session,
-      __wti_live_restore_get_state(session, lr_fs) == WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION,
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+    WT_ASSERT_ALWAYS(session, !WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state),
       "Attempting to atomically copy a file outside of the migration phase!");
 
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
