@@ -484,9 +484,7 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
 {
     /*
      * The read will be serviced out of the destination if the read is beyond the length of the
-     * source file. This doesn't however account for truncate which could have shortened the
-     * destination to less than that of the source. However the truncate will have marked the
-     * relevant bits in the bitmap so we won't mistakenly service the read from source.
+     * source file.
      */
     if (lr_fh->destination.complete || lr_fh->source == NULL ||
       offset >= (wt_off_t)lr_fh->source_size)
@@ -741,7 +739,7 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
         return (0);
     }
 
-    /* We need walk the unset bit list up till read_size. */
+    /* Walk the unset bit list until the read_size is reached. */
     wt_off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
     uint64_t read_end_bit;
     WT_RET(__live_restore_compute_read_end_bit(
