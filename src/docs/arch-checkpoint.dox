@@ -30,17 +30,16 @@ A checkpoint can be broken up into the following stages:
 
 ## Locking ##
 
-The first stage of checkpoint is to gather the necessary checkpoint locks. The most important being
-the \c checkpoint_lock. This lock ensures only one checkpoint takes place at time. More granular locks
+The first stage of checkpoint is to gather the necessary checkpoint locks. The \c checkpoint_lock has the highest precedent ensuring only one checkpoint takes place at time. Other locks
 such as, dhandle, schema and flush locks are taken throughout the checkpoint process.
 
 ## Eviction ##
 
-Before the checkpoint transaction begins (pinning content), the @ref arch-eviction "eviction server" is leveraged to
-reduce the dirty content in the cache. This has the benefit of utilizing the multi-threaded
+Before the checkpoint transaction begins (pinning content), the @ref arch-eviction "eviction subsystem" is leveraged to
+reduce the dirty content in the cache. Using eviction has the benefit of taking advantage of the multi-threaded
 functionality of eviction and reduces the work required during the critical section of the
 checkpoint. The thread performing the checkpoint operation will wait for eviction to
-reach the target dirty content ratio unless no progress is made..
+reach the target dirty content ratio unless no progress is made.
 
 ## Prepare ##
 
@@ -49,23 +48,22 @@ checkpoint state and gathers a list of handles to be checkpointed. A global sche
 checkpoint prepare to avoid any tables being created or dropped during this phase, additionally the
 global transaction lock is taken during this process as it must modify the global transaction state,
 and to ensure the \c stable_timestamp doesn't move ahead of the snapshot taken by the checkpoint
-transaction. The connection dhandle list is walked one handle at a time where each handle gathered
-refers to a specific b-tree. The set of b-trees gathered by the checkpoint varies based off
-configuration. Additionally clean b-trees, i.e. b-trees without any modifications are excluded from
+transaction. The connection dhandle list is walked one handle at a time, where each handle gathered
+refers to a specific btree. Additionally clean btrees, i.e. btrees without any modifications, are excluded from
 the list, with an exception for specific checkpoint configuration scenarios. See
-\ref skipping-checkpoints "Skipping checkpoints" for scenarios where b-trees are skipped during
-checkpoint. B-trees included in the checkpoint list then have all earlier checkpoints marked for
-deletion. Previous checkpoints can only be discarded if the associated blocks are no longer used.
+\ref skipping-checkpoints "Skipping checkpoints" for scenarios where btrees are skipped during
+checkpoint. Btrees included in the checkpoint list then delete earlier checkpoints when possible.
+Previous checkpoints can only be discarded if the associated blocks are no longer used.
 
 ## Data files checkpoint ##
 
 Data files in this instance refer to all the user created files. The main work of checkpoint is done
-here, the array of b-tree's collected in the prepare stage are iterated over. For each b-tree, the
+here, the array of btree's collected in the prepare stage are iterated over. For each btree, the
 tree is walked and all the dirty pages are reconciled. Clean pages are skipped to avoid unnecessary
 work. Pages made clean ahead of the checkpoint by eviction are still skipped regardless of whether
 the update written by eviction is visible to the checkpoint transaction. The checkpoint guarantees
 that a clean version of every page in the tree exists and can be written to disk. The
-@ref arch-block "Block Manager" is then responsible for managing the extent lists modified by the
+@ref arch-block "block manager subsystem" is then responsible for managing the extent lists modified by the
 checkpoint (see \ref block-checkpoint) and deleting old checkpoints.
 
  ## History store checkpoint ##
@@ -76,7 +74,7 @@ them in the checkpoint. The history store will follow the same checkpoint proces
 
 ## Flushing the files to disk ##
 
-All the b-trees checkpointed and the history are flushed to disk at this stage, WiredTiger will wait
+All the btrees checkpointed and the history are flushed to disk at this stage, WiredTiger will wait
 until that process has completed to continue with the checkpoint.
 
 ## Metadata checkpoint ##
@@ -97,16 +95,16 @@ This logic can be overridden by forcing a checkpoint via configuration.
 # Checkpoint generations #
 
 The checkpoint generation indicates which iteration of checkpoint a file has undergone, at the start
-of a checkpoint the generation is incremented. Then after processing any b-tree its
+of a checkpoint the generation is incremented. Then after processing any btree its
 \c checkpoint_gen is set to the latest checkpoint generation. Checkpoint generations impact
-visibility checks within WiredTiger, essentially if a b-tree is behind a checkpoint, i.e. its
+visibility checks within WiredTiger, essentially if a btree is behind a checkpoint, i.e. its
 checkpoint generation is less than the current checkpoint generation, then the checkpoint
 transaction id and checkpoint timestamp are included in certain visibility checks.
-This prevents eviction from evicting updates from a given b-tree ahead of the checkpoint.
+This prevents eviction from evicting updates from a given btree ahead of the checkpoint.
 
 # Garbage collection #
 
-While processing a b-tree, checkpoint can mark pages as obsolete. Any page that has an aggregated
+While processing a btree, checkpoint can mark pages as obsolete. Any page that has an aggregated
 stop time pair which is globally visible will no longer be required by any reader and can be marked
 as deleted. This occurs prior to the page being reconciled, allowing for the page to be removed
 during the reconciliation. However this does not mean that the deleted page is available for re-use
