@@ -33,6 +33,7 @@ TEST_CASE(
 
     SECTION("Test WT_CONFLICT_LIVE_RESTORE while opening backup cursor")
     {
+        testutil_mkdir("WT_LR_SOURCE");
         connection_wrapper conn_wrapper =
           connection_wrapper(".", "create=true,live_restore=(enabled=true, path=WT_LR_SOURCE)");
         utils::prepare_session_and_error(&conn_wrapper, &session, &err_info);

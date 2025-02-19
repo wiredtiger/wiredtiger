@@ -44,7 +44,8 @@ TEST_CASE("Test generation of sub-level error codes when strerror is called",
           {WT_CONFLICT_CHECKPOINT_LOCK,
             "WT_CONFLICT_CHECKPOINT_LOCK: Another thread currently holds the checkpoint lock"},
           {WT_CONFLICT_LIVE_RESTORE,
-            "WT_CONFLICT_LIVE_RESTORE: Conflict performing operation due to running live restore"},
+            "WT_CONFLICT_LIVE_RESTORE: Conflict performing operation due to an in-progress live "
+            "restore"},
         };
 
         for (auto const [code, expected] : errors)
