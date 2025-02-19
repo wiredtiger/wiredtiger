@@ -576,8 +576,6 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     SESSION_API_CALL_PREPARE_ALLOWED(session, reconfigure, config, cfg);
     WT_UNUSED(cfg);
 
-    WT_ERR(__wt_txn_context_check(session, false));
-
     WT_ERR(__wt_session_reset_cursors(session, false));
 
     /*
