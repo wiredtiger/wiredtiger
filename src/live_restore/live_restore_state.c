@@ -77,10 +77,11 @@ __live_restore_get_state_from_file(
     WT_ERR(
       fs->fs_exist(fs, (WT_SESSION *)session, (char *)(dest_turt_path)->data, &turtle_in_dest));
 
+    char *lr_metadata = NULL;
+
     if (!turtle_in_dest)
         state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
     else {
-        char *lr_metadata = NULL;
         WT_ERR_NOTFOUND_OK(
           __wt_metadata_search(session, WT_METADATA_LIVE_RESTORE, &lr_metadata), true);
         if (ret == WT_NOTFOUND) {
@@ -100,6 +101,7 @@ __live_restore_get_state_from_file(
 
 err:
 
+    __wt_free(session, lr_metadata);
     __wt_scr_free(session, &dest_turt_path);
 
     return (ret);

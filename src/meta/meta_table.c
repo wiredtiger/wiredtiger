@@ -222,6 +222,8 @@ __wt_metadata_bump_turtle(WT_SESSION_IMPL *session)
     char *existing_config;
     WT_RET(__wti_turtle_read(session, WT_METAFILE_URI, &existing_config));
     WT_RET(__wti_turtle_update(session, WT_METAFILE_URI, existing_config));
+
+    __wt_free(session, existing_config);
     return (0);
 }
 
