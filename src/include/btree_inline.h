@@ -280,27 +280,30 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
  */
 static WT_INLINE int
 __wt_btree_shared_base_name(WT_SESSION_IMPL *session, const char **namep, const char **checkpointp,
-  WT_ITEM **name_buf, WT_ITEM **checkpoint_buf)
+  WT_ITEM **name_bufp, WT_ITEM **checkpoint_bufp)
 {
+    WT_ITEM *name_buf;
     size_t len;
     const char *name, *suffix;
 
     name = *namep;
 
-    /* If there is no trailing checkpoint id, there's nothing to do or allocate. */
-    suffix = strchr(name, '/');
+    /* If this isn't a stable URI, or there is no trailing checkpoint id, there's nothing to do. */
+    suffix = strstr(name, ".wt_stable/");
     if (suffix == NULL)
         return (0);
 
+    /* Move the suffix to point to the slash */
+    suffix += strlen(".wt_stable");
+
     /* The returned name is the part before the suffix */
     len = (size_t)(suffix - name);
-    WT_RET(__wt_scr_alloc(session, len + 1, name_buf));
-    WT_RET(__wt_buf_catfmt(session, *name_buf, "%*s", (int)len, name));
+    WT_RET(__wt_scr_alloc(session, len + 1, name_bufp));
+    name_buf = *name_bufp;
+    WT_RET(__wt_buf_catfmt(session, name_buf, "%s", name));
+    ((char *)name_buf->data)[len] = '\0';
 
-    /* TODO - Shouldn't be needed, since we used a length specifier with catfmt?? */
-    ((char *)(*name_buf)->data)[len] = '\0';
-
-    *namep = (const char *)(*name_buf)->data;
+    *namep = (const char *)name_buf->data;
 
     /*
      * If the caller wants a checkpoint string returned, it looks like "WiredTigerCheckpoint.NNN".
@@ -308,9 +311,9 @@ __wt_btree_shared_base_name(WT_SESSION_IMPL *session, const char **namep, const 
      * name. We don't do any verification that it is an integer, it's guaranteed elsewhere.
      */
     if (checkpointp != NULL) {
-        WT_RET(__wt_scr_alloc(session, 0, checkpoint_buf));
-        WT_RET(__wt_buf_catfmt(session, *checkpoint_buf, WT_CHECKPOINT ".%s", suffix + 1));
-        *checkpointp = (const char *)(*checkpoint_buf)->data;
+        WT_RET(__wt_scr_alloc(session, 0, checkpoint_bufp));
+        WT_RET(__wt_buf_catfmt(session, *checkpoint_bufp, WT_CHECKPOINT ".%s", suffix + 1));
+        *checkpointp = (const char *)(*checkpoint_bufp)->data;
     }
 
     return (0);
