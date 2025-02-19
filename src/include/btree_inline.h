@@ -305,7 +305,7 @@ __wt_btree_shared_base_name(WT_SESSION_IMPL *session, const char **namep, const 
     /*
      * If the caller wants a checkpoint string returned, it looks like "WiredTigerCheckpoint.NNN".
      * The NNN is an integer (the disagg checkpoint id) that appears after the slash in the input
-     * name. We don't do any verification (that is is an integer), it's guaranteed elsewhere.
+     * name. We don't do any verification that it is an integer, it's guaranteed elsewhere.
      */
     if (checkpointp != NULL) {
         WT_RET(__wt_scr_alloc(session, 0, checkpoint_buf));

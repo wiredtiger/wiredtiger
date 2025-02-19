@@ -127,9 +127,9 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
     WT_CURSOR *md_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    int namelen;
     size_t len;
     uint64_t checkpoint_id, checkpoint_timestamp, lsn;
+    int namelen;
     char *md_key;
     const char *md_value, *suffix;
 

@@ -300,7 +300,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
                 F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
             } else {
                 /*
-                 * Use a URI with a "/NNNN" suffix. This is interpreted as reading from the stable
+                 * Use a URI with a "/NNN" suffix. This is interpreted as reading from the stable
                  * checkpoint, but without it being a traditional checkpoint cursor.
                  */
                 WT_RET(__wt_snprintf(stable_uri_buf, sizeof(stable_uri_buf), "%s/%" PRIu64,
