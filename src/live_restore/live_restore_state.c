@@ -67,7 +67,7 @@ __live_restore_get_state_from_file(
     WT_DECL_RET;
 
     bool turtle_in_dest = false;
-    WTI_LIVE_RESTORE_STATE state_from_file;
+    WTI_LIVE_RESTORE_STATE state_from_file = WTI_LIVE_RESTORE_STATE_NONE;
 
     WT_DECL_ITEM(dest_turt_path);
     WT_RET(__wt_scr_alloc(session, 0, &dest_turt_path));
