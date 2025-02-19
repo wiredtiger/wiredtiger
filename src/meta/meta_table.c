@@ -219,9 +219,9 @@ __wt_metadata_bump_turtle(WT_SESSION_IMPL *session)
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->turtle_lock);
 
-    char *unused_value;
-    WT_RET(__wti_turtle_read(session, WT_METAFILE_URI, &unused_value));
-    WT_RET(__wti_turtle_update(session, WT_METAFILE_URI, unused_value));
+    char *existing_config;
+    WT_RET(__wti_turtle_read(session, WT_METAFILE_URI, &existing_config));
+    WT_RET(__wti_turtle_update(session, WT_METAFILE_URI, existing_config));
     return (0);
 }
 

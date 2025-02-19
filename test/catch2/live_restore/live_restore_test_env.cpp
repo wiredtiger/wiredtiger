@@ -26,8 +26,8 @@ live_restore_test_env::live_restore_test_env()
     // WiredTiger stores state in the turtle file so we always need to have a valid database in
     // the source folder. Open and close a connection to initialize the source folder.
     {
-        static std::string cfg_string2 = "create=true";
-        conn = std::make_unique<connection_wrapper>(DB_SOURCE.c_str(), cfg_string2.c_str());
+        static std::string non_lr_config = "create=true";
+        conn = std::make_unique<connection_wrapper>(DB_SOURCE.c_str(), non_lr_config.c_str());
         conn->clear_do_cleanup();
     }
 
