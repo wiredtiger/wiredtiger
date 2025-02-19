@@ -45,7 +45,7 @@ struct __wti_live_restore_file_handle {
         WTI_LIVE_RESTORE_FS *back_pointer;
 
         /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
-        uint64_t bitmap_size;
+        uint64_t nbits;
         uint8_t *bitmap;
         bool newly_created;
     } destination;

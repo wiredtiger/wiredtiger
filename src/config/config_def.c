@@ -1703,15 +1703,15 @@ static const char *confchk_format3_choices[] = {__WT_CONFIG_CHOICE_btree, NULL};
 static const WT_CONFIG_CHECK confchk_live_restore_subconfigs[] = {
   {"bitmap", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 61, INT64_MIN,
     INT64_MAX, NULL},
-  {"bitmap_size", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 62, INT64_MIN,
-    INT64_MAX, NULL},
+  {"nbits", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 62, INT64_MIN, INT64_MAX,
+    NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_live_restore_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2,
-  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
 static const char *confchk_verbose6_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
@@ -3794,7 +3794,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
     "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
-    "live_restore=(bitmap=,bitmap_size=0),log=(enabled=true),"
+    "live_restore=(bitmap=,nbits=0),log=(enabled=true),"
     "memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0"
     ",os_cache_max=0,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
@@ -3822,7 +3822,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
     "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
-    "live_restore=(bitmap=,bitmap_size=0),log=(enabled=true),"
+    "live_restore=(bitmap=,nbits=0),log=(enabled=true),"
     "memory_page_image_max=0,memory_page_max=5MB,os_cache_dirty_max=0"
     ",os_cache_max=0,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
@@ -3850,7 +3850,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "internal_item_max=0,internal_key_max=0,"
     "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
-    "leaf_value_max=0,live_restore=(bitmap=,bitmap_size=0),"
+    "leaf_value_max=0,live_restore=(bitmap=,nbits=0),"
     "log=(enabled=true),memory_page_image_max=0,memory_page_max=5MB,"
     "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
@@ -3872,7 +3872,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,last=0,"
     "leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
-    "leaf_value_max=0,live_restore=(bitmap=,bitmap_size=0),"
+    "leaf_value_max=0,live_restore=(bitmap=,nbits=0),"
     "log=(enabled=true),memory_page_image_max=0,memory_page_max=5MB,"
     "oldest=1,os_cache_dirty_max=0,os_cache_max=0,"
     "prefix_compression=false,prefix_compression_min=4,readonly=false"

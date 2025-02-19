@@ -17,13 +17,13 @@
 using namespace utils;
 
 struct test_data {
-    test_data(std::string bitmap_str, uint64_t bitmap_size, uint8_t *bitmap)
-        : bitmap_str(bitmap_str), bitmap_size(bitmap_size), bitmap(bitmap)
+    test_data(std::string bitmap_str, uint64_t nbits, uint8_t *bitmap)
+        : bitmap_str(bitmap_str), nbits(nbits), bitmap(bitmap)
     {
     }
 
     std::string bitmap_str;
-    uint64_t bitmap_size;
+    uint64_t nbits;
     uint8_t *bitmap;
 };
 
@@ -54,14 +54,14 @@ TEST_CASE("Encode various bitmaps", "[live_restore_bitmap]")
 
     for (const auto &test : test_bitmaps) {
         lr_fh.destination.bitmap = test.bitmap;
-        lr_fh.destination.bitmap_size = test.bitmap_size;
+        lr_fh.destination.nbits = test.nbits;
         __wt_readlock(session, &lr_fh.bitmap_lock);
         REQUIRE(__ut_live_restore_encode_bitmap(session, &lr_fh, &buf) == 0);
         __wt_readunlock(session, &lr_fh.bitmap_lock);
         REQUIRE(std::string(static_cast<const char *>(buf.data)) == std::string(test.bitmap_str));
         REQUIRE(__ut_live_restore_decode_bitmap(
-                  session, test.bitmap_str.c_str(), test.bitmap_size, &lr_fh2) == 0);
-        REQUIRE(memcmp(lr_fh2.destination.bitmap, test.bitmap, test.bitmap_size / 8) == 0);
+                  session, test.bitmap_str.c_str(), test.nbits, &lr_fh2) == 0);
+        REQUIRE(memcmp(lr_fh2.destination.bitmap, test.bitmap, test.nbits / 8) == 0);
         __wt_free(session, lr_fh2.destination.bitmap);
         __wt_buf_free(session, &buf);
         WT_CLEAR(buf);

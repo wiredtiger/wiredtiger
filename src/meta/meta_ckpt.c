@@ -133,8 +133,8 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
             WT_CONFIG_ITEM cval;
             WT_ERR(__wt_config_subgets(session, &v, "bitmap", &cval));
             WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fh_meta->bitmap_str));
-            WT_ERR(__wt_config_subgets(session, &v, "bitmap_size", &cval));
-            lr_fh_meta->bitmap_size = (uint64_t)cval.val;
+            WT_ERR(__wt_config_subgets(session, &v, "nbits", &cval));
+            lr_fh_meta->nbits = (uint64_t)cval.val;
         }
         /* All code paths that exist today overwrite ret but to be defensive we clear it here. */
         WT_NOT_READ(ret, 0);

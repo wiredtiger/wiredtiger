@@ -56,7 +56,6 @@
 #define WT_CONF_ID_backup 150ULL
 #define WT_CONF_ID_backup_restore_target 258ULL
 #define WT_CONF_ID_bitmap 61ULL
-#define WT_CONF_ID_bitmap_size 62ULL
 #define WT_CONF_ID_blkcache_eviction_aggression 160ULL
 #define WT_CONF_ID_block_allocation 14ULL
 #define WT_CONF_ID_block_compressor 15ULL
@@ -213,6 +212,7 @@
 #define WT_CONF_ID_mmap_all 286ULL
 #define WT_CONF_ID_multiprocess 287ULL
 #define WT_CONF_ID_name 20ULL
+#define WT_CONF_ID_nbits 62ULL
 #define WT_CONF_ID_next_random 113ULL
 #define WT_CONF_ID_next_random_sample_size 114ULL
 #define WT_CONF_ID_next_random_seed 115ULL

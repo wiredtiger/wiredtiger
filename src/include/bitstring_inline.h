@@ -95,16 +95,6 @@ __bit_set(uint8_t *bitf, uint64_t bit)
 }
 
 /*
- * __bit_set_mask --
- *	Apply a mask to a range of bits at a given index.
- */
-static WT_INLINE void
-__bit_set_mask(uint8_t *bitf, uint64_t index, uint8_t mask)
-{
-	bitf[index] |= mask;
-}
-
-/*
  * __bit_clear --
  *	Clear one bit in name.
  */
