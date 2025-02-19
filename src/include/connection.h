@@ -151,6 +151,7 @@ struct __wt_layered_table_manager {
      * whether a log record belongs to a layered table and should be applied.
      */
     WT_LAYERED_TABLE_MANAGER_ENTRY **entries;
+    size_t entries_allocated;
 
 #define WT_LAYERED_TABLE_THREAD_COUNT 1
     WT_THREAD_GROUP threads;
