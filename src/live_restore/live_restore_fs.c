@@ -1075,34 +1075,27 @@ __wt_live_restore_fh_import_bitmap(
 
     __wt_readlock(session, &lr_fh->bitmap_lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-      "Importing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name, lr_fh_meta->nbits,
-      lr_fh_meta->bitmap_str);
+    if (lr_fh->destination.newly_created) {
+        /*
+         * Only allocate a bitmap for a file that has been created in the destination for this run.
+         */
+        uint64_t nbits = lr_fh->source_size / lr_fh_meta->allocsize;
+        WT_ERR(__bit_alloc(session, nbits, &lr_fh->destination.bitmap));
+        lr_fh->destination.nbits = nbits;
+        __wt_readunlock(session, &lr_fh->bitmap_lock);
+        return (0);
+    }
     if (lr_fh_meta->nbits != 0) {
         /* We shouldn't be importing a bitmap if the live restore has finished. */
         WT_ASSERT(session, !lr_fh->destination.back_pointer->finished);
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+          "Importing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
+          lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
         /* Import a pre-existing bitmap. */
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "%s metadata bitmap: %s", fh->name,
-          lr_fh_meta->bitmap_str);
         WT_ERR(
           __live_restore_decode_bitmap(session, lr_fh_meta->bitmap_str, lr_fh_meta->nbits, lr_fh));
-    } else {
-        if (lr_fh->source_size == 0)
-            lr_fh->destination.complete = true;
-        else {
-            if (lr_fh->destination.newly_created) {
-                /*
-                 * Only allocate a bitmap for a file that has been created in the destination for
-                 * this run.
-                 */
-                uint64_t nbits = lr_fh->source_size / lr_fh_meta->allocsize;
-                WT_ERR(__bit_alloc(session, nbits, &lr_fh->destination.bitmap));
-                lr_fh->destination.nbits = nbits;
-            } else {
-                lr_fh->destination.complete = true;
-            }
-        }
-    }
+    } else
+        lr_fh->destination.complete = true;
 
     if (0) {
 err:
