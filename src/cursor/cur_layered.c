@@ -296,7 +296,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
             if (checkpoint_id == 0) {
                 /* We've never picked up a checkpoint. */
-                ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false";
+                ckpt_cfg[cfg_pos++] = "raw,readonly,checkpoint_use_history=false";
                 F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
             } else {
                 /*
@@ -306,6 +306,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
                 WT_RET(__wt_snprintf(stable_uri_buf, sizeof(stable_uri_buf), "%s/%" PRIu64,
                   layered->stable_uri, checkpoint_id));
                 stable_uri = stable_uri_buf;
+                ckpt_cfg[cfg_pos++] = "readonly";
             }
         }
         ckpt_cfg[cfg_pos] = NULL;
