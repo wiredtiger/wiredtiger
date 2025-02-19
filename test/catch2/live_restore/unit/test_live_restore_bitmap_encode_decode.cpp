@@ -69,6 +69,7 @@ TEST_CASE("Encode various bitmaps", "[live_restore_bitmap]")
         }
         if (test.nbits != 0)
             REQUIRE(memcmp(lr_fh2.destination.bitmap, test.bitmap, test.nbits / 8) == 0);
+        delete test.bitmap;
         __wt_free(session, lr_fh2.destination.bitmap);
         __wt_buf_free(session, &buf);
         WT_CLEAR(buf);
