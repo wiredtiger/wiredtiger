@@ -41,7 +41,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     scenarios = gen_disagg_storages('test_layered27', disagg_only = True)
 
-    uri = 'layered:test_layered26'
+    uri = 'layered:test_layered27'
 
     def test_drain_insert(self):
         # Create the oplog

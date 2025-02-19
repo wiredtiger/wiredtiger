@@ -264,6 +264,9 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
         WT_RET(__wt_open_cursor(
           session, layered->ingest_uri, &clayered->iface, ckpt_cfg, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+
+        /* Layered cursor is not compatible with cursor_copy config. */
+        F_CLR(clayered->ingest_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
     }
 
     if (clayered->stable_cursor == NULL) {
@@ -318,8 +321,12 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
               session, WT_PANIC, "Layered table could not access stable table on leader"));
 
         WT_RET(ret);
-        if (clayered->stable_cursor != NULL)
+        if (clayered->stable_cursor != NULL) {
             F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+
+            /* Layered cursor is not compatible with cursor_copy config. */
+            F_CLR(clayered->stable_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
+        }
         clayered->checkpoint_id = checkpoint_id;
     }
 
@@ -1700,6 +1707,9 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_sample_size", 0, &cval));
         clayered->next_random_sample_size = (u_int)cval.val;
     }
+
+    /* Layered cursor is not compatible with cursor_copy config. */
+    F_CLR(cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
 
     if (0) {
 err:
