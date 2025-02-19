@@ -2350,7 +2350,7 @@ static WT_INLINE int __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8
 static WT_INLINE int __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri,
   const char **bt_cfg, bool *shared) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_btree_shared_base_name(WT_SESSION_IMPL *session, const char **namep,
-  const char **checkpointp, WT_ITEM **name_buf, WT_ITEM **checkpoint_buf)
+  const char **checkpointp, WT_ITEM **name_bufp, WT_ITEM **checkpoint_bufp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_buf_extend(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
