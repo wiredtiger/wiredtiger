@@ -462,6 +462,50 @@ __live_restore_fh_fill_bit_range(
     return;
 }
 
+/*
+ * __live_restore_encode_bitmap --
+ *     Encode a live restore bitmap as a hexadecimal string. The caller must free the bitmap string.
+ */
+static int
+__live_restore_encode_bitmap(
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_ITEM *buf)
+{
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
+      "Live restore lock not taken when needed");
+    if (lr_fh->destination.nbits == 0 || lr_fh->destination.complete == true)
+        return (0);
+    size_t bitmap_byte_count = lr_fh->destination.nbits / 8;
+    if (lr_fh->destination.nbits % 8 != 0)
+        bitmap_byte_count++;
+    return (__wt_raw_to_hex(session, lr_fh->destination.bitmap, bitmap_byte_count, buf));
+}
+
+
+/*
+ * __live_restore_dump_bitmap --
+ *     Dump the live restore bitmap for a file handle. This function should only be called in the
+ *     error path.
+ */
+static int
+__live_restore_dump_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
+{
+    WT_DECL_RET;
+    WT_ITEM buf;
+    WT_CLEAR(buf);
+
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+      "%s: Dumping bitmap, nbits (%" PRIu64 "), address (%p)", lr_fh->iface.name,
+      lr_fh->destination.nbits, lr_fh->destination.bitmap);
+    if (lr_fh->destination.nbits > 0) {
+        WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
+        __wt_verbose_debug1(
+          session, WT_VERB_LIVE_RESTORE, "%s: %s", lr_fh->iface.name, (char *)buf.data);
+    }
+err:
+    __wt_buf_free(session, &buf);
+    return (ret);
+}
+
 typedef enum { NONE, FULL, PARTIAL } WT_LIVE_RESTORE_SERVICE_STATE;
 
 /* !!!
@@ -498,12 +542,14 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
 
     for (uint64_t current_bit = read_start_bit; current_bit < read_end_bit; current_bit++) {
         if (__bit_test(lr_fh->destination.bitmap, current_bit)) {
-            if (read_begins_in_hole)
+            if (read_begins_in_hole) {
                 /* A partial read should never begin in a hole. */
+                WT_IGNORE_RET(__live_restore_dump_bitmap(session, lr_fh));
                 WT_ASSERT_ALWAYS(session, false,
                   "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT
                   ") begins in a hole but does not end in one (offset: %" PRId64 ")",
                   offset, len, WTI_BIT_TO_OFFSET(current_bit));
+            }
             continue;
         }
         /*
@@ -703,9 +749,9 @@ __live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
     wt_off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
     wt_off_t file_size;
     /*
-     * In theory we have truncated the destination file to be smaller than that of the source file.
-     * This would be better tracked with a variable on the lr_fh itself but for now we can work
-     * around it by reading the size of the destination file.
+     * In theory we have truncated the destination file to be smaller than the source file. This
+     * would be better tracked with a variable on the lr_fh itself but for now we can work around it
+     * by reading the size of the destination file.
      */
     WT_RET(__live_restore_fh_size((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session, &file_size));
     file_size = WT_MIN(file_size, (wt_off_t)lr_fh->source_size);
@@ -1112,24 +1158,6 @@ err:
     }
     __wt_readunlock(session, &lr_fh->bitmap_lock);
     return (ret);
-}
-
-/*
- * __live_restore_encode_bitmap --
- *     Encode a live restore bitmap as a hexadecimal string. The caller must free the bitmap string.
- */
-static int
-__live_restore_encode_bitmap(
-  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_ITEM *buf)
-{
-    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
-      "Live restore lock not taken when needed");
-    if (lr_fh->destination.nbits == 0 || lr_fh->destination.complete == true)
-        return (0);
-    size_t bitmap_byte_count = lr_fh->destination.nbits / 8;
-    if (lr_fh->destination.nbits % 8 != 0)
-        bitmap_byte_count++;
-    return (__wt_raw_to_hex(session, lr_fh->destination.bitmap, bitmap_byte_count, buf));
 }
 
 /*
