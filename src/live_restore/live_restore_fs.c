@@ -446,11 +446,11 @@ __live_restore_fh_fill_bit_range(
      * Don't compute the offset before checking if the destination is complete, it depends on
      * allocsize which may not exist if the destination is complete.
      */
-    uint64_t offset_bit = WTI_OFFSET_BIT(offset);
+    uint64_t offset_bit = WTI_OFFSET_TO_BIT(offset);
     if (offset_bit >= lr_fh->destination.nbits)
         return;
 
-    uint64_t fill_end_bit = WTI_OFFSET_BIT(WTI_OFFSET_END(offset, len)) - 1;
+    uint64_t fill_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len)) - 1;
     bool partial_fill = false;
     if (fill_end_bit >= lr_fh->destination.nbits) {
         partial_fill = true;
@@ -494,8 +494,8 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
     WT_ASSERT(session, lr_fh->allocsize != 0);
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
-    uint64_t read_end_bit = WTI_OFFSET_BIT(WTI_OFFSET_END(offset, len));
-    uint64_t read_start_bit = WTI_OFFSET_BIT(offset);
+    uint64_t read_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len));
+    uint64_t read_start_bit = WTI_OFFSET_TO_BIT(offset);
     bool read_begins_in_hole = false, read_ends_in_hole = false, hole_bit_set = false;
 
     for (uint64_t current_bit = read_start_bit; current_bit < read_end_bit; current_bit++) {
@@ -708,9 +708,9 @@ __live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
     file_size = WT_MIN(file_size, (wt_off_t)lr_fh->source_size);
     wt_off_t largest_possible_read = WT_MIN(file_size, read_start + buf_size);
     /* Sanity check. */
-    WT_ASSERT(session, lr_fh->destination.nbits == WTI_OFFSET_BIT((wt_off_t)lr_fh->source_size));
+    WT_ASSERT(session, lr_fh->destination.nbits == WTI_OFFSET_TO_BIT((wt_off_t)lr_fh->source_size));
     /* Subtract 1 as the read end is served from the nbits - 1th bit.*/
-    uint64_t max_read_bit = WTI_OFFSET_BIT(largest_possible_read) - 1;
+    uint64_t max_read_bit = WTI_OFFSET_TO_BIT(largest_possible_read) - 1;
     uint64_t end_bit = first_clear_bit;
     for (uint64_t current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++) {
         if (current_bit >= lr_fh->destination.nbits)
