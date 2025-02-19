@@ -293,6 +293,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (json && dump_json_table_end(session) != 0)
             goto err;
 
+        in_json_table = false;
+
         if (hs_dump_cursor != NULL)
             F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
         ret = cursor->close(cursor);
@@ -302,8 +304,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             (void)util_err(session, ret, NULL);
             goto err;
         }
-
-        in_json_table = false;
     }
 
     if (0) {
