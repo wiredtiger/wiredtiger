@@ -45,6 +45,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     dhandle = session->dhandle;
     dhandle_name = dhandle->name;
     base = NULL;
+    metaconf = NULL;
     tmp = NULL;
 
     /* Adjust the dhandle name for disaggregated storage. */
