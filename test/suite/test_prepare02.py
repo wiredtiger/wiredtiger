@@ -48,8 +48,8 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
 
         # The operations are listed in the same order as they are declared in the session structure.
         # WT_SESSION.close permitted.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.session.reconfigure(), msg)
+        # WT_SESSION.reconfigure permitted.
+        self.session.reconfigure()
         # WT_SESSION.strerror permitted, but currently broken in the Python API (WT-5399).
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor("table:mytable", None), msg)
