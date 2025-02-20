@@ -60,7 +60,6 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_CLEAN_UP));
 
         /* FALLTHROUGH */
-
     case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
         WT_RET(__wti_live_restore_cleanup_stop_files(session));
 
@@ -71,6 +70,7 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         WT_RET(__wt_checkpoint_db(ctx->session, force_ckpt_cfg, true));
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
 
+        /* FALLTHROUGH */
     case WTI_LIVE_RESTORE_STATE_COMPLETE:
         break;
     }

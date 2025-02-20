@@ -1130,7 +1130,7 @@ __wt_live_restore_metadata_to_fh(
 
     /*
      * Once we're in the clean up stage or later all data has been migrated across to the
-     * destination. There's no need for hole tracking and therefore nothing to import.
+     * destination. There's no need for hole tracking and therefore nothing to reconstruct.
      */
     if (__wti_live_restore_migration_complete(session)) {
         WT_ASSERT(session, lr_fh->destination.complete == true);
