@@ -273,17 +273,7 @@ functions:
           ${ENABLE_COLORIZE_OUTPUT|-DENABLE_COLORIZE_OUTPUT=0} \
           ${CC_OPTIMIZE_LEVEL|}"
 
-          SWIG_VERSION=$(swig -version | awk '/SWIG Version/ {print $3}')
 
-          if [[ "$(printf '%s\n' "4.0.0" "$SWIG_VERSION" | sort -V | head -n1)" == "4.0.0" ]]; then
-              echo "SWIG version $SWIG_VERSION is 4.0 or later."
-          else
-              echo "SWIG version $SWIG_VERSION is earlier than 4.0. Installing a newer version ..."
-              python3 -mvenv venv
-              source venv/bin/activate
-              pip3 install swig==4.2.1
-              swig -version
-          fi
 
         # The RHEL PPC platform does not have ZSTD. Strip it out.
         if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
@@ -337,6 +327,18 @@ functions:
           powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
+
+          SWIG_VERSION=$(swig -version | awk '/SWIG Version/ {print $3}')
+
+          if [[ "$(printf '%s\n' "4.0.0" "$SWIG_VERSION" | sort -V | head -n1)" == "4.0.0" ]]; then
+              echo "SWIG version $SWIG_VERSION is 4.0 or later."
+          else
+              echo "SWIG version $SWIG_VERSION is earlier than 4.0. Installing a newer version ..."
+              python3 -mvenv venv
+              source venv/bin/activate
+              pip3 install swig==4.2.1
+              swig -version
+          fi
 
           if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
             # Preclude use of tcmalloc with sanitizer builds.
