@@ -1119,15 +1119,11 @@ __wt_live_restore_metadata_to_fh(
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
-    bool extent_string_empty = extent_str == NULL || strlen(extent_str) == 0;
-
     /*
      * Once we're in the clean up stage or later all data has been migrated across to the
      * destination. There's no need for hole tracking and therefore nothing to import.
      */
     if (__wti_live_restore_migration_complete(session)) {
-        WT_ASSERT_ALWAYS(session, extent_string_empty,
-          "Metadata extent list is not empty after background migration has finished!");
         WT_ASSERT(session, lr_fh->destination.complete == true);
         return (0);
     }
@@ -1162,7 +1158,7 @@ __wt_live_restore_metadata_to_fh(
     }
     if (lr_fh_meta->nbits != 0) {
         /* We shouldn't be reconstructing a bitmap if the live restore has finished. */
-        WT_ASSERT(session, !lr_fh->destination.back_pointer->finished);
+        WT_ASSERT(session, !__wti_live_restore_migration_complete(session));
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Reconstructing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
