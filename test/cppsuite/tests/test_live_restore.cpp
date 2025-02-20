@@ -297,11 +297,11 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
         } else if (ran < 9000) {
             // 90% Write.
             write(session, false);
-        } else if (ran <= 9998) {
+        } else if (ran <= 9980) {
             // 10% Read.
             read(session);
         } else if (ran <= 10000) {
-            // 0.02% fs_truncate
+            // 0.2% fs_truncate
             trigger_fs_truncate(session);
         } else {
             logger::log_msg(LOG_ERROR,
