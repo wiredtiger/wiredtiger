@@ -69,6 +69,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     metadata_value_cfg = NULL;
     layered_ingest_uri = NULL;
     shared_metadata_session = NULL;
+    cfg_ret = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
