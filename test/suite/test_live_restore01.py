@@ -34,6 +34,7 @@ import shutil
 
 # test_live_restore01.py
 # Test live restore compatibility with various other connection options.
+@wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore01(wttest.WiredTigerTestCase):
 
     def expect_success(self, config_str):
