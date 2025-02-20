@@ -35,9 +35,15 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
     const char *force_ckpt_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=true", NULL};
+    WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
-    if (__wti_live_restore_get_state(session, lr_fs) ==
-      WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION) {
+    switch (__wti_live_restore_get_state(session, lr_fs)) {
+    case WTI_LIVE_RESTORE_STATE_NONE:
+        /* This state should be unreachable outside of initializing the live restore file system. */
+        WT_ASSERT_ALWAYS(session, false, "Live restore state is NONE!");
+        break;
+
+    case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
         /*
          * We need our metadata updates to be written out. Force a checkpoint on all trees before
          * marking background migration complete. All empty extent lists must be written to the
@@ -46,16 +52,16 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         WT_RET(__wt_checkpoint_db(ctx->session, force_ckpt_cfg, true));
 
         uint64_t time_diff_ms;
-        WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
         __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
         __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
           "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
           S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
 
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_CLEAN_UP));
-    }
 
-    if (__wti_live_restore_get_state(session, lr_fs) == WTI_LIVE_RESTORE_STATE_CLEAN_UP) {
+        /* FALLTHROUGH */
+
+    case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
         WT_RET(__wti_live_restore_cleanup_stop_files(session));
 
         /*
@@ -64,6 +70,9 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          */
         WT_RET(__wt_checkpoint_db(ctx->session, force_ckpt_cfg, true));
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
+
+    case WTI_LIVE_RESTORE_STATE_COMPLETE:
+        break;
     }
 
     WT_ASSERT(
