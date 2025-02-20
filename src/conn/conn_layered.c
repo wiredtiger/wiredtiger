@@ -311,7 +311,7 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
     manager->entries_allocated =
-      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY);
+      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *);
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
@@ -579,6 +579,7 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
+    manager->entries_allocated = 0;
 
     __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
     WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
