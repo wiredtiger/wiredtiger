@@ -81,6 +81,28 @@ struct __wti_live_restore_fs_layer {
 };
 
 /*
+ * Live restore states. As live restore progresses we will transition through each of these states
+ * one by one. Live restore transitions through each state in the order they are listed below.
+ */
+typedef enum {
+    /*
+     * This is not a valid state. We return it when there is no state file on disk and therefore
+     * we're not in live restore yet.
+     */
+    WTI_LIVE_RESTORE_STATE_NONE,
+    /*
+     * The background migration state is where the majority is where the majority of work takes
+     * place. Users can perform reads/writes while we copy backing data to the destination in the
+     * background.
+     */
+    WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION,
+    /* We've completed background migration and are now cleaning up any live restore metadata. */
+    WTI_LIVE_RESTORE_STATE_CLEAN_UP,
+    /* We've completed the live restore. */
+    WTI_LIVE_RESTORE_STATE_COMPLETE
+} WTI_LIVE_RESTORE_STATE;
+
+/*
  * __wti_live_restore_fs --
  *     A live restore file system in the user space, which consists of a source and destination
  *     layer.
@@ -90,10 +112,12 @@ struct __wti_live_restore_fs {
     WT_FILE_SYSTEM *os_file_system; /* The storage file system. */
     WTI_LIVE_RESTORE_FS_LAYER destination;
     WTI_LIVE_RESTORE_FS_LAYER source;
-    bool finished;
 
     uint8_t background_threads_max;
     size_t read_size;
+
+    WTI_LIVE_RESTORE_STATE state;
+    WT_SPINLOCK state_lock;
 };
 
 /*
@@ -125,10 +149,20 @@ struct __wti_live_restore_server {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern WTI_LIVE_RESTORE_STATE __wti_live_restore_get_state(WT_SESSION_IMPL *session,
+  WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wti_live_restore_migration_complete(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_live_restore_set_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
+  WTI_LIVE_RESTORE_STATE new_state) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_live_restore_validate_directories(WT_SESSION_IMPL *session,
+  WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
 #ifdef HAVE_UNITTEST
 

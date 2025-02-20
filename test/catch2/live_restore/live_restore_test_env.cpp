@@ -23,13 +23,27 @@ live_restore_test_env::live_restore_test_env()
     testutil_recreate_dir(DB_DEST.c_str());
     testutil_recreate_dir(DB_SOURCE.c_str());
 
+    // WiredTiger stores state in the turtle file so we always need to have a valid database in
+    // the source folder. Open and close a connection to initialize the source folder.
+    {
+        static std::string non_lr_config = "create=true";
+        conn = std::make_unique<connection_wrapper>(DB_SOURCE.c_str(), non_lr_config.c_str());
+        conn->clear_do_cleanup();
+    }
+
+    /*
+     * We're using a connection to set up the file system and let us print WT traces, but all of our
+     * tests will use empty folders where we create files manually. The issue here is
+     * wiredtiger_open will create metadata and turtle files on open and think it needs to remove
+     * them on close. Move these files to a temp location. We'll restore them in destructor before
+     * _conn->close() is called.
+     */
     static std::string cfg_string =
-      "create=true,live_restore=(enabled=true, path=" + DB_SOURCE + ")";
+      "create=true,live_restore=(enabled=true, path=" + DB_SOURCE + ",threads_max=0)";
     conn = std::make_unique<connection_wrapper>(DB_DEST.c_str(), cfg_string.c_str());
 
     session = conn->create_session();
     lr_fs = (WTI_LIVE_RESTORE_FS *)conn->get_wt_connection_impl()->file_system;
-    lr_fs->finished = false;
 }
 
 std::string

@@ -13,6 +13,7 @@
  */
 
 #include "../utils_live_restore.h"
+#include <iostream>
 #include <set>
 
 using namespace utils;
@@ -66,6 +67,20 @@ file_list_equals(lr_files list, lr_files check)
     list.erase(WT_BASECONFIG);
     list.erase(WT_SINGLETHREAD);
     list.erase(WT_HS_FILE);
+
+    if (list != check) {
+        std::cout << "Mismatch between list and check!" << std::endl;
+        std::cout << "List: ";
+        for (const auto &file : list)
+            std::cout << file << " ";
+        std::cout << std::endl;
+
+        std::cout << "Check: ";
+        for (const auto &file : check)
+            std::cout << file << " ";
+        std::cout << std::endl;
+    }
+
     return list == check;
 }
 

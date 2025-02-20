@@ -106,12 +106,15 @@ __live_restore_fs_create_stop_file(
     lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
 
-    /*
-     * FIXME-WT-14040: This is a big old race where we set this flag outside a lock and therefore
-     * have no idea if we will actually create a stop file after we clear the stop files.
-     */
-    if (lr_fs->finished)
+    bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
+    if (!reentrant)
+        __wt_spin_lock(session, &lr_fs->state_lock);
+
+    if (__wti_live_restore_migration_complete(session)) {
+        if (!reentrant)
+            __wt_spin_unlock(session, &lr_fs->state_lock);
         return (0);
+    }
 
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, name, &path));
@@ -130,6 +133,9 @@ __live_restore_fs_create_stop_file(
 err:
     __wt_free(session, path);
     __wt_free(session, path_marker);
+
+    if (!reentrant)
+        __wt_spin_unlock(session, &lr_fs->state_lock);
 
     return (ret);
 }
@@ -241,6 +247,13 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
       "DIRECTORY LIST %s (single ? %s) : ", directory, single ? "YES" : "NO");
 
+    /*
+     * We could fail to list a file if the live restore state changes between us walking the
+     * destination and walking the source. Lock around the entire function to keep things simple and
+     * avoid this scenario.
+     */
+    __wt_spin_lock(session, &lr_fs->state_lock);
+
     /* Get files from destination. */
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->destination, session, lr_fs->destination.home, directory, &path_dest));
@@ -263,8 +276,11 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
             }
     }
 
-    /* FIXME-WT-14040: This is a also a big old race. */
-    if (lr_fs->finished)
+    /*
+     * Once we're past the background migration stage we never need to access the source directory
+     * again.
+     */
+    if (__wti_live_restore_migration_complete(session))
         goto done;
 
     /* Get files from source. */
@@ -285,14 +301,14 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
              * list.
              */
             bool add_source_file = false;
-            if (WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
-                /*
-                 * FIXME-WT-14040: It is possible for stop files to exist in the source directory.
-                 * Although those files are cleaned up on completion the concurrency management was
-                 * not implemented in that change so we can't guarantee they don't exist.
-                 */
-                continue;
-            }
+            /*
+             * Stop files should never exist in the source directory. We check this on startup but
+             * add a sanity check here.
+             */
+            WT_ASSERT_ALWAYS(session,
+              !WT_SUFFIX_MATCH(dirlist_src[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX),
+              "'%s' found in the source directory! Stop files should only exist in the destination",
+              dirlist_src[i]);
             if (!dest_folder_exists)
                 add_source_file = true;
             else {
@@ -329,6 +345,8 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
 
 done:
 err:
+    __wt_spin_unlock(session, &lr_fs->state_lock);
+
     __wt_free(session, path_dest);
     __wt_free(session, path_src);
     __wt_scr_free(session, &filename);
@@ -895,8 +913,6 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(buf);
     WT_DECL_ITEM(filepath);
 
-    fs->finished = true;
-
     WT_RET(__wt_scr_alloc(session, 0, &filepath));
 
     /* Remove stop files in the destination directory. */
@@ -1113,6 +1129,15 @@ __wt_live_restore_metadata_to_fh(
         return (0);
 
     /*
+     * Once we're in the clean up stage or later all data has been migrated across to the
+     * destination. There's no need for hole tracking and therefore nothing to reconstruct.
+     */
+    if (__wti_live_restore_migration_complete(session)) {
+        WT_ASSERT(session, lr_fh->destination.complete == true);
+        return (0);
+    }
+
+    /*
      * FIXME-WT-14079 there is a tricky scenario here:
      *   - Open a file that exists in the source, a.wt.
      *   - Create a new file in the destination to begin migrating the file to.
@@ -1142,7 +1167,7 @@ __wt_live_restore_metadata_to_fh(
     }
     if (lr_fh_meta->nbits != 0) {
         /* We shouldn't be reconstructing a bitmap if the live restore has finished. */
-        WT_ASSERT(session, !lr_fh->destination.back_pointer->finished);
+        WT_ASSERT(session, !__wti_live_restore_migration_complete(session));
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Reconstructing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
@@ -1170,6 +1195,10 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
 {
     WT_DECL_RET;
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (WT_NOTFOUND);
+
+    /* Once we're past the background migration stage there's no need to track hole information. */
+    if (__wti_live_restore_migration_complete(session))
         return (WT_NOTFOUND);
 
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
@@ -1320,11 +1349,8 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
     char *buf = NULL, *source_path = NULL, *dest_path = NULL, *tmp_dest_path = NULL;
     bool dest_closed = false;
 
-    /*
-     * FIXME-WT-14040: We expect that most of these copies will happen prior to the migration phase.
-     * But definitely by the end of the migration this function should not be called. We should
-     * assert that.
-     */
+    WT_ASSERT_ALWAYS(session, !__wti_live_restore_migration_complete(session),
+      "Attempting to atomically copy a file outside of the migration phase!");
 
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
@@ -1395,7 +1421,7 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
   const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool have_stop,
   bool dest_exist, bool source_exist)
 {
-    if (have_stop || lr_fs->finished || !source_exist)
+    if (have_stop || __wti_live_restore_migration_complete(session) || !source_exist)
         lr_fh->destination.complete = true;
     else {
         wt_off_t source_size;
@@ -1488,7 +1514,8 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
      * check the source file based off that information.
      */
 
-    bool dest_exist = false, have_stop = false, check_source = !lr_fs->finished;
+    bool dest_exist = false, have_stop = false,
+         check_source = !__wti_live_restore_migration_complete(session);
 
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
@@ -1739,6 +1766,7 @@ __live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
     WT_ASSERT(session, lr_fs->os_file_system != NULL);
     WT_RET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, wt_session));
 
+    __wt_spin_destroy(session, &lr_fs->state_lock);
     __wt_free(session, lr_fs->source.home);
     __wt_free(session, lr_fs);
     return (0);
@@ -1805,7 +1833,19 @@ __wt_os_live_restore_fs(
     if (!__wt_ispo2((uint32_t)lr_fs->read_size))
         WT_ERR_MSG(session, EINVAL, "the live restore read size must be a power of two");
 
-    /* Update the callers pointer. */
+    WT_ERR(__wt_spin_init(session, &lr_fs->state_lock, "live restore state lock"));
+
+    /*
+     * To initialize the live restore file system we need to read its state from the turtle file,
+     * but to open the turtle file we need a working file system. Temporarily set WiredTiger's file
+     * system to the underlying file system so we can open the turtle file in the destination. We'll
+     * set the correct live restore file as soon as possible.
+     */
+    *fsp = lr_fs->os_file_system;
+    WT_ERR(__wti_live_restore_validate_directories(session, lr_fs));
+    WT_ERR(__wti_live_restore_init_state(session, lr_fs));
+
+    /* Now set the proper live restore file system. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
 
     /* Flag that a live restore file system is in use. */

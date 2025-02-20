@@ -23,6 +23,64 @@ __live_restore_worker_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __live_restore_clean_up --
+ *     Clean up live restore metadata once background migration has completed. This will be called
+ *     by the last background migration thread. In most cases, we'll enter this function on
+ *     completion of background migration, but we also need to handle the case where we restart part
+ *     way though the clean up.
+ */
+static int
+__live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
+{
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
+    const char *force_ckpt_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=true", NULL};
+    WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
+
+    switch (__wti_live_restore_get_state(session, lr_fs)) {
+    case WTI_LIVE_RESTORE_STATE_NONE:
+        /* This state should be unreachable outside of initializing the live restore file system. */
+        WT_ASSERT_ALWAYS(session, false, "Live restore state is NONE!");
+        break;
+
+    case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
+        /*
+         * We need our metadata updates to be written out. Force a checkpoint on all trees before
+         * marking background migration complete. All empty extent lists must be written to the
+         * metadata durably first with the checkpoint.
+         */
+        WT_RET(__wt_checkpoint_db(ctx->session, force_ckpt_cfg, true));
+
+        uint64_t time_diff_ms;
+        __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
+        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+          "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
+          S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
+
+        WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_CLEAN_UP));
+
+        /* FALLTHROUGH */
+    case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
+        WT_RET(__wti_live_restore_cleanup_stop_files(session));
+
+        /*
+         * Run a second forced checkpoint now that clean up has finished. Checkpointing files on or
+         * after the clean up stage will remove any extent list strings from the metadata file.
+         */
+        WT_RET(__wt_checkpoint_db(ctx->session, force_ckpt_cfg, true));
+        WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
+
+        /* FALLTHROUGH */
+    case WTI_LIVE_RESTORE_STATE_COMPLETE:
+        break;
+    }
+
+    WT_ASSERT(
+      session, __wti_live_restore_get_state(session, lr_fs) == WTI_LIVE_RESTORE_STATE_COMPLETE);
+    return (0);
+}
+
+/*
  * __live_restore_worker_stop --
  *     When a live restore worker stops we need to manage some state. If all workers stop and the
  *     queue is empty then update the state statistic to track that.
@@ -31,36 +89,23 @@ static int
 __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 {
     WT_DECL_RET;
-    WT_UNUSED(ctx);
+
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     __wt_spin_lock(session, &server->queue_lock);
     server->threads_working--;
 
     if (server->threads_working == 0) {
-        /*
-         * If all the threads have stopped and the queue is empty signal that the live restore is
-         * complete.
-         */
-        if (TAILQ_EMPTY(&server->work_queue)) {
+        /* If all the threads are stopped and the queue is empty, background migration is done. */
+        if (TAILQ_EMPTY(&server->work_queue))
             /*
-             * Force a checkpoint, we need our last metadata updates to be written out. The order is
-             * important here as we cannot mark the live restore complete if we have not written out
-             * empty extent lists to the metadata file durably. If we were to mark it as complete
-             * prematurely after a crash we may startup and still find files with "holes" in them
-             * which would be unexpected.
+             * FIXME-WT-14113 This is currently the only location where we call live restore clean
+             * up, but it requires us to start up the background migration threads first. When
+             * WiredTiger starts in a post-background migration state, we should call live restore
+             * clean up directly instead of spinning up the server to eventually trigger clean up.
              */
-            const char *cfg[] = {
-              WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=true", NULL};
-            WT_ERR(__wt_checkpoint_db(ctx->session, cfg, true));
-            WT_ERR(__wti_live_restore_cleanup_stop_files(session));
-            uint64_t time_diff_ms;
-            WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
-            __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
-            __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-              "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
-              S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
-        }
+            WT_ERR(__live_restore_clean_up(session, ctx));
+
         /*
          * Future proofing: in general unless the conn is closing the queue must be empty if there
          * are zero threads working.
@@ -319,13 +364,6 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__wt_spin_init(
       session, &conn->live_restore_server->queue_lock, "live restore migration work queue"));
-
-    /*
-     * Set the in progress state before we run the threads. If we do it after there's a chance we'll
-     * context switch and then this state will happen after the finish state. By setting it here it
-     * also means we transition through all valid states.
-     */
-    WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_IN_PROGRESS);
 
     /*
      * Even if we start from an empty database the history store file will exist before we get here

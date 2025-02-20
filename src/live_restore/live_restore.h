@@ -8,9 +8,7 @@
 
 #pragma once
 
-#define WT_LIVE_RESTORE_INIT 0x0
-#define WT_LIVE_RESTORE_IN_PROGRESS 0x1
-#define WT_LIVE_RESTORE_COMPLETE 0x2
+#define WT_LIVE_RESTORE_STATE_STRING_MAX 128
 
 /*
  * __wt_live_restore_fh_meta --
@@ -26,14 +24,19 @@ struct __wt_live_restore_fh_meta {
 
 extern int __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh,
   WT_ITEM *meta_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_str)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_metadata_to_fh(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh,
   WT_LIVE_RESTORE_FH_META *lr_fh_meta) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_live_restore_validate_non_lr_system(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_os_live_restore_fs(WT_SESSION_IMPL *session, const char *cfg[],
   const char *destination, WT_FILE_SYSTEM **fsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_live_restore_init_stats(WT_SESSION_IMPL *session);
 
 #ifdef HAVE_UNITTEST
 extern int __ut_live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str,
