@@ -199,7 +199,7 @@ __wti_live_restore_set_state(
     lr_fs->state = new_state;
 
     /* Bumping the turtle file will automatically write the latest live restore state. */
-    WT_WITH_TURTLE_LOCK(session, ret = __wt_metadata_bump_turtle(session));
+    WT_WITH_TURTLE_LOCK(session, ret = __wt_metadata_turtle_rewrite(session));
     WT_ERR(ret);
     __live_restore_report_state_to_application(session, new_state);
 
