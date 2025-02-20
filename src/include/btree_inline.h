@@ -304,7 +304,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
         if (!F_ISSET(session, WT_SESSION_INTERNAL) &&
           F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID) &&
           __wt_session_gen(session, WT_GEN_EVICT) == 0)
-            WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, size);
+            __txn_incr_bytes_dirty(session, size);
         if (!WT_PAGE_IS_INTERNAL(page)) {
             (void)__wt_atomic_add64(&cache->bytes_updates, size);
             (void)__wt_atomic_add64(&btree->bytes_updates, size);

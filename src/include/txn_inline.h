@@ -1617,6 +1617,31 @@ retry:
 }
 
 /*
+ * __txn_incr_bytes_dirty --
+ *     Increment the number of bytes dirty in the transaction.
+ */
+static void
+__txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size)
+{
+    WT_STAT_CONN_INCRV(session, cache_bytes_updates_txn_uncommitted, (int64_t)size);
+    WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
+}
+
+/*
+ * __txn_clear_bytes_dirty --
+ *     Clear the number of bytes dirty in the transaction.
+ */
+static void
+__txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
+{
+    int64_t txn_bytes_dirty = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
+    if (txn_bytes_dirty != 0) {
+        WT_STAT_CONN_DECRV(session, cache_bytes_updates_txn_uncommitted, txn_bytes_dirty);
+        WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+    }
+}
+
+/*
  * __wt_txn_begin --
  *     Begin a transaction.
  */
@@ -1633,6 +1658,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     txn->first_commit_timestamp = WT_TS_NONE;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
+
+    __txn_clear_bytes_dirty(session);
 
     WT_RET(__wt_txn_config(session, conf));
 

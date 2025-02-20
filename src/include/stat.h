@@ -185,6 +185,7 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     __wt_stats_aggregate_conn(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
 #define WT_STAT_DSRC_READ(stats, fld) \
     __wt_stats_aggregate_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+#define WT_STAT_SESSION_READ(stats, fld) ((stats)->fld)
 #define WT_STAT_WRITE(session, stats, fld, v) \
     do {                                      \
         if (WT_STAT_ENABLED(session))         \
@@ -487,6 +488,7 @@ struct __wt_connection_stats {
     int64_t cache_write_app_count;
     int64_t cache_write_app_time;
     int64_t cache_bytes_updates;
+    int64_t cache_bytes_updates_txn_uncommitted;
     int64_t cache_bytes_image;
     int64_t cache_bytes_hs;
     int64_t cache_bytes_inuse;

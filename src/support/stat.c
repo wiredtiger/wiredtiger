@@ -1392,6 +1392,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: application threads page write from cache to disk count",
   "cache: application threads page write from cache to disk time (usecs)",
   "cache: bytes allocated for updates",
+  "cache: bytes allocated for updates in uncommitted transactions",
   "cache: bytes belonging to page images in the cache",
   "cache: bytes belonging to the history store table in the cache",
   "cache: bytes currently in the cache",
@@ -2176,6 +2177,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_app_count = 0;
     stats->cache_write_app_time = 0;
     /* not clearing cache_bytes_updates */
+    /* not clearing cache_bytes_updates_txn_uncommitted */
     /* not clearing cache_bytes_image */
     /* not clearing cache_bytes_hs */
     /* not clearing cache_bytes_inuse */
@@ -2914,6 +2916,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_write_app_count += WT_STAT_CONN_READ(from, cache_write_app_count);
     to->cache_write_app_time += WT_STAT_CONN_READ(from, cache_write_app_time);
     to->cache_bytes_updates += WT_STAT_CONN_READ(from, cache_bytes_updates);
+    to->cache_bytes_updates_txn_uncommitted +=
+      WT_STAT_CONN_READ(from, cache_bytes_updates_txn_uncommitted);
     to->cache_bytes_image += WT_STAT_CONN_READ(from, cache_bytes_image);
     to->cache_bytes_hs += WT_STAT_CONN_READ(from, cache_bytes_hs);
     to->cache_bytes_inuse += WT_STAT_CONN_READ(from, cache_bytes_inuse);
@@ -3701,7 +3705,7 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->bytes_read = 0;
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
-    stats->txn_bytes_dirty = 0;
+    /* not clearing txn_bytes_dirty */
     stats->read_time = 0;
     stats->write_time = 0;
     stats->lock_schema_wait = 0;

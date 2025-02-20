@@ -274,6 +274,7 @@ conn_stats = [
     CacheStat('cache_bytes_max', 'maximum bytes configured', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_other', 'bytes not belonging to page images in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_updates', 'bytes allocated for updates', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_updates_txn_uncommitted', 'bytes allocated for updates in uncommitted transactions', 'no_clear,no_scale,size'),
     CacheStat('cache_hazard_checks', 'hazard pointer check calls'),
     CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
@@ -1181,6 +1182,6 @@ session_stats = [
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),
-    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn'),
+    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn', 'no_clear,no_scale,size'),
     SessionStat('write_time', 'page write from cache to disk time (usecs)'),
 ]

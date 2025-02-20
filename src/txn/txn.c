@@ -838,6 +838,8 @@ __txn_release(WT_SESSION_IMPL *session)
 
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
+
+    __txn_clear_bytes_dirty(session);
 }
 
 /*
@@ -2119,6 +2121,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
     }
+    __txn_clear_bytes_dirty(session);
     WT_STAT_CONN_INCRV(session, txn_prepared_updates, prepared_updates);
     WT_STAT_CONN_INCRV(session, txn_prepared_updates_key_repeated, prepared_updates_key_repeated);
 #ifdef HAVE_DIAGNOSTIC
