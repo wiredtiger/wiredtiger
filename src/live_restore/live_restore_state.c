@@ -26,27 +26,18 @@ __wti_live_restore_migration_complete(WT_SESSION_IMPL *session)
  * __live_restore_state_to_string --
  *     Convert a live restore state to its string representation.
  */
-static int
-__live_restore_state_to_string(
-  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_STATE state, char **state_strp)
+static const char *
+__live_restore_state_to_string(WTI_LIVE_RESTORE_STATE state)
 {
     switch (state) {
     case WTI_LIVE_RESTORE_STATE_NONE:
-        WT_RET(__wt_strndup(
-          session, "WTI_LIVE_RESTORE_STATE_NONE", WT_LIVE_RESTORE_STATE_STRING_MAX, state_strp));
-        break;
+        return ("WTI_LIVE_RESTORE_STATE_NONE");
     case WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION:
-        WT_RET(__wt_strndup(session, "WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION",
-          WT_LIVE_RESTORE_STATE_STRING_MAX, state_strp));
-        break;
+        return ("WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION");
     case WTI_LIVE_RESTORE_STATE_CLEAN_UP:
-        WT_RET(__wt_strndup(session, "WTI_LIVE_RESTORE_STATE_CLEAN_UP",
-          WT_LIVE_RESTORE_STATE_STRING_MAX, state_strp));
-        break;
+        return ("WTI_LIVE_RESTORE_STATE_CLEAN_UP");
     case WTI_LIVE_RESTORE_STATE_COMPLETE:
-        WT_RET(__wt_strndup(session, "WTI_LIVE_RESTORE_STATE_COMPLETE",
-          WT_LIVE_RESTORE_STATE_STRING_MAX, state_strp));
-        break;
+        return ("WTI_LIVE_RESTORE_STATE_COMPLETE");
     }
 
     return (0);
@@ -255,10 +246,7 @@ __wt_live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_s
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)conn->file_system;
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
-    char *str = NULL;
-    WT_RET(__live_restore_state_to_string(session, state, &str));
-    WT_RET(__wt_buf_fmt(session, lr_state_str, "%s", str));
-
+    WT_RET(__wt_buf_fmt(session, lr_state_str, "%s", __live_restore_state_to_string(state)));
     return (0);
 }
 
