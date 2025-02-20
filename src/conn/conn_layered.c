@@ -70,14 +70,14 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     layered_ingest_uri = NULL;
     shared_metadata_session = NULL;
 
-    WT_ERR(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
-
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
     WT_ACQUIRE_READ(global_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
 
     if (checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
         return (EINVAL);
+
+    WT_RET(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
 
     /* Check the checkpoint ID to ensure that we are not going backwards. */
     if (checkpoint_id + 1 < global_checkpoint_id)
@@ -187,6 +187,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR(md_cursor->insert(md_cursor));
+            __wt_free(session, cfg_ret);
+            cfg_ret = NULL;
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */
@@ -203,6 +205,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
                     if (ret == WT_NOTFOUND)
                         WT_ERR(__layered_create_missing_ingest_table(
                           internal_session, layered_ingest_uri, metadata_value));
+                    __wt_free(session, layered_ingest_uri);
+                    layered_ingest_uri = NULL;
                 }
             }
 
@@ -246,7 +250,10 @@ err:
 
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
-    __wt_free(session, layered_ingest_uri);
+    if (layered_ingest_uri != NULL)
+        __wt_free(session, layered_ingest_uri);
+    if (cfg_ret != NULL)
+        __wt_free(session, cfg_ret);
 
     __wt_scr_free(session, &item);
     return (ret);
