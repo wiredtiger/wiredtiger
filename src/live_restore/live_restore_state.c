@@ -117,7 +117,7 @@ __live_restore_get_state_from_file(
              * The scan constant needs to be hardcoded, assert if someone changes the underlying
              * constant.
              */
-            WT_ASSERT(session, WT_LIVE_RESTORE_STATE_STRING_MAX == 127);
+            WT_ASSERT(session, WT_LIVE_RESTORE_STATE_STRING_MAX == 128);
             char lr_metadata_string[WT_LIVE_RESTORE_STATE_STRING_MAX];
             if ((sscanf(lr_metadata, "state=%127s", lr_metadata_string)) != 1)
                 WT_ASSERT_ALWAYS(
