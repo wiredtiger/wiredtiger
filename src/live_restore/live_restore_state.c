@@ -10,6 +10,19 @@
 #include "live_restore_private.h"
 
 /*
+ * __wti_live_restore_migration_complete --
+ *     Return if live restore is past the background migration stage.
+ */
+bool
+__wti_live_restore_migration_complete(WT_SESSION_IMPL *session)
+{
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+
+    return (state == WTI_LIVE_RESTORE_STATE_CLEAN_UP || state == WTI_LIVE_RESTORE_STATE_COMPLETE);
+}
+
+/*
  * __live_restore_state_to_string --
  *     Convert a live restore state to its string representation.
  */

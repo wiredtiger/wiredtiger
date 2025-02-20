@@ -155,8 +155,7 @@ __live_restore_fs_create_stop_file(
     if (!reentrant)
         __wt_spin_lock(session, &lr_fs->state_lock);
 
-    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
-    if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state)) {
+    if (__wti_live_restore_migration_complete(session)) {
         if (!reentrant)
             __wt_spin_unlock(session, &lr_fs->state_lock);
         return (0);
@@ -286,7 +285,6 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     bool dest_folder_exists = false, source_folder_exists = false;
     uint32_t num_src_files = 0, num_dest_files = 0;
     WT_DECL_ITEM(filename);
-    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
     path_dest = path_src = temp_path = NULL;
@@ -320,7 +318,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
      * Once we're past the background migration stage we never need to access the source directory
      * again.
      */
-    if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state))
+    if (__wti_live_restore_migration_complete(session))
         goto done;
 
     /* Get files from source. */
@@ -1213,9 +1211,7 @@ __wt_live_restore_fh_import_extents_from_string(
      * Once we're in the clean up stage or later all data has been migrated across to the
      * destination. There's no need for hole tracking and therefore nothing to import.
      */
-    WTI_LIVE_RESTORE_STATE state =
-      __wti_live_restore_get_state(session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
-    if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state)) {
+    if (__wti_live_restore_migration_complete(session)) {
         WT_ASSERT_ALWAYS(session, extent_string_empty,
           "Metadata extent list is not empty after background migration has finished!");
         WT_ASSERT(session, lr_fh->destination.complete == true);
@@ -1314,9 +1310,7 @@ __wt_live_restore_fh_extent_to_metadata(
         return (WT_NOTFOUND);
 
     /* Once we're past the background migration stage there's no need to track hole information. */
-    WTI_LIVE_RESTORE_STATE state =
-      __wti_live_restore_get_state(session, (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system);
-    if (WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state))
+    if (__wti_live_restore_migration_complete(session))
         return (WT_NOTFOUND);
 
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
@@ -1462,8 +1456,7 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
     char *buf = NULL, *source_path = NULL, *dest_path = NULL, *tmp_dest_path = NULL;
     bool dest_closed = false;
 
-    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
-    WT_ASSERT_ALWAYS(session, !WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state),
+    WT_ASSERT_ALWAYS(session, !__wti_live_restore_migration_complete(session),
       "Attempting to atomically copy a file outside of the migration phase!");
 
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
@@ -1535,8 +1528,7 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
   const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool have_stop,
   bool dest_exist, bool source_exist)
 {
-    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
-    if (have_stop || WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state) || !source_exist)
+    if (have_stop || __wti_live_restore_migration_complete(session) || !source_exist)
         lr_fh->destination.complete = true;
     else {
         wt_off_t source_size;
@@ -1629,9 +1621,8 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
      * check the source file based off that information.
      */
 
-    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
     bool dest_exist = false, have_stop = false,
-         check_source = !WTI_LIVE_RESTORE_MIGRATION_COMPLETE(state);
+         check_source = !__wti_live_restore_migration_complete(session);
 
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
