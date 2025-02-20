@@ -337,6 +337,10 @@ file_meta = file_config + [
         LSN of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
+    Config('live_restore', '', r'''
+        live restore metadata for a file''', type='category', subconfig=[
+            Config('bitmap', '', r'''bitmap representation of a file'''),
+            Config('nbits', 0, r'''the number of bits in the bitmap as an integer''', type='int')]),
     Config('readonly', 'false', r'''
         the file is read-only. All methods that modify a file are disabled. See @ref
         readonly for more information''',

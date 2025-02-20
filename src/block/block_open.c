@@ -167,7 +167,7 @@ __wti_block_configure_first_fit(WT_BLOCK *block, bool on)
 int
 __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objectid,
   const char *cfg[], bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize,
-  char *extent_str, WT_BLOCK **blockp)
+  WT_LIVE_RESTORE_FH_META *lr_fh_meta, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
@@ -251,9 +251,9 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * further down which requires the extent lists to be initialized. Even if the extent list is
      * NULL there is bookkeeping to do.
      */
-    WT_ERR(__wt_live_restore_fh_import_extents_from_string(session, block->fh->handle, extent_str));
+    WT_ERR(__wt_live_restore_metadata_to_fh(session, block->fh->handle, lr_fh_meta));
 #else
-    WT_UNUSED(extent_str);
+    WT_UNUSED(lr_fh_meta);
 #endif
 
     /* Set the file's size. */

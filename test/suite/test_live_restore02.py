@@ -40,7 +40,14 @@ class test_live_restore02(wttest.WiredTigerTestCase):
         ('column', dict(key_format='r', value_format='S')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
-    scenarios = make_scenarios(format_values)
+
+    read_sizes = [
+        ('512B', dict(read_size='512B')),
+        ('4KB', dict(read_size='4KB')),
+        ('1MB', dict(read_size='1MB'))
+    ]
+
+    scenarios = make_scenarios(format_values, read_sizes)
     nrows = 10000
 
     def get_stat(self, statistic):
@@ -78,7 +85,7 @@ class test_live_restore02(wttest.WiredTigerTestCase):
                 os.remove(f)
 
         os.mkdir("DEST")
-        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1)")
+        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=" + self.read_size + ")")
 
         state = 0
         timeout = 120

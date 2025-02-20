@@ -100,7 +100,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
  */
 int
 __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *checkpoint,
-  WT_CKPT *ckpt, char **live_restore_extentsp)
+  WT_CKPT *ckpt, WT_LIVE_RESTORE_FH_META *lr_fh_meta)
 {
     WT_CONFIG_ITEM v;
     WT_DECL_RET;
@@ -127,10 +127,17 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
     WT_ERR(__ckpt_version_chk(session, fname, config));
 #endif
 
-    if (live_restore_extentsp != NULL) {
+    if (lr_fh_meta != NULL) {
         WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "live_restore", &v), true);
-        if (ret != WT_NOTFOUND)
-            WT_ERR(__wt_strndup(session, v.str, v.len, live_restore_extentsp));
+        if (ret != WT_NOTFOUND) {
+            WT_CONFIG_ITEM cval;
+            WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, &v, "bitmap", &cval), true);
+            if (ret != WT_NOTFOUND) {
+                WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fh_meta->bitmap_str));
+                WT_ERR(__wt_config_subgets(session, &v, "nbits", &cval));
+                lr_fh_meta->nbits = (uint64_t)cval.val;
+            }
+        }
         /* All code paths that exist today overwrite ret but to be defensive we clear it here. */
         WT_NOT_READ(ret, 0);
     }
@@ -1280,7 +1287,7 @@ __meta_live_restore_to_meta(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, W
         WT_ASSERT(session, bm->is_multi_handle == false);
         /* FIXME-WT-13897 Replace this with an API call into the block manager. */
         WT_FILE_HANDLE *fh = bm->block->fh->handle;
-        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_extent_to_metadata(session, fh, buf));
+        WT_RET_NOTFOUND_OK(__wt_live_restore_fh_to_metadata(session, fh, buf));
     }
     return (0);
 }
