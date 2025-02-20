@@ -24,8 +24,8 @@
 /*
  * This test case covers EINVAL error resulting from live restore conflicts with other operations.
  */
-TEST_CASE(
-  "Test WT_CONFLICT_LIVE_RESTORE", "[sub_level_error_live_restore_conflict],[sub_level_error]")
+TEST_CASE("Test WT_CONFLICT_LIVE_RESTORE",
+  "[sub_level_error_live_restore_conflict],[sub_level_error],[live_restore]")
 {
     WT_SESSION *session = NULL;
     WT_ERROR_INFO *err_info = NULL;
@@ -33,7 +33,13 @@ TEST_CASE(
 
     SECTION("Test WT_CONFLICT_LIVE_RESTORE while opening backup cursor")
     {
-        testutil_mkdir("WT_LR_SOURCE");
+        // We need to have a real WiredTiger database in the source directory.
+        // Wrap it in its own scope to close the connection.
+        {
+            connection_wrapper source_conn_wrapper =
+              connection_wrapper("WT_LR_SOURCE", "create=true");
+        }
+
         connection_wrapper conn_wrapper =
           connection_wrapper(".", "create=true,live_restore=(enabled=true, path=WT_LR_SOURCE)");
         utils::prepare_session_and_error(&conn_wrapper, &session, &err_info);
