@@ -2832,7 +2832,6 @@ tasks:
             set -o errexit
             set -o verbose
             . test/evergreen/find_cmake.sh
-
             cd test/evergreen
             CMAKE_BIN=$CMAKE ./configure_combinations.sh -g="${cmake_generator|Ninja}" -j=$(grep -c ^processor /proc/cpuinfo) 2>&1
       # Handle special build combination for running all the diagnostic tests.
