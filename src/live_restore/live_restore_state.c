@@ -356,7 +356,7 @@ __wt_live_restore_validate_non_lr_system(WT_SESSION_IMPL *session)
 {
     /* The turtle file should indicate we're not in the middle of a live restore. */
     WTI_LIVE_RESTORE_STATE state;
-    __live_restore_get_state_from_file(session, S2C(session)->file_system, &state);
+    WT_RET(__live_restore_get_state_from_file(session, S2C(session)->file_system, &state));
     if (state != WTI_LIVE_RESTORE_STATE_NONE && state != WTI_LIVE_RESTORE_STATE_COMPLETE)
         WT_RET_MSG(session, EINVAL,
           "Cannot start in non-live restore mode while a live restore is in progress!");
