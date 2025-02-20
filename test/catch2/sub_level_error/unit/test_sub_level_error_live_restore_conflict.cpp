@@ -38,6 +38,7 @@ TEST_CASE("Test WT_CONFLICT_LIVE_RESTORE",
         {
             connection_wrapper source_conn_wrapper =
               connection_wrapper("WT_LR_SOURCE", "create=true");
+            source_conn_wrapper.clear_do_cleanup();
         }
 
         connection_wrapper conn_wrapper =
