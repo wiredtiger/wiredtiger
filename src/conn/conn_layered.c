@@ -189,7 +189,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR(md_cursor->insert(md_cursor));
             __wt_free(session, cfg_ret);
-            cfg_ret = NULL;
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */
@@ -207,7 +206,6 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
                         WT_ERR(__layered_create_missing_ingest_table(
                           internal_session, layered_ingest_uri, metadata_value));
                     __wt_free(session, layered_ingest_uri);
-                    layered_ingest_uri = NULL;
                 }
             }
 
@@ -251,10 +249,8 @@ err:
 
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
-    if (layered_ingest_uri != NULL)
-        __wt_free(session, layered_ingest_uri);
-    if (cfg_ret != NULL)
-        __wt_free(session, cfg_ret);
+    __wt_free(session, layered_ingest_uri);
+    __wt_free(session, cfg_ret);
 
     __wt_scr_free(session, &item);
     return (ret);
