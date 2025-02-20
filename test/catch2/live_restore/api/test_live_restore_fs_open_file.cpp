@@ -39,7 +39,7 @@ validate_lr_fh(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, live_restore_test_env &env,
         // directories are always created on open and have nothing to copy from source.
         REQUIRE(lr_fh->source == NULL);
         REQUIRE(lr_fh->destination.complete);
-        REQUIRE(lr_fh->destination.hole_list_head == nullptr);
+        REQUIRE(lr_fh->destination.bitmap == nullptr);
     }
     std::string dest_file_path = env.dest_file_path(file_name);
     REQUIRE(strcmp(lr_fh->destination.fh->name, dest_file_path.c_str()) == 0);
