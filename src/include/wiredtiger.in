@@ -5328,6 +5328,19 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! @} */
 
 /*!
+ * @name Live restore states reported to the application
+ * @anchor live_restore_types
+ * @{
+ */
+/*! Live Restore is initializing. */
+#define WT_LIVE_RESTORE_INIT 0x0
+/*! The database is operational and files are being migrated from the source to the destination. */
+#define WT_LIVE_RESTORE_IN_PROGRESS 0x1
+/*! Live restore has completed and WiredTiger can be restarted in non-live restore mode. */
+#define WT_LIVE_RESTORE_COMPLETE 0x2
+/*! @} */
+
+/*!
  * @name Log record and operation types
  * @anchor log_types
  * @{
