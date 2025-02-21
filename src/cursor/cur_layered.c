@@ -280,31 +280,17 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * content is by definition trailing the ingest cursor. It is just slightly less
              * efficient, and also not an accurate reflection of what we want in terms of sharing
              * checkpoint across different WiredTiger instances eventually.
-             *
-             * The global checkpoint id is the id of the next checkpoint. As follower, we need to
-             * know the previous checkpoint, so subtract 1.
              */
-            WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+            WT_ACQUIRE_READ(checkpoint_name, conn->disaggregated_storage.wiredtiger_checkpoint);
 
-            /*
-             * Either we've never received a checkpoint, making the id zero, or we received a
-             * non-zero checkpoint, so the next checkpoint is greater than one.
-             */
-            WT_ASSERT(session, checkpoint_id != 1);
-
-            if (checkpoint_id > 0)
-                checkpoint_id -= 1;
-
-            if (checkpoint_id == 0) {
+            if (checkpoint_name == NULL) {
                 /* We've never picked up a checkpoint. */
                 ckpt_cfg[cfg_pos++] = "raw,readonly,checkpoint_use_history=false";
                 F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
             } else {
-                WT_ACQUIRE_READ(checkpoint_name, conn->disaggregated_storage.wiredtiger_checkpoint);
                 /*
-                 * Use a URI with a "/WiredTigerCheckpoint.NNN suffix. This is interpreted as
-                 * reading from the stable checkpoint, but without it being a traditional checkpoint
-                 * cursor.
+                 * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from
+                 * the stable checkpoint, but without it being a traditional checkpoint cursor.
                  */
                 WT_RET(__wt_snprintf(stable_uri_buf, sizeof(stable_uri_buf), "%s/%s",
                   layered->stable_uri, checkpoint_name));
@@ -331,7 +317,6 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
             /* Layered cursor is not compatible with cursor_copy config. */
             F_CLR(clayered->stable_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
         }
-        clayered->checkpoint_id = checkpoint_id;
     }
 
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
