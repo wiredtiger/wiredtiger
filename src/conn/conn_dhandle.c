@@ -49,7 +49,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     tmp = NULL;
 
     /* Adjust the dhandle name for disaggregated storage. */
-    WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, NULL, &name_buf, NULL));
+    WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, NULL, &name_buf));
 
     /*
      * Read the object's entry from the metadata file, we're done if we don't find one.

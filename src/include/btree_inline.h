@@ -279,8 +279,8 @@ __wt_btree_shared(WT_SESSION_IMPL *session, const char *uri, const char **bt_cfg
  *     checkpoint id string.
  */
 static WT_INLINE int
-__wt_btree_shared_base_name(WT_SESSION_IMPL *session, const char **namep, const char **checkpointp,
-  WT_ITEM **name_bufp, WT_ITEM **checkpoint_bufp)
+__wt_btree_shared_base_name(
+  WT_SESSION_IMPL *session, const char **namep, const char **checkpointp, WT_ITEM **name_bufp)
 {
     WT_ITEM *name_buf;
     size_t len;
@@ -305,16 +305,9 @@ __wt_btree_shared_base_name(WT_SESSION_IMPL *session, const char **namep, const 
 
     *namep = (const char *)name_buf->data;
 
-    /*
-     * If the caller wants a checkpoint string returned, it looks like "WiredTigerCheckpoint.NNN".
-     * The NNN is an integer (the disagg checkpoint id) that appears after the slash in the input
-     * name. We don't do any verification that it is an integer, it's guaranteed elsewhere.
-     */
-    if (checkpointp != NULL) {
-        WT_RET(__wt_scr_alloc(session, 0, checkpoint_bufp));
-        WT_RET(__wt_buf_catfmt(session, *checkpoint_bufp, WT_CHECKPOINT ".%s", suffix + 1));
-        *checkpointp = (const char *)(*checkpoint_bufp)->data;
-    }
+    /* The checkpoint id string, if needed, immediately follows the suffix. */
+    if (checkpointp != NULL)
+        *checkpointp = suffix + 1;
 
     return (0);
 }

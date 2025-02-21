@@ -55,8 +55,9 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     WT_SESSION_IMPL *internal_session, *shared_metadata_session;
     size_t len, metadata_value_cfg_len;
     uint64_t checkpoint_timestamp, global_checkpoint_id;
-    char *buf, *cfg_ret, *checkpoint_config, *metadata_value_cfg, *layered_ingest_uri;
-    const char *cfg[3], *current_value, *metadata_key, *metadata_value;
+    char *buf, *cfg_ret, *checkpoint_config, *metadata_value_cfg, *layered_ingest_uri,
+      *new_checkpoint_name, *old_checkpoint_name;
+    const char *cfg[3], *current_value, *metadata_key, *metadata_value, *p, *term;
 
     conn = S2C(session);
 
@@ -69,6 +70,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     metadata_value_cfg = NULL;
     layered_ingest_uri = NULL;
     shared_metadata_session = NULL;
+    new_checkpoint_name = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
 
@@ -103,6 +105,15 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
         WT_ERR_MSG(session, EINVAL, "Invalid checkpoint metadata: No checkpoint config string");
     *checkpoint_config = '\0';
     checkpoint_config++;
+
+    /* Parse the checkpoint name and save for later. */
+    p = buf;
+    while (*p == '(')
+        p++;
+    term = strchr(p, '=');
+    if (term == NULL)
+        WT_ERR_MSG(session, EINVAL, "Invalid checkpoint metadata: No checkpoint name");
+    WT_ERR(__wt_strndup(session, p, (size_t)(term - p), &new_checkpoint_name));
 
     /* Parse the checkpoint config. */
     WT_ERR(__wt_config_getones(session, checkpoint_config, "timestamp", &cval));
@@ -233,6 +244,17 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     /* Update the checkpoint timestamp. */
     WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
 
+    WT_ACQUIRE_READ(old_checkpoint_name, conn->disaggregated_storage.wiredtiger_checkpoint);
+
+    /* Store the WiredTiger checkpoint name, it's needed when opening layered cursors. */
+    WT_RELEASE_WRITE(conn->disaggregated_storage.wiredtiger_checkpoint, new_checkpoint_name);
+
+    /* Don't free the storage for this string now that we're using it. */
+    new_checkpoint_name = NULL;
+
+    /* Free the old name.  TODO: the disaggregated storage struct should have locking */
+    __wt_free(session, old_checkpoint_name);
+
 err:
     if (cursor != NULL)
         WT_TRET(cursor->close(cursor));
@@ -247,6 +269,7 @@ err:
     __wt_free(session, buf);
     __wt_free(session, metadata_value_cfg);
     __wt_free(session, layered_ingest_uri);
+    __wt_free(session, new_checkpoint_name);
 
     __wt_scr_free(session, &item);
     return (ret);
@@ -799,6 +822,7 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
     }
 
     __wt_free(session, disagg->page_log);
+    __wt_free(session, disagg->wiredtiger_checkpoint);
     return (ret);
 }
 

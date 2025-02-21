@@ -59,7 +59,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_CKPT ckpt;
     WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *dhandle;
-    WT_DECL_ITEM(checkpoint_buf);
     WT_DECL_ITEM(name_buf);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -90,9 +89,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
       F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(btree, WT_BTREE_READONLY);
 
-    /* For disaggregated stable tree opens, remove any trailing checkpoint indicator. */
-    WT_ERR(
-      __wt_btree_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf, &checkpoint_buf));
+    /* For disaggregated stable tree opens, separate any trailing checkpoint indicator. */
+    WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf));
 
     /* Get the checkpoint information for this name/checkpoint pair. */
     WT_ERR(__wt_meta_checkpoint(session, dhandle_name, checkpoint, &ckpt));
@@ -189,7 +187,6 @@ err:
     }
     __wt_meta_checkpoint_free(session, &ckpt);
 
-    __wt_scr_free(session, &checkpoint_buf);
     __wt_scr_free(session, &name_buf);
     __wt_scr_free(session, &tmp);
     return (ret);
