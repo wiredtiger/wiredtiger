@@ -2340,6 +2340,8 @@ struct __wt_connection {
      * @config{ ),,}
      * @config{disaggregated = (, configure disaggregated storage for this connection., a set of
      * related configuration options defined as follows.}
+     * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+     * shutdown_checkpoint, Whether do checkpoint at shutdown., a boolean flag; default \c false.}
      * @config{ ),,}
      * @config{error_prefix, prefix string for error messages., a string; default empty.}
      * @config{eviction = (, eviction configuration options., a set of related configuration options
@@ -3206,6 +3208,8 @@ struct __wt_connection {
  * "checkpoint"\, \c "data"\, \c "log"; default empty.}
  * @config{disaggregated = (, configure disaggregated storage for this connection., a set of related
  * configuration options defined as follows.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;shutdown_checkpoint,
+ * Whether do checkpoint at shutdown., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{encryption = (, configure an encryptor for system wide metadata and logs.  If a system
  * wide encryptor is set\, it is also used for encrypting data files and tables\, unless encryption
