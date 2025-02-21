@@ -71,8 +71,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     layered_ingest_uri = NULL;
     shared_metadata_session = NULL;
     new_checkpoint_name = NULL;
-
-    WT_ERR(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
+    cfg_ret = NULL;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -80,6 +79,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
 
     if (checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
         return (EINVAL);
+
+    WT_RET(__wt_scr_alloc(session, 16 * WT_KILOBYTE, &item));
 
     /* Check the checkpoint ID to ensure that we are not going backwards. */
     if (checkpoint_id + 1 < global_checkpoint_id)
@@ -198,6 +199,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR(md_cursor->insert(md_cursor));
+            __wt_free(session, cfg_ret);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */
@@ -214,6 +216,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
                     if (ret == WT_NOTFOUND)
                         WT_ERR(__layered_create_missing_ingest_table(
                           internal_session, layered_ingest_uri, metadata_value));
+                    __wt_free(session, layered_ingest_uri);
                 }
             }
 
@@ -270,6 +273,7 @@ err:
     __wt_free(session, metadata_value_cfg);
     __wt_free(session, layered_ingest_uri);
     __wt_free(session, new_checkpoint_name);
+    __wt_free(session, cfg_ret);
 
     __wt_scr_free(session, &item);
     return (ret);
@@ -333,8 +337,8 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     manager->open_layered_table_count = conn->next_file_id + 1000;
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
-    manager->entries_allocated =
-      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY);
+    manager->entries_allocated_bytes =
+      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *);
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
@@ -397,8 +401,8 @@ __wt_layered_table_manager_add_table(
 
     WT_ASSERT(session, manager->open_layered_table_count > 0);
     if (ingest_id >= manager->open_layered_table_count) {
-        WT_ERR(
-          __wt_realloc_def(session, &manager->entries_allocated, ingest_id * 2, &manager->entries));
+        WT_ERR(__wt_realloc_def(
+          session, &manager->entries_allocated_bytes, ingest_id * 2, &manager->entries));
         manager->open_layered_table_count = ingest_id * 2;
     }
 
@@ -602,6 +606,7 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
+    manager->entries_allocated_bytes = 0;
 
     __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
     WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
