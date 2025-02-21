@@ -314,8 +314,8 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     manager->open_layered_table_count = conn->next_file_id + 1000;
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
-    manager->entries_allocated =
-      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY);
+    manager->entries_allocated_bytes =
+      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *);
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
@@ -378,8 +378,8 @@ __wt_layered_table_manager_add_table(
 
     WT_ASSERT(session, manager->open_layered_table_count > 0);
     if (ingest_id >= manager->open_layered_table_count) {
-        WT_ERR(
-          __wt_realloc_def(session, &manager->entries_allocated, ingest_id * 2, &manager->entries));
+        WT_ERR(__wt_realloc_def(
+          session, &manager->entries_allocated_bytes, ingest_id * 2, &manager->entries));
         manager->open_layered_table_count = ingest_id * 2;
     }
 
@@ -583,6 +583,7 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
+    manager->entries_allocated_bytes = 0;
 
     __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
     WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
