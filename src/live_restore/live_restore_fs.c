@@ -1137,16 +1137,6 @@ __wt_live_restore_metadata_to_fh(
         return (0);
     }
 
-    /*
-     * FIXME-WT-14079 there is a tricky scenario here:
-     *   - Open a file that exists in the source, a.wt.
-     *   - Create a new file in the destination to begin migrating the file to.
-     *   - Crash.
-     *   - Open the file a.wt again, we will see an a.wt in the destination and not create the
-     *   necessary file length hole. We will also get an empty extent list string indicating a.wt is
-     *   complete.
-     */
-
     if (lr_fh->destination.bitmap != NULL) {
         WT_ASSERT_ALWAYS(session, false, "Bitmap not empty while trying to parse");
         return (0);
