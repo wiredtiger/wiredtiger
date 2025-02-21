@@ -152,6 +152,12 @@ __wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool f
           session, ret = __wt_disagg_update_shared_metadata(session, md_key, md_value));
         WT_ERR(ret);
 
+        /*
+         * Release the metadata cursor early, so that the subsequent functions can reuse the cached
+         * metadata cursor in the session.
+         */
+        WT_ERR(__wt_metadata_cursor_release(session, &md_cursor));
+
         /* Check if we need to include any other metadata keys. */
         if (WT_SUFFIX_MATCH(block_disagg->name, ".wt")) {
             WT_ERR(__wt_snprintf(md_key, len, "%s", block_disagg->name));
