@@ -1155,10 +1155,15 @@ __wt_live_restore_metadata_to_fh(
     __wt_readlock(session, &lr_fh->bitmap_lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
     /*
-     * Only allocate a bitmap for a file that has been newly created in the destination and has a
-     * backing source file.
+     * !!!
+     * While the live restore is in progress the bit count reported by in the live restore meta can
+     * hold three states:
+     *  (0)     : This means file has not yet had a bitmap written to the metadata file and
+     *            therefore no relevant writes have gone to the destination.
+     *  (-1)    : This indicates the file has finished migration and the bitmap is therefore empty.
+     *  (nbits) : The number of bits in the bitmap.
      */
-    if (lr_fh->destination.newly_created) {
+    if (lr_fh_meta->nbits == 0 && lr_fh->source_size > 0) {
         uint64_t nbits = lr_fh->source_size / lr_fh_meta->allocsize;
         WT_ERR(__bit_alloc(session, nbits, &lr_fh->destination.bitmap));
         lr_fh->destination.nbits = nbits;
@@ -1169,11 +1174,11 @@ __wt_live_restore_metadata_to_fh(
         /* We shouldn't be reconstructing a bitmap if the live restore has finished. */
         WT_ASSERT(session, !__wti_live_restore_migration_complete(session));
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-          "Reconstructing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
+          "Reconstructing bitmap for %s, bitmap_sz %" PRId64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
         /* Reconstruct a pre-existing bitmap. */
         WT_ERR(
-          __live_restore_decode_bitmap(session, lr_fh_meta->bitmap_str, lr_fh_meta->nbits, lr_fh));
+          __live_restore_decode_bitmap(session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
     } else
         lr_fh->destination.complete = true;
 
@@ -1215,7 +1220,7 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
           "%s: Appending live restore bitmap (%s, %" PRIu64 ") to metadata", fh->name,
           (char *)buf.data, lr_fh->destination.nbits);
     } else {
-        WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore="));
+        WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=,nbits=-1)"));
         __wt_verbose_debug3(
           session, WT_VERB_LIVE_RESTORE, "%s: Appending empty live restore metadata", fh->name);
     }
@@ -1448,7 +1453,6 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
              */
             WT_RET(
               lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, source_size));
-            lr_fh->destination.newly_created = true;
             goto done;
         }
     }

@@ -16,7 +16,7 @@
  */
 struct __wt_live_restore_fh_meta {
     char *bitmap_str;
-    uint64_t nbits;
+    int64_t nbits;
     uint32_t allocsize;
 };
 
