@@ -101,7 +101,7 @@ def wiredtiger_open_replace(orig_wiredtiger_open, homedir, curconfig):
     WiredTigerTestCase.verbose(None, 3, f'role={disagg_parameters.role}')
     disagg_config = ',verbose=[layered]' \
         + f',disaggregated=(role="{disagg_parameters.role}"' \
-        + f',page_log={page_log_name})'
+        + f',page_log={page_log_name},shutdown_checkpoint=true)'
 
     # Mark the test case whether the connection is a disagg leader or follower.
     # This is used for the initial state.
