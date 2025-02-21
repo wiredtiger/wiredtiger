@@ -179,9 +179,8 @@ struct __wt_disaggregated_storage {
 
     wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
-
+                                         /* Updates are protected by the checkpoint lock. */
     bool shutdown_checkpoint;
-    /* Updates are protected by the checkpoint lock. */
 };
 
 /*
