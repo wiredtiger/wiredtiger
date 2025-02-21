@@ -255,7 +255,11 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     /* Don't free the storage for this string now that we're using it. */
     new_checkpoint_name = NULL;
 
-    /* Free the old name.  TODO: the disaggregated storage struct should have locking */
+    /*
+     * TODO: the disaggregated storage struct should have locking, otherwise there are
+     * use-after-free races.
+     */
+    /* Free the old name. */
     __wt_free(session, old_checkpoint_name);
 
 err:
