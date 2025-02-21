@@ -107,16 +107,15 @@ class test_compact07(compact_util):
             self.assertGreater(self.get_free_space(uri), free_space_20)
 
         # Enable background compaction with a threshold big enough so it does not process the first
-        # table created but only the others with more empty space.
-        self.turn_on_bg_compact(f'free_space_target={(free_space_20 + 1)}MB')
+        # table created but only the others with more empty space. We set run_once so we don't
+        # conflict with foreground compaction. If the two are running in parallel, stats cannot be
+        # checked properly.
+        self.turn_on_bg_compact(f'free_space_target={(free_space_20 + 1)}MB,run_once=true')
 
         # Background compaction should run through every file as listed in the metadata file.
         # Wait until all the eligible files have been compacted.
         while self.get_files_compacted(uris) < self.n_tables:
             time.sleep(0.1)
-
-        # Check that we have the compacted files in the background compaction tracking list.
-        self.assertGreater(self.get_bg_compaction_files_tracked(), 0)
 
         # Check that we made no progress on the small file.
         self.assertEqual(self.get_pages_rewritten(uri_small), 0)
@@ -131,15 +130,24 @@ class test_compact07(compact_util):
         stat_cursor.close()
 
         # Perform foreground compaction on the remaining file by setting a free_space_target value
-        # that is guaranteed to run on it. This call might return EBUSY if background compaction is
-        # inspecting it at the same time.
+        # that is guaranteed to run on it. Make sure background compaction is disabled before
+        # proceeding.
+        while self.get_bg_compaction_running():
+            time.sleep(0.1)
         self.compactUntilSuccess(self.session, uri_small, 'free_space_target=1MB')
 
         # Check that foreground compaction has done some work on the small table.
         self.assertGreater(self.get_pages_rewritten(uri_small), 0)
 
-        # Drop the tables and wait for sometime for them to be removed from the background
-        # compaction server list.
+        # Restart background compaction and wait for it to start tracking files.
+        self.turn_on_bg_compact(f'free_space_target={(free_space_20 + 1)}MB')
+        while self.get_bg_compaction_files_tracked() == 0:
+            time.sleep(0.1)
+
+        # Save the current number of tracked files for later.
+        tracked_files = self.get_bg_compaction_files_tracked()
+
+        # Drop the tables.
         for i in range(self.n_tables):
             uri = self.uri_prefix + f'_{i}'
             self.dropUntilSuccess(self.session, uri)
@@ -147,9 +155,8 @@ class test_compact07(compact_util):
         self.session.checkpoint()
 
         # The tables should get removed from the tracking list once they exceed the max idle time
-        # after they're dropped. Only two tables are expected to be present: the small table and the
-        # HS file.
-        while self.get_bg_compaction_files_tracked() > 2:
+        # after they're dropped.
+        while tracked_files == self.get_bg_compaction_files_tracked():
             time.sleep(1)
 
         # Stop the background compaction server.
