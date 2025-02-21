@@ -1116,6 +1116,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     struct timespec tsp;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *hs_dhandle;
     WT_DECL_RET;
     WT_EVICT *evict;
     WT_TXN *txn;
@@ -1312,7 +1313,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * occurred), this will return ENOENT which we ignore and continue.
      */
     WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT, false);
-    WT_DATA_HANDLE *hs_dhandle = session->dhandle;
+    hs_dhandle = session->dhandle;
 
     /*
      * It is possible that we don't have a history store file in certain recovery scenarios. As such
