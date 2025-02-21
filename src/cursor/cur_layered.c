@@ -203,7 +203,6 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
-    uint64_t checkpoint_id;
     u_int cfg_pos;
     char random_config[1024], stable_uri_buf[256];
     const char *checkpoint_name;
@@ -216,7 +215,6 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     session = CUR2S(clayered);
     conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)session->dhandle;
-    checkpoint_id = 0;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
