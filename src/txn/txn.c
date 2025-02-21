@@ -2709,12 +2709,11 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 
         s = NULL;
         /*
-         * Do shutdown checkpoint if we are not using disaggregated storage or we are configured to
-         * do. Normally, for disaggregated storage, we should do a checkpoint and then step-down as
-         * the leader before we close the connection. For testing purposes, we allow it to do a
-         * shutdown checkpoint as configured.
+         * Do shutdown checkpoint if we are not using disaggregated storage. For disaggregated
+         * storage, we should do a checkpoint and then step-down as the leader before we close the
+         * connection.
          */
-        if (!conn_is_disagg || conn->disaggregated_storage.shutdown_checkpoint) {
+        if (!conn_is_disagg) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
             if (s != NULL) {
                 const char *checkpoint_cfg[] = {

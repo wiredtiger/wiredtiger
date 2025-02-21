@@ -121,9 +121,6 @@ connection_disaggregated_config_common = [
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
-    Config('shutdown_checkpoint', 'false', r'''
-        Whether do checkpoint at shutdown''',
-        type='boolean'),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''
