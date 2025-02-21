@@ -704,6 +704,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         }
     }
 
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.shutdown_checkpoint", &cval));
+    conn->disaggregated_storage.shutdown_checkpoint = cval.val != 0;
+
     /* Connection init settings only. */
 
     if (reconfig)
