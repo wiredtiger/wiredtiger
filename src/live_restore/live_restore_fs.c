@@ -1170,7 +1170,7 @@ __wt_live_restore_metadata_to_fh(
         __wt_readunlock(session, &lr_fh->bitmap_lock);
         return (0);
     }
-    if (lr_fh_meta->nbits != 0) {
+    if (lr_fh_meta->nbits > 0) {
         /* We shouldn't be reconstructing a bitmap if the live restore has finished. */
         WT_ASSERT(session, !__wti_live_restore_migration_complete(session));
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
@@ -1179,8 +1179,10 @@ __wt_live_restore_metadata_to_fh(
         /* Reconstruct a pre-existing bitmap. */
         WT_ERR(
           __live_restore_decode_bitmap(session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
-    } else
+    } else {
         lr_fh->destination.complete = true;
+        WT_ASSERT(session, lr_fh_meta->nbits == -1);
+    }
 
     if (0) {
 err:
