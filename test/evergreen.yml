@@ -280,7 +280,7 @@ functions:
 
         # FIXME-WT-14152: Enable LZ4 and snappy compressors once installed on machines.
         if [[ "${build_variant|}" =~ "amazon2023" ]]; then
-          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_LZ4=1) ]]; then 
+          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_LZ4=1) ]]; then
             DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_LZ4=1/}
           fi
           if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
