@@ -192,6 +192,10 @@ class Oplog(object):
             cursor = session.open_cursor(uri)
             for k,v in cursor:
                 kint = int(k)
+                if not kint in values:
+                    testcase.pr(f'FAILURE got unexpected key {kint}, value {v} from cursor')
+                elif v != str(values[kint]):
+                    testcase.pr(f'FAILURE at key {kint}, got value {v} want {values[kint]}')
                 testcase.assertEquals(v, str(values[kint]))
                 del values[kint]
             cursor.close()
@@ -266,26 +270,41 @@ class test_layered23(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Rinse and repeat.
         leader_pos = 3000
         follower_pos = 2100
+
         for i in range(1, 10):
             self.pr(f'iteration {i}')
             self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
 
             self.session.checkpoint()
+            checkpoint_pos = leader_pos
 
-            # More traffic on leader, stay ahead because follower will advance past checkpoint
-            # before picking up checkpoint.
-            oplog.insert(t, 900)
-            oplog.update(t, 100)
-            oplog.apply(self, self.session, leader_pos, 1000)
-            leader_pos += 1000
-            # The check begins at 0, which means this test will have quadratic performance.
-            # We don't always have to start at 0.
-            oplog.check(self, self.session, 0, leader_pos)
+            # Every few times have no data between checkpoints.
+            if i % 3 != 0:
+                # More traffic on leader, stay ahead because follower will advance past checkpoint
+                # before picking up checkpoint.
+                oplog.insert(t, 900)
+                oplog.update(t, 100)
+                oplog.apply(self, self.session, leader_pos, 1000)
+                leader_pos += 1000
 
-            # On follower, apply oplog, advance checkpoint
-            oplog.apply(self, session_follow, follower_pos, 1000)
-            follower_pos += 1000
+                # The check begins at 0, which means this test will have quadratic performance.
+                # We don't always have to start at 0.
+                oplog.check(self, self.session, 0, leader_pos)
+
+            # On follower, apply oplog. Stay a little behind the leader, but
+            # we always must be in front of the checkpoint.
+            follower_new_pos = max(min(follower_pos, leader_pos - 900), checkpoint_pos)
+            to_apply = follower_new_pos - follower_pos
+            oplog.apply(self, session_follow, follower_pos, to_apply)
+            follower_pos = follower_new_pos
+
+            self.pr(f'checking follower from pos 0 to {follower_pos} before checkpoint pick-up')
+            oplog.check(self, session_follow, 0, follower_pos)
+
+            # advance checkpoint
             self.pr('advance checkpoint')
             self.disagg_advance_checkpoint(conn_follow)
+
             # The check begins at 0, which means this test will have quadratic performance.
+            self.pr(f'checking follower from pos 0 to {follower_pos} after checkpoint pick-up')
             oplog.check(self, session_follow, 0, follower_pos)
