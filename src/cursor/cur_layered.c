@@ -279,11 +279,15 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * efficient, and also not an accurate reflection of what we want in terms of sharing
              * checkpoint across different WiredTiger instances eventually.
              */
-            WT_ACQUIRE_READ(checkpoint_name, conn->disaggregated_storage.wiredtiger_checkpoint);
+
+            /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
+            checkpoint_name = NULL;
+            WT_RET_NOTFOUND_OK(
+              __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL));
 
             if (checkpoint_name == NULL) {
                 /* We've never picked up a checkpoint. */
-                ckpt_cfg[cfg_pos++] = "raw,readonly,checkpoint_use_history=false";
+                ckpt_cfg[cfg_pos++] = "readonly,checkpoint_use_history=false";
                 F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
             } else {
                 /*
