@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
 
 /*
@@ -314,8 +315,8 @@ __wt_layered_table_manager_start(WT_SESSION_IMPL *session)
     manager->open_layered_table_count = conn->next_file_id + 1000;
     WT_ERR(__wt_calloc(session, sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *),
       manager->open_layered_table_count, &manager->entries));
-    manager->entries_allocated =
-      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY);
+    manager->entries_allocated_bytes =
+      manager->open_layered_table_count * sizeof(WT_LAYERED_TABLE_MANAGER_ENTRY *);
 
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_ERR(__wt_thread_group_create(session, &manager->threads, "layered-table-manager",
@@ -378,8 +379,8 @@ __wt_layered_table_manager_add_table(
 
     WT_ASSERT(session, manager->open_layered_table_count > 0);
     if (ingest_id >= manager->open_layered_table_count) {
-        WT_ERR(
-          __wt_realloc_def(session, &manager->entries_allocated, ingest_id * 2, &manager->entries));
+        WT_ERR(__wt_realloc_def(
+          session, &manager->entries_allocated_bytes, ingest_id * 2, &manager->entries));
         manager->open_layered_table_count = ingest_id * 2;
     }
 
@@ -583,12 +584,97 @@ __wt_layered_table_manager_destroy(WT_SESSION_IMPL *session)
     }
     __wt_free(session, manager->entries);
     manager->open_layered_table_count = 0;
+    manager->entries_allocated_bytes = 0;
 
     __wt_atomic_store32(&manager->state, WT_LAYERED_TABLE_MANAGER_OFF);
     WT_STAT_CONN_SET(session, layered_table_manager_running, 0);
     __wt_spin_unlock(session, &manager->layered_table_lock);
 
     return (0);
+}
+
+/*
+ * __wt_disagg_copy_metadata_later --
+ *     Copy the metadata that belongs to the given URI into the shared metadata table at the next
+ *     checkpoint.
+ */
+int
+__wt_disagg_copy_metadata_later(
+  WT_SESSION_IMPL *session, const char *stable_uri, const char *table_name)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_COPY_METADATA *entry;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_calloc_one(session, &entry));
+    WT_RET(__wt_strdup(session, stable_uri, &entry->stable_uri));
+    WT_RET(__wt_strdup(session, table_name, &entry->table_name));
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+    TAILQ_INSERT_TAIL(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
+    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+
+    return (0);
+}
+
+/*
+ * __wt_disagg_copy_metadata_clear --
+ *     Clear the copy metadata list.
+ */
+void
+__wt_disagg_copy_metadata_clear(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGG_COPY_METADATA *entry, *tmp;
+
+    conn = S2C(session);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+
+    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
+    {
+        TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
+        __wt_free(session, entry->stable_uri);
+        __wt_free(session, entry->table_name);
+        __wt_free(session, entry);
+    }
+    WT_TAILQ_SAFE_REMOVE_END
+
+    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+}
+
+/*
+ * __wt_disagg_copy_metadata_process --
+ *     Process the copy metadata list.
+ */
+int
+__wt_disagg_copy_metadata_process(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGG_COPY_METADATA *entry, *tmp;
+
+    conn = S2C(session);
+
+    __wt_spin_lock(session, &conn->disaggregated_storage.copy_metadata_lock);
+
+    WT_TAILQ_SAFE_REMOVE_BEGIN(entry, &conn->disaggregated_storage.copy_metadata_qh, q, tmp)
+    {
+        WT_ERR(__disagg_copy_shared_metadata_one(session, entry->stable_uri));
+        WT_ERR(__wt_disagg_copy_shared_metadata_layered(session, entry->table_name));
+
+        TAILQ_REMOVE(&conn->disaggregated_storage.copy_metadata_qh, entry, q);
+        __wt_free(session, entry->stable_uri);
+        __wt_free(session, entry->table_name);
+        __wt_free(session, entry);
+    }
+    WT_TAILQ_SAFE_REMOVE_END
+
+err:
+    __wt_spin_unlock(session, &conn->disaggregated_storage.copy_metadata_lock);
+
+    return (ret);
 }
 
 /*
@@ -702,6 +788,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             /* Drain the ingest tables before switching to leader. */
             WT_ERR(__layered_drain_ingest_tables(session));
         }
+
+        /* Leader step-down. */
+        if (reconfig && was_leader && !leader)
+            /* Do some cleanup as we are abandoning the current checkpoint. */
+            __wt_disagg_copy_metadata_clear(session);
     }
 
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.shutdown_checkpoint", &cval));
@@ -798,6 +889,9 @@ __wti_disagg_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     disagg = &conn->disaggregated_storage;
+
+    /* Remove the list of URIs for which we still need to copy metadata entries. */
+    __wt_disagg_copy_metadata_clear(session);
 
     /* Close the metadata handles. */
     if (disagg->page_log_meta != NULL) {
@@ -1185,5 +1279,112 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
 err:
     WT_TRET(__wt_session_close_internal(internal_session));
+    return (ret);
+}
+
+/*
+ * __wt_disagg_update_shared_metadata --
+ *     Update the shared metadata.
+ */
+int
+__wt_disagg_update_shared_metadata(WT_SESSION_IMPL *session, const char *key, const char *value)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "overwrite", NULL};
+
+    WT_ASSERT(session, S2C(session)->layered_table_manager.leader);
+
+    cursor = NULL;
+
+    WT_ERR(__wt_open_cursor(session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
+    cursor->set_key(cursor, key);
+    cursor->set_value(cursor, value);
+    WT_ERR(cursor->insert(cursor));
+
+err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+    return (ret);
+}
+
+/*
+ * __disagg_copy_shared_metadata --
+ *     Copy shared metadata from the main metadata table to the shared metadata table.
+ */
+static int
+__disagg_copy_shared_metadata(WT_SESSION_IMPL *session, WT_CURSOR *md_cursor, const char *key)
+{
+    WT_DECL_RET;
+    const char *md_value;
+
+    md_value = NULL;
+
+    md_cursor->set_key(md_cursor, key);
+    WT_RET(md_cursor->search(md_cursor));
+    WT_RET(md_cursor->get_value(md_cursor, &md_value));
+    WT_SAVE_DHANDLE(session, ret = __wt_disagg_update_shared_metadata(session, key, md_value));
+    WT_RET(ret);
+
+    return (0);
+}
+
+/*
+ * __disagg_copy_shared_metadata_one --
+ *     Copy the metadata associated with the given URI from the main metadata table to the shared
+ *     metadata table.
+ */
+static int
+__disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_CURSOR *md_cursor;
+    WT_DECL_RET;
+
+    md_cursor = NULL;
+
+    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, uri), false);
+
+err:
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+
+    return (ret);
+}
+
+/*
+ * __wt_disagg_copy_shared_metadata_layered --
+ *     Copy all metadata relevant to the given base name (without prefix or suffix) from the main
+ *     metadata table to the shared metadata table.
+ */
+int
+__wt_disagg_copy_shared_metadata_layered(WT_SESSION_IMPL *session, const char *name)
+{
+    WT_CURSOR *md_cursor;
+    WT_DECL_RET;
+    size_t len;
+    char *md_key;
+
+    md_cursor = NULL;
+    md_key = NULL;
+
+    len = strlen(name) + 16;
+    WT_ERR(__wt_calloc_def(session, len, &md_key));
+    WT_ERR(__wt_metadata_cursor(session, &md_cursor));
+
+    WT_ERR(__wt_snprintf(md_key, len, "colgroup:%s", name));
+    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
+
+    WT_ERR(__wt_snprintf(md_key, len, "layered:%s", name));
+    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
+
+    WT_ERR(__wt_snprintf(md_key, len, "table:%s", name));
+    WT_ERR_NOTFOUND_OK(__disagg_copy_shared_metadata(session, md_cursor, md_key), false);
+
+err:
+    __wt_free(session, md_key);
+    if (md_cursor != NULL)
+        WT_TRET(__wt_metadata_cursor_release(session, &md_cursor));
+
     return (ret);
 }
