@@ -237,6 +237,8 @@ struct __wt_delta_cell_leaf;
 typedef struct __wt_delta_cell_leaf WT_DELTA_CELL_LEAF;
 struct __wt_delta_header;
 typedef struct __wt_delta_header WT_DELTA_HEADER;
+struct __wt_disagg_copy_metadata;
+typedef struct __wt_disagg_copy_metadata WT_DISAGG_COPY_METADATA;
 struct __wt_disaggregated_storage;
 typedef struct __wt_disaggregated_storage WT_DISAGGREGATED_STORAGE;
 struct __wt_dlh;

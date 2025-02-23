@@ -1160,6 +1160,12 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
         WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
         __wt_free(session, constituent_cfg);
+
+        /*
+         * Ensure that the new table's metadata would be included in the checkpoint even if it is
+         * empty, in order for the new table to appear in the shared metadata table.
+         */
+        WT_ERR(__wt_disagg_copy_metadata_later(session, stable_uri, tablename));
     }
 
 err:

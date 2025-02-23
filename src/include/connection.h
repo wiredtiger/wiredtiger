@@ -159,6 +159,12 @@ struct __wt_layered_table_manager {
     bool leader;
 };
 
+struct __wt_disagg_copy_metadata {
+    char *stable_uri;                         /* The full URI of the stable component. */
+    char *table_name;                         /* The table name without prefix or suffix. */
+    TAILQ_ENTRY(__wt_disagg_copy_metadata) q; /* Linked list of entries. */
+};
+
 /*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
@@ -181,6 +187,10 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t num_meta_put;     /* The number metadata puts since connection open. */
     uint64_t num_meta_put_at_ckpt_begin; /* The number metadata puts at checkpoint begin. */
                                          /* Updates are protected by the checkpoint lock. */
+
+    /* To copy at the next checkpoint. */
+    TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
+    WT_SPINLOCK copy_metadata_lock;
 };
 
 /*
