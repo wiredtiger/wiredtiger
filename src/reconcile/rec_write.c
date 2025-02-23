@@ -2697,11 +2697,11 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * Delete the updates left in the history store by prepared rollback first before moving updates
      * to the history store.
      */
-    WT_ERR(__wt_hs_delete_updates(session, r));
+    WT_ERR(__wti_rec_hs_delete_updates(session, r));
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_hs_insert_updates(session, r, multi));
+            WT_ERR(__wti_rec_hs_insert_updates(session, r, multi));
             if (!multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
@@ -2821,7 +2821,7 @@ __wti_rec_hs_clear_on_tombstone(
      * checkpoint itself and lead to history store inconsistency. (Note: WT_REC_CHECKPOINT_RUNNING
      * is set only during evictions, and never in the checkpoint thread itself.)
      */
-    WT_RET(__wt_hs_delete_key(
+    WT_RET(__wti_rec_hs_delete_key(
       session, r->hs_cursor, btree->id, key, reinsert, F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)));
 
     /* Fail 0.01% of the time. */

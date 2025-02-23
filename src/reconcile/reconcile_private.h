@@ -184,6 +184,13 @@ extern int __wti_rec_dictionary_lookup(WT_SESSION_IMPL *session, WT_RECONCILE *r
   WTI_REC_DICTIONARY **dpp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_hs_clear_on_tombstone(WT_SESSION_IMPL *session, WT_RECONCILE *r,
   uint64_t recno, WT_ITEM *rowkey, bool reinsert) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_rec_hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
+  uint32_t btree_id, const WT_ITEM *key, bool reinsert, bool error_on_ts_ordering)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_rec_hs_delete_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *multi)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,

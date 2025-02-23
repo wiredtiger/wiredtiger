@@ -27,7 +27,7 @@ The error identifiers look like this:
 #define EBUSY_AT___hs_delete_reinsert_from_pos___hs_rec_c_995 -1000000023
 
 ... which means that the error EBUSY was created in the function
-__hs_delete_reinsert_from_pos in the file hs_rec.c at line 995.
+__rec_hs_delete_reinsert_from_pos in the file hs_rec.c at line 995.
 
 It's easily searchable by the error value -1000000023.
 
