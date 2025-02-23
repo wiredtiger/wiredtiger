@@ -1321,14 +1321,6 @@ err:
         WT_TRET(conn->default_session->event_handler->handle_general(
           conn->default_session->event_handler, wt_conn, NULL, WT_EVENT_CONN_READY, NULL));
 
-    /*
-     * Shut down the layered table manager thread, ideally this would be taken care of in connection
-     * close below, but it needs to precede global transaction state shutdown, so do it here as
-     * well. It also needs to happen prior to draining transaction activity - since the manager
-     * artificially pins transaction state to allow for garbage collection in ingest tables.
-     */
-    WT_TRET(__wt_layered_table_manager_destroy(session));
-
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
@@ -1358,6 +1350,14 @@ err:
     WT_TRET(__wti_background_compact_server_destroy(session));
     WT_TRET(__wt_checkpoint_cleanup_destroy(session));
     WT_TRET(__wti_checkpoint_server_destroy(session));
+
+    /*
+     * Shut down the layered table manager thread, ideally this would be taken care of in connection
+     * close below, but it needs to precede global transaction state shutdown, so do it here as
+     * well. It also needs to happen prior to draining transaction activity - since the manager
+     * artificially pins transaction state to allow for garbage collection in ingest tables.
+     */
+     WT_TRET(__wt_layered_table_manager_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
