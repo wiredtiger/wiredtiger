@@ -1329,6 +1329,11 @@ variables:
       ENABLE_TCMALLOC: 0
     tasks:
       - name: compile
+        # This is a special case and should *only* be used for the macOS buildvariant.
+        # The macOS variant can take up to an hour to schedule tasks, but we want PR testing to complete
+        # in under 30 minutes. The compile task also only takes 2 minutes to run so we can bump up priority
+        # with minimal impact on other projects.
+        priority: 5
       - name: make-check-test
       # Use a special version of unit-test for macOS that checks for Python version consistency.
       - name: unit-test-macos
