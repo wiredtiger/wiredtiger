@@ -79,7 +79,7 @@ EOF
  # Evergreen sandboxing is fixed. The bazel invocation should be reviewed and
  # hopefully simplified.
  mkdir -p /data/tmp/bazel-working-directory/_main ;
- PATH=/opt/mongodbtoolchain/v4/bin:$PATH bazel build --sandbox_debug --sandbox_writable_path=/data/tmp/bazel-working-directory --sandbox_writable_path=/data/tmp/bazel-working-directory/_main --verbose_failures libtcmalloc )
+ PATH=/opt/mongodbtoolchain/v4/bin:$PATH bazel build --enable_workspace --sandbox_debug --sandbox_writable_path=/data/tmp/bazel-working-directory --sandbox_writable_path=/data/tmp/bazel-working-directory/_main --verbose_failures libtcmalloc )
 
 # Package and upload. If the upload fails: fail the WT build, even though
 # there is an available binary. This is to ensure any problem becomes
