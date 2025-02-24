@@ -14,7 +14,7 @@
  */
 static int
 __rec_child_deleted(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
 {
     WT_PAGE_DELETED *page_del;
     uint8_t prepare_state;
@@ -191,7 +191,7 @@ __rec_child_deleted(
  */
 int
 __wti_rec_child_modify(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
 {
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;

@@ -88,7 +88,7 @@ __rec_dictionary_skip_insert(WTI_REC_DICTIONARY **head, WTI_REC_DICTIONARY *e, u
  *     Allocate and initialize the dictionary.
  */
 int
-__wti_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u_int slots)
+__wti_rec_dictionary_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, u_int slots)
 {
     u_int depth, i;
 
@@ -111,7 +111,7 @@ __wti_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u_int slots
  *     Free the dictionary.
  */
 void
-__wti_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__wti_rec_dictionary_free(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     u_int i;
 
@@ -133,7 +133,7 @@ __wti_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     potential split).
  */
 void
-__wti_rec_dictionary_reset(WT_RECONCILE *r)
+__wti_rec_dictionary_reset(WTI_RECONCILE *r)
 {
     if (r->dictionary_slots) {
         r->dictionary_next = 0;
@@ -147,7 +147,7 @@ __wti_rec_dictionary_reset(WT_RECONCILE *r)
  */
 int
 __wti_rec_dictionary_lookup(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_REC_KV *val, WTI_REC_DICTIONARY **dpp)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *val, WTI_REC_DICTIONARY **dpp)
 {
     WTI_REC_DICTIONARY *dp, *next;
     uint64_t hash;

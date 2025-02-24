@@ -596,7 +596,7 @@ __rec_hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates
  *     Pack the history store key
  */
 static WT_INLINE int
-__rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_INSERT *ins,
+__rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_ITEM *key)
 {
     WT_DECL_RET;
@@ -633,7 +633,7 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT
  *     history, cache_write_hs is set to true.
  */
 int
-__wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *multi)
+__wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI *multi)
 {
     WT_BTREE *btree, *hs_btree;
     WT_CURSOR *hs_cursor;
@@ -1151,7 +1151,7 @@ err:
  */
 static int
 __rec_hs_delete_record(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key, WT_UPDATE *upd, WT_UPDATE *tombstone)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key, WT_UPDATE *upd, WT_UPDATE *tombstone)
 {
     WT_DECL_RET;
     bool hs_read_committed;
@@ -1232,12 +1232,12 @@ err:
  *     Delete the updates from the history store.
  */
 int
-__wti_rec_hs_delete_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__wti_rec_hs_delete_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
-    WT_DELETE_HS_UPD *delete_hs_upd;
+    WTI_DELETE_HS_UPD *delete_hs_upd;
     uint32_t i;
 
     /* Nothing to delete from the history store. */
