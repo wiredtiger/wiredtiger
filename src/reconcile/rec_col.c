@@ -1063,8 +1063,8 @@ __wti_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, uint32_t entries,
      * leaf page size but get it from the reconciliation info.
      *
      * Note: it is important to use *this* chunk's auxiliary start offset (passed in) and not read
-     * the auxiliary start offset from the WTI_RECONCILE, as we may be writing the previous chunk and
-     * the latter describes the current chunk.
+     * the auxiliary start offset from the WTI_RECONCILE, as we may be writing the previous chunk
+     * and the latter describes the current chunk.
      */
 
     /* Figure how much primary data we have. */

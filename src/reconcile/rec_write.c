@@ -1816,8 +1816,8 @@ __rec_supd_move(WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, ui
  *     structure.
  */
 static int
-__rec_split_write_supd(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, WT_MULTI *multi, bool last_block)
+__rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk,
+  WT_MULTI *multi, bool last_block)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(key);
