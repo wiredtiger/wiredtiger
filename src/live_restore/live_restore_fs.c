@@ -1167,8 +1167,8 @@ __wt_live_restore_metadata_to_fh(
           "Reconstructing bitmap for %s, bitmap_sz %" PRId64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
         /* Reconstruct a pre-existing bitmap. */
-        WT_ERR(
-          __live_restore_decode_bitmap(session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
+        WT_ERR(__live_restore_decode_bitmap(
+          session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
     } else {
         lr_fh->destination.complete = true;
         WT_ASSERT(session, lr_fh_meta->nbits == -1);
