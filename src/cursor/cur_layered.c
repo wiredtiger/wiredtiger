@@ -1127,15 +1127,18 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
  *     Remove an entry from the desired tree.
  */
 static WT_INLINE int
-__clayered_remove_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key)
+__clayered_remove_int(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
 {
     WT_CURSOR *c;
 
     /*
      * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
-     * anyway.
+     * anyway. We need the cursor still be positioned after the remove. Don't release the cursor if
+     * that is the case. Remove only retains the cursor position if it is positioned at the start.
      */
-    WT_RET(__clayered_reset_cursors(clayered, true));
+    if (!positioned)
+        WT_RET(__clayered_reset_cursors(clayered, true));
 
     if (S2C(session)->layered_table_manager.leader) {
         c = clayered->stable_cursor;
@@ -1323,7 +1326,7 @@ __clayered_remove(WT_CURSOR *cursor)
      * landed on.
      */
     WT_ERR(__cursor_needkey(cursor));
-    WT_ERR(__clayered_remove_int(session, clayered, &cursor->key));
+    WT_ERR(__clayered_remove_int(session, clayered, &cursor->key, positioned));
 
     /*
      * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's
