@@ -57,6 +57,7 @@ buildvariants:
   run_on:
     - amazon2023-arm64-latest-large-m8g
   expansions:
+    ENABLE_TCMALLOC: 0
     <<: *ubuntu2004-perf-tests-expansions-template
     collection: AllPerfTestsARM64
 
