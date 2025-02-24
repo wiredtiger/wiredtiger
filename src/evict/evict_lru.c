@@ -888,8 +888,8 @@ __evict_pass(WT_SESSION_IMPL *session)
             break;
         }
         /*
-         * Decrement evict_aggressive_score only if it is greater than zero, using
-         * compare-and-swap to ensure it does not drop below zero.
+         * Decrement evict_aggressive_score only if it is greater than zero, using compare-and-swap
+         * to ensure it does not drop below zero.
          */
         uint32_t old_score;
         do {
