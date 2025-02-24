@@ -7,6 +7,8 @@
  */
 
 #include "wt_internal.h"
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 
 /*
  * __rec_col_fix_bulk_insert_split_check --

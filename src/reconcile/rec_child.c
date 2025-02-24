@@ -7,7 +7,8 @@
  */
 
 #include "wt_internal.h"
-
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 /*
  * __rec_child_deleted --
  *     Handle pages with leaf pages in the WT_REF_DELETED state.
