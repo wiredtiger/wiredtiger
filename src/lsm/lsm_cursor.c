@@ -271,14 +271,6 @@ __clsm_leave(WT_CURSOR_LSM *clsm)
 }
 
 /*
- * We need a tombstone to mark deleted records, and we use the special value below for that purpose.
- * We use two 0x14 (Device Control 4) bytes to minimize the likelihood of colliding with an
- * application-chosen encoding byte, if the application uses two leading DC4 byte for some reason,
- * we'll do a wasted data copy each time a new value is inserted into the object.
- */
-static const WT_ITEM __tombstone = {"\x14\x14", 2, NULL, 0, 0};
-
-/*
  * __clsm_deleted --
  *     Check whether the current value is a tombstone.
  */

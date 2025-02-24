@@ -15,22 +15,19 @@ static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *cursor, int *exactp);
 
 /*
- * We need a tombstone to mark deleted records, and we use the special value below for that purpose.
- * We use two 0x14 (Device Control 4) bytes to minimize the likelihood of colliding with an
- * application-chosen encoding byte, if the application uses two leading DC4 byte for some reason,
- * we'll do a wasted data copy each time a new value is inserted into the object.
- */
-static const WT_ITEM __tombstone = {"\x14\x14", 3, NULL, 0, 0};
-
-/*
  * __clayered_deleted --
- *     Check whether the current value is a tombstone.
+ *     Check whether the current value is a tombstone in the layered cursor.
  */
 static WT_INLINE bool
-__clayered_deleted(const WT_ITEM *item)
+__clayered_deleted(WT_CURSOR_LAYERED *clayered, const WT_ITEM *item)
 {
-    return (item->size == __tombstone.size &&
-      memcmp(item->data, __tombstone.data, __tombstone.size) == 0);
+    if (clayered->ingest_cursor == NULL)
+        return (false);
+
+    if (clayered->current_cursor != clayered->ingest_cursor)
+        return (false);
+
+    return (__wt_clayered_deleted(item));
 }
 
 /*
@@ -391,7 +388,7 @@ __clayered_get_current(
     WT_RET(current->get_value(current, &c->value));
 
     F_CLR(c, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    if ((*deletedp = __clayered_deleted(&c->value)) == false)
+    if ((*deletedp = __clayered_deleted(clayered, &c->value)) == false)
         F_SET(c, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     return (0);
@@ -861,7 +858,7 @@ __clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
     if ((ret = c->search(c)) == 0) {
         WT_ERR(c->get_key(c, &cursor->key));
         WT_ERR(c->get_value(c, value));
-        if (__clayered_deleted(value))
+        if (__clayered_deleted(clayered, value))
             ret = WT_NOTFOUND;
         /*
          * Even a tombstone is considered found here - the delete overrides any remaining record in
@@ -883,8 +880,6 @@ __clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
         if ((ret = c->search(c)) == 0) {
             WT_ERR(c->get_key(c, &cursor->key));
             WT_ERR(c->get_value(c, value));
-            if (__clayered_deleted(value))
-                ret = WT_NOTFOUND;
             found = true;
         }
         WT_ERR_NOTFOUND_OK(ret, true);
@@ -1041,7 +1036,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     clayered->current_cursor = closest;
     closest = NULL;
 
-    deleted = __clayered_deleted(&cursor->value);
+    deleted = __clayered_deleted(clayered, &cursor->value);
     if (!deleted)
         __clayered_deleted_decode(&cursor->value);
     else {
@@ -1121,6 +1116,39 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
     if (func != c->reserve)
         c->set_value(c, value);
     WT_RET(func(c));
+
+    /* TODO: Need something to add a log record? */
+
+    return (0);
+}
+
+/*
+ * __clayered_remove_int --
+ *     Remove an entry from the desired tree.
+ */
+static WT_INLINE int
+__clayered_remove_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key)
+{
+    WT_CURSOR *c;
+
+    /*
+     * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
+     * anyway.
+     */
+    WT_RET(__clayered_reset_cursors(clayered, true));
+
+    if (S2C(session)->layered_table_manager.leader) {
+        c = clayered->stable_cursor;
+        clayered->current_cursor = c;
+        c->set_key(c, key);
+        WT_RET(c->remove(c));
+    } else {
+        c = clayered->ingest_cursor;
+        clayered->current_cursor = c;
+        c->set_key(c, key);
+        c->set_value(c, &__tombstone);
+        WT_RET(c->update(c));
+    }
 
     /* TODO: Need something to add a log record? */
 
@@ -1295,7 +1323,7 @@ __clayered_remove(WT_CURSOR *cursor)
      * landed on.
      */
     WT_ERR(__cursor_needkey(cursor));
-    WT_ERR(__clayered_put(session, clayered, &cursor->key, &__tombstone, true, false));
+    WT_ERR(__clayered_remove_int(session, clayered, &cursor->key));
 
     /*
      * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's

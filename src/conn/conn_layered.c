@@ -1195,13 +1195,25 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
          * update in this case.
          */
         if (tw.durable_start_ts > last_checkpoint_timestamp) {
-            WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+            /* TODO: this is an ugly layering violation. But I can't think of a better way now. */
+            if (__wt_clayered_deleted(value)) {
+                /*
+                 * If we use tombstone value, we should never see a real tombstone on the ingest
+                 * table.
+                 */
+                WT_ASSERT(session, tombstone == NULL);
+                WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
+            } else
+                WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
             upd->txnid = tw.start_txn;
             upd->start_ts = tw.start_ts;
             upd->durable_ts = tw.durable_start_ts;
         } else
             WT_ASSERT(session, tombstone != NULL);
 
+        /*
+         * TODO: we can simplify the algorithm if we don't use real tombstones on the ingest table.
+         */
         if (tombstone != NULL) {
             tombstone->txnid = tw.stop_txn;
             tombstone->start_ts = tw.start_ts;
