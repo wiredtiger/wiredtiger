@@ -198,21 +198,25 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 static int
 __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
     u_int cfg_pos;
-    char random_config[1024];
+    char random_config[1024], stable_uri_buf[256];
+    const char *checkpoint_name;
     const char *ckpt_cfg[4];
+    const char *stable_uri;
     bool defer_stable, leader;
 
     c = &clayered->iface;
     defer_stable = false;
     session = CUR2S(clayered);
+    conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     /*
      * Query operations need a full set of cursors. Overwrite cursors do queries in service of
@@ -265,8 +269,9 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     }
 
     if (clayered->stable_cursor == NULL) {
-        leader = S2C(session)->layered_table_manager.leader;
-        if (!leader)
+        leader = conn->layered_table_manager.leader;
+        stable_uri = layered->stable_uri;
+        if (!leader) {
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
              * cursor on stable without a checkpoint. It will never return an invalid result (it's
@@ -274,18 +279,32 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * efficient, and also not an accurate reflection of what we want in terms of sharing
              * checkpoint across different WiredTiger instances eventually.
              */
-            ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false,force=true";
+
+            /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
+            checkpoint_name = NULL;
+            WT_RET_NOTFOUND_OK(
+              __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL));
+
+            if (checkpoint_name == NULL) {
+                /* We've never picked up a checkpoint. */
+                ckpt_cfg[cfg_pos++] = "readonly,checkpoint_use_history=false";
+                F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
+            } else {
+                /*
+                 * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from
+                 * the stable checkpoint, but without it being a traditional checkpoint cursor.
+                 */
+                WT_RET(__wt_snprintf(stable_uri_buf, sizeof(stable_uri_buf), "%s/%s",
+                  layered->stable_uri, checkpoint_name));
+                stable_uri = stable_uri_buf;
+                ckpt_cfg[cfg_pos++] = "readonly";
+            }
+        }
         ckpt_cfg[cfg_pos] = NULL;
         ret = __wt_open_cursor(
-          session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
+          session, stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
 
-        if (ret == WT_NOTFOUND && !leader) {
-            ckpt_cfg[1] = "";
-            ret = __wt_open_cursor(
-              session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
-            if (ret == 0)
-                F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
-        } else if (ret == ENOENT && !leader) {
+        if (ret == ENOENT && !leader) {
             /* This is fine, we may not have seen a checkpoint with this table yet. */
             ret = 0;
             defer_stable = true;
