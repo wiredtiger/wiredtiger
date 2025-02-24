@@ -109,8 +109,10 @@ class test_compact07(compact_util):
         # Enable background compaction with a threshold big enough so it does not process the first
         # table created but only the others with more empty space. We set run_once so we don't
         # conflict with foreground compaction. If the two are running in parallel, stats cannot be
-        # checked properly.
-        self.turn_on_bg_compact(f'free_space_target={(free_space_20 + 1)}MB,run_once=true')
+        # checked properly. Don't use the helper function as the server may go to sleep before we
+        # have the time to check it is actually running.
+        bg_compact_config = f'background=true,free_space_target={(free_space_20 + 1)}MB,run_once=true'
+        self.session.compact(None, bg_compact_config)
 
         # Background compaction should run through every file as listed in the metadata file.
         # Wait until all the eligible files have been compacted.
@@ -140,12 +142,10 @@ class test_compact07(compact_util):
         self.assertGreater(self.get_pages_rewritten(uri_small), 0)
 
         # Restart background compaction and wait for it to start tracking files.
+        # We expect to track each file.
         self.turn_on_bg_compact(f'free_space_target={(free_space_20 + 1)}MB')
-        while self.get_bg_compaction_files_tracked() == 0:
+        while self.get_bg_compaction_files_tracked() != self.n_tables + 1:
             time.sleep(0.1)
-
-        # Save the current number of tracked files for later.
-        tracked_files = self.get_bg_compaction_files_tracked()
 
         # Drop the tables.
         for i in range(self.n_tables):
@@ -156,7 +156,7 @@ class test_compact07(compact_util):
 
         # The tables should get removed from the tracking list once they exceed the max idle time
         # after they're dropped.
-        while tracked_files == self.get_bg_compaction_files_tracked():
+        while self.get_bg_compaction_files_tracked() > 1:
             time.sleep(1)
 
         # Stop the background compaction server.
