@@ -21,6 +21,7 @@ test_cc02.py # times out
 test_cc03.py
 test_cc04.py # times out
 test_cc05.py # times out
+test_cc06.py # uses statistics we don't support in disagg
 test_checkpoint01.py
 test_checkpoint02.py # times out
 test_checkpoint07.py
