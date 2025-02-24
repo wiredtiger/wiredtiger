@@ -1354,8 +1354,8 @@ err:
     /*
      * Shut down the layered table manager thread, ideally this would be taken care of in connection
      * close below, but it needs to precede global transaction state shutdown, so do it here as
-     * well. It also needs to happen prior to draining transaction activity - since the manager
-     * artificially pins transaction state to allow for garbage collection in ingest tables.
+     * well. It needs to happen after we destroy the sweep server. Otherwise, the sweep server may
+     * see a freed layered table manager.
      */
     WT_TRET(__wt_layered_table_manager_destroy(session));
 
