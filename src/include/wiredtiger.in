@@ -852,7 +852,8 @@ struct __wt_session {
      *
      * Only configurations listed in the method arguments are modified, other configurations
      * remain in their current state. This method additionally resets the cursors associated
-     * with the session.
+     * with the session. Transaction-related configurations can only be modified when no transaction
+     * is active.
      *
      * @snippet ex_all.c Reconfigure a session
      *
