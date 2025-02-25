@@ -1137,16 +1137,6 @@ __wt_live_restore_metadata_to_fh(
         return (0);
     }
 
-    /*
-     * FIXME-WT-14079 there is a tricky scenario here:
-     *   - Open a file that exists in the source, a.wt.
-     *   - Create a new file in the destination to begin migrating the file to.
-     *   - Crash.
-     *   - Open the file a.wt again, we will see an a.wt in the destination and not create the
-     *   necessary file length hole. We will also get an empty extent list string indicating a.wt is
-     *   complete.
-     */
-
     if (lr_fh->destination.bitmap != NULL) {
         WT_ASSERT_ALWAYS(session, false, "Bitmap not empty while trying to parse");
         return (0);
@@ -1155,27 +1145,40 @@ __wt_live_restore_metadata_to_fh(
     __wt_readlock(session, &lr_fh->bitmap_lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
     /*
-     * Only allocate a bitmap for a file that has been newly created in the destination and has a
-     * backing source file.
+     * !!!
+     * While the live restore is in progress, the bit count reported by in the live restore metadata
+     * can hold three states:
+     *  (0)         : This means file has not yet had a bitmap representation written to the k
+     *                metadata file and therefore no application writes have gone to the
+     *                destination. In theory background thread writes may have happened but unless
+     *                the tree was dirtied the metadata update was not written out.
+     *  (-1)        : This indicates the file has finished migration and the bitmap is empty.
+     *  (nbits > 0) : The number of bits in the bitmap.
      */
-    if (lr_fh->destination.newly_created) {
+    if (lr_fh_meta->nbits == 0 && lr_fh->source_size > 0) {
         uint64_t nbits = lr_fh->source_size / lr_fh_meta->allocsize;
         WT_ERR(__bit_alloc(session, nbits, &lr_fh->destination.bitmap));
         lr_fh->destination.nbits = nbits;
         __wt_readunlock(session, &lr_fh->bitmap_lock);
         return (0);
     }
-    if (lr_fh_meta->nbits != 0) {
+    if (lr_fh_meta->nbits > 0) {
         /* We shouldn't be reconstructing a bitmap if the live restore has finished. */
         WT_ASSERT(session, !__wti_live_restore_migration_complete(session));
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
-          "Reconstructing bitmap for %s, bitmap_sz %" PRIu64 ", bitmap_str %s", fh->name,
+          "Reconstructing bitmap for %s, bitmap_sz %" PRId64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
         /* Reconstruct a pre-existing bitmap. */
-        WT_ERR(
-          __live_restore_decode_bitmap(session, lr_fh_meta->bitmap_str, lr_fh_meta->nbits, lr_fh));
-    } else
+        WT_ERR(__live_restore_decode_bitmap(
+          session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
+    } else {
         lr_fh->destination.complete = true;
+        /*
+         * Zero here is only valid if the file has gone through schema create. We can't test for
+         * that.
+         */
+        WT_ASSERT(session, lr_fh_meta->nbits <= 0);
+    }
 
     if (0) {
 err:
@@ -1215,7 +1218,8 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
           "%s: Appending live restore bitmap (%s, %" PRIu64 ") to metadata", fh->name,
           (char *)buf.data, lr_fh->destination.nbits);
     } else {
-        WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore="));
+        /* -1 indicates the file has completed migration. */
+        WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=,nbits=-1)"));
         __wt_verbose_debug3(
           session, WT_VERB_LIVE_RESTORE, "%s: Appending empty live restore metadata", fh->name);
     }
@@ -1448,7 +1452,6 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
              */
             WT_RET(
               lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, source_size));
-            lr_fh->destination.newly_created = true;
             goto done;
         }
     }

@@ -16,7 +16,11 @@
  */
 struct __wt_live_restore_fh_meta {
     char *bitmap_str;
-    uint64_t nbits;
+    /*
+     * The number of bits in the bitmap. We use -1 as a special case to identify when a file has
+     * finished migration and no longer needs a bitmap.
+     */
+    int64_t nbits;
     uint32_t allocsize;
 };
 
