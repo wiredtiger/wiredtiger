@@ -325,6 +325,7 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
         break;
     case 'h': /* Home directory */
         opts->home = dstrdup(__wt_optarg);
+        opts->reopen = true;
         break;
     case 'm': /* In-memory */
         opts->inmem = true;

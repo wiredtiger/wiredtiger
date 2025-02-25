@@ -125,6 +125,7 @@ typedef struct {
     bool tiered_begun;         /* Tiered storage ready */
     bool tiered_storage;       /* Configure tiered storage */
     bool verbose;              /* Run in verbose mode */
+    bool reopen;               /* Open existing database */
     uint64_t nrecords;         /* Number of records */
     uint64_t nops;             /* Number of operations */
     uint64_t nthreads;         /* Number of threads */
