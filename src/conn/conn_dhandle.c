@@ -39,7 +39,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     char *metaconf, *tmp;
-    const char *base, *cfg[4], *strip;
+    const char *base, *cfg[5], *strip;
 
     dhandle = session->dhandle;
     base = NULL;
@@ -65,7 +65,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
      * in metaconf. If we fail before we copy a reference to it into the object's configuration
      * array, we must free it, after the copy, we don't want to free it.
      */
-    WT_ERR(__wt_calloc_def(session, 5, &dhandle->cfg));
+    WT_ERR(__wt_calloc_def(session, 4, &dhandle->cfg));
     switch (__wt_atomic_load_enum(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
     case WT_DHANDLE_TYPE_TIERED:
