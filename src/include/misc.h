@@ -484,7 +484,7 @@ union __wt_rand_state {
         }                                                                       \
     } while (0)
 /*
- * __wt_decrement_if_positive --
+ * __wt_atomic_decrement_if_positive --
  *     Use compare and swap to atomically decrement value by 1 if it's positive.
  */
 static void inline __wt_atomic_decrement_if_positive(uint32_t *valuep)
