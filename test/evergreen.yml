@@ -197,10 +197,8 @@ functions:
           # The WT-13948 ticket requires changes from the private repository. As a workaround
           # use a mongodb forked repo with custom branch.
           forked_repo=https://github.com/jiechenbo/mongo
-          mongo_branch=master
+          mongo_branch=wt-13948-workaround
           git clone $mongo_repo -b $mongo_branch
-          cd mongo
-          git checkout wt-13948-workaround
         fi
         popd
   "import wiredtiger into mongo" :
