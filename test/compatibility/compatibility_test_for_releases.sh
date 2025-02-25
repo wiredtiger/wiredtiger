@@ -13,11 +13,11 @@ set -x
 bcopy()
 {
     # Return true if the branch's format backup generates a BACKUP.copy directory.
-    test "$1" = "mongodb-8.0" && return 1
-    test "$1" = "mongodb-7.0" && return 1
-    test "$1" = "mongodb-6.0" && return 1
-    test "$1" = "mongodb-5.0" && return 1
-    test "$1" = "mongodb-4.4" && return 1
+    test "$1" = "mongodb-8.0" && echo "1"
+    test "$1" = "mongodb-7.0" && echo "1"
+    test "$1" = "mongodb-6.0" && echo "1"
+    test "$1" = "mongodb-5.0" && echo "1"
+    test "$1" = "mongodb-4.4" && echo "1"
     # Anything newer than mongodb-8.0 returns false.
     return 0
 }
@@ -170,6 +170,7 @@ create_configs()
     fi
 
     echo "##################################################" > $file_name
+    echo "backup=1" >> $file_name                     # For testing WT-14186
     echo "runs.type=row" >> $file_name                # WT-7379 - Temporarily disable column store tests
     echo "btree.huffman_value=0" >> $file_name        # WT-12456 - Never used, removed from newer releases
     echo "btree.prefix=0" >> $file_name               # WT-7579 - Prefix testing isn't portable between releases
@@ -511,7 +512,7 @@ upgrade_downgrade()
 	    # If there is a BACKUP and the older release needs a BACKUP.copy directory and
 	    # the source version does not create one, remove any from an earlier run and
 	    # copy the BACKUP contents for this run.
-	    if [ -e $dir2/BACKUP -a "$need_bcopy1" == "1" -a "$need_bcopy2" == "0" ] ; then
+	    if [ -e $dir2/BACKUP -a "$need_bcopy1" == "1" -a -z "$need_bcopy2" ] ; then
                 echo "Remove any earlier $dir2/BACKUP.copy for older releases"
 		rm -rf $dir2/BACKUP.copy
                 echo "Copying backup directory for older releases"
