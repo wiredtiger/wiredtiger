@@ -236,7 +236,8 @@ test_bulk(THREAD_DATA *td)
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if (use_txn)
-        testutil_check(session->begin_transaction(session, NULL));
+        testutil_die(ret, "test_bulk should not be used with transactions");
+
     create = false;
     if ((ret = session->create(session, uri, config)) != 0)
         if (ret != EEXIST && ret != EBUSY)
@@ -251,18 +252,6 @@ test_bulk(THREAD_DATA *td)
             testutil_die(ret, "session.open_cursor bulk");
     }
 
-    if (use_txn) {
-        /* If create fails, rollback else will commit.*/
-        if (!create)
-            ret = session->rollback_transaction(session, NULL);
-        else
-            ret = session->commit_transaction(session, NULL);
-
-        if (ret == EINVAL) {
-            fprintf(stderr, "BULK: EINVAL on %s. ABORT\n", create ? "commit" : "rollback");
-            testutil_die(ret, "session.commit bulk");
-        }
-    }
     testutil_check(session->close(session, NULL));
 }
 
@@ -287,7 +276,8 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
     testutil_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id);
 
     if (use_txn)
-        testutil_check(session->begin_transaction(session, NULL));
+        testutil_die(ret, "test_bulk_unique should not be used with transactions");
+
     testutil_check(session->create(session, new_uri, config));
 
     __wt_yield();
@@ -308,8 +298,6 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
         if (ret != EBUSY)
             testutil_die(ret, "session.drop: %s %s", new_uri, dropconf);
 
-    if (use_txn && (ret = session->commit_transaction(session, NULL)) != 0 && ret != EINVAL)
-        testutil_die(ret, "session.commit bulk unique");
     testutil_check(session->close(session, NULL));
 }
 
@@ -793,11 +781,13 @@ thread_run(void *arg)
             switch (__wt_random(&td->data_rnd) % 20) {
             case 0:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, BULK);
-                test_bulk(td);
+                if(!use_txn)
+                    test_bulk(td);
                 break;
             case 1:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, BULK_UNQ);
-                test_bulk_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
+                if(!use_txn)
+                    test_bulk_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
                 break;
             case 2:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, CREATE);
