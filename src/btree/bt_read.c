@@ -85,11 +85,11 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __bt_reconstruct_delta --
- *     Reconstruct delta on a page
+ * __bt_reconstruct_leaf_delta --
+ *     Reconstruct delta on a leaf page
  */
 static int
-__bt_reconstruct_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
+__bt_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *delta)
 {
     WT_CELL_UNPACK_DELTA_LEAF unpack;
     WT_CURSOR_BTREE cbt;
@@ -185,6 +185,114 @@ err:
 }
 
 /*
+ * __bt_unpacked_delta_cmp --
+ *     Compare two unpacked deltas
+ */
+static int
+__bt_unpacked_delta_cmp(
+  WT_SESSION_IMPL *session, const WT_CELL_UNPACK_DELTA_INT *a, const WT_CELL_UNPACK_DELTA_INT *b)
+{
+    WT_DECL_RET;
+    WT_ITEM key_a, key_b;
+    int cmp;
+
+    key_a.data = a->key.data;
+    key_a.size = a->key.size;
+    key_b.data = b->key.data;
+    key_b.size = b->key.size;
+
+    if ((ret = __wt_compare(session, S2BT(session)->collator, &key_a, &key_b, &cmp)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "failed to compare keys"));
+
+    return (cmp);
+}
+
+/*
+ * __bt_merge_internal_deltas --
+ *     Merge internal deltas into a single array.
+ */
+static int
+__bt_merge_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpacked_deltas,
+  uint32_t start, uint32_t end, size_t *sizes, WT_CELL_UNPACK_DELTA_INT ***deltas_merged,
+  size_t *size)
+{
+    WT_CELL_UNPACK_DELTA_INT **left, **right, **merged;
+    size_t left_size, right_size;
+    uint32_t mid, i;
+
+    WT_ASSERT(session, start <= end);
+    left = right = merged = NULL;
+
+    if (start == end) {
+        *size = sizes[start];
+        WT_RET(__wt_calloc_def(session, *size, &merged));
+        for (i = 0; i < (uint32_t) sizes[start]; ++i)
+            merged[i] = &unpacked_deltas[start][i];
+        *deltas_merged = merged;
+        return (0);
+    }
+
+    mid = (start + end) / 2;
+
+    WT_RET(
+      __bt_merge_internal_deltas(session, unpacked_deltas, start, mid, sizes, &left, &left_size));
+    WT_RET(__bt_merge_internal_deltas(
+      session, unpacked_deltas, mid + 1, end, sizes, &right, &right_size));
+
+    WT_RET(__wt_calloc_def(session, left_size + right_size, &merged));
+
+    WT_MERGE_SORT(
+      session, left, left_size, right, right_size, __bt_unpacked_delta_cmp, true, merged, *size);
+    *deltas_merged = merged;
+
+    __wt_free(session, left);
+    __wt_free(session, right);
+    return (0);
+}
+
+/*
+ * __bt_reconstruct_internal_deltas --
+ *     Reconstruct delta on an internal page
+ */
+static int
+__bt_reconstruct_internal_deltas(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size)
+{
+    WT_CELL_UNPACK_DELTA_INT **unpacked_deltas, **unpacked_deltas_merged;
+    WT_DECL_RET;
+    WT_DELTA_HEADER *header;
+    size_t *delta_size_each, unpacked_deltas_merged_size;
+
+    WT_RET(__wt_calloc_def(session, delta_size, &delta_size_each));
+    WT_ERR(__wt_calloc_def(session, delta_size, &unpacked_deltas));
+    for (int i = 0, j = 0; i < (int)delta_size; ++i, j = 0) {
+        header = (WT_DELTA_HEADER *)deltas[i].data;
+        WT_ASSERT(session, header->u.entries != 0);
+        delta_size_each[i] = (size_t) header->u.entries;
+
+        WT_ERR(__wt_calloc_def(session, header->u.entries, &unpacked_deltas[i]));
+        WT_CELL_FOREACH_DELTA_INT(session, ref->page->dsk, header, unpacked_deltas[i][j])
+        {
+            j++;
+        }
+        WT_CELL_FOREACH_END;
+    }
+
+    WT_ERR(__bt_merge_internal_deltas(session, unpacked_deltas, 0, (uint32_t) delta_size - 1, delta_size_each,
+      &unpacked_deltas_merged, &unpacked_deltas_merged_size));
+
+err:
+    if (unpacked_deltas != NULL) {
+        for (int i = 0; i < (int)delta_size; ++i)
+            __wt_free(session, unpacked_deltas[i]);
+        __wt_free(session, unpacked_deltas);
+    }
+    __wt_free(session, delta_size_each);
+    __wt_free(session, unpacked_deltas_merged);
+    return (ret);
+}
+
+/*
  * __bt_reconstruct_deltas --
  *     Reconstruct deltas on a page
  */
@@ -193,14 +301,23 @@ __bt_reconstruct_deltas(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, 
 {
     int i;
 
-    /*
-     * We apply the order in reverse order because we only care about the latest change of a key.
-     * The older changes are ignore.
-     *
-     * TODO: this is not the optimal algorithm. We can optimize this by using a min heap.
-     */
-    for (i = (int)delta_size - 1; i >= 0; --i)
-        WT_RET(__bt_reconstruct_delta(session, ref, &deltas[i]));
+    switch (ref->page->type) {
+    case WT_PAGE_ROW_LEAF:
+        /*
+         * We apply the order in reverse order because we only care about the latest change of a
+         * key. The older changes are ignore.
+         *
+         * TODO: this is not the optimal algorithm. We can optimize this by using a min heap.
+         */
+        for (i = (int)delta_size - 1; i >= 0; --i)
+            WT_RET(__bt_reconstruct_leaf_delta(session, ref, &deltas[i]));
+        break;
+    case WT_PAGE_ROW_INT:
+        WT_RET(__bt_reconstruct_internal_deltas(session, ref, deltas, delta_size));
+        break;
+    default:
+        WT_RET(__wt_illegal_value(session, ref->page->type));
+    }
 
     return (0);
 }
