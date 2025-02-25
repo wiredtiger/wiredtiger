@@ -361,12 +361,12 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
 read:
             /*
-             * The page isn't in memory, read it. If this thread respects the cache size, check for
-             * space in the cache.
+             * The page isn't in memory, read it. If this thread respects the cache size, check if
+             * the cache needs help evicting clean pages (don't force a read to do dirty eviction).
              */
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
-                WT_RET(
-                  __wt_evict_app_assist_worker_check(session, true, txn->mod_count == 0, NULL));
+                WT_RET(__wt_evict_app_assist_worker_check(
+                  session, true, txn->mod_count == 0, false, NULL));
             WT_RET(__page_read(session, ref, flags));
             read_from_disk = true;
             /* We just read a page, don't evict it before we have a chance to use it. */
@@ -549,7 +549,7 @@ skip_evict:
          * cache, substitute that for a sleep.
          */
         if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
-            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, &cache_work));
+            WT_RET(__wt_evict_app_assist_worker_check(session, true, true, false, &cache_work));
             if (cache_work)
                 continue;
         }

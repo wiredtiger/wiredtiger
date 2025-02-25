@@ -228,8 +228,7 @@ functions:
         echo "startup --output_user_root=${workdir}/bazel-output-root" >> ~/.bazelrc
         echo "BAZELISK_HOME=${workdir}/bazelisk_home" >> ~/.bazeliskrc
 
-        ./buildscripts/scons.py --variables-files=etc/scons/mongodbtoolchain_stable_gcc.vars --link-model=dynamic --ninja generate-ninja ICECC=icecc CCACHE=ccache
-        ninja -j$(nproc --all) install-mongod
+        bazel build --mongo_toolchain_version=v4 --config=opt --build_enterprise=False install-mongod
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
@@ -282,6 +281,19 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
+        # FIXME-WT-14152: Enable LZ4 and snappy compressors once installed on machines.
+        if [[ "${build_variant|}" =~ "amazon2023" ]]; then
+          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_LZ4=1) ]]; then
+            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_LZ4=1/}
+          fi
+          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
+            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
+          fi
+          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_SNAPPY=1) ]]; then
+            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_SNAPPY=1/}
+          fi
+        fi
+
         if [[ "${build_variant|}" =~ "macos-14" ]]; then
           # For mac builds, we want explicitly tell cmake which python to use, as
           # well as the matching library directory and header files. The find_libpython
@@ -323,6 +335,18 @@ functions:
           powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 $DEFINED_EVERGREEN_CONFIG_FLAGS ${windows_configure_flags|}
         else
           echo "Using config flags $DEFINED_EVERGREEN_CONFIG_FLAGS ${posix_configure_flags|}"
+
+          SWIG_VERSION=$(swig -version | awk '/SWIG Version/ {print $3}')
+
+          if [[ "$(printf '%s\n' "4.0.0" "$SWIG_VERSION" | sort -V | head -n1)" == "4.0.0" ]]; then
+              echo "SWIG version $SWIG_VERSION is 4.0 or later."
+          else
+              echo "SWIG version $SWIG_VERSION is earlier than 4.0. Installing a newer version ..."
+              python3 -mvenv venv
+              source venv/bin/activate
+              pip3 install swig==4.2.1
+              swig -version
+          fi
 
           if [[ ${ENABLE_TCMALLOC|0} -eq 1 ]]; then
             # Preclude use of tcmalloc with sanitizer builds.
@@ -1334,6 +1358,11 @@ variables:
       ENABLE_TCMALLOC: 0
     tasks:
       - name: compile
+        # This is a special case and should *only* be used for the macOS buildvariant.
+        # The macOS variant can take up to an hour to schedule tasks, but we want PR testing to complete
+        # in under 30 minutes. The compile task also only takes 2 minutes to run so we can bump up priority
+        # with minimal impact on other projects.
+        priority: 5
       - name: make-check-test
       # Use a special version of unit-test for macOS that checks for Python version consistency.
       - name: unit-test-macos
@@ -1560,17 +1589,14 @@ tasks:
           directory: examples/c
 
   - name: examples-c-tsan
-    # There's a lot of TSan warnings to resolve and TSan is a runtime tool so they aren't always reliably detected.
-    # For now only run TSan tasks in patches until we're confident the tests are stable.
-    # tags: ["pull_request"]
-    patch_only: true
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
           directory: examples/c
-          ctest_extra_args: -E "(ex_all|ex_backup_block)" -j ${num_jobs}
+          ctest_extra_args: -E "(ex_all|ex_backup|ex_backup_block)" -j ${num_jobs}
 
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
@@ -2491,6 +2517,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            ${PREPARE_TEST_ENV}
             ../test/live_restore/short_test.sh
 
   - name: live-restore-long
@@ -2504,6 +2531,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            ${PREPARE_TEST_ENV}
             ../test/live_restore/long_test.sh
 
   # End of live restore tests
@@ -4059,7 +4087,7 @@ tasks:
             source venv/bin/activate
             # Need both pymongo and pymongo[srv] as upload-results-atlas.py uses mongo+srv for the URI.
             pip3 install lorem==0.1.1 pymongo==3.12.2 "pymongo[srv]==3.12.2"
-            mongod_path=$(find -L ../../mongo/build -executable -type f -path \*/bin/mongod)
+            mongod_path=$(find -L ../../mongo/bazel-bin -executable -type f -path \*/install-mongod/bin/mongod)
             echo "mongod_path = '$mongod_path'"
             # Log the actual path, using ls to display any symlinks
             ls -l $mongod_path
@@ -5047,6 +5075,88 @@ tasks:
         vars:
           test-name: checkpoint-stress.wtperf
 
+  - name: perf-test-live-restore
+    tags: ["long-perf"]
+    patch_only: true
+    depends_on:
+      - name: perf-test-long-500m-btree-populate
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
+      # Fetch the compile artifacts.
+      - func: "fetch artifacts"
+      # Fetch the database created by perf-test-long-500m-btree-populate task. This will be used
+      # as the source for live restore.
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: perf-test-long-500m-btree-populate
+          destination: "wiredtiger/cmake_build/bench/wtperf/SOURCE"
+      # Create an empty home directory to be used as the destination for live restore.
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/bench/wtperf"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            mkdir WT_TEST_0_0
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: 500m-btree-50r50u-live-restore.wtperf
+          maxruns: 1
+          no_create: true
+          wtarg: -ops ['"read", "update", "warnings", "max_latency_read_update"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: 500m-btree-50r50u-live-restore.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: 500m-btree-50r50u-live-restore.wtperf
+      - func: "cleanup"
+
+  - name: perf-test-live-restore-no-server
+    tags: ["long-perf"]
+    patch_only: true
+    depends_on:
+      - name: perf-test-long-500m-btree-populate
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 10800
+          timeout_secs: 10800
+      # Fetch the compile artifacts.
+      - func: "fetch artifacts"
+      # Fetch the database created by perf-test-long-500m-btree-populate task. This will be used
+      # as the source for live restore.
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: perf-test-long-500m-btree-populate
+          destination: "wiredtiger/cmake_build/bench/wtperf/SOURCE"
+      # Create an empty home directory to be used as the destination for live restore.
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/bench/wtperf"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            mkdir WT_TEST_0_0
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: 500m-btree-50r50u-live-restore-no-server.wtperf
+          maxruns: 1
+          no_create: true
+          wtarg: -ops ['"read", "update", "warnings", "max_latency_read_update"']
+      - func: "upload stats to atlas"
+        vars:
+          test-name: 500m-btree-50r50u-live-restore-no-server.wtperf
+      - func: "upload stats to evergreen"
+        vars:
+          test-name: 500m-btree-50r50u-live-restore-no-server.wtperf
+      - func: "cleanup"
+
   - name: many-dhandle-stress
     depends_on:
       - name: compile
@@ -5335,7 +5445,8 @@ buildvariants:
 
 # FIXME-WT-13256
 # This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
-# encounters. This allows us to check whether a TSan change may cause other unexpected failures
+# encounters. This allows us to check whether a TSan change may cause unexpected failures (for example
+# if adding a new field to a struct wrapped in #ifdef TSAN changes the struct layout and causes a segfault)
 # while also not having to fix every TSan issue discovered. At the conclusion of the TSan work this
 # variant will be deleted.
 - name: ubuntu2004-tsan-no-throw
@@ -5966,3 +6077,158 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large
+
+- name: amazon2023-armv9-release-nonstandalone
+  display_name: (ARMV9) Amazon 2023 (ARM64, Release Build, Non-standalone)
+  run_on:
+  - amazon2023-arm64-latest-small-m8g
+  expansions:
+    ENABLE_TCMALLOC: 0
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+    unit_test_variant_args: "--hook nonstandalone"
+  tasks:
+    - name: ".stress-test-1"
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: ".stress-test-2"
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: format-abort-recovery-stress-test
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+    - name: unit-test-extra-long
+      distros: amazon2023-arm64-latest-large-m8g
+
+- name: amazon2023-armv9-nonstandalone
+  display_name: (ARMV9) Amazon Linux 2023 (ARM64, Non-standalone)
+  run_on:
+  - amazon2023-arm64-latest-large-m8g
+  expansions:
+    ENABLE_TCMALLOC: 0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+    unit_test_variant_args: "--hook nonstandalone"
+  tasks:
+    - name: compile
+      distros: amazon2023-arm64-latest-small-m8g
+    - name: make-check-test
+      distros: amazon2023-arm64-latest-small-m8g
+    - name: unit-test
+      distros: amazon2023-arm64-latest-small-m8g
+    - name: unit-test-extra-long
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-3"
+    - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
+    - name: format-abort-recovery-stress-test
+    # FIXME-WT-14152: Enable stress tests that require snappy compressors
+    - name: ".cppsuite-stress-test !cppsuite-burst-inserts-stress !cppsuite-hs-cleanup-stress !cppsuite-operations-test-stress !cppsuite-reverse-split-stress"
+      batchtime: 720 # 12 hours
+
+- name: amazon2023-release-armv9
+  display_name: "(ARMV9) Amazon 2023 (ARM64, Release Build)"
+  run_on:
+  - amazon2023-arm64-latest-small-m8g
+  batchtime: 720 # 12 hours
+  expansions:
+    ENABLE_TCMALLOC: 0
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+    - name: format-smoke-test
+    - name: fops
+    - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: long-test
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: format-smoke-test
+    - name: s3-tiered-storage-extensions-test
+
+- name: amazon2023-armv9
+  display_name: "(ARMV9) Amazon Linux 2023 ARM64"
+  run_on:
+  - amazon2023-arm64-latest-small-m8g
+  batchtime: 1440 # 24 hours
+  expansions:
+    ENABLE_TCMALLOC: 0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+  tasks:
+    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
+    # - name: ".workgen-test"
+    #  batchtime: 1440 # 24 hours
+    - name: checkpoint-filetypes-test
+    - name: chunkcache-test
+    - name: compile
+    - name: fops
+    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
+    # - name: format-failure-configs-test
+    #  distros: amazon2023-arm64-latest-large-m8g
+    - name: format-smoke-test
+    - name: format-stress-pull-request-test
+    - name: long-test
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: make-check-test
+    - name: memory-model-test
+      batchtime: 40320 # 28 days
+    - name: model-test-failure-workloads
+      batchtime: 1440 # 24 hours
+    - name: model-test-long
+      batchtime: 1440 # once a day
+    - name: model-test-long-with-coverage
+      batchtime: 1440 # once a day
+    - name: model-test-long-random-config
+      batchtime: 1440 # once a day
+    - name: model-unit-test
+    - name: s3-tiered-storage-extensions-test
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: unit-test
+    - name: unit-test-extra-long
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: unit-test-zstd
+    - name: wtperf-test
+    - name: checkpoint-filetypes-test
+    - name: compile
+    - name: fops
+    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
+    # - name: format-failure-configs-test
+    #  distros: amazon2023-arm64-latest-large-m8g
+
+- name: cppsuite-stress-tests-armv9
+  display_name: "(ARMV9) Cppsuite Stress Tests ARM64"
+  batchtime: 720 # twice a day
+  run_on:
+  - amazon2023-arm64-latest-large-m8g
+  expansions:
+    ENABLE_TCMALLOC: 0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: compile
+    # FIXME-WT-14152: Enable stress tests that require snappy compressors
+    - name: ".cppsuite-stress-test !cppsuite-burst-inserts-stress !cppsuite-hs-cleanup-stress !cppsuite-operations-test-stress !cppsuite-reverse-split-stress"
+
+- name: amazon2023-stress-tests-armv9
+  display_name: (ARMV9) Amazon2023 Stress tests ARM64
+  run_on:
+  - amazon2023-arm64-latest-large-m8g
+  expansions:
+    ENABLE_TCMALLOC: 0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-3"
+    - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
+    - name: checkpoint-stress-test-tiered
+    - name: format-abort-recovery-stress-test
