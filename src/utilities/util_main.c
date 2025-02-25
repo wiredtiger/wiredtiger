@@ -47,7 +47,7 @@ usage(void)
     static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
       "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
       "database directory", "-L", "turn logging off for debug-mode", "-l",
-      "run live restore using the path specified.", "-m", "run verify on metadata", "-p",
+      "run live restore using the source path specified.", "-m", "run verify on metadata", "-p",
       "disable pre-fetching on the connection (use this option when dumping/verifying corrupted "
       "data)",
       "-R", "run recovery (if recovery configured)", "-r",

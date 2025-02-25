@@ -137,7 +137,8 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
                 if (lr_fh_meta->nbits > 0) {
                     WT_ERR(__wt_config_subgets(session, &v, "bitmap", &cval));
                     WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fh_meta->bitmap_str));
-                }
+                } else
+                    lr_fh_meta->bitmap_str = NULL;
             }
         }
         /* All code paths that exist today overwrite ret but to be defensive we clear it here. */

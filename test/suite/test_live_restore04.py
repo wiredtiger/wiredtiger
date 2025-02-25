@@ -53,7 +53,7 @@ class test_live_restore04(wttest.WiredTigerTestCase, suite_subprocess):
         return val
 
     def test_live_restore04(self):
-        # Live restore is not supported on Windows.
+        # FIXME-WT-14051: Live restore is not supported on Windows.
         if os.name == 'nt':
             self.skipTest('Unix specific test skipped on Windows')
 

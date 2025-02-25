@@ -1171,7 +1171,11 @@ __wt_live_restore_metadata_to_fh(
           session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
     } else {
         lr_fh->destination.complete = true;
-        WT_ASSERT(session, lr_fh_meta->nbits == -1);
+        /*
+         * Zero here is only valid if the file has gone through schema create. We can't test for
+         * that.
+         */
+        WT_ASSERT(session, lr_fh_meta->nbits <= 0);
     }
 
     if (0) {
