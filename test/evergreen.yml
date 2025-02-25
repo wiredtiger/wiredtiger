@@ -184,18 +184,20 @@ functions:
         set -o errexit
         set -o verbose
         pushd wiredtiger
-        mongo_repo=https://github.com/mongodb/mongo
         # Find the equivalent mongodb branch that matches the same branch version to wiredtiger. In
         # the case of patch builds, it is possible that the developer has a branch name that doesn't
         # adhere to naming rules, therefore derive the base branch name from git.
         branch=$(git branch --contains | grep -e "mongodb" -e "develop" -e "evg-pr-test-")
         if [[ $branch =~ "mongodb-" ]]; then
+          mongo_repo=https://github.com/mongodb/mongo
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
+          git clone $mongo_repo -b $mongo_branch
         else
+          forked_repo=https://github.com/mongodb/mongo
           mongo_branch=master
+          git clone $mongo_repo -b $mongo_branch
         fi
         popd
-        git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
     type: setup
