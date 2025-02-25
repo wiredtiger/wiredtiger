@@ -1144,17 +1144,21 @@ __clayered_remove_int(
              */
             WT_RET(__clayered_reset_cursors(clayered, true));
             c->set_key(c, key);
-        }
+        } else
+            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         WT_RET(c->remove(c));
     } else {
         c = clayered->ingest_cursor;
         clayered->current_cursor = c;
-        /*
-         * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
-         * anyway.
-         */
-        WT_RET(__clayered_reset_cursors(clayered, true));
-        c->set_key(c, key);
+        if (!positioned) {
+            /*
+             * Clear the existing cursor position. Don't clear the primary cursor: we're about to
+             * use it anyway. No need to do another search if we are already positioned.
+             */
+            WT_RET(__clayered_reset_cursors(clayered, true));
+            c->set_key(c, key);
+        } else
+            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
         c->set_value(c, &__tombstone);
         WT_RET(c->update(c));
     }
