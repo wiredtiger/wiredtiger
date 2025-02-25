@@ -20,8 +20,8 @@ static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, u
  *     Create or read a page into the cache.
  */
 int
-__wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs,
-  WT_PAGE **pagep)
+__wt_page_alloc(
+  WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs, WT_PAGE **pagep)
 {
     WT_DECL_RET;
     WT_PAGE *page;

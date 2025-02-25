@@ -81,14 +81,14 @@ __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wti_evict_readgen_is_soon_or_wont_need --
+ * __evict_readgen_is_soon_or_wont_need --
  *     Return whether a read generation value makes a page eligible for forced eviction. Read
  *     generations reserve a range of low numbers for special meanings and currently - with the
  *     exception of the generation not being set - these indicate the page may be evicted
  *     forcefully.
  */
 static WT_INLINE bool
-__wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
+__evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
 {
     uint64_t gen;
 
@@ -114,7 +114,7 @@ __wti_evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
 static WT_INLINE bool
 __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
 {
-    return (__wti_evict_readgen_is_soon_or_wont_need(&page->read_gen));
+    return (__evict_readgen_is_soon_or_wont_need(&page->read_gen));
 }
 
 /* !!!
@@ -137,7 +137,6 @@ __wt_evict_page_is_soon(WT_PAGE *page)
 {
     return (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON);
 }
-
 
 /* !!!
  * __wt_evict_page_init --
@@ -180,7 +179,7 @@ __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
 
     WT_READ_ONCE(orig_read_gen, orig_page->read_gen);
 
-    if (!__wti_evict_readgen_is_soon_or_wont_need(&orig_read_gen))
+    if (!__evict_readgen_is_soon_or_wont_need(&orig_read_gen))
         __wt_atomic_store64(&new_page->read_gen, orig_read_gen);
 }
 
@@ -276,7 +275,7 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
     pct_full = 0;
 
     /* Eviction should be done if we hit the eviction clean trigger or come close to hitting it. */
-    if (__wt_evict_clean_needed(session, &pct_full))
+    if (__wti_evict_exceeded_clean_trigger(session, &pct_full))
         return (true);
     if (pct_full > evict->eviction_target &&
       pct_full >= WT_EVICT_PRESSURE_THRESHOLD * evict->eviction_trigger)
@@ -289,10 +288,9 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
  *    Check if the cache exceeded the configured target for clean pages.
  */
 static WT_INLINE bool
-__wti_evict_exceeded_clean_target(session)
+__wti_evict_exceeded_clean_target(WT_SESSION_IMPL *session)
 {
-
-	uint64_t bytes_inuse, bytes_max;
+    uint64_t bytes_inuse, bytes_max;
 
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
@@ -300,7 +298,7 @@ __wti_evict_exceeded_clean_target(session)
     bytes_max = S2C(session)->cache_size + 1;
     bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
 
-	return (bytes_inuse > (target * bytes_max) / 100);
+    return (bytes_inuse > (S2C(session)->evict->eviction_target * bytes_max) / 100);
 }
 
 /* !!!
@@ -396,9 +394,10 @@ __wti_evict_exceeded_dirty_trigger(WT_SESSION_IMPL *session, double *pct_fullp)
 static WT_INLINE bool
 __wti_evict_exceeded_dirty_target(WT_SESSION_IMPL *session)
 {
-	uint64_t bytes_dirty, bytes_max, dirty_target;
+    double dirty_target;
+    uint64_t bytes_dirty, bytes_max;
 
-	dirty_target = __wti_evict_dirty_target(evict);
+    dirty_target = __wti_evict_dirty_target(S2C(session)->evict);
 
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
@@ -453,16 +452,17 @@ __wti_evict_exceeded_updates_trigger(WT_SESSION_IMPL *session, double *pct_fullp
  *     state and to set the internal flags accordingly.
  */
 static WT_INLINE bool
-__wti_evict_exceeded_updates_target(WT_SESSION_IMPL *session, double *pct_fullp)
+__wti_evict_exceeded_updates_target(WT_SESSION_IMPL *session)
 {
-	uint64_t bytes_max, bytes_updates, updates_target;
+    double updates_target;
+    uint64_t bytes_max, bytes_updates;
 
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
     bytes_max = S2C(session)->cache_size + 1;
     bytes_updates = __wt_cache_bytes_updates(S2C(session)->cache);
-	updates_target = evict->eviction_updates_target;
+    updates_target = S2C(session)->evict->eviction_updates_target;
 
     return (bytes_updates > (uint64_t)(updates_target * bytes_max) / 100);
 }
@@ -502,12 +502,12 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
     if (F_ISSET(S2C(session), WT_CONN_CLOSING))
         return (false);
 
-    clean_needed = __wt_evict_exceeded_clean_trigger(session, &pct_full);
+    clean_needed = __wti_evict_exceeded_clean_trigger(session, &pct_full);
     if (readonly) {
         dirty_needed = updates_needed = false;
         pct_dirty = pct_updates = 0.0;
     } else {
-        dirty_needed = __wt_evict_exceeded_dirty_trigger(session, &pct_dirty);
+        dirty_needed = __wti_evict_exceeded_dirty_trigger(session, &pct_dirty);
         updates_needed = __wti_evict_exceeded_updates_trigger(session, &pct_updates);
     }
 

@@ -205,11 +205,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         WT_ERR(__evict_exclusive(session, ref));
 
         /*
-         * Now the page is locked, remove it from its bucket. We have to do this before
-         * freeing the page memory or otherwise touching the reference because eviction paths assume
-         * a non-NULL reference here.
+         * Now the page is locked, remove it from its bucket. We have to do this before freeing the
+         * page memory or otherwise touching the reference because eviction paths assume a non-NULL
+         * reference here.
          */
-		__wt_evict_remove(session, ref);
+        __wt_evict_remove(session, ref);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
@@ -283,14 +283,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     if (0) {
 err:
         if (!closing) {
-			/*
-			 * In case something goes wrong, don't pick the same set of pages every time.
-			 * Mark the page, so that eviction skips it once if it encounters it.
-			 */
-			__wt_atomic_storebool(&ref->evict_skip, true);
+            /*
+             * In case something goes wrong, don't pick the same set of pages every time. Mark the
+             * page, so that eviction skips it once if it encounters it.
+             */
+            __wt_atomic_storebool(&ref->evict_skip, true);
             /* Put the page back into the list it belongs */
-			__evict_enqueue_page(session, session->dhandle, ref);
-			/* Release the page */
+            __evict_enqueue_page(session, session->dhandle, ref);
+            /* Release the page */
             __evict_exclusive_clear(session, ref, previous_state);
         }
         if (ebusy_only && ret != EBUSY)

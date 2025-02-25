@@ -68,6 +68,10 @@ struct __wt_evict {
     uint32_t evict_tune_workers_best;            /* Best performing value */
 
 #define WT_EVICT_PRESSURE_THRESHOLD 0.95
+#define WT_EVICT_SCORE_BUMP 10
+#define WT_EVICT_SCORE_CUTOFF 10
+#define WT_EVICT_SCORE_MAX 100
+
     /*
      * Score of how aggressive eviction should be about selecting eviction candidates. If eviction
      * is struggling to make progress, this score rises (up to a maximum of WT_EVICT_SCORE_MAX), at
@@ -125,7 +129,6 @@ extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
-extern void __wt_evict_init_ref(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref);
 extern void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref);
@@ -141,11 +144,7 @@ static WT_INLINE bool __wt_evict_aggressive(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE bool __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly,
   double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -349,7 +349,7 @@ __wt_page_from_npos(
  * !!!
  * __wt_page_from_npos_for_eviction --
  *     Go to a page given its normalized position (for eviction).
- *     - Use WT_READ_PREV to look up backwards.
+ *     Use WT_READ_PREV to look up backwards.
  */
 int
 __wt_page_from_npos_for_eviction(

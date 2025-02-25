@@ -377,11 +377,11 @@ __random_root_inmem_ref(
 }
 
 /*
- * __wt_random_descent --
+ * __random_descent --
  *     Find a random page in a tree for either sampling or eviction.
  */
-int
-__wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_RAND_STATE *rnd)
+static int
+__random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags, WT_RAND_STATE *rnd)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -548,7 +548,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
     if (cbt->ref == NULL || cbt->next_random_sample_size == 0) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
         WT_WITH_PAGE_INDEX(
-          session, ret = __wt_random_descent(session, &cbt->ref, read_flags, &cbt->rnd));
+          session, ret = __random_descent(session, &cbt->ref, read_flags, &cbt->rnd));
         if (ret == 0) {
             WT_ERR(__random_leaf(cbt));
             return (0);

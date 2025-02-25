@@ -621,8 +621,8 @@ __background_compact_server(void *arg)
          * does not generate additional updates.
          * - The cache content is almost at the eviction_trigger threshold.
          */
-        cache_pressure =
-          __wt_evict_dirty_needed(session, NULL) || __wt_evict_clean_needed(session, NULL);
+        cache_pressure = __wti_evict_exceeded_dirty_trigger(session, NULL) ||
+          __wti_evict_exceeded_clean_trigger(session, NULL);
         if (cache_pressure)
             continue;
 

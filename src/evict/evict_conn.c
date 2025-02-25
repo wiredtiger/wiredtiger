@@ -298,7 +298,6 @@ int
 __wt_evict_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     WT_EVICT *evict;
 
     conn = S2C(session);
@@ -309,7 +308,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 
     __wt_spin_destroy(session, &evict->evict_exclusive_lock);
     __wt_free(session, conn->evict);
-    return (ret);
+    return (0);
 }
 
 /* !!!
@@ -340,17 +339,10 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
       session, stats, eviction_reentry_hs_eviction_milliseconds, evict->reentry_hs_eviction_ms);
 
     WT_STATP_CONN_SET(session, stats, eviction_state, __wt_atomic_load32(&evict->flags));
+    WT_STATP_CONN_SET(session, stats, eviction_aggressive_set, evict->evict_aggressive_score);
 
     WT_STATP_CONN_SET(session, stats, eviction_active_workers,
       __wt_atomic_load32(&conn->evict_threads.current_threads));
     WT_STATP_CONN_SET(
       session, stats, eviction_stable_state_workers, evict->evict_tune_workers_best);
-
-    /*
-     * The number of files with active walks ~= number of hazard pointers in the walk session. Note:
-     * reading without locking.
-     */
-    if (__wt_atomic_loadbool(&conn->evict_server_running))
-        WT_STATP_CONN_SET(
-          session, stats, eviction_walks_active, evict->walk_session->hazards.num_active);
 }
