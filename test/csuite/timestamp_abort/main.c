@@ -1108,10 +1108,11 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
         testutil_snprintf(backup_dir, sizeof(backup_dir), BACKUP_BASE "%" PRIu32, backup_index);
         testutil_snprintf(verify_dir, sizeof(verify_dir), CHECK_BASE "%" PRIu32, backup_index);
         testutil_remove(CHECK_BASE "*");
-        if (use_liverestore)
+        if (use_liverestore) {
+            testutil_mkdir(verify_dir);
             testutil_snprintf(
               open_cfg, sizeof(open_cfg), "live_restore=(enabled=true,path=%s)", backup_dir);
-        else {
+        } else {
             testutil_copy(backup_dir, verify_dir);
             testutil_snprintf(open_cfg, sizeof(open_cfg), "live_restore=(enabled=false)");
         }
@@ -1122,6 +1123,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
          * trying to create it would cause the test to abort as we currently allow only one
          * statistics thread at a time.
          */
+        printf("Recover_and_verify: Open %s with config %s\n", verify_dir, open_cfg);
         testutil_wiredtiger_open(opts, verify_dir, open_cfg, &other_event, &conn, true, false);
     }
 
