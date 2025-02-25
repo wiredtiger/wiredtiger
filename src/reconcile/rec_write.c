@@ -2132,6 +2132,7 @@ __wti_rec_pack_delta_internal(
     *head_byte = flags;
 
     ++header->u.entries;
+    WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
     return (0);
 }
 
@@ -2306,6 +2307,8 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WT_
       "Generated leaf page delta, full page size %" PRIu32 ", delta size %" PRIu64
       ", total time %" PRIu64 "us",
       full_image->mem_size, r->delta.size, WT_CLOCKDIFF_US(stop, start));
+
+    WT_STAT_CONN_DSRC_INCRV(session, rec_page_delta_leaf, count);
 
     return (0);
 }
