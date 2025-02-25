@@ -763,6 +763,21 @@ __evict_update_work(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __evict_aggressive_score_decrement --
+ *     Use compare and swap to atomically decrement evict_aggressive_score by 1 if it's bigger than
+ *     zero.
+ */
+static void inline __evict_aggressive_score_decrement(uint32_t *scorep)
+{
+    uint32_t old_score;
+    do {
+        old_score = __wt_atomic_load32(scorep);
+        if (old_score == 0)
+            break;
+    } while (!__wt_atomic_cas32(scorep, old_score, old_score - 1));
+}
+
+/*
  * __evict_pass --
  *     Evict pages from memory.
  */
@@ -887,16 +902,7 @@ __evict_pass(WT_SESSION_IMPL *session)
             __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "unable to reach eviction goal");
             break;
         }
-        /*
-         * Decrement evict_aggressive_score only if it is greater than zero, using compare-and-swap
-         * to ensure it does not drop below zero.
-         */
-        uint32_t old_score;
-        do {
-            old_score = __wt_atomic_load32(&evict->evict_aggressive_score);
-            if (old_score == 0)
-                break;
-        } while (!__wt_atomic_cas32(&evict->evict_aggressive_score, old_score, old_score - 1));
+        __evict_aggressive_score_decrement(&evict->evict_aggressive_score);
         loop = 0;
         eviction_progress = __wt_atomic_loadv64(&evict->eviction_progress);
     }
@@ -2834,7 +2840,6 @@ __wti_evict_app_assist_worker(
     uint64_t time_start = 0;
     WT_TXN_GLOBAL *txn_global = &conn->txn_global;
     WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session);
-    uint32_t old_score;
 
     uint64_t cache_max_wait_us =
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
@@ -2875,16 +2880,7 @@ __wti_evict_app_assist_worker(
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
-                /*
-                 * Decrement evict_aggressive_score only if it is greater than zero, using
-                 * compare-and-swap to ensure it does not drop below zero.
-                 */
-                do {
-                    old_score = __wt_atomic_load32(&evict->evict_aggressive_score);
-                    if (old_score == 0)
-                        break;
-                } while (
-                  !__wt_atomic_cas32(&evict->evict_aggressive_score, old_score, old_score - 1));
+                __evict_aggressive_score_decrement(&evict->evict_aggressive_score);
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
                 __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
                   session->txn->rollback_reason);
@@ -2970,15 +2966,7 @@ err:
             ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
             __wt_session_set_last_error(
               session, ret, WT_CACHE_OVERFLOW, "Cache capacity has overflown");
-            /*
-             * Decrement evict_aggressive_score only if it is greater than zero, using
-             * compare-and-swap to ensure it does not drop below zero.
-             */
-            do {
-                old_score = __wt_atomic_load32(&evict->evict_aggressive_score);
-                if (old_score == 0)
-                    break;
-            } while (!__wt_atomic_cas32(&evict->evict_aggressive_score, old_score, old_score - 1));
+            __evict_aggressive_score_decrement(&evict->evict_aggressive_score);
             WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
             __wt_verbose_notice(
               session, WT_VERB_TRANSACTION, "rollback reason: %s", session->txn->rollback_reason);
