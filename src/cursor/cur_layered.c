@@ -1132,22 +1132,28 @@ __clayered_remove_int(
 {
     WT_CURSOR *c;
 
-    /*
-     * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
-     * anyway. We need the cursor still be positioned after the remove. Don't release the cursor if
-     * that is the case. Remove only retains the cursor position if it is positioned at the start.
-     */
-    if (!positioned)
-        WT_RET(__clayered_reset_cursors(clayered, true));
-
     if (S2C(session)->layered_table_manager.leader) {
         c = clayered->stable_cursor;
         clayered->current_cursor = c;
-        c->set_key(c, key);
+        if (!positioned) {
+            /*
+             * Clear the existing cursor position. Don't clear the primary cursor: we're about to
+             * use it anyway. We need the cursor still be positioned after the remove. Don't release
+             * the cursor if that is the case. Remove only retains the cursor position if it is
+             * positioned at the start.
+             */
+            WT_RET(__clayered_reset_cursors(clayered, true));
+            c->set_key(c, key);
+        }
         WT_RET(c->remove(c));
     } else {
         c = clayered->ingest_cursor;
         clayered->current_cursor = c;
+        /*
+         * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
+         * anyway.
+         */
+        WT_RET(__clayered_reset_cursors(clayered, true));
         c->set_key(c, key);
         c->set_value(c, &__tombstone);
         WT_RET(c->update(c));
