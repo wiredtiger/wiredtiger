@@ -1146,12 +1146,14 @@ __wt_live_restore_metadata_to_fh(
     lr_fh->allocsize = lr_fh_meta->allocsize;
     /*
      * !!!
-     * While the live restore is in progress the bit count reported by in the live restore meta can
-     * hold three states:
-     *  (0)     : This means file has not yet had a bitmap written to the metadata file and
-     *            therefore no relevant writes have gone to the destination.
-     *  (-1)    : This indicates the file has finished migration and the bitmap is therefore empty.
-     *  (nbits) : The number of bits in the bitmap.
+     * While the live restore is in progress the bit count reported by in the live restore meta data
+     * can hold three states:
+     *  (0)         : This means file has not yet had a bitmap representation written to the k
+     *                metadata file and therefore no application writes have gone to the
+     *                destination. In theory background thread writes may have happened but unless
+     *                the tree was dirtied the metadata update was not written out.
+     *  (-1)        : This indicates the file has finished migration and the bitmap is empty.
+     *  (nbits > 0) : The number of bits in the bitmap.
      */
     if (lr_fh_meta->nbits == 0 && lr_fh->source_size > 0) {
         uint64_t nbits = lr_fh->source_size / lr_fh_meta->allocsize;

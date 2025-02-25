@@ -90,8 +90,9 @@ class test_live_restore04(wttest.WiredTigerTestCase, suite_subprocess):
         self.close_conn()
 
         # Check that opening the wt utility without a proper live restore path gives an error.
+        lr_dump_out = os.path.join(util_out_path, f'{uris[i]}-error.lr.out')
         self.runWt(['dump', '-x', uris[0]],
-                   outfilename=f'{uris[0]}.lr.out',
+                   outfilename=lr_dump_out,
                    errfilename='wterr.txt',
                    reopensession=False,
                    failure=True)
