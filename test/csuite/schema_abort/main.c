@@ -231,20 +231,17 @@ test_bulk(THREAD_DATA *td)
     WT_CURSOR *c;
     WT_DECL_RET;
     WT_SESSION *session;
-    bool create;
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if (use_txn)
         testutil_die(ret, "test_bulk should not be used with transactions");
 
-    create = false;
     if ((ret = session->create(session, uri, config)) != 0)
         if (ret != EEXIST && ret != EBUSY)
             testutil_die(ret, "session.create");
 
     if (ret == 0) {
-        create = true;
         if ((ret = session->open_cursor(session, uri, NULL, "bulk", &c)) == 0) {
             __wt_yield();
             testutil_check(c->close(c));
