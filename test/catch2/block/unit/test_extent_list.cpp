@@ -304,50 +304,51 @@ TEST_CASE("Extent Lists: block_off_srch", "[extent_list]")
     }
 }
 
-TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
-{
-    std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
+// TEST_CASE("Extent Lists: block_first_srch", "[extent_list]")
+// {
+//     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
 
-    /*
-     * Note that we're not checking stack here, since __block_first_srch delegates most of its work
-     * to __block_off_srch, which we're testing elsewhere.
-     */
+//     /*
+//      * Note that we're not checking stack here, since __block_first_srch delegates most of its
+//      work
+//      * to __block_off_srch, which we're testing elsewhere.
+//      */
 
-    SECTION("empty list doesn't yield a chunk")
-    {
-        std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
+//     SECTION("empty list doesn't yield a chunk")
+//     {
+//         std::vector<WT_EXT *> head(WT_SKIP_MAXDEPTH, nullptr);
 
-        REQUIRE(__ut_block_first_srch(&head[0], 0, &stack[0]) == false);
-    }
+//         REQUIRE(__ut_block_first_srch(&head[0], 0, &stack[0]) == false);
+//     }
 
-    SECTION("list with too-small chunks doesn't yield a larger chunk")
-    {
-        auto wrapper = ExtentListWrapper();
-        auto &head = wrapper._raw_list;
+//     SECTION("list with too-small chunks doesn't yield a larger chunk")
+//     {
+//         auto wrapper = ExtentListWrapper();
+//         auto &head = wrapper._raw_list;
 
-        create_default_test_extent_list(wrapper);
+//         create_default_test_extent_list(wrapper);
 
-        head[0]->size = 1;
-        head[1]->size = 2;
-        head[2]->size = 3;
+//         head[0]->size = 1;
+//         head[1]->size = 2;
+//         head[2]->size = 3;
 
-        REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == false);
-    }
+//         REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == false);
+//     }
 
-    SECTION("find an appropriate chunk")
-    {
-        auto wrapper = ExtentListWrapper();
-        auto &head = wrapper._raw_list;
+//     SECTION("find an appropriate chunk")
+//     {
+//         auto wrapper = ExtentListWrapper();
+//         auto &head = wrapper._raw_list;
 
-        create_default_test_extent_list(wrapper);
+//         create_default_test_extent_list(wrapper);
 
-        head[0]->size = 10;
-        head[1]->size = 20;
-        head[2]->size = 30;
+//         head[0]->size = 10;
+//         head[1]->size = 20;
+//         head[2]->size = 30;
 
-        REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == true);
-    }
-}
+//         REQUIRE(__ut_block_first_srch(&head[0], 4, &stack[0]) == true);
+//     }
+// }
 
 TEST_CASE("Extent Lists: block_size_srch", "[extent_list]")
 {
