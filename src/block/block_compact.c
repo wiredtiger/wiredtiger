@@ -215,9 +215,9 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
      */
     if (block->compact_estimated && !*skipp) {
         if (block->compact_pages_rewritten == block->compact_prev_pages_rewritten) {
-            __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
-              "%s: compaction failed to make progress, no new pages rewritten", block->name);
-            *skipp = true;
+            // __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+            //   "%s: compaction failed to make progress, no new pages rewritten", block->name);
+            // *skipp = true;
         } else
             block->compact_prev_pages_rewritten = block->compact_pages_rewritten;
     }
@@ -525,9 +525,9 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * The file can grow due to parallel activity, it is better to stop compacting to avoid
      * conflicting behavior.
      */
-    else if (block->compact_prev_size > 0 && block->size > block->compact_prev_size)
-        __wt_verbose_debug1(session, WT_VERB_COMPACT,
-          "%s: skipping because the file has grown between compact passes.", block->name);
+    // else if (block->compact_prev_size > 0 && block->size > block->compact_prev_size)
+    //     __wt_verbose_debug1(session, WT_VERB_COMPACT,
+    //       "%s: skipping because the file has grown between compact passes.", block->name);
     else
         __block_compact_skip_internal(
           session, block, false, block->size, 0, 0, skipp, &block->compact_pct_tenths);
