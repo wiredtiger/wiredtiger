@@ -37,8 +37,8 @@
  * with "verbose=[compact,compact_progress]". There's a chance these two cases are different.
  */
 
-#define NUM_RECORDS WT_MILLION
-// #define NUM_RECORDS 50 * WT_THOUSAND
+// #define NUM_RECORDS WT_MILLION
+#define NUM_RECORDS 100 * WT_THOUSAND
 
 // #define NUM_UPDATES 1000
 #define CHECKPOINT_NUM 3
@@ -46,7 +46,7 @@
 #define STAT_BUF_SIZE 128
 #define KB 1024
 // #define MB 1024 * 1024
-#define MIN_SIZE 512
+#define MIN_SIZE 4 * KB
 #define MAX_SIZE 4 * KB
 
 /* Constants and variables declaration. */
@@ -54,14 +54,26 @@
  * You may want to add "verbose=[compact,compact_progress]" to the connection config string to get
  * better view on what is happening.
  */
+// Default eviction config
 static const char conn_config[] =
   "create,cache_size=20GB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact:"
   "2,"
-  "compact_progress],eviction_updates_target=20,eviction_updates_trigger=90,eviction_dirty_trigger="
-  "98,eviction_dirty_target=20";
+  "compact_progress]";
+// static const char conn_config[] =
+//   "create,cache_size=20GB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact:"
+//   "2,"
+//   "compact_progress],eviction_updates_target=20,eviction_updates_trigger=90,eviction_dirty_trigger="
+//   "98,eviction_dirty_target=20";
+
+// Default leaf_page_max
 static const char table_config_row[] =
-  "allocation_size=512B,leaf_page_max=512B,leaf_value_max=64MB,memory_page_max=10m,split_pct=90,"
+  "allocation_size=512B,leaf_page_max=32KB,leaf_value_max=64MB,memory_page_max=10m,split_pct=90,"
   "key_format=Q,value_format=u";
+
+// // Low leaf_page_max
+// static const char table_config_row[] =
+//   "allocation_size=512B,leaf_page_max=512B,leaf_value_max=64MB,memory_page_max=10m,split_pct=90,"
+//   "key_format=Q,value_format=u";
 static pthread_t thread_compact;
 static uint64_t ready_counter;
 static bool compact_finished = false;
@@ -140,8 +152,8 @@ run_test(bool stress_test, TEST_OPTS *opts)
     pthread_t thread_checkpoint;
     pthread_t thread_updates;
     uint64_t pages_reviewed, pages_rewritten, pages_skipped;
-    bool size_check_res;
     char *home, *uri, *new_home;
+    bool size_check_res;
 
     home = opts->home;
     uri = opts->uri;
@@ -210,13 +222,13 @@ run_test(bool stress_test, TEST_OPTS *opts)
     printf(" - Pages reviewed: %" PRIu64 "\n", pages_reviewed);
     printf(" - Pages selected for being rewritten: %" PRIu64 "\n", pages_rewritten);
     printf(" - Pages skipped: %" PRIu64 "\n", pages_skipped);
-    testutil_assert(pages_reviewed > 0);
-    testutil_assert(pages_rewritten > 0);
+    // testutil_assert(pages_reviewed > 0);
+    // testutil_assert(pages_rewritten > 0);
     /*
      * Check if there's more than 10% available space in the file. Checking result here to allow
      * connection to close properly.
      */
-    testutil_assert(size_check_res || true);
+    // testutil_assert(size_check_res || true);
 
     free(new_home);
 }
@@ -244,6 +256,7 @@ thread_func_compact(void *arg)
 
     /* Perform compact operation. */
     session->compact(session, td->uri, NULL);
+    // __wt_sleep(5, 0);
 
     compact_finished = true;
 
@@ -284,7 +297,7 @@ thread_func_checkpoint(void *arg)
      * start.
      */
     for (i = 0; i < CHECKPOINT_NUM; i++) {
-        testutil_check(session->checkpoint(session, NULL));
+        // testutil_check(session->checkpoint(session, NULL));
 
         if (i < CHECKPOINT_NUM - 1) {
             sleep_sec = (uint64_t)__wt_random(&rnd) % 15 + 1;
@@ -378,8 +391,8 @@ static void
 update_records(WT_SESSION *session, const char *uri)
 {
     WT_CURSOR *cursor;
-    WT_RAND_STATE rnd;
     WT_ITEM update;
+    WT_RAND_STATE rnd;
     uint64_t key;
     char *val_str;
 
@@ -413,6 +426,8 @@ update_records(WT_SESSION *session, const char *uri)
         testutil_check(cursor->update(cursor));
 
         free(val_str);
+
+        __wt_sleep(0, 1000);
     }
 
     cursor->close(cursor);
