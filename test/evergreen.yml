@@ -193,7 +193,11 @@ functions:
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
           git clone $mongo_repo -b $mongo_branch
         else
-          forked_repo=https://github.com/mongodb/mongo
+          # FIXME-WT-14185 Use the public main repo when it is starting to sync with private repo.
+          # The WT-13948 ticket requires changes from the private repository. As a workaround
+          # use a mongodb forked repo with custom branch.
+          forked_repo=https://github.com/jiechenbo/mongo
+          git checkout wt-13948-workaround
           mongo_branch=master
           git clone $mongo_repo -b $mongo_branch
         fi
