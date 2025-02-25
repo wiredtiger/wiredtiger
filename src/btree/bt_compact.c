@@ -291,9 +291,9 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
 
     /* If we found a page to compact, mark the parent and tree dirty and report success. */
     if (overall_progress) {
-        WT_ERR(__wt_page_parent_modify_set(session, ref, false));
         session->compact_state = WT_COMPACT_SUCCESS;
     }
+    WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
 err:
     /* Unblock checkpoint threads. */
