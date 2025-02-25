@@ -199,8 +199,8 @@ functions:
           mongo_repo=https://github.com/jiechenbo/mongo
           mongo_branch=wt-13948-workaround
         fi
-        git clone $mongo_repo -b $mongo_branch
         popd
+        git clone $mongo_repo -b $mongo_branch
   "import wiredtiger into mongo" :
     command: shell.exec
     type: setup
