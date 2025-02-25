@@ -137,6 +137,31 @@ __block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
 }
 
 /*
+ * __block_size_srch --
+ *     Search the by-size skiplist for the specified size.
+ */
+static WT_INLINE void
+__block_size_off_srch(WT_BLOCK *block, WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
+{
+    WT_SIZE **szp;
+    int i;
+
+    /*
+     * Start at the highest skip level, then go as far as possible at each level before stepping
+     * down to the next.
+     *
+     * Return a stack for an exact match or the next-largest item.
+     */
+    for (i = WT_SKIP_MAXDEPTH - 1, szp = &head[i]; i >= 0;)
+        if (*szp != NULL &&
+          ((*szp)->size < size ||
+            (*szp)->off[0]->off > (wt_off_t)(block->size - (block->size / 10))))
+            szp = &(*szp)->next[i];
+        else
+            stack[i--] = szp--;
+}
+
+/*
  * __block_off_srch_pair --
  *     Search a by-offset skiplist for before/after records of the specified offset.
  */
@@ -541,7 +566,8 @@ __block_extend(
 int
 __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
 {
-    WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
+    // WT_EXT **estack[WT_SKIP_MAXDEPTH];
+    WT_EXT *ext;
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
 
@@ -574,16 +600,29 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
     if (block->allocfirst) {
-        __block_size_srch(block->live.avail.sz, size, sstack);
-        if (*sstack[0] != NULL) {
-            if (!__block_first_srch(session, block->live.avail.off, size, estack))
+        // Attempt #1
+        // __block_size_srch(block->live.avail.sz, size, sstack);
+        // if ((szp = *sstack[0]) != NULL) {
+        //     if (!__block_first_srch(session, szp->off, size, estack))
+        //         goto append;
+        // } else {
+        //     goto append;
+        // }
+        // ext = *estack[0];
+
+        // Attempt #2
+        __block_size_off_srch(block, block->live.avail.sz, size, sstack);
+        if ((szp = *sstack[0]) == NULL) {
+            __block_size_srch(block->live.avail.sz, size, sstack);
+            if ((szp = *sstack[0]) == NULL) {
                 goto append;
-        } else {
-            goto append;
+            }
         }
+        ext = szp->off[0];
+
         // if (!__block_first_srch(session, block->live.avail.off, size, estack))
         //     goto append;
-        ext = *estack[0];
+        // ext = *estack[0];
     } else {
         __block_size_srch(block->live.avail.sz, size, sstack);
         if ((szp = *sstack[0]) == NULL) {
