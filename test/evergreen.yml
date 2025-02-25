@@ -196,10 +196,10 @@ functions:
           # FIXME-WT-14185 Use the public main repo when it is starting to sync with private repo.
           # The WT-13948 ticket requires changes from the private repository. As a workaround
           # use a mongodb forked repo with custom branch.
-          forked_repo=https://github.com/jiechenbo/mongo
+          mongo_repo=https://github.com/jiechenbo/mongo
           mongo_branch=wt-13948-workaround
-          git clone $mongo_repo -b $mongo_branch
         fi
+        git clone $mongo_repo -b $mongo_branch
         popd
   "import wiredtiger into mongo" :
     command: shell.exec
