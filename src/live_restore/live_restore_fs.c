@@ -1146,7 +1146,7 @@ __wt_live_restore_metadata_to_fh(
     lr_fh->allocsize = lr_fh_meta->allocsize;
     /*
      * !!!
-     * While the live restore is in progress the bit count reported by in the live restore meta data
+     * While the live restore is in progress, the bit count reported by in the live restore metadata
      * can hold three states:
      *  (0)         : This means file has not yet had a bitmap representation written to the k
      *                metadata file and therefore no application writes have gone to the
@@ -1218,6 +1218,7 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
           "%s: Appending live restore bitmap (%s, %" PRIu64 ") to metadata", fh->name,
           (char *)buf.data, lr_fh->destination.nbits);
     } else {
+        /* -1 indicates the file has completed migration. */
         WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=,nbits=-1)"));
         __wt_verbose_debug3(
           session, WT_VERB_LIVE_RESTORE, "%s: Appending empty live restore metadata", fh->name);
