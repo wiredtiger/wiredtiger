@@ -230,8 +230,8 @@ tinfo_teardown(void)
 static void
 rollback_to_stable(WT_SESSION *session)
 {
-    char cfg[512];
     u_int num_threads;
+    char cfg[512];
 
     /* Rollback-to-stable only makes sense for timestamps. */
     if (!g.transaction_timestamps_config)
