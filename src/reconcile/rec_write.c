@@ -512,7 +512,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
      * Don't count the eviction of this page as progress, checkpoint can repeatedly create and
      * discard these pages.
      */
-    WT_RET(__wt_page_alloc(session, page->type, mod->mod_multi_entries, false, &next));
+    WT_RET(__wt_page_alloc(session, page->type, mod->mod_multi_entries, false, &next, 0));
     F_SET_ATOMIC_16(next, WT_PAGE_EVICT_NO_PROGRESS);
 
     WT_INTL_INDEX_GET(session, next, pindex);

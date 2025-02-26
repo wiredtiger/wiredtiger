@@ -64,8 +64,8 @@ __wt_page_block_meta_assign(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *meta)
  *     Create or read a page into the cache.
  */
 int
-__wt_page_alloc(
-  WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs, WT_PAGE **pagep)
+__wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs,
+  WT_PAGE **pagep, uint32_t flags)
 {
     WT_CACHE *cache;
     WT_DECL_RET;
@@ -115,32 +115,34 @@ __wt_page_alloc(
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        WT_ASSERT(session, alloc_entries != 0);
-        /*
-         * Internal pages have an array of references to objects so they can split. Allocate the
-         * array of references and optionally, the objects to which they point.
-         */
-        WT_ERR(
-          __wt_calloc(session, 1, sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *), &p));
-        size += sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *);
-        pindex = p;
-        pindex->index = (WT_REF **)((WT_PAGE_INDEX *)p + 1);
-        pindex->entries = alloc_entries;
-        WT_INTL_INDEX_SET(page, pindex);
-        if (alloc_refs)
-            for (i = 0; i < pindex->entries; ++i) {
-                WT_ERR(__wt_calloc_one(session, &pindex->index[i]));
-                size += sizeof(WT_REF);
-            }
-        if (0) {
+        if (!LF_ISSET(WT_PAGE_BUILD_DELTAS)) {
+            WT_ASSERT(session, alloc_entries != 0);
+            /*
+             * Internal pages have an array of references to objects so they can split. Allocate the
+             * array of references and optionally, the objects to which they point.
+             */
+            WT_ERR(__wt_calloc(
+              session, 1, sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *), &p));
+            size += sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *);
+            pindex = p;
+            pindex->index = (WT_REF **)((WT_PAGE_INDEX *)p + 1);
+            pindex->entries = alloc_entries;
+            WT_INTL_INDEX_SET(page, pindex);
+            if (alloc_refs)
+                for (i = 0; i < pindex->entries; ++i) {
+                    WT_ERR(__wt_calloc_one(session, &pindex->index[i]));
+                    size += sizeof(WT_REF);
+                }
+            if (0) {
 err:
-            if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
-                for (i = 0; i < pindex->entries; ++i)
-                    __wt_free(session, pindex->index[i]);
-                __wt_free(session, pindex);
+                if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
+                    for (i = 0; i < pindex->entries; ++i)
+                        __wt_free(session, pindex->index[i]);
+                    __wt_free(session, pindex);
+                }
+                __wt_free(session, page);
+                return (ret);
             }
-            __wt_free(session, page);
-            return (ret);
         }
         break;
     case WT_PAGE_COL_VAR:
@@ -482,7 +484,8 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
          * Row-store internal page entries map one-to-two to the number of physical entries on the
          * page (each entry is a key and location cookie pair).
          */
-        alloc_entries = dsk->u.entries / 2;
+        if (!LF_ISSET(WT_PAGE_BUILD_DELTAS))
+            alloc_entries = dsk->u.entries / 2;
         break;
     case WT_PAGE_ROW_LEAF:
         /*
@@ -504,7 +507,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     }
 
     /* Allocate and initialize a new WT_PAGE. */
-    WT_RET(__wt_page_alloc(session, dsk->type, alloc_entries, true, &page));
+    WT_RET(__wt_page_alloc(session, dsk->type, alloc_entries, true, &page, flags));
     page->dsk = dsk;
     F_SET_ATOMIC_16(page, flags);
 
@@ -529,7 +532,8 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         WT_ERR(__inmem_col_var(session, page, dsk->recno, instantiate_updp, &size));
         break;
     case WT_PAGE_ROW_INT:
-        WT_ERR(__inmem_row_int(session, page, &size));
+        if (!LF_ISSET(WT_PAGE_BUILD_DELTAS))
+            WT_ERR(__inmem_row_int(session, page, &size));
         break;
     case WT_PAGE_ROW_LEAF:
         WT_ERR(__inmem_row_leaf(session, page, instantiate_updp));
