@@ -263,6 +263,7 @@ conn_stats = [
     BlockStat('block_remap_file_resize', 'number of times the file was remapped because it changed size via fallocate or truncate'),
     BlockStat('block_remap_file_write', 'number of times the region was remapped via write'),
     BlockStat('block_write', 'blocks written'),
+    BlockStat('block_ext_walked', 'number of extents last walked during allocation'),
 
     ##########################################
     # Cache statistics

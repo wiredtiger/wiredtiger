@@ -1382,6 +1382,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written via system call API",
   "block-manager: mapped blocks read",
   "block-manager: mapped bytes read",
+  "block-manager: number of extents last walked during allocation",
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
@@ -2167,6 +2168,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
+    stats->block_ext_walked = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
     stats->eviction_interupted_by_app = 0;
@@ -2905,6 +2907,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_syscall += WT_STAT_CONN_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_CONN_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_CONN_READ(from, block_byte_map_read);
+    to->block_ext_walked += WT_STAT_CONN_READ(from, block_ext_walked);
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
     to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);

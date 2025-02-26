@@ -91,16 +91,20 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
  *     Search the skiplist for the first available slot.
  */
 static WT_INLINE bool
-__block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+__block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
 {
     WT_EXT *ext;
+    int i = 0;
 
     /*
      * Linear walk of the available chunks in offset order; take the first one that's large enough.
      */
-    WT_EXT_FOREACH (ext, head)
+    WT_EXT_FOREACH (ext, head) {
+        i++;
         if (ext->size >= size)
             break;
+    }
+    WT_STAT_CONN_SET(session, block_ext_walked, i);
     if (ext == NULL)
         return (false);
 
@@ -127,6 +131,31 @@ __block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
      */
     for (i = WT_SKIP_MAXDEPTH - 1, szp = &head[i]; i >= 0;)
         if (*szp != NULL && (*szp)->size < size)
+            szp = &(*szp)->next[i];
+        else
+            stack[i--] = szp--;
+}
+
+/*
+ * __block_size_srch --
+ *     Search the by-size skiplist for the specified size.
+ */
+static WT_INLINE void
+__block_size_off_srch(WT_BLOCK *block, WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
+{
+    WT_SIZE **szp;
+    int i;
+
+    /*
+     * Start at the highest skip level, then go as far as possible at each level before stepping
+     * down to the next.
+     *
+     * Return a stack for an exact match or the next-largest item.
+     */
+    for (i = WT_SKIP_MAXDEPTH - 1, szp = &head[i]; i >= 0;)
+        if (*szp != NULL &&
+          ((*szp)->size < size ||
+            (*szp)->off[0]->off > (wt_off_t)(block->size - (block->size / 10))))
             szp = &(*szp)->next[i];
         else
             stack[i--] = szp--;
@@ -537,7 +566,8 @@ __block_extend(
 int
 __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
 {
-    WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
+    WT_EXT **estack[WT_SKIP_MAXDEPTH];
+    WT_EXT *ext;
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
 
@@ -570,7 +600,7 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
     if (block->allocfirst) {
-        if (!__block_first_srch(block->live.avail.off, size, estack))
+        if (!__block_first_srch(session, block->live.avail.off, size, estack))
             goto append;
         ext = *estack[0];
     } else {
@@ -1506,9 +1536,9 @@ __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
 }
 
 bool
-__ut_block_first_srch(WT_EXT **head, wt_off_t size, WT_EXT ***stack)
+__ut_block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EXT ***stack)
 {
-    return (__block_first_srch(head, size, stack));
+    return (__block_first_srch(session, head, size, stack));
 }
 
 void
