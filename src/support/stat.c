@@ -2345,7 +2345,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
     /* not clearing cache_updates_txn_uncommitted_bytes */
-    /* not clearing cache_updates_txn_uncommitted_n */
+    /* not clearing cache_updates_txn_uncommitted_count */
     stats->fsync_all_fh_total = 0;
     stats->fsync_all_fh = 0;
     /* not clearing fsync_all_time */
@@ -3133,7 +3133,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_clean += WT_STAT_CONN_READ(from, cache_eviction_clean);
     to->cache_updates_txn_uncommitted_bytes +=
       WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_bytes);
-    to->cache_updates_txn_uncommitted_n += WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_n);
+    to->cache_updates_txn_uncommitted_count +=
+      WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_count);
     to->fsync_all_fh_total += WT_STAT_CONN_READ(from, fsync_all_fh_total);
     to->fsync_all_fh += WT_STAT_CONN_READ(from, fsync_all_fh);
     to->fsync_all_time += WT_STAT_CONN_READ(from, fsync_all_time);

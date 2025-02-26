@@ -655,7 +655,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
     int64_t cache_updates_txn_uncommitted_bytes;
-    int64_t cache_updates_txn_uncommitted_n;
+    int64_t cache_updates_txn_uncommitted_count;
     int64_t fsync_all_fh_total;
     int64_t fsync_all_fh;
     int64_t fsync_all_time;

@@ -285,7 +285,7 @@ conn_stats = [
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
     CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
-    CacheStat('cache_updates_txn_uncommitted_n', 'updates in uncommitted txn - count', 'no_clear,no_scale,size'),
+    CacheStat('cache_updates_txn_uncommitted_count', 'updates in uncommitted txn - count', 'no_clear,no_scale,size'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
     CacheStat('npos_evict_walk_max', 'eviction walk restored - had to walk this many pages', 'max_aggregate,no_scale'),

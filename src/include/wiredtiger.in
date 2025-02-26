@@ -6033,7 +6033,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: updates in uncommitted txn - bytes */
 #define	WT_STAT_CONN_CACHE_UPDATES_TXN_UNCOMMITTED_BYTES	1241
 /*! cache: updates in uncommitted txn - count */
-#define	WT_STAT_CONN_CACHE_UPDATES_TXN_UNCOMMITTED_N	1242
+#define	WT_STAT_CONN_CACHE_UPDATES_TXN_UNCOMMITTED_COUNT	1242
 /*! capacity: background fsync file handles considered */
 #define	WT_STAT_CONN_FSYNC_ALL_FH_TOTAL			1243
 /*! capacity: background fsync file handles synced */
