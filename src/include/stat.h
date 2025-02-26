@@ -488,7 +488,6 @@ struct __wt_connection_stats {
     int64_t cache_write_app_count;
     int64_t cache_write_app_time;
     int64_t cache_bytes_updates;
-    int64_t cache_bytes_updates_txn_uncommitted;
     int64_t cache_bytes_image;
     int64_t cache_bytes_hs;
     int64_t cache_bytes_inuse;
@@ -655,6 +654,8 @@ struct __wt_connection_stats {
     int64_t cache_pages_dirty;
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
+    int64_t cache_updates_txn_uncommitted_bytes;
+    int64_t cache_updates_txn_uncommitted_n;
     int64_t fsync_all_fh_total;
     int64_t fsync_all_fh;
     int64_t fsync_all_time;
@@ -1435,6 +1436,7 @@ struct __wt_session_stats {
     int64_t bytes_write;
     int64_t lock_dhandle_wait;
     int64_t txn_bytes_dirty;
+    int64_t txn_updates;
     int64_t read_time;
     int64_t write_time;
     int64_t lock_schema_wait;

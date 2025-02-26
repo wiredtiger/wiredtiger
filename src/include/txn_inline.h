@@ -1623,8 +1623,10 @@ retry:
 static void
 __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size)
 {
-    WT_STAT_CONN_INCRV(session, cache_bytes_updates_txn_uncommitted, (int64_t)size);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
+    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_n, 1);
     WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
+    WT_STAT_SESSION_INCRV(session, txn_updates, 1);
 }
 
 /*
@@ -1634,10 +1636,18 @@ __txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size)
 static void
 __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
 {
-    int64_t txn_bytes_dirty = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
-    if (txn_bytes_dirty != 0) {
-        WT_STAT_CONN_DECRV(session, cache_bytes_updates_txn_uncommitted, txn_bytes_dirty);
+    int64_t val;
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_bytes, val);
         WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+    }
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_n, val);
+        WT_STAT_SESSION_SET(session, txn_updates, 0);
     }
 }
 

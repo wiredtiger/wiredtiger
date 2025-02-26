@@ -1392,7 +1392,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: application threads page write from cache to disk count",
   "cache: application threads page write from cache to disk time (usecs)",
   "cache: bytes allocated for updates",
-  "cache: bytes allocated for updates in uncommitted transactions",
   "cache: bytes belonging to page images in the cache",
   "cache: bytes belonging to the history store table in the cache",
   "cache: bytes currently in the cache",
@@ -1577,6 +1576,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: tracked dirty pages in the cache",
   "cache: uncommitted truncate blocked page eviction",
   "cache: unmodified pages evicted",
+  "cache: updates in uncommitted txn - bytes",
+  "cache: updates in uncommitted txn - count",
   "capacity: background fsync file handles considered",
   "capacity: background fsync file handles synced",
   "capacity: background fsync time (msecs)",
@@ -2177,7 +2178,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_app_count = 0;
     stats->cache_write_app_time = 0;
     /* not clearing cache_bytes_updates */
-    /* not clearing cache_bytes_updates_txn_uncommitted */
     /* not clearing cache_bytes_image */
     /* not clearing cache_bytes_hs */
     /* not clearing cache_bytes_inuse */
@@ -2344,6 +2344,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_pages_dirty */
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
+    /* not clearing cache_updates_txn_uncommitted_bytes */
+    /* not clearing cache_updates_txn_uncommitted_n */
     stats->fsync_all_fh_total = 0;
     stats->fsync_all_fh = 0;
     /* not clearing fsync_all_time */
@@ -2916,8 +2918,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_write_app_count += WT_STAT_CONN_READ(from, cache_write_app_count);
     to->cache_write_app_time += WT_STAT_CONN_READ(from, cache_write_app_time);
     to->cache_bytes_updates += WT_STAT_CONN_READ(from, cache_bytes_updates);
-    to->cache_bytes_updates_txn_uncommitted +=
-      WT_STAT_CONN_READ(from, cache_bytes_updates_txn_uncommitted);
     to->cache_bytes_image += WT_STAT_CONN_READ(from, cache_bytes_image);
     to->cache_bytes_hs += WT_STAT_CONN_READ(from, cache_bytes_hs);
     to->cache_bytes_inuse += WT_STAT_CONN_READ(from, cache_bytes_inuse);
@@ -3131,6 +3131,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_uncommitted_truncate +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_uncommitted_truncate);
     to->cache_eviction_clean += WT_STAT_CONN_READ(from, cache_eviction_clean);
+    to->cache_updates_txn_uncommitted_bytes +=
+      WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_bytes);
+    to->cache_updates_txn_uncommitted_n += WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_n);
     to->fsync_all_fh_total += WT_STAT_CONN_READ(from, fsync_all_fh_total);
     to->fsync_all_fh += WT_STAT_CONN_READ(from, fsync_all_fh);
     to->fsync_all_time += WT_STAT_CONN_READ(from, fsync_all_time);
@@ -3677,6 +3680,7 @@ static const char *const __stats_session_desc[] = {
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
   "session: dirty bytes in this txn",
+  "session: number of updates in this txn",
   "session: page read from disk to cache time (usecs)",
   "session: page write from cache to disk time (usecs)",
   "session: schema lock wait time (usecs)",
@@ -3706,6 +3710,7 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
     /* not clearing txn_bytes_dirty */
+    /* not clearing txn_updates */
     stats->read_time = 0;
     stats->write_time = 0;
     stats->lock_schema_wait = 0;
