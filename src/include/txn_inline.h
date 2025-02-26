@@ -356,6 +356,8 @@ __wt_txn_op_delete_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bo
     if ((page_del = ref->page_del) != NULL)
         __txn_apply_prepare_state_page_del(session, page_del, commit);
 
+    __wt_atomic_addv16(&ref->ref_changes, 1);
+
     WT_REF_UNLOCK(ref, previous_state);
 }
 
@@ -433,6 +435,8 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
     }
 
     __txn_op_delete_commit_apply_page_del_timestamp(session, ref);
+
+    __wt_atomic_addv16(&ref->ref_changes, 1);
 
     WT_REF_UNLOCK(ref, previous_state);
 }
