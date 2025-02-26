@@ -778,12 +778,12 @@ thread_run(void *arg)
             switch (__wt_random(&td->data_rnd) % 20) {
             case 0:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, BULK);
-                if(!use_txn)
+                if (!use_txn)
                     test_bulk(td);
                 break;
             case 1:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, BULK_UNQ);
-                if(!use_txn)
+                if (!use_txn)
                     test_bulk_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
                 break;
             case 2:
