@@ -2339,6 +2339,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
+    WT_DELTA_HEADER *header;
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
@@ -2488,6 +2489,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     /* Write the disk image and get an address. */
     if (build_delta) {
+        header = (WT_DELTA_HEADER *)r->delta.data;
+        /* Avoid writing an empty delta. */
+        if (header->u.entries == 0) {
+            goto copy_image;
+        }
+
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
         WT_ASSERT(session, block_meta->checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
