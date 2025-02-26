@@ -243,7 +243,7 @@ rollback_to_stable(WT_SESSION *session)
      */
     num_threads = mmrand(&g.extra_rnd, 0, 11);
     testutil_snprintf(cfg, sizeof(cfg), "threads=%" PRIu32, num_threads);
-    testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, num_threads > 10 ? NULL : cfg));
+    testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, num_threads == 11 ? NULL : cfg));
 
     /*
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
