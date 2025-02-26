@@ -18,7 +18,7 @@ static int __rec_hs_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *, uint8_t);
-static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, WT_ITEM *, bool);
+static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, bool);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
@@ -1509,10 +1509,10 @@ __wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
      * doing a bulk load.
      */
     if (r->is_bulk_load)
-        WT_RET(__rec_split_write(session, r, r->cur_ptr, NULL, false));
+        WT_RET(__rec_split_write(session, r, r->cur_ptr, false));
     else {
         if (r->prev_ptr != NULL)
-            WT_RET(__rec_split_write(session, r, r->prev_ptr, NULL, false));
+            WT_RET(__rec_split_write(session, r, r->prev_ptr, false));
 
         if (r->prev_ptr == NULL) {
             WT_RET(__rec_split_chunk_init(session, r, &r->chunk_B));
@@ -1729,7 +1729,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     }
 
     /* Write out the previous image */
-    return (__rec_split_write(session, r, r->prev_ptr, NULL, false));
+    return (__rec_split_write(session, r, r->prev_ptr, false));
 }
 
 /*
@@ -1782,11 +1782,11 @@ __wti_rec_split_finish(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
         if (r->page->type != WT_PAGE_COL_FIX)
             WT_RET(__rec_split_finish_process_prev(session, r));
         else
-            WT_RET(__rec_split_write(session, r, r->prev_ptr, NULL, false));
+            WT_RET(__rec_split_write(session, r, r->prev_ptr, false));
     }
 
     /* Write the remaining data/last page. */
-    return (__rec_split_write(session, r, r->cur_ptr, NULL, true));
+    return (__rec_split_write(session, r, r->cur_ptr, true));
 }
 
 /*
@@ -2049,8 +2049,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
  *     Write a disk block out for the split helper functions.
  */
 static int
-__rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk,
-  WT_ITEM *compressed_image, bool last_block)
+__rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, bool last_block)
 {
     WT_BTREE *btree;
     WT_MULTI *multi;
@@ -2116,8 +2115,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (r->page->type == WT_PAGE_COL_FIX)
         __wti_rec_col_fix_write_auxheader(session, chunk->entries, chunk->aux_start_offset,
           chunk->auxentries, chunk->image.mem, chunk->image.size);
-    if (compressed_image != NULL)
-        __rec_split_write_header(session, r, chunk, multi, compressed_image->mem);
 
     /*
      * If we are writing the whole page in our first/only attempt, it might be a checkpoint
@@ -2131,12 +2128,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         WT_ASSERT_ALWAYS(
           session, r->supd_next == 0, "Attempting to write final block but further updates found");
 
-        if (compressed_image == NULL)
-            r->wrapup_checkpoint = &chunk->image;
-        else {
-            r->wrapup_checkpoint = compressed_image;
-            r->wrapup_checkpoint_compressed = true;
-        }
+        r->wrapup_checkpoint = &chunk->image;
         return (0);
     }
 
@@ -2165,9 +2157,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     }
 
     /* Write the disk image and get an address. */
-    WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
-      &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
-      compressed_image != NULL));
+    WT_RET(__rec_write(session, &chunk->image, addr, &addr_size, &compressed_size, false,
+      F_ISSET(r, WT_REC_CHECKPOINT), false));
 #ifdef HAVE_DIAGNOSTIC
     verify_image = false;
 #endif
