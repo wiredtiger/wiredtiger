@@ -231,7 +231,7 @@ static void
 rollback_to_stable(WT_SESSION *session)
 {
     u_int num_threads;
-    char cfg[512];
+    char cfg[32];
 
     /* Rollback-to-stable only makes sense for timestamps. */
     if (!g.transaction_timestamps_config)
