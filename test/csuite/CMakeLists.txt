@@ -295,6 +295,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_compact
+    SOURCES compact/main.c
+    DIR_NAME compact
+    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_compact>/WT_HOME>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_wt9199_checkpoint_txn_commit_race
     SOURCES wt9199_checkpoint_txn_commit_race/main.c
     DIR_NAME wt9199_checkpoint_txn_commit_race
