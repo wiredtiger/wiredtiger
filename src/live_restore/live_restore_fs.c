@@ -719,8 +719,7 @@ __live_restore_fh_read(
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole_begin_off,
           source_partial_read_len, read_data + dest_partial_read_len));
     } else {
-        /* Interestingly you cannot not have a format in verbose. */
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "    READ FROM %s", "SOURCE");
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
         /* Read the full read from the source. */
         WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
     }
