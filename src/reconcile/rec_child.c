@@ -211,8 +211,8 @@ __rec_child_deleted(
  *     Return if the internal page's child references any modifications.
  */
 int
-__wti_rec_child_modify(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_MODIFY_STATE *cmsp)
+__wti_rec_child_modify(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
+  WT_CHILD_MODIFY_STATE *cmsp, bool *build_delta)
 {
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
@@ -252,6 +252,12 @@ __wti_rec_child_modify(
              */
             if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
                 break;
+
+            /* TODO: support delta for fast truncate. */
+            if (build_delta != NULL) {
+                *build_delta = false;
+                r->delta.size = 0;
+            }
             ret = __rec_child_deleted(session, r, ref, cmsp);
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
             goto done;
