@@ -94,24 +94,26 @@ __live_restore_create_stop_file_path(WT_SESSION_IMPL *session, const char *name,
  *     Create a stop file for the given file.
  */
 static int
-__live_restore_fs_create_stop_file(
-  WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
+__live_restore_fs_create_stop_file(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name,
+  uint32_t flags, bool caller_locked)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
     WTI_LIVE_RESTORE_FS *lr_fs;
     uint32_t open_flags;
     char *path, *path_marker;
+    bool local_locked;
 
     lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
+    local_locked = false;
 
-    bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
-    if (!reentrant)
+    if (!caller_locked) {
         __wt_spin_lock(session, &lr_fs->state_lock);
-
+        local_locked = true;
+    }
     if (__wti_live_restore_migration_complete(session)) {
-        if (!reentrant)
+        if (local_locked)
             __wt_spin_unlock(session, &lr_fs->state_lock);
         return (0);
     }
@@ -134,7 +136,7 @@ err:
     __wt_free(session, path);
     __wt_free(session, path_marker);
 
-    if (!reentrant)
+    if (local_locked)
         __wt_spin_unlock(session, &lr_fs->state_lock);
 
     return (ret);
@@ -1050,8 +1052,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
 
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
-    WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
-      session, lr_fh,
+    WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh,
       __live_restore_fh_fill_bit_range(
         lr_fh, session, truncate_start, (size_t)(truncate_end - truncate_start)););
 
@@ -1649,7 +1650,7 @@ __live_restore_fs_remove(
      * this file in the future. One such case is when a file is created, removed and then created
      * again with the same name.
      */
-    __live_restore_fs_create_stop_file(fs, session, name, flags);
+    __live_restore_fs_create_stop_file(fs, session, name, flags, false);
 
 err:
     __wt_free(session, path);
@@ -1704,8 +1705,8 @@ __live_restore_fs_rename(
       lr_fs->os_file_system, wt_session, path_from, path_to, flags));
 
     /* Even if we don't modify a backing file we need to update metadata. */
-    WT_ERR(__live_restore_fs_create_stop_file(fs, session, to, flags));
-    WT_ERR(__live_restore_fs_create_stop_file(fs, session, from, flags));
+    WT_ERR(__live_restore_fs_create_stop_file(fs, session, to, flags, false));
+    WT_ERR(__live_restore_fs_create_stop_file(fs, session, from, flags, false));
 
 err:
     __wt_free(session, path_from);
