@@ -856,7 +856,7 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     bool finished = false;
     __wt_timer_start(session, &timer);
     while (!finished) {
-        wt_off_t read_offset;
+        wt_off_t read_offset = 0;
         uint64_t time_diff_ms;
         WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh,
           ret = __live_restore_fill_hole(lr_fh, wt_session, buf,
