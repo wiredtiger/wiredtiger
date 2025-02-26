@@ -88,4 +88,4 @@ class test_layered08(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = self.session.open_cursor(uri, None, None)
 
         for i in range(self.nitems):
-            self.assertEquals(cursor["Hello " + str(i)], "World")
+            self.assertEqual(cursor["Hello " + str(i)], "World")

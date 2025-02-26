@@ -120,16 +120,16 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
 
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
         for i in range(self.nitems):
             if i % 10 == 0:
-                self.assertEquals(cursor[str(i)], value2)
+                self.assertEqual(cursor[str(i)], value2)
             else:
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
 
@@ -172,16 +172,16 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
 
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
         for i in range(self.nitems):
             if i % 10 == 0:
-                self.assertEquals(cursor[str(i)], value2)
+                self.assertEqual(cursor[str(i)], value2)
             else:
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
 
@@ -222,7 +222,7 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
 
         if self.ts:
@@ -230,9 +230,9 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for i in range(self.nitems):
             if i % 10 == 0:
                 cursor.set_key(str(i))
-                self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
+                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
 
@@ -271,17 +271,17 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
 
             for i in range(self.nitems, self.nitems + 5):
                 cursor.set_key(str(i))
-                self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
+                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
             self.session.rollback_transaction()
 
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
         for i in range(self.nitems + 5):
-            self.assertEquals(cursor[str(i)], value1)
+            self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
 
@@ -334,26 +334,26 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
 
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
             for i in range(self.nitems):
                 if i % 10 == 0:
-                    self.assertEquals(cursor[str(i)], value2)
+                    self.assertEqual(cursor[str(i)], value2)
                 else:
-                    self.assertEquals(cursor[str(i)], value1)
+                    self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
 
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(15))
         for i in range(self.nitems):
             if i % 20 == 0:
-                self.assertEquals(cursor[str(i)], value3)
+                self.assertEqual(cursor[str(i)], value3)
             elif i % 10 == 0:
-                self.assertEquals(cursor[str(i)], value2)
+                self.assertEqual(cursor[str(i)], value2)
             else:
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()
 
@@ -406,27 +406,27 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
 
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10))
             for i in range(self.nitems):
                 if i % 10 == 0:
                     cursor.set_key(str(i))
-                    self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
+                    self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                 else:
-                    self.assertEquals(cursor[str(i)], value1)
+                    self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
 
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(15))
         for i in range(self.nitems):
             if i % 20 == 0:
-                self.assertEquals(cursor[str(i)], value2)
+                self.assertEqual(cursor[str(i)], value2)
             elif i % 10 == 0:
                 cursor.set_key(str(i))
-                self.assertEquals(cursor.search(), wiredtiger.WT_NOTFOUND)
+                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
         if self.ts:
             self.session.rollback_transaction()

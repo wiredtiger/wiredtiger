@@ -92,7 +92,7 @@ class test_layered13(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.layered_uris + self.other_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
 
         # Pick up the checkpoint in the follower
@@ -102,7 +102,7 @@ class test_layered13(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.layered_uris + self.other_uris:
             cursor = session_follow.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
 
         session_follow.close()

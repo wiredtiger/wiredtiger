@@ -100,7 +100,7 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Check the timestamps
         _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
-        self.assertEquals(timestamp1, checkpoint_timestamp)
+        self.assertEqual(timestamp1, checkpoint_timestamp)
 
         # Create the follower
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
@@ -110,7 +110,7 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Check the table in the follower
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
+            self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
         cursor.close()
 
         #
@@ -137,7 +137,7 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Check the timestamps
         _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
-        self.assertEquals(timestamp2, checkpoint_timestamp)
+        self.assertEqual(timestamp2, checkpoint_timestamp)
 
         # Pick up the new checkpoint
         if not self.uri.startswith('layered'):
@@ -152,9 +152,9 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             if i % 50 == 0:
-                self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
             else:
-                self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
         cursor.close()
 
         #
@@ -182,7 +182,7 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Check the timestamps
         _, _, checkpoint_timestamp, _ = self.disagg_get_complete_checkpoint_ext()
-        self.assertEquals(stable_timestamp3, checkpoint_timestamp)
+        self.assertEqual(stable_timestamp3, checkpoint_timestamp)
 
         # Pick up the new checkpoint
         if not self.uri.startswith('layered'):
@@ -197,9 +197,9 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             if i % 50 == 0:
-                self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
             else:
-                self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
         cursor.close()
 
         session_follow.close()

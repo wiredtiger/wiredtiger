@@ -163,5 +163,5 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
 
         random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
-        self.assertEquals(random_cursor.next(), 0)
+        self.assertEqual(random_cursor.next(), 0)
         self.assertTrue(random_cursor.get_key().startswith("Hello "))
