@@ -797,7 +797,7 @@ __live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
  */
 static int
 __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_session, char *buf,
-  wt_off_t *read_offsetp, bool *finishedp)
+  wt_off_t buf_size, wt_off_t *read_offsetp, bool *finishedp)
 {
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
@@ -815,8 +815,8 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
     /* Walk the unset bit list until the read_size is reached. */
     wt_off_t read_start = WTI_BIT_TO_OFFSET(first_clear_bit);
     uint64_t read_end_bit;
-    WT_RET(__live_restore_compute_read_end_bit(session, lr_fh,
-      (wt_off_t)lr_fh->destination.back_pointer->read_size, first_clear_bit, &read_end_bit));
+    WT_RET(__live_restore_compute_read_end_bit(
+      session, lr_fh, buf_size, first_clear_bit, &read_end_bit));
     wt_off_t read_end = WTI_BIT_TO_OFFSET(read_end_bit + 1);
     size_t read_size = (size_t)(read_end - read_start);
 
@@ -836,8 +836,8 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
 
 /*
  * __wti_live_restore_fs_restore_file --
- *     Restore a file in the destination, marking the file handle complete if the full restore is
- *     able to take place.
+ *     Restore a file in the destination by filling any holes with data from the source. Mark the
+ *     file handle complete if the full restore is able to take place.
  */
 int
 __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
@@ -859,7 +859,8 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         wt_off_t read_offset;
         uint64_t time_diff_ms;
         WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh,
-          ret = __live_restore_fill_hole(lr_fh, wt_session, buf, &read_offset, &finished));
+          ret = __live_restore_fill_hole(lr_fh, wt_session, buf,
+            (wt_off_t)lr_fh->destination.back_pointer->read_size, &read_offset, &finished));
         WT_ERR(ret);
 
         __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
@@ -881,18 +882,16 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
             break;
     }
 
-    if (!finished)
-        goto done;
-
-    __wt_verbose_debug1(
-      session, WT_VERB_LIVE_RESTORE, "%s: Finished background restoration", fh->name);
-    __wt_writelock(session, &lr_fh->bitmap_lock);
-    lr_fh->destination.complete = true;
-    __live_restore_fh_free_bitmap(session, lr_fh);
-    __wt_writeunlock(session, &lr_fh->bitmap_lock);
-    __wt_tree_modify_set(session);
+    if (finished) {
+        __wt_verbose_debug1(
+          session, WT_VERB_LIVE_RESTORE, "%s: Finished background restoration", fh->name);
+        __wt_writelock(session, &lr_fh->bitmap_lock);
+        lr_fh->destination.complete = true;
+        __live_restore_fh_free_bitmap(session, lr_fh);
+        __wt_writeunlock(session, &lr_fh->bitmap_lock);
+        __wt_tree_modify_set(session);
+    }
 err:
-done:
     __wt_free(session, buf);
     return (ret);
 }
@@ -978,14 +977,14 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * created handle. At this point fields may be uninitialized so we check for null pointers.
      */
     if (lr_fh->destination.fh != NULL)
-        lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session);
+        WT_RET(lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session));
 
     WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
       session, lr_fh, __live_restore_fh_free_bitmap(session, lr_fh));
     __wt_rwlock_destroy(session, &lr_fh->bitmap_lock);
 
     if (lr_fh->source != NULL) /* It's possible that we never opened the file in the source. */
-        lr_fh->source->close(lr_fh->source, wt_session);
+        WT_RET(lr_fh->source->close(lr_fh->source, wt_session));
     __wt_free(session, lr_fh->iface.name);
     __wt_free(session, lr_fh);
 
