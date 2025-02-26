@@ -50,7 +50,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.assertEqual(cursor[str(i)], str(ts))
         cursor.close()
         session.rollback_transaction()
-        
+
     # Test history
     def test_layered31(self):
         # Create table on leader.
@@ -96,7 +96,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
                                                    self.conn_base_config + self.extensionsConfig() \
                                                    + ',disaggregated=(role="follower")')
                 fsession = conn_follow.open_session('')
-                
+
             for role in [['leader', lsession], ['follower', fsession]]:
                 for ts in [10, 20]:
                     role_name = role[0]
