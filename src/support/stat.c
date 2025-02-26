@@ -1441,6 +1441,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
   "cache: application threads page write from cache to disk time (usecs)",
+  "cache: bucket too old for the page",
   "cache: bytes allocated for updates",
   "cache: bytes belonging to page images in the cache",
   "cache: bytes belonging to the history store table in the cache",
@@ -1468,6 +1469,7 @@ static const char *const __stats_connection_desc[] = {
   "is running",
   "cache: eviction gave up due to no progress being made",
   "cache: eviction makingn slow progress",
+  "cache: eviction renumbered buckets",
   "cache: eviction skipped a page that was locked or evicted",
   "cache: eviction skipped a page with a skip flag set",
   "cache: eviction skips dirty pages during a running checkpoint",
@@ -2187,6 +2189,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
     stats->cache_write_app_time = 0;
+    stats->eviction_new_page_in_old_bucket = 0;
     /* not clearing cache_bytes_updates */
     /* not clearing cache_bytes_image */
     /* not clearing cache_bytes_hs */
@@ -2209,6 +2212,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_remove_hs_race_with_checkpoint = 0;
     stats->cache_eviction_blocked_no_progress = 0;
     stats->eviction_slow = 0;
+    stats->eviction_renumbered_buckets = 0;
     stats->eviction_skip_pages_locked_or_evicted = 0;
     stats->eviction_skip_pages_flag = 0;
     stats->eviction_skip_dirty_pages_during_checkpoint = 0;
@@ -2889,6 +2893,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_app_time += WT_STAT_CONN_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_CONN_READ(from, cache_write_app_count);
     to->cache_write_app_time += WT_STAT_CONN_READ(from, cache_write_app_time);
+    to->eviction_new_page_in_old_bucket += WT_STAT_CONN_READ(from, eviction_new_page_in_old_bucket);
     to->cache_bytes_updates += WT_STAT_CONN_READ(from, cache_bytes_updates);
     to->cache_bytes_image += WT_STAT_CONN_READ(from, cache_bytes_image);
     to->cache_bytes_hs += WT_STAT_CONN_READ(from, cache_bytes_hs);
@@ -2919,6 +2924,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_no_progress +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_no_progress);
     to->eviction_slow += WT_STAT_CONN_READ(from, eviction_slow);
+    to->eviction_renumbered_buckets += WT_STAT_CONN_READ(from, eviction_renumbered_buckets);
     to->eviction_skip_pages_locked_or_evicted +=
       WT_STAT_CONN_READ(from, eviction_skip_pages_locked_or_evicted);
     to->eviction_skip_pages_flag += WT_STAT_CONN_READ(from, eviction_skip_pages_flag);

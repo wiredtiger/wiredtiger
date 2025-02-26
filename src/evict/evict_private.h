@@ -9,7 +9,13 @@
 #pragma once
 
 #define WT_DHANDLE_TO_BUCKETSET(dhandle, set_number) \
-    &dhandle->handle->evict_handle->evict_bucketset[set_number]
+    &((WT_BTREE*)(dhandle->handle))->evict_data.evict_bucketset[set_number]
+
+#define WT_READGEN_NOTSET 0
+#define WT_READGEN_EVICT_SOON 1
+#define WT_READGEN_WONT_NEED 2
+#define WT_READGEN_START_VALUE 100
+#define WT_READGEN_STEP 100
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 

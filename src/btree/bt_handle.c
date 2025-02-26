@@ -171,7 +171,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     if (btree->original ||
       F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_SALVAGE | WT_BTREE_VERIFY)) {
         WT_ERR(__wt_evict_file_exclusive_on(session));
-        btree->evict_disabled_open = true;
+        btree->evict_data.evict_disabled_open = true;
     }
 
     if (0) {
@@ -224,8 +224,8 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
      * will be off.
      */
-    if (btree->evict_disabled_open) {
-        btree->evict_disabled_open = false;
+    if (btree->evict_data.evict_disabled_open) {
+        btree->evict_data.evict_disabled_open = false;
         __wt_evict_file_exclusive_off(session);
     }
 

@@ -36,12 +36,12 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     dhandle = session->dhandle;
     btree = dhandle->handle;
 
-    btree->evict_disabled = 1;
+    btree->evict_data.evict_disabled = 1;
     /*
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
      * has been locked out.
      */
-    WT_ASSERT(session, btree->evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+    WT_ASSERT(session, WT_EVICT_DISABLED(btree) || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
     /*
      * We do discard objects without pages in memory. If that's the case, we're done.

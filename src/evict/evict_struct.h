@@ -54,7 +54,8 @@
 struct __wt_evict_bucket {
     WT_SPINLOCK evict_queue_lock;
     TAILQ_HEAD(__wt_evictbucket_qh, __wt_page) evict_queue;
-    int id; /* index in the bucket set */
+    uint64_t id; /* index in the bucket set */
+	uint64_t num_items;
 };
 
 /*
@@ -76,6 +77,10 @@ struct __wt_evict_bucketset {
 struct __wt_evict_handle_data {
     struct __wt_evict_bucketset evict_bucketset[WT_EVICT_LEVELS];
     bool initialized;
+    uint64_t evict_priority;                   /* Relative priority of cached pages */
+    wt_shared int32_t evict_disabled;          /* Eviction disabled count */
+    bool evict_disabled_open;                  /* Eviction disabled on open */
+    wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
 };
 
 /*
@@ -85,4 +90,28 @@ struct __wt_evict_page_data {
     TAILQ_ENTRY(__wt_page) evict_q; /* Link to the next item in the evict queue */
     struct __wt_data_handle *dhandle;
     struct __wt_evict_bucket *bucket; /* Bucket containing this page */
+	/*
+	 * The page's read generation acts as an LRU value for each page in the
+	 * tree; it is used by the eviction server thread to select pages to be
+	 * discarded from the in-memory tree.
+	 *
+	 * The read generation is a 64-bit value, if incremented frequently, a
+	 * 32-bit value could overflow.
+	 *
+	 * The read generation is a piece of shared memory potentially read
+	 * by many threads.  We don't want to update page read generations for
+	 * in-cache workloads and suffer the cache misses, so we don't simply
+	 * increment the read generation value on every access.  Instead, the
+	 * read generation is incremented by the eviction server each time it
+	 * becomes active.  To avoid incrementing a page's read generation too
+	 * frequently, it is set to a future point.
+	 *
+	 * Because low read generation values have special meaning, and there
+	 * are places where we manipulate the value, use an initial value well
+	 * outside of the special range.
+	 */
+    uint64_t read_gen;
+    uint64_t cache_create_gen; /* Page create timestamp */
+    uint64_t evict_pass_gen;   /* Eviction pass generation */
+	bool evict_skip;           /* Skip this page once for eviction */
 };

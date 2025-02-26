@@ -10,7 +10,8 @@
 
 #include "evict_private.h"
 
-#define WT_EVICT_PAGE_CLEARED(page) page->evict.bucket == NULL
+#define WT_EVICT_DISABLED(btree) btree->evict_data.evict_disabled
+#define WT_EVICT_PAGE_CLEARED(page) page->evict_data.bucket == NULL
 
 /*
  * Connection evict data.
@@ -157,7 +158,7 @@ static WT_INLINE int __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session
 static WT_INLINE void __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);
 static WT_INLINE void __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
-static WT_INLINE void __wt_evict_page_init(WT_PAGE *page);
+static WT_INLINE void __wt_evict_page_init(WT_PAGE *page, uint64_t evict_pass_gen);
 
 #ifdef HAVE_UNITTEST
 

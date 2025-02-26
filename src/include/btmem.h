@@ -776,35 +776,7 @@ struct __wt_page {
 
     /* Back pointer to the ref pointing to this page */
     WT_REF *ref;
-/*
- * The page's read generation acts as an LRU value for each page in the
- * tree; it is used by the eviction server thread to select pages to be
- * discarded from the in-memory tree.
- *
- * The read generation is a 64-bit value, if incremented frequently, a
- * 32-bit value could overflow.
- *
- * The read generation is a piece of shared memory potentially read
- * by many threads.  We don't want to update page read generations for
- * in-cache workloads and suffer the cache misses, so we don't simply
- * increment the read generation value on every access.  Instead, the
- * read generation is incremented by the eviction server each time it
- * becomes active.  To avoid incrementing a page's read generation too
- * frequently, it is set to a future point.
- *
- * Because low read generation values have special meaning, and there
- * are places where we manipulate the value, use an initial value well
- * outside of the special range.
- */
-#define WT_READGEN_NOTSET 0
-#define WT_READGEN_EVICT_SOON 1
-#define WT_READGEN_WONT_NEED 2
-#define WT_READGEN_START_VALUE 100
-#define WT_READGEN_STEP 100
-    uint64_t read_gen;
-    uint64_t cache_create_gen; /* Page create timestamp */
-    uint64_t evict_pass_gen;   /* Eviction pass generation */
-    WT_EVICT_PAGE_DATA evict;  /* Data used by eviction */
+    WT_EVICT_PAGE_DATA evict_data;  /* Data used by eviction */
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3

@@ -63,11 +63,11 @@ static WT_INLINE void
 __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     /* Ignore pages set for forcible eviction. */
-    if (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON)
+    if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_EVICT_SOON)
         return;
 
     /* Ignore pages already in the future. */
-    if (__wt_atomic_load64(&page->read_gen) > __evict_read_gen(session))
+    if (__wt_atomic_load64(&page->evict_data.read_gen) > __evict_read_gen(session))
         return;
 
     /*
@@ -77,7 +77,7 @@ __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * current global generation, we don't bother updating the page. In other words, the goal is to
      * avoid some number of updates immediately after each update we have to make.
      */
-    __wt_atomic_store64(&page->read_gen, __evict_read_gen(session) + WT_READGEN_STEP);
+    __wt_atomic_store64(&page->evict_data.read_gen, __evict_read_gen(session) + WT_READGEN_STEP);
 }
 
 /*
@@ -114,7 +114,7 @@ __evict_readgen_is_soon_or_wont_need(uint64_t *readgen)
 static WT_INLINE bool
 __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
 {
-    return (__evict_readgen_is_soon_or_wont_need(&page->read_gen));
+    return (__evict_readgen_is_soon_or_wont_need(&page->evict_data.read_gen));
 }
 
 /* !!!
@@ -135,7 +135,7 @@ __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
 static WT_INLINE bool
 __wt_evict_page_is_soon(WT_PAGE *page)
 {
-    return (__wt_atomic_load64(&page->read_gen) == WT_READGEN_EVICT_SOON);
+    return (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_EVICT_SOON);
 }
 
 /* !!!
@@ -155,9 +155,10 @@ __wt_evict_page_is_soon(WT_PAGE *page)
  *     don't have its reference.
  */
 static WT_INLINE void
-__wt_evict_page_init(WT_PAGE *page)
+__wt_evict_page_init(WT_PAGE *page, uint64_t evict_pass_gen)
 {
-    __wt_atomic_store64(&page->read_gen, WT_READGEN_NOTSET);
+    __wt_atomic_store64(&page->evict_data.read_gen, WT_READGEN_NOTSET);
+	page->evict_data.cache_create_gen = evict_pass_gen;
 }
 
 /* !!!
@@ -177,10 +178,10 @@ __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page)
 {
     uint64_t orig_read_gen;
 
-    WT_READ_ONCE(orig_read_gen, orig_page->read_gen);
+    WT_READ_ONCE(orig_read_gen, orig_page->evict_data.read_gen);
 
     if (!__evict_readgen_is_soon_or_wont_need(&orig_read_gen))
-        __wt_atomic_store64(&new_page->read_gen, orig_read_gen);
+        __wt_atomic_store64(&new_page->evict_data.read_gen, orig_read_gen);
 }
 
 /* !!!

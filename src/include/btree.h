@@ -242,9 +242,6 @@ struct __wt_btree {
      * reconciliation by the eviction.
      */
     wt_shared uint32_t eviction_obsolete_tw_pages;
-    WT_EVICT_BUCKETSET internal_pages;
-    WT_EVICT_BUCKETSET clean_leaf_pages;
-    WT_EVICT_BUCKETSET dirty_leaf_pages;
 
     /*
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
@@ -258,18 +255,15 @@ struct __wt_btree {
  * All of the following fields live at the end of the structure so it's easier to clear everything
  * but the fields that persist.
  */
-#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, linear_walk_restarts))
+#define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, evict_data))
 
-    /*
-     * Eviction information is maintained in the btree handle, but owned by eviction, not the btree
-     * code.
-     */
-    uint32_t linear_walk_restarts;             /* next/prev walk restarts */
-    uint64_t evict_priority;                   /* Relative priority of cached pages */
-    wt_shared int32_t evict_disabled;          /* Eviction disabled count */
-    bool evict_disabled_open;                  /* Eviction disabled on open */
-    wt_shared volatile uint32_t evict_busy;    /* Count of threads in eviction */
-    wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
+	/*
+	 * Evict data for this handle. Eviction information is maintained in the btree handle,
+	 * but owned by eviction, not the btree code.
+	 */
+    struct __wt_evict_handle_data evict_data;
+	wt_shared volatile uint32_t prefetch_busy; /* Count of threads in prefetch */
+
 
 /*
  * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an
