@@ -237,7 +237,7 @@ rollback_to_stable(WT_SESSION *session)
         return;
 
     /* Rollback the system using up to 10 threads. */
-    testutil_snprintf(cfg, sizeof(cfg), "treads=%" PRIu64, WT_MIN(10, GV(RUNS_THREADS)));
+    testutil_snprintf(cfg, sizeof(cfg), "treads=%" PRIu32, mmrand(&g.extra_rnd, 0, 10));
     testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, cfg));
 
     /*
