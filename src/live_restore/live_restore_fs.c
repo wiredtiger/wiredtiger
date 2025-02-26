@@ -849,7 +849,12 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     char *buf = NULL;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    WT_RET(__wt_calloc(session, 1, lr_fh->destination.back_pointer->read_size, &buf));
+    /*
+     * It is possible for the user to specify a read size that is not aligned to our bitmap. In
+     * which case we change it to be the file allocation size.
+     */
+    size_t buf_size = WT_MAX(lr_fh->destination.back_pointer->read_size, lr_fh->allocsize);
+    WT_RET(__wt_calloc(session, 1, buf_size, &buf));
 
     WT_TIMER timer;
     uint64_t msg_count = 0;
@@ -859,8 +864,8 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         wt_off_t read_offset = 0;
         uint64_t time_diff_ms;
         WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh,
-          ret = __live_restore_fill_hole(lr_fh, wt_session, buf,
-            (wt_off_t)lr_fh->destination.back_pointer->read_size, &read_offset, &finished));
+          ret = __live_restore_fill_hole(
+            lr_fh, wt_session, buf, (wt_off_t)buf_size, &read_offset, &finished));
         WT_ERR(ret);
 
         __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
