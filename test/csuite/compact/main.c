@@ -27,53 +27,48 @@
  */
 #include "test_util.h"
 
-/*
- * This test executes two test cases:
- * - One with WT_TIMING_STRESS_CHECKPOINT_SLOW flag. It adds 10 seconds sleep before each
- * checkpoint.
- * - Another test case synchronizes compact and checkpoint threads by forcing them to wait
- * until both threads have started.
- * The reason we have two tests here is that they give different output when configured
- * with "verbose=[compact,compact_progress]". There's a chance these two cases are different.
- */
+#define NUM_RECORDS WT_MILLION
+// #define NUM_RECORDS 100 * WT_THOUSAND
 
-// #define NUM_RECORDS WT_MILLION
-#define NUM_RECORDS 100 * WT_THOUSAND
-
-// #define NUM_UPDATES 1000
 #define CHECKPOINT_NUM 3
-// #define HOME_BUF_SIZE 512
 #define STAT_BUF_SIZE 128
 #define KB 1024
 // #define MB 1024 * 1024
-#define MIN_SIZE 4 * KB
+#define MIN_SIZE 512
 #define MAX_SIZE 4 * KB
 
-/* Constants and variables declaration. */
 /*
  * You may want to add "verbose=[compact,compact_progress]" to the connection config string to get
  * better view on what is happening.
  */
 // Default eviction config
+// static const char conn_config[] =
+//   "create,cache_size=20GB,statistics=(all),statistics_log=(json,on_close,wait=1,sources=[file:]),"
+//   "verbose=[compact:"
+//   "2,"
+//   "compact_progress]";
+
+// static const char conn_config[] =
+//   "create,cache_size=20GB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact_"
+//   "progress]";
+
+// Eviction parameter tuning
 static const char conn_config[] =
   "create,cache_size=20GB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact:"
   "2,"
   "compact_progress]";
-// static const char conn_config[] =
-//   "create,cache_size=20GB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=[compact:"
-//   "2,"
-//   "compact_progress],eviction_updates_target=20,eviction_updates_trigger=90,eviction_dirty_trigger="
-//   "98,eviction_dirty_target=20";
 
-// Default leaf_page_max
+// Default block/page size values.
+// A smaller allocation size with result in more fragmentation and slow things down further.
 static const char table_config_row[] =
-  "allocation_size=512B,leaf_page_max=32KB,leaf_value_max=64MB,memory_page_max=10m,split_pct=90,"
+  "allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=64MB,memory_page_max=10m,split_pct=90,"
   "key_format=Q,value_format=u";
 
 // // Low leaf_page_max
 // static const char table_config_row[] =
 //   "allocation_size=512B,leaf_page_max=512B,leaf_value_max=64MB,memory_page_max=10m,split_pct=90,"
 //   "key_format=Q,value_format=u";
+
 static pthread_t thread_compact;
 static uint64_t ready_counter;
 static bool compact_finished = false;
@@ -82,12 +77,11 @@ static bool compact_finished = false;
 struct thread_data {
     WT_CONNECTION *conn;
     const char *uri;
-    bool stress_test;
 };
 
 /* Forward declarations. */
-static void run_test_clean(bool, TEST_OPTS *);
-static void run_test(bool, TEST_OPTS *);
+static void run_test_clean(TEST_OPTS *);
+static void run_test(TEST_OPTS *);
 static void *thread_func_compact(void *);
 static void *thread_func_checkpoint(void *);
 static void *thread_func_updates(void *);
@@ -96,14 +90,13 @@ static void update_records(WT_SESSION *, const char *);
 static void remove_records(WT_SESSION *, const char *);
 static void get_file_stats(WT_SESSION *, const char *, uint64_t *, uint64_t *);
 static void set_timing_stress_checkpoint(WT_CONNECTION *);
-static bool check_db_size(WT_SESSION *, const char *);
 static void get_compact_progress(
   WT_SESSION *session, const char *, uint64_t *, uint64_t *, uint64_t *);
 static void thread_wait(void);
 
 /*
  * main --
- *     Methods implementation.
+ *     Test entry point.
  */
 int
 main(int argc, char *argv[])
@@ -114,7 +107,7 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
 
-    run_test_clean(false, opts);
+    run_test_clean(opts);
 
     testutil_cleanup(opts);
 
@@ -123,16 +116,16 @@ main(int argc, char *argv[])
 
 /*
  * run_test_clean --
- *     TODO: Add a comment describing this function.
+ *     Initialise global variables, call the test runner and then cleanup.
  */
 static void
-run_test_clean(bool stress_test, TEST_OPTS *opts)
+run_test_clean(TEST_OPTS *opts)
 {
     ready_counter = 0;
 
     printf("\n");
-    printf("Running %s test with row store...\n", stress_test ? "stress" : "normal");
-    run_test(stress_test, opts);
+    printf("Running compact test...\n");
+    run_test(opts);
 
     /* Cleanup */
     if (!opts->preserve)
@@ -141,10 +134,10 @@ run_test_clean(bool stress_test, TEST_OPTS *opts)
 
 /*
  * run_test --
- *     TODO: Add a comment describing this function.
+ *     Test runner.
  */
 static void
-run_test(bool stress_test, TEST_OPTS *opts)
+run_test(TEST_OPTS *opts)
 {
     struct thread_data td;
     WT_CONNECTION *conn;
@@ -152,32 +145,20 @@ run_test(bool stress_test, TEST_OPTS *opts)
     pthread_t thread_checkpoint;
     pthread_t thread_updates;
     uint64_t pages_reviewed, pages_rewritten, pages_skipped;
-    char *home, *uri, *new_home;
-    bool size_check_res;
+    char *home, *uri;
 
     home = opts->home;
     uri = opts->uri;
-    new_home = NULL;
 
-    if (opts->reopen) {
-        size_t len = strlen("WT_TEST.") + strlen(opts->progname) + 10;
-        new_home = dmalloc(len);
-        testutil_snprintf(new_home, len, "WT_TEST.%s", opts->progname);
-        testutil_recreate_dir(new_home);
-        testutil_copy(opts->home, new_home);
-        home = new_home;
-    } else
-        testutil_recreate_dir(home);
+    testutil_recreate_dir(home);
 
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
 
-    if (stress_test) {
-        /*
-         * Set WT_TIMING_STRESS_CHECKPOINT_SLOW flag for stress test. It adds 10 seconds sleep
-         * before each checkpoint.
-         */
-        set_timing_stress_checkpoint(conn);
-    }
+    /*
+     * Set WT_TIMING_STRESS_CHECKPOINT_SLOW flag for stress test. It adds 10 seconds sleep
+     * before each checkpoint.
+     */
+    // set_timing_stress_checkpoint(conn);
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
@@ -188,20 +169,16 @@ run_test(bool stress_test, TEST_OPTS *opts)
     testutil_check(session->checkpoint(session, NULL));
 
     /*
-     * Remove 1/3 of data from the middle of the key range to let compact relocate blocks from the
-     * end of the file.
+     * Remove 1/3 of data randomly to create fragmentation.
      */
     remove_records(session, uri);
 
     td.conn = conn;
     td.uri = uri;
-    td.stress_test = stress_test;
 
-    /* Spawn checkpoint and compact threads. Order is important! */
+    /* Spawn checkpoint, compact and updates threads. */
     testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
     testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
-
-    // Spawn updates thread
     testutil_check(pthread_create(&thread_updates, NULL, thread_func_updates, &td));
 
     /* Wait for the threads to finish the work. */
@@ -211,7 +188,6 @@ run_test(bool stress_test, TEST_OPTS *opts)
 
     /* Collect compact progress stats. */
     get_compact_progress(session, uri, &pages_reviewed, &pages_skipped, &pages_rewritten);
-    size_check_res = check_db_size(session, uri);
 
     testutil_check(session->close(session, NULL));
     session = NULL;
@@ -222,20 +198,11 @@ run_test(bool stress_test, TEST_OPTS *opts)
     printf(" - Pages reviewed: %" PRIu64 "\n", pages_reviewed);
     printf(" - Pages selected for being rewritten: %" PRIu64 "\n", pages_rewritten);
     printf(" - Pages skipped: %" PRIu64 "\n", pages_skipped);
-    // testutil_assert(pages_reviewed > 0);
-    // testutil_assert(pages_rewritten > 0);
-    /*
-     * Check if there's more than 10% available space in the file. Checking result here to allow
-     * connection to close properly.
-     */
-    // testutil_assert(size_check_res || true);
-
-    free(new_home);
 }
 
 /*
  * thread_func_compact --
- *     TODO: Add a comment describing this function.
+ *     Call session->compact API.
  */
 static void *
 thread_func_compact(void *arg)
@@ -247,12 +214,10 @@ thread_func_compact(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    if (!td->stress_test) {
-        /* Wait until both checkpoint and compact threads are ready to go. */
-        printf("Waiting for other threads before starting compaction.\n");
-        thread_wait();
-        printf("Threads ready, starting compaction\n");
-    }
+    /* Wait until all threads are ready to go. */
+    printf("Waiting for other threads before starting compaction.\n");
+    thread_wait();
+    printf("Threads ready, starting compaction\n");
 
     /* Perform compact operation. */
     session->compact(session, td->uri, NULL);
@@ -268,7 +233,7 @@ thread_func_compact(void *arg)
 
 /*
  * thread_func_checkpoint --
- *     TODO: Add a comment describing this function.
+ *     Trigger some number of checkpoints, waiting for a random interval between calls.
  */
 static void *
 thread_func_checkpoint(void *arg)
@@ -285,24 +250,22 @@ thread_func_checkpoint(void *arg)
 
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
-    if (!td->stress_test) {
-        /* Wait until both checkpoint and compact threads are ready to go. */
-        printf("Waiting for other threads before starting checkpoint.\n");
-        thread_wait();
-        printf("Threads ready, starting checkpoint\n");
-    }
+    /* Wait until both checkpoint and compact threads are ready to go. */
+    printf("Waiting for other threads before starting checkpoint.\n");
+    thread_wait();
+    printf("Threads ready, starting checkpoint\n");
 
     /*
      * Run several checkpoints. First one without any delay. Others will have a random delay before
      * start.
      */
     for (i = 0; i < CHECKPOINT_NUM; i++) {
-        // testutil_check(session->checkpoint(session, NULL));
+        testutil_check(session->checkpoint(session, NULL));
 
         if (i < CHECKPOINT_NUM - 1) {
             sleep_sec = (uint64_t)__wt_random(&rnd) % 15 + 1;
             printf("Sleep %" PRIu64 " sec before next checkpoint.\n", sleep_sec);
-            __wt_sleep(sleep_sec, 0);
+            // __wt_sleep(sleep_sec, 0);
         }
     }
 
@@ -332,7 +295,7 @@ thread_wait(void)
 
 /*
  * populate --
- *     TODO: Add a comment describing this function.
+ *     Populate the database with k/v pairs of varied sizes.
  */
 static void
 populate(WT_SESSION *session, const char *uri)
@@ -347,9 +310,6 @@ populate(WT_SESSION *session, const char *uri)
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
     for (i = 0; i < NUM_RECORDS; i++) {
-        // if ((NUM_RECORDS / 10) % i == 0) {
-        //     printf("i: %" PRIu64, i);
-        // }
         uint64_t val_size = (uint64_t)__wt_random(&rnd) % (MAX_SIZE - MIN_SIZE + 1) + MIN_SIZE;
         val_str = dmalloc(val_size);
         memset(val_str, 'a', val_size);
@@ -357,7 +317,6 @@ populate(WT_SESSION *session, const char *uri)
         value.size = val_size;
 
         cursor->set_key(cursor, i + 1);
-        // val = (uint64_t)__wt_random(&rnd);
         cursor->set_value(cursor, &value);
         testutil_check(cursor->insert(cursor));
         free(val_str);
@@ -367,6 +326,10 @@ populate(WT_SESSION *session, const char *uri)
     cursor = NULL;
 }
 
+/*
+ * thread_func_updates --
+ *      Wait for all threads to be ready, then start applying updates.
+ */
 static void *
 thread_func_updates(void *arg)
 {
@@ -387,6 +350,10 @@ thread_func_updates(void *arg)
     return (NULL);
 }
 
+/*
+ * update_records --
+ *      While compact is running, pick keys at random to apply an update to.
+ */
 static void
 update_records(WT_SESSION *session, const char *uri)
 {
@@ -403,7 +370,7 @@ update_records(WT_SESSION *session, const char *uri)
         // Generate a key in they keyspace [1, NUM_RECORDS]
         key = (uint64_t)__wt_random(&rnd) % NUM_RECORDS + 1;
 
-        // Skip deleted keys
+        // Skip deleted keys to avoid filling the free space.
         if (key % 3 == 0) {
             continue;
         }
@@ -427,7 +394,8 @@ update_records(WT_SESSION *session, const char *uri)
 
         free(val_str);
 
-        __wt_sleep(0, 1000);
+        // Throttle the updates thread.
+        // __wt_sleep(0, 1000);
     }
 
     cursor->close(cursor);
@@ -435,7 +403,7 @@ update_records(WT_SESSION *session, const char *uri)
 
 /*
  * remove_records --
- *     TODO: Add a comment describing this function.
+ *     Remove a portion of the k/v pairs to create fragmentation.
  */
 static void
 remove_records(WT_SESSION *session, const char *uri)
@@ -447,13 +415,11 @@ remove_records(WT_SESSION *session, const char *uri)
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
-    // Remove 1/3 of the keys randomly.
+    // Remove 1/3 of the keys.
     for (i = 0; i < NUM_RECORDS; i++) {
         if (i % 3 != 0) {
             continue;
         }
-        // if ((uint64_t)__wt_random(&rnd) % 3 != 0)
-        //     continue;
         cursor->set_key(cursor, i + 1);
         testutil_check(cursor->remove(cursor));
     }
@@ -529,34 +495,4 @@ get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_revie
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_rewritten));
 
     testutil_check(cur_stat->close(cur_stat));
-}
-
-/*
- * check_db_size --
- *     TODO: Add a comment describing this function.
- */
-static bool
-check_db_size(WT_SESSION *session, const char *uri)
-{
-    uint64_t file_sz, avail_bytes, available_pct;
-
-    get_file_stats(session, uri, &file_sz, &avail_bytes);
-
-    available_pct = (avail_bytes * 100) / file_sz;
-    printf(" - Compacted file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Available for reuse: %" PRIu64
-           "MB (%" PRIu64 "B)\n - %" PRIu64 "%% space available in the file.\n",
-      file_sz / WT_MEGABYTE, file_sz, avail_bytes / WT_MEGABYTE, avail_bytes, available_pct);
-
-    /*
-     * Compaction is a best-effort algorithm. It moves blocks from the end to the beginning of the
-     * file but there is no guarantee that all empty space at the beginning will be filled. The
-     * logic in the algorithm checks if at least 20% of the file is available in the first 80% of
-     * the file, we'll try compaction on the last 20% of the file. Else if at least 10% of the total
-     * file is available in the first 90% of the file, we'll try compaction on the last 10% of the
-     * file. It may well happen that 9.9% of the space is available for reuse in the first 90% of
-     * the file. And 9.9% available in the last 10% of the file. In this case, the algorithm would
-     * give up. But total available space in the file would be 19.8%. So we need to check that there
-     * is a maximum of 20% space available for reuse after compaction.
-     */
-    return (available_pct <= 20);
 }
