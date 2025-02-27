@@ -170,7 +170,7 @@ class Oplog(object):
                 session.begin_transaction()
             if (cursor[str(k)] != str(expected_value)):
                 testcase.pr(f'point-read of {k} at ts={ts} gives {cursor[str(k)]}, expected {expected_value}')
-            testcase.assertEquals(cursor[str(k)], str(expected_value))
+            testcase.assertEqual(cursor[str(k)], str(expected_value))
             session.rollback_transaction()
             cursor.close()
             pos += 1
@@ -197,7 +197,7 @@ class Oplog(object):
                     testcase.pr(f'FAILURE got unexpected key {kint}, value {v} from cursor')
                 elif v != str(values[kint]):
                     testcase.pr(f'FAILURE at key {kint}, got value {v} want {values[kint]}')
-                testcase.assertEquals(v, str(values[kint]))
+                testcase.assertEqual(v, str(values[kint]))
                 del values[kint]
             cursor.close()
 

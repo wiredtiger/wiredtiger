@@ -115,9 +115,9 @@ class test_layered18(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             if i == self.key_to_update:
-                self.assertEquals(cursor[str(i)], value_prefix2 + str(i) + '-' + str(self.num_updates))
+                self.assertEqual(cursor[str(i)], value_prefix2 + str(i) + '-' + str(self.num_updates))
             else:
-                self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
         cursor.close()
 
         session_follow.close()
