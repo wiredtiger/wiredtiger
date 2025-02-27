@@ -209,7 +209,7 @@ __bt_unpacked_delta_key_cmp(
 
 /*
  * __bt_merge_internal_deltas --
- *     Merge internal deltas into a single array.
+ *     Perform a k-way merge sort on the delta arrays to create a single consolidated delta array.
  */
 static int
 __bt_merge_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT **unpacked_deltas,
@@ -310,7 +310,7 @@ __bt_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_ADDR
 
 /*
  * __bt_merge_internal_delta_with_base_image --
- *     Merge internal delta with the base image
+ *     Merge the consolidated delta array with the base image.
  */
 static int
 __bt_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *ref,
@@ -389,7 +389,7 @@ err:
 
 /*
  * __bt_reconstruct_internal_deltas --
- *     Reconstruct delta on an internal page
+ *     Reconstructs the internal page using `delta_size` delta images.
  */
 static int
 __bt_reconstruct_internal_deltas(
@@ -408,6 +408,15 @@ __bt_reconstruct_internal_deltas(
     pindex = NULL;
     unpacked_deltas_merged_size = refs_entries = incr = 0;
 
+    /*
+     * !!!
+     * Unpack all delta images into a 2D array where entry is WT_CELL_UNPACK_DELTA_INT:
+     *     unpacked_deltas[0] -> [ entry_0_0, entry_0_1, entry_0_2, ... ]
+     *     unpacked_deltas[1] -> [ entry_1_0, entry_1_1, entry_1_2, ... ]
+     *     unpacked_deltas[2] -> [ entry_2_0, entry_2_1, entry_2_2, ... ]
+     *                           ...
+     *     unpacked_deltas[N] -> [ entry_N_0, entry_N_1, entry_N_2, ... ]
+     */
     WT_RET(__wt_calloc_def(session, delta_size, &delta_size_each));
     WT_ERR(__wt_calloc_def(session, delta_size, &unpacked_deltas));
     for (i = 0, j = 0; i < (uint32_t)delta_size; ++i, j = 0) {
@@ -429,17 +438,21 @@ __bt_reconstruct_internal_deltas(
     WT_ERR(__bt_merge_internal_delta_with_base_image(session, ref, unpacked_deltas_merged,
       unpacked_deltas_merged_size, &refs, &refs_entries, &incr));
 
+    /*
+     * Constructs a new `p-index` using the merged `refs` list and allocate refs to the new
+     * `p-index`.
+     */
     pindex_size = sizeof(WT_PAGE_INDEX) + refs_entries * sizeof(WT_REF *);
     WT_ERR(__wt_calloc(session, 1, pindex_size, &pindex));
     incr += pindex_size;
     pindex->index = (WT_REF **)(pindex + 1);
     pindex->entries = (uint32_t)refs_entries;
-
     for (i = 0; i < pindex->entries; ++i) {
         refs[i]->pindex_hint = i;
         pindex->index[i] = refs[i];
     }
-    pindex->entries = (uint32_t)refs_entries;
+
+    /* Initialize the reconstructed `p-index` into the internal page */
     WT_INTL_INDEX_SET(ref->page, pindex);
     __wt_cache_page_inmem_incr(session, ref->page, incr);
 
@@ -449,14 +462,15 @@ err:
             for (i = 0; i < (uint32_t)refs_entries; ++i)
                 __wt_free(session, refs[i]);
     }
+    __wt_free(session, refs);
+    __wt_free(session, unpacked_deltas_merged);
     if (unpacked_deltas != NULL) {
         for (i = 0; i < (uint32_t)delta_size; ++i)
             __wt_free(session, unpacked_deltas[i]);
         __wt_free(session, unpacked_deltas);
     }
-    __wt_free(session, refs);
     __wt_free(session, delta_size_each);
-    __wt_free(session, unpacked_deltas_merged);
+
     return (ret);
 }
 
