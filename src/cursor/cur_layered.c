@@ -340,7 +340,14 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
               __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL));
 
             if (checkpoint_name == NULL) {
-                /* We've never picked up a checkpoint. */
+                /*
+                 * We've never picked up a checkpoint, open a regular btree on the stable URI. If
+                 * we're a follower and we never picked up a checkpoint, then no checkpoint has ever
+                 * occurred on this Btree. Everything we need will be satisfied by the ingest table
+                 * until the next checkpoint is picked up. So technically, opening this (empty)
+                 * stable table is wasteful, but it's a corner case, it will be resolved at the next
+                 * checkpoint, and it keeps the code easy.
+                 */
                 ckpt_cfg[cfg_pos++] = "readonly,checkpoint_use_history=false";
                 F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
             } else {
