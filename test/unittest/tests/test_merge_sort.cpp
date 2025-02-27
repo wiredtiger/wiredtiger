@@ -170,34 +170,31 @@ TEST_CASE("WT_MERGE_SORT Tests", "[WT_MERGE_SORT]")
         REQUIRE(merged_arr[4]->value == 101);
         REQUIRE(merged_arr[5]->value == 102);
     }
-    SECTION("Test with two sorted arrays") {
-        KV arr1[9] = {
-            {1,101}, {3,103}, {5,105}, {7,107}, {9,109},
-            {11,111}, {13,113}, {17,117}, {19,119}
-        };
-        KV arr2[10] = {
-            {2,202}, {3,303}, {6,206}, {7,307}, {10,210},
-            {12,212}, {14,214}, {16,216}, {18,218}, {20,220}
-        };
-    
+    SECTION("Test with two sorted arrays")
+    {
+        KV arr1[9] = {{1, 101}, {3, 103}, {5, 105}, {7, 107}, {9, 109}, {11, 111}, {13, 113},
+          {17, 117}, {19, 119}};
+        KV arr2[10] = {{2, 202}, {3, 303}, {6, 206}, {7, 307}, {10, 210}, {12, 212}, {14, 214},
+          {16, 216}, {18, 218}, {20, 220}};
+
         // Create arrays of pointers.
-        KV* p_arr1[9], * p_arr2[10];
+        KV *p_arr1[9], *p_arr2[10];
         for (int i = 0; i < 9; i++) {
             p_arr1[i] = &arr1[i];
-
         }
         for (int i = 0; i < 10; i++) {
             p_arr2[i] = &arr2[i];
         }
-    
+
         // max possible size 19.
-        KV* merged_arr[19];
+        KV *merged_arr[19];
         size_t merged_size = 0;
         WT_MERGE_SORT(unused_session, p_arr1, 9, p_arr2, 10, compare, 1, merged_arr, merged_size);
-    
-        int expected_keys[17]   = {1, 2, 3, 5, 6, 7, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20};
-        int expected_values[17] = {101,202,303,105,206,307,109,210,111,212,113,214,216,117,218,119,220};
-    
+
+        int expected_keys[17] = {1, 2, 3, 5, 6, 7, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20};
+        int expected_values[17] = {
+          101, 202, 303, 105, 206, 307, 109, 210, 111, 212, 113, 214, 216, 117, 218, 119, 220};
+
         REQUIRE(merged_size == 17);
         for (size_t i = 0; i < merged_size; i++) {
             REQUIRE(merged_arr[i]->key == expected_keys[i]);
