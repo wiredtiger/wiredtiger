@@ -232,11 +232,11 @@ test_bulk(THREAD_DATA *td)
     WT_DECL_RET;
     WT_SESSION *session;
 
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-
     /* Bulk operations are incompatible with transactions. */
     if (use_txn)
         return;
+
+    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if ((ret = session->create(session, uri, config)) != 0)
         if (ret != EEXIST && ret != EBUSY)
@@ -265,6 +265,10 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
     WT_SESSION *session;
     char dropconf[128], new_uri[64];
 
+    /* Bulk operations are incompatible with transactions. */
+    if (use_txn)
+        return;
+
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     /*
@@ -272,10 +276,6 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
      * ensures it to be unique.
      */
     testutil_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id);
-
-    /* Bulk operations are incompatible with transactions. */
-    if (use_txn)
-        return;
 
     testutil_check(session->create(session, new_uri, config));
 
