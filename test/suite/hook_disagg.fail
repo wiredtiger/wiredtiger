@@ -131,6 +131,7 @@ test_prepare13.py # times out
 test_prepare20.py
 test_prepare21.py # times out
 test_prepare23.py # times out
+test_prepare28.py
 test_prepare29.py
 test_prepare_cursor01.py
 test_prepare_hs02.py
