@@ -1856,7 +1856,7 @@ __wt_os_live_restore_fs(
     if (0) {
 err:
         if (lr_fs->os_file_system != NULL)
-            lr_fs->os_file_system->terminate(lr_fs->os_file_system, session);
+            WT_TRET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, (WT_SESSION *)session));
         __wt_free(session, lr_fs->source.home);
         __wt_free(session, lr_fs);
     }
