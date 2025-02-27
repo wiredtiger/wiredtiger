@@ -234,8 +234,9 @@ test_bulk(THREAD_DATA *td)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
+    /* Bulk operations are incompatible with transactions. */
     if (use_txn)
-        testutil_die(ret, "test_bulk should not be used with transactions");
+        return;
 
     if ((ret = session->create(session, uri, config)) != 0)
         if (ret != EEXIST && ret != EBUSY)
@@ -272,8 +273,9 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
      */
     testutil_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id);
 
+    /* Bulk operations are incompatible with transactions. */
     if (use_txn)
-        testutil_die(ret, "test_bulk_unique should not be used with transactions");
+        return;
 
     testutil_check(session->create(session, new_uri, config));
 
@@ -778,13 +780,11 @@ thread_run(void *arg)
             switch (__wt_random(&td->data_rnd) % 20) {
             case 0:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, BULK);
-                if (!use_txn)
-                    test_bulk(td);
+                test_bulk(td);
                 break;
             case 1:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, BULK_UNQ);
-                if (!use_txn)
-                    test_bulk_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
+                test_bulk_unique(td, reserved_ts, __wt_random(&td->data_rnd) & 1);
                 break;
             case 2:
                 WT_RELEASE_WRITE_WITH_BARRIER(th_ts[td->info].op, CREATE);
