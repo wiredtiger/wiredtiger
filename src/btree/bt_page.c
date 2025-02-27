@@ -128,8 +128,8 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
               session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
         } else if (cmp >= 0) {
             if (!F_ISSET(delta[j], WT_DELTA_INT_IS_DELETE))
-                __page_build_ref(
-                  session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr);
+                WT_ERR(__page_build_ref(
+                  session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
             if (cmp == 0)
                 i += 2; /* Skip the current key and value. */
             j++;
@@ -139,21 +139,20 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
     for (; i < base_entries;) {
         base_key = &base[i++];
         base_val = &base[i++];
-        __page_build_ref(
-          session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr);
+        WT_ERR(__page_build_ref(
+          session, ref, base_key, base_val, NULL, true, &refs[final_entries++], incr));
     }
     for (; j < delta_entries; j++)
         if (!F_ISSET(delta[j], WT_DELTA_INT_IS_DELETE))
-            __page_build_ref(
-              session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr);
+            WT_ERR(__page_build_ref(
+              session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr));
 
     WT_ASSERT(session, i == base_entries && j == delta_entries);
     WT_ASSERT(session, final_entries != 0);
     WT_ASSERT(session, final_entries < estimated_entries && refs[final_entries] == NULL);
 
-    *ref_entriesp = final_entries;
-
 err:
+    *ref_entriesp = final_entries;
     __wt_free(session, base);
     return (ret);
 }
