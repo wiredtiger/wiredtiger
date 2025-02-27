@@ -554,7 +554,8 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
     WT_ASSERT(session, lr_fh->allocsize != 0);
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
-    uint64_t read_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len));
+    uint64_t read_end_bit = WTI_OFFSET_TO_BIT(
+      WT_MIN((wt_off_t)WTI_OFFSET_END(offset, len), (wt_off_t)lr_fh->source_size));
     uint64_t read_start_bit = WTI_OFFSET_TO_BIT(offset);
     bool read_begins_in_hole = false, read_ends_in_hole = false, hole_bit_set = false;
 
