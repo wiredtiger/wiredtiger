@@ -41,4 +41,4 @@ class test_layered29(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_create_tables(self):
         for i in (0, 10000):
-            self.assertEquals(self.session.create("layered:test_table" + str(i), "key_format=S,value_format=S"), 0)
+            self.assertEqual(self.session.create("layered:test_table" + str(i), "key_format=S,value_format=S"), 0)

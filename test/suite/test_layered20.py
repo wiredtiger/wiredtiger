@@ -120,20 +120,20 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
         if self.ts:
             self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
 
             for j in range(32):
                 self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10 + 5 * j))
                 for i in range(self.nitems):
                     if i % 10 == 0:
-                        self.assertEquals(cursor[str(i)], str(10 + 5 * j))
+                        self.assertEqual(cursor[str(i)], str(10 + 5 * j))
                     else:
-                        self.assertEquals(cursor[str(i)], value1)
+                        self.assertEqual(cursor[str(i)], value1)
                 self.session.rollback_transaction()
         else:
             for i in range(self.nitems):
                 if i % 10 == 0:
-                    self.assertEquals(cursor[str(i)], str(10 + 5 * 31))
+                    self.assertEqual(cursor[str(i)], str(10 + 5 * 31))
                 else:
-                    self.assertEquals(cursor[str(i)], value1)
+                    self.assertEqual(cursor[str(i)], value1)

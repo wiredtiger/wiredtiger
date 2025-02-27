@@ -73,7 +73,7 @@ class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
 
         random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
-        self.assertEquals(random_cursor.next(), 0)
+        self.assertEqual(random_cursor.next(), 0)
         random_cursor.close()
 
         # XXX
@@ -87,7 +87,7 @@ class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
         time.sleep(1.0)
 
         random_cursor = self.session.open_cursor(self.uri, None, "next_random=true,force=true")
-        self.assertEquals(random_cursor.next(), 0)
+        self.assertEqual(random_cursor.next(), 0)
         random_cursor.close()
 
 
@@ -95,5 +95,5 @@ class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.create(self.uri, "key_format=S,value_format=S")
 
         random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
-        self.assertEquals(random_cursor.next(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(random_cursor.next(), wiredtiger.WT_NOTFOUND)
         random_cursor.close()
