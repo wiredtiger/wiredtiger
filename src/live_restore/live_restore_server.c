@@ -64,6 +64,15 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         WT_RET(__wti_live_restore_cleanup_stop_files(session));
 
         /*
+         * Add a 4 second delay to allow an aggressively configured sweep server to close files
+         * before we force a checkpoint.
+         */
+        struct timespec tsp;
+        tsp.tv_sec = 4;
+        tsp.tv_nsec = 0;
+        __wt_timing_stress(session, WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP, &tsp);
+
+        /*
          * Run a second forced checkpoint now that clean up has finished. Checkpointing files on or
          * after the clean up stage will remove any extent list strings from the metadata file.
          */

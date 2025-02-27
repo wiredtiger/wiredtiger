@@ -97,10 +97,10 @@ class test_live_restore02(wttest.WiredTigerTestCase):
             self.session.create('file:abc' + str(iteration_count), 'key_format=' + self.key_format + ',value_format=' + self.value_format)
             self.pr("Looping until finish, live restore state is: " + str(state))
             # State 2 means the live restore has completed.
-            if (state == 2):
+            if (state == wiredtiger.WT_LIVE_RESTORE_COMPLETE):
                 break
             time.sleep(1)
-        self.assertEqual(state, 2)
+        self.assertEqual(state, wiredtiger.WT_LIVE_RESTORE_COMPLETE)
 
         conn2 = self.setUpConnectionOpen('SOURCE/')
         session2 = self.setUpSessionOpen(conn2)
