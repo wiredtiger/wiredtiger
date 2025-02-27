@@ -143,8 +143,9 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update)
 
         /*
          * We only check the external state once. There will always be a race where the state
-         * changes after we check and when we start using the cursor again. Checking multiple times
-         * may narrow the race a bit, but adds expense.
+         * changes after we check and before we do operations with the cursor. There's no need to
+         * narrow the race window further, if we do, we're holding constituent cursors open for a
+         * slightly shorter time.
          */
         external_state_change = false;
         WT_RET(ret);
