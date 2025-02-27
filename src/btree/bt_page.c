@@ -17,7 +17,7 @@ static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, u
 
 /*
  * __page_build_ref --
- *     Build ref
+ *     Create a ref from a base image or a delta.
  */
 static int
 __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_ADDR *base_key,
@@ -104,9 +104,9 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
     WT_CELL_FOREACH_END;
 
     /*
-     * Creates a new reference array containing the finalized references. The maximum number of
-     * entries is the sum of half the base entries (since keys and values are stored separately) and
-     * the delta entries.
+     * Creates a new reference array containing the finalized refs. The maximum number of entries is
+     * the sum of half the base entries (since keys and values are stored separately) and the delta
+     * entries.
      */
     estimated_entries = (base_entries / 2) + delta_entries + 1;
     WT_ERR(__wt_calloc_def(session, estimated_entries, refsp));
@@ -419,6 +419,8 @@ __wti_page_reconstruct_deltas(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size)
 {
     int i;
+
+    WT_ASSERT(session, delta_size != 0);
 
     switch (ref->page->type) {
     case WT_PAGE_ROW_LEAF:
