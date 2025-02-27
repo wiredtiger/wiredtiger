@@ -376,6 +376,7 @@ __bt_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *ref,
         if (!F_ISSET(delta[j], WT_DELTA_INT_IS_DELETE))
             __bt_build_ref(session, ref, NULL, NULL, delta[j], false, &refs[final_entries++], incr);
 
+    WT_ASSERT(session, i == base_entries && j == delta_entries);
     WT_ASSERT(session, final_entries != 0);
     WT_ASSERT(session, final_entries < estimated_entries && refs[final_entries] == NULL);
 
