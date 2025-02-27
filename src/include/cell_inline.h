@@ -1323,7 +1323,7 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
     p += unpack_delta->key.__len;
 
     /* Optionally unpack the value if it exists. */
-    if (!F_ISSET(unpack_delta, WT_DELTA_IS_DELETE)) {
+    if (!F_ISSET(unpack_delta, WT_DELTA_INT_IS_DELETE)) {
         __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, &unpack_delta->value);
         p += unpack_delta->value.__len;
     }
