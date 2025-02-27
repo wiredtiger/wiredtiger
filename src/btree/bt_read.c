@@ -399,8 +399,8 @@ __bt_reconstruct_internal_deltas(
     WT_DELTA_HEADER *header;
     WT_PAGE_INDEX *pindex;
     WT_REF **refs;
-    uint32_t i, j;
     size_t *delta_size_each, incr, pindex_size, refs_entries, unpacked_deltas_merged_size;
+    uint32_t i, j;
 
     unpacked_deltas = unpacked_deltas_merged = NULL;
     refs = NULL;
@@ -409,7 +409,7 @@ __bt_reconstruct_internal_deltas(
 
     WT_RET(__wt_calloc_def(session, delta_size, &delta_size_each));
     WT_ERR(__wt_calloc_def(session, delta_size, &unpacked_deltas));
-    for (i = 0, j = 0; i < (uint32_t) delta_size; ++i, j = 0) {
+    for (i = 0, j = 0; i < (uint32_t)delta_size; ++i, j = 0) {
         header = (WT_DELTA_HEADER *)deltas[i].data;
         WT_ASSERT(session, header->u.entries != 0);
         delta_size_each[i] = (size_t)header->u.entries;
@@ -432,24 +432,24 @@ __bt_reconstruct_internal_deltas(
     WT_ERR(__wt_calloc(session, 1, pindex_size, &pindex));
     incr += pindex_size;
     pindex->index = (WT_REF **)(pindex + 1);
-    pindex->entries = (uint32_t) refs_entries;
+    pindex->entries = (uint32_t)refs_entries;
 
-    for (i = 0; i <  pindex->entries; ++i) {
+    for (i = 0; i < pindex->entries; ++i) {
         refs[i]->pindex_hint = i;
         pindex->index[i] = refs[i];
     }
-    pindex->entries = (uint32_t) refs_entries;
+    pindex->entries = (uint32_t)refs_entries;
     WT_INTL_INDEX_SET(ref->page, pindex);
     __wt_cache_page_inmem_incr(session, ref->page, incr);
 
     if (0) {
 err:
         if (refs != NULL)
-            for (i = 0; i < (uint32_t) refs_entries; ++i)
+            for (i = 0; i < (uint32_t)refs_entries; ++i)
                 __wt_free(session, refs[i]);
     }
     if (unpacked_deltas != NULL) {
-        for (i = 0; i < (uint32_t) delta_size; ++i)
+        for (i = 0; i < (uint32_t)delta_size; ++i)
             __wt_free(session, unpacked_deltas[i]);
         __wt_free(session, unpacked_deltas);
     }
