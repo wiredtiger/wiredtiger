@@ -243,17 +243,12 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
      * We need to get access to the WiredTiger file handle. Given we've opened the cursor we should
      * be able to access the WT_FH by first getting to its block manager and then the WT_FH.
      */
-    WT_BM *bm = CUR2BT(cursor)->bm;
-    WT_ASSERT(session, bm->is_multi_handle == false);
+    WT_BTREE *btree = CUR2BT(cursor);
+    WT_ASSERT(session, btree->bm->is_multi_handle == false);
 
     /* FIXME-WT-13897 Replace this with an API call into the block manager. */
-    WT_FILE_HANDLE *fh = bm->block->fh->handle;
-
-    __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "Live restore worker: Filling holes in %s", work_item->uri);
-    ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
-    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-      "Live restore worker: Finished finished filling holes in %s ret %d", work_item->uri, ret);
+    WT_WITH_DHANDLE(session, btree->dhandle,
+      ret = __wti_live_restore_fs_restore_file(btree->bm->block->fh->handle, wt_session));
     __live_restore_free_work_item(session, &work_item);
     WT_TRET(cursor->close(cursor));
     return (ret);
