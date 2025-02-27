@@ -201,7 +201,8 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered, bool include_ingest)
         clayered->stable_cursor = NULL;
     }
 
-    clayered->flags = 0;
+    /* Some flags persist across closes of constituents. */
+    clayered->flags &= (WT_CLAYERED_ACTIVE | WT_CLAYERED_RANDOM);
     return (0);
 }
 
