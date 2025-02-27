@@ -152,24 +152,6 @@ TEST_CASE("WT_MERGE_SORT Tests", "[WT_MERGE_SORT]")
         REQUIRE(merged_arr[4]->value == 101);
         REQUIRE(merged_arr[5]->value == 102);
     }
-    SECTION("Test all identical prefer_latest false")
-    {
-        KV a{2, 100}, b{2, 101}, c{2, 102};
-        KV d{2, 200}, e{2, 201}, f{2, 202};
-        KV *arr1[3] = {&a, &b, &c};
-        KV *arr2[3] = {&d, &e, &f};
-        KV *merged_arr[6];
-        size_t merged_size = 0;
-        WT_MERGE_SORT(unused_session, arr1, 3, arr2, 3, compare, 0, merged_arr, merged_size);
-        // With prefer_latest false, all entries should be present.
-        REQUIRE(merged_size == 6);
-        REQUIRE(merged_arr[0]->value == 200);
-        REQUIRE(merged_arr[1]->value == 201);
-        REQUIRE(merged_arr[2]->value == 202);
-        REQUIRE(merged_arr[3]->value == 100);
-        REQUIRE(merged_arr[4]->value == 101);
-        REQUIRE(merged_arr[5]->value == 102);
-    }
     SECTION("Test with two sorted arrays")
     {
         KV arr1[9] = {{1, 101}, {3, 103}, {5, 105}, {7, 107}, {9, 109}, {11, 111}, {13, 113},
