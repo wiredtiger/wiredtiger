@@ -13,7 +13,7 @@ static int __clayered_lookup(WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-static int __clayered_update_state(WT_CURSOR_LAYERED *, bool *);
+static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool *);
 
 /*
  * We need a tombstone to mark deleted records, and we use the special value below for that purpose.
@@ -125,26 +125,26 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update)
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    WT_RET(__clayered_update_state(clayered, &external_state_change));
+    WT_RET(__clayered_adjust_state(clayered, &external_state_change));
 
     for (;;) {
         /*
-         * Continue if the state of the world just got updated.
-         * Otherwise stop when we are ptherwise up-to-date, as long as this is:
+         * Continue on to open if the state of the world just got updated.
+         * Otherwise stop when we are up-to-date, as long as this is:
          *   - an update operation with a ingest cursor, or
          *   - a read operation and the cursor is open for reading.
          */
         if (!external_state_change &&
-            ((update && clayered->ingest_cursor != NULL) ||
-              (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))))
+          ((update && clayered->ingest_cursor != NULL) ||
+            (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))))
             break;
 
         WT_WITH_SCHEMA_LOCK(session, ret = __clayered_open_cursors(clayered, update));
 
         /*
-         * We only check the external state once. There will always be a race where
-         * the state changes after we check and when we start using the cursor again.
-         * Checking multiple times may narrow the race a bit, but adds expense.
+         * We only check the external state once. There will always be a race where the state
+         * changes after we check and when we start using the cursor again. Checking multiple times
+         * may narrow the race a bit, but adds expense.
          */
         external_state_change = false;
         WT_RET(ret);
@@ -205,12 +205,13 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered, bool include_ingest)
 }
 
 /*
- * __clayered_update_state --
- *     Return true if the state of the system has changed relative
- * to this cursor's state.
+ * __clayered_adjust_state --
+ *     Update the state of the cursor to match the state of the disaggregated system. In particular,
+ *     if the system has changed in a way that makes constituent cursors out of date, close them.
+ *     They will be opened later as needed.
  */
 static int
-__clayered_update_state(WT_CURSOR_LAYERED *clayered, bool *state_updated)
+__clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool *state_updated)
 {
     WT_CONNECTION_IMPL *conn;
     uint64_t current_checkpoint_id;
@@ -220,18 +221,22 @@ __clayered_update_state(WT_CURSOR_LAYERED *clayered, bool *state_updated)
     current_leader = conn->layered_table_manager.leader;
     *state_updated = false;
 
+    /* Get the current checkpoint id. This only matters if we are a follower. */
     if (!current_leader)
         WT_ACQUIRE_READ(current_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
     else
         current_checkpoint_id = 0;
 
+    /* If leader state has changed, close all the cursors. */
     if (current_leader != clayered->leader) {
         WT_RET(__clayered_close_cursors(clayered, true));
         clayered->leader = current_leader;
         clayered->checkpoint_id = current_checkpoint_id;
         *state_updated = true;
     } else if (!current_leader && current_checkpoint_id != clayered->checkpoint_id) {
-        /* Only close the stable cursor. */
+        /*
+         * We have a new checkpoint on the follower. Only close the stable cursor.
+         */
         WT_RET(__clayered_close_cursors(clayered, false));
         clayered->checkpoint_id = current_checkpoint_id;
         *state_updated = true;
