@@ -797,19 +797,19 @@ struct __wt_page {
     uint32_t prefix_stop;  /* Maximum slot to which the best page prefix applies */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_PAGE_BUILD_DELTAS 0x0001u       /* Page was built with deltas */
-#define WT_PAGE_BUILD_KEYS 0x0002u         /* Keys have been built in memory */
-#define WT_PAGE_COMPACTION_WRITE 0x0004u   /* Writing the page for compaction */
-#define WT_PAGE_DISK_ALLOC 0x0008u         /* Disk image in allocated memory */
-#define WT_PAGE_DISK_MAPPED 0x0010u        /* Disk image in mapped memory */
-#define WT_PAGE_EVICT_LRU 0x0020u          /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_LRU_URGENT 0x0040u   /* Page is in the urgent queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x0080u  /* Eviction doesn't count as progress */
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0100u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_PREFETCH 0x0200u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x0400u           /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x0800u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x1000u      /* Ignore updates on page discard */
+#define WT_PAGE_BUILD_KEYS 0x0001u         /* Keys have been built in memory */
+#define WT_PAGE_COMPACTION_WRITE 0x0002u   /* Writing the page for compaction */
+#define WT_PAGE_DISK_ALLOC 0x0004u         /* Disk image in allocated memory */
+#define WT_PAGE_DISK_MAPPED 0x0008u        /* Disk image in mapped memory */
+#define WT_PAGE_EVICT_LRU 0x0010u          /* Page is on the LRU queue */
+#define WT_PAGE_EVICT_LRU_URGENT 0x0020u   /* Page is in the urgent queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x0040u  /* Eviction doesn't count as progress */
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0080u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_PREFETCH 0x0100u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x0200u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x0400u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x0800u      /* Ignore updates on page discard */
+#define WT_PAGE_WITH_DELTAS 0x1000u        /* Page was built with deltas */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 

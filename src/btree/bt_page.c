@@ -115,7 +115,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        if (!LF_ISSET(WT_PAGE_BUILD_DELTAS)) {
+        if (!LF_ISSET(WT_PAGE_WITH_DELTAS)) {
             WT_ASSERT(session, alloc_entries != 0);
             /*
              * Internal pages have an array of references to objects so they can split. Allocate the
@@ -484,7 +484,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
          * Row-store internal page entries map one-to-two to the number of physical entries on the
          * page (each entry is a key and location cookie pair).
          */
-        if (!LF_ISSET(WT_PAGE_BUILD_DELTAS))
+        if (!LF_ISSET(WT_PAGE_WITH_DELTAS))
             alloc_entries = dsk->u.entries / 2;
         break;
     case WT_PAGE_ROW_LEAF:
@@ -532,7 +532,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         WT_ERR(__inmem_col_var(session, page, dsk->recno, instantiate_updp, &size));
         break;
     case WT_PAGE_ROW_INT:
-        if (!LF_ISSET(WT_PAGE_BUILD_DELTAS))
+        if (!LF_ISSET(WT_PAGE_WITH_DELTAS))
             WT_ERR(__inmem_row_int(session, page, &size));
         break;
     case WT_PAGE_ROW_LEAF:

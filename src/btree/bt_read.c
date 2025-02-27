@@ -630,7 +630,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (LF_ISSET(WT_READ_PREFETCH))
         FLD_SET(page_flags, WT_PAGE_PREFETCH);
     if (deltas != NULL)
-        FLD_SET(page_flags, WT_PAGE_BUILD_DELTAS);
+        FLD_SET(page_flags, WT_PAGE_WITH_DELTAS);
     WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &notused, &instantiate_upd));
     tmp[0].mem = NULL;
     ref->page->block_meta = block_meta;
