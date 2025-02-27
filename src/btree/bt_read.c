@@ -331,21 +331,25 @@ __bt_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *ref,
 
     WT_ASSERT(session, base_entries != 0 && delta_entries != 0);
 
-    /* Unpack the base image. */
+    /* Unpack all entries from the base image into an array. */
     WT_ERR(__wt_calloc_def(session, base_entries, &base));
     WT_CELL_FOREACH_ADDR (session, page->dsk, base[k]) {
         k++;
     }
     WT_CELL_FOREACH_END;
 
-    /* Create a new ref array which would be the merged refs from the base image and the deltas. */
+    /*
+     * Creates a new reference array containing the finalized references. The maximum number of
+     * entries is the sum of half the base entries (since keys and values are stored separately) and
+     * the delta entries.
+     */
     estimated_entries = (base_entries / 2) + delta_entries + 1;
     WT_ERR(__wt_calloc_def(session, estimated_entries, refsp));
     refs = *refsp;
 
-    /* Perform a merge sort between the base image and the deltas. */
+    /* Perform a merge sort between the base array and the delta array. */
     while (i < base_entries && j < delta_entries) {
-        /* Compare the keys of the base image and the delta. */
+        /* Compare the keys of the base entry and the delta entry. */
         base_key_buf.data = base[i].data;
         base_key_buf.size = base[i].size;
         delta_key_buf.data = delta[j]->key.data;
@@ -366,7 +370,7 @@ __bt_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *ref,
             j++;
         }
     }
-
+    /* Copy the remaining entries from the base array or the delta array. */
     for (; i < base_entries;) {
         base_key = &base[i++];
         base_val = &base[i++];
