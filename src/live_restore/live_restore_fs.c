@@ -1848,6 +1848,8 @@ __wt_os_live_restore_fs(
     F_SET(S2C(session), WT_CONN_LIVE_RESTORE_FS);
     if (0) {
 err:
+        if (lr_fs->os_file_system != NULL)
+            WT_TRET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, (WT_SESSION *)session));
         __wt_free(session, lr_fs->source.home);
         __wt_free(session, lr_fs);
     }
