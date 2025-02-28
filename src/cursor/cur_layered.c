@@ -398,6 +398,10 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
             WT_ASSERT(session, WT_PREFIX_MATCH(clayered->stable_cursor->uri, "file:"));
         }
     }
+    /*
+     * FIXME-SLS-1448: Any cursor that was closed when the external state changed, and was
+     * positioned, will need to be repositioned now.
+     */
 
     WT_RET(__clayered_copy_bounds(clayered));
 
