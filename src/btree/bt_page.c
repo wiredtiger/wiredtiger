@@ -104,9 +104,9 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
     WT_CELL_FOREACH_END;
 
     /*
-     * Creates a new reference array containing the finalized refs. The maximum number of entries is
-     * the sum of half the base entries (since keys and values are stored separately) and the delta
-     * entries.
+     * Creates a new refs array containing the finalized refs. The maximum number of entries is the
+     * sum of half the base entries (since entries in the base image is the total of both keys and
+     * values) and the delta entries.
      */
     estimated_entries = (base_entries / 2) + delta_entries + 1;
     WT_ERR(__wt_calloc_def(session, estimated_entries, refsp));
