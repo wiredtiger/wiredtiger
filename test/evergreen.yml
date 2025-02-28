@@ -5073,7 +5073,6 @@ tasks:
 
   - name: perf-test-live-restore
     tags: ["long-perf"]
-    patch_only: true
     depends_on:
       - name: perf-test-long-500m-btree-populate
     commands:
@@ -5114,7 +5113,6 @@ tasks:
 
   - name: perf-test-live-restore-no-server
     tags: ["long-perf"]
-    patch_only: true
     depends_on:
       - name: perf-test-long-500m-btree-populate
     commands:
