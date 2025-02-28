@@ -281,7 +281,10 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
     if ((nmemb) != 0)                         \
     qsort(base, nmemb, size, compar)
 
-/* Merge two sorted arrays into a single sorted array */
+/*
+ * Merge two sorted arrays into a single sorted array. With `prefer_latest` true, if duplicate keys
+ * are found, the element from the later array (arr2) is preferred.
+ */
 #define WT_MERGE_SORT(                                                                        \
   session, arr1, arr1_size, arr2, arr2_size, cmp, prefer_latest, merged_arr, merged_arr_size) \
     do {                                                                                      \
