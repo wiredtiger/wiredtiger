@@ -77,6 +77,7 @@ test_cursor20.py
 test_cursor21.py
 test_cursor_random.py # times out
 test_cursor_random02.py # times out
+test_debug_mode08.py
 test_drop.py
 test_drop03.py
 test_drop_create.py
