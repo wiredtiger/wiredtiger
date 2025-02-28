@@ -1350,7 +1350,7 @@ __wt_cell_unpack_delta_leaf(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk
     unpack->flags = cell->__chunk[0];
     p = (uint8_t *)&cell->__chunk[1];
 
-    if (F_ISSET(unpack, WT_DELTA_IS_DELETE)) {
+    if (F_ISSET(unpack, WT_DELTA_LEAF_IS_DELETE)) {
         ret = __wt_vunpack_uint(&p, 0, &v);
         WT_ASSERT(session, ret == 0);
         unpack->key_size = (uint32_t)v;
@@ -1359,32 +1359,32 @@ __wt_cell_unpack_delta_leaf(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk
     } else {
         WT_TIME_WINDOW_INIT(&unpack->tw);
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_START_TXN_ID)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_START_TXN_ID)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.start_txn);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_START_TS)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_START_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.start_ts);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_START_DURABLE_TS)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_START_DURABLE_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.durable_start_ts);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_STOP_TXN_ID)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_STOP_TXN_ID)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.stop_txn);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_STOP_TS)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_STOP_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.stop_ts);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_STOP_DURABLE_TS)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_STOP_DURABLE_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.durable_stop_ts);
             WT_ASSERT(session, ret == 0);
         }

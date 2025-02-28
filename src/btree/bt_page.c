@@ -360,7 +360,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
             }
         }
 
-        if (F_ISSET(&unpack, WT_DELTA_IS_DELETE)) {
+        if (F_ISSET(&unpack, WT_DELTA_LEAF_IS_DELETE)) {
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &tmp_size));
             F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DELTA);
             size += tmp_size;

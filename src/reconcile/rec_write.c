@@ -2124,7 +2124,7 @@ __wti_rec_pack_delta_internal(
     __wt_rec_kv_copy(session, p, key);
     p += key->len;
     if (value == NULL)
-        LF_SET(WT_DELTA_IS_DELETE);
+        LF_SET(WT_DELTA_LEAF_IS_DELETE);
     else
         __wt_rec_kv_copy(session, p, value);
 
@@ -2192,7 +2192,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     p = head + 1;
 
     if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
-        LF_SET(WT_DELTA_IS_DELETE);
+        LF_SET(WT_DELTA_LEAF_IS_DELETE);
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
         memcpy(p, key->data, key->size);
         p += key->size;
@@ -2205,34 +2205,34 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
          */
         if (!__wt_txn_upd_visible_all(session, supd->onpage_upd)) {
             if (supd->onpage_upd->txnid != WT_TXN_NONE) {
-                LF_SET(WT_DELTA_HAS_START_TXN_ID);
+                LF_SET(WT_DELTA_LEAF_HAS_START_TXN_ID);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->txnid));
             }
 
             if (supd->onpage_upd->start_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_HAS_START_TS);
+                LF_SET(WT_DELTA_LEAF_HAS_START_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
             }
 
             if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_HAS_START_DURABLE_TS);
+                LF_SET(WT_DELTA_LEAF_HAS_START_DURABLE_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->durable_ts));
             }
         }
 
         if (supd->onpage_tombstone != NULL) {
             if (supd->onpage_tombstone->txnid != WT_TXN_NONE) {
-                LF_SET(WT_DELTA_HAS_STOP_TXN_ID);
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_TXN_ID);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
             }
 
             if (supd->onpage_tombstone->start_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_HAS_STOP_TS);
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->start_ts));
             }
 
             if (supd->onpage_tombstone->durable_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_HAS_STOP_DURABLE_TS);
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_DURABLE_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->durable_ts));
             }
         }
