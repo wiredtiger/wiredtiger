@@ -297,6 +297,7 @@ conn_stats = [
     EvictStat('eviction_consider_prefetch', 'pages considered for eviction that were brought in by pre-fetch', 'no_clear,no_scale'),
     EvictStat('eviction_fail', 'pages selected for eviction unable to be evicted'),
     EvictStat('eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
+	EvictStat('eviction_fail_checkpoint_no_ts', 'eviction failed because out-of-order timestamp update was detected'),
     EvictStat('eviction_fail_in_reconciliation', 'pages selected for eviction unable to be evicted because of failure in reconciliation'),
     EvictStat('eviction_force', 'forced eviction - pages selected count'),
     EvictStat('eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
@@ -823,32 +824,26 @@ dsrc_stats = [
     # Eviction statistics
     ##########################################
     EvictStat('eviction_fail', 'data source pages selected for eviction unable to be evicted'),
-    EvictStat('eviction_walk_passes', 'eviction walk passes of a file'),
 
     ##########################################
     # Cache content statistics
     ##########################################
-    EvictCacheWalkStat('cache_state_avg_unvisited_age', 'Average time in cache for pages that have not been visited by the eviction server', 'no_clear,no_scale'),
-    EvictCacheWalkStat('cache_state_avg_visited_age', 'Average time in cache for pages that have been visited by the eviction server', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_avg_written_size', 'Average on-disk page image size seen', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_gen_avg_gap', 'Average difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_gen_current', 'Current eviction generation', 'no_clear,no_scale'),
-    EvictCacheWalkStat('cache_state_gen_max_gap', 'Maximum difference between current eviction generation when the page was last considered', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_max_pagesize', 'Maximum page size seen', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_memory', 'Pages created in memory and never written', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_min_written_size', 'Minimum on-disk page image size seen', 'no_clear,no_scale'),
-    EvictCacheWalkStat('cache_state_not_queueable', 'Pages that could not be queued for eviction', 'no_clear,no_scale'),
+	EvictCacheWalkStat('cache_state_not_evictable', 'Number of pages that cannot be evicted', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_pages', 'Total number of pages currently in cache', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_pages_clean', 'Clean pages currently in cache', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_pages_dirty', 'Dirty pages currently in cache', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_pages_internal', 'Internal pages currently in cache', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_pages_leaf', 'Leaf pages currently in cache', 'no_clear,no_scale'),
-    EvictCacheWalkStat('cache_state_queued', 'Pages currently queued for eviction', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_refs_skipped', 'Refs skipped during cache traversal', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_root_entries', 'Entries in the root page', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_root_size', 'Size of the root page', 'no_clear,no_scale'),
     EvictCacheWalkStat('cache_state_smaller_alloc_size', 'On-disk page image sizes smaller than a single allocation unit', 'no_clear,no_scale'),
-    EvictCacheWalkStat('cache_state_unvisited_count', 'Number of pages never visited by eviction server', 'no_clear,no_scale'),
 
     ##########################################
     # Compression statistics

@@ -287,9 +287,9 @@ err:
              * In case something goes wrong, don't pick the same set of pages every time. Mark the
              * page, so that eviction skips it once if it encounters it.
              */
-            __wt_atomic_storebool(&ref->evict_skip, true);
+            __wt_atomic_storebool(&ref->page->evict_data.evict_skip, true);
             /* Put the page back into the list it belongs */
-            __evict_enqueue_page(session, session->dhandle, ref);
+            __wt_evict_enqueue_page(session, session->dhandle, ref);
             /* Release the page */
             __evict_exclusive_clear(session, ref, previous_state);
         }

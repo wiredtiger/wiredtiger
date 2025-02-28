@@ -517,12 +517,6 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     if ((ret = __wt_session_get_dhandle(session, name, NULL, NULL, 0)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
-    /*
-     * Save the current eviction walk setting: checkpoint can interfere with eviction and we don't
-     * want to unfairly penalize (or promote) eviction in trees due to checkpoints.
-     */
-    btree->evict_walk_saved = __wt_atomic_load32(&btree->evict_walk_period);
-
     session->ckpt_handle[session->ckpt_handle_next++] = session->dhandle;
     return (0);
 }
@@ -2520,7 +2514,6 @@ __checkpoint_presync(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
     WT_ASSERT(session, btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT));
-    __wt_atomic_store32(&btree->evict_walk_period, btree->evict_walk_saved);
     return (0);
 }
 
@@ -2564,18 +2557,11 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
      */
     __checkpoint_update_generation(session);
 
-    /*
-     * In case this tree was being skipped by the eviction server during the checkpoint, restore the
-     * previous state.
+	/* Wake the eviction threads in case application threads have stalled while the eviction workers
+     * decided they couldn't make progress. Without this, application threads will be stalled until
+     * the eviction workers next wake - XXX double check.
      */
-    __wt_atomic_store32(&btree->evict_walk_period, btree->evict_walk_saved);
-
-    /*
-     * Wake the eviction server, in case application threads have stalled while the eviction server
-     * decided it couldn't make progress. Without this, application threads will be stalled until
-     * the eviction server next wakes.
-     */
-    __wt_evict_server_wake(session);
+    __wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
 
     return (ret);
 }

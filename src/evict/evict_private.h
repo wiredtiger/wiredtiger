@@ -9,7 +9,7 @@
 #pragma once
 
 #define WT_DHANDLE_TO_BUCKETSET(dhandle, set_number) \
-    &((WT_BTREE*)(dhandle->handle))->evict_data.evict_bucketset[set_number]
+    &((WT_BTREE *)(dhandle->handle))->evict_data.evict_bucketset[set_number]
 
 #define WT_READGEN_NOTSET 0
 #define WT_READGEN_EVICT_SOON 1

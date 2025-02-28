@@ -129,6 +129,7 @@ extern int __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
+extern void __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref);

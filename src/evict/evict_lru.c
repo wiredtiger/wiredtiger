@@ -14,8 +14,6 @@ static int __evict_page(WT_SESSION_IMPL *session);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref);
 
-#define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
-
 /*
  * __evict_log_cache_stuck --
  *     Output log messages if the cache is stuck.
@@ -1565,9 +1563,10 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
  */
 static inline void
 __evict_bucket_range(WT_SESSION_IMPL *session, WT_EVICT_BUCKET *bucket,
-					 uint64_t *min_range, uint64_t *max_range)
+					 uint64_t *min_rangep, uint64_t *max_rangep)
 {
 	WT_EVICT_BUCKETSET *bucketset;
+	uint64_t min_range, max_range;
 
 	WT_ASSERT(session, bucket != NULL);
 
@@ -1585,14 +1584,18 @@ __evict_bucket_range(WT_SESSION_IMPL *session, WT_EVICT_BUCKET *bucket,
      *
      */
     if (bucket->id == 0) {
-        *min_range = 0;
-        *max_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range);
+        min_range = 0;
+        max_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range);
     } else {
-        *min_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) +
+        min_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) +
           WT_EVICT_BUCKET_RANGE * (bucket->id - 1) + 1;
-        *max_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) +
+        max_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) +
           WT_EVICT_BUCKET_RANGE * bucket->id;
     }
+	if (min_rangep != NULL)
+		*min_rangep = min_range;
+	if (max_rangep != NULL)
+		*max_rangep = max_range;
 }
 
 /*
@@ -1656,11 +1659,11 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
 }
 
 /*
- * __evict_enqueue_page --
+ * __wt_evict_enqueue_page --
  *     Put the page into the evict bucket corresponding to its read generation.
  */
-static void
-__evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref)
+void
+__wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref)
 {
     WT_EVICT_BUCKET *bucket;
     WT_EVICT_BUCKETSET *bucketset;
@@ -1791,7 +1794,7 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
         __wti_evict_read_gen_bump(session, page);
 
     if (!internal_only)
-        __evict_enqueue_page(session, dhandle, ref);
+        __wt_evict_enqueue_page(session, dhandle, ref);
 }
 
 /*
@@ -1803,7 +1806,7 @@ __evict_init_ref(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref)
 {
 
     WT_ASSERT(session, ref->page != NULL);
-    __evict_enqueue_page(session, dhandle, ref);
+    __wt_evict_enqueue_page(session, dhandle, ref);
 }
 
 /* !!!
@@ -1824,7 +1827,7 @@ void
 __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     __wt_atomic_store64(&ref->page->evict_data.read_gen, WT_READGEN_EVICT_SOON);
-    __evict_enqueue_page(session, session->dhandle, ref);
+    __wt_evict_enqueue_page(session, session->dhandle, ref);
 }
 
 /*
@@ -1868,20 +1871,26 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle, *best_dhandle;
     WT_EVICT *evict;
-	int smallest_readgen;
-    uint64_t max_cache_footprint, min_readgen_size;
+	WT_EVICT_BUCKET *bucket;
+	WT_EVICT_BUCKETSET *bucketset;
     bool want_tree;
+    uint64_t bucket_readgen_lower_bound, max_bucketset_to_consider, min_readgen;
+#ifdef EVICT_MAX_FOOTPRINT
+	uint64_t  max_cache_footprint;
+#endif
 
     best_dhandle = NULL;
     conn = S2C(session);
     evict = conn->evict;
+#ifdef EVICT_MAX_FOOTPRINT
     max_cache_footprint = 0;
-    min_readgen_size = ULONG_MAX;
+#endif
+    min_readgen = ULONG_MAX;
 
     WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
 
     dhandle = TAILQ_FIRST(&conn->dhqh);
-    for (int i = 0; i < conn->dhandle_count; i++) {
+    for (uint64_t i = 0; i < conn->dhandle_count; i++) {
         btree = dhandle->handle;
 
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
@@ -1939,10 +1948,33 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
 			best_dhandle = dhandle;
 			break;
 		}
-		/* Find smallest readgen */
-		if ((smallest_readgen = __evict_smallest_bucket(dhandle)) < min_readgen_size) {
-			best_dhandle = dhandle;
-			min_readgen_size = smallest_readgen;
+		/*
+		 * Find smallest readgen in the bucketset that eviction will consider.
+		 * We decide which bucketsets to consider starting from highest to lowest desireability
+		 * for eviction, depending on eviction flags.
+		 */
+		max_bucketset_to_consider = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ? WT_EVICT_LEVEL_DIRTY_INTERNAL :
+			(F_ISSET(evict, WT_EVICT_CACHE_DIRTY) ? WT_EVICT_LEVEL_DIRTY_LEAF : WT_EVICT_LEVEL_CLEAN_LEAF);
+
+		/*
+		 * In each considered bucketset find the smallest bucket that has pages and remember its
+		 * read generation upper bound.
+		 */
+		for (uint64_t j = 0; j <= max_bucketset_to_consider; j++) {
+			bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, j);
+			for (int k = 0; k < WT_EVICT_NUM_BUCKETS; k++) {
+				bucket = &bucketset->buckets[k];
+				if (__wt_atomic_load64(&bucket->num_items) == 0)
+					continue;
+				else {
+					__evict_bucket_range(session, bucket, &bucket_readgen_lower_bound, NULL);
+					if (bucket_readgen_lower_bound < min_readgen) {
+						min_readgen = bucket_readgen_lower_bound;
+						best_dhandle = dhandle;
+					}
+					break;
+				}
+			}
 		}
 #endif
         dhandle = TAILQ_NEXT(dhandle, q);
@@ -1959,7 +1991,7 @@ __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     __wt_atomic_store64(
       &page->evict_data.read_gen, (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
-    __evict_enqueue_page(session, session->dhandle, ref);
+    __wt_evict_enqueue_page(session, session->dhandle, page->ref);
 }
 
 /* !!!
@@ -2011,8 +2043,8 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
     btree = S2BT(session);
     conn = S2C(session);
     evict = conn->evict;
-    modified = __wt_page_is_modified(page);
     page = ref->page;
+    modified = __wt_page_is_modified(page);
 
     /* Don't queue dirty pages in trees during checkpoints. */
     if (modified && WT_BTREE_SYNCING(btree)) {
@@ -2026,7 +2058,7 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * somehow leave a page without a read generation.
      */
     if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_NOTSET)
-        __wti_evict_read_gen_new(session, page);
+        __evict_read_gen_new(session, page);
 
     want_page = (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !modified) ||
       (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||
@@ -2073,7 +2105,7 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
  *     Check if the internal page has children in cache.
  */
 static bool
-__evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, WT_REF *ref)
+__evict_internal_page_has_cached_children(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_PAGE_INDEX *pindex;
     uint32_t slot;
