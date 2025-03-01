@@ -639,6 +639,9 @@ struct __wt_cursor_layered {
     int64_t next_random_seed;
     u_int next_random_sample_size;
 
+    uint64_t checkpoint_id; /* The id when last checked. */
+    bool leader;            /* Leader/follower state when last checked. */
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CLAYERED_ACTIVE 0x01u         /* Incremented the session count */
 #define WT_CLAYERED_ITERATE_NEXT 0x02u   /* Forward iteration */
