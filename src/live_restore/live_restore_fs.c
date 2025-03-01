@@ -1793,6 +1793,10 @@ __wt_os_live_restore_fs(
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FS *lr_fs;
 
+    /* FIXME-WT-14223: Remove this once readonly database connections are supported. */
+    if (F_ISSET(S2C(session), WT_CONN_READONLY))
+        WT_ERR_MSG(session, EINVAL, "live restore is incompatible with readonly mode");
+
     WT_RET(__wt_calloc_one(session, &lr_fs));
     WT_ERR(__wt_os_posix(session, &lr_fs->os_file_system));
 
