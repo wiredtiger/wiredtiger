@@ -202,7 +202,7 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered, bool include_ingest)
     }
 
     /* Some flags persist across closes of constituents. */
-    F_CLR(clayered, WT_CLAYERED_ACTIVE | WT_CLAYERED_RANDOM);
+    F_CLR(clayered, ~(WT_CLAYERED_ACTIVE | WT_CLAYERED_RANDOM));
     return (0);
 }
 
