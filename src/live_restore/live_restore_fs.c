@@ -664,12 +664,6 @@ __live_restore_fh_read(
     read_data = (char *)buf;
 
     __wt_readlock(session, &lr_fh->bitmap_lock);
-
-    /*
-     * FIXME-WT-13828: WiredTiger will read the metadata file after creation but before anything has
-     * been written in this case we forward the read to the empty metadata file in the destination.
-     * Is this correct?
-     */
     /*
      * The partial read length variables need to be initialized inside the else case to avoid clang
      * sanitizer complaining about dead stores. However if we use a switch case here _and_
@@ -1848,7 +1842,11 @@ __wt_os_live_restore_fs(
     F_SET(S2C(session), WT_CONN_LIVE_RESTORE_FS);
     if (0) {
 err:
-        if (lr_fs->os_file_system != NULL)
+        /*
+         * If we swapped in the posix file system don't terminate it. It'll get terminated later
+         * when closing up the connection.
+         */
+        if (*fsp != lr_fs->os_file_system && lr_fs->os_file_system != NULL)
             WT_TRET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, (WT_SESSION *)session));
         __wt_free(session, lr_fs->source.home);
         __wt_free(session, lr_fs);
