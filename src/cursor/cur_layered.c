@@ -22,9 +22,14 @@ static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool *);
 static WT_INLINE bool
 __clayered_deleted(WT_CURSOR_LAYERED *clayered, const WT_ITEM *item)
 {
+    /*
+     * We only use tombstone value for ingest table. Therefore, if we don't have an ingest table,
+     * the returned value must be a proper value.
+     */
     if (clayered->ingest_cursor == NULL)
         return (false);
 
+    /* If the value is returned from the stable table, it must be a proper value. */
     if (clayered->current_cursor != clayered->ingest_cursor)
         return (false);
 
