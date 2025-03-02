@@ -1207,8 +1207,6 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
         c->set_value(c, value);
     WT_RET(func(c));
 
-    /* TODO: Need something to add a log record? */
-
     return (0);
 }
 
@@ -1252,8 +1250,6 @@ __clayered_remove_int(
         c->set_value(c, &__tombstone);
         WT_RET(c->update(c));
     }
-
-    /* TODO: Need something to add a log record? */
 
     return (0);
 }
