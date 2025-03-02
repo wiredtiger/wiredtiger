@@ -69,18 +69,18 @@ class test_layered16(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction()
         cursor.set_key(str(1))
         cursor.modify([wiredtiger.Modify('A', 130, 0)])
-        self.assertEquals(cursor.get_value(),  value1 + 'A')
+        self.assertEqual(cursor.get_value(),  value1 + 'A')
         self.session.commit_transaction()
 
         # Validate that we do see the correct value.
-        self.assertEquals(cursor[str(1)],  value1 + 'A')
+        self.assertEqual(cursor[str(1)],  value1 + 'A')
 
         # Insert a second modify
         self.session.begin_transaction()
         cursor.set_key(str(1))
         cursor.modify([wiredtiger.Modify('B', 131, 0)])
-        self.assertEquals(cursor.get_value(),  value1 + 'AB')
+        self.assertEqual(cursor.get_value(),  value1 + 'AB')
         self.session.commit_transaction()
 
         # Validate that we do see the correct value.
-        self.assertEquals(cursor[str(1)],  value1 + 'AB')
+        self.assertEqual(cursor[str(1)],  value1 + 'AB')

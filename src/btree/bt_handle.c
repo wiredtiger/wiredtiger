@@ -59,14 +59,18 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_CKPT ckpt;
     WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(name_buf);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     size_t root_addr_size;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
+    const char *dhandle_name, *checkpoint;
     bool creation, forced_salvage;
 
     btree = S2BT(session);
     dhandle = session->dhandle;
+    dhandle_name = dhandle->name;
+    checkpoint = dhandle->checkpoint;
 
     /*
      * This may be a re-open, clean up the btree structure. Clear the fields that don't persist
@@ -85,8 +89,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
       F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(btree, WT_BTREE_READONLY);
 
+    /* For disaggregated stable tree opens, separate any trailing checkpoint indicator. */
+    WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf));
+
     /* Get the checkpoint information for this name/checkpoint pair. */
-    WT_RET(__wt_meta_checkpoint(session, dhandle->name, dhandle->checkpoint, &ckpt));
+    WT_ERR(__wt_meta_checkpoint(session, dhandle_name, checkpoint, &ckpt));
 
     /* Set the order number. */
     dhandle->checkpoint_order = ckpt.order;
@@ -111,7 +118,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Connect to the underlying block manager. */
     WT_ERR(__wt_blkcache_open(
-      session, dhandle->name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
+      session, dhandle_name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
 
     bm = btree->bm;
 
@@ -180,6 +187,7 @@ err:
     }
     __wt_meta_checkpoint_free(session, &ckpt);
 
+    __wt_scr_free(session, &name_buf);
     __wt_scr_free(session, &tmp);
     return (ret);
 }
@@ -483,8 +491,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * something more robust.
      */
     WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
-    if (WT_SUFFIX_MATCH(btree->dhandle->name, ".wt_stable") ||
-      WT_CONFIG_LIT_MATCH("disagg", cval)) {
+    if (strstr(btree->dhandle->name, ".wt_stable") != NULL || WT_CONFIG_LIT_MATCH("disagg", cval)) {
         F_SET(btree, WT_BTREE_DISAGGREGATED);
 
         /*

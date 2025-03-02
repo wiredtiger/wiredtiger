@@ -97,7 +97,7 @@ class test_layered12(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint1}")')
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value1)
+            self.assertEqual(cursor[str(i)], value1)
         cursor.close()
 
         # Pick up the second version and check
@@ -105,9 +105,9 @@ class test_layered12(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = session_follow.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             if i % 10 == 0:
-                self.assertEquals(cursor[str(i)], value2)
+                self.assertEqual(cursor[str(i)], value2)
             else:
-                self.assertEquals(cursor[str(i)], value1)
+                self.assertEqual(cursor[str(i)], value1)
         cursor.close()
 
         session_follow.close()

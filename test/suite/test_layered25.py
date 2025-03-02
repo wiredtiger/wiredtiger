@@ -134,7 +134,7 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction(f'read_timestamp={self.timestamp_str(timestamp1)}')
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
+            self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
         cursor.close()
         self.session.rollback_transaction()
 
@@ -142,7 +142,7 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction(f'read_timestamp={self.timestamp_str(timestamp2)}')
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+            self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
         cursor.close()
         self.session.rollback_transaction()
 
@@ -159,7 +159,7 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction(f'read_timestamp={self.timestamp_str(timestamp2)}')
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+            self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
         cursor.close()
         self.session.rollback_transaction()
 
@@ -167,7 +167,7 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction(f'read_timestamp={self.timestamp_str(timestamp1)}')
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
+            self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
         cursor.close()
         self.session.rollback_transaction()
 
@@ -184,7 +184,7 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction(f'read_timestamp={self.timestamp_str(timestamp2)}')
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+            self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
         cursor.close()
         self.session.rollback_transaction()
 
@@ -192,6 +192,6 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction(f'read_timestamp={self.timestamp_str(timestamp1)}')
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
+            self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
         cursor.close()
         self.session.rollback_transaction()

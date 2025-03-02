@@ -12,7 +12,8 @@ static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
 static int __clayered_lookup(WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
-static int __clayered_search_near(WT_CURSOR *cursor, int *exactp);
+static int __clayered_search_near(WT_CURSOR *, int *);
+static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool *);
 
 /*
  * __clayered_deleted --
@@ -112,6 +113,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool external_state_change;
 
     session = CUR2S(clayered);
 
@@ -120,17 +122,29 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update)
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
+    WT_RET(__clayered_adjust_state(clayered, &external_state_change));
+
     for (;;) {
         /*
-         * Stop when we are up-to-date, as long as this is:
+         * Continue on to open if the state of the world just got updated.
+         * Otherwise stop when we are up-to-date, as long as this is:
          *   - an update operation with a ingest cursor, or
          *   - a read operation and the cursor is open for reading.
          */
-        if ((update && clayered->ingest_cursor != NULL) ||
-          (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
+        if (!external_state_change &&
+          ((update && clayered->ingest_cursor != NULL) ||
+            (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))))
             break;
 
         WT_WITH_SCHEMA_LOCK(session, ret = __clayered_open_cursors(clayered, update));
+
+        /*
+         * We only check the external state once. There will always be a race where the state
+         * changes after we check and before we do operations with the cursor. There's no need to
+         * narrow the race window further, if we do, we're holding constituent cursors open for a
+         * slightly shorter time.
+         */
+        external_state_change = false;
         WT_RET(ret);
     }
 
@@ -170,12 +184,12 @@ __clayered_leave(WT_CURSOR_LAYERED *clayered)
  *     Close any btree cursors that are not needed.
  */
 static int
-__clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
+__clayered_close_cursors(WT_CURSOR_LAYERED *clayered, bool include_ingest)
 {
     WT_CURSOR *c;
 
     clayered->current_cursor = NULL;
-    if ((c = clayered->ingest_cursor) != NULL) {
+    if (include_ingest && (c = clayered->ingest_cursor) != NULL) {
         WT_RET(c->close(c));
         clayered->ingest_cursor = NULL;
     }
@@ -184,7 +198,48 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
         clayered->stable_cursor = NULL;
     }
 
-    clayered->flags = 0;
+    /* Some flags persist across closes of constituents. */
+    F_CLR(clayered, ~(WT_CLAYERED_ACTIVE | WT_CLAYERED_RANDOM));
+    return (0);
+}
+
+/*
+ * __clayered_adjust_state --
+ *     Update the state of the cursor to match the state of the disaggregated system. In particular,
+ *     if the system has changed in a way that makes constituent cursors out of date, close them.
+ *     They will be opened later as needed.
+ */
+static int
+__clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool *state_updated)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint64_t current_checkpoint_id;
+    bool current_leader;
+
+    conn = S2C(CUR2S(clayered));
+    current_leader = conn->layered_table_manager.leader;
+    *state_updated = false;
+
+    /* Get the current checkpoint id. This only matters if we are a follower. */
+    if (!current_leader)
+        WT_ACQUIRE_READ(current_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+    else
+        current_checkpoint_id = 0;
+
+    /* If leader state has changed, close all the cursors. */
+    if (current_leader != clayered->leader) {
+        WT_RET(__clayered_close_cursors(clayered, true));
+        clayered->leader = current_leader;
+        clayered->checkpoint_id = current_checkpoint_id;
+        *state_updated = true;
+    } else if (!current_leader && current_checkpoint_id != clayered->checkpoint_id) {
+        /*
+         * We have a new checkpoint on the follower. Only close the stable cursor.
+         */
+        WT_RET(__clayered_close_cursors(clayered, false));
+        clayered->checkpoint_id = current_checkpoint_id;
+        *state_updated = true;
+    }
     return (0);
 }
 
@@ -195,21 +250,25 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
 static int
 __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
     u_int cfg_pos;
-    char random_config[1024];
+    char random_config[1024], stable_uri_buf[256];
+    const char *checkpoint_name;
     const char *ckpt_cfg[4];
+    const char *stable_uri;
     bool defer_stable, leader;
 
     c = &clayered->iface;
     defer_stable = false;
     session = CUR2S(clayered);
+    conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
-    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &conn->schema_lock);
 
     /*
      * Query operations need a full set of cursors. Overwrite cursors do queries in service of
@@ -262,8 +321,9 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     }
 
     if (clayered->stable_cursor == NULL) {
-        leader = S2C(session)->layered_table_manager.leader;
-        if (!leader)
+        leader = conn->layered_table_manager.leader;
+        stable_uri = layered->stable_uri;
+        if (!leader) {
             /*
              * We may have a stable chunk with no checkpoint yet. If that's the case then open a
              * cursor on stable without a checkpoint. It will never return an invalid result (it's
@@ -271,18 +331,39 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
              * efficient, and also not an accurate reflection of what we want in terms of sharing
              * checkpoint across different WiredTiger instances eventually.
              */
-            ckpt_cfg[cfg_pos++] = ",raw,checkpoint_use_history=false,force=true";
+
+            /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
+            checkpoint_name = NULL;
+            WT_RET_NOTFOUND_OK(
+              __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL));
+
+            if (checkpoint_name == NULL) {
+                /*
+                 * We've never picked up a checkpoint, open a regular btree on the stable URI. If
+                 * we're a follower and we never picked up a checkpoint, then no checkpoint has ever
+                 * occurred on this Btree. Everything we need will be satisfied by the ingest table
+                 * until the next checkpoint is picked up. So technically, opening this (empty)
+                 * stable table is wasteful, but it's a corner case, it will be resolved at the next
+                 * checkpoint, and it keeps the code easy.
+                 */
+                ckpt_cfg[cfg_pos++] = "readonly,checkpoint_use_history=false";
+                F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
+            } else {
+                /*
+                 * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from
+                 * the stable checkpoint, but without it being a traditional checkpoint cursor.
+                 */
+                WT_RET(__wt_snprintf(stable_uri_buf, sizeof(stable_uri_buf), "%s/%s",
+                  layered->stable_uri, checkpoint_name));
+                stable_uri = stable_uri_buf;
+                ckpt_cfg[cfg_pos++] = "readonly";
+            }
+        }
         ckpt_cfg[cfg_pos] = NULL;
         ret = __wt_open_cursor(
-          session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
+          session, stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
 
-        if (ret == WT_NOTFOUND && !leader) {
-            ckpt_cfg[1] = "";
-            ret = __wt_open_cursor(
-              session, layered->stable_uri, &clayered->iface, ckpt_cfg, &clayered->stable_cursor);
-            if (ret == 0)
-                F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
-        } else if (ret == ENOENT && !leader) {
+        if (ret == ENOENT && !leader) {
             /* This is fine, we may not have seen a checkpoint with this table yet. */
             ret = 0;
             defer_stable = true;
@@ -314,6 +395,10 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
             WT_ASSERT(session, WT_PREFIX_MATCH(clayered->stable_cursor->uri, "file:"));
         }
     }
+    /*
+     * FIXME-SLS-1448: Any cursor that was closed when the external state changed, and was
+     * positioned, will need to be repositioned now.
+     */
 
     WT_RET(__clayered_copy_bounds(clayered));
 
@@ -1494,7 +1579,7 @@ __clayered_close_int(WT_CURSOR *cursor)
      * cursors in the session. It might be better to keep them out of the session cursor list, but I
      * don't know how to do that? Probably opening a file cursor directly instead of a table cursor?
      */
-    WT_TRET(__clayered_close_cursors(clayered));
+    WT_TRET(__clayered_close_cursors(clayered, true));
 
     /* In case we were somehow left positioned, clear that. */
     __clayered_leave(clayered);

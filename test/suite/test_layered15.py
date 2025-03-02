@@ -167,7 +167,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.table_uris + self.file_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
 
         # Become the leader
@@ -177,7 +177,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.all_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
 
         # Do a few more updates to ensure that the tables continue to be writable
@@ -196,14 +196,14 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:
-                    self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                    self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
                 else:
-                    self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                    self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
         for uri in self.same_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
 
         # Ensure that the shared metadata table has all the expected URIs
@@ -222,14 +222,14 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:
-                    self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                    self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
                 else:
-                    self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                    self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
         for uri in self.same_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
 
         # Ensure that the shared metadata table has all the expected URIs
@@ -264,12 +264,12 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 if i % 10 == 0:
-                    self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                    self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
                 else:
-                    self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                    self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()
         for uri in self.same_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix + str(i))
             cursor.close()

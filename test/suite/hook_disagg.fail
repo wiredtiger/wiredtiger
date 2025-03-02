@@ -21,6 +21,7 @@ test_cc02.py # times out
 test_cc03.py
 test_cc04.py # times out
 test_cc05.py # times out
+test_cc06.py # uses statistics we don't support in disagg
 test_checkpoint01.py
 test_checkpoint02.py # times out
 test_checkpoint07.py
@@ -76,6 +77,7 @@ test_cursor20.py
 test_cursor21.py
 test_cursor_random.py # times out
 test_cursor_random02.py # times out
+test_debug_mode08.py
 test_drop.py
 test_drop03.py
 test_drop_create.py
@@ -130,6 +132,7 @@ test_prepare13.py # times out
 test_prepare20.py
 test_prepare21.py # times out
 test_prepare23.py # times out
+test_prepare28.py
 test_prepare29.py
 test_prepare_cursor01.py
 test_prepare_hs02.py
