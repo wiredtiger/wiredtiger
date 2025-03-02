@@ -1619,12 +1619,25 @@ retry:
 /*
  * __txn_incr_bytes_dirty --
  *     Increment the number of bytes dirty in the transaction.
+ *
+ * The "new_update" flag indicates whether the associated data will be released when the transaction
+ *     is committed or rolled back.
  */
 static void
-__txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size)
+__txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
 {
-    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
-    WT_STAT_CONN_INCRV(session, cache_updates_txn_uncommitted_count, 1);
+    /*
+     * For application threads, track the transaction bytes added to cache usage. We want to capture
+     * only the application's own changes to page data structures. Exclude changes to internal pages
+     * or changes that are the result of the application thread being co-opted into eviction work.
+     */
+    if (!new_update || F_ISSET(session, WT_SESSION_INTERNAL) ||
+      !F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID) ||
+      __wt_session_gen(session, WT_GEN_EVICT) != 0)
+        return;
+
+    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
+    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
     WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
     WT_STAT_SESSION_INCRV(session, txn_updates, 1);
 }
@@ -1640,13 +1653,13 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
     if (val != 0) {
-        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_bytes, val);
+        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
         WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
     }
 
     val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
     if (val != 0) {
-        WT_STAT_CONN_DECRV(session, cache_updates_txn_uncommitted_count, val);
+        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_count, val);
         WT_STAT_SESSION_SET(session, txn_updates, 0);
     }
 }

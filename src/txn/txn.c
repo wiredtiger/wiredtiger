@@ -928,7 +928,7 @@ __txn_prepare_rollback_restore_hs_update(
     /* Append the update to the end of the chain. */
     WT_RELEASE_WRITE_WITH_BARRIER(upd_chain->next, upd);
 
-    __wt_cache_page_inmem_incr(session, page, total_size);
+    __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
