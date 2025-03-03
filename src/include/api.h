@@ -85,8 +85,12 @@
     /* Reset wait time if this isn't an API reentry. */                                            \
     if ((s)->api_call_counter == 1)                                                                \
         (s)->cache_wait_us = 0;                                                                    \
-    /* Initialize the err_info struct - passing NULL sets the message to WT_ERROR_INFO_SUCCESS. */ \
-    __wt_session_set_last_error((s), 0, WT_NONE, NULL);                                            \
+    /*                                                                                             \
+     * Reset the err_info struct back to default only if the prior API call had an error - passing \
+     * NULL sets the message to WT_ERROR_INFO_SUCCESS.                                             \
+     */                                                                                            \
+    if ((s)->err_info->err != 0)                                                                   \
+        __wt_session_set_last_error((s), 0, WT_NONE, NULL);                                        \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
 #define API_CALL_NOCONF(s, struct_name, func_name, dh) \
