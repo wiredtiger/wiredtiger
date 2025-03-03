@@ -106,6 +106,7 @@ class test_live_restore06(backup_base):
 
         # Now take a backup of the destination.
         # This requires opening a new connection in non-live restore mode
+        # FIXME-WT-14231 Add a testing for taking backups when live restore in the COMPLETE phase
         self.reopen_conn(directory="DEST", config="statistics=(all),live_restore=(enabled=false)")
         os.mkdir("backup")
         backup_cursor = self.session.open_cursor("backup:")
