@@ -156,9 +156,8 @@ __wt_session_set_last_error(
     if (session == NULL || !F_ISSET(session, WT_SESSION_SAVE_ERRORS))
         return;
 
-    /*
-     * Only update the err_info struct if it has not been previously set in the current API call or
-     * if it is being reset back to default.
+    /* Only update if the err_info struct has not been previously set in the current API call, or
+     * if the err_info struct is being reset.
      */
     if (session->err_info.err != 0 && err != 0)
         return;
@@ -170,14 +169,14 @@ __wt_session_set_last_error(
      * Load error codes and message into err_info. If the message is empty or is NULL (indicating
      * success), use static string buffers. Otherwise, format the message into the buffer.
      *
-     * If err == 0, we are at the start of an API call, in which case fmt should be NULL and err_msg
-     * should be set to WT_ERROR_INFO_SUCCESS. NULL implying success here saves us a strcmp to
-     * validate that we never set err = 0 with a custom message.
+     * If err == 0, we are at the start of an API call, in which case fmt should be NULL
+     * and err_msg should be set to WT_ERROR_INFO_SUCCESS. NULL implying success here saves us a
+     * strcmp to validate that we never set err = 0 with a custom message.
      */
     WT_ERROR_INFO *err_info = &(session->err_info);
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
-    if (fmt != NULL)
+    if (fmt != NULL && strlen(fmt) == 0)
         err_info->err_msg = WT_ERROR_INFO_EMPTY;
     else if (err == 0) {
         WT_ASSERT(session, fmt == NULL);
