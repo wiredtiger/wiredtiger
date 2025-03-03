@@ -424,8 +424,8 @@ __live_restore_fh_free_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
 {
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
-    __wt_free(session, lr_fh->destination.bitmap);
-    lr_fh->destination.nbits = 0;
+    __wt_free(session, lr_fh->bitmap);
+    lr_fh->nbits = 0;
 
     return;
 }
@@ -440,8 +440,8 @@ __live_restore_fh_lock(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool lock)
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
 
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    WT_ASSERT((WT_SESSION_IMPL *)wt_session, lr_fh->destination.fh != NULL);
-    return (lr_fh->destination.fh->fh_lock(lr_fh->destination.fh, wt_session, lock));
+    WT_ASSERT((WT_SESSION_IMPL *)wt_session, lr_fh->destination != NULL);
+    return (lr_fh->destination->fh_lock(lr_fh->destination, wt_session, lock));
 }
 
 /*
@@ -457,7 +457,7 @@ __live_restore_fh_fill_bit_range(
       "Live restore lock not taken when needed");
 
     /* If the file is complete or the write falls outside the bitmap, return. */
-    if (lr_fh->destination.complete)
+    if (lr_fh->complete)
         return;
 
     /*
@@ -465,18 +465,18 @@ __live_restore_fh_fill_bit_range(
      * allocsize which may not exist if the destination is complete.
      */
     uint64_t offset_bit = WTI_OFFSET_TO_BIT(offset);
-    if (offset_bit >= lr_fh->destination.nbits)
+    if (offset_bit >= lr_fh->nbits)
         return;
 
     uint64_t fill_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len)) - 1;
     bool partial_fill = false;
-    if (fill_end_bit >= lr_fh->destination.nbits) {
+    if (fill_end_bit >= lr_fh->nbits) {
         partial_fill = true;
-        fill_end_bit = lr_fh->destination.nbits - 1;
+        fill_end_bit = lr_fh->nbits - 1;
     }
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE%s HOLE %s: %" PRId64 "-%" PRId64,
       partial_fill ? " PARTIAL" : "", lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
-    __bit_nset(lr_fh->destination.bitmap, offset_bit, fill_end_bit);
+    __bit_nset(lr_fh->bitmap, offset_bit, fill_end_bit);
     return;
 }
 
@@ -490,12 +490,12 @@ __live_restore_encode_bitmap(
 {
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
       "Live restore lock not taken when needed");
-    if (lr_fh->destination.nbits == 0 || lr_fh->destination.complete == true)
+    if (lr_fh->nbits == 0 || lr_fh->complete == true)
         return (0);
-    size_t bitmap_byte_count = lr_fh->destination.nbits / 8;
-    if (lr_fh->destination.nbits % 8 != 0)
+    size_t bitmap_byte_count = lr_fh->nbits / 8;
+    if (lr_fh->nbits % 8 != 0)
         bitmap_byte_count++;
-    return (__wt_raw_to_hex(session, lr_fh->destination.bitmap, bitmap_byte_count, buf));
+    return (__wt_raw_to_hex(session, lr_fh->bitmap, bitmap_byte_count, buf));
 }
 
 /*
@@ -512,9 +512,9 @@ __live_restore_dump_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDL
     WT_CLEAR(buf);
 
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-      "%s: Dumping bitmap, nbits (%" PRIu64 "), address (%p)", lr_fh->iface.name,
-      lr_fh->destination.nbits, (void *)lr_fh->destination.bitmap);
-    if (lr_fh->destination.nbits > 0) {
+      "%s: Dumping bitmap, nbits (%" PRIu64 "), address (%p)", lr_fh->iface.name, lr_fh->nbits,
+      (void *)lr_fh->bitmap);
+    if (lr_fh->nbits > 0) {
         WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
         __wt_verbose_debug1(
           session, WT_VERB_LIVE_RESTORE, "%s: %s", lr_fh->iface.name, (char *)buf.data);
@@ -548,8 +548,7 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
      * The read will be serviced out of the destination if the read is beyond the length of the
      * source file.
      */
-    if (lr_fh->destination.complete || lr_fh->source == NULL ||
-      offset >= (wt_off_t)lr_fh->source_size)
+    if (lr_fh->complete || lr_fh->source == NULL || offset >= (wt_off_t)lr_fh->source_size)
         return (FULL);
     WT_ASSERT(session, lr_fh->allocsize != 0);
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->bitmap_lock),
@@ -560,7 +559,7 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
     bool read_begins_in_hole = false, read_ends_in_hole = false, hole_bit_set = false;
 
     for (uint64_t current_bit = read_start_bit; current_bit < read_end_bit; current_bit++) {
-        if (__bit_test(lr_fh->destination.bitmap, current_bit)) {
+        if (__bit_test(lr_fh->bitmap, current_bit)) {
             if (read_begins_in_hole) {
                 /* A partial read should never begin in a hole. */
                 WT_IGNORE_RET(__live_restore_dump_bitmap(session, lr_fh));
@@ -617,7 +616,7 @@ __live_restore_fh_write_int(
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT,
       fh->name, offset, len);
 
-    WT_RET(lr_fh->destination.fh->fh_write(lr_fh->destination.fh, wt_session, offset, len, buf));
+    WT_RET(lr_fh->destination->fh_write(lr_fh->destination, wt_session, offset, len, buf));
     __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
     return (0);
 }
@@ -677,8 +676,7 @@ __live_restore_fh_read(
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "    READ FROM DEST (src is NULL? %s)",
           lr_fh->source == NULL ? "YES" : "NO");
         /* Read the full read from the destination. */
-        WT_ERR(lr_fh->destination.fh->fh_read(
-          lr_fh->destination.fh, wt_session, offset, len, read_data));
+        WT_ERR(lr_fh->destination->fh_read(lr_fh->destination, wt_session, offset, len, read_data));
     } else if (read_state == PARTIAL) {
         /*
          * If a portion of the read region is serviceable, combine a read from the source and
@@ -704,8 +702,8 @@ __live_restore_fh_read(
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
           "    PARTIAL READ FROM DEST (offset: %" PRId64 ", len: %" WT_SIZET_FMT ")", offset,
           dest_partial_read_len);
-        WT_ERR(lr_fh->destination.fh->fh_read(
-          lr_fh->destination.fh, wt_session, offset, dest_partial_read_len, read_data));
+        WT_ERR(lr_fh->destination->fh_read(
+          lr_fh->destination, wt_session, offset, dest_partial_read_len, read_data));
 
         /* Now read the remaining data from the source. */
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
@@ -745,7 +743,7 @@ __live_restore_fh_size(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t *siz
 
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
 
-    WT_RET(lr_fh->destination.fh->fh_size(lr_fh->destination.fh, wt_session, &destination_size));
+    WT_RET(lr_fh->destination->fh_size(lr_fh->destination, wt_session, &destination_size));
     *sizep = destination_size;
     return (0);
 }
@@ -769,14 +767,14 @@ __live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
     file_size = WT_MIN(file_size, (wt_off_t)lr_fh->source_size);
     wt_off_t largest_possible_read = WT_MIN(file_size, read_start + buf_size);
     /* Sanity check. */
-    WT_ASSERT(session, lr_fh->destination.nbits == WTI_OFFSET_TO_BIT((wt_off_t)lr_fh->source_size));
+    WT_ASSERT(session, lr_fh->nbits == WTI_OFFSET_TO_BIT((wt_off_t)lr_fh->source_size));
     /* Subtract 1 as the read end is served from the nbits - 1th bit.*/
     uint64_t max_read_bit = WTI_OFFSET_TO_BIT(largest_possible_read) - 1;
     uint64_t end_bit = first_clear_bit;
     for (uint64_t current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++) {
-        if (current_bit >= lr_fh->destination.nbits)
+        if (current_bit >= lr_fh->nbits)
             break;
-        if (__bit_test(lr_fh->destination.bitmap, current_bit))
+        if (__bit_test(lr_fh->bitmap, current_bit))
             break;
         end_bit = current_bit;
     }
@@ -801,7 +799,7 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
      * If there are no clear bits then every hole in the file has been filled. Indicate that the
      * file has finished restoring.
      */
-    if (__bit_ffc(lr_fh->destination.bitmap, lr_fh->destination.nbits, &first_clear_bit) == -1) {
+    if (__bit_ffc(lr_fh->bitmap, lr_fh->nbits, &first_clear_bit) == -1) {
         *finishedp = true;
         return (0);
     }
@@ -847,7 +845,7 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * It is possible for the user to specify a read size that is not aligned to our bitmap. In
      * which case we change it to be the file allocation size.
      */
-    size_t buf_size = WT_MAX(lr_fh->destination.back_pointer->read_size, lr_fh->allocsize);
+    size_t buf_size = WT_MAX(lr_fh->back_pointer->read_size, lr_fh->allocsize);
     WT_RET(__wt_calloc(session, 1, buf_size, &buf));
 
     WT_TIMER timer;
@@ -885,7 +883,7 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         __wt_verbose_debug1(
           session, WT_VERB_LIVE_RESTORE, "%s: Finished background restoration", fh->name);
         __wt_writelock(session, &lr_fh->bitmap_lock);
-        lr_fh->destination.complete = true;
+        lr_fh->complete = true;
         __live_restore_fh_free_bitmap(session, lr_fh);
         __wt_writeunlock(session, &lr_fh->bitmap_lock);
         __wt_tree_modify_set(session);
@@ -975,8 +973,8 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * If we hit an error during file handle creation we'll call this function to free the partially
      * created handle. At this point fields may be uninitialized so we check for null pointers.
      */
-    if (lr_fh->destination.fh != NULL)
-        WT_RET(lr_fh->destination.fh->close(lr_fh->destination.fh, wt_session));
+    if (lr_fh->destination != NULL)
+        WT_RET(lr_fh->destination->close(lr_fh->destination, wt_session));
 
     WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
       session, lr_fh, __live_restore_fh_free_bitmap(session, lr_fh));
@@ -1000,7 +998,7 @@ __live_restore_fh_sync(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
 
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    return (lr_fh->destination.fh->fh_sync(lr_fh->destination.fh, wt_session));
+    return (lr_fh->destination->fh_sync(lr_fh->destination, wt_session));
 }
 
 /*
@@ -1042,7 +1040,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
       __live_restore_fh_fill_bit_range(
         lr_fh, session, truncate_start, (size_t)(truncate_end - truncate_start)););
 
-    return (lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, len));
+    return (lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, len));
 }
 
 /*
@@ -1090,13 +1088,13 @@ __live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str, u
     WT_DECL_RET;
     WT_ASSERT_ALWAYS(session, bitmap_str != NULL, "Live restore bitmap string is NULL");
 
-    WT_RET(__bit_alloc(session, nbits, &lr_fh->destination.bitmap));
-    lr_fh->destination.nbits = nbits;
+    WT_RET(__bit_alloc(session, nbits, &lr_fh->bitmap));
+    lr_fh->nbits = nbits;
 
     WT_ITEM buf;
     WT_CLEAR(buf);
     WT_ERR(__wt_hex_to_raw(session, bitmap_str, &buf));
-    memcpy(lr_fh->destination.bitmap, buf.mem, buf.size);
+    memcpy(lr_fh->bitmap, buf.mem, buf.size);
 err:
     __wt_buf_free(session, &buf);
     return (ret);
@@ -1120,11 +1118,11 @@ __wt_live_restore_metadata_to_fh(
      * destination. There's no need for hole tracking and therefore nothing to reconstruct.
      */
     if (__wti_live_restore_migration_complete(session)) {
-        WT_ASSERT(session, lr_fh->destination.complete == true);
+        WT_ASSERT(session, lr_fh->complete == true);
         return (0);
     }
 
-    if (lr_fh->destination.bitmap != NULL) {
+    if (lr_fh->bitmap != NULL) {
         WT_ASSERT_ALWAYS(session, false, "Bitmap not empty while trying to parse");
         return (0);
     }
@@ -1144,8 +1142,8 @@ __wt_live_restore_metadata_to_fh(
      */
     if (lr_fh_meta->nbits == 0 && lr_fh->source_size > 0) {
         uint64_t nbits = lr_fh->source_size / lr_fh_meta->allocsize;
-        WT_ERR(__bit_alloc(session, nbits, &lr_fh->destination.bitmap));
-        lr_fh->destination.nbits = nbits;
+        WT_ERR(__bit_alloc(session, nbits, &lr_fh->bitmap));
+        lr_fh->nbits = nbits;
         __wt_readunlock(session, &lr_fh->bitmap_lock);
         return (0);
     }
@@ -1159,7 +1157,7 @@ __wt_live_restore_metadata_to_fh(
         WT_ERR(__live_restore_decode_bitmap(
           session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
     } else {
-        lr_fh->destination.complete = true;
+        lr_fh->complete = true;
         /*
          * Zero here is only valid if the file has gone through schema create. We can't test for
          * that.
@@ -1197,13 +1195,13 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
     WT_CLEAR(buf);
 
     __wt_readlock(session, &lr_fh->bitmap_lock);
-    if (lr_fh->destination.nbits > 0) {
+    if (lr_fh->nbits > 0) {
         WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
         WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=%s,nbits=%" PRIu64 ")",
-          (char *)buf.data, lr_fh->destination.nbits));
+          (char *)buf.data, lr_fh->nbits));
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "%s: Appending live restore bitmap (%s, %" PRIu64 ") to metadata", fh->name,
-          (char *)buf.data, lr_fh->destination.nbits);
+          (char *)buf.data, lr_fh->nbits);
     } else {
         /* -1 indicates the file has completed migration. */
         WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=,nbits=-1)"));
@@ -1300,8 +1298,8 @@ __live_restore_fs_open_in_destination(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMP
       &lr_fs->destination, session, lr_fs->destination.home, name, &path));
     WT_ERR(lr_fs->os_file_system->fs_open_file(
       lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
-    lr_fh->destination.fh = fh;
-    lr_fh->destination.back_pointer = lr_fs;
+    lr_fh->destination = fh;
+    lr_fh->back_pointer = lr_fs;
 err:
     __wt_free(session, path);
     return (ret);
@@ -1345,12 +1343,12 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
     WT_ERR(lr_fs->os_file_system->fs_open_file(
       lr_fs->os_file_system, (WT_SESSION *)session, name, lr_fh->file_type, flags, &fh));
 
-    lr_fh->destination.fh = fh;
+    lr_fh->destination = fh;
 
     /* There's no need for a hole list. The directory has already been fully copied */
-    lr_fh->destination.bitmap = NULL;
-    lr_fh->destination.back_pointer = lr_fs;
-    lr_fh->destination.complete = true;
+    lr_fh->bitmap = NULL;
+    lr_fh->back_pointer = lr_fs;
+    lr_fh->complete = true;
 
 err:
     return (ret);
@@ -1470,7 +1468,7 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
   bool dest_exist, bool source_exist)
 {
     if (have_stop || __wti_live_restore_migration_complete(session) || !source_exist)
-        lr_fh->destination.complete = true;
+        lr_fh->complete = true;
     else {
         wt_off_t source_size;
         WT_SESSION *wt_session = (WT_SESSION *)session;
@@ -1494,8 +1492,7 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
              * file. We're bypassing the live_restore layer so we don't try to modify the relevant
              * extent entries.
              */
-            WT_RET(
-              lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, source_size));
+            WT_RET(lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, source_size));
             goto done;
         }
     }
@@ -1519,7 +1516,7 @@ __live_restore_setup_lr_fh_file_regular(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
         WT_RET(__live_restore_fs_atomic_copy_file(session, lr_fs, type, name));
 
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
-    lr_fh->destination.complete = true;
+    lr_fh->complete = true;
     return (0);
 }
 

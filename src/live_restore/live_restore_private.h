@@ -40,24 +40,22 @@
  */
 struct __wti_live_restore_file_handle {
     WT_FILE_HANDLE iface;
-    WT_FILE_HANDLE *source;
-    size_t source_size;
-    /* Metadata kept along side a file handle to track holes in the destination file. */
-    struct {
-        WT_FILE_HANDLE *fh;
-        bool complete;
-
-        /* We need to get back to the file system when checking for stop files. */
-        WTI_LIVE_RESTORE_FS *back_pointer;
-
-        /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
-        uint64_t nbits;
-        uint8_t *bitmap;
-    } destination;
-
     uint32_t allocsize;
     WT_FS_OPEN_FILE_TYPE file_type;
+
+    WT_FILE_HANDLE *source;
+    size_t source_size;
+
+    WT_FILE_HANDLE *destination;
+    bool complete;
+
+    /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
     WT_RWLOCK bitmap_lock;
+    uint64_t nbits;
+    uint8_t *bitmap;
+
+    /* We need to get back to the file system when checking state. */
+    WTI_LIVE_RESTORE_FS *back_pointer;
 };
 
 /*
