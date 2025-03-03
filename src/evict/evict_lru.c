@@ -2153,7 +2153,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_prev so that the start of the tree is visited more often */
                 goto rand_prev;
-            else
+            else if (!S2C(session)->evict_legacy_page_visit_strategy)
                 goto rand_next;
         }
         break;
@@ -2163,7 +2163,7 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_next so that the end of the tree is visited more often */
                 goto rand_next;
-            else
+            else if (!S2C(session)->evict_legacy_page_visit_strategy)
                 goto rand_prev;
         }
         FLD_SET(*walk_flagsp, WT_READ_PREV);
