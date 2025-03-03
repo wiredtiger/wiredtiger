@@ -169,9 +169,9 @@ __wt_session_set_last_error(
      * Load error codes and message into err_info. If the message is empty or is NULL (indicating
      * success), use static string buffers. Otherwise, format the message into the buffer.
      *
-     * If err == 0, we are at the start of an API call, in which case fmt should be NULL
-     * and err_msg should be set to WT_ERROR_INFO_SUCCESS. NULL implying success here saves us a
-     * strcmp to validate that we never set err = 0 with a custom message.
+     * If err == 0, we are at the start of an API call, in which case fmt should be NULL and err_msg
+     * should be set to WT_ERROR_INFO_SUCCESS. NULL implying success here saves us a strcmp to
+     * validate that we never set err = 0 with a custom message.
      */
     WT_ERROR_INFO *err_info = &(session->err_info);
     err_info->err = err;
