@@ -44,6 +44,8 @@ define_test_variants(test_checkpoint
         "test_checkpoint_6_row_named_prepare;-t r -T 6 -c TeSt -p"
         "test_checkpoint_row_stress_sweep_timestamps;-t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
         "test_checkpoint_row_sweep_timestamps;-t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
+        "test_checkpoint_row_server_93028_1;-t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=250MB"
+        "test_checkpoint_row_server_93028_2;-t r -W 50 -r 2 -s 1 -n 100000 -k 100000 -C cache_size=250MB"
     LABELS
         check
         test_checkpoint
