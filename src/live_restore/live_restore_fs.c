@@ -1245,7 +1245,7 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
 
     ret = __wt_config_getones(session, value, "live_restore", &v);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND) {
+    if (ret != WT_NOTFOUND && v.len != 0) {
 
         WT_CONFIG_ITEM cval;
         WT_RET(__wt_config_subgets(session, &v, "bitmap", &cval));
