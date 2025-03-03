@@ -36,9 +36,6 @@ class test_txn_uncommitted(wttest.WiredTigerTestCase):
 
     n_sessions = 20
     n_updates = 20
-    # Leave the cache size on the default setting to avoid filling up the cache
-    # too much and triggering unnecessary rollbacks. But make the value fairly
-    # large to make obvious change to the statistics.
     conn_config = 'statistics=(all)'
     entry_value = "abcde" * 400
 
