@@ -80,20 +80,47 @@ class test_live_restore06(backup_base):
         # Build in a 2 minute timeout. Once we see the complete state exit the loop.
         while (iteration_count < timeout):
             state = self.get_stat(stat.conn.live_restore_state)
-            self.pr("Looping until finish, live restore state is: " + str(state))
+            self.pr(f'Looping until finish, live restore state is: {state}, \
+                      Current iteration: is {iteration_count}')
             if (state == wiredtiger.WT_LIVE_RESTORE_COMPLETE):
                 break
             time.sleep(1)
+            iteration_count += 1
         self.assertEqual(state, wiredtiger.WT_LIVE_RESTORE_COMPLETE)
+
+        # Walk through all the metadata configs to find a file with nbits == -1.
+        # This is the value we need to clean up.
+        meta_cursor = self.session.open_cursor('metadata:', None, None)
+        neg_one_metadata_file = None
+        while True:
+            ret = meta_cursor.next()
+            if ret != 0:
+                break
+            uri = meta_cursor.get_key()
+            if uri.find("file:") != -1 and "nbits=-1" in meta_cursor[uri]:
+                neg_one_metadata_file = uri
+                break
+
+        meta_cursor.close()
+        self.assertTrue(neg_one_metadata_file is not None)
 
         # Now take a backup of the destination.
         # This requires opening a new connection in non-live restore mode
         self.reopen_conn(directory="DEST", config="statistics=(all),live_restore=(enabled=false)")
         os.mkdir("backup")
-        backy = self.session.open_cursor("backup:")
-        self.take_full_backup("backup", backy)
+        backup_cursor = self.session.open_cursor("backup:")
+        self.take_full_backup("backup", backup_cursor, home=self.conn.get_home())
 
         # Assert that backup/WiredTiger.backup doesn't contain the nbits=-1 string.
         # The backup file is plain text so we can simply grep for the string
         with open("backup/WiredTiger.backup", "r") as f:
             self.assertTrue("nbits=-1" not in f.read())
+
+        # Now open the backup and check the metadata for the nbits=-1 string is not present.
+        self.reopen_conn(directory="backup", config="statistics=(all),live_restore=(enabled=false)")
+        meta_cursor = self.session.open_cursor('metadata:', None, None)
+        meta_cursor.set_key(neg_one_metadata_file)
+        config = meta_cursor[neg_one_metadata_file]
+        self.assertTrue("nbits=-1" not in config)
+        meta_cursor.close()
+

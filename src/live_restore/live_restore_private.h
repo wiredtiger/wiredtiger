@@ -29,6 +29,12 @@
 #define WTI_BIT_TO_OFFSET(bit) (wt_off_t)((bit)*lr_fh->allocsize)
 
 /*
+ * The most aggressive sweep server configuration runs every second. Allow 4 seconds to make sure
+ * the server has time to find and close any open file handles.
+ */
+#define WT_LIVE_RESTORE_TIMING_STRESS_CLEAN_UP_DELAY 4
+
+/*
  * __wti_live_restore_file_handle --
  *     A file handle in a live restore file system.
  */

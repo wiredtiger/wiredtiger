@@ -64,11 +64,11 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
         WT_RET(__wti_live_restore_cleanup_stop_files(session));
 
         /*
-         * Add a 4 second delay to allow an aggressively configured sweep server to close files
-         * before we force a checkpoint.
+         * Add a delay to allow an aggressively configured sweep server to close files before we
+         * force a checkpoint.
          */
         struct timespec tsp;
-        tsp.tv_sec = 4;
+        tsp.tv_sec = WT_LIVE_RESTORE_TIMING_STRESS_CLEAN_UP_DELAY;
         tsp.tv_nsec = 0;
         __wt_timing_stress(session, WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP, &tsp);
 

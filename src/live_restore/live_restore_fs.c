@@ -1231,51 +1231,58 @@ err:
 
 /*
  * __wt_live_restore_clean_metadata_string --
- *     Live restore stores bitmap information in the metadata file and uses -1 to indicate the file
- *     has been fully migrated. This value should be cleaned up when live restore completes, but we
- *     can only do so if the file is open when we force a checkpoint during the clean up phase, or
- *     if its btree is dirtied after live restore completes. If neither of these cases happen we
- *     don't update the metadata on disk and the -1 value persists. A future live restore could see
- *     this value and incorrectly assume the file has been migrated. To prevent this manually remove
- *     the -1 value when taking a backup.
+ *     This function is only called when taking a backup. It validates the live restore metadata
+ *     string, either aborting on an unrecoverable error or cleaning up an outdated config value.
  */
-void
-__wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, const char *name, char *valuep)
+int
+__wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
 {
+    WT_CONFIG_ITEM v;
+    WT_DECL_RET;
 
     WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS),
       "Cleaning the metadata string should only be called for non-live restore file systems");
 
-    if (strstr(valuep, "live_restore=") != NULL) {
-        /*
-         * When a table finished live restoring it will set nbits == -1 to indicate migration is
-         * complete. The next time we write the metadata string after global migration has complete
-         * we will override this -1 with 0, but if the file is never opened after global migration
-         * has complete and before we restart in non-live restore mode the -1 may persist in the
-         */
-        char *lr_config = strstr(valuep, WT_LIVE_RESTORE_MIGRATION_COMPLETE_CONFIG);
-        if (lr_config != NULL) {
-            char *neg_one_pos = strstr(lr_config, "nbits=-1") + 6;
+    ret = __wt_config_getones(session, value, "live_restore", &v);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret != WT_NOTFOUND) {
 
+        WT_CONFIG_ITEM cval;
+        WT_RET(__wt_config_subgets(session, &v, "bitmap", &cval));
+        /*
+         * This function is only called when taking a backup. If we find unset bits in the bitmap
+         * that means the file is only partially migrated from source and we're about to take a
+         * backup of a partially populated file.
+         */
+        WT_ASSERT_ALWAYS(
+          session, cval.len == 0, "Found non-empty bitmap when cleaning config string");
+
+        /*
+         * Live restore uses -1 in the nbits field to indicate the file has been fully migrated.
+         * This value should be updated to 0 when live restore moves past the background migration
+         * phase, but we can only do so if the file is open when we force a checkpoint during clean
+         * up, or if its btree is dirtied after live restore completes but before restarting in
+         * non-live restore mode. If neither of these events take place the metadata won't be
+         * updated on disk and the -1 value persists. A future live restore using this file as a
+         * source will see this value and incorrectly assume the file has already been migrated. To
+         * prevent this manually overwrite the -1 with the correct value 0.
+         */
+        WT_RET(__wt_config_subgets(session, &v, "nbits", &cval));
+
+        wt_off_t nbits_val_str_offset = cval.str - value;
+        if (WT_STRING_LIT_MATCH("-1", cval.str, 2)) {
             /*
-             * Overwrite the -1 with 0. To do this set the first character to 0, and then shift all
-             * trailing characters one position left to overwrite the second character.
+             * We need to overwrite two characters, but only need to write one. Add a redundant
+             * comma so we don't need to resize the string. The config parser will ignore it.
              */
-            *neg_one_pos = '0';
-            memmove(neg_one_pos + 1, neg_one_pos + 2, strlen(neg_one_pos) - 1);
+            value[nbits_val_str_offset] = '0';
+            value[nbits_val_str_offset + 1] = ',';
         } else
-            /*!!
-             * There are only two live_restore configurations when we call this function:
-             * - We've finished a live restore but not updated the string since migration completed.
-             *   In this case we'll have WT_LIVE_RESTORE_MIGRATION_COMPLETE_CONFIG
-             * - We've written the metadata string since migration completed, or we never ran a live
-             *   restore in the first place. In this case we'll see the default config.
-             * Anything else indicates the metadata is in the incorrect state.
-             */
-            WT_ASSERT_ALWAYS(session, strstr(valuep, ",live_restore=(bitmap=,nbits=0)") != NULL,
-              "Live restore string for %s is neither complete nor default! metadata string=%s\n",
-              name, valuep);
+            WT_ASSERT_ALWAYS(session, cval.len == 1 && WT_STRING_LIT_MATCH("0", cval.str, 1),
+              "nbits value other than -1 or 0 found when cleaning metadata string: %s\n", value);
     }
+
+    return (0);
 }
 
 /*
