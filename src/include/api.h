@@ -89,7 +89,7 @@
      * Reset the err_info struct back to default only if the prior API call had an error - passing \
      * NULL sets the message to WT_ERROR_INFO_SUCCESS.                                             \
      */                                                                                            \
-    if ((s)->err_info->err != 0)                                                                   \
+    if ((s)->err_info.err != 0)                                                                    \
         __wt_session_set_last_error((s), 0, WT_NONE, NULL);                                        \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
