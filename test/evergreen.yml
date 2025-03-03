@@ -192,14 +192,17 @@ functions:
           mongo_repo=https://github.com/mongodb/mongo
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
         else
-          # FIXME-WT-14185 Use the public main repo when it is starting to sync with private repo.
-          # The WT-13948 ticket requires changes from the private repository. As a workaround
-          # use a mongodb forked repo with custom branch.
-          mongo_repo=https://github.com/jiechenbo/mongo
-          mongo_branch=wt-13948-workaround
+          mongo_repo=https://github.com/mongodb/mongo
+          mongo_branch=master
         fi
         popd
         git clone $mongo_repo -b $mongo_branch
+        # FIXME-WT-14185 The WT-13948 ticket requires changes from the private repository. As a 
+        # workaround apply a manual patch onto the mongodb master branch.
+        if [[ $mongo_branch == "master" ]]; then
+          cd mongo
+          git apply ../wiredtiger/test/evergreen/wt-13948.patch
+        fi
   "import wiredtiger into mongo" :
     command: shell.exec
     type: setup
