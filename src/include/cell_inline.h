@@ -1311,12 +1311,11 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
   const WT_DELTA_HEADER *dsk, WT_DELTA_CELL_INT *cell, WT_CELL_UNPACK_DELTA_INT *unpack_delta)
 {
     WT_DECL_RET;
-    uint8_t flags;
     const uint8_t *p;
 
     WT_UNUSED(dsk);
 
-    flags = cell->__chunk[0];
+    unpack_delta->flags = cell->__chunk[0];
     p = (uint8_t *)&cell->__chunk[1];
 
     /* Unpack the key. */
@@ -1324,7 +1323,7 @@ __wt_cell_unpack_delta_int(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *page_
     p += unpack_delta->key.__len;
 
     /* Optionally unpack the value if it exists. */
-    if (!LF_ISSET(WT_DELTA_IS_DELETE)) {
+    if (!F_ISSET(unpack_delta, WT_DELTA_INT_IS_DELETE)) {
         __wt_cell_unpack_addr(session, page_dsk, (WT_CELL *)p, &unpack_delta->value);
         p += unpack_delta->value.__len;
     }
@@ -1351,7 +1350,7 @@ __wt_cell_unpack_delta_leaf(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk
     unpack->flags = cell->__chunk[0];
     p = (uint8_t *)&cell->__chunk[1];
 
-    if (F_ISSET(unpack, WT_DELTA_IS_DELETE)) {
+    if (F_ISSET(unpack, WT_DELTA_LEAF_IS_DELETE)) {
         ret = __wt_vunpack_uint(&p, 0, &v);
         WT_ASSERT(session, ret == 0);
         unpack->key_size = (uint32_t)v;
@@ -1360,32 +1359,32 @@ __wt_cell_unpack_delta_leaf(WT_SESSION_IMPL *session, const WT_DELTA_HEADER *dsk
     } else {
         WT_TIME_WINDOW_INIT(&unpack->tw);
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_START_TXN_ID)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_START_TXN_ID)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.start_txn);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_START_TS)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_START_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.start_ts);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_START_DURABLE_TS)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_START_DURABLE_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.durable_start_ts);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_STOP_TXN_ID)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_STOP_TXN_ID)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.stop_txn);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_STOP_TS)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_STOP_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.stop_ts);
             WT_ASSERT(session, ret == 0);
         }
 
-        if (F_ISSET(unpack, WT_DELTA_HAS_STOP_DURABLE_TS)) {
+        if (F_ISSET(unpack, WT_DELTA_LEAF_HAS_STOP_DURABLE_TS)) {
             ret = __wt_vunpack_uint(&p, 0, &unpack->tw.durable_stop_ts);
             WT_ASSERT(session, ret == 0);
         }

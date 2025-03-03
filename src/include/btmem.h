@@ -135,8 +135,8 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *entries. The number of entries does not explicitly appear, it is inferred by the size of the
  *overall delta. Each delta entry has a one header 'flags' byte (flags from WT_DELTA_CELL_UNPACK),
  *followed by up to 4 timestamps as indicated by the flags, followed by the key size and the key
- *bytes. If the WT_DELTA_IS_DELETE flag is not set, the entry then includes the value size and the
- *value bytes.
+ *bytes. If the WT_DELTA_LEAF_IS_DELETE flag is not set, the entry then includes the value size and
+ *the value bytes.
  */
 struct __wt_delta_header {
     uint64_t write_gen; /* 0-7: write generation */
@@ -797,20 +797,21 @@ struct __wt_page {
     uint32_t prefix_stop;  /* Maximum slot to which the best page prefix applies */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_PAGE_BUILD_KEYS 0x001u         /* Keys have been built in memory */
-#define WT_PAGE_COMPACTION_WRITE 0x002u   /* Writing the page for compaction */
-#define WT_PAGE_DISK_ALLOC 0x004u         /* Disk image in allocated memory */
-#define WT_PAGE_DISK_MAPPED 0x008u        /* Disk image in mapped memory */
-#define WT_PAGE_EVICT_LRU 0x010u          /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_LRU_URGENT 0x020u   /* Page is in the urgent queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x040u  /* Eviction doesn't count as progress */
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x080u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_PREFETCH 0x100u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x200u           /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x400u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x800u      /* Ignore updates on page discard */
-                                          /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    wt_shared uint16_t flags_atomic;      /* Atomic flags, use F_*_ATOMIC_16 */
+#define WT_PAGE_BUILD_KEYS 0x0001u         /* Keys have been built in memory */
+#define WT_PAGE_COMPACTION_WRITE 0x0002u   /* Writing the page for compaction */
+#define WT_PAGE_DISK_ALLOC 0x0004u         /* Disk image in allocated memory */
+#define WT_PAGE_DISK_MAPPED 0x0008u        /* Disk image in mapped memory */
+#define WT_PAGE_EVICT_LRU 0x0010u          /* Page is on the LRU queue */
+#define WT_PAGE_EVICT_LRU_URGENT 0x0020u   /* Page is in the urgent queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x0040u  /* Eviction doesn't count as progress */
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x0080u /* Internal page has overflow keys (historic only) */
+#define WT_PAGE_PREFETCH 0x0100u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x0200u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x0400u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x0800u      /* Ignore updates on page discard */
+#define WT_PAGE_WITH_DELTAS 0x1000u        /* Page was built with deltas */
+                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 
 #define WT_PAGE_IS_INTERNAL(page) \
     ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)

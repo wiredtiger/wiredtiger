@@ -1146,7 +1146,8 @@ extern int __wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPAC
 extern int __wt_ovfl_remove(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *unpack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries,
-  bool alloc_refs, WT_PAGE **pagep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool alloc_refs, WT_PAGE **pagep, uint32_t flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 #ifdef HAVE_DIAGNOSTIC
   ,
@@ -1809,6 +1810,8 @@ extern int __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *i
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_page_reconstruct_deltas(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas,
+  size_t delta_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_prefetch_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_prefetch_destroy(WT_SESSION_IMPL *session)
