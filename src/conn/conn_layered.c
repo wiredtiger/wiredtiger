@@ -1116,7 +1116,7 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
     WT_ERR(__wt_txn_begin(internal_session, NULL));
 
     /*
-     * No other transactions are running, we're only doing this fast truncate, and it should become
+     * No other transactions are running, we're only doing this truncate, and it should become
      * immediately visible. So this transaction doesn't have to care about timestamps.
      */
     F_SET(internal_session->txn, WT_TXN_TS_NOT_SET);
