@@ -692,6 +692,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
             WT_RET(__wt_curmetadata_open(session, uri, owner, cfg, cursorp));
         break;
     case 'b':
+        /* FIXME-WT-14231 Allow taking backups when live restore is in the COMPLETE phase. */
         if (WT_PREFIX_MATCH(uri, "backup:")) {
             if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
                 WT_RET_SUB(session, EINVAL, WT_CONFLICT_LIVE_RESTORE,

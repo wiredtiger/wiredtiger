@@ -1218,6 +1218,63 @@ err:
 }
 
 /*
+ * __wt_live_restore_clean_metadata_string --
+ *     This function is only called when taking a backup. It validates the live restore metadata
+ *     string, either aborting on an unrecoverable error or cleaning up an outdated config value.
+ */
+int
+__wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
+{
+    WT_CONFIG_ITEM v;
+    WT_DECL_RET;
+
+    /* FIXME-WT-14231 Allow taking backups during live restore in the COMPLETE phase. */
+    WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS),
+      "Cleaning the metadata string should only be called for non-live restore file systems");
+
+    ret = __wt_config_getones(session, value, "live_restore", &v);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret != WT_NOTFOUND && v.len != 0) {
+
+        WT_CONFIG_ITEM cval;
+        WT_RET(__wt_config_subgets(session, &v, "bitmap", &cval));
+        /*
+         * This function is only called when taking a backup. If we find unset bits in the bitmap
+         * that means the file is only partially migrated from source and we're about to take a
+         * backup of a partially populated file.
+         */
+        WT_ASSERT_ALWAYS(
+          session, cval.len == 0, "Found non-empty bitmap when cleaning config string");
+
+        /*
+         * Live restore uses -1 in the nbits field to indicate the file has been fully migrated.
+         * This value should be updated to 0 when live restore moves past the background migration
+         * phase, but we can only do so if the file is open when we force a checkpoint during clean
+         * up, or if its btree is dirtied after live restore completes but before restarting in
+         * non-live restore mode. If neither of these events take place the metadata won't be
+         * updated on disk and the -1 value persists. A future live restore using this file as a
+         * source will see this value and incorrectly assume the file has already been migrated. To
+         * prevent this manually overwrite the -1 with the correct value 0.
+         */
+        WT_RET(__wt_config_subgets(session, &v, "nbits", &cval));
+
+        wt_off_t nbits_val_str_offset = cval.str - value;
+        if (WT_STRING_LIT_MATCH("-1", cval.str, 2)) {
+            /*
+             * We need to overwrite two characters, but only need to write one. Add a redundant
+             * comma so we don't need to resize the string. The config parser will ignore it.
+             */
+            value[nbits_val_str_offset] = '0';
+            value[nbits_val_str_offset + 1] = ',';
+        } else
+            WT_ASSERT_ALWAYS(session, cval.len == 1 && WT_STRING_LIT_MATCH("0", cval.str, 1),
+              "nbits value other than -1 or 0 found when cleaning metadata string: %s\n", value);
+    }
+
+    return (0);
+}
+
+/*
  * __live_restore_fs_open_in_destination --
  *     Open a file handle.
  */
