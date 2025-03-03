@@ -91,13 +91,13 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # TODO: enable after we fix the multiple dhandle issue
         # Checkpoint after draining the ingest table
-        # conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
-        # session_follow.checkpoint()
+        conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
+        session_follow.checkpoint()
 
         # Reopen the new leader to get rid of the conten in the ingest table
-        # conn_follow.close()
-        # conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
-        # session_follow = conn_follow.open_session('')
+        conn_follow.close()
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        session_follow = conn_follow.open_session('')
 
         #Ensure everything is in the new checkpoint
-        # oplog.check(self, session_follow, 0, 400)
+        oplog.check(self, session_follow, 0, 400)
