@@ -837,7 +837,7 @@ __wt_meta_ckptlist_get(
         }
     } else {
         WT_ERR(__wt_btree_shared_base_name(session, &fname, NULL, &name_buf));
-        WT_ERR(__wt_metadata_search(session, name_buf == NULL ? fname : name_buf->data, &config));
+        WT_ERR(__wt_metadata_search(session, fname, &config));
         WT_ERR(__wt_meta_ckptlist_get_from_config(session, update, ckptbasep, allocated, config));
     }
 
