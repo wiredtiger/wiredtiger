@@ -1218,7 +1218,7 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
           (char *)buf.data, lr_fh->destination.nbits);
     } else {
         /* -1 indicates the file has completed migration. */
-        WT_ERR(__wt_buf_catfmt(session, meta_string, WT_LIVE_RESTORE_MIGRATION_COMPLETE_CONFIG));
+        WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=,nbits=-1)"));
         __wt_verbose_debug3(
           session, WT_VERB_LIVE_RESTORE, "%s: Appending empty live restore metadata", fh->name);
     }

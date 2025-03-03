@@ -9,7 +9,6 @@
 #pragma once
 
 #define WT_LIVE_RESTORE_STATE_STRING_MAX 128
-#define WT_LIVE_RESTORE_MIGRATION_COMPLETE_CONFIG ",live_restore=(bitmap=,nbits=-1)"
 
 /*
  * __wt_live_restore_fh_meta --
