@@ -256,7 +256,6 @@ main(int argc, char *argv[])
 
     __wt_epoch(NULL, &start);
     for (int j = 0;; j++) {
-
         printf("Run %d\n", j);
         run(working_dir);
 
