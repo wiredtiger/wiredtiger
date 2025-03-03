@@ -1624,16 +1624,16 @@ retry:
  *     being moved). (2) Exclusively belongs to the current transaction.
  *
  * There are two types of "dirty" data in the system for the purpose of this function: (1) Dirty
- *     data associated with a specific transaction. (2) Dirty data that isn’t tied to a single
+ *     data associated with a specific transaction. (2) Dirty data that isn't tied to a single
  *     transaction (e.g., a page with updates from multiple transactions).
  *
  * Examples:
  *
  * 1. A page can be dirty with multiple updates, each belonging to different transactions. In this
- *     case: (a) The updates are tied to specific transactions. (b) The page itself isn’t
+ *     case: (a) The updates are tied to specific transactions. (b) The page itself isn't
  *     exclusively tied to any one transaction.
  *
- * 2. During a page split, updates move between pages. However, this movement doesn’t create new
+ * 2. During a page split, updates move between pages. However, this movement doesn't create new
  *     dirty data, so the "new_update" flag would be set to false.
  */
 static void
