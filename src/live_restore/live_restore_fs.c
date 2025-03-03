@@ -1844,7 +1844,7 @@ __wt_os_live_restore_fs(
 err:
         /*
          * If we swapped in the posix file system don't terminate it. It'll get terminated later
-         * when closing up the connection.
+         * when cleaning up the connection.
          */
         if (*fsp != lr_fs->os_file_system && lr_fs->os_file_system != NULL)
             WT_TRET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, (WT_SESSION *)session));
