@@ -2952,7 +2952,7 @@ err:
         if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
             ret = WT_ROLLBACK;
             __wt_session_set_last_error(
-              session, ret, WT_CACHE_OVERFLOW, "Cache capacity has overflown");
+              session, ret, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
             __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
 
             WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
