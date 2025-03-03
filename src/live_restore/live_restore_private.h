@@ -29,6 +29,12 @@
 #define WTI_BIT_TO_OFFSET(bit) (wt_off_t)((bit)*lr_fh->allocsize)
 
 /*
+ * The most aggressive sweep server configuration runs every second. Allow 4 seconds to make sure
+ * the server has time to find and close any open file handles.
+ */
+#define WT_LIVE_RESTORE_TIMING_STRESS_CLEAN_UP_DELAY 4
+
+/*
  * __wti_live_restore_file_handle --
  *     A file handle in a live restore file system.
  */
@@ -152,7 +158,7 @@ extern bool __wti_live_restore_migration_complete(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+extern int __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -663,12 +663,6 @@ __live_restore_fh_read(
     read_data = (char *)buf;
 
     __wt_readlock(session, &lr_fh->bitmap_lock);
-
-    /*
-     * FIXME-WT-13828: WiredTiger will read the metadata file after creation but before anything has
-     * been written in this case we forward the read to the empty metadata file in the destination.
-     * Is this correct?
-     */
     /*
      * The partial read length variables need to be initialized inside the else case to avoid clang
      * sanitizer complaining about dead stores. However if we use a switch case here _and_
@@ -795,7 +789,7 @@ __live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
  */
 static int
 __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_session, char *buf,
-  wt_off_t buf_size, WT_TIMER *start_timer, uint64_t *msg_count, bool *finishedp)
+  wt_off_t buf_size, wt_off_t *read_offsetp, bool *finishedp)
 {
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
@@ -822,74 +816,80 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
       "Found hole in %s at %" PRId64 "-%" PRId64 " during background migration. ",
       lr_fh->iface.name, read_start, read_end);
 
-    uint64_t time_diff_ms;
-    __wt_timer_evaluate_ms(session, start_timer, &time_diff_ms);
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
       "    BACKGROUND READ %s : %" PRId64 ", %" WT_SIZET_FMT, lr_fh->iface.name, read_start,
       read_size);
-    if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *msg_count) {
-        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-          "Live restore running on %s for %" PRIu64 " seconds. Currently copying offset %" PRId64
-          " of size %" WT_SIZET_FMT,
-          lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_start, lr_fh->source_size);
-        *msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
-    }
+
+    *read_offsetp = read_start;
     WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, read_start, read_size, buf));
     return (
       __live_restore_fh_write_int((WT_FILE_HANDLE *)lr_fh, wt_session, read_start, read_size, buf));
 }
 
 /*
- * __wti_live_restore_fs_fill_holes --
- *     Copy all remaining data from the source to the destination. On completion this means there
- *     are no holes in the destination file's extent list. If we find one promote-read the content
- *     into the destination.
- *
- * NOTE!! This assumes there cannot be holes in source, and that any truncates/extensions of the
- *     destination file are already handled elsewhere.
+ * __wti_live_restore_fs_restore_file --
+ *     Restore a file in the destination by filling any holes with data from the source. Mark the
+ *     file handle complete if the full restore is able to take place.
  */
 int
-__wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+__wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
-    WT_TIMER timer;
-    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
-    uint64_t msg_count = 0;
-    char *buf = NULL;
-    bool finished = false;
-    size_t read_unit = WT_MAX(lr_fh->back_pointer->read_size, lr_fh->allocsize);
-    WT_RET(__wt_calloc(session, 1, read_unit, &buf));
 
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "%s: Restoring in the background", fh->name);
+
+    char *buf = NULL;
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
+    /*
+     * It is possible for the user to specify a read size that is not aligned to our bitmap. In
+     * which case we change it to be the file allocation size.
+     */
+    size_t buf_size = WT_MAX(lr_fh->back_pointer->read_size, lr_fh->allocsize);
+    WT_RET(__wt_calloc(session, 1, buf_size, &buf));
+
+    WT_TIMER timer;
+    uint64_t msg_count = 0;
+    bool finished = false;
     __wt_timer_start(session, &timer);
     while (!finished) {
+        wt_off_t read_offset = 0;
+        uint64_t time_diff_ms;
         WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh,
           ret = __live_restore_fill_hole(
-            lr_fh, wt_session, buf, (wt_off_t)read_unit, &timer, &msg_count, &finished));
+            lr_fh, wt_session, buf, (wt_off_t)buf_size, &read_offset, &finished));
         WT_ERR(ret);
 
+        __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
+        if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
+            __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+              "Live restore running on %s for %" PRIu64
+              " seconds. Currently copying offset %" PRId64 " of size %" WT_SIZET_FMT,
+              lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_offset, lr_fh->source_size);
+            msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
+            __wt_tree_modify_set(session);
+        }
+
         /*
-         * Because this loop can run for a very long time, ensure the system has not entered a panic
-         * state in the meantime.
+         * Because this loop can run for a while, ensure the system has not entered a panic state or
+         * closing state in the meantime.
          */
         WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
+        if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+            break;
     }
 
-    /*
-     * Sync the file over. In theory we don't need this as losing any writes, on crash, that copy
-     * data from source to destination should be safe. If the write doesn't complete then a hole
-     * should remain and the same write will be performed on the startup. To avoid depending on that
-     * property we choose to sync the file over anyway.
-     */
-    WT_ERR(lr_fh->destination->fh_sync(lr_fh->destination, wt_session));
-    __wt_writelock(session, &lr_fh->bitmap_lock);
-    lr_fh->complete = true;
-    __live_restore_fh_free_bitmap(session, lr_fh);
-    __wt_writeunlock(session, &lr_fh->bitmap_lock);
-
+    if (finished) {
+        __wt_verbose_debug1(
+          session, WT_VERB_LIVE_RESTORE, "%s: Finished background restoration", fh->name);
+        __wt_writelock(session, &lr_fh->bitmap_lock);
+        lr_fh->complete = true;
+        __live_restore_fh_free_bitmap(session, lr_fh);
+        __wt_writeunlock(session, &lr_fh->bitmap_lock);
+        __wt_tree_modify_set(session);
+    }
 err:
     __wt_free(session, buf);
-
     return (ret);
 }
 
@@ -973,28 +973,15 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
      * If we hit an error during file handle creation we'll call this function to free the partially
      * created handle. At this point fields may be uninitialized so we check for null pointers.
      */
-    if (lr_fh->destination != NULL) {
-        /*
-         * We cannot queue the turtle file in the live restore queue as we cannot open a cursor on
-         * it, but it is critical that we ensure all gaps in it are migrated across. Thus the turtle
-         * file is the one file we intentionally fill holes on close for. This is relatively cheap
-         * given how small it is.
-         */
-        if (WT_SUFFIX_MATCH(fh->name, WT_METADATA_TURTLE)) {
-            __wt_verbose_debug2(
-              session, WT_VERB_FILEOPS, "%s", "LIVE_RESTORE_FS: Filling holes for turtle file.");
-            WT_RET(__wti_live_restore_fs_fill_holes(fh, wt_session));
-        }
-
-        lr_fh->destination->close(lr_fh->destination, wt_session);
-    }
+    if (lr_fh->destination != NULL)
+        WT_RET(lr_fh->destination->close(lr_fh->destination, wt_session));
 
     WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
       session, lr_fh, __live_restore_fh_free_bitmap(session, lr_fh));
     __wt_rwlock_destroy(session, &lr_fh->bitmap_lock);
 
     if (lr_fh->source != NULL) /* It's possible that we never opened the file in the source. */
-        lr_fh->source->close(lr_fh->source, wt_session);
+        WT_RET(lr_fh->source->close(lr_fh->source, wt_session));
     __wt_free(session, lr_fh->iface.name);
     __wt_free(session, lr_fh);
 
@@ -1226,6 +1213,63 @@ err:
     __wt_buf_free(session, &buf);
 
     return (ret);
+}
+
+/*
+ * __wt_live_restore_clean_metadata_string --
+ *     This function is only called when taking a backup. It validates the live restore metadata
+ *     string, either aborting on an unrecoverable error or cleaning up an outdated config value.
+ */
+int
+__wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
+{
+    WT_CONFIG_ITEM v;
+    WT_DECL_RET;
+
+    /* FIXME-WT-14231 Allow taking backups during live restore in the COMPLETE phase. */
+    WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS),
+      "Cleaning the metadata string should only be called for non-live restore file systems");
+
+    ret = __wt_config_getones(session, value, "live_restore", &v);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret != WT_NOTFOUND && v.len != 0) {
+
+        WT_CONFIG_ITEM cval;
+        WT_RET(__wt_config_subgets(session, &v, "bitmap", &cval));
+        /*
+         * This function is only called when taking a backup. If we find unset bits in the bitmap
+         * that means the file is only partially migrated from source and we're about to take a
+         * backup of a partially populated file.
+         */
+        WT_ASSERT_ALWAYS(
+          session, cval.len == 0, "Found non-empty bitmap when cleaning config string");
+
+        /*
+         * Live restore uses -1 in the nbits field to indicate the file has been fully migrated.
+         * This value should be updated to 0 when live restore moves past the background migration
+         * phase, but we can only do so if the file is open when we force a checkpoint during clean
+         * up, or if its btree is dirtied after live restore completes but before restarting in
+         * non-live restore mode. If neither of these events take place the metadata won't be
+         * updated on disk and the -1 value persists. A future live restore using this file as a
+         * source will see this value and incorrectly assume the file has already been migrated. To
+         * prevent this manually overwrite the -1 with the correct value 0.
+         */
+        WT_RET(__wt_config_subgets(session, &v, "nbits", &cval));
+
+        wt_off_t nbits_val_str_offset = cval.str - value;
+        if (WT_STRING_LIT_MATCH("-1", cval.str, 2)) {
+            /*
+             * We need to overwrite two characters, but only need to write one. Add a redundant
+             * comma so we don't need to resize the string. The config parser will ignore it.
+             */
+            value[nbits_val_str_offset] = '0';
+            value[nbits_val_str_offset + 1] = ',';
+        } else
+            WT_ASSERT_ALWAYS(session, cval.len == 1 && WT_STRING_LIT_MATCH("0", cval.str, 1),
+              "nbits value other than -1 or 0 found when cleaning metadata string: %s\n", value);
+    }
+
+    return (0);
 }
 
 /*
@@ -1797,6 +1841,10 @@ __wt_os_live_restore_fs(
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FS *lr_fs;
 
+    /* FIXME-WT-14223: Remove this once readonly database connections are supported. */
+    if (F_ISSET(S2C(session), WT_CONN_READONLY))
+        WT_RET_MSG(session, EINVAL, "live restore is incompatible with readonly mode");
+
     WT_RET(__wt_calloc_one(session, &lr_fs));
     WT_ERR(__wt_os_posix(session, &lr_fs->os_file_system));
 
@@ -1852,6 +1900,12 @@ __wt_os_live_restore_fs(
     F_SET(S2C(session), WT_CONN_LIVE_RESTORE_FS);
     if (0) {
 err:
+        /*
+         * If we swapped in the posix file system don't terminate it. It'll get terminated later
+         * when cleaning up the connection.
+         */
+        if (*fsp != lr_fs->os_file_system && lr_fs->os_file_system != NULL)
+            WT_TRET(lr_fs->os_file_system->terminate(lr_fs->os_file_system, (WT_SESSION *)session));
         __wt_free(session, lr_fs->source.home);
         __wt_free(session, lr_fs);
     }
