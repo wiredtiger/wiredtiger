@@ -50,13 +50,13 @@ __clayered_deleted_encode(
      * If value requires encoding, get a scratch buffer of the right size and create a copy of the
      * data with the first byte of the tombstone appended.
      */
-    if (value->size >= __tombstone.size &&
-      memcmp(value->data, __tombstone.data, __tombstone.size) == 0) {
+    if (value->size >= __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0) {
         WT_RET(__wt_scr_alloc(session, value->size + 1, tmpp));
         tmp = *tmpp;
 
         memcpy(tmp->mem, value->data, value->size);
-        memcpy((uint8_t *)tmp->mem + value->size, __tombstone.data, 1);
+        memcpy((uint8_t *)tmp->mem + value->size, __wt_tombstone.data, 1);
         final_value->data = tmp->mem;
         final_value->size = value->size + 1;
     } else {
@@ -74,8 +74,8 @@ __clayered_deleted_encode(
 static WT_INLINE void
 __clayered_deleted_decode(WT_ITEM *value)
 {
-    if (value->size > __tombstone.size &&
-      memcmp(value->data, __tombstone.data, __tombstone.size) == 0)
+    if (value->size > __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0)
         --value->size;
 }
 
@@ -1249,7 +1249,7 @@ __clayered_remove_int(
             c->set_key(c, key);
         } else
             WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
-        c->set_value(c, &__tombstone);
+        c->set_value(c, &__wt_tombstone);
         WT_RET(c->update(c));
     }
 

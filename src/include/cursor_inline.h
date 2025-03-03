@@ -572,7 +572,7 @@ slow: /*
  * application-chosen encoding byte, if the application uses two leading DC4 byte for some reason,
  * we'll do a wasted data copy each time a new value is inserted into the object.
  */
-static const WT_ITEM __tombstone = {"\x14\x14", 2, NULL, 0, 0};
+static const WT_ITEM __wt_tombstone = {"\x14\x14", 2, NULL, 0, 0};
 
 /*
  * __wt_clayered_deleted --
@@ -581,6 +581,6 @@ static const WT_ITEM __tombstone = {"\x14\x14", 2, NULL, 0, 0};
 static WT_INLINE bool
 __wt_clayered_deleted(const WT_ITEM *item)
 {
-    return (item->size == __tombstone.size &&
-      memcmp(item->data, __tombstone.data, __tombstone.size) == 0);
+    return (item->size == __wt_tombstone.size &&
+      memcmp(item->data, __wt_tombstone.data, __wt_tombstone.size) == 0);
 }
