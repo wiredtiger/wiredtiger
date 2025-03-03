@@ -89,7 +89,6 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.conn.reconfigure('disaggregated=(role="follower")')
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
-        # TODO: enable after we fix the multiple dhandle issue
         # Checkpoint after draining the ingest table
         conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
         session_follow.checkpoint()
