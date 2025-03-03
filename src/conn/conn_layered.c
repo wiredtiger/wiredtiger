@@ -1092,7 +1092,7 @@ err:
 }
 
 /*
- * __layered_empty_ingest_table --
+ * __layered_clear_ingest_table --
  *     After ingest content has been drained to the stable table, clear out the ingest table.
  */
 static int
@@ -1105,19 +1105,26 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
 
     internal_session = NULL;
 
-    WT_RET(__wt_open_internal_session(S2C(session), "layered-truncate", false, 0, 0, &internal_session));
-    WT_ERR(__wt_txn_begin(internal_session, NULL));
-    F_SET(internal_session->txn, WT_TXN_TS_NOT_SET);
-    WT_ERR(internal_session->iface.truncate(&internal_session->iface, uri, NULL, NULL, NULL));
-    WT_WITHOUT_DHANDLE(session, ret = __wt_session_range_truncate(internal_session, uri, NULL, NULL));
-    WT_ERR(ret);
-    WT_ERR(__wt_txn_commit(internal_session, NULL));
+    WT_RET(
+      __wt_open_internal_session(S2C(session), "layered-truncate", false, 0, 0, &internal_session));
 
     /*
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, uri, NULL, false));
+     * Truncate needs a running txn. TODO we should probably do something more like the history
+     * store and make this non-transactional -- this happens during step-up, so we know there are no
+     * other transactions running, so it's safe.
+     */
+    WT_ERR(__wt_txn_begin(internal_session, NULL));
+
+    /*
+     * No other transactions are running, we're only doing this fast truncate, and it should become
+     * immediately visible. So this transaction doesn't have to care about timestamps.
+     */
+    F_SET(internal_session->txn, WT_TXN_TS_NOT_SET);
+
+    WT_ERR(internal_session->iface.truncate(&internal_session->iface, uri, NULL, NULL, NULL));
     WT_ERR(ret);
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, ));
-    */
+
+    WT_ERR(__wt_txn_commit(internal_session, NULL));
 
 err:
     if (internal_session != NULL)
@@ -1262,7 +1269,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
             upd = NULL;
         }
     }
-    WT_RET(__layered_clear_ingest_table(session, entry->ingest_uri));
+    WT_ERR(__layered_clear_ingest_table(session, entry->ingest_uri));
 
 err:
     if (tombstone != NULL)
