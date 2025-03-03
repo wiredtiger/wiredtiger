@@ -2324,6 +2324,10 @@ __rec_build_delta(
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
         }
+    } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
+        /* The internal page delta would have already been built at this point if one exists. */
+        if (r->delta.size > 0)
+            *build_deltap = true;
     }
 
     return (0);
