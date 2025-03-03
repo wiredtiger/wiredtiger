@@ -948,6 +948,7 @@ __clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
     if ((ret = c->search(c)) == 0) {
         WT_ERR(c->get_key(c, &cursor->key));
         WT_ERR(c->get_value(c, value));
+        clayered->current_cursor = c;
         if (__clayered_deleted(clayered, value))
             ret = WT_NOTFOUND;
         /*
@@ -971,6 +972,7 @@ __clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
             WT_ERR(c->get_key(c, &cursor->key));
             WT_ERR(c->get_value(c, value));
             found = true;
+            clayered->current_cursor = c;
         }
         WT_ERR_NOTFOUND_OK(ret, true);
         if (!found)
@@ -1412,9 +1414,11 @@ __clayered_remove(WT_CURSOR *cursor)
      * layered enter/leave calls as we search the full stack, but updates are limited to the
      * top-level.
      */
-    WT_ERR(__clayered_enter(clayered, false, false));
-    WT_ERR(__clayered_lookup(clayered, &value));
-    __clayered_leave(clayered);
+    if (!positioned) {
+        WT_ERR(__clayered_enter(clayered, false, false));
+        WT_ERR(__clayered_lookup(clayered, &value));
+        __clayered_leave(clayered);
+    }
 
     WT_ERR(__clayered_enter(clayered, false, true));
     /*
