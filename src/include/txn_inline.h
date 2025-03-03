@@ -1682,8 +1682,6 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    __txn_clear_bytes_dirty(session);
-
     WT_RET(__wt_txn_config(session, conf));
 
     /*
@@ -1711,6 +1709,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     WT_ASSERT_ALWAYS(
       session, txn->mod_count == 0, "The mod count should be 0 when beginning a transaction");
+
+    __txn_clear_bytes_dirty(session);
 
     return (0);
 }
