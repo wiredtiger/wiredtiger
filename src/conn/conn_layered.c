@@ -1092,6 +1092,40 @@ err:
 }
 
 /*
+ * __layered_empty_ingest_table --
+ *     After ingest content has been drained to the stable table, clear out the ingest table.
+ */
+static int
+__layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    WT_ASSERT(session, WT_SUFFIX_MATCH(uri, ".wt_ingest"));
+
+    internal_session = NULL;
+
+    WT_RET(__wt_open_internal_session(S2C(session), "layered-truncate", false, 0, 0, &internal_session));
+    WT_ERR(__wt_txn_begin(internal_session, NULL));
+    F_SET(internal_session->txn, WT_TXN_TS_NOT_SET);
+    WT_ERR(internal_session->iface.truncate(&internal_session->iface, uri, NULL, NULL, NULL));
+    WT_WITHOUT_DHANDLE(session, ret = __wt_session_range_truncate(internal_session, uri, NULL, NULL));
+    WT_ERR(ret);
+    WT_ERR(__wt_txn_commit(internal_session, NULL));
+
+    /*
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, uri, NULL, false));
+    WT_ERR(ret);
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, ));
+    */
+
+err:
+    if (internal_session != NULL)
+        WT_TRET(__wt_session_close_internal(internal_session));
+    return (ret);
+}
+
+/*
  * __layered_drain_ingest_table --
  *     Moving all the data from a single ingest table to the corresponding stable table
  */
@@ -1228,6 +1262,7 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
             upd = NULL;
         }
     }
+    WT_RET(__layered_clear_ingest_table(session, entry->ingest_uri));
 
 err:
     if (tombstone != NULL)
