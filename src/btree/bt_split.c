@@ -1074,7 +1074,6 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
-    F_SET_ATOMIC_16(page, WT_PAGE_INTL_PINDEX_UPDATE);
 
     /*
      * We don't care about the page-index we allocated, all we needed was the array of WT_REF
