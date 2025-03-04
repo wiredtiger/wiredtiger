@@ -422,12 +422,10 @@ __live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *
 static void
 __live_restore_fh_free_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    bool locked = false;
-    locked = __wt_rwlock_islocked(session, &lr_fh->lock);
-    WT_ASSERT_ALWAYS(session, locked, "Live restore lock not taken when needed");
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
+      "Live restore lock not taken when needed");
     __wt_free(session, lr_fh->bitmap);
     lr_fh->nbits = 0;
-
     return;
 }
 
