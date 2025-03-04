@@ -49,7 +49,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
     create_session_config = 'key_format=S,value_format=S'
 
     layered_uris = ["layered:test_layered31a", "layered:test_layered31b"]
-    all_uris = layered_uris
+    all_uris = list(layered_uris)
     if test_milestone4:
         other_uris = ["file:test_layered31c", "table:test_layered31d"]
         all_uris += other_uris
@@ -123,7 +123,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in self.all_uris:
             cursor = self.open_follow_cursor(session_follow, uri)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix0 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix0 + str(i))
             cursor.close()
 
         #
@@ -147,7 +147,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor = self.open_follow_cursor(session_follow, uri)
             follower_cursors[uri] = cursor
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix1 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
 
         #
         # Part 2: Close and reopen the cursor after picking up a checkpoint.
@@ -172,7 +172,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor = self.open_follow_cursor(session_follow, uri)
             follower_cursors[uri] = cursor
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix2 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
 
         #
         # Part 3: Reset the cursor after picking up a checkpoint.
@@ -195,7 +195,79 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor = follower_cursors[uri]
             cursor = self.reset_follow_cursor(cursor)
             for i in range(self.nitems):
-                self.assertEquals(cursor[str(i)], value_prefix3 + str(i))
+                self.assertEqual(cursor[str(i)], value_prefix3 + str(i))
+
+        #
+        # Part 4: Check that an open cursor's position
+        # does not change after picking up a checkpoint.
+        #
+
+        # In scanning, do a first batch, reading half the items.
+        first_read = self.nitems // 2
+
+        # Stringized integers (the keys used) are not in the same order as integers.
+        # Make a list of the keys in order so we can verify the results from scanning.
+        keys_in_order = sorted([str(k) for k in range(self.nitems)])
+
+        # On the follower, scan and check the first half, leaving cursors open
+        for uri in self.all_uris:
+            self.pr(f'{uri}: Reset the cursor and scan the first half of items')
+            cursor = follower_cursors[uri]
+            cursor = self.reset_follow_cursor(cursor)
+            found = 0
+
+            # Scan the first half of the items.
+            for i in range(first_read):
+                if cursor.next() != 0:
+                    break
+                expected_key = keys_in_order[i]
+                self.assertEqual(cursor.get_key(), expected_key)
+                self.assertEqual(cursor.get_value(), value_prefix3 + expected_key)
+                found += 1
+
+        # Make a change on the leader, and propogate to the follower, so that the
+        # follower cursors reopen.
+        value_prefix4 = 'ddd'
+        for uri in self.all_uris:
+            cursor = self.session.open_cursor(uri, None, None)
+            for i in range(self.nitems):
+                cursor[str(i)] = value_prefix4 + str(i)
+            cursor.close()
+
+        self.session.checkpoint()
+        self.pr(f'{uri}: Advance the checkpoint')
+        self.disagg_advance_checkpoint(conn_follow)
+
+        # Check the continuation of each scan in the follower.
+        # Note that we are checking with layered URIs only.
+        # Non-layered URIs in this test have a hack (in reset_follow_cursors)
+        # that reopens those cursors, thus losing their position.
+        for uri in self.layered_uris:
+            self.pr(f'{uri}: continue reading items, expecting to see the second half')
+            cursor = follower_cursors[uri]
+            found = first_read
+            for i in range(first_read, self.nitems):
+                if cursor.next() != 0:
+                    break
+
+                # We're checking that we haven't lost our place in the key space.
+                # For the value, we're only checking that the prefix contains the
+                # key, as it always does in this test. As for which value, the old
+                # or the new, we'll accept either in this test. We don't want to
+                # assume to know exactly when the cursor is promoted on the follower.
+                #
+                # At the moment, this is the behavior of follower cursors,
+                # that if reading without a timestamp, they may give the most recent
+                # result.  Mongodb will always reads with a timestamp.
+                # TODO: consider "fixing" this, by only promoting follower cursors if they
+                # are reading at a timestamp, or at specific points, like Cursor.reset
+                expected_key = keys_in_order[i]
+                self.assertEqual(cursor.get_key(), expected_key)
+                current_value = cursor.get_value()
+                self.assertTrue(current_value == value_prefix3 + expected_key or \
+                                current_value == value_prefix4 + expected_key)
+                found += 1
+            self.assertEqual(found, self.nitems)
 
         # Clean up
         for cursor in follower_cursors.values():
