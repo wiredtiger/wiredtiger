@@ -424,8 +424,7 @@ __live_restore_fh_free_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
 {
     bool locked = false;
     locked = __wt_rwlock_islocked(session, &lr_fh->lock);
-    WT_ASSERT_ALWAYS(session, locked,
-      "Live restore lock not taken when needed");
+    WT_ASSERT_ALWAYS(session, locked, "Live restore lock not taken when needed");
     __wt_free(session, lr_fh->bitmap);
     lr_fh->nbits = 0;
 
@@ -492,7 +491,7 @@ __live_restore_encode_bitmap(
 {
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
       "Live restore lock not taken when needed");
-    if (lr_fh->nbits == 0|| WTI_DEST_COMPLETE(lr_fh))
+    if (lr_fh->nbits == 0 || WTI_DEST_COMPLETE(lr_fh))
         return (0);
     size_t bitmap_byte_count = lr_fh->nbits / 8;
     if (lr_fh->nbits % 8 != 0)
@@ -739,14 +738,16 @@ err:
  *     Close and free the source file handle.
  */
 static int
-__live_restore_fh_close_source(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool lock) {
+__live_restore_fh_close_source(
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool lock)
+{
     WT_DECL_RET;
     if (lock)
         __wt_writelock(session, &lr_fh->lock);
 
     if (lr_fh->source != NULL) {
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "Closing fh %s", lr_fh->iface.name);
-        WT_ERR(lr_fh->source->close(lr_fh->source, (WT_SESSION*)session));
+        WT_ERR(lr_fh->source->close(lr_fh->source, (WT_SESSION *)session));
         lr_fh->source = NULL;
     }
 
@@ -755,7 +756,7 @@ __live_restore_fh_close_source(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_H
 err:
     if (lock)
         __wt_writeunlock(session, &lr_fh->lock);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -906,9 +907,9 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     }
 
     if (finished) {
-        __wt_verbose_debug1(
-          session, WT_VERB_LIVE_RESTORE, "%s: Finished background restoration, closing source file", fh->name);
-        WT_RET(__live_restore_fh_close_source(session, lr_fh, true));
+        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+          "%s: Finished background restoration, closing source file", fh->name);
+        WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
         __wt_tree_modify_set(session);
     }
 err:
@@ -1083,7 +1084,8 @@ __live_restore_fs_open_in_source(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *se
      * destination.
      */
     FLD_CLR(flags, WT_FS_OPEN_CREATE);
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "%s: Opening source file", lr_fh->iface.name);
+    __wt_verbose_debug2(
+      session, WT_VERB_LIVE_RESTORE, "%s: Opening source file", lr_fh->iface.name);
     /* Open the file in the layer. */
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->source, session, lr_fs->destination.home, lr_fh->iface.name, &path));
@@ -1121,15 +1123,21 @@ err:
     return (ret);
 }
 
+/*
+ * __live_restore_compute_nbits --
+ *     Compute the number of bits needed for the bitmap, based off the destination file size.
+ */
 static int
-__live_restore_compute_nbits(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint64_t *nbitsp) {
+__live_restore_compute_nbits(
+  WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint64_t *nbitsp)
+{
     wt_off_t size;
-    WT_RET(lr_fh->destination->fh_size(lr_fh->destination, (WT_SESSION*)session, &size));
-    WT_ASSERT_ALWAYS(session, size % lr_fh->allocsize == 0, "The file size isn't a multiple of the file allocation size!");
+    WT_RET(lr_fh->destination->fh_size(lr_fh->destination, (WT_SESSION *)session, &size));
+    WT_ASSERT_ALWAYS(session, size % lr_fh->allocsize == 0,
+      "The file size isn't a multiple of the file allocation size!");
     *nbitsp = (uint64_t)size / (uint64_t)lr_fh->allocsize;
     return (0);
 }
-
 
 /*
  * __wt_live_restore_metadata_to_fh --
@@ -1149,14 +1157,14 @@ __wt_live_restore_metadata_to_fh(
      * destination. There's no need for hole tracking and therefore nothing to reconstruct.
      */
     if (__wti_live_restore_migration_complete(session)) {
-        /* This is an unlocked access of the source file handle given the migration has completed it is safe. */
+        /* This is an unlocked access of the source file handle given the migration has completed it
+         * is safe. */
         WT_ASSERT(session, WTI_DEST_COMPLETE(lr_fh));
         return (0);
     }
 
     if (lr_fh->bitmap != NULL)
         WT_ASSERT_ALWAYS(session, false, "Bitmap not empty while trying to parse");
-
 
     __wt_writelock(session, &lr_fh->lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
@@ -1500,8 +1508,7 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
   const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool have_stop,
   bool dest_exist, bool source_exist)
 {
-    WT_RET(__live_restore_fs_open_in_destination(
-        lr_fs, session, lr_fh, name, flags, !dest_exist));
+    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
     if (have_stop || __wti_live_restore_migration_complete(session) || !source_exist)
         return (0);
 
@@ -1513,16 +1520,14 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
         WT_ASSERT(session, source_size != 0);
         /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-            "%s: Creating destination file backed by source file", lr_fh->iface.name);
+          "%s: Creating destination file backed by source file", lr_fh->iface.name);
         /*
-            * We're creating a new destination file which is backed by a source file. It currently
-            * has a length of zero, but we want its length to be the same as the source file. Set
-            * its size by truncating. This is a positive length truncate so it actually extends the
-            * file. We're bypassing the live_restore layer so we don't try to modify the relevant
-            * extent entries.
-            */
-        WT_RET(
-            lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, source_size));
+         * We're creating a new destination file which is backed by a source file. It currently has
+         * a length of zero, but we want its length to be the same as the source file. Set its size
+         * by truncating. This is a positive length truncate so it actually extends the file. We're
+         * bypassing the live_restore layer so we don't try to modify the relevant extent entries.
+         */
+        WT_RET(lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, source_size));
     }
     return (0);
 }
