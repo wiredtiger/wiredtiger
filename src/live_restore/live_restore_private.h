@@ -28,6 +28,9 @@
 #define WTI_OFFSET_TO_BIT(offset) (uint64_t)((offset) / (wt_off_t)lr_fh->allocsize)
 #define WTI_BIT_TO_OFFSET(bit) (wt_off_t)((bit)*lr_fh->allocsize)
 
+#define WTI_BITMAP_END(lr_fh) ((wt_off_t)(lr_fh)->allocsize * (wt_off_t)(lr_fh)->nbits)
+#define WTI_DATA_FILE(lr_fh) ((lr_fh)->file_type == WT_FS_OPEN_FILE_TYPE_DATA)
+#define WTI_DEST_COMPLETE(lr_fh) ((lr_fh)->source == NULL)
 /*
  * The most aggressive sweep server configuration runs every second. Allow 4 seconds to make sure
  * the server has time to find and close any open file handles.
@@ -40,22 +43,21 @@
  */
 struct __wti_live_restore_file_handle {
     WT_FILE_HANDLE iface;
+    WT_FILE_HANDLE *destination;
+    /* We need to get back to the file system when checking state. */
+    WTI_LIVE_RESTORE_FS *back_pointer;
     uint32_t allocsize;
     WT_FS_OPEN_FILE_TYPE file_type;
 
-    WT_FILE_HANDLE *source;
-    size_t source_size;
-
-    WT_FILE_HANDLE *destination;
-    bool complete;
-
+    /*
+     * This lock protects all of the below fields and should be held for all accesses to them. There
+     * are a few rare exceptions which are listed when they occur.
+     */
+    WT_RWLOCK lock;
     /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
-    WT_RWLOCK bitmap_lock;
     uint64_t nbits;
     uint8_t *bitmap;
-
-    /* We need to get back to the file system when checking state. */
-    WTI_LIVE_RESTORE_FS *back_pointer;
+    WT_FILE_HANDLE *source;
 };
 
 /*
@@ -64,9 +66,9 @@ struct __wti_live_restore_file_handle {
  */
 #define WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh, op) \
     do {                                                            \
-        __wt_writelock((session), &(lr_fh)->bitmap_lock);           \
+        __wt_writelock((session), &(lr_fh)->lock);           \
         op;                                                         \
-        __wt_writeunlock((session), &(lr_fh)->bitmap_lock);         \
+        __wt_writeunlock((session), &(lr_fh)->lock);         \
     } while (0)
 
 typedef enum {
