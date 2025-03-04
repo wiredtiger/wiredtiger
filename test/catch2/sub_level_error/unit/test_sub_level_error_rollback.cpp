@@ -126,7 +126,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // Set transaction as prepared. This should cause an early exist so no error is returned.
         F_SET(session_impl->txn, WT_TXN_PREPARE);
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - rollback can't be handled")
@@ -137,22 +137,22 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // Set the transaction to have 1 modification.
         session_impl->txn->mod_count = 1;
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Set transaction running to true.
         F_SET(session_impl->txn, WT_TXN_RUNNING);
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Set operations timers to low value.
         session_impl->operation_start_us = session_impl->operation_timeout_us = 1;
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Set the transaction to have 0 modifications.
         session_impl->txn->mod_count = 0;
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test WT_OLDEST_FOR_EVICTION in __wt_txn_is_blocking - transaction ID")
@@ -162,7 +162,7 @@ TEST_CASE("Test functions for error handling in rollback workflows",
 
         // Check if the transaction's ID or its pinned ID is equal to the oldest transaction ID.
         CHECK(__wt_txn_is_blocking(session_impl) == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Set transaction's pinned ID to be equal to the oldest transaction ID.
         WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(session_impl);
