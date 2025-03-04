@@ -60,14 +60,14 @@ struct __wti_live_restore_file_handle {
 };
 
 /*
- * WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK --
+ * WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK --
  *     Acquire the bitmap list write lock and perform an operation.
  */
-#define WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh, op) \
-    do {                                                            \
-        __wt_writelock((session), &(lr_fh)->lock);                  \
-        op;                                                         \
-        __wt_writeunlock((session), &(lr_fh)->lock);                \
+#define WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK(session, lr_fh, op) \
+    do {                                                        \
+        __wt_writelock((session), &(lr_fh)->lock);              \
+        op;                                                     \
+        __wt_writeunlock((session), &(lr_fh)->lock);            \
     } while (0)
 
 typedef enum {
