@@ -1155,8 +1155,10 @@ __wt_live_restore_metadata_to_fh(
      * destination. There's no need for hole tracking and therefore nothing to reconstruct.
      */
     if (__wti_live_restore_migration_complete(session)) {
-        /* This is an unlocked access of the source file handle given the migration has completed it
-         * is safe. */
+        /*
+         * This is an unlocked access of the source file handle given the migration has completed it
+         * is safe.
+         */
         WT_ASSERT(session, WTI_DEST_COMPLETE(lr_fh));
         return (0);
     }
