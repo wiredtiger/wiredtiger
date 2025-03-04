@@ -744,7 +744,8 @@ __live_restore_fh_close_source(
         __wt_writelock(session, &lr_fh->lock);
 
     if (lr_fh->source != NULL) {
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "Closing fh %s", lr_fh->iface.name);
+        __wt_verbose_debug1(
+          session, WT_VERB_LIVE_RESTORE, "Closing source fh %s", lr_fh->iface.name);
         WT_ERR(lr_fh->source->close(lr_fh->source, (WT_SESSION *)session));
         lr_fh->source = NULL;
     }
@@ -1115,7 +1116,7 @@ __live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str, u
     WT_CLEAR(buf);
     WT_ERR(__wt_hex_to_raw(session, bitmap_str, &buf));
     memcpy(lr_fh->bitmap, buf.mem, buf.size);
-    /* TODO: Add check here for shorter dest than bitmap, set end to 1. */
+    /* FIXME-WT-13813: Add check here for shorter dest than bitmap, set end to 1. */
 err:
     __wt_buf_free(session, &buf);
     return (ret);
@@ -1163,8 +1164,7 @@ __wt_live_restore_metadata_to_fh(
         return (0);
     }
 
-    if (lr_fh->bitmap != NULL)
-        WT_ASSERT_ALWAYS(session, false, "Bitmap not empty while trying to parse");
+    WT_ASSERT_ALWAYS(session, lr_fh->bitmap == NULL, "Bitmap not empty while trying to parse");
 
     __wt_writelock(session, &lr_fh->lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
