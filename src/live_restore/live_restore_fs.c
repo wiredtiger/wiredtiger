@@ -638,7 +638,7 @@ __live_restore_fh_write(
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
+    WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK(
       session, lr_fh, ret = __live_restore_fh_write_int(fh, wt_session, offset, len, buf));
     return (ret);
 }
@@ -882,7 +882,7 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     while (!finished) {
         wt_off_t read_offset = 0;
         uint64_t time_diff_ms;
-        WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh,
+        WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK(session, lr_fh,
           ret = __live_restore_fill_hole(
             lr_fh, wt_session, buf, (wt_off_t)buf_size, &read_offset, &finished));
         WT_ERR(ret);
@@ -1056,7 +1056,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
 
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
-    WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(
+    WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK(
       session, lr_fh,
       __live_restore_fh_fill_bit_range(
         lr_fh, session, truncate_start, (size_t)(truncate_end - truncate_start)););
