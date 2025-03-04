@@ -890,7 +890,7 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
             __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
               "Live restore running on %s for %" PRIu64
-              " seconds. Currently copying offset %" PRId64 " of size %" PRId64,
+              " seconds. Currently copying offset %" PRId64 " of file size %" PRId64,
               lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_offset, WTI_BITMAP_END(lr_fh));
             msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
             __wt_tree_modify_set(session);
