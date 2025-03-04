@@ -801,6 +801,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
+    F_SET(parent->modify, WT_PAGE_MODIFY_PINDEX_UPDATE);
 
     /*
      * The new page index is in place. Threads cursoring in the tree are blocked because the WT_REF
@@ -1073,6 +1074,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
+    F_SET(parent->modify, WT_PAGE_MODIFY_PINDEX_UPDATE);
 
     /*
      * We don't care about the page-index we allocated, all we needed was the array of WT_REF

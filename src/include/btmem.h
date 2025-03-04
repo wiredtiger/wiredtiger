@@ -581,7 +581,8 @@ struct __wt_page_modify {
 /* Additional diagnostics fields to catch invalid updates to page_state, even in release builds. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_MODIFY_EXCLUSIVE 0x1u
-#define WT_PAGE_MODIFY_RECONCILING 0x2u
+#define WT_PAGE_MODIFY_PINDEX_UPDATE 0x2u /* Page index updated */
+#define WT_PAGE_MODIFY_RECONCILING 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };

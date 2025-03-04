@@ -408,4 +408,5 @@ typedef struct {
 #define WT_BUILD_DELTA_INT(session, r)                                        \
     F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && (r)->multi_next == 0 && \
       !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL) &&                   \
+      !F_ISSET(r->ref->page->modify, WT_PAGE_MODIFY_PINDEX_UPDATE) &&         \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
