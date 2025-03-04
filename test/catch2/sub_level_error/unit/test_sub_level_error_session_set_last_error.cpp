@@ -39,7 +39,7 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
     SECTION("Test with initial values")
     {
         const char *err_msg_content = WT_ERROR_INFO_SUCCESS;
-        __wt_session_set_last_error(session_impl, 0, WT_NONE, err_msg_content);
+        __wt_session_set_last_error(session_impl, 0, WT_NONE, NULL);
         check_error_info(err_info, 0, WT_NONE, err_msg_content);
     }
 
