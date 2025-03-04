@@ -29,6 +29,7 @@
 import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from test_layered23 import Oplog
+from wtscenario import make_scenarios
 
 # test_layered27.py
 # Test draining the ingest table
@@ -36,12 +37,20 @@ from test_layered23 import Oplog
 class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                  + 'disaggregated=(page_log=palm),'
-    def conn_config(self):
-        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
-    scenarios = gen_disagg_storages('test_layered27', disagg_only = True)
+    sizes = [
+        ('small', dict(multiplier=1)),
+        ('large', dict(multiplier=100)),
+    ]
+
+    disagg_storages = gen_disagg_storages('test_layered27', disagg_only = True)
+
+    scenarios = make_scenarios(disagg_storages, sizes)
 
     uri = 'layered:test_layered27'
+
+    def conn_config(self):
+        return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
 
     def test_drain_insert_update(self):
         # Create the oplog
@@ -58,33 +67,33 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         session_follow.create(self.uri, "key_format=S,value_format=S")
 
         # Create some oplog traffic
-        oplog.insert(t, 100)
+        oplog.insert(t, 100 * self.multiplier)
 
         # Apply them to leader WT and checkpoint.
-        oplog.apply(self, self.session, 0, 100)
-        oplog.check(self, self.session, 0, 100)
+        oplog.apply(self, self.session, 0, 100 * self.multiplier)
+        oplog.check(self, self.session, 0, 100 * self.multiplier)
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
 
         self.session.checkpoint()     # checkpoint 1
 
         # Add some more traffic
-        oplog.insert(t, 100)
-        oplog.update(t, 200)
-        oplog.apply(self, self.session, 100, 300)
-        oplog.check(self, self.session, 0, 400)
+        oplog.insert(t, 100 * self.multiplier)
+        oplog.update(t, 200 * self.multiplier)
+        oplog.apply(self, self.session, 100 * self.multiplier, 300 * self.multiplier)
+        oplog.check(self, self.session, 0, 400 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
-        oplog.apply(self, session_follow, 0, 400)
+        oplog.apply(self, session_follow, 0, 400 * self.multiplier)
 
         self.pr(f'OPLOG: {oplog}')
-        oplog.check(self, session_follow, 0, 400)
+        oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
         # Then advance the checkpoint and make sure everything is still good
         self.pr('advance checkpoint')
         self.disagg_advance_checkpoint(conn_follow)
-        oplog.check(self, session_follow, 0, 400)
+        oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
         self.conn.reconfigure('disaggregated=(role="follower")')
         conn_follow.reconfigure('disaggregated=(role="leader")')
@@ -99,7 +108,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         session_follow = conn_follow.open_session('')
 
         #Ensure everything is in the new checkpoint
-        oplog.check(self, session_follow, 0, 400)
+        oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
     def test_drain_remove(self):
         # Create the oplog
@@ -116,32 +125,32 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         session_follow.create(self.uri, "key_format=S,value_format=S")
 
         # Create some oplog traffic
-        oplog.insert(t, 100)
+        oplog.insert(t, 100 * self.multiplier)
 
         # Apply them to leader WT and checkpoint.
-        oplog.apply(self, self.session, 0, 100)
-        oplog.check(self, self.session, 0, 100)
+        oplog.apply(self, self.session, 0, 100 * self.multiplier)
+        oplog.check(self, self.session, 0, 100 * self.multiplier)
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
 
         self.session.checkpoint()     # checkpoint 1
 
         # Delete some updates
-        oplog.remove(t, 100)
-        oplog.apply(self, self.session, 100, 100)
-        oplog.check(self, self.session, 0, 200)
+        oplog.remove(t, 100 * self.multiplier)
+        oplog.apply(self, self.session, 100 * self.multiplier, 100 * self.multiplier)
+        oplog.check(self, self.session, 0, 200 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
-        oplog.apply(self, session_follow, 0, 200)
+        oplog.apply(self, session_follow, 0, 200 * self.multiplier)
 
         self.pr(f'OPLOG: {oplog}')
-        oplog.check(self, session_follow, 0, 200)
+        oplog.check(self, session_follow, 0, 200 * self.multiplier)
 
         # Then advance the checkpoint and make sure everything is still good
         self.pr('advance checkpoint')
         self.disagg_advance_checkpoint(conn_follow)
-        oplog.check(self, session_follow, 0, 200)
+        oplog.check(self, session_follow, 0, 200 * self.multiplier)
 
         self.conn.reconfigure('disaggregated=(role="follower")')
         conn_follow.reconfigure('disaggregated=(role="leader")')
@@ -156,7 +165,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         session_follow = conn_follow.open_session('')
 
         #Ensure everything is in the new checkpoint
-        oplog.check(self, session_follow, 0, 200)
+        oplog.check(self, session_follow, 0, 200 * self.multiplier)
 
     def test_drain_remove_insert(self):
         # Create the oplog
@@ -173,33 +182,33 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         session_follow.create(self.uri, "key_format=S,value_format=S")
 
         # Create some oplog traffic
-        oplog.insert(t, 100)
+        oplog.insert(t, 100 * self.multiplier)
 
         # Apply them to leader WT and checkpoint.
-        oplog.apply(self, self.session, 0, 100)
-        oplog.check(self, self.session, 0, 100)
+        oplog.apply(self, self.session, 0, 100 * self.multiplier)
+        oplog.check(self, self.session, 0, 100 * self.multiplier)
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
 
         self.session.checkpoint()     # checkpoint 1
 
         # Delete some updates
-        oplog.remove(t, 100)
-        oplog.insert(t, 100, 0)
-        oplog.apply(self, self.session, 100, 200)
-        oplog.check(self, self.session, 0, 300)
+        oplog.remove(t, 100 * self.multiplier)
+        oplog.insert(t, 100 * self.multiplier, 0)
+        oplog.apply(self, self.session, 100 * self.multiplier, 200 * self.multiplier)
+        oplog.check(self, self.session, 0, 300 * self.multiplier)
 
         # On the follower -
         # Apply all the entries to follower
-        oplog.apply(self, session_follow, 0, 300)
+        oplog.apply(self, session_follow, 0, 300 * self.multiplier)
 
         self.pr(f'OPLOG: {oplog}')
-        oplog.check(self, session_follow, 0, 300)
+        oplog.check(self, session_follow, 0, 300 * self.multiplier)
 
         # Then advance the checkpoint and make sure everything is still good
         self.pr('advance checkpoint')
         self.disagg_advance_checkpoint(conn_follow)
-        oplog.check(self, session_follow, 0, 300)
+        oplog.check(self, session_follow, 0, 300 * self.multiplier)
 
         self.conn.reconfigure('disaggregated=(role="follower")')
         conn_follow.reconfigure('disaggregated=(role="leader")')
@@ -214,4 +223,4 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         session_follow = conn_follow.open_session('')
 
         #Ensure everything is in the new checkpoint
-        oplog.check(self, session_follow, 0, 300)
+        oplog.check(self, session_follow, 0, 300 * self.multiplier)
