@@ -312,66 +312,66 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool *state_updated)
     else
         current_checkpoint_id = 0;
 
-    if (current_leader != clayered->leader || current_checkpoint_id != clayered->checkpoint_id) {
-        reopen_ingest = reopen_stable = false;
+    /* See what we need to reopen. */
+    reopen_ingest = reopen_stable = true;
 
-        if (current_leader != clayered->leader) {
-            /* If leader state has changed, all cursors are affected. */
-            reopen_ingest = true;
-            reopen_stable = true;
-        } else
-            /* We have a new checkpoint on the follower. Reopen the stable cursor. */
-            reopen_stable = true;
+    if (current_leader != clayered->leader) {
+        /* If leader state has changed, all cursors are affected. */
+        reopen_ingest = true;
+        reopen_stable = true;
+    } else if (current_checkpoint_id != clayered->checkpoint_id)
+        /* We have a new checkpoint on the follower. Reopen the stable cursor. */
+        reopen_stable = true;
 
-        /* See if there's nothing to do for the ingest cursor. */
-        if (clayered->ingest_cursor == NULL)
-            reopen_ingest = false;
+    /* See if there's nothing to do for the ingest cursor. */
+    if (clayered->ingest_cursor == NULL)
+        reopen_ingest = false;
 
-        /* A random stable cursor shouldn't be reopen, it may have additional state. */
-        if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
-            reopen_stable = false;
+    /* A random stable cursor shouldn't be reopen, it may have additional state. */
+    if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
+        reopen_stable = false;
 
-        if (reopen_ingest) {
-            /*
-             * To reopen the ingest table, all we need to do here is close it. It will be reopened
-             * when needed. There's never a situation where we need to save its position.
-             */
-            WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
-            clayered->ingest_cursor = NULL;
-        }
+    if (reopen_ingest) {
+        /*
+         * To reopen the ingest table, all we need to do here is close it. It will be reopened when
+         * needed. There's never a situation where we need to save its position.
+         */
+        WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
+        clayered->ingest_cursor = NULL;
+    }
 
-        if (reopen_stable) {
-            /*
-             * We can't just close the stable cursor here, as we need to retain any position that
-             * the current stable cursor has. It's easier to keep the old cursor open briefly while
-             * we copy the position.
-             */
-            old_stable = clayered->stable_cursor;
-            clayered->stable_cursor = NULL;
+    if (reopen_stable) {
+        /*
+         * We can't just close the stable cursor here, as we need to retain any position that the
+         * current stable cursor has. It's easier to keep the old cursor open briefly while we copy
+         * the position.
+         */
+        old_stable = clayered->stable_cursor;
+        clayered->stable_cursor = NULL;
 
-            cfg_pos = 0;
-            cfg[cfg_pos++] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-            WT_RET(
-              __clayered_open_stable(clayered, current_leader, cfg, WT_ELEMENTS(cfg), cfg_pos));
+        cfg_pos = 0;
+        cfg[cfg_pos++] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
+        WT_RET(__clayered_open_stable(clayered, current_leader, cfg, WT_ELEMENTS(cfg), cfg_pos));
 
-            /* If the old cursor has a position, copy it to the newly opened cursor. */
-            if (F_ISSET(old_stable, WT_CURSTD_KEY_SET))
-                WT_RET(__wt_cursor_dup_position(old_stable, clayered->stable_cursor));
+        /* If the old cursor has a position, copy it to the newly opened cursor. */
+        if (F_ISSET(old_stable, WT_CURSTD_KEY_SET))
+            WT_RET(__wt_cursor_dup_position(old_stable, clayered->stable_cursor));
 
-            if (clayered->current_cursor == old_stable)
-                clayered->current_cursor = clayered->stable_cursor;
+        if (clayered->current_cursor == old_stable)
+            clayered->current_cursor = clayered->stable_cursor;
 
-            /* Close the old cursor. */
-            WT_RET(old_stable->close(old_stable));
+        /* Close the old cursor. */
+        WT_RET(old_stable->close(old_stable));
 
-            /* Add any bounds for the new cursor. */
-            WT_RET(__clayered_copy_bounds(clayered));
-        }
+        /* Add any bounds for the new cursor. */
+        WT_RET(__clayered_copy_bounds(clayered));
+    }
 
+    if (reopen_ingest || reopen_stable) {
         /* Update the state of the layered cursor. */
         clayered->leader = current_leader;
         clayered->checkpoint_id = current_checkpoint_id;
-        *state_updated = (reopen_ingest || reopen_stable);
+        *state_updated = true;
     }
     return (0);
 }
