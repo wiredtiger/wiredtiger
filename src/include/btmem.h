@@ -581,8 +581,7 @@ struct __wt_page_modify {
 /* Additional diagnostics fields to catch invalid updates to page_state, even in release builds. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_MODIFY_EXCLUSIVE 0x1u
-#define WT_PAGE_MODIFY_PINDEX_UPDATE 0x2u /* Page index updated */
-#define WT_PAGE_MODIFY_RECONCILING 0x4u
+#define WT_PAGE_MODIFY_RECONCILING 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
@@ -806,11 +805,12 @@ struct __wt_page {
 #define WT_PAGE_EVICT_LRU_URGENT 0x0020u   /* Page is in the urgent queue */
 #define WT_PAGE_EVICT_NO_PROGRESS 0x0040u  /* Eviction doesn't count as progress */
 #define WT_PAGE_INTL_OVERFLOW_KEYS 0x0080u /* Internal page has overflow keys (historic only) */
-#define WT_PAGE_PREFETCH 0x0100u           /* The page is being pre-fetched */
-#define WT_PAGE_REC_FAIL 0x0200u           /* The previous reconciliation failed on the page. */
-#define WT_PAGE_SPLIT_INSERT 0x0400u       /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x0800u      /* Ignore updates on page discard */
-#define WT_PAGE_WITH_DELTAS 0x1000u        /* Page was built with deltas */
+#define WT_PAGE_INTL_PINDEX_UPDATE 0x0100u /* Page index updated */
+#define WT_PAGE_PREFETCH 0x0200u           /* The page is being pre-fetched */
+#define WT_PAGE_REC_FAIL 0x0400u           /* The previous reconciliation failed on the page. */
+#define WT_PAGE_SPLIT_INSERT 0x0800u       /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x1000u      /* Ignore updates on page discard */
+#define WT_PAGE_WITH_DELTAS 0x2000u        /* Page was built with deltas */
                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;       /* Atomic flags, use F_*_ATOMIC_16 */
 
