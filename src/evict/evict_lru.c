@@ -11,6 +11,8 @@ static void __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dh
 static bool __evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, WT_REF *ref);
 static int __evict_lru_pages(WT_SESSION_IMPL *session);
 static int __evict_page(WT_SESSION_IMPL *session);
+static bool __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
+										   WT_PAGE *page, bool verbose);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref);
 
@@ -1048,6 +1050,10 @@ done:
     WT_ASSERT(session, __wt_atomic_loadi32(&dhandle->session_inuse) > 0);
     (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
 
+#if defined(HAVE_DIAGNOSTIC)
+	__evict_page_consistency_check(session,  ref->page->evict_data.dhandle, ref->page, true);
+#endif
+
 err:
     if (dhandle_list_locked)
         __wt_readunlock(session, &conn->dhandle_lock);
@@ -1369,6 +1375,9 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
         page = next_walk->page;
         size = __wt_atomic_loadsize(&page->memory_footprint);
 
+		if (__evict_page_consistency_check(session, dhandle, page, true) == false)
+			WT_RET(__wt_msg(session, "page %p inconsistent eviction state", (void*)page));
+
         if (F_ISSET(next_walk, WT_REF_FLAG_INTERNAL)) {
             ++intl_pages;
             intl_bytes += size;
@@ -1570,8 +1579,7 @@ __evict_bucket_range(WT_SESSION_IMPL *session, WT_EVICT_BUCKET *bucket,
 
 	WT_ASSERT(session, bucket != NULL);
 
-	/* Find the address of the enclosing bucketset. XXX TODO -- check pointers */
-	bucketset = (WT_EVICT_BUCKETSET *)((size_t)bucket - (size_t)bucket->id * sizeof(WT_EVICT_BUCKET));
+	bucketset = WT_BUCKET_TO_BUCKETSET(bucket);
     /*
      * Example where the lowest bucket upper range is 400 and the evict bucket range is defined
      * to 300. Bucket 1 lower range is the upper range of the previous bucket plus one. Bucket 1
@@ -1656,6 +1664,103 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
      * to lose this race.
      */
     __wt_atomic_casv64(&bucketset->lowest_bucket_upper_range, prev, new);
+}
+
+/*
+ * __evict_page_consistency_check --
+ *     Check that the page is in the right place in the eviction data structures.
+ */
+static bool
+__evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
+							   bool verbose)
+{
+	WT_EVICT_BUCKETSET *bucketset;
+	WT_REF_STATE state;
+	uint64_t min_range, max_range;
+	int home_bucketset_level = -1;
+
+	if (page->ref == NULL) {
+		if (verbose)
+			WT_RET(__wt_msg(session, "page %s %p does not have an associated reference",
+							__wt_page_type_string(page->type), (void*)page));
+		return (false);
+	}
+	if (page->evict_data.dhandle != dhandle) {
+		if (verbose)
+			WT_RET(__wt_msg(session, "page %p dhandle mismatch. Expected %s, got %s",
+							(void*) page, (dhandle == NULL) ? "null" : dhandle->name,
+				   (page->evict_data.dhandle == NULL) ? "null" : page->evict_data.dhandle->name));
+		return (false);
+	}
+	if ((state = WT_REF_GET_STATE(page->ref)) != WT_REF_LOCKED && state != WT_REF_MEM) {
+		if (verbose)
+			WT_RET(__wt_msg(session, "page %p state is neither locked nor in-memory\n", (void*)page));
+		return (false);
+	}
+	WT_ASSERT(session,
+		page->evict_data.bucket->id >= 0 && page->evict_data.bucket->id < WT_EVICT_NUM_BUCKETS);
+	bucketset =  WT_BUCKET_TO_BUCKETSET(page->evict_data.bucket);
+
+	/* Is this one of the bucketsets of our dhandle? */
+	if (&dhandle->evict_handle_data.evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == bucketset)
+		home_bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
+	else if (&dhandle->evict_handle_data.evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == bucketset)
+		home_bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
+	else if (&dhandle->evict_handle_data.evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == bucketset)
+		home_bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
+	else if (&dhandle->evict_handle_data.evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == bucketset)
+		home_bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
+	else {
+		if (verbose)
+			WT_RET(__wt_msg(session, "page %p: home bucketset is not one of dhandle's bucketsets",
+							(void*)page));
+		return (false);
+	}
+
+	/* Is this the right bucketset given the page type? */
+	if (WT_PAGE_IS_INTERNAL(page)) {
+		if (__wt_page_is_modified(page)) {
+			if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_INTERNAL) {
+				if (verbose)
+					WT_RET(__wt_msg(session,
+									"page %p is a dirty internal page, but in bucketset %d",
+									(void*)page, home_bucketset_level));
+				return (false);
+			}
+		}
+		else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_INTERNAL) {
+			if (verbose)
+				WT_RET(__wt_msg(session,
+								"page %p is a clean internal page, but in bucketset %d",
+								(void*)page, home_bucketset_level));
+			return (false);
+		}
+	}
+	else if (__wt_page_is_modified(page)) {
+		if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_LEAF) {
+			if (verbose)
+				WT_RET(__wt_msg(session,
+								"page %p is a dirty leaf page, but in bucketset %d",
+								(void*)page, home_bucketset_level));
+			return (false);
+		}
+	} else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_LEAF) {
+		if (verbose)
+			WT_RET(__wt_msg(session,
+							"page %p is a clean internal page, but in bucketset %d",
+							(void*)page, home_bucketset_level));
+		return (false);
+	}
+
+	__evict_bucket_range(session, page->evict_data.bucket, &min_range, &max_range);
+	if (page->evict_data.read_gen > max_range) {
+		if (verbose)
+			WT_RET(__wt_msg(session,
+			"page %p: read generation %" PRIu64 " is larger than the max range of its bucket %"
+							PRIu64 "", (void*)page, page->evict_data.read_gen, max_range));
+		return (false);
+	}
+	return (true);
 }
 
 /*
@@ -1758,6 +1863,9 @@ retry:
 done:
     if (must_unlock_ref)
         WT_REF_UNLOCK(ref, previous_state);
+#if defined(HAVE_DIAGNOSTIC)
+	__evict_page_consistency_check(session,  page->evict_data.dhandle, page, true);
+#endif
 }
 
 /*

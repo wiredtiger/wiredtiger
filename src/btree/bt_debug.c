@@ -1250,10 +1250,6 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
             WT_RET(flag_num == 0 ? ds->f(ds, "disk-mapped") : ds->f(ds, ", disk-mapped"));
             flag_num++;
         }
-        if (F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU)) {
-            WT_RET(flag_num == 0 ? ds->f(ds, "evict-lru") : ds->f(ds, ", evict-lru"));
-            flag_num++;
-        }
         if (F_ISSET_ATOMIC_16(page, WT_PAGE_INTL_OVERFLOW_KEYS)) {
             WT_RET(flag_num == 0 ? ds->f(ds, "overflow-keys") : ds->f(ds, ", overflow-keys"));
             flag_num++;
