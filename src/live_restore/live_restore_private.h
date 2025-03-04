@@ -29,7 +29,6 @@
 #define WTI_BIT_TO_OFFSET(bit) (wt_off_t)((bit)*lr_fh->allocsize)
 
 #define WTI_BITMAP_END(lr_fh) ((wt_off_t)(lr_fh)->allocsize * (wt_off_t)(lr_fh)->nbits)
-#define WTI_DATA_FILE(lr_fh) ((lr_fh)->file_type == WT_FS_OPEN_FILE_TYPE_DATA)
 #define WTI_DEST_COMPLETE(lr_fh) ((lr_fh)->source == NULL)
 /*
  * The most aggressive sweep server configuration runs every second. Allow 4 seconds to make sure
@@ -66,9 +65,9 @@ struct __wti_live_restore_file_handle {
  */
 #define WTI_WITH_LIVE_RESTORE_BITMAP_WRITE_LOCK(session, lr_fh, op) \
     do {                                                            \
-        __wt_writelock((session), &(lr_fh)->lock);           \
+        __wt_writelock((session), &(lr_fh)->lock);                  \
         op;                                                         \
-        __wt_writeunlock((session), &(lr_fh)->lock);         \
+        __wt_writeunlock((session), &(lr_fh)->lock);                \
     } while (0)
 
 typedef enum {
