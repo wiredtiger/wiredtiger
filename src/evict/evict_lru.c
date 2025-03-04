@@ -1558,7 +1558,7 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
             bucket = &bucketset->buckets[j];
             bucket->id = (uint64_t)j;
-            WT_RET(__wt_spin_init(session, &bucket->evict_queue_lock, "evict bucket queue block"));
+            WT_RET(__wt_spin_init(session, &bucket->evict_queue_lock, "evict bucket queue lock"));
             TAILQ_INIT(&bucket->evict_queue);
         }
     }
@@ -1852,13 +1852,14 @@ retry:
     }
 
     bucket = &bucketset->buckets[dst_bucket];
+	page->evict_data.bucket = bucket;
 
     __wt_spin_lock(session, &bucket->evict_queue_lock);
     TAILQ_INSERT_HEAD(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
     bucket->num_items++;
     __wt_spin_unlock(session, &bucket->evict_queue_lock);
 
-    page->evict_data.bucket = bucket;
+
 
 done:
     if (must_unlock_ref)
