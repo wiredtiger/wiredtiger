@@ -1096,23 +1096,23 @@ __hs_delete_record(
     WT_TIME_WINDOW *hs_tw;
 
     btree = S2BT(session);
-    hs_read_committed = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
      * Open a history store cursor if we don't yet have one. If we already have it, check if it
      * matches the current btree and attempt to reuse it if it does not.
      */
     if (r->hs_cursor == NULL)
-        WT_ERR(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+        WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
     else if (__wt_curhs_get_btree_id(session, r->hs_cursor) != btree->id) {
-        WT_ERR_ERROR_OK(__wt_curhs_set_btree_id(session, r->hs_cursor, btree->id), EINVAL, true);
+        WT_RET_ERROR_OK(ret = __wt_curhs_set_btree_id(session, r->hs_cursor, btree->id), EINVAL);
         if (ret == EINVAL) {
-            WT_ERR(r->hs_cursor->close(r->hs_cursor));
+            WT_RET(r->hs_cursor->close(r->hs_cursor));
             r->hs_cursor = NULL;
-            WT_ERR(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+            WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
         }
     }
 
+    hs_read_committed = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     /* Ensure we can see all the content in the history store. */
     F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
