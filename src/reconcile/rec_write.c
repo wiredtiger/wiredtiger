@@ -2328,10 +2328,8 @@ __rec_build_delta(
         }
     } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         /* The internal page delta would have already been built at this point if one exists. */
-        if (r->delta.size > 0) {
+        if (r->delta.size > 0)
             *build_deltap = true;
-            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
-        }
     }
 
     return (0);
@@ -2524,6 +2522,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
           &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
+
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
     } else {
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
