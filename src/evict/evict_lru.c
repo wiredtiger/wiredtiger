@@ -2149,21 +2149,23 @@ __evict_walk_prepare(WT_SESSION_IMPL *session, uint32_t *walk_flagsp)
     switch (btree->evict_start_type) {
     case WT_EVICT_WALK_NEXT:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1) {
+        if (!S2C(session)->evict_legacy_page_visit_strategy && btree->evict_ref == NULL &&
+          (++btree->linear_walk_restarts) & 1) {
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_prev so that the start of the tree is visited more often */
                 goto rand_prev;
-            else if (!S2C(session)->evict_legacy_page_visit_strategy)
+            else
                 goto rand_next;
         }
         break;
     case WT_EVICT_WALK_PREV:
         /* Each time when evict_ref is null, alternate between linear and random walk */
-        if (btree->evict_ref == NULL && (++btree->linear_walk_restarts) & 1) {
+        if (!S2C(session)->evict_legacy_page_visit_strategy && btree->evict_ref == NULL &&
+          (++btree->linear_walk_restarts) & 1) {
             if (S2C(session)->evict->use_npos_in_pass)
                 /* Alternate with rand_next so that the end of the tree is visited more often */
                 goto rand_next;
-            else if (!S2C(session)->evict_legacy_page_visit_strategy)
+            else
                 goto rand_prev;
         }
         FLD_SET(*walk_flagsp, WT_READ_PREV);
