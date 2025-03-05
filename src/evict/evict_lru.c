@@ -1675,10 +1675,19 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 							   bool verbose)
 {
 	WT_EVICT_BUCKETSET *bucketset;
+	WT_EVICT_HANDLE_DATA *evict_handle_data;
 	WT_REF_STATE state;
 	uint64_t min_range, max_range;
 	int home_bucketset_level = -1;
 
+	evict_handle_data = &((WT_BTREE*)dhandle->handle)->evict_data;
+
+	if (!WT_DHANDLE_BTREE(dhandle)) {
+		if (verbose)
+			WT_RET(__wt_msg(session, "page %s %p: dhandle is not btree, should not be in eviction",
+							__wt_page_type_string(page->type), (void*)page));
+		return (false);
+	}
 	if (page->ref == NULL) {
 		if (verbose)
 			WT_RET(__wt_msg(session, "page %s %p does not have an associated reference",
@@ -1694,7 +1703,8 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 	}
 	if ((state = WT_REF_GET_STATE(page->ref)) != WT_REF_LOCKED && state != WT_REF_MEM) {
 		if (verbose)
-			WT_RET(__wt_msg(session, "page %p state is neither locked nor in-memory\n", (void*)page));
+		  WT_RET(__wt_msg(session, "page %s %p state is neither locked nor in-memory\n",
+						  __wt_page_type_string(page->type), (void*)page));
 		return (false);
 	}
 	WT_ASSERT(session,
@@ -1702,18 +1712,18 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 	bucketset =  WT_BUCKET_TO_BUCKETSET(page->evict_data.bucket);
 
 	/* Is this one of the bucketsets of our dhandle? */
-	if (&dhandle->evict_handle_data.evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == bucketset)
+	if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == bucketset)
 		home_bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-	else if (&dhandle->evict_handle_data.evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == bucketset)
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == bucketset)
 		home_bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
-	else if (&dhandle->evict_handle_data.evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == bucketset)
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == bucketset)
 		home_bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
-	else if (&dhandle->evict_handle_data.evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == bucketset)
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == bucketset)
 		home_bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
 	else {
 		if (verbose)
-			WT_RET(__wt_msg(session, "page %p: home bucketset is not one of dhandle's bucketsets",
-							(void*)page));
+			WT_RET(__wt_msg(session, "page %s %p: home bucketset is not one of dhandle's bucketsets",
+							__wt_page_type_string(page->type),(void*)page));
 		return (false);
 	}
 
@@ -1723,16 +1733,16 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 			if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_INTERNAL) {
 				if (verbose)
 					WT_RET(__wt_msg(session,
-									"page %p is a dirty internal page, but in bucketset %d",
-									(void*)page, home_bucketset_level));
+							 "page %s %p is a dirty internal page, but in bucketset %d",
+							 __wt_page_type_string(page->type), (void*)page, home_bucketset_level));
 				return (false);
 			}
 		}
 		else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_INTERNAL) {
 			if (verbose)
 				WT_RET(__wt_msg(session,
-								"page %p is a clean internal page, but in bucketset %d",
-								(void*)page, home_bucketset_level));
+						 "page %s %p is a clean internal page, but in bucketset %d",
+						 __wt_page_type_string(page->type), (void*)page, home_bucketset_level));
 			return (false);
 		}
 	}
@@ -1740,14 +1750,14 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 		if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_LEAF) {
 			if (verbose)
 				WT_RET(__wt_msg(session,
-								"page %p is a dirty leaf page, but in bucketset %d",
-								(void*)page, home_bucketset_level));
+							"page %s %p is a dirty leaf page, but in bucketset %d",
+							__wt_page_type_string(page->type), (void*)page, home_bucketset_level));
 			return (false);
 		}
 	} else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_LEAF) {
 		if (verbose)
 			WT_RET(__wt_msg(session,
-							"page %p is a clean internal page, but in bucketset %d",
+							"page %p is a clean leaf page, but in bucketset %d",
 							(void*)page, home_bucketset_level));
 		return (false);
 	}
@@ -1859,7 +1869,9 @@ retry:
     bucket->num_items++;
     __wt_spin_unlock(session, &bucket->evict_queue_lock);
 
-
+	WT_IGNORE_RET(__wt_msg(session,
+			   "page (%s) %p: enqueued in bucket %p of bucketset %p",
+						   __wt_page_type_string(page->type), (void *)page, (void *)bucket, (void *)bucketset));
 
 done:
     if (must_unlock_ref)
@@ -2099,7 +2111,8 @@ static void
 __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     __wt_atomic_store64(
-      &page->evict_data.read_gen, (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
+      &page->evict_data.read_gen,
+	  (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
     __wt_evict_enqueue_page(session, session->dhandle, page->ref);
 }
 
@@ -2133,6 +2146,7 @@ void
 __wt_ref_assign_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref, WT_PAGE *page)
 {
     ref->page = page;
+	page->ref = ref;
     __evict_init_ref(session, dhandle, ref);
 }
 
