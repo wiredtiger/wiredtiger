@@ -563,6 +563,7 @@ struct __wt_connection_impl {
     uint32_t evict_threads_min; /* Min eviction threads */
     bool evict_sample_inmem;
     wt_shared bool evict_use_npos;
+    bool evict_legacy_page_visit_strategy;
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
@@ -574,7 +575,6 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_pf_qh, __wt_prefetch_queue_entry) pfqh; /* Locked: prefetch_lock */
     bool prefetch_auto_on;
     bool prefetch_available;
-    bool evict_legacy_page_visit_strategy;
 
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */
