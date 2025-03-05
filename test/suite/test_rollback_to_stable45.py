@@ -30,9 +30,9 @@ import os, wttest
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
 
-# test_rollback_to_stable44.py
+# test_rollback_to_stable45.py
 #    Make sure RTS does nothing in a disaggregated storage context.
-class test_rollback_to_stable44(wttest.WiredTigerTestCase):
+class test_rollback_to_stable45(wttest.WiredTigerTestCase):
     conn_config = 'disaggregated=(page_log=palm),' \
         + 'disaggregated=(role="leader")'
 
@@ -52,8 +52,8 @@ class test_rollback_to_stable44(wttest.WiredTigerTestCase):
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
-    def test_rollback_to_stable44(self):
-        uri = "table:rollback_to_stable44"
+    def test_rollback_to_stable45(self):
+        uri = "table:rollback_to_stable45"
         ds = SimpleDataSet(self, uri, 500, key_format='S', value_format='S')
         ds.populate()
 
