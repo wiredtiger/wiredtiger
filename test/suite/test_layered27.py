@@ -102,7 +102,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
         session_follow.checkpoint()
 
-        # Reopen the new leader to get rid of the content in the ingest table
+        # Reopen the new leader as follower to get rid of the content in the ingest table
         conn_follow.close()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
@@ -159,7 +159,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
         session_follow.checkpoint()
 
-        # Reopen the new leader to get rid of the content in the ingest table
+        # Reopen the new leader as follower to get rid of the content in the ingest table
         conn_follow.close()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
@@ -217,7 +217,7 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
         session_follow.checkpoint()
 
-        # Reopen the new leader to get rid of the content in the ingest table
+        # Reopen the new leader as follower to get rid of the content in the ingest table
         conn_follow.close()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')

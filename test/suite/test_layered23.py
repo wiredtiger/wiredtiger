@@ -124,9 +124,6 @@ class Oplog(object):
             # If oplog has no entries for this table,
             # silently succeed
             return
-        incr = len(entlist)//count
-        if incr == 0:
-            incr = 1
         for i in range(0, count):
             # entindex is the entry we'll update
             entindex = entlist[i]
@@ -145,9 +142,6 @@ class Oplog(object):
         if len(entlist) == 0:
             # If oplog has no entries for this table, silently succeed
             return
-        incr = len(entlist)//count
-        if incr == 0:
-            incr = 1
         for i in range(0, count):
             # entindex is the entry we'll update
             entindex = entlist[i]
