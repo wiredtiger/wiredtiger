@@ -1319,7 +1319,7 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
 
-    /* WiredTiger never creates directories. The user must do this themself. */
+    /* WiredTiger never creates directories. The user must do this themselves. */
     if (!dest_exist)
         WT_RET_MSG(session, ENOENT, "Directory %s does not exist in the destination", name);
 
