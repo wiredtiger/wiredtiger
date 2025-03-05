@@ -36,9 +36,10 @@ can get more detailed information about the last session API call. The informati
 error code, a sub-level error code and message. The intended usage of the sub-level error code
 is to allow users to programmatically make decisions on the application level.
 
-The sub-level error code is optional and default to WT_NONE. The error message is also optional and
-would default to an empty string if prior API failed or success message when successful. The error
-message string is owned by the session, and is invalidated after each session API call.
+The sub-level error code is optional and defaults to WT_NONE. When the prior API call succeeds, a
+default success message is returned. When the prior API call fails, the error message is optional
+and defaults to an empty message. The error message string is owned by the session, 
+and is invalidated after each session API call.
 
 @section error_list WiredTiger-specific errors
 
