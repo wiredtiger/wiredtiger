@@ -486,6 +486,10 @@ struct __wt_connection_stats {
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
     int64_t cache_write_app_time;
+    int64_t eviction_needed;
+    int64_t eviction_needed_clean;
+    int64_t eviction_needed_dirty;
+    int64_t eviction_needed_updates;
     int64_t cache_bytes_updates;
     int64_t cache_bytes_image;
     int64_t cache_bytes_hs;

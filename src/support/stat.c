@@ -1391,6 +1391,10 @@ static const char *const __stats_connection_desc[] = {
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
   "cache: application threads page write from cache to disk time (usecs)",
+  "cache: application wants to evict",
+  "cache: application wants to evict clean",
+  "cache: application wants to evict dirty",
+  "cache: application wants to evict updates",
   "cache: bytes allocated for updates",
   "cache: bytes belonging to page images in the cache",
   "cache: bytes belonging to the history store table in the cache",
@@ -2175,6 +2179,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
     stats->cache_write_app_time = 0;
+    /* not clearing eviction_needed */
+    /* not clearing eviction_needed_clean */
+    /* not clearing eviction_needed_dirty */
+    /* not clearing eviction_needed_updates */
     /* not clearing cache_bytes_updates */
     /* not clearing cache_bytes_image */
     /* not clearing cache_bytes_hs */
@@ -2913,6 +2921,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_app_time += WT_STAT_CONN_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_CONN_READ(from, cache_write_app_count);
     to->cache_write_app_time += WT_STAT_CONN_READ(from, cache_write_app_time);
+    to->eviction_needed += WT_STAT_CONN_READ(from, eviction_needed);
+    to->eviction_needed_clean += WT_STAT_CONN_READ(from, eviction_needed_clean);
+    to->eviction_needed_dirty += WT_STAT_CONN_READ(from, eviction_needed_dirty);
+    to->eviction_needed_updates += WT_STAT_CONN_READ(from, eviction_needed_updates);
     to->cache_bytes_updates += WT_STAT_CONN_READ(from, cache_bytes_updates);
     to->cache_bytes_image += WT_STAT_CONN_READ(from, cache_bytes_image);
     to->cache_bytes_hs += WT_STAT_CONN_READ(from, cache_bytes_hs);

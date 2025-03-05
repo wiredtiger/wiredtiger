@@ -102,6 +102,34 @@
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
 #define WT_CLAMP(x, low, high) (WT_MIN(WT_MAX((x), (low)), (high)))
 
+/*
+ * __wt_smoothstep --
+ *     Smoothstep function, a Hermite interpolation that returns 0.0 when x is below threshold_min
+ *     and 1.0 when x is above threshold_max. Between threshold_min and threshold_max, the function
+ *     smoothly interpolates between 0.0 and 1.0.
+ */
+static WT_INLINE double
+__wt_smoothstep(double threshold_min, double threshold_max, double val)
+{
+    if (val <= threshold_min)
+        return (0.0);
+    if (val >= threshold_max)
+        return (1.0);
+    val = (val - threshold_min) / (threshold_max - threshold_min);
+    // return val * val * (3.0 - 2.0 * val);
+    return (val);
+}
+
+/*
+ * __wt_smooth_threshold --
+ *     Smooth threshold.
+ */
+static WT_INLINE double
+__wt_smooth_threshold(double val, double threshold1, double threshold2, double knee_size)
+{
+    return (__wt_smoothstep(threshold2 - (threshold2 - threshold1) * knee_size, threshold2, val));
+}
+
 /* Ceil for unsigned/positive real numbers. */
 #define WT_CEIL_POS(a) ((a) - (double)(uintmax_t)(a) > 0.0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))
 

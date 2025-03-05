@@ -636,6 +636,11 @@ connection_runtime_config = [
         cache_size and has to be greater than its counterpart \c eviction_updates_target. This
         setting only alters behavior if it is lower than \c eviction_trigger''',
         min=0, max='10TB'),
+    Config('eviction_soft_trigger', '0', r'''
+        application threads trigger starts at this percentage below the threshold.
+        It is a percentage in range of 1 to 100\.
+        0 means hard trigger''',
+        min=0, max='10TB'),
     Config('extra_diagnostics', '[]', r'''
         enable additional diagnostics in WiredTiger. These additional diagnostics include
         diagnostic assertions that can cause WiredTiger to abort when an invalid state

@@ -46,6 +46,7 @@ struct __wt_evict {
     double eviction_target;                  /* Percent to end eviction */
     double eviction_updates_target;          /* Percent to allow for updates */
     double eviction_updates_trigger;         /* Percent of updates to trigger eviction */
+    double soft_knee;                        /* Soft knee size */
 
     double eviction_checkpoint_target; /* Percent to reduce dirty to during checkpoint scrubs */
     wt_shared double eviction_scrub_target; /* Current scrub target */
@@ -179,10 +180,18 @@ static WT_INLINE bool __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly,
   double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_evict_needed_soft(WT_SESSION_IMPL *session, bool busy, bool readonly,
+  double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_page_is_soon(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE double __wt_evict_clean_probable(WT_SESSION_IMPL *session, double *pct_fullp,
+  double knee_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE double __wt_evict_dirty_probable(WT_SESSION_IMPL *session, double *pct_fullp,
+  double knee_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE double __wt_evict_probable(WT_SESSION_IMPL *session, bool busy, bool readonly,
+  double *pct_fullp, double knee_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_evict_app_assist_worker_check(
   WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool *didworkp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

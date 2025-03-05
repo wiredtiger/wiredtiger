@@ -386,18 +386,44 @@ __wt_evict_clean_pressure(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __wt_evict_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
-    uint64_t bytes_inuse, bytes_max;
-
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
-    bytes_max = S2C(session)->cache_size + 1;
-    bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
+    uint64_t bytes_max = S2C(session)->cache_size + 1;
+    uint64_t bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
 
     if (pct_fullp != NULL)
         *pct_fullp = ((100.0 * bytes_inuse) / bytes_max);
 
     return (bytes_inuse > (S2C(session)->evict->eviction_trigger * bytes_max) / 100);
+}
+
+/*
+ * __wt_evict_clean_probable --
+ *
+ *
+ *
+ *
+ *
+ */
+static WT_INLINE double
+__wt_evict_clean_probable(WT_SESSION_IMPL *session, double *pct_fullp, double knee_size)
+{
+    if (knee_size <= 0.0)
+        return (__wt_evict_clean_needed(session, pct_fullp) ? 1.0 : 0.0);
+
+    /*
+     * Avoid division by zero if the cache size has not yet been set in a shared cache.
+     */
+    uint64_t bytes_max = S2C(session)->cache_size + 1;
+    uint64_t bytes_inuse = __wt_cache_bytes_inuse(S2C(session)->cache);
+
+    if (pct_fullp != NULL)
+        *pct_fullp = ((100.0 * bytes_inuse) / bytes_max);
+
+    double threshold1 = (S2C(session)->evict->eviction_target * bytes_max) / 100;
+    double threshold2 = (S2C(session)->evict->eviction_trigger * bytes_max) / 100;
+    return (__wt_smooth_threshold(bytes_inuse, threshold1, threshold2, knee_size));
 }
 
 /*
@@ -407,10 +433,8 @@ __wt_evict_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 static WT_INLINE double
 __wti_evict_dirty_target(WT_EVICT *evict)
 {
-    double dirty_target, scrub_target;
-
-    dirty_target = __wt_read_shared_double(&evict->eviction_dirty_target);
-    scrub_target = __wt_read_shared_double(&evict->eviction_scrub_target);
+    double dirty_target = __wt_read_shared_double(&evict->eviction_dirty_target);
+    double scrub_target = __wt_read_shared_double(&evict->eviction_scrub_target);
 
     return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }
@@ -433,19 +457,37 @@ __wti_evict_dirty_target(WT_EVICT *evict)
 static WT_INLINE bool
 __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
-    uint64_t bytes_dirty, bytes_max;
-
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
-    bytes_dirty = __wt_cache_dirty_leaf_inuse(S2C(session)->cache);
-    bytes_max = S2C(session)->cache_size + 1;
+    uint64_t bytes_dirty = __wt_cache_dirty_leaf_inuse(S2C(session)->cache);
+    uint64_t bytes_max = S2C(session)->cache_size + 1;
 
     if (pct_fullp != NULL)
         *pct_fullp = (100.0 * bytes_dirty) / bytes_max;
 
     return (
       bytes_dirty > (uint64_t)(S2C(session)->evict->eviction_dirty_trigger * bytes_max) / 100);
+}
+
+static WT_INLINE double
+__wt_evict_dirty_probable(WT_SESSION_IMPL *session, double *pct_fullp, double knee_size)
+{
+    if (knee_size <= 0.0)
+        return (__wt_evict_dirty_needed(session, pct_fullp) ? 1.0 : 0.0);
+
+    /*
+     * Avoid division by zero if the cache size has not yet been set in a shared cache.
+     */
+    uint64_t bytes_dirty = __wt_cache_dirty_leaf_inuse(S2C(session)->cache);
+    uint64_t bytes_max = S2C(session)->cache_size + 1;
+
+    if (pct_fullp != NULL)
+        *pct_fullp = (100.0 * bytes_dirty) / bytes_max;
+
+    double threshold1 = (S2C(session)->evict->eviction_dirty_target * bytes_max) / 100;
+    double threshold2 = (S2C(session)->evict->eviction_dirty_trigger * bytes_max) / 100;
+    return (__wt_smooth_threshold(bytes_dirty, threshold1, threshold2, knee_size));
 }
 
 /* !!!
@@ -466,19 +508,37 @@ __wt_evict_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 static WT_INLINE bool
 __wti_evict_updates_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 {
-    uint64_t bytes_max, bytes_updates;
-
     /*
      * Avoid division by zero if the cache size has not yet been set in a shared cache.
      */
-    bytes_max = S2C(session)->cache_size + 1;
-    bytes_updates = __wt_cache_bytes_updates(S2C(session)->cache);
+    uint64_t bytes_max = S2C(session)->cache_size + 1;
+    uint64_t bytes_updates = __wt_cache_bytes_updates(S2C(session)->cache);
 
     if (pct_fullp != NULL)
         *pct_fullp = (100.0 * bytes_updates) / bytes_max;
 
     return (
       bytes_updates > (uint64_t)(S2C(session)->evict->eviction_updates_trigger * bytes_max) / 100);
+}
+
+static WT_INLINE double
+__wti_evict_updates_probable(WT_SESSION_IMPL *session, double *pct_fullp, double knee_size)
+{
+    if (knee_size <= 0.0)
+        return (__wti_evict_updates_needed(session, pct_fullp) ? 1.0 : 0.0);
+
+    /*
+     * Avoid division by zero if the cache size has not yet been set in a shared cache.
+     */
+    uint64_t bytes_max = S2C(session)->cache_size + 1;
+    uint64_t bytes_updates = __wt_cache_bytes_updates(S2C(session)->cache);
+
+    if (pct_fullp != NULL)
+        *pct_fullp = (100.0 * bytes_updates) / bytes_max;
+
+    double threshold1 = (S2C(session)->evict->eviction_updates_target * bytes_max) / 100;
+    double threshold2 = (S2C(session)->evict->eviction_updates_trigger * bytes_max) / 100;
+    return (__wt_smooth_threshold(bytes_updates, threshold1, threshold2, knee_size));
 }
 
 /* !!!
@@ -544,6 +604,71 @@ __wt_evict_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pc
      * able to start until the cache is under the limit.
      */
     return (clean_needed || updates_needed || (!busy && dirty_needed));
+}
+
+static WT_INLINE double
+__wt_evict_probable(
+  WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp, double knee_size)
+{
+    WT_EVICT *evict;
+    double pct_dirty, pct_full, pct_updates;
+    double res;
+
+    evict = S2C(session)->evict;
+
+    /*
+     * If the connection is closing we do not need eviction from an application thread. The eviction
+     * subsystem is already closed.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+        return (0.0);
+
+    res = __wt_evict_clean_probable(session, &pct_full, knee_size);
+    if (readonly) {
+        pct_dirty = pct_updates = 0.0;
+    } else {
+        double p_updates = __wti_evict_updates_probable(session, &pct_updates, knee_size);
+        res = WT_MAX(res, p_updates);
+
+        double p_dirty = __wt_evict_dirty_probable(session, &pct_dirty, knee_size);
+        if (!busy)
+            /*
+             * Only check the dirty trigger when the session is not busy.
+             *
+             * In other words, once we are pinning resources, try to finish the operation as quickly
+             * as possible without exceeding the cache size. The next transaction in this session
+             * will not be able to start until the cache is under the limit.
+             */
+            res = WT_MAX(res, p_dirty);
+    }
+
+    /*
+     * Calculate the cache full percentage; anything over the trigger means we involve the
+     * application thread.
+     */
+    if (pct_fullp != NULL)
+        *pct_fullp = WT_MAX(0.0,
+          100.0 -
+            WT_MIN(
+              WT_MIN(evict->eviction_trigger - pct_full, evict->eviction_dirty_trigger - pct_dirty),
+              evict->eviction_updates_trigger - pct_updates));
+
+    return (res);
+}
+
+static WT_INLINE bool
+__wt_evict_needed_soft(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
+{
+    double soft_knee = S2C(session)->evict->soft_knee;
+    if (soft_knee <= 0.0)
+        return (__wt_evict_needed(session, busy, readonly, pct_fullp));
+
+    double probability = __wt_evict_probable(session, busy, readonly, pct_fullp, soft_knee);
+    if (probability <= 0.0)
+        return (false);
+    if (probability >= 1.0)
+        return (true);
+    return (__wt_random(&session->rnd) / UINT32_MAX < probability);
 }
 
 /* !!!
@@ -701,7 +826,7 @@ __wt_evict_app_assist_worker_check(
 
     /* Check if eviction is needed. */
     double pct_full;
-    if (!__wt_evict_needed(session, busy, readonly, &pct_full))
+    if (!__wt_evict_needed_soft(session, busy, readonly, &pct_full))
         return (0);
 
     /* Last check if application wants to prevent the thread from evicting. */

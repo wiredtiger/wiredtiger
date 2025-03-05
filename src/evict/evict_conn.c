@@ -110,7 +110,18 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__evict_config_abs_to_pct(
       session, &(evict->eviction_checkpoint_target), "eviction checkpoint target", shared));
 
+    WT_RET(__wt_config_gets(session, cfg, "eviction_soft_trigger", &cval));
+    evict->soft_knee = (double)cval.val / 100.0;
+
     /* Check for invalid configurations and automatically fix them to suitable values. */
+    if (evict->soft_knee < 0) {
+        WT_CONFIG_DEBUG(session, "config eviction_soft_trigger < 0. Setting to 0%s", "");
+        evict->soft_knee = 0.;
+    } else if (evict->soft_knee > 1) {
+        WT_CONFIG_DEBUG(session, "config eviction_soft_trigger > 100. Setting to 100%s", "");
+        evict->soft_knee = 1.;
+    }
+
     if (evict->eviction_dirty_target > evict->eviction_target) {
         WT_CONFIG_DEBUG(session,
           "config eviction_dirty_target=%f cannot exceed eviction_target=%f. Setting "
@@ -383,6 +394,17 @@ __wt_evict_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, eviction_state, __wt_atomic_load32(&evict->flags));
     WT_STATP_CONN_SET(session, stats, eviction_aggressive_set, evict->evict_aggressive_score);
     WT_STATP_CONN_SET(session, stats, eviction_empty_score, evict->evict_empty_score);
+
+    double soft_knee = conn->evict->soft_knee;
+    int64_t evict_clean = (int64_t)(__wt_evict_clean_probable(session, NULL, soft_knee) * 100.0);
+    int64_t evict_dirty = (int64_t)(__wt_evict_dirty_probable(session, NULL, soft_knee) * 100.0);
+    int64_t evict_updates =
+      (int64_t)(__wti_evict_updates_probable(session, NULL, soft_knee) * 100.0);
+    WT_STATP_CONN_SET(session, stats, eviction_needed_clean, evict_clean);
+    WT_STATP_CONN_SET(session, stats, eviction_needed_dirty, evict_dirty);
+    WT_STATP_CONN_SET(session, stats, eviction_needed_updates, evict_updates);
+    WT_STATP_CONN_SET(
+      session, stats, eviction_needed, WT_MAX(WT_MAX(evict_clean, evict_dirty), evict_updates));
 
     WT_STATP_CONN_SET(session, stats, eviction_active_workers,
       __wt_atomic_load32(&conn->evict_threads.current_threads));
