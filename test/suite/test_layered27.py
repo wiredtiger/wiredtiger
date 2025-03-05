@@ -102,12 +102,12 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
         session_follow.checkpoint()
 
-        # Reopen the new leader to get rid of the conten in the ingest table
+        # Reopen the new leader to get rid of the content in the ingest table
         conn_follow.close()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
 
-        #Ensure everything is in the new checkpoint
+        # Ensure everything is in the new checkpoint
         oplog.check(self, session_follow, 0, 400 * self.multiplier)
 
     def test_drain_remove(self):
@@ -159,12 +159,12 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
         session_follow.checkpoint()
 
-        # Reopen the new leader to get rid of the conten in the ingest table
+        # Reopen the new leader to get rid of the content in the ingest table
         conn_follow.close()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
 
-        #Ensure everything is in the new checkpoint
+        # Ensure everything is in the new checkpoint
         oplog.check(self, session_follow, 0, 200 * self.multiplier)
 
     def test_drain_remove_insert(self):
@@ -217,10 +217,10 @@ class test_layered27(wttest.WiredTigerTestCase, DisaggConfigMixin):
         conn_follow.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
         session_follow.checkpoint()
 
-        # Reopen the new leader to get rid of the conten in the ingest table
+        # Reopen the new leader to get rid of the content in the ingest table
         conn_follow.close()
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
 
-        #Ensure everything is in the new checkpoint
+        # Ensure everything is in the new checkpoint
         oplog.check(self, session_follow, 0, 300 * self.multiplier)

@@ -143,8 +143,7 @@ class Oplog(object):
         entlist = self._get_entlist(table)
 
         if len(entlist) == 0:
-            # If oplog has no entries for this table,
-            # silently succeed
+            # If oplog has no entries for this table, silently succeed
             return
         incr = len(entlist)//count
         if incr == 0:
