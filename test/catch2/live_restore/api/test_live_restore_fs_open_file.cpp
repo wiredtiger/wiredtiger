@@ -106,31 +106,30 @@ TEST_CASE("Live Restore fs_open_file", "[live_restore],[live_restore_open_file]"
 
     SECTION("fs_open - Directory")
     {
-        /*
-         * WiredTiger never creates directories. The user must do this outside of WiredTiger. This
-         * means all cases where the directory doesn't exist in the destination we return ENOENT
-         * These cases include when:
-         */
         WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = nullptr;
 
-        // The directory doesn't exist in the source or destination
+        // WiredTiger never creates directories. The user must do this outside of WiredTiger. This
+        // means all cases where the directory doesn't exist in the destination we return ENOENT.
+
+        // The directory doesn't exist in the source or destination. Return ENOENT.
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY, ENOENT);
         REQUIRE(lr_fh == nullptr);
 
-        // The WT_FS_OPEN_CREATE flag is provided
+        // The WT_FS_OPEN_CREATE flag is provided but there is no directory in the destination.
+        // Return ENOENT.
         lr_fh =
           open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY, ENOENT, WT_FS_OPEN_CREATE);
         REQUIRE(lr_fh == nullptr);
 
-        // The directory exists in the source
+        // The directory exists in the source but not the destination. Return ENOENT.
         testutil_remove(env.dest_file_path(subfolder).c_str());
         testutil_mkdir(env.source_file_path(subfolder).c_str());
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY, ENOENT);
         REQUIRE(lr_fh == nullptr);
 
-        // However, when the directory exists in the destination open will be successful when:
+        // However, when the directory exists in the destination open will be successful.
 
-        // The directory exists only in the destination
+        // The directory exists only in the destination.
         testutil_mkdir(env.dest_file_path(subfolder).c_str());
         REQUIRE(testutil_exists(".", env.dest_file_path(subfolder).c_str()));
         lr_fh = open_file(env, subfolder, WT_FS_OPEN_FILE_TYPE_DIRECTORY);

@@ -1088,8 +1088,8 @@ __live_restore_fs_open_in_source(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *se
     /* Open the file in the layer. */
     WT_ERR(__live_restore_fs_backing_filename(
       &lr_fs->source, session, lr_fs->destination.home, lr_fh->iface.name, &path));
-    WT_ERR(lr_fs->os_file_system->fs_open_file(
-      lr_fs->os_file_system, (WT_SESSION *)session, path, lr_fh->file_type, flags, &fh));
+    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, (WT_SESSION *)session, path,
+      lr_fh->file_type, flags | WT_FS_OPEN_READONLY, &fh));
 
     lr_fh->source = fh;
 
@@ -1350,7 +1350,7 @@ err:
 
 /*
  * __live_restore_setup_lr_fh_directory --
- *     Populate a live restore file handle for a directory. Directories are created the user and
+ *     Populate a live restore file handle for a directory. Directories are created by the user and
  *     therefore must always exist in the destination.
  */
 static int
@@ -1440,7 +1440,7 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
 
     /* Open both files and create the temporary destination file. */
     WT_ERR(lr_fs->os_file_system->fs_open_file(
-      lr_fs->os_file_system, wt_session, source_path, type, 0, &source_fh));
+      lr_fs->os_file_system, wt_session, source_path, type, WT_FS_OPEN_READONLY, &source_fh));
     WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, wt_session, tmp_dest_path,
       type, WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &dest_fh));
 
