@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /* FIXME: Move all generation functions into one file. */
 
 /*
