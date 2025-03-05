@@ -1307,40 +1307,24 @@ err:
 
 /*
  * __live_restore_setup_lr_fh_directory --
- *     Populate a live restore file handle for a directory. Directories have special handling. If
- *     they don't exist in the destination they'll be created immediately (but not their contents)
- *     and immediately marked as complete. WiredTiger will never create or destroy a directory so we
- *     don't need to think about stop files for directories.
+ *     Populate a live restore file handle for a directory. Directories are created the user and
+ *     therefore must always exist in the destination.
  */
 static int
 __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
   const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_DECL_RET;
-    bool dest_exist = false, source_exist = false;
+    bool dest_exist = false;
 
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
-    WT_RET_NOTFOUND_OK(
-      __live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &source_exist));
 
-    if (!dest_exist && !source_exist && !LF_ISSET(WT_FS_OPEN_CREATE))
-        WT_RET_MSG(session, ENOENT, "Directory %s does not exist in source or destination", name);
-
-    if (!dest_exist) {
-        /*
-         * The directory doesn't exist in the destination yet. We need to create it in all cases.
-         * Our underlying posix file system doesn't support creating folders via WT_FS_OPEN_CREATE
-         * so we create it manually.
-         *
-         * FIXME-WT-13971 Defaulting to permissions 0755. If the folder exists in the source should
-         * we copy the permissions from the source?
-         */
-        mkdir(name, 0755);
-    }
+    /* WiredTiger never creates directories. The user must do this themself. */
+    if (!dest_exist)
+        WT_RET_MSG(session, ENOENT, "Directory %s does not exist in the destination", name);
 
     WT_FILE_HANDLE *fh;
-    WT_ERR(lr_fs->os_file_system->fs_open_file(
+    WT_RET(lr_fs->os_file_system->fs_open_file(
       lr_fs->os_file_system, (WT_SESSION *)session, name, lr_fh->file_type, flags, &fh));
 
     lr_fh->destination = fh;
@@ -1350,8 +1334,7 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
     lr_fh->back_pointer = lr_fs;
     lr_fh->complete = true;
 
-err:
-    return (ret);
+    return (0);
 }
 
 /*
@@ -1479,7 +1462,6 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
           "%s: Opening source file, source size is: (%" PRId64 ")", lr_fh->iface.name, source_size);
         if (!dest_exist) {
-            /* FIXME-WT-13971 - Determine if we should copy file permissions from the source. */
             __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
               "%s: Creating destination file backed by source file", lr_fh->iface.name);
 
@@ -1632,8 +1614,6 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
     lr_fh->iface.fh_extend_nolock = NULL;
 
     WT_ERR(__wt_rwlock_init(session, &lr_fh->bitmap_lock));
-
-    /* FIXME-WT-13823 Handle the exclusive flag and other flags */
 
     if (file_type == WT_FS_OPEN_FILE_TYPE_DIRECTORY)
         WT_ERR(__live_restore_setup_lr_fh_directory(session, lr_fs, name, flags, lr_fh));
