@@ -532,8 +532,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
 
         /* Boundary: split or write the page. */
-        if (__wt_rec_need_split(r, key->len + val->len))
+        if (__wt_rec_need_split(r, key->len + val->len)) {
             WT_ERR(__wti_rec_split_crossing_bnd(session, r, key->len + val->len));
+            if (r->entries > 0 && build_delta) {
+                build_delta = false;
+                r->delta.size = 0;
+            }
+        }
 
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
