@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,61 +26,70 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wttest
+from rollback_to_stable_util import test_rollback_to_stable_base
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 # test_rollback_to_stable44.py
-#    Make sure RTS does nothing in a disaggregated storage context.
-class test_rollback_to_stable44(wttest.WiredTigerTestCase):
-    conn_config = 'disaggregated=(page_log=palm),' \
-        + 'disaggregated=(role="leader")'
+# Check that RTS backs out prepared transactions on recover if the stable timestamp is not set.
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
+class test_rollback_to_stable44(test_rollback_to_stable_base):
 
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+    format_values = [
+        ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('row_integer', dict(key_format='i', value_format='S')),
+    ]
 
-    # Custom test case setup
-    def early_setup(self):
-        os.mkdir('follower')
-        # Create the home directory for the PALM k/v store, and share it with the follower.
-        os.mkdir('kv_home')
-        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
+    scenarios = make_scenarios(format_values)
 
-    def test_rollback_to_stable44(self):
+    def conn_config(self):
+        return 'verbose=(rts:5)'
+
+    def evict(self, uri, session, key, value):
+        evict_cursor = session.open_cursor(uri, None, "debug=(release_evict)")
+        session.begin_transaction('ignore_prepare=true')
+        v = evict_cursor[key]
+        self.assertEqual(v, value)
+        self.assertEqual(evict_cursor.reset(), 0)
+        session.rollback_transaction()
+
+    def test_rollback_to_stable(self):
+        nrows = 10
+
+        # Create a table.
         uri = "table:rollback_to_stable44"
-        ds = SimpleDataSet(self, uri, 500, key_format='S', value_format='S')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
-        c = self.session.open_cursor(uri, None, None)
-        self.session.begin_transaction()
-        c[ds.key(10)] = ds.value(100)
-        c[ds.key(11)] = ds.value(101)
-        c[ds.key(12)] = ds.value(102)
-        self.session.commit_transaction('commit_timestamp=30')
-        c.close()
+        if self.value_format == '8t':
+            value_a = 97
+            value_b = 98
+        else:
+            value_a = "aaaaa" * 10
+            value_b = "bbbbb" * 10
 
-        # Set stable to 20 and crash.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
+        # Do not set the stable and the oldest timestamps.
+
+        # Write aaaaaa to all the keys at time 10.
+        self.large_updates(uri, value_a, ds, nrows, False, 10)
+
+        # Write bbbbbb to the first key, prepare it, but do not commit.
+        session_b = self.conn.open_session()
+        session_b.begin_transaction()
+        cursor_b = session_b.open_cursor(uri)
+        cursor_b[ds.key(1)] = value_b
+        session_b.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
+
+        # Evict the page with the first key.
+        self.evict(uri, self.session, ds.key(1), value_a)
+
+        # Checkpoint and simulate crash, which triggers RTS.
         self.session.checkpoint()
-        simulate_crash_restart(self, ".", "RESTART")
+        simulate_crash_restart(self, '.', 'RESTART')
 
-        # Check that recovery didn't roll us back.
-        c = self.session.open_cursor(uri, None)
-        self.assertEquals(c[ds.key(10)], ds.value(100))
-        self.assertEquals(c[ds.key(11)], ds.value(101))
-        self.assertEquals(c[ds.key(12)], ds.value(102))
-        c.close()
-
-        # Runtime RTS should still work.
-        self.conn.rollback_to_stable()
-        c = self.session.open_cursor(uri, None)
-        self.assertEquals(c[ds.key(10)], ds.value(10))
-        self.assertEquals(c[ds.key(11)], ds.value(11))
-        self.assertEquals(c[ds.key(12)], ds.value(12))
-        c.close()
+        # Check that the prepare operation did not have any effect.
+        self.check(0, uri, 0, nrows, 5)
+        self.check(value_a, uri, nrows, 0, 15)
+        self.check(value_a, uri, nrows, 0, 25)
