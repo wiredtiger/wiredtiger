@@ -285,19 +285,6 @@ functions:
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
         fi
 
-        # FIXME-WT-14152: Enable LZ4 and snappy compressors once installed on machines.
-        if [[ "${build_variant|}" =~ "amazon2023" ]]; then
-          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_LZ4=1) ]]; then
-            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_LZ4=1/}
-          fi
-          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
-            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
-          fi
-          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_SNAPPY=1) ]]; then
-            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_SNAPPY=1/}
-          fi
-        fi
-
         if [[ "${build_variant|}" =~ "macos-14" ]]; then
           # For mac builds, we want explicitly tell cmake which python to use, as
           # well as the matching library directory and header files. The find_libpython
@@ -3504,7 +3491,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            export "PATH=/opt/mongodbtoolchain/v4/bin:$PATH"
+            export "PATH=/opt/mongodbtoolchain/v5/bin:$PATH"
             g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20 -Wall -Werror
             ./memory_model_test -n 100000000
 
@@ -5733,6 +5720,7 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  activate: false # Launch only manually for now
   tasks:
     - name: compile
     - name: generate-datafile-big-endian
@@ -5770,6 +5758,7 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     # Use half number of vCPU to avoid OOM kill failure
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
+  activate: false # Launch only manually for now
   tasks:
     - name: compile
     - name: unit-test
@@ -6085,7 +6074,7 @@ buildvariants:
   run_on:
   - amazon2023-arm64-latest-small-m8g
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -6108,7 +6097,7 @@ buildvariants:
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
@@ -6126,8 +6115,7 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
-    # FIXME-WT-14152: Enable stress tests that require snappy compressors
-    - name: ".cppsuite-stress-test !cppsuite-burst-inserts-stress !cppsuite-hs-cleanup-stress !cppsuite-operations-test-stress !cppsuite-reverse-split-stress"
+    - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
 
 - name: amazon2023-release-armv9
@@ -6136,7 +6124,7 @@ buildvariants:
   - amazon2023-arm64-latest-small-m8g
   batchtime: 720 # 12 hours
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
@@ -6161,19 +6149,17 @@ buildvariants:
   - amazon2023-arm64-latest-small-m8g
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
-    # - name: ".workgen-test"
-    #  batchtime: 1440 # 24 hours
+    - name: ".workgen-test"
+      batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
     - name: chunkcache-test
     - name: compile
     - name: fops
-    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
-    # - name: format-failure-configs-test
-    #  distros: amazon2023-arm64-latest-large-m8g
+    - name: format-failure-configs-test
+      distros: amazon2023-arm64-latest-large-m8g
     - name: format-smoke-test
     - name: format-stress-pull-request-test
     - name: long-test
@@ -6202,9 +6188,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: compile
     - name: fops
-    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
-    # - name: format-failure-configs-test
-    #  distros: amazon2023-arm64-latest-large-m8g
+    - name: format-failure-configs-test
+      distros: amazon2023-arm64-latest-large-m8g
 
 - name: cppsuite-stress-tests-armv9
   display_name: "(ARMV9) Cppsuite Stress Tests ARM64"
@@ -6212,19 +6197,18 @@ buildvariants:
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
-    # FIXME-WT-14152: Enable stress tests that require snappy compressors
-    - name: ".cppsuite-stress-test !cppsuite-burst-inserts-stress !cppsuite-hs-cleanup-stress !cppsuite-operations-test-stress !cppsuite-reverse-split-stress"
+    - name: ".cppsuite-stress-test"
 
 - name: amazon2023-stress-tests-armv9
   display_name: (ARMV9) Amazon2023 Stress tests ARM64
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
@@ -6346,6 +6330,5 @@ buildvariants:
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: compile
-    # FIXME-WT-14152: Enable stress tests that require snappy compressors
-    - name: ".cppsuite-stress-test !cppsuite-burst-inserts-stress !cppsuite-hs-cleanup-stress !cppsuite-operations-test-stress !cppsuite-reverse-split-stress"
+    - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours

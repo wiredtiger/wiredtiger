@@ -692,8 +692,13 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
             WT_RET(__wt_curmetadata_open(session, uri, owner, cfg, cursorp));
         break;
     case 'b':
-        if (WT_PREFIX_MATCH(uri, "backup:"))
+        /* FIXME-WT-14231 Allow taking backups when live restore is in the COMPLETE phase. */
+        if (WT_PREFIX_MATCH(uri, "backup:")) {
+            if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+                WT_RET_SUB(session, EINVAL, WT_CONFLICT_LIVE_RESTORE,
+                  "backup cannot be taken when live restore is enabled");
             WT_RET(__wt_curbackup_open(session, uri, other, cfg, cursorp));
+        }
         break;
     case 's':
         if (WT_PREFIX_MATCH(uri, "statistics:")) {
@@ -1771,7 +1776,6 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
     SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, ret, begin_transaction);
     SESSION_API_CONF(session, begin_transaction, config, conf);
     WT_STAT_CONN_INCR(session, txn_begin);
-    WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
 
     WT_ERR(__wt_txn_context_check(session, false));
 

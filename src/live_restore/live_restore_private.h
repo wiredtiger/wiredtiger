@@ -19,27 +19,30 @@
  *  - It may have been renamed, again we create a stop file in case it is recreated.
  */
 #define WTI_LIVE_RESTORE_STOP_FILE_SUFFIX ".stop"
+#define WTI_LIVE_RESTORE_TEMP_FILE_SUFFIX ".lr_tmp"
+/*
+ * WTI_OFFSET_END returns the last byte used by a range (exclusive). i.e. if we have an offset=0 and
+ * length=1024 WTI_OFFSET_END returns 1024
+ */
+#define WTI_OFFSET_END(offset, len) (offset + (wt_off_t)len)
+#define WTI_OFFSET_TO_BIT(offset) (uint64_t)((offset) / (wt_off_t)lr_fh->allocsize)
+#define WTI_BIT_TO_OFFSET(bit) (wt_off_t)((bit)*lr_fh->allocsize)
+/*
+ * The end of the bitmap is the portion of the file represented by the bitmap. i.e. a file with
+ * 2*4096 blocks will have a size of 8192 bytes represented.
+ */
+#define WTI_BITMAP_END(lr_fh) ((wt_off_t)(lr_fh)->allocsize * (wt_off_t)(lr_fh)->nbits)
 
 /*
- * WTI_OFFSET_END returns the last byte used by a range (inclusive). i.e. if we have an offset=0 and
- * length=1024 WTI_OFFSET_END returns 1023
+ * We close the backing source file when migration completes. If we've closed it, or the source file
+ * doesn't exist, there is no more migration work to do.
  */
-#define WTI_OFFSET_END(offset, len) (offset + (wt_off_t)len - 1)
-#define WTI_EXTENT_END(ext) WTI_OFFSET_END((ext)->off, (ext)->len)
-/* As extent ranges are inclusive we want >= and <= on both ends of the range. */
-#define WTI_OFFSET_IN_EXTENT(addr, ext) ((addr) >= (ext)->off && (addr) <= WTI_EXTENT_END(ext))
-
+#define WTI_DEST_COMPLETE(lr_fh) ((lr_fh)->source == NULL)
 /*
- * __wti_live_restore_hole_node --
- *     A linked list of extents. Each extent represents a hole in the destination file that needs to
- *     be read from the source file.
+ * The most aggressive sweep server configuration runs every second. Allow 4 seconds to make sure
+ * the server has time to find and close any open file handles.
  */
-struct __wti_live_restore_hole_node {
-    wt_off_t off;
-    size_t len;
-
-    WTI_LIVE_RESTORE_HOLE_NODE *next;
-};
+#define WT_LIVE_RESTORE_TIMING_STRESS_CLEAN_UP_DELAY 4
 
 /*
  * __wti_live_restore_file_handle --
@@ -47,37 +50,32 @@ struct __wti_live_restore_hole_node {
  */
 struct __wti_live_restore_file_handle {
     WT_FILE_HANDLE iface;
-    WT_FILE_HANDLE *source;
-    size_t source_size;
-    /* Metadata kept along side a file handle to track holes in the destination file. */
-    struct {
-        WT_FILE_HANDLE *fh;
-        bool complete;
-
-        /* We need to get back to the file system when checking for stop files. */
-        WTI_LIVE_RESTORE_FS *back_pointer;
-
-        /*
-         * The hole list tracks which ranges in the destination file are holes. As the migration
-         * continues the holes will be gradually filled by either data from the source or new
-         * writes. Holes in these extents should only shrink and never grow.
-         */
-        WTI_LIVE_RESTORE_HOLE_NODE *hole_list_head;
-    } destination;
-
+    WT_FILE_HANDLE *destination;
+    /* We need to get back to the file system when checking state. */
+    WTI_LIVE_RESTORE_FS *back_pointer;
+    uint32_t allocsize;
     WT_FS_OPEN_FILE_TYPE file_type;
-    WT_RWLOCK ext_lock; /* File extent list lock */
+
+    /*
+     * This lock protects all of the below fields and should be held for all accesses to them. There
+     * are a few rare exceptions which are listed when they occur.
+     */
+    WT_RWLOCK lock;
+    /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
+    uint64_t nbits;
+    uint8_t *bitmap;
+    WT_FILE_HANDLE *source;
 };
 
 /*
- * WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK --
- *     Acquire the extent list write lock and perform an operation.
+ * WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK --
+ *     Acquire the bitmap list write lock and perform an operation.
  */
-#define WTI_WITH_LIVE_RESTORE_EXTENT_LIST_WRITE_LOCK(session, lr_fh, op) \
-    do {                                                                 \
-        __wt_writelock((session), &(lr_fh)->ext_lock);                   \
-        op;                                                              \
-        __wt_writeunlock((session), &(lr_fh)->ext_lock);                 \
+#define WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK(session, lr_fh, op) \
+    do {                                                        \
+        __wt_writelock((session), &(lr_fh)->lock);              \
+        op;                                                     \
+        __wt_writeunlock((session), &(lr_fh)->lock);            \
     } while (0)
 
 typedef enum {
@@ -95,6 +93,28 @@ struct __wti_live_restore_fs_layer {
 };
 
 /*
+ * Live restore states. As live restore progresses we will transition through each of these states
+ * one by one. Live restore transitions through each state in the order they are listed below.
+ */
+typedef enum {
+    /*
+     * This is not a valid state. We return it when there is no state file on disk and therefore
+     * we're not in live restore yet.
+     */
+    WTI_LIVE_RESTORE_STATE_NONE,
+    /*
+     * The background migration state is where the majority is where the majority of work takes
+     * place. Users can perform reads/writes while we copy backing data to the destination in the
+     * background.
+     */
+    WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION,
+    /* We've completed background migration and are now cleaning up any live restore metadata. */
+    WTI_LIVE_RESTORE_STATE_CLEAN_UP,
+    /* We've completed the live restore. */
+    WTI_LIVE_RESTORE_STATE_COMPLETE
+} WTI_LIVE_RESTORE_STATE;
+
+/*
  * __wti_live_restore_fs --
  *     A live restore file system in the user space, which consists of a source and destination
  *     layer.
@@ -104,10 +124,12 @@ struct __wti_live_restore_fs {
     WT_FILE_SYSTEM *os_file_system; /* The storage file system. */
     WTI_LIVE_RESTORE_FS_LAYER destination;
     WTI_LIVE_RESTORE_FS_LAYER source;
-    bool finished;
 
     uint8_t background_threads_max;
     size_t read_size;
+
+    WTI_LIVE_RESTORE_STATE state;
+    WT_SPINLOCK state_lock;
 };
 
 /*
@@ -139,10 +161,20 @@ struct __wti_live_restore_server {
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
+extern WTI_LIVE_RESTORE_STATE __wti_live_restore_get_state(WT_SESSION_IMPL *session,
+  WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wti_live_restore_migration_complete(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_live_restore_fs_fill_holes(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
+extern int __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_live_restore_set_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
+  WTI_LIVE_RESTORE_STATE new_state) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_live_restore_validate_directories(WT_SESSION_IMPL *session,
+  WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 
 #ifdef HAVE_UNITTEST
 

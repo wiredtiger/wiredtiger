@@ -261,6 +261,8 @@ struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_live_restore_fh_meta;
+typedef struct __wt_live_restore_fh_meta WT_LIVE_RESTORE_FH_META;
 struct __wt_log_manager;
 typedef struct __wt_log_manager WT_LOG_MANAGER;
 struct __wt_log_record;
@@ -421,8 +423,6 @@ struct __wti_live_restore_fs;
 typedef struct __wti_live_restore_fs WTI_LIVE_RESTORE_FS;
 struct __wti_live_restore_fs_layer;
 typedef struct __wti_live_restore_fs_layer WTI_LIVE_RESTORE_FS_LAYER;
-struct __wti_live_restore_hole_node;
-typedef struct __wti_live_restore_hole_node WTI_LIVE_RESTORE_HOLE_NODE;
 struct __wti_live_restore_server;
 typedef struct __wti_live_restore_server WTI_LIVE_RESTORE_SERVER;
 struct __wti_live_restore_work_item;
@@ -567,12 +567,13 @@ typedef uint64_t wt_timestamp_t;
 #include "intpack_inline.h"        /* required by cell_inline.h, packing_inline.h */
 #include "misc_inline.h"           /* required by mutex_inline.h */
 
-#include "buf_inline.h"       /* required by cell_inline.h */
-#include "ref_inline.h"       /* required by btree_inline.h */
-#include "timestamp_inline.h" /* required by btree_inline.h */
-#include "cell_inline.h"      /* required by btree_inline.h */
-#include "mutex_inline.h"     /* required by btree_inline.h */
-#include "txn_inline.h"       /* required by btree_inline.h */
+#include "generation_inline.h" /* required by txn_inline.h */
+#include "buf_inline.h"        /* required by cell_inline.h */
+#include "ref_inline.h"        /* required by btree_inline.h */
+#include "timestamp_inline.h"  /* required by btree_inline.h */
+#include "cell_inline.h"       /* required by btree_inline.h */
+#include "mutex_inline.h"      /* required by btree_inline.h */
+#include "txn_inline.h"        /* required by btree_inline.h */
 
 #include "bitstring_inline.h"
 #include "block_inline.h"
