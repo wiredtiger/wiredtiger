@@ -63,12 +63,12 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
 
-    nitems = 1000
+    nitems = 10000
 
     def session_create_config(self):
-        # The delta percentage of 200 is an arbitrary large value, intended to produce
+        # The delta percentage of 80 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
@@ -84,7 +84,6 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_layered_read_write(self):
-        self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -107,15 +106,12 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = self.session.open_cursor(self.uri, None, None)
 
         # Perform a single update.
-        for i in range(self.nitems):
-            if i == 10:
-                self.session.begin_transaction()
-                cursor[str(i)] = str(10 + 5 * i) + str("abcdefghijklmnopqrstuvwxyz")
-                if self.ts:
-                    self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10 + 5 * i))
-                else:
-                    self.session.commit_transaction()
-
+        self.session.begin_transaction()
+        cursor[str(10)] = str(10 + 5 * 10) + str("abcdefghijklmnopqrstuvwxyz")
+        if self.ts:
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10 + 5 * 10))
+        else:
+            self.session.commit_transaction()
         self.session.checkpoint()
 
         # Assert that we have written at least one internal page delta.
