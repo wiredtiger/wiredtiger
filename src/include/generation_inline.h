@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+/* FIXME: Move all generation functions into one file. */
+
 /*
  * __wt_gen --
  *     Return the resource's generation.
@@ -39,4 +41,3 @@ __wt_session_gen(WT_SESSION_IMPL *session, int which)
 {
     return (__wt_atomic_loadv64(&session->generations[which]));
 }
-
