@@ -85,7 +85,7 @@ class test_compact09(compact_util):
 
         # Background compaction should exclude all files.
         while self.get_bg_compaction_files_excluded() < self.n_tables:
-            time.sleep(1)
+            time.sleep(0.1)
         assert self.get_files_compacted(uris) == 0
         num_files_excluded = self.get_bg_compaction_files_excluded()
         assert num_files_excluded == self.n_tables
@@ -107,7 +107,7 @@ class test_compact09(compact_util):
 
         # We should now start compacting the second table.
         while self.get_files_compacted(uris) == 0:
-            time.sleep(1)
+            time.sleep(0.1)
         assert self.get_files_compacted(uris) == 1
 
         # Make sure we have compacted the right table.
