@@ -26,31 +26,56 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import threading, time
 import wttest
+import wiredtiger
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
-from helper import simulate_crash_restart
 
 # test_checkpoint33.py
 #
-# Test precise checkpoint
-class test_checkpoint32(wttest.WiredTigerTestCase):
+# Test that reconciliation removes obsolete updates on the page.
+class test_checkpoint33(wttest.WiredTigerTestCase):
 
     format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
+        ('column_fix', dict(key_format='r', value_format='8t',
+            extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
     ]
 
-    conn_config = "checkpoint=(precise=true)"
-
     scenarios = make_scenarios(format_values)
+
+    def large_updates(self, uri, ds, nrows, value, ts):
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, nrows + 1):
+            cursor[ds.key(i)] = value
+            if i % 101 == 0:
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+                self.session.begin_transaction()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        cursor.close()
+
+    def check(self, ds, nrows, value):
+        cursor = self.session.open_cursor(ds.uri)
+        count = 0
+        for k, v in cursor:
+            self.assertEqual(v, value)
+            count += 1
+        self.assertEqual(count, nrows)
+        cursor.close()
+
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
     def test_checkpoint(self):
         uri = 'table:checkpoint33'
-        nrows = 1000000
+        nrows = 1000
 
         # Create a table.
         ds = SimpleDataSet(
@@ -59,46 +84,71 @@ class test_checkpoint32(wttest.WiredTigerTestCase):
         ds.populate()
 
         if self.value_format == '8t':
-            value_a = 1
+            value_a = 97
+            value_b = 98
+            value_c = 99
+            value_d = 100
+            value_e = 101
         else:
-            value_a =  "aaaaa" * 100
-        if self.value_format == '8t':
-            value_b = 2
-        else:
+            value_a = "aaaaa" * 100
             value_b = "bbbbb" * 100
-
-        ts = 2
+            value_c = "ccccc" * 100
+            value_d = "ddddd" * 100
+            value_e = "eeeee" * 100
 
         # Write some initial data.
-        cursor = self.session.open_cursor(ds.uri, None, None)
-        for i in range(1, nrows + 1):
-            self.session.begin_transaction()
-            cursor[ds.key(i)] = value_a
-            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts)}')
-            ts += 1
-            self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts-1)}')
+        self.large_updates(ds.uri, ds, nrows, value_a, 5)
 
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
+        # Pin oldest and stable timestamps to 5.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +
+            ',stable_timestamp=' + self.timestamp_str(5))
 
-        # Write unstable data
-        for i in range(1, 100):
-            self.session.begin_transaction()
-            cursor[ds.key(i)] = value_b
-            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(ts + 100)}')
+        # Checkpoint and reopen the connection to read from the on-disk version.
+        self.session.checkpoint()
+        self.reopen_conn()
+
+        # Add updates to each key to check whether they free on reconciliation.
+        self.large_updates(ds.uri, ds, nrows, value_b, 10)
+        prev_bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
+        self.pr('Base bytes in use ' + str(prev_bytes_in_use))
+
+        self.large_updates(ds.uri, ds, nrows, value_c, 20)
+
+        # Pin oldest and stable timestamps to 20.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(20) +
+            ',stable_timestamp=' + self.timestamp_str(20))
 
         # Checkpoint.
         self.session.checkpoint()
+        bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
+        self.pr('After first checkpoint bytes in use ' + str(bytes_in_use))
+        self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
 
-        # Crash and restart
-        simulate_crash_restart(self, ".", "RESTART")
+        # Another set of updates.
+        self.large_updates(ds.uri, ds, nrows, value_d, 30)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        self.assertEquals(stat_cursor[stat.conn.txn_rts_upd_aborted][2], 0)
-        stat_cursor.close()
+        # Pin oldest and stable timestamps to 30.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(30) +
+            ',stable_timestamp=' + self.timestamp_str(30))
 
-        cursor = self.session.open_cursor(ds.uri, None, None)
-        for i in range(1, nrows + 1):
-            self.assertEquals(cursor[ds.key(i)], value_a)
+        # Checkpoint.
+        self.session.checkpoint()
+        bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
+        self.pr('After second checkpoint bytes in use ' + str(bytes_in_use))
+        self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
+
+        # Another set of updates.
+        self.large_updates(ds.uri, ds, nrows, value_e, 40)
+
+        # Pin oldest and stable timestamps to 40.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(40) +
+            ',stable_timestamp=' + self.timestamp_str(40))
+
+        # Checkpoint.
+        self.session.checkpoint()
+        bytes_in_use = self.get_stat(stat.conn.cache_bytes_inuse)
+        self.pr('After third checkpoint bytes in use ' + str(bytes_in_use))
+        self.assertLess(bytes_in_use, prev_bytes_in_use * 2)
 
 if __name__ == '__main__':
     wttest.run()
