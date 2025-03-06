@@ -270,6 +270,7 @@ extern const char __WT_CONFIG_CHOICE_prefetch[];
 extern const char __WT_CONFIG_CHOICE_prefetch_1[];
 extern const char __WT_CONFIG_CHOICE_prefetch_2[];
 extern const char __WT_CONFIG_CHOICE_prefetch_3[];
+extern const char __WT_CONFIG_CHOICE_prefetch_delay[];
 extern const char __WT_CONFIG_CHOICE_prefix_compare[];
 extern const char __WT_CONFIG_CHOICE_prepare[];
 extern const char __WT_CONFIG_CHOICE_prepare_checkpoint_delay[];
