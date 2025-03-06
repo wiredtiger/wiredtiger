@@ -44,8 +44,7 @@ table_verify(TABLE *table, void *arg)
     testutil_assert(table != NULL);
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(conn, &sap, table->track_prefix,
-      enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
+    wt_wrap_open_session(conn, &sap, table->track_prefix, NULL, &session);
     ret = session->verify(session, table->uri, "strict");
     testutil_assert(ret == 0 || ret == EBUSY);
     if (ret == EBUSY)
@@ -205,8 +204,7 @@ table_verify_mirror(
     failures = 0;
 
     memset(&sap, 0, sizeof(sap));
-    wt_wrap_open_session(
-      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
 
     /* Optionally open a checkpoint to verify. */
     if (checkpoint != NULL)
