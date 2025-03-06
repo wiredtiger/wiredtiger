@@ -341,6 +341,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
 
     if (current_leader != clayered->leader || current_checkpoint_id != clayered->checkpoint_id) {
         reopen_ingest = reopen_stable = false;
+        snapshot_gen = clayered->snapshot_gen;
 
         if (current_leader != clayered->leader) {
             /*
@@ -361,8 +362,6 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
             if (iteration)
                 return (0);
 
-            snapshot_gen = clayered->snapshot_gen;
-
             /*
              * Layered cursors are sometimes paired with read timestamps. When using read
              * timestamps, it's always safe to update cursors, even during iterations. That's
@@ -377,7 +376,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
              * currently have a transactional snapshot, or if the snapshot has changed, we can
              * update.
              */
-            if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+            else if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
               (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != snapshot_gen))
                 reopen_stable = true;
         }
