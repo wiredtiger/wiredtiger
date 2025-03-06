@@ -177,19 +177,19 @@ __wt_session_set_last_error(
          * A successful API call results in having err equal to 0 and the err_msg set to the default
          * success message.
          *
-         * The fmt variable doesn't need to be processed because the successful err_msg is fixed. 
+         * The fmt variable doesn't need to be processed because the successful err_msg is fixed.
          * Therefore, the fmt variable should be NULL when an API call is successful.
          */
         WT_ASSERT(session, fmt == NULL);
         err_info->err_msg = WT_ERROR_INFO_SUCCESS;
     } else {
-      if (strlen(fmt) == 0)
-        err_info->err_msg = WT_ERROR_INFO_EMPTY;
-      else {
-        WT_ASSERT(session, fmt != NULL);
-        WT_VA_ARGS_BUF_FORMAT(session, &(err_info->err_msg_buf), fmt, false);
-        err_info->err_msg = err_info->err_msg_buf.data;
-      }
+        if (strlen(fmt) == 0)
+            err_info->err_msg = WT_ERROR_INFO_EMPTY;
+        else {
+            WT_ASSERT(session, fmt != NULL);
+            WT_VA_ARGS_BUF_FORMAT(session, &(err_info->err_msg_buf), fmt, false);
+            err_info->err_msg = err_info->err_msg_buf.data;
+        }
     }
 
     return;
