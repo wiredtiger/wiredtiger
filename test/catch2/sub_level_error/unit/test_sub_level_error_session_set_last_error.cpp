@@ -70,8 +70,8 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
     {
         const char *err_msg_content_EINVAL = "Some EINVAL error";
         const char *err_msg_content_EBUSY = "Some EBUSY error";
-        __wt_session_set_last_error(session_impl, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
-        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
+        __wt_session_set_last_error(session_impl, 0, WT_NONE, NULL);
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
         __wt_session_set_last_error(
           session_impl, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content_EINVAL);
         check_error_info(
