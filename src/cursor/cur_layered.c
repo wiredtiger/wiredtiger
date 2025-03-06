@@ -366,8 +366,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
             /*
              * Layered cursors are sometimes paired with read timestamps. When using read
              * timestamps, it's always safe to update cursors, even during iterations. That's
-             * because the view at a timestamp is is always consistent, the history store covers
-             * that.
+             * because the view at a timestamp is always consistent, the history store covers that.
              */
             txn_shared = WT_SESSION_TXN_SHARED(session);
             if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
@@ -446,8 +445,8 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     WT_CURSOR *c;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
-    const char *ckpt_cfg[3] = {NULL, NULL, NULL};
     char random_config[1024];
+    const char *ckpt_cfg[3] = {NULL, NULL, NULL};
     bool leader;
 
     c = &clayered->iface;
