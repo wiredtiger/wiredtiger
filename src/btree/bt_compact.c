@@ -114,7 +114,7 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
     WT_ASSERT(session, addr != NULL);
 
     if (__wt_off_page(ref->home, addr))
-        __wt_ref_addr_safe_free(session, addr->block_cookie, addr->block_cookie_size);
+        __wti_ref_addr_safe_free(session, addr->block_cookie, addr->block_cookie_size);
     else {
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
 
