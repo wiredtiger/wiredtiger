@@ -356,29 +356,29 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
             /*
              * We have a new checkpoint on the follower. We'd like to reopen the stable cursor, but
              * we must abide by cursor and transactional semantics.
-             *
-             * First off, if this is an iteration, we won't upgrade the cursor.
              */
-            if (iteration)
-                return (0);
-
             /*
-             * Layered cursors are sometimes paired with read timestamps. When using read
+             * First, layered cursors are sometimes paired with read timestamps. When using read
              * timestamps, it's always safe to update cursors, even during iterations. That's
              * because the view at a timestamp is always consistent, the history store covers that.
              */
             txn_shared = WT_SESSION_TXN_SHARED(session);
             if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
                 change_stable = true;
+            else {
+                /* if this is an iteration, we won't upgrade the cursor, we're done. */
+                if (iteration)
+                    return (0);
 
-            /*
-             * There are other points when it is appropriate to update cursors. If we don't
-             * currently have a transactional snapshot, or if the snapshot has changed, we can
-             * update.
-             */
-            else if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
-              (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != snapshot_gen))
-                change_stable = true;
+                /*
+                 * There are other points when it is appropriate to update cursors. If we don't
+                 * currently have a transactional snapshot, or if the snapshot has changed, we can
+                 * update.
+                 */
+                if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+                  (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != snapshot_gen))
+                    change_stable = true;
+            }
         }
 
         /* See if there's nothing to do for the ingest cursor. */
