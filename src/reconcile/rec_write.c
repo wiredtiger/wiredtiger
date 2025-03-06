@@ -2134,6 +2134,7 @@ __wti_rec_pack_delta_internal(
     *head_byte = flags;
 
     ++header->u.entries;
+
     return (0);
 }
 
@@ -2326,6 +2327,10 @@ __rec_build_delta(
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
         }
+    } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
+        /* The internal page delta would have already been built at this point if one exists. */
+        if (r->delta.size > 0)
+            *build_deltap = true;
     }
 
     return (0);
@@ -2518,6 +2523,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
           &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
+
+        if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
+        else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
     } else {
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
