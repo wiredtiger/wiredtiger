@@ -404,6 +404,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     page = r->page;
     mod = page->modify;
 
+    F_CLR_ATOMIC_16(page, WT_PAGE_INTL_PINDEX_UPDATE);
+
     /*
      * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
      * discard its history).
