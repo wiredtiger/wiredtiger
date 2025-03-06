@@ -177,6 +177,9 @@ struct __wt_disaggregated_storage {
                                                  /* Updates are protected by the checkpoint lock. */
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
 
+    wt_shared bool has_last_materialized_lsn; /* Whether we track the materialization progress. */
+    wt_shared uint64_t last_materialized_lsn; /* The LSN of the last materialized page. */
+
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
 

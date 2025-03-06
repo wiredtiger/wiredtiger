@@ -370,9 +370,13 @@ __wti_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM k, v;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    int count;
     const char *p;
+    bool has_disagg;
 
     conn = S2C(session);
 
@@ -394,6 +398,32 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
      * previously configured value.
      */
     cfg[0] = conn->cfg;
+
+    /*
+     * Fast path for disaggregated storage. We mostly need this given the frequency this is being
+     * called to pick up new checkpoints and to advance the page materialization frontier.
+     */
+    has_disagg = false;
+    if (cfg[1] != NULL && cfg[2] == NULL) {
+        count = 0;
+
+        __wt_config_init(session, &cparser, cfg[1] /* Just the caller-supplied config. */);
+        while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+            count++;
+            if (WT_STRING_LIT_MATCH("disaggregated", k.str, k.len))
+                has_disagg = true;
+            if (count > 1 || !has_disagg)
+                break;
+        }
+
+        if (count == 1 && has_disagg) {
+            WT_ERR(__wti_disagg_conn_config(session, cfg, true));
+
+            /* Some HS settings depend on disaggregated storage configuration. */
+            WT_ERR(__wt_hs_config(session, cfg));
+            goto done;
+        }
+    }
 
     /*
      * Reconfigure the system.
@@ -425,6 +455,7 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wti_json_config(session, cfg, true));
     WT_ERR(__wt_verbose_config(session, cfg, true));
 
+done:
     /* Third, merge everything together, creating a new connection state. */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &p));
     __wt_free(session, conn->cfg);
