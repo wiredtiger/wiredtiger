@@ -218,8 +218,10 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
             # Scan the first half of the items.
             for i in range(first_read):
-                if cursor.next() != 0:
+                ret = cursor.next()
+                if ret == wiredtiger.WT_NOTFOUND:
                     break
+                self.assertEqual(ret, 0)
                 expected_key = keys_in_order[i]
                 self.assertEqual(cursor.get_key(), expected_key)
                 self.assertEqual(cursor.get_value(), value_prefix3 + expected_key)
@@ -247,8 +249,10 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor = follower_cursors[uri]
             found = first_read
             for i in range(first_read, self.nitems):
-                if cursor.next() != 0:
+                ret = cursor.next()
+                if ret == wiredtiger.WT_NOTFOUND:
                     break
+                self.assertEqual(ret, 0)
 
                 # We're checking that we haven't lost our place in the key space.
                 # For the value, we're only checking that the prefix contains the
