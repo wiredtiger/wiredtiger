@@ -316,8 +316,8 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 /*
  * __clayered_adjust_state --
  *     Update the state of the cursor to match the state of the disaggregated system. In particular,
- *     if the system has changed in a way that makes constituent cursors out of date, close them.
- *     They will be opened later as needed.
+ *     if the system has changed in a way that makes constituent cursors out of date, either reopen
+ *     them or close them, and let them be opened later as needed.
  */
 static int
 __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state_updated)
@@ -327,7 +327,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
     WT_SESSION_IMPL *session;
     WT_TXN_SHARED *txn_shared;
     uint64_t current_checkpoint_id, snapshot_gen;
-    bool current_leader, reopen_ingest, reopen_stable;
+    bool change_ingest, change_stable, current_leader;
 
     *state_updated = false;
     session = CUR2S(clayered);
@@ -340,7 +340,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
         current_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
 
     if (current_leader != clayered->leader || current_checkpoint_id != clayered->checkpoint_id) {
-        reopen_ingest = reopen_stable = false;
+        change_ingest = change_stable = false;
         snapshot_gen = clayered->snapshot_gen;
 
         if (current_leader != clayered->leader) {
@@ -350,8 +350,8 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
              * FIXME-SLS-1449 Maybe this can be relaxed - a stable cursor might be left open on
              * downgrade as long as it does readonly operations from then on.
              */
-            reopen_ingest = true;
-            reopen_stable = true;
+            change_ingest = true;
+            change_stable = true;
         } else {
             /*
              * We have a new checkpoint on the follower. We'd like to reopen the stable cursor, but
@@ -369,7 +369,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
              */
             txn_shared = WT_SESSION_TXN_SHARED(session);
             if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
-                reopen_stable = true;
+                change_stable = true;
 
             /*
              * There are other points when it is appropriate to update cursors. If we don't
@@ -378,18 +378,18 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
              */
             else if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
               (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != snapshot_gen))
-                reopen_stable = true;
+                change_stable = true;
         }
 
         /* See if there's nothing to do for the ingest cursor. */
         if (clayered->ingest_cursor == NULL)
-            reopen_ingest = false;
+            change_ingest = false;
 
         /* A random stable cursor shouldn't be reopened, it may have additional state. */
         if (clayered->stable_cursor == NULL || F_ISSET(clayered, WT_CLAYERED_RANDOM))
-            reopen_stable = false;
+            change_stable = false;
 
-        if (reopen_ingest) {
+        if (change_ingest) {
             /*
              * To reopen the ingest table, all we need to do here is close it. It will be reopened
              * when needed. There's never a situation where we need to save its position.
@@ -398,7 +398,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
             clayered->ingest_cursor = NULL;
         }
 
-        if (reopen_stable) {
+        if (change_stable) {
             /*
              * We can't just close the stable cursor here, as we need to retain any position that
              * the current stable cursor has. It's easier to keep the old cursor open briefly while
@@ -428,7 +428,7 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
         clayered->leader = current_leader;
         clayered->checkpoint_id = current_checkpoint_id;
         clayered->snapshot_gen = snapshot_gen;
-        *state_updated = (reopen_ingest || reopen_stable);
+        *state_updated = (change_ingest || change_stable);
     }
     return (0);
 }
