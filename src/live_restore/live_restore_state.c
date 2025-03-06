@@ -238,11 +238,11 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
 }
 
 /*
- * __wt_live_restore_get_state_string --
+ * __live_restore_get_state_string --
  *     Get the live restore state in string form.
  */
-int
-__wt_live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_str)
+static int
+__live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_str)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_ASSERT_ALWAYS(session, F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS),
@@ -256,20 +256,57 @@ __wt_live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_s
 }
 
 /*
+ * __wt_live_restore_turtle_update --
+ *     Intercept the write to the turtle file so we can gather live restore metadata and write it at
+ *     the same time. The state lock must be held for the entire process and taken before we take
+ *     the turtle lock.
+ */
+int
+__wt_live_restore_turtle_update(
+  WT_SESSION_IMPL *session, const char *key, const char *value, bool take_turtle_lock)
+{
+    WT_DECL_RET;
+
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
+    WT_DECL_ITEM(lr_state_str);
+
+    bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
+    if (!reentrant)
+        __wt_spin_lock(session, &lr_fs->state_lock);
+
+    WT_ERR(__wt_scr_alloc(session, WT_LIVE_RESTORE_STATE_STRING_MAX, &lr_state_str));
+    WT_ERR(__live_restore_get_state_string(session, lr_state_str));
+
+    if (take_turtle_lock)
+        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value, lr_state_str));
+    else
+        ret = __wt_turtle_update(session, key, value, lr_state_str);
+    WT_ERR(ret);
+
+err:
+    if (!reentrant)
+        __wt_spin_unlock(session, &lr_fs->state_lock);
+
+    __wt_scr_free(session, &lr_state_str);
+    return (ret);
+}
+
+/*
  * __wti_live_restore_get_state --
  *     Get the live restore state. Take the state lock if it isn't already held.
  */
 WTI_LIVE_RESTORE_STATE
 __wti_live_restore_get_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs)
 {
-    WTI_LIVE_RESTORE_STATE state;
-    if (__wt_spin_owned(session, &lr_fs->state_lock))
-        state = lr_fs->state;
-    else {
+
+    bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
+    if (!reentrant)
         __wt_spin_lock(session, &lr_fs->state_lock);
-        state = lr_fs->state;
+
+    WTI_LIVE_RESTORE_STATE state = lr_fs->state;
+
+    if (!reentrant)
         __wt_spin_unlock(session, &lr_fs->state_lock);
-    }
 
     /* We initialize state on startup. This shouldn't be possible. */
     WT_ASSERT_ALWAYS(session, state != WTI_LIVE_RESTORE_STATE_NONE, "State not initialized!");

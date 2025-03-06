@@ -577,7 +577,17 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
     if (load || load_turtle) {
         /* Create the turtle file. */
         WT_ERR(__metadata_config(session, &metaconf));
-        WT_WITH_TURTLE_LOCK(session, ret = __wti_turtle_update(session, WT_METAFILE_URI, metaconf));
+#ifdef _MSC_VER
+        /* FIXME-WT-14051 - Fix Windows compile support. */
+        WT_WITH_TURTLE_LOCK(
+          session, ret = __wt_turtle_update(session, WT_METAFILE_URI, metaconf, NULL));
+#else
+        if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
+            ret = __wt_live_restore_turtle_update(session, WT_METAFILE_URI, metaconf, true);
+        else
+            WT_WITH_TURTLE_LOCK(
+              session, ret = __wt_turtle_update(session, WT_METAFILE_URI, metaconf, NULL));
+#endif
         __wt_free(session, metaconf);
         WT_ERR(ret);
     }
@@ -676,19 +686,18 @@ err:
 }
 
 /*
- * __wti_turtle_update --
+ * __wt_turtle_update --
  *     Update the turtle file.
  */
 int
-__wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
+__wt_turtle_update(
+  WT_SESSION_IMPL *session, const char *key, const char *value, WT_ITEM *lr_state_str)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_FSTREAM *fs;
     int vmajor, vminor, vpatch;
     const char *version;
-
-    WT_DECL_ITEM(state_str);
 
     fs = NULL;
     conn = S2C(session);
@@ -712,17 +721,12 @@ __wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value
           "major=%" PRIu16 ",minor=%" PRIu16 "\n",
           WT_METADATA_COMPAT, conn->compat_version.major, conn->compat_version.minor));
 
-#ifndef _MSC_VER
-    if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS)) {
-        WT_ERR(__wt_scr_alloc(session, WT_LIVE_RESTORE_STATE_STRING_MAX, &state_str));
-        WT_ERR(__wt_live_restore_get_state_string(session, state_str));
-
+    if (lr_state_str != NULL) {
         WT_ERR(__wt_fprintf(session, fs,
           "%s\n"
           "state=%s\n",
-          WT_METADATA_LIVE_RESTORE, (char *)state_str->data));
+          WT_METADATA_LIVE_RESTORE, (char *)lr_state_str->data));
     }
-#endif
 
     version = wiredtiger_version(&vmajor, &vminor, &vpatch);
     WT_ERR(__wt_fprintf(session, fs,
@@ -741,7 +745,6 @@ __wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value
 err:
     WT_TRET(__wt_fclose(session, &fs));
     WT_TRET(__wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false));
-    __wt_scr_free(session, &state_str);
 
     /*
      * An error updating the turtle file means something has gone horribly wrong -- we're done.
