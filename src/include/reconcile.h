@@ -304,7 +304,7 @@ struct __wt_reconcile {
     bool cache_write_restore_invisible; /* Used update/restoration because of invisible update */
     bool cache_upd_chain_all_aborted;   /* All updates in the chain are aborted */
 
-    uint8_t tested_ref_state; /* Debugging information */
+    WT_REF_STATE tested_ref_state; /* Debugging information */
 
     /*
      * XXX In the case of a modified update, we may need a copy of the current value as a set of
