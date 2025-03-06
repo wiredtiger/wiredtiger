@@ -880,6 +880,9 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_tables;
     int64_t layered_table_manager_running;
     int64_t layered_table_manager_active;
+    int64_t lock_btree_page_count;
+    int64_t lock_btree_page_wait_application;
+    int64_t lock_btree_page_wait_internal;
     int64_t lock_checkpoint_count;
     int64_t lock_checkpoint_wait_application;
     int64_t lock_checkpoint_wait_internal;

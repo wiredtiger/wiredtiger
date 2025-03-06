@@ -1978,6 +1978,9 @@ static const char *const __stats_connection_desc[] = {
   "layered: the number of tables the layered table manager has open",
   "layered: whether the layered table manager thread has been started",
   "layered: whether the layered table manager thread is currently busy doing work",
+  "lock: btree page lock acquisitions",
+  "lock: btree page lock application thread wait time (usecs)",
+  "lock: btree page lock internal thread wait time (usecs)",
   "lock: checkpoint lock acquisitions",
   "lock: checkpoint lock application thread wait time (usecs)",
   "lock: checkpoint lock internal thread wait time (usecs)",
@@ -2775,6 +2778,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_tables = 0;
     stats->layered_table_manager_running = 0;
     stats->layered_table_manager_active = 0;
+    stats->lock_btree_page_count = 0;
+    stats->lock_btree_page_wait_application = 0;
+    stats->lock_btree_page_wait_internal = 0;
     stats->lock_checkpoint_count = 0;
     stats->lock_checkpoint_wait_application = 0;
     stats->lock_checkpoint_wait_internal = 0;
@@ -3629,6 +3635,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
     to->layered_table_manager_running += WT_STAT_CONN_READ(from, layered_table_manager_running);
     to->layered_table_manager_active += WT_STAT_CONN_READ(from, layered_table_manager_active);
+    to->lock_btree_page_count += WT_STAT_CONN_READ(from, lock_btree_page_count);
+    to->lock_btree_page_wait_application +=
+      WT_STAT_CONN_READ(from, lock_btree_page_wait_application);
+    to->lock_btree_page_wait_internal += WT_STAT_CONN_READ(from, lock_btree_page_wait_internal);
     to->lock_checkpoint_count += WT_STAT_CONN_READ(from, lock_checkpoint_count);
     to->lock_checkpoint_wait_application +=
       WT_STAT_CONN_READ(from, lock_checkpoint_wait_application);
