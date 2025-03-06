@@ -168,23 +168,28 @@ __wt_session_set_last_error(
     /*
      * Load error codes and message into err_info. If the message is empty or is NULL (indicating
      * success), use static string buffers. Otherwise, format the message into the buffer.
-     *
-     * When err is 0, it signifies the start of an API call. The fmt needs to be set to NULL, which
-     * sets the err_msg to WT_ERROR_INFO_SUCCESS. The NULL here implies success saving us from an
-     * extra strcmp().
      */
     WT_ERROR_INFO *err_info = &(session->err_info);
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
-    if (fmt != NULL && strlen(fmt) == 0)
-        err_info->err_msg = WT_ERROR_INFO_EMPTY;
-    else if (err == 0) {
+    if (err == 0) {
+        /*
+         * A successful API call results in having err equal to 0 and the err_msg set to the default
+         * success message.
+         *
+         * The fmt variable doesn't need to be processed because the successful err_msg is fixed. 
+         * Therefore, the fmt variable should be NULL when an API call is successful.
+         */
         WT_ASSERT(session, fmt == NULL);
         err_info->err_msg = WT_ERROR_INFO_SUCCESS;
     } else {
+      if (strlen(fmt) == 0)
+        err_info->err_msg = WT_ERROR_INFO_EMPTY;
+      else {
         WT_ASSERT(session, fmt != NULL);
         WT_VA_ARGS_BUF_FORMAT(session, &(err_info->err_msg_buf), fmt, false);
         err_info->err_msg = err_info->err_msg_buf.data;
+      }
     }
 
     return;
