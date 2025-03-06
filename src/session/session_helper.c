@@ -177,8 +177,8 @@ __wt_session_set_last_error(
          * A successful API call results in having err equal to 0 and the err_msg set to the default
          * success message.
          *
-         * The fmt variable doesn't need to be processed because the successful err_msg is fixed.
-         * Therefore, the fmt variable should be NULL when an API call is successful.
+         * Since the successful err_msg is fixed the fmt variable doesn't need to be processed.
+         * Therefore, the fmt variable should equal to NULL whenever an API call is successful.
          */
         WT_ASSERT(session, fmt == NULL);
         err_info->err_msg = WT_ERROR_INFO_SUCCESS;
