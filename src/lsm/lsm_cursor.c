@@ -271,22 +271,14 @@ __clsm_leave(WT_CURSOR_LSM *clsm)
 }
 
 /*
- * We need a tombstone to mark deleted records, and we use the special value below for that purpose.
- * We use two 0x14 (Device Control 4) bytes to minimize the likelihood of colliding with an
- * application-chosen encoding byte, if the application uses two leading DC4 byte for some reason,
- * we'll do a wasted data copy each time a new value is inserted into the object.
- */
-static const WT_ITEM __tombstone = {"\x14\x14", 2, NULL, 0, 0};
-
-/*
  * __clsm_deleted --
  *     Check whether the current value is a tombstone.
  */
 static WT_INLINE bool
 __clsm_deleted(WT_CURSOR_LSM *clsm, const WT_ITEM *item)
 {
-    return (!F_ISSET(clsm, WT_CLSM_MINOR_MERGE) && item->size == __tombstone.size &&
-      memcmp(item->data, __tombstone.data, __tombstone.size) == 0);
+    return (!F_ISSET(clsm, WT_CLSM_MINOR_MERGE) && item->size == __wt_tombstone.size &&
+      memcmp(item->data, __wt_tombstone.data, __wt_tombstone.size) == 0);
 }
 
 /*
@@ -303,13 +295,13 @@ __clsm_deleted_encode(
      * If value requires encoding, get a scratch buffer of the right size and create a copy of the
      * data with the first byte of the tombstone appended.
      */
-    if (value->size >= __tombstone.size &&
-      memcmp(value->data, __tombstone.data, __tombstone.size) == 0) {
+    if (value->size >= __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0) {
         WT_RET(__wt_scr_alloc(session, value->size + 1, tmpp));
         tmp = *tmpp;
 
         memcpy(tmp->mem, value->data, value->size);
-        memcpy((uint8_t *)tmp->mem + value->size, __tombstone.data, 1);
+        memcpy((uint8_t *)tmp->mem + value->size, __wt_tombstone.data, 1);
         final_value->data = tmp->mem;
         final_value->size = value->size + 1;
     } else {
@@ -331,8 +323,8 @@ __clsm_deleted_decode(WT_CURSOR_LSM *clsm, WT_ITEM *value)
      * Take care with this check: when an LSM cursor is used for a merge, and/or to create a Bloom
      * filter, it is valid to return the tombstone value.
      */
-    if (!F_ISSET(clsm, WT_CLSM_MERGE) && value->size > __tombstone.size &&
-      memcmp(value->data, __tombstone.data, __tombstone.size) == 0)
+    if (!F_ISSET(clsm, WT_CLSM_MERGE) && value->size > __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0)
         --value->size;
 }
 
@@ -1580,7 +1572,7 @@ __clsm_remove(WT_CURSOR *cursor)
      * landed on.
      */
     WT_ERR(__cursor_needkey(cursor));
-    WT_ERR(__clsm_put(session, clsm, &cursor->key, &__tombstone, true, false));
+    WT_ERR(__clsm_put(session, clsm, &cursor->key, &__wt_tombstone, true, false));
 
     /*
      * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's

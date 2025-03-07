@@ -16,22 +16,24 @@ static int __clayered_search_near(WT_CURSOR *, int *);
 static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool *);
 
 /*
- * We need a tombstone to mark deleted records, and we use the special value below for that purpose.
- * We use two 0x14 (Device Control 4) bytes to minimize the likelihood of colliding with an
- * application-chosen encoding byte, if the application uses two leading DC4 byte for some reason,
- * we'll do a wasted data copy each time a new value is inserted into the object.
- */
-static const WT_ITEM __tombstone = {"\x14\x14", 3, NULL, 0, 0};
-
-/*
  * __clayered_deleted --
- *     Check whether the current value is a tombstone.
+ *     Check whether the current value is a tombstone in the layered cursor.
  */
 static WT_INLINE bool
-__clayered_deleted(const WT_ITEM *item)
+__clayered_deleted(WT_CURSOR_LAYERED *clayered, const WT_ITEM *item)
 {
-    return (item->size == __tombstone.size &&
-      memcmp(item->data, __tombstone.data, __tombstone.size) == 0);
+    /*
+     * We only use tombstone value for ingest table. Therefore, if we don't have an ingest table,
+     * the returned value must be a proper value.
+     */
+    if (clayered->ingest_cursor == NULL)
+        return (false);
+
+    /* If the value is returned from the stable table, it must be a proper value. */
+    if (clayered->current_cursor != clayered->ingest_cursor)
+        return (false);
+
+    return (__wt_clayered_deleted(item));
 }
 
 /*
@@ -48,13 +50,13 @@ __clayered_deleted_encode(
      * If value requires encoding, get a scratch buffer of the right size and create a copy of the
      * data with the first byte of the tombstone appended.
      */
-    if (value->size >= __tombstone.size &&
-      memcmp(value->data, __tombstone.data, __tombstone.size) == 0) {
+    if (value->size >= __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0) {
         WT_RET(__wt_scr_alloc(session, value->size + 1, tmpp));
         tmp = *tmpp;
 
         memcpy(tmp->mem, value->data, value->size);
-        memcpy((uint8_t *)tmp->mem + value->size, __tombstone.data, 1);
+        memcpy((uint8_t *)tmp->mem + value->size, __wt_tombstone.data, 1);
         final_value->data = tmp->mem;
         final_value->size = value->size + 1;
     } else {
@@ -72,8 +74,8 @@ __clayered_deleted_encode(
 static WT_INLINE void
 __clayered_deleted_decode(WT_ITEM *value)
 {
-    if (value->size > __tombstone.size &&
-      memcmp(value->data, __tombstone.data, __tombstone.size) == 0)
+    if (value->size > __wt_tombstone.size &&
+      memcmp(value->data, __wt_tombstone.data, __wt_tombstone.size) == 0)
         --value->size;
 }
 
@@ -476,7 +478,7 @@ __clayered_get_current(
     WT_RET(current->get_value(current, &c->value));
 
     F_CLR(c, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    if ((*deletedp = __clayered_deleted(&c->value)) == false)
+    if ((*deletedp = __clayered_deleted(clayered, &c->value)) == false)
         F_SET(c, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     return (0);
@@ -946,7 +948,8 @@ __clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
     if ((ret = c->search(c)) == 0) {
         WT_ERR(c->get_key(c, &cursor->key));
         WT_ERR(c->get_value(c, value));
-        if (__clayered_deleted(value))
+        clayered->current_cursor = c;
+        if (__clayered_deleted(clayered, value))
             ret = WT_NOTFOUND;
         /*
          * Even a tombstone is considered found here - the delete overrides any remaining record in
@@ -968,9 +971,8 @@ __clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
         if ((ret = c->search(c)) == 0) {
             WT_ERR(c->get_key(c, &cursor->key));
             WT_ERR(c->get_value(c, value));
-            if (__clayered_deleted(value))
-                ret = WT_NOTFOUND;
             found = true;
+            clayered->current_cursor = c;
         }
         WT_ERR_NOTFOUND_OK(ret, true);
         if (!found)
@@ -1126,7 +1128,7 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
     clayered->current_cursor = closest;
     closest = NULL;
 
-    deleted = __clayered_deleted(&cursor->value);
+    deleted = __clayered_deleted(clayered, &cursor->value);
     if (!deleted)
         __clayered_deleted_decode(&cursor->value);
     else {
@@ -1207,7 +1209,49 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
         c->set_value(c, value);
     WT_RET(func(c));
 
-    /* TODO: Need something to add a log record? */
+    return (0);
+}
+
+/*
+ * __clayered_remove_int --
+ *     Remove an entry from the desired tree.
+ */
+static WT_INLINE int
+__clayered_remove_int(
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_ITEM *key, bool positioned)
+{
+    WT_CURSOR *c;
+
+    if (S2C(session)->layered_table_manager.leader) {
+        c = clayered->stable_cursor;
+        clayered->current_cursor = c;
+        if (!positioned) {
+            /*
+             * Clear the existing cursor position. Don't clear the primary cursor: we're about to
+             * use it anyway. We need the cursor still be positioned after the remove. Don't release
+             * the cursor if that is the case. Remove only retains the cursor position if it is
+             * positioned at the start.
+             */
+            WT_RET(__clayered_reset_cursors(clayered, true));
+            c->set_key(c, key);
+        } else
+            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
+        WT_RET(c->remove(c));
+    } else {
+        c = clayered->ingest_cursor;
+        clayered->current_cursor = c;
+        if (!positioned) {
+            /*
+             * Clear the existing cursor position. Don't clear the primary cursor: we're about to
+             * use it anyway. No need to do another search if we are already positioned.
+             */
+            WT_RET(__clayered_reset_cursors(clayered, true));
+            c->set_key(c, key);
+        } else
+            WT_ASSERT(session, F_ISSET(c, WT_CURSTD_KEY_INT));
+        c->set_value(c, &__wt_tombstone);
+        WT_RET(c->update(c));
+    }
 
     return (0);
 }
@@ -1370,9 +1414,11 @@ __clayered_remove(WT_CURSOR *cursor)
      * layered enter/leave calls as we search the full stack, but updates are limited to the
      * top-level.
      */
-    WT_ERR(__clayered_enter(clayered, false, false));
-    WT_ERR(__clayered_lookup(clayered, &value));
-    __clayered_leave(clayered);
+    if (!positioned) {
+        WT_ERR(__clayered_enter(clayered, false, false));
+        WT_ERR(__clayered_lookup(clayered, &value));
+        __clayered_leave(clayered);
+    }
 
     WT_ERR(__clayered_enter(clayered, false, true));
     /*
@@ -1380,7 +1426,7 @@ __clayered_remove(WT_CURSOR *cursor)
      * landed on.
      */
     WT_ERR(__cursor_needkey(cursor));
-    WT_ERR(__clayered_put(session, clayered, &cursor->key, &__tombstone, true, false));
+    WT_ERR(__clayered_remove_int(session, clayered, &cursor->key, positioned));
 
     /*
      * If the cursor was positioned, it stays positioned with a key but no value, otherwise, there's
