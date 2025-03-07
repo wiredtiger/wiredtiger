@@ -211,6 +211,7 @@ Keyedness
 Kounavis
 LANGID
 LF
+LLVM
 LLVMFuzzerTestOneInput
 LMDB
 LOGOP
@@ -463,6 +464,7 @@ WiredTigerShared
 WiredTigerSharedHS
 WiredTigerTmplog
 WithSeeds
+Wl
 Wmissing
 WriteFile
 Wuninitialized
@@ -1039,6 +1041,7 @@ mn
 mnt
 mongod
 mrs
+msan
 msecs
 msg
 msvc
