@@ -317,6 +317,7 @@ dhandle
 dhandle's
 dhandles
 dir
+dirstore
 disagg
 disaggregated
 disjunction
@@ -557,6 +558,7 @@ nul
 num
 numa
 nvd
+objectid
 objectsin
 ol
 oltp
@@ -763,6 +765,7 @@ writelock
 writelocks
 wrlock
 wti
+wtobj
 wtperf
 wtstats
 xa
