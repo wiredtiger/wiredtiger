@@ -9,6 +9,7 @@ AWS's
 ActiveState
 Adler's
 Atomicity
+Atomics
 BLOBs
 BLRrVv
 BLmRrSVv
@@ -106,10 +107,14 @@ Lameter
 LevelDB
 Levyx
 LibFuzzer
+LoadLoad
+LoadStore
 MERCHANTABILITY
 MSAN
+MSVC
 MVCC's
 Makefiles
+McKenney
 Mewhort
 MongoDB
 MongoDB's
@@ -125,6 +130,7 @@ PRELOAD
 PROFDATA
 Powershell
 README
+REFs
 RLE
 RNG
 RedHat
@@ -141,7 +147,10 @@ SYSV
 Sanitizer
 Seward's
 SiH
+StoreLoad
+StoreStore
 TSC
+TSan
 TW
 TXID
 TXT
@@ -178,6 +187,7 @@ abc
 abstime
 acSstu
 ack'ed
+acq
 addr
 ajn
 alloc
@@ -193,6 +203,7 @@ archiver
 arg
 args
 atomicity
+atomics
 autoconf
 autogen
 automake
@@ -461,6 +472,7 @@ libsodium
 libtool
 libwiredtiger
 lifecycle
+lifecycles
 llvm
 lmin
 ln
@@ -608,7 +620,9 @@ recnum
 recoverability
 recs
 rectype
+rel
 relinking
+reorderings
 req
 rerequests
 ret
@@ -621,6 +635,7 @@ rpc
 rts
 runnable
 runtime
+rw
 rwlock
 sHQ
 sHq
