@@ -33,6 +33,13 @@ the eviction server walks the tree to find pages to evict and evict these pages 
 cache. Pages that are being marked for forced eviction go onto the urgent
 queue, and these pages take precedence over the pages from the ordinary eviction queues.
 
+Pages will go into the urgent queue only if the following conditions are met; otherwise,
+the page can be evicted by the application thread itself:
+- The operation has disabled eviction or splitting.
+- The session is preventing from reconciling.
+
+Otherwise, it will attempt to release and evict it.
+
 If there are other threads reading the content, the page cannot be evicted and the
 eviction server/worker threads check for that. Eviction has to lock and get exclusive
 access to the page so that after having checked if the page is evictable and starting to
