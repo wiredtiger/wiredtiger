@@ -30,10 +30,10 @@ import os, os.path, shutil, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered32.py
+# test_layered34.py
 #    Test materialization frontier.
 @disagg_test_class
-class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'checkpoint=(precise=true),disaggregated=(page_log=palm),'
@@ -41,9 +41,9 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    table_name = "test_layered32"
+    table_name = "test_layered34"
 
-    disagg_storages = gen_disagg_storages('test_layered32', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered34', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
         # Use shared tables directly to make testing easier
         ('shared', dict(prefix='table:', table_config='block_manager=disagg,log=(enabled=false)')),
@@ -60,7 +60,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.mkdir('kv_home')
 
     # Test creating an empty table.
-    def test_layered32(self):
+    def test_layered34(self):
         page_log = self.conn.get_page_log('palm')
 
         # The node started as a follower, so step it up as the leader
