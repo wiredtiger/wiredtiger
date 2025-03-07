@@ -168,6 +168,7 @@ test_rollback_to_stable39.py # times out
 test_rollback_to_stable40.py
 test_rollback_to_stable41.py
 test_rollback_to_stable42.py
+test_rollback_to_stable44.py
 test_schema02.py
 test_schema08.py # times out
 test_scrub_eviction_prepare.py
