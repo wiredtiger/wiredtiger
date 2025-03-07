@@ -148,22 +148,21 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction 40
 #define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction_uint 41
 #define WT_CONFIG_ENTRY_WT_SESSION_truncate 42
-#define WT_CONFIG_ENTRY_WT_SESSION_upgrade 43
-#define WT_CONFIG_ENTRY_WT_SESSION_verify 44
-#define WT_CONFIG_ENTRY_colgroup_meta 45
-#define WT_CONFIG_ENTRY_file_config 46
-#define WT_CONFIG_ENTRY_file_meta 47
-#define WT_CONFIG_ENTRY_index_meta 48
-#define WT_CONFIG_ENTRY_layered_meta 49
-#define WT_CONFIG_ENTRY_lsm_meta 50
-#define WT_CONFIG_ENTRY_object_meta 51
-#define WT_CONFIG_ENTRY_table_meta 52
-#define WT_CONFIG_ENTRY_tier_meta 53
-#define WT_CONFIG_ENTRY_tiered_meta 54
-#define WT_CONFIG_ENTRY_wiredtiger_open 55
-#define WT_CONFIG_ENTRY_wiredtiger_open_all 56
-#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 57
-#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 58
+#define WT_CONFIG_ENTRY_WT_SESSION_verify 43
+#define WT_CONFIG_ENTRY_colgroup_meta 44
+#define WT_CONFIG_ENTRY_file_config 45
+#define WT_CONFIG_ENTRY_file_meta 46
+#define WT_CONFIG_ENTRY_index_meta 47
+#define WT_CONFIG_ENTRY_layered_meta 48
+#define WT_CONFIG_ENTRY_lsm_meta 49
+#define WT_CONFIG_ENTRY_object_meta 50
+#define WT_CONFIG_ENTRY_table_meta 51
+#define WT_CONFIG_ENTRY_tier_meta 52
+#define WT_CONFIG_ENTRY_tiered_meta 53
+#define WT_CONFIG_ENTRY_wiredtiger_open 54
+#define WT_CONFIG_ENTRY_wiredtiger_open_all 55
+#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 56
+#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 57
 
 extern const char __WT_CONFIG_CHOICE_NULL[]; /* not set in configuration */
 extern const char __WT_CONFIG_CHOICE_DRAM[];

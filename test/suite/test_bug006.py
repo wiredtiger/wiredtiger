@@ -60,8 +60,6 @@ class test_bug006(wttest.WiredTigerTestCase):
         self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.salvage(uri, None))
         self.assertRaises(
-            wiredtiger.WiredTigerError, lambda: self.session.upgrade(uri, None))
-        self.assertRaises(
             wiredtiger.WiredTigerError, lambda: self.session.verify(uri, None))
 
         cursor.close()
@@ -71,7 +69,6 @@ class test_bug006(wttest.WiredTigerTestCase):
         self.renameUntilSuccess(self.session, self.uri + "new", uri)
         self.session.salvage(uri, None)
         self.session.truncate(uri, None, None, None)
-        self.upgradeUntilSuccess(self.session, uri)
         self.verifyUntilSuccess(self.session, uri)
 
         self.dropUntilSuccess(self.session, uri)

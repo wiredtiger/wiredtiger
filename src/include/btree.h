@@ -291,15 +291,13 @@ struct __wt_btree {
 #define WT_BTREE_READONLY 0x0800000u        /* Handle is readonly */
 #define WT_BTREE_SALVAGE 0x1000000u         /* Handle is for salvage */
 #define WT_BTREE_SKIP_CKPT 0x2000000u       /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x4000000u         /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x8000000u          /* Handle is for verify */
+#define WT_BTREE_VERIFY 0x4000000u          /* Handle is for verify */
                                             /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
 /* Flags that make a btree handle special (not for normal use). */
-#define WT_BTREE_SPECIAL_FLAGS \
-    (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)
+#define WT_BTREE_SPECIAL_FLAGS (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_SALVAGE | WT_BTREE_VERIFY)
 
 /*
  * WT_SALVAGE_COOKIE --

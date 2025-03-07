@@ -783,16 +783,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
                     raise err
                 session.checkpoint()
 
-    def upgradeUntilSuccess(self, session, uri, config=None):
-        while True:
-            try:
-                session.upgrade(uri, config)
-                return
-            except wiredtiger.WiredTigerError as err:
-                if str(err) != os.strerror(errno.EBUSY):
-                    raise err
-                session.checkpoint()
-
     def renameUntilSuccess(self, session, uri, newUri, config=None):
         while True:
             try:
