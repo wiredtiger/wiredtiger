@@ -241,11 +241,9 @@ __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *valu
         WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value));
 #else
         if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
-            WT_RET(__wt_live_restore_turtle_update(session, key, value, true));
-        else {
+            ret = __wt_live_restore_turtle_update(session, key, value, true);
+        else
             WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value));
-            WT_RET(ret);
-        }
 #endif
         return (ret);
     }
