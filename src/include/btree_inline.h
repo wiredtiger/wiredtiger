@@ -1978,7 +1978,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
             WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
             block_meta = &ref->page->block_meta;
 
-            /* Check if there is newer block metadata struct in the page's modify struct. */
+            /* Check if there is a newer block metadata struct in the page's modify struct. */
             if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
                 WT_ASSERT(session, mod->mod_multi_entries > 0);
                 block_meta = &mod->mod_multi[mod->mod_multi_entries - 1].block_meta;

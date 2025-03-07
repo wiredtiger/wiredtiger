@@ -1187,6 +1187,15 @@ typedef int int_void;
         return (ret == 0 ? (int)checkpoint_id : ret);
     }
 
+    /* get_last_lsn: special handling to return the int. */
+    int _get_last_lsn(WT_SESSION *session) {
+        int ret = 0;
+        uint64_t lsn;
+
+        ret = $self->pl_get_last_lsn($self, session, &lsn);
+        return (ret == 0 ? (int)lsn : ret);
+    }
+
     /* get_open_checkpoint: special handling to return the int. */
     int _get_open_checkpoint(WT_SESSION *session) {
         int ret = 0;
@@ -1241,6 +1250,10 @@ SIDESTEP_METHOD(__wt_page_log, pl_get_complete_checkpoint_ext,
     uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata),
   (self, session, checkpoint_lsn, checkpoint_id, checkpoint_timestamp, checkpoint_metadata))
 
+SIDESTEP_METHOD(__wt_page_log, pl_get_last_lsn,
+  (WT_SESSION *session, int *lsn),
+  (self, session, lsn))
+
 SIDESTEP_METHOD(__wt_page_log, pl_get_open_checkpoint,
   (WT_SESSION *session, int *checkpoint_id),
   (self, session, checkpoint_id))
@@ -1248,6 +1261,10 @@ SIDESTEP_METHOD(__wt_page_log, pl_get_open_checkpoint,
 SIDESTEP_METHOD(__wt_page_log, pl_open_handle,
   (WT_SESSION *session, int table_id, WT_PAGE_LOG_HANDLE **handle),
   (self, session, table_id, handle))
+
+SIDESTEP_METHOD(__wt_page_log, pl_set_last_materialized_lsn,
+  (WT_SESSION *session, uint64_t lsn),
+  (self, session, lsn))
 
 SIDESTEP_METHOD(__wt_page_log, terminate,
   (WT_SESSION *session),

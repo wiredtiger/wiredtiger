@@ -152,7 +152,8 @@ swap_ckpt_key(const CKPT_KEY *src, CKPT_KEY *dest)
     ((result_key)->table_id == (_table_id) && (result_key)->page_id == (_page_id) && \
       ((_checkpoint_id) == 0 || (result_key)->checkpoint_id <= (_checkpoint_id)) &&  \
       ((_lsn) == 0 || (result_key)->lsn <= (_lsn)) &&                                \
-      (_now) > (result_key)->timestamp_materialized_us)
+      (_now) > (result_key)->timestamp_materialized_us) &&                           \
+      (context->last_materialized_lsn == 0 || _lsn <= context->last_materialized_lsn)
 
 #ifdef PALM_KV_DEBUG
 /* Show the contents of the PAGE_KEY to stderr.  This can be useful for debugging. */
@@ -396,6 +397,7 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
     readonly_result_key = NULL;
     now = palm_kv_timestamp_us();
 
+    matches->context = context;
     matches->table_id = table_id;
     matches->page_id = page_id;
     matches->query_lsn = lsn;
@@ -470,8 +472,11 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
     MDB_val vval;
     PAGE_KEY *readonly_page_key;
     PAGE_KEY page_key;
+    PALM_KV_CONTEXT *context;
     uint64_t now;
     int ret;
+
+    context = matches->context;
 
     if (matches->lmdb_cursor == NULL)
         return (false);

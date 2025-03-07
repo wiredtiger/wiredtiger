@@ -5535,6 +5535,17 @@ struct __wt_page_log {
         WT_ITEM *checkpoint_metadata);
 
     /*!
+     * Get the last written page LSN. This is an optional function used for testing only.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param lsn the LSN returned
+     */
+    int (*pl_get_last_lsn)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *lsn);
+
+    /*!
      * Get the most recently opened checkpoint number.
      *
      * @errors
@@ -5558,6 +5569,17 @@ struct __wt_page_log {
      */
     int (*pl_open_handle)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t table_id,
         WT_PAGE_LOG_HANDLE **plh);
+
+    /*!
+     * Set the last materialized LSN. This is an optional method used for testing only.
+     *
+     * @errors
+     *
+     * @param page_log the WT_PAGE_LOG
+     * @param session the current WiredTiger session
+     * @param lsn the last materialized LSN
+     */
+    int (*pl_set_last_materialized_lsn)(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t lsn);
 
     /*!
      * A callback performed when the page log service or reference is closed

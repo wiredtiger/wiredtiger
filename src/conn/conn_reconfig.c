@@ -415,6 +415,7 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
             if (count > 1 || !has_disagg)
                 break;
         }
+        WT_RET_NOTFOUND_OK(ret);
 
         if (count == 1 && has_disagg) {
             WT_ERR(__wti_disagg_conn_config(session, cfg, true));
