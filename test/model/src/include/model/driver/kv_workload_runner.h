@@ -157,9 +157,31 @@ protected:
      *     Execute the given workload operation in the model.
      */
     int
+    do_operation(const operation::evict &op)
+    {
+        (void)op;
+        return 0;
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
     do_operation(const operation::insert &op)
     {
         return table(op.table_id)->insert(transaction(op.txn_id), op.key, op.value);
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
+    do_operation(const operation::nop &op)
+    {
+        (void)op;
+        return 0;
     }
 
     /*
@@ -257,6 +279,17 @@ protected:
     do_operation(const operation::truncate &op)
     {
         return table(op.table_id)->truncate(transaction(op.txn_id), op.start, op.stop);
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+     *     Execute the given workload operation in the model.
+     */
+    int
+    do_operation(const operation::wt_config &op)
+    {
+        (void)op;
+        return 0;
     }
 
     /*

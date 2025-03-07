@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import wttest, wiredtiger
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wiredtiger import stat
 
@@ -54,6 +54,7 @@ class Oplog(object):
         self._uris = []           # list of (uri,entlist) pairs.  Each entlist is an ordered list of
                                   # offsets into _entries that apply to this table.
         self._lookup = dict()     # lookup keyed by (table,k) pairs, gives a list of (ts,v) pairs.
+        self._tombstone_value = 'tombstone'
 
         # For debugging - when _use_timestamps is false, don't actually
         # use the internally generated timestamps with WT calls.
@@ -101,14 +102,16 @@ class Oplog(object):
         return v
 
     # Add inserts to the oplog, return the first entry position
-    def insert(self, table, count):
+    def insert(self, table, count, start_value=None):
         first_pos = len(self._entries)
         entlist = self._get_entlist(table)
 
-        # Use the timestamp as the key, that guarantees these
+        # Use the timestamp as the key by default, that guarantees these
         # will be inserts, as they've never been seen before.
         ts = self._timestamp + 1
-        for i in range(ts, ts + count):
+        if start_value == None:
+            start_value = ts
+        for i in range(start_value, start_value + count):
             self._append_single(table, entlist, i, i)
         return first_pos
 
@@ -121,9 +124,6 @@ class Oplog(object):
             # If oplog has no entries for this table,
             # silently succeed
             return
-        incr = len(entlist)//count
-        if incr == 0:
-            incr = 1
         for i in range(0, count):
             # entindex is the entry we'll update
             entindex = entlist[i]
@@ -132,6 +132,24 @@ class Oplog(object):
                 raise Exception(f'oplog internal error: intindex for {table} ' + \
                                 f'references oplog entry {entindex}, which is not for this table')
             self._append_single(table, entlist, k, v+k)
+        return first_pos
+
+    # Remove some entries in the oplog for the table
+    def remove(self, table, count):
+        first_pos = len(self._entries)
+        entlist = self._get_entlist(table)
+
+        if len(entlist) == 0:
+            # If oplog has no entries for this table, silently succeed
+            return
+        for i in range(0, count):
+            # entindex is the entry we'll update
+            entindex = entlist[i]
+            (gottable,k,_) = self._entries[entindex]
+            if gottable != table:
+                raise Exception(f'oplog internal error: intindex for {table} ' + \
+                                f'references oplog entry {entindex}, which is not for this table')
+            self._append_single(table, entlist, k, self._tombstone_value)
         return first_pos
 
     # Apply the oplog entries starting at the position to the session
@@ -143,7 +161,11 @@ class Oplog(object):
             uri = self._uris[table - 1][0]
             cursor = session.open_cursor(uri)
             session.begin_transaction()
-            cursor[str(k)] = str(v)
+            if v == self._tombstone_value:
+                cursor.set_key(str(k))
+                cursor.remove()
+            else:
+                cursor[str(k)] = str(v)
             if self._use_timestamps:
                 session.commit_transaction(f'commit_timestamp={testcase.timestamp_str(ts)}')
             else:
@@ -168,9 +190,13 @@ class Oplog(object):
             else:
                 expected_value = self._current_value(table, k)
                 session.begin_transaction()
-            if (cursor[str(k)] != str(expected_value)):
-                testcase.pr(f'point-read of {k} at ts={ts} gives {cursor[str(k)]}, expected {expected_value}')
-            testcase.assertEqual(cursor[str(k)], str(expected_value))
+            if expected_value == self._tombstone_value:
+                cursor.set_key(str(k))
+                testcase.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+            else:
+                if (cursor[str(k)] != str(expected_value)):
+                    testcase.pr(f'point-read of {k} at ts={ts} gives {cursor[str(k)]}, expected {expected_value}')
+                    testcase.assertEqual(cursor[str(k)], str(expected_value))
             session.rollback_transaction()
             cursor.close()
             pos += 1

@@ -1092,11 +1092,40 @@ err:
 }
 
 /*
- * __layered_drain_ingest_table --
+ * __layered_clear_ingest_table --
+ *     After ingest content has been drained to the stable table, clear out the ingest table.
+ */
+static int
+__layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_ASSERT(session, WT_SUFFIX_MATCH(uri, ".wt_ingest"));
+
+    /*
+     * Truncate needs a running txn. TODO we should probably do something more like the history
+     * store and make this non-transactional -- this happens during step-up, so we know there are no
+     * other transactions running, so it's safe.
+     */
+    WT_RET(__wt_txn_begin(session, NULL));
+
+    /*
+     * No other transactions are running, we're only doing this truncate, and it should become
+     * immediately visible. So this transaction doesn't have to care about timestamps.
+     */
+    F_SET(session->txn, WT_TXN_TS_NOT_SET);
+
+    WT_RET(session->iface.truncate(&session->iface, uri, NULL, NULL, NULL));
+
+    WT_RET(__wt_txn_commit(session, NULL));
+
+    return (0);
+}
+
+/*
+ * __layered_copy_ingest_table --
  *     Moving all the data from a single ingest table to the corresponding stable table
  */
 static int
-__layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry)
+__layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_ENTRY *entry)
 {
     WT_CURSOR *stable_cursor, *version_cursor;
     WT_CURSOR_BTREE *cbt;
@@ -1195,13 +1224,25 @@ __layered_drain_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_
          * update in this case.
          */
         if (tw.durable_start_ts > last_checkpoint_timestamp) {
-            WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
+            /* TODO: this is an ugly layering violation. But I can't think of a better way now. */
+            if (__wt_clayered_deleted(value)) {
+                /*
+                 * If we use tombstone value, we should never see a real tombstone on the ingest
+                 * table.
+                 */
+                WT_ASSERT(session, tombstone == NULL);
+                WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
+            } else
+                WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, NULL));
             upd->txnid = tw.start_txn;
             upd->start_ts = tw.start_ts;
             upd->durable_ts = tw.durable_start_ts;
         } else
             WT_ASSERT(session, tombstone != NULL);
 
+        /*
+         * TODO: we can simplify the algorithm if we don't use real tombstones on the ingest table.
+         */
         if (tombstone != NULL) {
             tombstone->txnid = tw.stop_txn;
             tombstone->start_ts = tw.start_ts;
@@ -1273,8 +1314,10 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     /* TODO: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
-        if ((entry = manager->entries[i]) != NULL)
-            WT_ERR(__layered_drain_ingest_table(internal_session, entry));
+        if ((entry = manager->entries[i]) != NULL) {
+            WT_ERR(__layered_copy_ingest_table(internal_session, entry));
+            WT_ERR(__layered_clear_ingest_table(internal_session, entry->ingest_uri));
+        }
     }
 
 err:

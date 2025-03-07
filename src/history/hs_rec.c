@@ -1089,13 +1089,29 @@ static int
 __hs_delete_record(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key, WT_UPDATE *upd, WT_UPDATE *tombstone)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     bool hs_read_committed;
 
     WT_TIME_WINDOW *hs_tw;
 
+    btree = S2BT(session);
+
+    /*
+     * Open a history store cursor if we don't yet have one. If we already have it, check if it
+     * matches the current btree and attempt to reuse it if it does not.
+     */
     if (r->hs_cursor == NULL)
-        WT_RET(__wt_curhs_open(session, S2BT(session)->id, NULL, &r->hs_cursor));
+        WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+    else if (__wt_curhs_get_btree_id(session, r->hs_cursor) != btree->id) {
+        WT_RET_ERROR_OK(ret = __wt_curhs_set_btree_id(session, r->hs_cursor, btree->id), EINVAL);
+        if (ret == EINVAL) {
+            WT_RET(r->hs_cursor->close(r->hs_cursor));
+            r->hs_cursor = NULL;
+            WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
+        }
+    }
+
     hs_read_committed = F_ISSET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     /* Ensure we can see all the content in the history store. */
     F_SET(r->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
@@ -1104,7 +1120,7 @@ __hs_delete_record(
     if (tombstone != NULL && __wt_txn_upd_visible_all(session, tombstone))
         goto done;
 
-    r->hs_cursor->set_key(r->hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
+    r->hs_cursor->set_key(r->hs_cursor, 4, btree->id, key, WT_TS_MAX, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, r->hs_cursor), true);
     /* It's possible the value in the history store becomes obsolete concurrently. */
     if (ret == WT_NOTFOUND) {

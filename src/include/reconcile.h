@@ -405,7 +405,8 @@ typedef struct {
 
 /* Called when building the internal page image to indicate should we start to build a delta for the
  * page. We are still building so multi_next should still be 0 instead of 1. */
-#define WT_BUILD_DELTA_INT(session, r)                                        \
-    F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && (r)->multi_next == 0 && \
-      !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL) &&                   \
+#define WT_BUILD_DELTA_INT(session, r)                                                   \
+    F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && !__wt_ref_is_root(r->ref) &&       \
+      (r)->multi_next == 0 &&                                                            \
+      !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INTL_PINDEX_UPDATE) && \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
