@@ -140,6 +140,22 @@ err:
 }
 
 /*
+ * __wt_session_reset_last_error --
+ *     Reset all variables in the session error information structure back to default.
+ */
+void
+__wt_session_reset_last_error(WT_SESSION_IMPL *session)
+{
+    if (session == NULL || !F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+        return;
+
+    WT_ERROR_INFO *err_info = &(session->err_info);
+    err_info->err = 0;
+    err_info->sub_level_err = WT_NONE;
+    err_info->err_msg = WT_ERROR_INFO_SUCCESS;
+}
+
+/*
  * __wt_session_set_last_error --
  *     Stores information about the last error to occur during this session.
  */
@@ -156,44 +172,34 @@ __wt_session_set_last_error(
     if (session == NULL || !F_ISSET(session, WT_SESSION_SAVE_ERRORS))
         return;
 
-    /* Only update if the err_info struct has not been previously set in the current API call, or
-     * if the err_info struct is being reset.
-     */
-    if (session->err_info.err != 0 && err != 0)
+    /* Don't overwrite the err_info struct if it has been previously set. */
+    if (session->err_info.err != 0)
         return;
 
-    /* Validate the incoming sub level error code. */
+    /* Validate the incoming fmt string and sub level error code. */
     WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
+    WT_ASSERT(session, fmt != NULL);
 
     /*
-     * Load error codes and message into err_info. If the message is empty or is NULL (indicating
-     * success), use static string buffers. Otherwise, format the message into the buffer.
+     * The entry of the session API call ensures that error information is set to default. Therefore
+     * call this function only when an actual error has happened.
+     */
+    WT_ASSERT(session, err != 0);
+    /*
+     * Load error codes and message into err_info. If the message is empty use static string
+     * buffers. Otherwise, format the message into the buffer.
      */
     WT_ERROR_INFO *err_info = &(session->err_info);
     err_info->err = err;
     err_info->sub_level_err = sub_level_err;
-    if (err == 0) {
-        /*
-         * A successful API call results in having err equal to 0 and the err_msg set to the default
-         * success message.
-         *
-         * Since the successful err_msg is fixed the fmt variable doesn't need to be processed.
-         * Therefore, the fmt variable should equal to NULL whenever an API call is successful.
-         */
-        WT_ASSERT(session, fmt == NULL);
-        err_info->err_msg = WT_ERROR_INFO_SUCCESS;
-    } else {
-        if (strlen(fmt) == 0)
-            err_info->err_msg = WT_ERROR_INFO_EMPTY;
-        else {
-            WT_ASSERT(session, fmt != NULL);
-            WT_VA_ARGS_BUF_FORMAT(session, &(err_info->err_msg_buf), fmt, false);
-            err_info->err_msg = err_info->err_msg_buf.data;
-        }
+    if (strlen(fmt) == 0)
+        err_info->err_msg = WT_ERROR_INFO_EMPTY;
+    else {
+        WT_VA_ARGS_BUF_FORMAT(session, &(err_info->err_msg_buf), fmt, false);
+        err_info->err_msg = err_info->err_msg_buf.data;
     }
 
     return;
-
 err:
     WT_ASSERT_ALWAYS(session, false, "Error encountered when formatting into a scratch buffer");
 }
