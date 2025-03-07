@@ -298,6 +298,12 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
       "turtle",
       key, WT_META_TRACKING(session) ? "true" : "false", __metadata_turtle(key) ? "" : "not ");
 
+    /*
+     * It is wrong to read the metadata with the checkpoint cursor transaction because it doesn't
+     * publish the metadata_pinned.
+     */
+    WT_ASSERT(session, session->txn == NULL || !F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));
+
     if (__metadata_turtle(key)) {
         /*
          * The returned value should only be set if ret is non-zero, but Coverity is convinced
