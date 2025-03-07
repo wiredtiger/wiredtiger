@@ -813,7 +813,8 @@ main(int argc, char *argv[])
                 if (reduce)
                     try {
                         std::string reduce_home = home + DIR_DELIM_STR + REDUCTION_HOME;
-                        reduce_counterexample(workload, home, reduce_home);
+                        reduce_counterexample(
+                          workload, home, reduce_home, conn_config, table_config);
                     } catch (std::exception &e) {
                         std::cerr << e.what() << std::endl;
                     }
