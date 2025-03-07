@@ -56,7 +56,7 @@ __wt_metadata_turtle_rewrite(WT_SESSION_IMPL *session)
 
 #ifdef _MSC_VER
     /* FIXME-WT-14051 - Fix Windows compile support. */
-    WT_RET(__wt_turtle_update(session, WT_METAFILE_URI, existing_config, NULL));
+    WT_RET(__wt_turtle_update(session, WT_METAFILE_URI, existing_config));
 #else
     if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         WT_RET(__wt_live_restore_turtle_update(session, WT_METAFILE_URI, existing_config, false));
