@@ -157,7 +157,7 @@ __wt_session_reset_last_error(WT_SESSION_IMPL *session)
 
 /*
  * __wt_session_set_last_error --
- *     Stores information about the last error to occur during this session.
+ *     Record errors that occur in the lifetime of a session API call.
  */
 void
 __wt_session_set_last_error(
