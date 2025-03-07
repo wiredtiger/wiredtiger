@@ -61,7 +61,7 @@ __wt_metadata_turtle_rewrite(WT_SESSION_IMPL *session)
     if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         WT_RET(__wt_live_restore_turtle_update(session, WT_METAFILE_URI, existing_config, false));
     else
-        WT_RET(__wt_turtle_update(session, WT_METAFILE_URI, existing_config, NULL));
+        WT_RET(__wt_turtle_update(session, WT_METAFILE_URI, existing_config));
 #endif
 
     __wt_free(session, existing_config);
@@ -238,12 +238,12 @@ __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *valu
     if (__metadata_turtle(key)) {
 #ifdef _MSC_VER
         /* FIXME-WT-14051 - Fix Windows compile support. */
-        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value, NULL));
+        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value));
 #else
         if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
             WT_RET(__wt_live_restore_turtle_update(session, key, value, true));
         else {
-            WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value, NULL));
+            WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value));
             WT_RET(ret);
         }
 #endif

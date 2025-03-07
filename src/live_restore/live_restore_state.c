@@ -238,11 +238,11 @@ __wti_live_restore_init_state(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_
 }
 
 /*
- * __live_restore_get_state_string --
+ * __wt_live_restore_get_state_string --
  *     Get the live restore state in string form.
  */
-static int
-__live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_str)
+int
+__wt_live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_str)
 {
     WT_CONNECTION_IMPL *conn = S2C(session);
     WT_ASSERT_ALWAYS(session, F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS),
@@ -257,9 +257,8 @@ __live_restore_get_state_string(WT_SESSION_IMPL *session, WT_ITEM *lr_state_str)
 
 /*
  * __wt_live_restore_turtle_update --
- *     Intercept writes to the turtle file so we can take the state lock first and fetch live
- *     restore metadata to be written to the file. The state lock must be held for the entire
- *     process and taken before we take the turtle lock.
+ *     Intercept updates to the turtle file so we can take the state lock first. The state lock must
+ *     be held for the entire process and taken before we take the turtle lock.
  */
 int
 __wt_live_restore_turtle_update(
@@ -268,26 +267,21 @@ __wt_live_restore_turtle_update(
     WT_DECL_RET;
 
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
-    WT_DECL_ITEM(lr_state_str);
 
     bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
     if (!reentrant)
         __wt_spin_lock(session, &lr_fs->state_lock);
 
-    WT_ERR(__wt_scr_alloc(session, WT_LIVE_RESTORE_STATE_STRING_MAX, &lr_state_str));
-    WT_ERR(__live_restore_get_state_string(session, lr_state_str));
-
     if (take_turtle_lock)
-        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value, lr_state_str));
+        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value));
     else
-        ret = __wt_turtle_update(session, key, value, lr_state_str);
+        ret = __wt_turtle_update(session, key, value);
     WT_ERR(ret);
 
 err:
     if (!reentrant)
         __wt_spin_unlock(session, &lr_fs->state_lock);
 
-    __wt_scr_free(session, &lr_state_str);
     return (ret);
 }
 
