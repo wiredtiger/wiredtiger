@@ -35,7 +35,7 @@ conditions are met; otherwise the page can be evicted by the application thread 
 - The operation has disabled eviction or splitting.
 - The session is preventing from reconciling.
 
-Otherwise, it will attempt to release and evict it.
+Otherwise, it will attempt to evict it.
 
 Pages in the urgent queue take precedence over the pages from the ordinary eviction queues.
 
