@@ -300,10 +300,10 @@ load_workload(const char *file)
  *     The context for counterexample reduction.
  */
 struct reduce_counterexample_context_t {
-    const std::string conn_config_override;
+    const std::string conn_config;
     const std::string main_home;
     const std::string reduce_home;
-    const std::string table_config_override;
+    const std::string table_config;
 
     size_t round;
 
@@ -312,10 +312,9 @@ struct reduce_counterexample_context_t {
      *     Initialize the context.
      */
     reduce_counterexample_context_t(const std::string &main_home, const std::string &reduce_home,
-      const std::string &conn_config_override, const std::string &table_config_override)
-        : main_home(main_home), reduce_home(reduce_home),
-          conn_config_override(conn_config_override), table_config_override(table_config_override),
-          round(0)
+      const std::string &conn_config, const std::string &table_config)
+        : main_home(main_home), reduce_home(reduce_home), conn_config(conn_config),
+          table_config(table_config), round(0)
     {
     }
 };
@@ -418,8 +417,7 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
         /* Try the reduced workload. */
         try {
             if (!skip)
-                run_and_verify(w, context.reduce_home, context.conn_config_override,
-                  context.table_config_override);
+                run_and_verify(w, context.reduce_home, context.conn_config, context.table_config);
             else
                 std::cout << "Counterexample reduction: Skip running a malformed workload"
                           << std::endl;
@@ -451,35 +449,9 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
  */
 static void
 reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::string &main_home,
-  const std::string &reduce_home, const std::string &conn_config_override = "",
-  const std::string &table_config_override = "")
+  const std::string &reduce_home, const std::string &conn_config, const std::string &table_config)
 {
-    reduce_counterexample_context_t context{
-      main_home, reduce_home, conn_config_override, table_config_override};
-
-    /*
-     * Turn off generating core dumps during the counterexample reduction. Each failed run could
-     * possibly result in dumping a core, leading to tens or even hundreds of core dumps.
-     */
-    struct rlimit prev_core_limit;
-    int r = getrlimit(RLIMIT_CORE, &prev_core_limit);
-    if (r != 0)
-        throw std::runtime_error(
-          std::string("Failed to get the current core dump limit: ") + strerror(errno));
-
-    model::at_cleanup reset_core_limit([&prev_core_limit]() {
-        int r = setrlimit(RLIMIT_CORE, &prev_core_limit);
-        if (r != 0)
-            std::cerr << "Failed to reset the core dump limit: " << strerror(errno) << std::endl;
-    });
-
-    struct rlimit new_core_limit;
-    memset(&new_core_limit, 0, sizeof(new_core_limit));
-    /* Preserve the maximum limit for resetting the current value to work at cleanup. */
-    new_core_limit.rlim_max = prev_core_limit.rlim_max;
-    r = setrlimit(RLIMIT_CORE, &new_core_limit);
-    if (r != 0)
-        throw std::runtime_error(std::string("Failed to set core dump limit: ") + strerror(errno));
+    reduce_counterexample_context_t context{main_home, reduce_home, conn_config, table_config};
 
     /*
      * Separate the workload back into sequences, where a sequence is a transaction or just a single
