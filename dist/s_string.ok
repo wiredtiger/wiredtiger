@@ -836,7 +836,6 @@ gcc
 gcp
 gdb
 ge
-getWtSessionImpl
 getenv
 getlasterror
 getline
@@ -1361,7 +1360,6 @@ tempdir
 testext
 testutil
 th
-throwIfNonZero
 tid
 timespec
 tinfo
@@ -1484,7 +1482,6 @@ whitespace
 wiredTiger
 wiredTigerTables
 wiredtiger
-wiredtigerCleanup
 workgen
 wrapup
 writeable
