@@ -30,6 +30,7 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
     uint8_t key_type, value_type;
 
     WT_ASSERT(session, incrp != NULL);
+    addr = NULL;
 
     WT_RET(__wt_calloc_one(session, refp));
     *incrp += sizeof(WT_REF);
@@ -103,7 +104,10 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
 
     if (0) {
 err:
-        __wt_free(session, addr);
+        if (addr != NULL) {
+            __wt_free(session, addr->block_cookie);
+            __wt_free(session, addr);
+        }
     }
 
     return (ret);
