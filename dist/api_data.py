@@ -965,6 +965,7 @@ connection_runtime_config = [
             'disaggregated_storage',
             'error_returns',
             'evict',
+            'eviction',
             'evict_stuck',
             'evictserver',
             'fileops',
