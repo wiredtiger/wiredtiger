@@ -7,8 +7,8 @@
  */
 
 /*
- * [extent_list2]: block_ext.c
- * Test extent list functions part 2. (More to come.)
+ * [extent_list]: block_ext.c
+ * Test extent list functions part 2.
  *
  * Test insert functions without block: __block_ext_insert, and __block_off_insert.
  */
@@ -25,7 +25,7 @@
 
 using namespace utils;
 
-TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
+TEST_CASE("Extent Lists: block_ext_insert", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
@@ -100,7 +100,7 @@ TEST_CASE("Extent Lists: block_ext_insert", "[extent_list2]")
     }
 }
 
-TEST_CASE("Extent Lists: block_off_insert", "[extent_list2]")
+TEST_CASE("Extent Lists: block_off_insert", "[extent_list]")
 {
     /* Build Mock session, this will automatically create a mock connection. */
     std::shared_ptr<MockSession> mock_session = MockSession::buildTestMockSession();
