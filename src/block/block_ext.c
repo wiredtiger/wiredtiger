@@ -362,7 +362,7 @@ __block_off_remove(
         if (szp->off[0] == NULL) {
             for (i = 0; i < szp->depth; ++i)
                 *sstack[i] = szp->next[i];
-            __wti_block_size_free(session, szp);
+            __wti_block_size_free(session, &szp);
         }
     }
 #ifdef HAVE_DIAGNOSTIC
@@ -380,7 +380,7 @@ __block_off_remove(
 
     /* Return the record if our caller wants it, otherwise free it. */
     if (extp == NULL)
-        __wti_block_ext_free(session, ext);
+        __wti_block_ext_free(session, &ext);
     else
         *extp = ext;
 
@@ -480,7 +480,7 @@ __wti_block_off_remove_overlap(
         }
     }
     if (ext != NULL)
-        __wti_block_ext_free(session, ext);
+        __wti_block_ext_free(session, &ext);
     return (0);
 }
 
@@ -597,7 +597,7 @@ append:
         __wt_verbose(session, WT_VERB_BLOCK, "%s: allocate range %" PRIdMAX "-%" PRIdMAX,
           block->live.avail.name, (intmax_t)ext->off, (intmax_t)(ext->off + ext->size));
 
-        __wti_block_ext_free(session, ext);
+        __wti_block_ext_free(session, &ext);
     }
 
     /* Add the newly allocated extent to the list of allocations. */
