@@ -79,7 +79,7 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
             ref->addr = addr;
             WT_TIME_AGGREGATE_COPY(&addr->ta, &delta->value.ta);
             WT_ERR(__wt_memdup(session, delta->value.data, delta->value.size, &addr->block_cookie));
-            addr->block_cookie_size = (uint8_t) delta->value.size;
+            addr->block_cookie_size = (uint8_t)delta->value.size;
             switch (delta->value.raw) {
             case WT_CELL_ADDR_INT:
                 addr->type = WT_ADDR_INT;
