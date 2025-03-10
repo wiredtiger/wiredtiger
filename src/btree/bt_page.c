@@ -24,6 +24,8 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
   WT_CELL_UNPACK_ADDR *base_val, WT_CELL_UNPACK_DELTA_INT *delta, bool base, WT_REF **refp,
   size_t *incrp)
 {
+    WT_ADDR *addr;
+    WT_DECL_RET;
     WT_REF *ref;
     uint8_t key_type, value_type;
 
@@ -66,11 +68,45 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
         WT_RET(__wt_illegal_value(session, delta->value.type));
     }
 
-    if (base)
-        ref->addr = base_val->cell;
-    else
-        WT_RET(__wt_memdup(session, delta->value.data, delta->value.size, &ref->addr));
-    return (0);
+    switch (value_type) {
+    case WT_CELL_ADDR_INT:
+    case WT_CELL_ADDR_LEAF:
+    case WT_CELL_ADDR_LEAF_NO:
+        if (base)
+            ref->addr = base_val->cell;
+        else {
+            WT_RET(__wt_calloc_one(session, &addr));
+            ref->addr = addr;
+            WT_TIME_AGGREGATE_COPY(&addr->ta, &delta->value.ta);
+            WT_ERR(__wt_memdup(session, delta->value.data, delta->value.size, &addr->block_cookie));
+            addr->block_cookie_size = (uint8_t) delta->value.size;
+            switch (delta->value.raw) {
+            case WT_CELL_ADDR_INT:
+                addr->type = WT_ADDR_INT;
+                break;
+            case WT_CELL_ADDR_LEAF:
+                addr->type = WT_ADDR_LEAF;
+                break;
+            case WT_CELL_ADDR_LEAF_NO:
+                addr->type = WT_ADDR_LEAF_NO;
+                break;
+            default:
+                WT_ERR(__wt_illegal_value(session, delta->value.raw));
+            }
+        }
+        break;
+    case WT_CELL_ADDR_DEL:
+    /* Fast truncated pages are not supported. */
+    default:
+        WT_ERR(__wt_illegal_value(session, delta->value.type));
+    }
+
+    if (0) {
+err:
+        __wt_free(session, addr);
+    }
+
+    return (ret);
 }
 
 /*
