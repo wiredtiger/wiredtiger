@@ -188,33 +188,29 @@ TEST_CASE("Extent Lists: block_off_match", "[extent_list]")
     };
 
     /* Tests and expected values for __block_off_match. */
-    std::vector<search_match> expected_match
-    {
-        search_match(0, 0, false),      // Empty: Before first 0.
-          search_match(4095, 0, false), // Empty: Just before first 4,095.
-          search_match(4096, 0, false), // Empty: At the start of first 4,096.
-#if 0 // Failed: Verify: 3. Expected: off=8191, size=0, end=8190, match=false; Actual: match = true.
-      // When FIXME-WT-13440 is fixed, enable this test. It is a reproducer.
-          search_match(4096 + 4095, 0, false), // Empty: At end first 8,191.
-#endif
-          search_match(2 * 4096, 0, false),      // Empty: Just after first 8,192.
-          search_match(2 * 4096 + 64, 0, false), // Empty: Between first and second 8,256.
-          search_match(3 * 4096, 0, false),      // Empty: At the start of second 12,288.
-          search_match(4 * 4096 + 64, 0, false), // Empty: Between second and third 16,448.
-          search_match(5 * 4096, 0, false),      // Empty: At the start of third 20,480.
-          search_match(6 * 4096, 0, false),      // Empty: Just after third 24,576.
-          search_match(4096 - 128, 64, false),   // Before first [3,968, 4,031].
-          search_match(4095, 1, false),          // Just before first, i.e. touching [4,095, 4,095].
-          search_match(2 * 4096, 1, false),      // Just after first [8,192, 8,192].
-          search_match(4096 - 64, 128, true),    // Overlapping the start of first [4,032, 4,160].
-          search_match(4096, 1, true),           // Just the start of first [4,096, 4,096].
-          search_match(4096, 64, true),          // At the start of first [4,096, 4,159].
-          search_match(4096 + 64, 64, true),     // Within first [4,160, 4,223].
-          search_match(2 * 4096 - 64, 64, true), // At the end of first [8,128, 8,191].
-          search_match(2 * 4096 - 1, 1, true),   // Just the end of first [8,191, 8,191].
-          search_match(2 * 4096 - 64, 128, true),    // Overlapping the end of first [8,128, 8,255].
-          search_match(4096, 4096, true),            // The same as first [4,096, 8191].
-          search_match(4096 - 64, 4096 + 128, true), // Completely overlapping first [4,032, 8,255].
+    std::vector<search_match> expected_match{
+      search_match(0, 0, false),                 // Empty: Before first 0.
+      search_match(4095, 0, false),              // Empty: Just before first 4,095.
+      search_match(4096, 0, false),              // Empty: At the start of first 4,096.
+      search_match(4096 + 4095, 0, false),       // Empty: At end first 8,191.
+      search_match(2 * 4096, 0, false),          // Empty: Just after first 8,192.
+      search_match(2 * 4096 + 64, 0, false),     // Empty: Between first and second 8,256.
+      search_match(3 * 4096, 0, false),          // Empty: At the start of second 12,288.
+      search_match(4 * 4096 + 64, 0, false),     // Empty: Between second and third 16,448.
+      search_match(5 * 4096, 0, false),          // Empty: At the start of third 20,480.
+      search_match(6 * 4096, 0, false),          // Empty: Just after third 24,576.
+      search_match(4096 - 128, 64, false),       // Before first [3,968, 4,031].
+      search_match(4095, 1, false),              // Just before first, i.e. touching [4,095, 4,095].
+      search_match(2 * 4096, 1, false),          // Just after first [8,192, 8,192].
+      search_match(4096 - 64, 128, true),        // Overlapping the start of first [4,032, 4,160].
+      search_match(4096, 1, true),               // Just the start of first [4,096, 4,096].
+      search_match(4096, 64, true),              // At the start of first [4,096, 4,159].
+      search_match(4096 + 64, 64, true),         // Within first [4,160, 4,223].
+      search_match(2 * 4096 - 64, 64, true),     // At the end of first [8,128, 8,191].
+      search_match(2 * 4096 - 1, 1, true),       // Just the end of first [8,191, 8,191].
+      search_match(2 * 4096 - 64, 128, true),    // Overlapping the end of first [8,128, 8,255].
+      search_match(4096, 4096, true),            // The same as first [4,096, 8191].
+      search_match(4096 - 64, 4096 + 128, true), // Completely overlapping first [4,032, 8,255].
     };
 
     std::vector<WT_EXT **> stack(WT_SKIP_MAXDEPTH, nullptr);
