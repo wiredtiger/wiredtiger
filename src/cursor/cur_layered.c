@@ -1276,7 +1276,8 @@ __clayered_search_near(WT_CURSOR *cursor, int *exactp)
         WT_ERR(__layered_prev(cursor));
         cmp = -1;
     }
-    *exactp = cmp;
+    if (exactp != NULL)
+        *exactp = cmp;
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search_near);
     if (clayered->current_cursor == clayered->ingest_cursor)
