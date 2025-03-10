@@ -590,7 +590,7 @@ backup(void *arg)
 
             } else
                 testutil_copy_file(session, key);
-            trace_msg(session, "Backup #%u copy file %s stop", counter, key);
+            trace_msg(session, "Backup #%u copy file %s stop, ret=%d", counter, key, ret);
             active_files_add(active_now, key);
         }
         if (ret != WT_NOTFOUND)
@@ -598,9 +598,9 @@ backup(void *arg)
 
         testutil_check(backup_cursor->close(backup_cursor));
         if (config == NULL)
-            trace_msg(session, "Backup #%u stop", counter);
+            trace_msg(session, "Backup #%u stop, ret=%d", counter, ret);
         else
-            trace_msg(session, "Backup #%u stop: (%s)", counter, config);
+            trace_msg(session, "Backup #%u stop: (%s), ret=%d", counter, config, ret);
 
         lock_writeunlock(session, &g.backup_lock);
         active_files_sort(active_now);
