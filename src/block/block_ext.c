@@ -379,9 +379,10 @@ __block_off_remove(
     el->bytes -= (uint64_t)ext->size;
 
     /* Return the record if our caller wants it, otherwise free it. */
-    if (extp == NULL)
-        __wti_block_ext_free(session, &ext);
-    else
+    if (extp == NULL) {
+        WT_EXT *ext_to_free = ext;
+        __wti_block_ext_free(session, &ext_to_free);
+    } else
         *extp = ext;
 
     /* Update the cached end-of-list. */
