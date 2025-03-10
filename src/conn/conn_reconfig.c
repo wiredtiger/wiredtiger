@@ -407,6 +407,10 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     if (cfg[1] != NULL && cfg[2] == NULL) {
         count = 0;
 
+        /*
+         * We can take the fast path if "disaggregated" is the first and only top level item in the
+         * configuration.
+         */
         __wt_config_init(session, &cparser, cfg[1] /* Just the caller-supplied config. */);
         while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
             count++;

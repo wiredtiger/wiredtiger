@@ -713,16 +713,10 @@ __disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
     disagg = &S2C(session)->disaggregated_storage;
     WT_ACQUIRE_READ(cur_lsn, disagg->last_materialized_lsn);
 
-    /*
-     * No need to check has_last_materialized_lsn, because last_materialized_lsn would be 0 if it is
-     * not set.
-     */
     if (cur_lsn > lsn)
         return (EINVAL); /* Can't go backwards. */
 
     WT_RELEASE_WRITE(disagg->last_materialized_lsn, lsn);
-    WT_RELEASE_WRITE(disagg->has_last_materialized_lsn, (bool)true);
-
     return (0);
 }
 

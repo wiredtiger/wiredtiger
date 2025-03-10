@@ -96,7 +96,7 @@ class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction()
         cursor = self.session.open_cursor(self.uri, None, 'debug=(release_evict)')
         self.assertEqual(cursor['a'], last_value)
-        self.assertEqual(cursor.reset(), 0)
+        cursor.reset()
         cursor.close()
         self.session.rollback_transaction()
 

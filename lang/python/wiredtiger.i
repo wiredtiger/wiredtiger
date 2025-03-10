@@ -1177,35 +1177,6 @@ typedef int int_void;
 	}
 };
 
-%extend __wt_page_log {
-    /* get_complete_checkpoint: special handling to return the int. */
-    int _get_complete_checkpoint(WT_SESSION *session) {
-        int ret = 0;
-        uint64_t checkpoint_id;
-
-        ret = $self->pl_get_complete_checkpoint($self, session, &checkpoint_id);
-        return (ret == 0 ? (int)checkpoint_id : ret);
-    }
-
-    /* get_last_lsn: special handling to return the int. */
-    int _get_last_lsn(WT_SESSION *session) {
-        int ret = 0;
-        uint64_t lsn;
-
-        ret = $self->pl_get_last_lsn($self, session, &lsn);
-        return (ret == 0 ? (int)lsn : ret);
-    }
-
-    /* get_open_checkpoint: special handling to return the int. */
-    int _get_open_checkpoint(WT_SESSION *session) {
-        int ret = 0;
-        uint64_t checkpoint_id;
-
-        ret = $self->pl_get_open_checkpoint($self, session, &checkpoint_id);
-        return (ret == 0 ? (int)checkpoint_id : ret);
-    }
-}
-
 %define CONCAT(a,b)   a##b
 %enddef
 

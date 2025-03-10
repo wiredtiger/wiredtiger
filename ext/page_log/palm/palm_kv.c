@@ -148,12 +148,12 @@ swap_ckpt_key(const CKPT_KEY *src, CKPT_KEY *dest)
  * True if and only if the result matches the table, and page and is materialized, and the page's
  * version is LTE the given checkpoint.
  */
-#define RESULT_MATCH(result_key, _table_id, _page_id, _lsn, _checkpoint_id, _now)    \
-    ((result_key)->table_id == (_table_id) && (result_key)->page_id == (_page_id) && \
-      ((_checkpoint_id) == 0 || (result_key)->checkpoint_id <= (_checkpoint_id)) &&  \
-      ((_lsn) == 0 || (result_key)->lsn <= (_lsn)) &&                                \
-      (_now) > (result_key)->timestamp_materialized_us) &&                           \
-      (context->last_materialized_lsn == 0 || _lsn <= context->last_materialized_lsn)
+#define RESULT_MATCH(result_key, _context, _table_id, _page_id, _lsn, _checkpoint_id, _now) \
+    ((result_key)->table_id == (_table_id) && (result_key)->page_id == (_page_id) &&        \
+      ((_checkpoint_id) == 0 || (result_key)->checkpoint_id <= (_checkpoint_id)) &&         \
+      ((_lsn) == 0 || (result_key)->lsn <= (_lsn)) &&                                       \
+      (_now) > (result_key)->timestamp_materialized_us) &&                                  \
+      ((_context)->last_materialized_lsn == 0 || _lsn <= (_context)->last_materialized_lsn)
 
 #ifdef PALM_KV_DEBUG
 /* Show the contents of the PAGE_KEY to stderr.  This can be useful for debugging. */
@@ -428,7 +428,8 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * Now back up until we get a match. This will be the last valid record that matches the
      * table/page.
      */
-    while (ret == 0 && !RESULT_MATCH(&result_key, table_id, page_id, lsn, checkpoint_id, now)) {
+    while (
+      ret == 0 && !RESULT_MATCH(&result_key, context, table_id, page_id, lsn, checkpoint_id, now)) {
         ret = mdb_cursor_get(matches->lmdb_cursor, &kval, &vval, MDB_PREV);
         readonly_result_key = (PAGE_KEY *)kval.mv_data;
         swap_page_key(readonly_result_key, &result_key);
@@ -437,7 +438,8 @@ palm_kv_get_page_matches(PALM_KV_CONTEXT *context, uint64_t table_id, uint64_t p
      * Now back up until we find the most recent full page that does not have a checkpoint more
      * recent than asked for.
      */
-    while (ret == 0 && RESULT_MATCH(&result_key, table_id, page_id, lsn, checkpoint_id, now)) {
+    while (
+      ret == 0 && RESULT_MATCH(&result_key, context, table_id, page_id, lsn, checkpoint_id, now)) {
         /* If this is what we're looking for, we're done, and the cursor is positioned. */
         if (result_key.is_delta == false) {
             matches->lsn = result_key.lsn;
@@ -502,8 +504,8 @@ palm_kv_next_page_match(PALM_KV_PAGE_MATCHES *matches)
         readonly_page_key = (PAGE_KEY *)kval.mv_data;
         swap_page_key(readonly_page_key, &page_key);
 
-        if (RESULT_MATCH(&page_key, matches->table_id, matches->page_id, matches->query_lsn,
-              matches->query_checkpoint_id, now)) {
+        if (RESULT_MATCH(&page_key, context, matches->table_id, matches->page_id,
+              matches->query_lsn, matches->query_checkpoint_id, now)) {
             matches->lsn = page_key.lsn;
             matches->checkpoint_id = page_key.checkpoint_id;
             matches->size = vval.mv_size;

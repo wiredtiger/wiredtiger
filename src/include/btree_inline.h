@@ -1950,7 +1950,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     WT_PAGE_BLOCK_META *block_meta;
     WT_PAGE_MODIFY *mod;
     uint64_t last_materialized_lsn;
-    bool has_last_materialized_lsn, modified;
+    bool modified;
 
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
@@ -1973,9 +1973,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      */
     if (__wt_conn_is_disagg(session)) {
         disagg = &S2C(session)->disaggregated_storage;
-        WT_ACQUIRE_READ(has_last_materialized_lsn, disagg->has_last_materialized_lsn);
-        if (has_last_materialized_lsn) {
-            WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
+        WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
+        if (last_materialized_lsn != WT_DISAGG_LSN_NONE) {
             block_meta = &ref->page->block_meta;
 
             /* Check if there is a newer block metadata struct in the page's modify struct. */
