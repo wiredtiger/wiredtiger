@@ -184,6 +184,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             all_files.append(newfile)
 
         if backup_cur == None:
+            self.pr('bcup_c close called')
             bkup_c.close()
         return all_files
 
