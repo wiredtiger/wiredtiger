@@ -1402,6 +1402,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_HS_SYNC);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
+        WT_ERR(ret);
     }
     if (hs_dhandle_shared != NULL && F_ISSET(hs_dhandle_shared, WT_DHANDLE_OPEN)) {
         WT_STAT_CONN_SET(session, checkpoint_state, WT_CHECKPOINT_STATE_HS_SYNC);
