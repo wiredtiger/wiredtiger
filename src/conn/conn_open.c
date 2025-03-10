@@ -225,6 +225,8 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
 
+    __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "starting WiredTiger utility threads");
+
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
@@ -297,6 +299,9 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Start the checkpoint cleanup thread. */
     WT_RET(__wt_checkpoint_cleanup_create(session, cfg));
+
+    __wt_verbose_info(
+      session, WT_VERB_RECOVERY, "%s", "WiredTiger utility threads started successfully");
 
     return (0);
 }

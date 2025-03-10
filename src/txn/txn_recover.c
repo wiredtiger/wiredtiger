@@ -813,6 +813,9 @@ __recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *igno
 static int
 __recovery_file_scan(WT_RECOVERY *r)
 {
+    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+      "scanning metadata to find the largest file ID");
+
     /* Scan through all files and tiered entries in the metadata. */
     WT_RET(__recovery_file_scan_prefix(r, "file:", ".wtobj"));
     WT_RET(__recovery_file_scan_prefix(r, "tiered:", NULL));
@@ -830,6 +833,8 @@ __recovery_file_scan(WT_RECOVERY *r)
      */
     S2C(r->session)->next_file_id = WT_BTREE_ID_UNNAMESPACED(r->max_fileid);
 
+    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+      "largest file ID found in the metadata %u", r->max_fileid);
     return (0);
 }
 
@@ -927,6 +932,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
+    __wt_verbose_level_multi(
+      session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s", "starting WiredTiger recovery");
     __wt_timer_start(session, &timer);
 
     /* We need a real session for recovery. */
@@ -1061,7 +1068,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
      * get truncated.
      */
     r.metadata_only = false;
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "Main recovery loop: starting at %" PRIu32 "/%" PRIu32 " to %" PRIu32 "/%" PRIu32,
       r.ckpt_lsn.l.file, __wt_lsn_offset(&r.ckpt_lsn), r.max_rec_lsn.l.file,
       __wt_lsn_offset(&r.max_rec_lsn));
@@ -1085,7 +1092,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool disagg)
 
     if (!hs_exists_local || disagg) {
         if (!disagg)
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "%s",
+            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
               "Creating the history store before applying log records. Likely recovering after an"
               "unclean shutdown on an earlier version");
         /*
@@ -1132,7 +1139,7 @@ done:
 #endif
     /* Time since the Log replay has started. */
     __wt_timer_evaluate_ms(session, &timer, &conn->recovery_timeline.log_replay_ms);
-    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "recovery log replay has successfully finished and ran for %" PRIu64 " milliseconds",
       conn->recovery_timeline.log_replay_ms);
 
@@ -1163,8 +1170,10 @@ done:
             eviction_started = true;
         }
 
-        __wt_verbose_multi(session,
-          WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})),
+        __wt_verbose_level_multi(session,
+          WT_DECL_VERBOSE_MULTI_CATEGORY(
+            ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS, WT_VERB_RTS})),
+          WT_VERBOSE_INFO,
           "[RECOVERY_RTS] performing recovery rollback_to_stable with stable_timestamp=%s and "
           "oldest_timestamp=%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
@@ -1174,7 +1183,7 @@ done:
 
         /* Time since the rollback to stable has started. */
         __wt_timer_evaluate_ms(session, &rts_timer, &conn->recovery_timeline.rts_ms);
-        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
           "recovery rollback to stable has successfully finished and ran for %" PRIu64
           " milliseconds",
           conn->recovery_timeline.rts_ms);
@@ -1199,7 +1208,7 @@ done:
 
         /* Time since the recovery checkpoint has started. */
         __wt_timer_evaluate_ms(session, &checkpoint_timer, &conn->recovery_timeline.checkpoint_ms);
-        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
           "recovery checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
           conn->recovery_timeline.checkpoint_ms);
     }
@@ -1226,7 +1235,7 @@ done:
 
     /* Time since the recovery has started. */
     __wt_timer_evaluate_ms(session, &timer, &conn->recovery_timeline.recovery_ms);
-    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "recovery was completed successfully and took %" PRIu64 "ms, including %" PRIu64
       "ms for the log replay, %" PRIu64 "ms for the rollback to stable, and %" PRIu64
       "ms for the checkpoint.",
