@@ -468,9 +468,11 @@ __wti_page_reconstruct_deltas(
          */
         for (i = (int)delta_size - 1; i >= 0; --i)
             WT_RET(__page_reconstruct_leaf_delta(session, ref, &deltas[i]));
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
         break;
     case WT_PAGE_ROW_INT:
         WT_RET(__page_reconstruct_internal_deltas(session, ref, deltas, delta_size));
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_internal_delta);
         break;
     default:
         WT_RET(__wt_illegal_value(session, ref->page->type));

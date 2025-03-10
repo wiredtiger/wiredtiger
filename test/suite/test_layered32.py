@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import random, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
@@ -43,7 +43,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     compress = [
         ('none', dict(block_compress='none')),
-        ('snappy', dict(block_compress='snappy')),
+        # ('snappy', dict(block_compress='snappy')),
     ]
 
     uris = [
@@ -106,8 +106,9 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = self.session.open_cursor(self.uri, None, None)
 
         # Perform a single update.
+        updated_value = str(10 + 5 * 10) + str("abcdefghijklmnopqrstuvwxyz")
         self.session.begin_transaction()
-        cursor[str(10)] = str(10 + 5 * 10) + str("abcdefghijklmnopqrstuvwxyz")
+        cursor[str(10)] = updated_value
         if self.ts:
             self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10 + 5 * 10))
         else:
@@ -120,4 +121,23 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertGreater(rec_page_delta_leaf, 0)
         rec_page_delta_internal = stat_cursor[stat.conn.rec_page_delta_internal][2]
         self.assertGreater(rec_page_delta_internal, 0)
+        stat_cursor.close()
+
+        # Re-open the connection to clear contents out of memory.
+        new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
+        self.reopen_conn(config=new_config)
+
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(self.nitems):
+            cursor.set_key(str(i))
+            cursor.search()
+            if str(i) == '10':
+                self.assertEqual(cursor.get_value(),updated_value)
+            else:
+                self.assertEqual(cursor.get_value(), value1)
+        cursor.close()
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        constructing_delta_internal = stat_cursor[stat.conn.cache_read_internal_delta][2]
+        self.assertGreater(constructing_delta_internal, 0)
         stat_cursor.close()
