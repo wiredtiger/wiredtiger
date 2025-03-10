@@ -362,8 +362,7 @@ restart_read:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+            if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                 ++cbt->page_deleted_count;
             ++*skippedp;
             continue;
@@ -456,8 +455,7 @@ restart_read:
         }
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_deleted_count;
                 ++*skippedp;
                 continue;
@@ -652,8 +650,7 @@ restart_read_insert:
                 continue;
             }
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_deleted_count;
                 ++*skippedp;
                 continue;
@@ -714,8 +711,7 @@ restart_read_page:
             continue;
         }
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
-              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+            if (__wt_txn_upd_value_visible_all(session, cbt->upd_value))
                 ++cbt->page_deleted_count;
             ++*skippedp;
             continue;
