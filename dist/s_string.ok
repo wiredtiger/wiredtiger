@@ -128,7 +128,6 @@ EOF
 ERANGE
 ETIME
 ETIMEDOUT
-EVICTSERVER
 EXTLIST
 EXTSUBPATH
 Encryptor
@@ -765,7 +764,6 @@ ev
 evd
 eventv
 evictable
-evictserver
 exactp
 exe
 existp
