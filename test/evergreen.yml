@@ -1153,17 +1153,6 @@ functions:
           ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
           ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
 
-  "csuite smoke test":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
-
   "upload test stats":
     - command: perf.send
       type: setup
@@ -5067,6 +5056,8 @@ tasks:
           test-name: checkpoint-stress.wtperf
 
   - name: perf-test-live-restore
+    # FIXME-WT-14242 Re-enable once we've fixed an issue with live restore reading a page from a hole.
+    activate: false
     tags: ["long-perf"]
     depends_on:
       - name: perf-test-long-500m-btree-populate
@@ -5107,6 +5098,8 @@ tasks:
       - func: "cleanup"
 
   - name: perf-test-live-restore-no-server
+    # FIXME-WT-14242 Re-enable once we've fixed an issue with live restore reading a page from a hole.
+    activate: false
     tags: ["long-perf"]
     depends_on:
       - name: perf-test-long-500m-btree-populate
@@ -5720,7 +5713,6 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     posix_configure_flags: -DENABLE_ZSTD=0
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
-  activate: false # Launch only manually for now
   tasks:
     - name: compile
     - name: generate-datafile-big-endian
@@ -5758,7 +5750,6 @@ buildvariants:
     ENABLE_TCMALLOC: 0
     # Use half number of vCPU to avoid OOM kill failure
     num_jobs: $(echo $(grep -c ^processor /proc/cpuinfo) / 2 | bc)
-  activate: false # Launch only manually for now
   tasks:
     - name: compile
     - name: unit-test

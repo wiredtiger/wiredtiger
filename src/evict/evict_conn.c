@@ -141,7 +141,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (evict->eviction_updates_target < DBL_EPSILON) {
         WT_CONFIG_DEBUG(session,
           "config eviction_updates_target (%f) cannot be zero. Setting "
-          "to 50%% of eviction_updates_target (%f).",
+          "to 50%% of eviction_dirty_target (%f).",
           evict->eviction_updates_target, evict->eviction_dirty_target / 2);
         evict->eviction_updates_target = evict->eviction_dirty_target / 2;
     }
@@ -149,7 +149,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (evict->eviction_updates_trigger < DBL_EPSILON) {
         WT_CONFIG_DEBUG(session,
           "config eviction_updates_trigger (%f) cannot be zero. Setting "
-          "to 50%% of eviction_updates_trigger (%f).",
+          "to 50%% of eviction_dirty_trigger (%f).",
           evict->eviction_updates_trigger, evict->eviction_dirty_trigger / 2);
         evict->eviction_updates_trigger = evict->eviction_dirty_trigger / 2;
     }
@@ -224,6 +224,9 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     WT_RET(__wt_config_gets(session, cfg, "eviction.evict_use_softptr", &cval));
     __wt_atomic_storebool(&conn->evict_use_npos, cval.val != 0);
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.legacy_page_visit_strategy", &cval));
+    conn->evict_legacy_page_visit_strategy = cval.val != 0;
 
     /* Retrieve the wait time and convert from milliseconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
