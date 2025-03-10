@@ -1667,6 +1667,79 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
 }
 
 /*
+ * __evict_page_correct_bucketset
+ *     Is the page in the correct bucketset given its type?
+ */
+static bool
+__evict_page_correct_bucketset(WT_PAGE *page, int home_bucketset_level)
+{
+	if (WT_PAGE_IS_INTERNAL(page)) {
+		if (__wt_page_is_modified(page)) {
+			if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_INTERNAL) {
+				return (false);
+			}
+		}
+		else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_INTERNAL)
+			return (false);
+	}
+	else { /* leaf page */
+		if (__wt_page_is_modified(page)) {
+			if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_LEAF)
+				return (false);
+		}
+		else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_LEAF)
+			return (false);
+	}
+	return (true);
+}
+
+/*
+ * __evict_page_get_bucketset --
+ *     Find the home bucketset of the page if the page is already enqueued.
+ */
+static void
+__evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
+						   WT_EVICT_BUCKETSET **bucketset, int *bucketset_level)
+{
+	WT_EVICT_BUCKET *bucket;
+	WT_EVICT_HANDLE_DATA *evict_handle_data;
+
+	*bucketset = NULL;
+	*bucketset_level = 0;
+
+	if (!WT_DHANDLE_BTREE(dhandle)) {
+#ifdef HAVE_DIAGNOSTIC
+		WT_IGNORE_RET(__wt_msg(session,
+		  "page (%s) %p: dhandle is not btree, should not be in eviction",
+							   __wt_page_type_string(page->type), (void*)page));
+#endif
+		return;
+	}
+	evict_handle_data = &((WT_BTREE*)dhandle->handle)->evict_data;
+	if (!evict_handle_data->initialized) {
+#ifdef HAVE_DIAGNOSTIC
+		WT_IGNORE_RET(__wt_msg(session,
+							   "page (%s) %p: dhandle evict data is not initialized",
+							   __wt_page_type_string(page->type), (void*)page));
+#endif
+		return;
+	}
+	if ((bucket = page->evict_data.bucket) == NULL)
+		return;
+
+	*bucketset =  WT_BUCKET_TO_BUCKETSET(page->evict_data.bucket);
+
+	if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset)
+		*bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == *bucketset)
+		*bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == *bucketset)
+		*bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == *bucketset)
+		*bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
+}
+
+/*
  * __evict_page_consistency_check --
  *     Check that the page is in the right place in the eviction data structures.
  */
@@ -1690,7 +1763,7 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 	}
 	if (page->ref == NULL) {
 		if (verbose)
-			WT_RET(__wt_msg(session, "page %s %p does not have an associated reference",
+			WT_RET(__wt_msg(session, "page (%s) %p does not have an associated reference",
 							__wt_page_type_string(page->type), (void*)page));
 		return (false);
 	}
@@ -1709,56 +1782,33 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 	}
 	WT_ASSERT(session,
 		page->evict_data.bucket->id >= 0 && page->evict_data.bucket->id < WT_EVICT_NUM_BUCKETS);
-	bucketset =  WT_BUCKET_TO_BUCKETSET(page->evict_data.bucket);
 
-	/* Is this one of the bucketsets of our dhandle? */
-	if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == bucketset)
-		home_bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == bucketset)
-		home_bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == bucketset)
-		home_bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == bucketset)
-		home_bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
-	else {
+	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &home_bucketset_level);
+
+	if (bucketset == NULL) {
 		if (verbose)
-			WT_RET(__wt_msg(session, "page %s %p: home bucketset is not one of dhandle's bucketsets",
+			WT_RET(__wt_msg(session,
+			"page (%s) %p is not in a bucketset or the bucketset does not belong to its dhandle",
+							__wt_page_type_string(page->type),(void*)page));
+		return (false);
+	}
+
+	if (!evict_handle_data->initialized) {
+		if (verbose)
+			WT_RET(__wt_msg(session,
+			   "page (%s) %p is in a bucket, but dhandle evict data uninitialized",
 							__wt_page_type_string(page->type),(void*)page));
 		return (false);
 	}
 
 	/* Is this the right bucketset given the page type? */
-	if (WT_PAGE_IS_INTERNAL(page)) {
-		if (__wt_page_is_modified(page)) {
-			if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_INTERNAL) {
-				if (verbose)
-					WT_RET(__wt_msg(session,
-							 "page %s %p is a dirty internal page, but in bucketset %d",
-							 __wt_page_type_string(page->type), (void*)page, home_bucketset_level));
-				return (false);
-			}
-		}
-		else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_INTERNAL) {
-			if (verbose)
-				WT_RET(__wt_msg(session,
-						 "page %s %p is a clean internal page, but in bucketset %d",
-						 __wt_page_type_string(page->type), (void*)page, home_bucketset_level));
-			return (false);
-		}
-	}
-	else if (__wt_page_is_modified(page)) {
-		if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_LEAF) {
-			if (verbose)
-				WT_RET(__wt_msg(session,
-							"page %s %p is a dirty leaf page, but in bucketset %d",
-							__wt_page_type_string(page->type), (void*)page, home_bucketset_level));
-			return (false);
-		}
-	} else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_LEAF) {
+	if (!__evict_page_correct_bucketset(page, home_bucketset_level)) {
 		if (verbose)
 			WT_RET(__wt_msg(session,
-							"page %p is a clean leaf page, but in bucketset %d",
-							(void*)page, home_bucketset_level));
+			"page (%s) %p is in bucketset %d, which isn't the correct bucketset for %s %s pages",
+							__wt_page_type_string(page->type), (void*)page,  home_bucketset_level,
+							WT_PAGE_IS_INTERNAL(page) ? "internal" : "leaf",
+							 __wt_page_is_modified(page) ? "dirty" : "clean"));
 		return (false);
 	}
 
@@ -1786,6 +1836,7 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     WT_PAGE *page;
     WT_REF_STATE previous_state;
     bool must_unlock_ref;
+	int bucketset_level;
     uint64_t min_range, max_range, dst_bucket, read_gen, retries;
 
     must_unlock_ref = false;
@@ -1810,29 +1861,39 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
         must_unlock_ref = true;
     }
 
-    /* Is the page already in a bucket? */
-    if ((bucket = page->evict_data.bucket) != NULL) {
-        __evict_bucket_range(session, bucket, &min_range, &max_range);
+	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level);
+
+	/* If the page is already in a bucketset, is this the right one? */
+	if (bucketset != NULL && __evict_page_correct_bucketset(page, bucketset_level)) {
+		bucket = page->evict_data.bucket; /* won't be NULL if bucketset was set to a value */
         /* Is the page already in the right bucket? */
+        __evict_bucket_range(session, bucket, &min_range, &max_range);
         if ((read_gen = __wt_atomic_load64(&page->evict_data.read_gen)) >= min_range
 			&& read_gen <= max_range)
             goto done;
         else
             __wt_evict_remove(session, ref);
-    }
+    } else if (bucketset != NULL &&
+			   __evict_page_correct_bucketset(page, bucketset_level) == false) {
+		/* Page is in the wrong bucketset */
+		__wt_evict_remove(session, ref);
+	}
 
     /* Find the bucket set for the page depending on its type */
     if (WT_PAGE_IS_INTERNAL(page)) {
         if (__wt_page_is_modified(page))
-            bucketset = &evict_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL];
+			bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
         else
-            bucketset = &evict_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL];
+            bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
     } else { /* we have a leaf page */
         if (__wt_page_is_modified(page))
-            bucketset = &evict_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF];
+            bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
         else
-            bucketset = &evict_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF];
+            bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
     }
+
+	bucketset = &evict_data->evict_bucketset[bucketset_level];
+
 #define MAX_RETRIES 10
     /*
      * Find the right bucket. The page's read generation may change as we are looking for the right
@@ -1860,7 +1921,6 @@ retry:
             dst_bucket = WT_EVICT_NUM_BUCKETS - 1;
         }
     }
-
     bucket = &bucketset->buckets[dst_bucket];
 	page->evict_data.bucket = bucket;
 
@@ -1870,8 +1930,9 @@ retry:
     __wt_spin_unlock(session, &bucket->evict_queue_lock);
 
 	WT_IGNORE_RET(__wt_msg(session,
-			   "page (%s) %p: enqueued in bucket %p of bucketset %p",
-						   __wt_page_type_string(page->type), (void *)page, (void *)bucket, (void *)bucketset));
+			   "page (%s) %p: enqueued in bucket %" PRId64 " (%p) of bucketset %d (%p)",
+						   __wt_page_type_string(page->type), (void *)page, dst_bucket,
+						   (void *)bucket, bucketset_level, (void *)bucketset));
 
 done:
     if (must_unlock_ref)
@@ -2135,6 +2196,13 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
      */
     if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_WONT_NEED)
         __evict_read_gen_new(session, page);
+
+	WT_IGNORE_RET(__wt_msg(session, "page (%s) %p first dirty",
+						   __wt_page_type_string(page->type), (void*)page));
+
+	/* Move the page to the right bucketset */
+	if (page->ref != NULL && page->evict_data.dhandle != NULL)
+		__wt_evict_enqueue_page(session, page->evict_data.dhandle, page->ref);
 }
 
 /*
