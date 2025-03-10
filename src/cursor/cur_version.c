@@ -175,6 +175,7 @@ __curversion_next_single_key(WT_CURSOR *cursor)
     twp = NULL;
     upd_found = false;
     first_globally_visible = tombstone = upd = NULL;
+    version_prepare_state = 0;
 
     /* Temporarily clear the raw flag. We need to pack the data according to the format. */
     raw = F_MASK(cursor, WT_CURSTD_RAW);
@@ -197,8 +198,6 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 goto done;
 
             if (upd->type == WT_UPDATE_TOMBSTONE) {
-                tombstone = upd;
-
                 /*
                  * If the update is a tombstone, we still want to record the stop information but we
                  * also need traverse to the next update to get the full value. If the tombstone was
@@ -207,6 +206,10 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 version_cursor->upd_stop_txnid = upd->txnid;
                 version_cursor->upd_durable_stop_ts = upd->durable_ts;
                 version_cursor->upd_stop_ts = upd->start_ts;
+
+                if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                  upd->prepare_state == WT_PREPARE_LOCKED)
+                    version_prepare_state = 1;
 
                 /* No need to check the next update if the tombstone is globally visible. */
                 if (__wt_txn_upd_visible_all(session, upd))
@@ -226,8 +229,6 @@ __curversion_next_single_key(WT_CURSOR *cursor)
                 WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
                 if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
                     version_prepare_state = 1;
-                else
-                    version_prepare_state = 0;
 
                 /*
                  * Copy the update value into the version cursor as we don't know the value format.
