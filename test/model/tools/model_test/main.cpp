@@ -300,10 +300,10 @@ load_workload(const char *file)
  *     The context for counterexample reduction.
  */
 struct reduce_counterexample_context_t {
-    const std::string conn_config;
+    const std::string conn_config_override;
     const std::string main_home;
     const std::string reduce_home;
-    const std::string table_config;
+    const std::string table_config_override;
 
     size_t round;
 
@@ -312,9 +312,10 @@ struct reduce_counterexample_context_t {
      *     Initialize the context.
      */
     reduce_counterexample_context_t(const std::string &main_home, const std::string &reduce_home,
-      const std::string &conn_config, const std::string &table_config)
-        : main_home(main_home), reduce_home(reduce_home), conn_config(conn_config),
-          table_config(table_config), round(0)
+      const std::string &conn_config_override, const std::string &table_config_override)
+        : main_home(main_home), reduce_home(reduce_home),
+          conn_config_override(conn_config_override), table_config_override(table_config_override),
+          round(0)
     {
     }
 };
@@ -417,7 +418,8 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
         /* Try the reduced workload. */
         try {
             if (!skip)
-                run_and_verify(w, context.reduce_home, context.conn_config, context.table_config);
+                run_and_verify(w, context.reduce_home, context.conn_config_override,
+                  context.table_config_override);
             else
                 std::cout << "Counterexample reduction: Skip running a malformed workload"
                           << std::endl;
@@ -449,9 +451,11 @@ reduce_counterexample_by_aspect(reduce_counterexample_context_t &context,
  */
 static void
 reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::string &main_home,
-  const std::string &reduce_home, const std::string &conn_config, const std::string &table_config)
+  const std::string &reduce_home, const std::string &conn_config_override = "",
+  const std::string &table_config_override = "")
 {
-    reduce_counterexample_context_t context{main_home, reduce_home, conn_config, table_config};
+    reduce_counterexample_context_t context{
+      main_home, reduce_home, conn_config_override, table_config_override};
 
     /*
      * Turn off generating core dumps during the counterexample reduction. Each failed run could
@@ -809,8 +813,7 @@ main(int argc, char *argv[])
                 if (reduce)
                     try {
                         std::string reduce_home = home + DIR_DELIM_STR + REDUCTION_HOME;
-                        reduce_counterexample(
-                          workload, home, reduce_home, conn_config, table_config);
+                        reduce_counterexample(workload, home, reduce_home);
                     } catch (std::exception &e) {
                         std::cerr << e.what() << std::endl;
                     }
