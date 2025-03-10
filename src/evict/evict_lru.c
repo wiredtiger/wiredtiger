@@ -442,6 +442,8 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
     __wt_spin_lock(session, &evict->evict_exclusive_lock);
     if (++btree->evict_data.evict_disabled > 1) {
         __wt_spin_unlock(session, &evict->evict_exclusive_lock);
+		printf("In exclusive_on: evict_disabled for %s is %d\n",
+			   btree->dhandle->name, btree->evict_data.evict_disabled);
         return (0);
     }
 
@@ -497,6 +499,8 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 
     __wt_spin_lock(session, &evict->evict_exclusive_lock);
     --btree->evict_data.evict_disabled;
+	printf("In exclusive_off: evict_disabled for %s is %d\n",
+		   btree->dhandle->name, btree->evict_data.evict_disabled);
 #if defined(HAVE_DIAGNOSTIC)
     WT_ASSERT(session, btree->evict_data.evict_disabled >= 0);
 #endif
