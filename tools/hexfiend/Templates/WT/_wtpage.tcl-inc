@@ -76,12 +76,12 @@ proc __wt_cell {} {
           ssection extra {
             xentry extra { format_bits [set extra [uint8]] $WT_CELL_extra_b }
             if {$extra & $WT_CELL_PREPARE} { entry "prepared" "prepared" 1 [expr {[pos] - 1}] }
-            if {$extra & $WT_CELL_TS_DURABLE_START} { xentry "durable start ts" vuint }
-            if {$extra & $WT_CELL_TS_DURABLE_STOP} { xentry "durable stop ts" vuint }
             if {$extra & $WT_CELL_TS_START} { xentry "start ts" vuint }
-            if {$extra & $WT_CELL_TS_STOP} { xentry "stop ts" vuint }
             if {$extra & $WT_CELL_TXN_START} { xentry "start txn" vuint }
+            if {$extra & $WT_CELL_TS_DURABLE_START} { xentry "durable start ts" vuint }
+            if {$extra & $WT_CELL_TS_STOP} { xentry "stop ts" vuint }
             if {$extra & $WT_CELL_TXN_STOP} { xentry "stop txn" vuint }
+            if {$extra & $WT_CELL_TS_DURABLE_STOP} { xentry "durable stop ts" vuint }
           }
         }
 
