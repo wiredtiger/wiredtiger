@@ -409,3 +409,8 @@ typedef struct {
     F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && (r)->multi_next == 0 && \
       !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL) &&                   \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
+
+/*
+ * Enumeration used to track the context of reconstructing modifies within a update list.
+ */
+typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;

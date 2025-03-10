@@ -2163,8 +2163,8 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
             cbt->slot = WT_ROW_SLOT(r->ref->page, supd->rip);
         else
             cbt->slot = UINT32_MAX;
-        WT_ERR(
-          __wt_modify_reconstruct_from_upd_list(session, cbt, supd->onpage_upd, cbt->upd_value));
+        WT_ERR(__wt_modify_reconstruct_from_upd_list(
+          session, cbt, supd->onpage_upd, cbt->upd_value, WT_OPCTX_RECONCILATION));
         __wt_value_return(cbt, cbt->upd_value);
         value.data = cbt->upd_value->buf.data;
         value.size = cbt->upd_value->buf.size;
