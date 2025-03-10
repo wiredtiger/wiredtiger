@@ -2142,8 +2142,8 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_REF *
         goto fast;
 
     /* Skip pages we don't want. */
-    want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
-                  !modified) ||
+    want_page =
+      (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified) ||
       (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
       (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
         page->modify != NULL);

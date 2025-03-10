@@ -1852,6 +1852,10 @@ methods = {
         Display the layout of the files as they are verified, using the application's message
         handler, intended for debugging; requires optional support from the block manager''',
         type='boolean'),
+    Config('dump_tree_shape', 'false', r'''
+        Display the btree shapes as they are verified, using the application's message
+        handler, intended for debugging; requires optional support from the block manager''',
+        type='boolean'),
     Config('dump_offsets', '', r'''
         Display the contents of specific on-disk blocks, using the application's message handler,
         intended for debugging''',
