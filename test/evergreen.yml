@@ -1494,16 +1494,8 @@ tasks:
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=9
       - func: "compile wiredtiger"
         vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=10
-          GNU_CXX_VERSION: -DGNU_CXX_VERSION=10
-      - func: "compile wiredtiger"
-        vars:
           GNU_C_VERSION: -DGNU_C_VERSION=11
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=11
-      - func: "compile wiredtiger"
-        vars:
-          GNU_C_VERSION: -DGNU_C_VERSION=12
-          GNU_CXX_VERSION: -DGNU_CXX_VERSION=12
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
