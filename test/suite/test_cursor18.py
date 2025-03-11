@@ -458,8 +458,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.assertEqual(version_cursor.next(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 1, 1, 5, 5, 3, 0, 0)
-<<<<<<< HEAD
-        self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(version_cursor.next(), wiredtiger.WT_NOTFOUND)
 
     def test_skip_invisible_updates(self):
         self.create()
@@ -941,6 +940,3 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.assertEquals(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 5, 5, 8, 8, 3, 0, 0, 2, 1)
         self.assertEquals(version_cursor.next(), wiredtiger.WT_NOTFOUND)
-=======
-        self.assertEqual(version_cursor.next(), wiredtiger.WT_NOTFOUND)
->>>>>>> ee34957df
