@@ -513,8 +513,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
             delta_hdr = ip->data;
             WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
-            WT_ERR(
-              __read_decompress(session, ip->data, ip->size, ctmp, addr, addr_size));
+            WT_ERR(__read_decompress(session, ip->data, ip->size, ctmp, addr, addr_size));
             ip = ctmp;
         }
         if (ip != &results[i]) {
