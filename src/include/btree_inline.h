@@ -1945,8 +1945,11 @@ static WT_INLINE bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
     WT_BTREE *btree;
+    WT_DISAGGREGATED_STORAGE *disagg;
     WT_PAGE *page;
+    WT_PAGE_BLOCK_META *block_meta;
     WT_PAGE_MODIFY *mod;
+    uint64_t last_materialized_lsn;
     bool modified;
 
     if (inmem_splitp != NULL)
@@ -1962,6 +1965,28 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      */
     if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_PREFETCH))
         return (false);
+
+    /*
+     * In the case of disaggregated storage, we need to avoid evicting pages that have not been
+     * materialized yet. Evicting such page and then reading it back in would result in a
+     * potentially significant stall.
+     */
+    if (__wt_conn_is_disagg(session)) {
+        disagg = &S2C(session)->disaggregated_storage;
+        WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
+        if (last_materialized_lsn != WT_DISAGG_LSN_NONE) {
+            block_meta = &ref->page->block_meta;
+
+            /* Check if there is a newer block metadata struct in the page's modify struct. */
+            if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+                WT_ASSERT(session, mod->mod_multi_entries > 0);
+                block_meta = &mod->mod_multi[mod->mod_multi_entries - 1].block_meta;
+            }
+
+            if (block_meta->disagg_lsn > last_materialized_lsn)
+                return (false);
+        }
+    }
 
     /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
     if (mod == NULL)
