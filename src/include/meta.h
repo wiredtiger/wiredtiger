@@ -81,6 +81,9 @@
  */
 #define WT_IS_URI_HS(uri) (strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_HS_URI_SHARED) == 0)
 
+#define WT_IS_URI_METADATA(uri) \
+    (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_DISAGG_METADATA_URI) == 0)
+
 /*
  * As a result of a data format change WiredTiger is not able to start on versions below 3.2.0, as
  * it will write out a data format that is not readable by those versions. These version numbers

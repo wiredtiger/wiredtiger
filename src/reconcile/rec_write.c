@@ -404,6 +404,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     page = r->page;
     mod = page->modify;
 
+    F_CLR_ATOMIC_16(page, WT_PAGE_INTL_PINDEX_UPDATE);
+
     /*
      * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
      * discard its history).
@@ -512,7 +514,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
      * Don't count the eviction of this page as progress, checkpoint can repeatedly create and
      * discard these pages.
      */
-    WT_RET(__wt_page_alloc(session, page->type, mod->mod_multi_entries, false, &next));
+    WT_RET(__wt_page_alloc(session, page->type, mod->mod_multi_entries, false, &next, 0));
     F_SET_ATOMIC_16(next, WT_PAGE_EVICT_NO_PROGRESS);
 
     WT_INTL_INDEX_GET(session, next, pindex);
@@ -2126,7 +2128,7 @@ __wti_rec_pack_delta_internal(
     __wt_rec_kv_copy(session, p, key);
     p += key->len;
     if (value == NULL)
-        LF_SET(WT_DELTA_IS_DELETE);
+        LF_SET(WT_DELTA_LEAF_IS_DELETE);
     else
         __wt_rec_kv_copy(session, p, value);
 
@@ -2134,6 +2136,7 @@ __wti_rec_pack_delta_internal(
     *head_byte = flags;
 
     ++header->u.entries;
+
     return (0);
 }
 
@@ -2194,7 +2197,7 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
     p = head + 1;
 
     if (supd->onpage_upd->type == WT_UPDATE_TOMBSTONE) {
-        LF_SET(WT_DELTA_IS_DELETE);
+        LF_SET(WT_DELTA_LEAF_IS_DELETE);
         WT_ERR(__wt_vpack_uint(&p, 0, key->size));
         memcpy(p, key->data, key->size);
         p += key->size;
@@ -2207,34 +2210,34 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
          */
         if (!__wt_txn_upd_visible_all(session, supd->onpage_upd)) {
             if (supd->onpage_upd->txnid != WT_TXN_NONE) {
-                LF_SET(WT_DELTA_HAS_START_TXN_ID);
+                LF_SET(WT_DELTA_LEAF_HAS_START_TXN_ID);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->txnid));
             }
 
             if (supd->onpage_upd->start_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_HAS_START_TS);
+                LF_SET(WT_DELTA_LEAF_HAS_START_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->start_ts));
             }
 
             if (supd->onpage_upd->durable_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_HAS_START_DURABLE_TS);
+                LF_SET(WT_DELTA_LEAF_HAS_START_DURABLE_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_upd->durable_ts));
             }
         }
 
         if (supd->onpage_tombstone != NULL) {
             if (supd->onpage_tombstone->txnid != WT_TXN_NONE) {
-                LF_SET(WT_DELTA_HAS_STOP_TXN_ID);
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_TXN_ID);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
             }
 
             if (supd->onpage_tombstone->start_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_HAS_STOP_TS);
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->start_ts));
             }
 
             if (supd->onpage_tombstone->durable_ts != WT_TS_NONE) {
-                LF_SET(WT_DELTA_HAS_STOP_DURABLE_TS);
+                LF_SET(WT_DELTA_LEAF_HAS_STOP_DURABLE_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->durable_ts));
             }
         }
@@ -2326,6 +2329,10 @@ __rec_build_delta(
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
             *build_deltap = true;
         }
+    } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
+        /* The internal page delta would have already been built at this point if one exists. */
+        if (r->delta.size > 0)
+            *build_deltap = true;
     }
 
     return (0);
@@ -2524,6 +2531,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
           &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
+
+        if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
+        else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
     } else {
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
@@ -3276,7 +3288,7 @@ __wti_rec_hs_clear_on_tombstone(
         WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));
     else if (__wt_curhs_get_btree_id(session, r->hs_cursor) != btree->id) {
         WT_RET_ERROR_OK(ret = __wt_curhs_set_btree_id(session, r->hs_cursor, btree->id), EINVAL);
-        if (ret != 0) {
+        if (ret == EINVAL) {
             WT_RET(r->hs_cursor->close(r->hs_cursor));
             r->hs_cursor = NULL;
             WT_RET(__wt_curhs_open(session, btree->id, NULL, &r->hs_cursor));

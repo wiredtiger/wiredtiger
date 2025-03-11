@@ -236,7 +236,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
  */
 static int
 __rec_row_merge(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, uint16_t ref_changes, bool build_delta)
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, uint16_t ref_changes, bool *build_delta)
 {
     WT_ADDR *addr;
     WT_MULTI *multi;
@@ -254,8 +254,8 @@ __rec_row_merge(
     val = &r->v;
 
     /* TODO: build delta for split pages. */
-    if (build_delta && mod->mod_multi_entries > 1 && ref_changes > 0) {
-        build_delta = false;
+    if (*build_delta && mod->mod_multi_entries > 1 && ref_changes > 0) {
+        *build_delta = false;
         r->delta.size = 0;
     }
 
@@ -288,7 +288,7 @@ __rec_row_merge(
         /* Update compression state. */
         __rec_key_state_update(r, false);
 
-        if (build_delta && ref_changes > 0) {
+        if (*build_delta && ref_changes > 0) {
             WT_ASSERT(session, mod->mod_multi_entries == 1);
             WT_RET(__wti_rec_pack_delta_internal(session, r, key, val));
         }
@@ -387,7 +387,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
         }
 
-        WT_ERR(__wti_rec_child_modify(session, r, ref, &cms));
+        WT_ERR(__wti_rec_child_modify(session, r, ref, &cms, &build_delta));
         addr = ref->addr;
         child = ref->page;
 
@@ -448,7 +448,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_CHILD_RELEASE_ERR(session, cms.hazard, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
-                WT_ERR(__rec_row_merge(session, r, ref, prev_ref_changes, build_delta));
+                WT_ERR(__rec_row_merge(session, r, ref, prev_ref_changes, &build_delta));
 
                 /*
                  * Set the ref_changes state to zero if there were no concurrent changes while

@@ -453,7 +453,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     for (root_refp = pindex->index, alloc_refp = alloc_index->index, i = 0; i < children; ++i) {
         slots = i == children - 1 ? remain : chunk;
 
-        WT_ERR(__wt_page_alloc(session, root->type, slots, false, &child));
+        WT_ERR(__wt_page_alloc(session, root->type, slots, false, &child, 0));
 
         /*
          * Initialize the page's child reference; we need a copy of the page's key.
@@ -801,6 +801,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
+    F_SET_ATOMIC_16(parent, WT_PAGE_INTL_PINDEX_UPDATE);
 
     /*
      * The new page index is in place. Threads cursoring in the tree are blocked because the WT_REF
@@ -987,7 +988,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     for (alloc_refp = alloc_index->index + 1, i = 1; i < children; ++i) {
         slots = i == children - 1 ? remain : chunk;
 
-        WT_ERR(__wt_page_alloc(session, page->type, slots, false, &child));
+        WT_ERR(__wt_page_alloc(session, page->type, slots, false, &child, 0));
 
         /*
          * Initialize the page's child reference; we need a copy of the page's key.
@@ -1073,6 +1074,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 
     /* The split is complete and verified, ignore benign errors. */
     complete = WT_ERR_IGNORE;
+    WT_ASSERT(session, F_ISSET_ATOMIC_16(page, WT_PAGE_INTL_PINDEX_UPDATE));
 
     /*
      * We don't care about the page-index we allocated, all we needed was the array of WT_REF
@@ -1856,7 +1858,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     ref->addr = NULL;
 
     /* The second page in the split is a new WT_REF/page pair. */
-    WT_ERR(__wt_page_alloc(session, type, 0, false, &right));
+    WT_ERR(__wt_page_alloc(session, type, 0, false, &right, 0));
 
     /*
      * The new page is dirty by definition, plus column-store splits update the page-modify

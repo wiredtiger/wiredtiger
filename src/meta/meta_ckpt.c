@@ -797,6 +797,7 @@ __wt_meta_ckptlist_get(
 {
     WT_BTREE *btree;
     WT_CKPT *ckptbase_comp;
+    WT_DECL_ITEM(name_buf);
     WT_DECL_RET;
     char *config;
 
@@ -835,11 +836,14 @@ __wt_meta_ckptlist_get(
             WT_ERR(ret);
         }
     } else {
+        WT_ERR(__wt_btree_shared_base_name(session, &fname, NULL, &name_buf));
         WT_ERR(__wt_metadata_search(session, fname, &config));
         WT_ERR(__wt_meta_ckptlist_get_from_config(session, update, ckptbasep, allocated, config));
     }
 
 err:
+    if (name_buf != NULL)
+        __wt_scr_free(session, &name_buf);
     __wt_free(session, config);
     return (ret);
 }

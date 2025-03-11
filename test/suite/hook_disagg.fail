@@ -77,6 +77,7 @@ test_cursor20.py
 test_cursor21.py
 test_cursor_random.py # times out
 test_cursor_random02.py # times out
+test_debug_mode08.py
 test_drop.py
 test_drop03.py
 test_drop_create.py
@@ -131,6 +132,7 @@ test_prepare13.py # times out
 test_prepare20.py
 test_prepare21.py # times out
 test_prepare23.py # times out
+test_prepare28.py
 test_prepare29.py
 test_prepare_cursor01.py
 test_prepare_hs02.py
@@ -166,6 +168,7 @@ test_rollback_to_stable39.py # times out
 test_rollback_to_stable40.py
 test_rollback_to_stable41.py
 test_rollback_to_stable42.py
+test_rollback_to_stable44.py
 test_schema02.py
 test_schema08.py # times out
 test_scrub_eviction_prepare.py

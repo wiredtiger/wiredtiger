@@ -301,6 +301,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
         }
     }
 
+    __wt_atomic_addv16(&ref->ref_changes, 1);
+
     WT_REF_SET_STATE(ref, current_state);
     return (0);
 }

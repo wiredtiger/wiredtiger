@@ -29,12 +29,13 @@
 import wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
+from wiredtiger import stat
 
-# test_layered20.py
-# Test 32 consective deltas
+# test_layered32.py
+# Test that we write internal page deltas to the page log extension.
 
 @disagg_test_class
-class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
         ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
@@ -46,8 +47,8 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     uris = [
-        ('layered', dict(uri='layered:test_layered20')),
-        ('btree', dict(uri='file:test_layered20')),
+        ('layered', dict(uri='layered:test_layered32')),
+        ('btree', dict(uri='file:test_layered32')),
     ]
 
     ts = [
@@ -57,17 +58,17 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palm),'
-    disagg_storages = gen_disagg_storages('test_layered20', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered32', disagg_only = True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
 
-    nitems = 10
+    nitems = 10000
 
     def session_create_config(self):
-        # The delta percentage of 200 is an arbitrary large value, intended to produce
+        # The delta percentage of 80 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
@@ -83,11 +84,10 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_layered_read_write(self):
-        self.pr('CREATING')
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "a" * 100
+        value1 = "abc" * 10
 
         for i in range(self.nitems):
             self.session.begin_transaction()
@@ -99,41 +99,25 @@ class test_layered20(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.checkpoint()
 
-        for j in range(32):
-            for i in range(self.nitems):
-                if i % 10 == 0:
-                    self.session.begin_transaction()
-                    cursor[str(i)] = str(10 + 5 * j)
-                    if self.ts:
-                        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10 + 5 * j))
-                    else:
-                        self.session.commit_transaction()
-
-            self.session.checkpoint()
-
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-            f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
+        # Re-open the connection to clear contents out of memory.
+        new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
+        self.reopen_conn(config=new_config)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
+        # Perform a single update.
+        self.session.begin_transaction()
+        cursor[str(10)] = str(10 + 5 * 10) + str("abcdefghijklmnopqrstuvwxyz")
         if self.ts:
-            self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
-            for i in range(self.nitems):
-                self.assertEqual(cursor[str(i)], value1)
-            self.session.rollback_transaction()
-
-            for j in range(32):
-                self.session.begin_transaction("read_timestamp=" + self.timestamp_str(10 + 5 * j))
-                for i in range(self.nitems):
-                    if i % 10 == 0:
-                        self.assertEqual(cursor[str(i)], str(10 + 5 * j))
-                    else:
-                        self.assertEqual(cursor[str(i)], value1)
-                self.session.rollback_transaction()
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10 + 5 * 10))
         else:
-            for i in range(self.nitems):
-                if i % 10 == 0:
-                    self.assertEqual(cursor[str(i)], str(10 + 5 * 31))
-                else:
-                    self.assertEqual(cursor[str(i)], value1)
+            self.session.commit_transaction()
+        self.session.checkpoint()
+
+        # Assert that we have written at least one internal page delta.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        rec_page_delta_leaf = stat_cursor[stat.conn.rec_page_delta_leaf][2]
+        self.assertGreater(rec_page_delta_leaf, 0)
+        rec_page_delta_internal = stat_cursor[stat.conn.rec_page_delta_internal][2]
+        self.assertGreater(rec_page_delta_internal, 0)
+        stat_cursor.close()

@@ -256,6 +256,9 @@ struct __wt_cell_unpack_delta_int {
     uint32_t __len;
     WT_CELL_UNPACK_KV key;
     WT_CELL_UNPACK_ADDR value;
+
+#define WT_DELTA_INT_IS_DELETE 0x01u
+    uint8_t flags;
 };
 
 /*
@@ -271,12 +274,12 @@ struct __wt_cell_unpack_delta_leaf {
 
     WT_TIME_WINDOW tw;
 
-#define WT_DELTA_HAS_START_TXN_ID 0x01u
-#define WT_DELTA_HAS_START_TS 0x02u
-#define WT_DELTA_HAS_START_DURABLE_TS 0x04u
-#define WT_DELTA_HAS_STOP_TXN_ID 0x08u
-#define WT_DELTA_HAS_STOP_TS 0x10u
-#define WT_DELTA_HAS_STOP_DURABLE_TS 0x20u
-#define WT_DELTA_IS_DELETE 0x40u
+#define WT_DELTA_LEAF_HAS_START_TXN_ID 0x01u
+#define WT_DELTA_LEAF_HAS_START_TS 0x02u
+#define WT_DELTA_LEAF_HAS_START_DURABLE_TS 0x04u
+#define WT_DELTA_LEAF_HAS_STOP_TXN_ID 0x08u
+#define WT_DELTA_LEAF_HAS_STOP_TS 0x10u
+#define WT_DELTA_LEAF_HAS_STOP_DURABLE_TS 0x20u
+#define WT_DELTA_LEAF_IS_DELETE 0x40u
     uint8_t flags;
 };

@@ -1211,7 +1211,7 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     addr = NULL;
 
     /* Allocate a column-store root (internal) page and fill it in. */
-    WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page));
+    WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page, 0));
     WT_ERR(__slvg_modify_init(session, page));
 
     pindex = WT_INTL_INDEX_GET_SAFE(page);
@@ -1819,7 +1819,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     addr = NULL;
 
     /* Allocate a row-store root (internal) page and fill it in. */
-    WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page));
+    WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page, 0));
     WT_ERR(__slvg_modify_init(session, page));
 
     pindex = WT_INTL_INDEX_GET_SAFE(page);
