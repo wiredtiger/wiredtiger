@@ -63,12 +63,12 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
 
-    nitems = 10000
+    nitems = 10_000
 
     def session_create_config(self):
-        # The delta percentage of 80 is an arbitrary large value, intended to produce
+        # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
+        cfg = 'disaggregated=(delta_pct=100),key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
@@ -83,61 +83,71 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
+
+    def insert(self, kv, ts=None):
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for k, v in kv.items():
+            self.session.begin_transaction()
+            cursor[k] = v
+            if self.ts:
+                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(ts))
+            else:
+                self.session.commit_transaction()
+        cursor.close()
+
     def test_layered_read_write(self):
         self.session.create(self.uri, self.session_create_config())
 
-        cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "abc" * 10
-
-        for i in range(self.nitems):
-            self.session.begin_transaction()
-            cursor[str(i)] = value1
-            if self.ts:
-                self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
-            else:
-                self.session.commit_transaction()
-
+        # Populate the table with nitems.
+        inital_value = "abc" * 10
+        inital_ts = 5
+        kv = {str(i): inital_value for i in range(1, self.nitems + 1)}
+        self.insert(kv, inital_ts)
         self.session.checkpoint()
 
         # Re-open the connection to clear contents out of memory.
         new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
         self.reopen_conn(config=new_config)
 
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        # Perform a single update.
-        updated_value = str(10 + 5 * 10) + str("abcdefghijklmnopqrstuvwxyz")
-        self.session.begin_transaction()
-        cursor[str(10)] = updated_value
-        if self.ts:
-            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10 + 5 * 10))
-        else:
-            self.session.commit_transaction()
-        self.session.checkpoint()
+        kv_modfied = {}
+        num_deltas = random.randint(1, 10)
+        for i in range(1, num_deltas + 1):
+            # Generate a random number of keys to insert.
+            random_key_range = random.randint(10, 2000)
+            kv = {
+                str(random.randint(1, self.nitems)): f"{i + j * i}abc"
+                for j in range(random_key_range)
+            }
+            # Insert random keys into the table.
+            self.insert(kv, inital_ts + i)
+            # Perform a checkpoint to write out a delta.
+            self.session.checkpoint()
+            # Merge kv into our cumulative dictionary
+            kv_modfied.update(kv)
 
         # Assert that we have written at least one internal page delta.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        rec_page_delta_leaf = stat_cursor[stat.conn.rec_page_delta_leaf][2]
-        self.assertGreater(rec_page_delta_leaf, 0)
-        rec_page_delta_internal = stat_cursor[stat.conn.rec_page_delta_internal][2]
-        self.assertGreater(rec_page_delta_internal, 0)
-        stat_cursor.close()
+        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
         # Re-open the connection to clear contents out of memory.
         new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
         self.reopen_conn(config=new_config)
 
+        # Verify the values in the table.
         cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nitems):
+        for i in range(1, self.nitems + 1):
             cursor.set_key(str(i))
             cursor.search()
-            if str(i) == '10':
-                self.assertEqual(cursor.get_value(),updated_value)
+            if str(i) in kv_modfied:
+                self.assertEqual(cursor.get_value(), kv_modfied[str(i)])
             else:
-                self.assertEqual(cursor.get_value(), value1)
+                self.assertEqual(cursor.get_value(), inital_value)
         cursor.close()
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        constructing_delta_internal = stat_cursor[stat.conn.cache_read_internal_delta][2]
-        self.assertGreater(constructing_delta_internal, 0)
-        stat_cursor.close()
+        # Assert that we have constructed at least one internal page delta.
+        self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
