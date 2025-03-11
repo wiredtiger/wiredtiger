@@ -207,8 +207,8 @@ __wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      */
     if (!WT_IS_HS(session->dhandle)) {
         WT_ERR(__wt_calloc_one(session, &ref->page_del));
-        WT_ERR(__wt_txn_modify_page_delete(session, ref));
         ref->page_del->previous_ref_state = previous_state;
+        WT_ERR(__wt_txn_modify_page_delete(session, ref));
     }
 
     *skipp = true;
