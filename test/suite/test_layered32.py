@@ -100,7 +100,53 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.session.commit_transaction()
         cursor.close()
 
-    def test_layered_read_write(self):
+    def verify(self, expected_kv, expected_initial_val):
+        # Verify the values in the table.
+        cursor = self.session.open_cursor(self.uri, None, None)
+        for i in range(1, self.nitems + 1):
+            cursor.set_key(str(i))
+            cursor.search()
+            if str(i) in expected_kv:
+                self.assertEqual(cursor.get_value(), expected_kv[str(i)])
+            else:
+                self.assertEqual(cursor.get_value(), expected_initial_val)
+        cursor.close()
+
+    def test_internal_page_delta_simple(self):
+        self.session.create(self.uri, self.session_create_config())
+
+        # Populate the table with nitems.
+        inital_value = "abc" * 10
+        inital_ts = 5
+        kv = {str(i): inital_value for i in range(1, self.nitems + 1)}
+        self.insert(kv, inital_ts)
+        self.session.checkpoint()
+
+        # Re-open the connection to clear contents out of memory.
+        new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
+        self.reopen_conn(config=new_config)
+
+        # Perform two small updates.
+        kv_modfied = {str(10): "10abc", str(220): "220abc"}
+        self.insert(kv_modfied, inital_ts + 1)
+        # Perform a checkpoint to write out a delta.
+        self.session.checkpoint()
+
+        # Assert that we have written at least one internal page delta.
+        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+
+        # Re-open the connection to clear contents out of memory.
+        new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
+        self.reopen_conn(config=new_config)
+
+        # Verify the updated values in the table.
+        self.verify(kv_modfied, inital_value)
+
+        # Assert that we have constructed at least one internal page delta.
+        self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+
+    def test_internal_page_delta_random(self):
         self.session.create(self.uri, self.session_create_config())
 
         # Populate the table with nitems.
@@ -138,16 +184,8 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
         self.reopen_conn(config=new_config)
 
-        # Verify the values in the table.
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(1, self.nitems + 1):
-            cursor.set_key(str(i))
-            cursor.search()
-            if str(i) in kv_modfied:
-                self.assertEqual(cursor.get_value(), kv_modfied[str(i)])
-            else:
-                self.assertEqual(cursor.get_value(), inital_value)
-        cursor.close()
+        # Verify the updated values in the table.
+        self.verify(kv_modfied, inital_value)
 
         # Assert that we have constructed at least one internal page delta.
         self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
