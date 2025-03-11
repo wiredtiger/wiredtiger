@@ -16,6 +16,12 @@ static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool *);
 static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
 /*
+ * Define functions that increment histogram statistics for reconstruction of pages with deltas.
+ */
+WT_STAT_USECS_HIST_INCR_FUNC(internal_reconstruct, perf_hist_internal_reconstruct_latency)
+WT_STAT_USECS_HIST_INCR_FUNC(leaf_reconstruct, perf_hist_leaf_reconstruct_latency)
+
+/*
  * __page_build_ref --
  *     Create a ref from a base image or a delta.
  */
@@ -458,24 +464,33 @@ int
 __wti_page_reconstruct_deltas(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size)
 {
+    uint64_t time_start, time_stop;
     int i;
 
     WT_ASSERT(session, delta_size != 0);
 
     switch (ref->page->type) {
     case WT_PAGE_ROW_LEAF:
+
         /*
          * We apply the order in reverse order because we only care about the latest change of a
          * key. The older changes are ignore.
          *
          * TODO: this is not the optimal algorithm. We can optimize this by using a min heap.
          */
+        time_start = __wt_clock(session);
         for (i = (int)delta_size - 1; i >= 0; --i)
             WT_RET(__page_reconstruct_leaf_delta(session, ref, &deltas[i]));
+        time_stop = __wt_clock(session);
+        __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
         WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
         break;
     case WT_PAGE_ROW_INT:
+        time_start = __wt_clock(session);
         WT_RET(__page_reconstruct_internal_deltas(session, ref, deltas, delta_size));
+        time_stop = __wt_clock(session);
+        __wt_stat_usecs_hist_incr_internal_reconstruct(
+          session, WT_CLOCKDIFF_US(time_stop, time_start));
         WT_STAT_CONN_DSRC_INCR(session, cache_read_internal_delta);
         break;
     default:
