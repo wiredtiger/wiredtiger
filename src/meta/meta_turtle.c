@@ -577,7 +577,16 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
     if (load || load_turtle) {
         /* Create the turtle file. */
         WT_ERR(__metadata_config(session, &metaconf));
-        WT_WITH_TURTLE_LOCK(session, ret = __wti_turtle_update(session, WT_METAFILE_URI, metaconf));
+#ifdef _MSC_VER
+        /* FIXME-WT-14051 - Fix Windows compile support. */
+        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, WT_METAFILE_URI, metaconf));
+#else
+        if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
+            ret = __wt_live_restore_turtle_update(session, WT_METAFILE_URI, metaconf, true);
+        else
+            WT_WITH_TURTLE_LOCK(
+              session, ret = __wt_turtle_update(session, WT_METAFILE_URI, metaconf));
+#endif
         __wt_free(session, metaconf);
         WT_ERR(ret);
     }
@@ -676,11 +685,11 @@ err:
 }
 
 /*
- * __wti_turtle_update --
+ * __wt_turtle_update --
  *     Update the turtle file.
  */
 int
-__wti_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
+__wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
