@@ -43,7 +43,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     compress = [
         ('none', dict(block_compress='none')),
-        # ('snappy', dict(block_compress='snappy')),
+        ('snappy', dict(block_compress='snappy')),
     ]
 
     uris = [
