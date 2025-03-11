@@ -204,7 +204,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
     size_t root_addr_size;
-    uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *name;
     bool bm_start, quit, skip_hs;
 
@@ -413,7 +413,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
         WT_ERR(__wt_buf_fmt(session, buf, "%s %s",
-          __wt_addr_string(session, addr.block_cookie, addr.block_cookie_size, tmp),
+          __wt_addr_string(session, addr.addr, addr.size, tmp),
           __wt_time_aggregate_to_string(&addr.ta, time_string)));
     } else
         WT_ERR(__wt_buf_fmt(session, buf, "%s -/-,-/-", __wt_addr_string(session, NULL, 0, tmp)));

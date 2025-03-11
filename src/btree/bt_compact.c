@@ -30,7 +30,7 @@ __compact_page_inmem_check_addrs(WT_SESSION_IMPL *session, WT_REF *ref, bool *sk
     /* If the page is currently clean, test the original addresses. */
     if (__wt_page_evict_clean(ref->page))
         return (__wt_ref_addr_copy(session, ref, &addr) ?
-            bm->compact_page_skip(bm, session, addr.block_cookie, addr.block_cookie_size, skipp) :
+            bm->compact_page_skip(bm, session, addr.addr, addr.size, skipp) :
             0);
 
     /*
@@ -141,8 +141,8 @@ __compact_page_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
         }
     }
 
-    WT_ERR(__wt_strndup(session, copy->block_cookie, copy->block_cookie_size, &addr->block_cookie));
-    addr->block_cookie_size = copy->block_cookie_size;
+    WT_ERR(__wt_strndup(session, copy->addr, copy->size, &addr->block_cookie));
+    addr->block_cookie_size = copy->size;
 
     ref->addr = addr;
     return (0);
@@ -195,10 +195,10 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
           (previous_state == WT_REF_DELETED && ref->page_del != NULL)) &&
       __wt_ref_addr_copy(session, ref, &copy)) {
         bm = S2BT(session)->bm;
-        addr_size = copy.block_cookie_size;
-        WT_ERR(bm->compact_page_rewrite(bm, session, copy.block_cookie, &addr_size, skipp));
+        addr_size = copy.size;
+        WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
         if (!*skipp) {
-            copy.block_cookie_size = (uint8_t)addr_size;
+            copy.size = (uint8_t)addr_size;
             WT_ERR(__compact_page_replace_addr(session, ref, &copy));
         }
     }

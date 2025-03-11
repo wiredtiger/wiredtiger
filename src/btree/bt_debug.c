@@ -425,7 +425,7 @@ __wt_debug_offset(WT_SESSION_IMPL *session, wt_off_t offset, uint32_t size, uint
     WT_BLOCK *block;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE], *endp;
+    uint8_t addr[WT_ADDR_MAX_COOKIE], *endp;
 
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
 
@@ -1754,7 +1754,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
     if (__wt_ref_addr_copy(session, ref, &addr) && !WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
         WT_RET(ds->f(ds, " | %s | addr: %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
-          __wt_addr_string(session, addr.block_cookie, addr.block_cookie_size, ds->t1)));
+          __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
     if (ref->page_del != NULL) {
         page_del = ref->page_del;
         WT_RET(ds->f(ds, " | page_del: %s",
