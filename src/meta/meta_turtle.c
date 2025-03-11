@@ -577,16 +577,11 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
     if (load || load_turtle) {
         /* Create the turtle file. */
         WT_ERR(__metadata_config(session, &metaconf));
-#ifdef _MSC_VER
-        /* FIXME-WT-14051 - Fix Windows compile support. */
-        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, WT_METAFILE_URI, metaconf));
-#else
         if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
             ret = __wt_live_restore_turtle_update(session, WT_METAFILE_URI, metaconf, true);
         else
             WT_WITH_TURTLE_LOCK(
               session, ret = __wt_turtle_update(session, WT_METAFILE_URI, metaconf));
-#endif
         __wt_free(session, metaconf);
         WT_ERR(ret);
     }
@@ -721,7 +716,6 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
           "major=%" PRIu16 ",minor=%" PRIu16 "\n",
           WT_METADATA_COMPAT, conn->compat_version.major, conn->compat_version.minor));
 
-#ifndef _MSC_VER
     if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS)) {
         WT_ERR(__wt_scr_alloc(session, WT_LIVE_RESTORE_STATE_STRING_MAX, &state_str));
         WT_ERR(__wt_live_restore_get_state_string(session, state_str));
@@ -731,7 +725,6 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
           "state=%s\n",
           WT_METADATA_LIVE_RESTORE, (char *)state_str->data));
     }
-#endif
 
     version = wiredtiger_version(&vmajor, &vminor, &vpatch);
     WT_ERR(__wt_fprintf(session, fs,

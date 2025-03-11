@@ -9,9 +9,6 @@
 #include "wt_internal.h"
 #include "live_restore_private.h"
 
-/* This is where basename comes from. */
-#include <libgen.h>
-
 static int __live_restore_fs_directory_list_free(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count);
 
@@ -1857,7 +1854,10 @@ __wt_os_live_restore_fs(
         WT_RET_MSG(session, EINVAL, "live restore is incompatible with readonly mode");
 
     WT_RET(__wt_calloc_one(session, &lr_fs));
+#if defined(__APPLE__) || defined(__linux__)
+    /* FIXME-WT-14051 - Add live restore support to Windows. */
     WT_ERR(__wt_os_posix(session, &lr_fs->os_file_system));
+#endif
 
     /* Initialize the FS jump table. */
     lr_fs->iface.fs_directory_list = __live_restore_fs_directory_list;
