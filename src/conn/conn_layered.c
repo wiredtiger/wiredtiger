@@ -701,6 +701,26 @@ err:
 }
 
 /*
+ * __disagg_set_last_materialized_lsn --
+ *     Set the latest materialized LSN.
+ */
+static int
+__disagg_set_last_materialized_lsn(WT_SESSION_IMPL *session, uint64_t lsn)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint64_t cur_lsn;
+
+    disagg = &S2C(session)->disaggregated_storage;
+    WT_ACQUIRE_READ(cur_lsn, disagg->last_materialized_lsn);
+
+    if (cur_lsn > lsn)
+        return (EINVAL); /* Can't go backwards. */
+
+    WT_RELEASE_WRITE(disagg->last_materialized_lsn, lsn);
+    return (0);
+}
+
+/*
  * __wti_disagg_conn_config --
  *     Parse and setup the disaggregated server options for the connection.
  */
@@ -748,6 +768,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     }
 
     /* Common settings between initial connection config and reconfig. */
+
+    /* Get the last materialized LSN. */
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.last_materialized_lsn", &cval));
+    if (cval.len > 0 && cval.val >= 0)
+        WT_ERR(__disagg_set_last_materialized_lsn(session, (uint64_t)cval.val));
 
     /* Get the next checkpoint ID. */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.next_checkpoint_id", &cval));

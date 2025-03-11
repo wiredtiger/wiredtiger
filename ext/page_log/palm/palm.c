@@ -111,6 +111,7 @@ typedef struct {
     uint32_t force_delay;              /* Force a simulated network delay every N operations */
     uint32_t force_error;              /* Force a simulated network error every N operations */
     uint32_t materialization_delay_ms; /* Average length of materialization delay */
+    uint64_t last_materialized_lsn;    /* The last materialized LSN (0 if not set) */
     uint32_t verbose;                  /* Verbose level */
 
     /*
@@ -380,12 +381,13 @@ palm_init_context(PALM *palm, PALM_KV_CONTEXT *context)
     memset(context, 0, sizeof(*context));
 
     /*
-     * To get more testing variation, We could call palm_compute_delay_us to randomize this number.
+     * To get more testing variation, we could call palm_compute_delay_us to randomize this number.
      * If we do so, we need to make sure items are materialized in the same order they are written.
      * So when setting PAGE_KEY.timestamp_materialized_us, we'd need to make each value set was
      * monotonically increasing.
      */
     context->materialization_delay_us = palm->materialization_delay_ms * WT_THOUSAND;
+    context->last_materialized_lsn = palm->last_materialized_lsn;
 }
 
 /*
@@ -575,6 +577,36 @@ palm_get_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session,
     }
 
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+    return (0);
+
+err:
+    palm_kv_rollback_transaction(&context);
+    return (ret);
+}
+
+/*
+ * palm_get_last_lsn --
+ *     Get the last LSN.
+ */
+static int
+palm_get_last_lsn(WT_PAGE_LOG *page_log, WT_SESSION *session, uint64_t *lsn)
+{
+    PALM *palm;
+    PALM_KV_CONTEXT context;
+    uint64_t kv_lsn;
+    int ret;
+
+    *lsn = 0;
+
+    palm = (PALM *)page_log;
+    palm_init_context(palm, &context);
+
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, true));
+    PALM_KV_ERR(palm, session, palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &kv_lsn));
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+
+    *lsn = kv_lsn > 0 ? kv_lsn - 1 : 0;
+
     return (0);
 
 err:
@@ -831,6 +863,23 @@ palm_open_handle(
 }
 
 /*
+ * palm_set_last_materialized_lsn --
+ *     Set the last materialized LSN for testing purposes.
+ */
+static int
+palm_set_last_materialized_lsn(WT_PAGE_LOG *storage, WT_SESSION *session, uint64_t lsn)
+{
+    PALM *palm;
+
+    (void)session;
+
+    palm = (PALM *)storage;
+    palm->last_materialized_lsn = lsn;
+
+    return (0);
+}
+
+/*
  * palm_terminate --
  *     Discard any resources on termination
  */
@@ -899,8 +948,10 @@ palm_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     palm->page_log.pl_complete_checkpoint_ext = palm_complete_checkpoint_ext;
     palm->page_log.pl_get_complete_checkpoint = palm_get_complete_checkpoint;
     palm->page_log.pl_get_complete_checkpoint_ext = palm_get_complete_checkpoint_ext;
+    palm->page_log.pl_get_last_lsn = palm_get_last_lsn;
     palm->page_log.pl_get_open_checkpoint = palm_get_open_checkpoint;
     palm->page_log.pl_open_handle = palm_open_handle;
+    palm->page_log.pl_set_last_materialized_lsn = palm_set_last_materialized_lsn;
     palm->page_log.terminate = palm_terminate;
 
     /*
