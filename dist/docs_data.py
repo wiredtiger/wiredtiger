@@ -75,7 +75,7 @@ arch_doc_pages = [
          'src/cursor/cur_layered.c']),
     ArchDocPage('arch-eviction',
         ['WT_EVICT_ENTRY', 'WT_EVICT_QUEUE'],
-        ['src/include/cache.h',
+        ['src/include/cache.h', 'src/include/evict_inline.h',
          'src/evict/']),
     ArchDocPage('arch-fast-truncate',
         ['WT_PAGE_DELETED'],
