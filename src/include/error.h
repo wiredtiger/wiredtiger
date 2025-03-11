@@ -324,5 +324,5 @@ __wt_tret_error_ok(int *pret, int a, int e)
     } while (0)
 
 /* Internal errors start from -100000 */
-/* Internal error indicating reconcilation makes no progress. */
+/* Internal error indicating reconciliation makes no progress. */
 #define WT_REC_NO_PROGRESS (-100000)
