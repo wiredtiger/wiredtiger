@@ -410,6 +410,3 @@ typedef struct {
       (r)->multi_next == 0 &&                                                            \
       !F_ISSET_ATOMIC_16(r->ref->page, WT_PAGE_REC_FAIL | WT_PAGE_INTL_PINDEX_UPDATE) && \
       WT_REC_RESULT_SINGLE_PAGE((session), (r))
-
-/* Internal error indicating reconcilation makes no progress. */
-#define WT_REC_NO_PROGRESS (-31810)

@@ -322,3 +322,7 @@ __wt_tret_error_ok(int *pret, int a, int e)
             WT_STAT_CONN_INCR(session, stat);  \
         WT_ASSERT(session, exp);               \
     } while (0)
+
+/* Internal errors start from -100000 */
+/* Internal error indicating reconcilation makes no progress. */
+#define WT_REC_NO_PROGRESS (-100000)
