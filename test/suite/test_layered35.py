@@ -31,11 +31,11 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered34.py
+# test_layered35.py
 # Simple read write testing for leaf page delta
 
 @disagg_test_class
-class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
     encrypt = [
         ('none', dict(encryptor='none', encrypt_args='')),
         ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
@@ -53,7 +53,7 @@ class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palm),checkpoint=(precise=true),'
-    disagg_storages = gen_disagg_storages('test_layered30', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered35', disagg_only = True)
 
     # Make scenarios for different cloud service providers
     scenarios = make_scenarios(encrypt, compress, disagg_storages, uris)
@@ -61,7 +61,7 @@ class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 100
 
     def session_create_config(self):
-        # The delta percentage of 200 is an arbitrary large value, intended to produce
+        # The delta percentage of 80 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
         cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
