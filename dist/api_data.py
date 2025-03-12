@@ -487,7 +487,7 @@ connection_runtime_config = [
             control how aggressively obsolete content is removed by reading the internal pages.
             Default to none, which means no additional work is done to find obsolete content.
             ''', choices=['none', 'reclaim_space']),
-        Config('wait', '300', r'''
+        Config('wait', '5', r'''
             seconds to wait between each checkpoint cleanup''',
             min='1', max='100000'),
         ]),
