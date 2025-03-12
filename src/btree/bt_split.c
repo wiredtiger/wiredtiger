@@ -1763,7 +1763,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
      *
      * Discard any page image we don't use.
      */
-    if (multi->disk_image != NULL && !closing) {
+    if (multi->disk_image!= NULL && !closing) {
         WT_RET(__split_multi_inmem(session, page, multi, ref));
         WT_REF_SET_STATE(ref, WT_REF_MEM);
     }
@@ -2134,6 +2134,12 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
     for (i = 0; i < new_entries; ++i)
         WT_ERR(
           __wt_multi_to_ref(session, page, &mod->mod_multi[i], &ref_new[i], &parent_incr, closing));
+
+	/*
+	 * The reference is about to be discarded. Remove the page from eviction data structures now,
+	 * because we will lose this reference. The page will be freed later.
+	 */
+	__wt_evict_remove(session, ref);
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.

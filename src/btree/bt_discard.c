@@ -333,8 +333,6 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
         WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
           "Attempting to discard ref to a page being reconciled");
         __wt_page_modify_clear(session, ref->page);
-        /*        __wt_page_out(session, &ref->page); No reason why we shouldn't use __wt_ref_out
-         * here */
         __wt_ref_out(session, ref);
     }
 
