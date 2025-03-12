@@ -384,6 +384,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_DECL_ITEM(ctmp);
     WT_DECL_ITEM(etmp);
     WT_DECL_RET;
+    const WT_DELTA_HEADER *delta;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_ITEM *tmp, *ip;
     WT_PAGE_BLOCK_META block_meta_tmp;
@@ -510,8 +511,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             ip = etmp;
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
+            delta = ip->data;
             WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
-            WT_ERR(__read_decompress(session, ip->data, ip->size, ctmp, addr, addr_size));
+            WT_ERR(__read_decompress(session, ip->data, delta->mem_size, ctmp, addr, addr_size));
             ip = ctmp;
         }
         if (ip != &results[i]) {
