@@ -720,8 +720,8 @@ upgrade_to_latest=false
 # Note: If a branch name is not stored in gittags,
 # then the branch name itself will be used for the checkout
 declare -A gittags
-gittags['develop']="develop"
-gittags['mongodb-8.0']="mongodb-8.0"
+gittags['develop']="a5834483f6007c00f6cc768604d24c107d81989c"
+gittags['mongodb-8.0']="76b3301107bd0179b63f509ef6a2f2dd457e99c8"
 gittags['mongodb-7.0']="mongodb-7.0"
 gittags['mongodb-6.0']="mongodb-6.0"
 gittags['mongodb-5.0']="mongodb-5.0"
