@@ -2713,7 +2713,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * ourself the leader. If we are not the real leader, the storage layer services should
          * return an error as we are not allowed to write.
          */
-        if (!conn_is_disagg || conn->disaggregated_storage.leader) {
+        if (!conn_is_disagg || conn->layered_table_manager.leader) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
             if (s != NULL) {
                 const char *checkpoint_cfg[] = {
