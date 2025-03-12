@@ -644,7 +644,11 @@ __live_restore_fh_write(
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    /* Fast path writes if the destination is complete. */
+    /*
+     * Fast path writes if the destination is complete. This pointer is only ever cleared in a
+     * multithreaded context, if we read a valid pointer we will take the slow path with the same
+     * result.
+     */
     if (WTI_DEST_COMPLETE(lr_fh))
         return (__live_restore_fh_write_destination(session, lr_fh, offset, len, buf));
 
@@ -687,7 +691,11 @@ __live_restore_fh_read(
 
     read_data = (char *)buf;
 
-    /* Fast path reads if the destination is complete. */
+    /*
+     * Fast path reads if the destination is complete. This pointer is only ever cleared in a
+     * multithreaded context, if we read a valid pointer we will take the slow path with the same
+     * result.
+     */
     if (WTI_DEST_COMPLETE(lr_fh))
         WT_RET(__live_restore_fh_read_destination(session, lr_fh, offset, len, buf));
 
