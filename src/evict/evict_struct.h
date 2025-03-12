@@ -43,8 +43,8 @@
  * move pages between buckets more often as their read generations increase.
  */
 
-#define WT_EVICT_BUCKET_RANGE 300
-#define WT_EVICT_NUM_BUCKETS 10
+#define WT_EVICT_BUCKET_RANGE 1000
+#define WT_EVICT_NUM_BUCKETS 100
 #define WT_EVICT_LEVEL_CLEAN_LEAF 0
 #define WT_EVICT_LEVEL_CLEAN_INTERNAL 1
 #define WT_EVICT_LEVEL_DIRTY_LEAF 2

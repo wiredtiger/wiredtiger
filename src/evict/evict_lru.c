@@ -1559,6 +1559,7 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
      */
     for (i = 0; i < WT_EVICT_LEVELS; i++) {
         bucketset = &evict_data->evict_bucketset[i];
+		bucketset->lowest_bucket_upper_range =  WT_EVICT_BUCKET_RANGE;
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
             bucket = &bucketset->buckets[j];
             bucket->id = (uint64_t)j;
@@ -1655,13 +1656,18 @@ done:
  *     that’s larger than the range accepted by the highest bucket.
  */
 static inline void
-__evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
+__evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset, uint64_t read_gen)
 {
-    uint64_t prev, new;
+    uint64_t prev, new, target_max_readgen;
+
+	/*
+	 * We don't want to renumber buckets often, so let's accommodate a read generation 50% larger
+	 * than the one that caused the renumbering.
+	 */
+	target_max_readgen = read_gen + read_gen / 2;
+	new = target_max_readgen - (WT_EVICT_NUM_BUCKETS - 1) * WT_EVICT_BUCKET_RANGE;
 
     prev = __wt_atomic_load64(&bucketset->lowest_bucket_upper_range);
-    new = prev + WT_EVICT_BUCKET_RANGE;
-
     /*
      * If the compare and swap fails, someone else is trying to update the value at the same time.
      * We let them win the race and return. The bucket's upper range can only grow, so we are okay
@@ -1915,7 +1921,7 @@ retry:
     else {
         dst_bucket = 1 + (read_gen - bucketset->lowest_bucket_upper_range) / WT_EVICT_BUCKET_RANGE;
         if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries++ < MAX_RETRIES) {
-            __evict_renumber_buckets(bucketset);
+            __evict_renumber_buckets(bucketset, read_gen);
 			WT_STAT_CONN_INCR(session, eviction_renumbered_buckets);
             goto retry;
         } else if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries >= MAX_RETRIES) {
