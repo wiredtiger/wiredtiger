@@ -128,7 +128,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
-  "cache: number of pages read that had deltas attached",
+  "cache: number of internal pages read that had deltas attached",
+  "cache: number of leaf pages read that had deltas attached",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
@@ -508,7 +509,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
-    stats->cache_read_delta = 0;
+    stats->cache_read_internal_delta = 0;
+    stats->cache_read_leaf_delta = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
@@ -873,7 +875,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += from->cache_eviction_dirty;
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
-    to->cache_read_delta += from->cache_read_delta;
+    to->cache_read_internal_delta += from->cache_read_internal_delta;
+    to->cache_read_leaf_delta += from->cache_read_leaf_delta;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_deepen += from->cache_eviction_deepen;
@@ -1251,7 +1254,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += WT_STAT_DSRC_READ(from, cache_eviction_dirty);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
-    to->cache_read_delta += WT_STAT_DSRC_READ(from, cache_read_delta);
+    to->cache_read_internal_delta += WT_STAT_DSRC_READ(from, cache_read_internal_delta);
+    to->cache_read_leaf_delta += WT_STAT_DSRC_READ(from, cache_read_leaf_delta);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
@@ -1722,7 +1726,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: modified pages evicted",
   "cache: modified pages evicted by application threads",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
-  "cache: number of pages read that had deltas attached",
+  "cache: number of internal pages read that had deltas attached",
+  "cache: number of leaf pages read that had deltas attached",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -2085,6 +2090,20 @@ static const char *const __stats_connection_desc[] = {
   "perf: file system write latency histogram (bucket 6) - 500-999ms",
   "perf: file system write latency histogram (bucket 7) - 1000ms+",
   "perf: file system write latency histogram total (msecs)",
+  "perf: internal page deltas reconstruct latency histogram (bucket 1) - 0-100us",
+  "perf: internal page deltas reconstruct latency histogram (bucket 2) - 100-249us",
+  "perf: internal page deltas reconstruct latency histogram (bucket 3) - 250-499us",
+  "perf: internal page deltas reconstruct latency histogram (bucket 4) - 500-999us",
+  "perf: internal page deltas reconstruct latency histogram (bucket 5) - 1000-9999us",
+  "perf: internal page deltas reconstruct latency histogram (bucket 6) - 10000us+",
+  "perf: internal page deltas reconstruct latency histogram total (usecs)",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 1) - 0-100us",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 2) - 100-249us",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 3) - 250-499us",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 4) - 500-999us",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 5) - 1000-9999us",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 6) - 10000us+",
+  "perf: leaf page deltas reconstruct latency histogram total (usecs)",
   "perf: operation read latency histogram (bucket 1) - 0-100us",
   "perf: operation read latency histogram (bucket 2) - 100-249us",
   "perf: operation read latency histogram (bucket 3) - 250-499us",
@@ -2525,7 +2544,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_app_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
-    stats->cache_read_delta = 0;
+    stats->cache_read_internal_delta = 0;
+    stats->cache_read_leaf_delta = 0;
     stats->cache_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -2884,6 +2904,20 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_fswrite_latency_lt1000 = 0;
     stats->perf_hist_fswrite_latency_gt1000 = 0;
     stats->perf_hist_fswrite_latency_total_msecs = 0;
+    stats->perf_hist_internal_reconstruct_latency_lt100 = 0;
+    stats->perf_hist_internal_reconstruct_latency_lt250 = 0;
+    stats->perf_hist_internal_reconstruct_latency_lt500 = 0;
+    stats->perf_hist_internal_reconstruct_latency_lt1000 = 0;
+    stats->perf_hist_internal_reconstruct_latency_lt10000 = 0;
+    stats->perf_hist_internal_reconstruct_latency_gt10000 = 0;
+    stats->perf_hist_internal_reconstruct_latency_total_usecs = 0;
+    stats->perf_hist_leaf_reconstruct_latency_lt100 = 0;
+    stats->perf_hist_leaf_reconstruct_latency_lt250 = 0;
+    stats->perf_hist_leaf_reconstruct_latency_lt500 = 0;
+    stats->perf_hist_leaf_reconstruct_latency_lt1000 = 0;
+    stats->perf_hist_leaf_reconstruct_latency_lt10000 = 0;
+    stats->perf_hist_leaf_reconstruct_latency_gt10000 = 0;
+    stats->perf_hist_leaf_reconstruct_latency_total_usecs = 0;
     stats->perf_hist_opread_latency_lt100 = 0;
     stats->perf_hist_opread_latency_lt250 = 0;
     stats->perf_hist_opread_latency_lt500 = 0;
@@ -3344,7 +3378,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_app_dirty += WT_STAT_CONN_READ(from, cache_eviction_app_dirty);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
-    to->cache_read_delta += WT_STAT_CONN_READ(from, cache_read_delta);
+    to->cache_read_internal_delta += WT_STAT_CONN_READ(from, cache_read_internal_delta);
+    to->cache_read_leaf_delta += WT_STAT_CONN_READ(from, cache_read_leaf_delta);
     to->cache_timed_out_ops += WT_STAT_CONN_READ(from, cache_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_overflow_keys);
@@ -3750,6 +3785,34 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, perf_hist_fswrite_latency_gt1000);
     to->perf_hist_fswrite_latency_total_msecs +=
       WT_STAT_CONN_READ(from, perf_hist_fswrite_latency_total_msecs);
+    to->perf_hist_internal_reconstruct_latency_lt100 +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt100);
+    to->perf_hist_internal_reconstruct_latency_lt250 +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt250);
+    to->perf_hist_internal_reconstruct_latency_lt500 +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt500);
+    to->perf_hist_internal_reconstruct_latency_lt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt1000);
+    to->perf_hist_internal_reconstruct_latency_lt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt10000);
+    to->perf_hist_internal_reconstruct_latency_gt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_gt10000);
+    to->perf_hist_internal_reconstruct_latency_total_usecs +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_total_usecs);
+    to->perf_hist_leaf_reconstruct_latency_lt100 +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt100);
+    to->perf_hist_leaf_reconstruct_latency_lt250 +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt250);
+    to->perf_hist_leaf_reconstruct_latency_lt500 +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt500);
+    to->perf_hist_leaf_reconstruct_latency_lt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt1000);
+    to->perf_hist_leaf_reconstruct_latency_lt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt10000);
+    to->perf_hist_leaf_reconstruct_latency_gt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_gt10000);
+    to->perf_hist_leaf_reconstruct_latency_total_usecs +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_total_usecs);
     to->perf_hist_opread_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt100);
     to->perf_hist_opread_latency_lt250 += WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt250);
     to->perf_hist_opread_latency_lt500 += WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt500);

@@ -526,7 +526,12 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Build key cell. Truncate any 0th key, internal pages don't need 0th keys. */
         __wt_ref_key(page, ref, &p, &size);
-        if (r->cell_zero)
+
+        /*
+         * Modifying keys when building delta can get us into trouble so it's best not to truncate
+         * the first key when building delta.
+         */
+        if (r->cell_zero && !build_delta)
             size = 1;
         WT_ERR(__rec_cell_build_int_key(session, r, p, size));
         r->cell_zero = false;
