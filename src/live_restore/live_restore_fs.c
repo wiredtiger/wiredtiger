@@ -456,6 +456,9 @@ __live_restore_fh_fill_bit_range(
     if (WTI_DEST_COMPLETE(lr_fh))
         return;
 
+    WT_ASSERT_ALWAYS(
+      session, len % lr_fh->allocsize == 0, "Fill length must always be a multiple of alloc size");
+
     /*
      * Don't compute the offset before checking if the destination is complete, it depends on
      * allocsize which may not exist if the destination is complete.

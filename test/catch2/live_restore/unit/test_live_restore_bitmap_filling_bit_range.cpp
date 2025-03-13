@@ -20,7 +20,7 @@ struct test_data {
     test_data(uint32_t allocsize, uint64_t nbits, std::vector<std::pair<uint64_t, uint64_t>> ranges)
         : allocsize(allocsize), nbits(nbits), ranges(std::move(ranges))
     {
-        bitmap_len = (nbits + 7) >> 3;
+        bitmap_len = __bitstr_size(nbits);
         bitmap = new uint8_t[bitmap_len];
         memset(bitmap, 0x0, bitmap_len);
     }
