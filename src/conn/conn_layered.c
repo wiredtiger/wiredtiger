@@ -744,9 +744,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         /* Pick up a new checkpoint (followers only). */
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval));
         if (cval.len > 0) {
-            if (leader)
-                WT_ERR(EINVAL); /* Leaders can't pick up new checkpoints. */
-            else {
+            /*
+             * TODO: currently the leader silently ignores the checkpoint_meta configuration as it
+             * may have an obsolete configuration in its base config when it is still a follower.
+             */
+            if (!leader) {
                 WT_WITH_CHECKPOINT_LOCK(
                   session, ret = __disagg_pick_up_checkpoint_meta(session, &cval, &checkpoint_id));
                 WT_ERR(ret);
@@ -819,9 +821,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             /* Do some cleanup as we are abandoning the current checkpoint. */
             __wt_disagg_copy_metadata_clear(session);
     }
-
-    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.shutdown_checkpoint", &cval));
-    conn->disaggregated_storage.shutdown_checkpoint = cval.val != 0;
 
     /* Connection init settings only. */
 
