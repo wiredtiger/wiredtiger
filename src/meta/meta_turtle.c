@@ -527,6 +527,17 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
         }
 
         if (ret != 0) {
+            if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
+                /*
+                 * We usually restore the turtle file by rebuilding it from the metadata file, but
+                 * the turtle file is the only location the live restore global state is stored.
+                 * When the turtle file is corrupted we need to recover this live restore state
+                 * manually or re-synchronize the node using another instance in the replica set.
+                 */
+                WT_ERR_MSG(session, WT_ERROR,
+                  "Corrupted turtle file found. This cannot be corrected automatically in live "
+                  "restore.");
+
             WT_ERR(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             load_turtle = true;
         } else
