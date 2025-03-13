@@ -2041,6 +2041,13 @@ __checkpoint_lock_dirty_tree(
     }
 
     /*
+     * Force the checkpoint if we're in live restore mode. Live restore needs to checkpoint the file
+     * in order to write the bitmaps (tracking the migrated data) to the files metadata entry.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        force = true;
+
+    /*
      * This is a complicated test to determine if we can avoid the expensive call of getting the
      * list of checkpoints for this file. We want to avoid that for clean files. But on clean files
      * we want to periodically check if we need to delete old checkpoints that may have been in use
@@ -2714,8 +2721,12 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (final && !metadata)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
-    /* Closing an unmodified file. */
-    if (!btree->modified && !bulk)
+    /*
+     * Evict the unmodified file without taking a checkpoint when closing the handle. If we're in
+     * live restore we'll need to checkpoint anyway to ensure we write the bitmap (tracking the
+     * migrated data) to the files metadata entry.
+     */
+    if (!btree->modified && !bulk && !F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /*
