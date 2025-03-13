@@ -2712,6 +2712,9 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * Do shutdown checkpoint if we are not using disaggregated storage or the node still
          * consider itself the leader. If it is not the real leader, the storage layer services
          * should return an error as it is not allowed to write.
+         *
+         * FIXME: we should be able to do shutdown checkpoint for followers as well when we are able
+         * to skip the shared tables in checkpoint.
          */
         if (!conn_is_disagg || conn->layered_table_manager.leader) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
