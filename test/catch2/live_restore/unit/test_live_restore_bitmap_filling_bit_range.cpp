@@ -13,7 +13,6 @@
 
 #include "../utils_live_restore.h"
 #include "../../wrappers/mock_session.h"
-#include <iostream>
 
 using namespace utils;
 
