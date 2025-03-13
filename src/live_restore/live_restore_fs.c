@@ -1186,20 +1186,22 @@ __wt_live_restore_metadata_to_fh(
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
+    WT_ASSERT_ALWAYS(session, lr_fh->bitmap == NULL, "Bitmap not empty while trying to parse");
+
     /*
      * Once we're in the clean up stage or later all data has been migrated across to the
-     * destination. There's no need for hole tracking and therefore nothing to reconstruct.
+     * destination. There's no need for hole tracking and therefore nothing to reconstruct. The
+     * migration state must be checked before we check the number of bits in the bitmap as we clear
+     * that once it finishes.
      */
     if (__wti_live_restore_migration_complete(session)) {
         /*
-         * This is an unlocked access of the source file handle. Given the migration has completed,
-         * it is safe.
+         * Even though the migration has completed we may still have a source file, this indicates
+         * that the live restore finished while this file was being opened.
          */
-        WT_ASSERT(session, WTI_DEST_COMPLETE(lr_fh));
+        WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
         return (0);
     }
-
-    WT_ASSERT_ALWAYS(session, lr_fh->bitmap == NULL, "Bitmap not empty while trying to parse");
 
     __wt_writelock(session, &lr_fh->lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
@@ -1214,7 +1216,7 @@ __wt_live_restore_metadata_to_fh(
      * !!!
      * While the live restore is in progress, the bit count reported by in the live restore metadata
      * can hold three states:
-     *  (0)         : This means file has not yet had a bitmap representation written to the k
+     *  (0)         : This means file has not yet had a bitmap representation written to the
      *                metadata file and therefore no application writes have gone to the
      *                destination. In theory background thread writes may have happened but unless
      *                the tree was dirtied the metadata update was not written out.
@@ -1528,9 +1530,15 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
   bool dest_exist, bool source_exist)
 {
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
-    if (have_stop || __wti_live_restore_migration_complete(session) || !source_exist)
+    if (have_stop || !source_exist)
         return (0);
 
+    /*
+     * In theory we have already completed the migration for this file which would mean this open
+     * call is redundant and the file will be immediately closed out. But we know the flags here and
+     * also whether or not the source file exists so it's easier to open it here and close it out
+     * later than to determine that information when importing the bitmap.
+     */
     WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
     if (!dest_exist) {
         WT_SESSION *wt_session = (WT_SESSION *)session;
