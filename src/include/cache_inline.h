@@ -501,3 +501,18 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
 
     return (__wt_cache_eviction_worker(session, busy, readonly, pct_full));
 }
+
+/*
+ * __wt_atomic_decrement_if_positive --
+ *     Use compare and swap to atomically decrement value by 1 if it's positive.
+ */
+static inline void
+__wt_atomic_decrement_if_positive(uint32_t *valuep)
+{
+    uint32_t old_value;
+    do {
+        WT_ORDERED_READ(old_value, *valuep);
+        if (old_value == 0)
+            break;
+    } while (!__wt_atomic_cas32(valuep, old_value, old_value - 1));
+}
