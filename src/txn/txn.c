@@ -2709,9 +2709,9 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 
         s = NULL;
         /*
-         * Do shutdown checkpoint if we are not using disaggregated storage or we still consider
-         * ourself the leader. If we are not the real leader, the storage layer services should
-         * return an error as we are not allowed to write.
+         * Do shutdown checkpoint if we are not using disaggregated storage or the node still
+         * consider itself the leader. If it is not the real leader, the storage layer services
+         * should return an error as it is not allowed to write.
          */
         if (!conn_is_disagg || conn->layered_table_manager.leader) {
             WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
