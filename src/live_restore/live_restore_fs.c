@@ -1526,11 +1526,11 @@ err:
  */
 static int
 __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
-  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool have_stop,
+  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
   bool dest_exist, bool source_exist)
 {
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
-    if (have_stop || !source_exist)
+    if (!source_exist)
         return (0);
 
     /*
@@ -1641,7 +1641,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
 
     if (file_type == WT_FILE_TYPE_DATA)
         WT_RET(__live_restore_setup_lr_fh_file_data(
-          session, lr_fs, name, flags, lr_fh, have_stop, dest_exist, source_exist));
+          session, lr_fs, name, flags, lr_fh, dest_exist, source_exist));
     else
         WT_RET(__live_restore_setup_lr_fh_file_regular(
           session, lr_fs, name, flags, lr_fh, file_type, dest_exist, source_exist));
