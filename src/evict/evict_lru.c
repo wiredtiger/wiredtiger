@@ -810,8 +810,7 @@ __evict_pass(WT_SESSION_IMPL *session)
             __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "unable to reach eviction goal");
             break;
         }
-        if (cache->evict_aggressive_score > 0)
-            (void)__wt_atomic_subv32(&cache->evict_aggressive_score, 1);
+        __wt_atomic_decrement_if_positive(&cache->evict_aggressive_score);
         loop = 0;
         eviction_progress = cache->eviction_progress;
     }
@@ -2479,8 +2478,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
-                if (cache->evict_aggressive_score > 0)
-                    (void)__wt_atomic_subv32(&cache->evict_aggressive_score, 1);
+                __wt_atomic_decrement_if_positive(&cache->evict_aggressive_score);
+
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
                 __wt_verbose_debug1(
                   session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
@@ -2554,8 +2553,7 @@ err:
          */
         if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
             ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
-            if (cache->evict_aggressive_score > 0)
-                (void)__wt_atomic_subv32(&cache->evict_aggressive_score, 1);
+            __wt_atomic_decrement_if_positive(&cache->evict_aggressive_score);
             WT_STAT_CONN_INCR(session, cache_timed_out_ops);
             __wt_verbose_notice(session, WT_VERB_TRANSACTION, "%s", session->txn->rollback_reason);
         }
