@@ -2227,12 +2227,12 @@ __rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *su
         }
 
         if (supd->onpage_tombstone != NULL) {
-            if (supd->onpage_tombstone->txnid != WT_TXN_NONE) {
+            if (supd->onpage_tombstone->txnid != WT_TXN_MAX) {
                 LF_SET(WT_DELTA_LEAF_HAS_STOP_TXN_ID);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->txnid));
             }
 
-            if (supd->onpage_tombstone->start_ts != WT_TS_NONE) {
+            if (supd->onpage_tombstone->start_ts != WT_TS_MAX) {
                 LF_SET(WT_DELTA_LEAF_HAS_STOP_TS);
                 WT_ERR(__wt_vpack_uint(&p, 0, supd->onpage_tombstone->start_ts));
             }
