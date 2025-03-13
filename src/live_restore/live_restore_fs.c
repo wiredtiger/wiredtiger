@@ -467,7 +467,7 @@ __live_restore_fh_fill_bit_range(
     if (offset_bit >= lr_fh->nbits)
         return;
 
-    uint64_t fill_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len)) - 1;
+    uint64_t fill_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len) - 1);
     bool partial_fill = false;
     if (fill_end_bit >= lr_fh->nbits) {
         partial_fill = true;
@@ -1936,5 +1936,12 @@ __ut_live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     return (__live_restore_decode_bitmap(session, bitmap_str, nbits, lr_fh));
+}
+
+void
+__ut_live_restore_fh_fill_bit_range(
+  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+{
+    __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
 }
 #endif
