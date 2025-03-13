@@ -88,7 +88,7 @@ TEST_CASE("Test various bitmap filling bit ranges",
     test_data test5 = test_data(4, 16, {{13, 13}});
     // Filling one range that partially overlaps the last bit slot.
     test_data test6 = test_data(4, 16, {{63, 3}});
-    // Filling one range that is not tracked by the bitmap's range.
+    // Filling one range that is not tracked by the bitmap.
     test_data test7 = test_data(4, 16, {{64, 4}});
     // Filling one range that fits the entire bitmap.
     test_data test8 = test_data(4, 16, {{0, 64}});
