@@ -564,9 +564,13 @@ palm_get_complete_checkpoint_ext(WT_PAGE_LOG *page_log, WT_SESSION *session,
 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, true));
 
-    PALM_KV_ERR(palm, session,
-      palm_kv_get_last_checkpoint(
-        &context, checkpoint_lsn, checkpoint_id, checkpoint_timestamp, &metadata, &metadata_len));
+    ret = palm_kv_get_last_checkpoint(
+      &context, checkpoint_lsn, checkpoint_id, checkpoint_timestamp, &metadata, &metadata_len);
+    if (ret == MDB_NOTFOUND) {
+        ret = WT_NOTFOUND;
+        goto err;
+    }
+    PALM_KV_ERR(palm, session, ret);
     if (checkpoint_metadata != NULL) {
         PALM_KV_ERR(palm, session, palm_resize_item(checkpoint_metadata, metadata_len));
         memcpy(checkpoint_metadata->mem, metadata, metadata_len);

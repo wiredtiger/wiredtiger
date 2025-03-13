@@ -113,11 +113,15 @@ kv_workload_runner_wt::run(const kv_workload &workload)
     /* Clean up the pointer at the end, just before the actual shared memory gets cleaned up. */
     at_cleanup cleanup_state([this]() { _state = nullptr; });
 
-    /* Process the initial set of WiredTiger config operations before opening the connection. */
+    /*
+     * Process the initial set of model and WiredTiger config operations before opening the
+     * connection.
+     */
     size_t p = 0; /* Position in the workload. */
     for (; p < workload.size(); p++) {
         const kv_workload_operation &op = workload[p];
-        if (!std::holds_alternative<operation::wt_config>(op.operation))
+        if (!std::holds_alternative<operation::config>(op.operation) &&
+          !std::holds_alternative<operation::wt_config>(op.operation))
             break;
         int ret = run_operation(op.operation);
         if (ret != 0)
@@ -308,6 +312,34 @@ kv_workload_runner_wt::do_operation(const operation::commit_transaction &op)
 }
 
 /*
+ * kv_workload_runner_wt::config --
+ *     Execute the given workload operation in WiredTiger.
+ */
+int
+kv_workload_runner_wt::do_operation(const operation::config &op)
+{
+    std::unique_lock lock(_connection_lock);
+
+    size_t l = op.value.size() + 1; /* In-memory size, including the NUL byte. */
+    const char *v = op.value.c_str();
+
+    if (op.type == "database") {
+        if (l > sizeof(_state->database_config))
+            throw model_exception("The database config is too long");
+
+        /* Validate. */
+        kv_database_config config = kv_database_config::from_string(v);
+        if (!config.disaggregated && !config.checkpoint_on_shutdown)
+            throw model_exception("Illegal database configuration");
+
+        memcpy(_state->database_config, v, l);
+    } else
+        throw model_exception("Unknown config type");
+
+    return 0;
+}
+
+/*
  * kv_workload_runner_wt::do_operation --
  *     Execute the given workload operation in WiredTiger.
  */
@@ -350,6 +382,8 @@ kv_workload_runner_wt::do_operation(const operation::create_table &op)
         return ret;
     wiredtiger_session_guard session_guard(session);
 
+    kv_database_config database_config = kv_database_config::from_string(_state->database_config);
+
     std::ostringstream config;
     /*
      * Set the logging parameter explicitly, because if the connection config enables logging (e.g.,
@@ -357,6 +391,8 @@ kv_workload_runner_wt::do_operation(const operation::create_table &op)
      */
     config << "log=(enabled=false)";
     config << ",key_format=" << op.key_format << ",value_format=" << op.value_format;
+    if (database_config.disaggregated)
+        config << ",type=layered";
     if (_state->table_config[0] != '\0')
         config << "," << _state->table_config;
     if (!_table_config_override.empty())
@@ -577,8 +613,12 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
     if (_connection != nullptr)
         throw model_exception("WiredTiger is already open");
 
+    kv_database_config database_config = kv_database_config::from_string(_state->database_config);
+
     std::ostringstream config;
     config << k_config_base;
+    if (database_config.disaggregated)
+        config << "," << wt_disagg_config_string(database_config.checkpoint_on_shutdown);
     if (_state->connection_config[0] != '\0')
         config << "," << _state->connection_config;
     if (!_connection_config_override.empty())
@@ -588,6 +628,14 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
     int ret = ::wiredtiger_open(_home.c_str(), nullptr, config_str.c_str(), &_connection);
     if (ret != 0)
         throw wiredtiger_exception("Cannot open WiredTiger", ret);
+
+    /* If we're using disaggregated storage, pick up the latest checkpoint and step up. */
+    if (database_config.disaggregated) {
+        wt_disagg_pick_up_latest_checkpoint(_connection);
+        ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");
+        if (ret != 0)
+            throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
+    }
 }
 
 /*

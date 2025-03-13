@@ -146,6 +146,10 @@ parse(const char *str)
           args.size() <= 1 ? k_timestamp_none : parse_uint64(args[1]),
           args.size() <= 2 ? k_timestamp_none : parse_uint64(args[2]));
     }
+    if (name == "config") {
+        CHECK_NUM_ARGS(2);
+        return config(args[0].c_str(), args[1].c_str());
+    }
     if (name == "crash") {
         CHECK_NUM_ARGS(0);
         return crash();
