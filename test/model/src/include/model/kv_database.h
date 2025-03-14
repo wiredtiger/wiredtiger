@@ -46,11 +46,9 @@ namespace model {
  */
 struct kv_database_config {
 
-    /* Checkpoints. */
-    bool checkpoint_on_shutdown;
-
     /* Disaggregated storage. */
     bool disaggregated;
+    bool leader;
 
     /*
      * kv_database_config::kv_database_config --

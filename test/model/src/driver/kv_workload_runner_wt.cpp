@@ -326,12 +326,6 @@ kv_workload_runner_wt::do_operation(const operation::config &op)
     if (op.type == "database") {
         if (l > sizeof(_state->database_config))
             throw model_exception("The database config is too long");
-
-        /* Validate. */
-        kv_database_config config = kv_database_config::from_string(v);
-        if (!config.disaggregated && !config.checkpoint_on_shutdown)
-            throw model_exception("Illegal database configuration");
-
         memcpy(_state->database_config, v, l);
     } else
         throw model_exception("Unknown config type");
@@ -618,7 +612,7 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
     std::ostringstream config;
     config << k_config_base;
     if (database_config.disaggregated)
-        config << "," << wt_disagg_config_string(database_config.checkpoint_on_shutdown);
+        config << "," << wt_disagg_config_string();
     if (_state->connection_config[0] != '\0')
         config << "," << _state->connection_config;
     if (!_connection_config_override.empty())
@@ -632,9 +626,11 @@ kv_workload_runner_wt::wiredtiger_open_nolock()
     /* If we're using disaggregated storage, pick up the latest checkpoint and step up. */
     if (database_config.disaggregated) {
         wt_disagg_pick_up_latest_checkpoint(_connection);
-        ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");
-        if (ret != 0)
-            throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
+        if (database_config.leader) {
+            ret = _connection->reconfigure(_connection, "disaggregated=(role=leader)");
+            if (ret != 0)
+                throw wiredtiger_exception("Cannot reconfigure WiredTiger", ret);
+        }
     }
 }
 

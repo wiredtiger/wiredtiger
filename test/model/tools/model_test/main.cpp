@@ -182,11 +182,9 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
             /* Open the WiredTiger database to verify. */
             WT_CONNECTION *conn;
             std::string conn_config_verify = model::kv_workload_runner_wt::k_config_base;
-            if (database.config().disaggregated) {
-                conn_config_verify += ",";
-                conn_config_verify +=
-                  model::wt_disagg_config_string(false /* checkpoint on shutdown */);
-            }
+            if (database.config().disaggregated)
+                conn_config_verify =
+                  model::join(conn_config_verify, model::wt_disagg_config_string(), ",");
             if (conn_config_override != "")
                 conn_config_verify += "," + conn_config_override;
             int ret = wiredtiger_open(
