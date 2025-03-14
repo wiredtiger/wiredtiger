@@ -413,7 +413,7 @@ __live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *
 
 /*
  * __live_restore_fh_free_bitmap --
- *     Free the bitmap associated with a live restore file handle. Callers must hold the extent list
+ *     Free the bitmap associated with a live restore file handle. Callers must hold the file handle
  *     write lock.
  */
 static void
@@ -442,8 +442,8 @@ __live_restore_fh_lock(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, bool lock)
 
 /*
  * __live_restore_fh_fill_bit_range --
- *     Track that we wrote something by removing its hole from the extent list. Callers must hold
- *     the extent list write lock.
+ *     Track that we wrote something by removing its hole from the file handle. Callers must hold
+ *     the file handle write lock.
  */
 static void
 __live_restore_fh_fill_bit_range(
@@ -529,7 +529,7 @@ typedef enum { NONE, FULL, PARTIAL } WT_LIVE_RESTORE_SERVICE_STATE;
 
 /* !!!
  * __live_restore_can_service_read --
- *     Return if a read can be serviced by the destination file. Callers must hold the extent list
+ *     Return if a read can be serviced by the destination file. Callers must hold the file handle
  *     read lock at a minimum.
  *     There are three possible scenarios:
  *     - The read is entirely within a hole and we return NONE.
@@ -600,8 +600,22 @@ __live_restore_can_service_read(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_
 }
 
 /*
+ * __live_restore_fh_write_destination --
+ *     Write to the destination file handle.
+ */
+static int
+__live_restore_fh_write_destination(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
+  wt_off_t offset, size_t len, const void *buf)
+{
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT,
+      lr_fh->iface.name, offset, len);
+    return (
+      lr_fh->destination->fh_write(lr_fh->destination, (WT_SESSION *)session, offset, len, buf));
+}
+
+/*
  * __live_restore_fh_write_int --
- *     Write to a file. Callers of this function must hold the extent list lock.
+ *     Write to a file. Callers of this function must hold the file handle lock.
  */
 static int
 __live_restore_fh_write_int(
@@ -615,10 +629,7 @@ __live_restore_fh_write_int(
 
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
       "Live restore lock not taken when needed");
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT,
-      fh->name, offset, len);
-
-    WT_RET(lr_fh->destination->fh_write(lr_fh->destination, wt_session, offset, len, buf));
+    WT_RET(__live_restore_fh_write_destination(session, lr_fh, offset, len, buf));
     __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
     return (0);
 }
@@ -638,9 +649,30 @@ __live_restore_fh_write(
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
+    /*
+     * Fast path writes if the destination is complete. This pointer is only ever cleared in a
+     * multithreaded context, if we read a valid pointer we will take the slow path with the same
+     * result.
+     */
+    if (WTI_DEST_COMPLETE(lr_fh))
+        return (__live_restore_fh_write_destination(session, lr_fh, offset, len, buf));
+
     WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK(
       session, lr_fh, ret = __live_restore_fh_write_int(fh, wt_session, offset, len, buf));
     return (ret);
+}
+
+/*
+ * __live_restore_fh_read_destination --
+ *     Read from the destination file handle.
+ */
+static int
+__live_restore_fh_read_destination(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
+  wt_off_t offset, size_t len, void *buf)
+{
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM DEST");
+    return (
+      lr_fh->destination->fh_read(lr_fh->destination, (WT_SESSION *)session, offset, len, buf));
 }
 
 /*
@@ -664,6 +696,14 @@ __live_restore_fh_read(
 
     read_data = (char *)buf;
 
+    /*
+     * Fast path reads if the destination is complete. This pointer is only ever cleared in a
+     * multithreaded context, if we read a valid pointer we will take the slow path with the same
+     * result.
+     */
+    if (WTI_DEST_COMPLETE(lr_fh))
+        WT_RET(__live_restore_fh_read_destination(session, lr_fh, offset, len, buf));
+
     __wt_readlock(session, &lr_fh->lock);
     /*
      * The partial read length variables need to be initialized inside the else case to avoid clang
@@ -674,20 +714,18 @@ __live_restore_fh_read(
     wt_off_t hole_begin_off;
     WT_LIVE_RESTORE_SERVICE_STATE read_state =
       __live_restore_can_service_read(lr_fh, session, offset, len, &hole_begin_off);
-    if (read_state == FULL) {
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "    READ FROM DEST (src is NULL? %s)",
-          lr_fh->source == NULL ? "YES" : "NO");
-        /* Read the full read from the destination. */
-        WT_ERR(lr_fh->destination->fh_read(lr_fh->destination, wt_session, offset, len, read_data));
-    } else if (read_state == PARTIAL) {
+    if (read_state == FULL)
+        WT_ERR(__live_restore_fh_read_destination(session, lr_fh, offset, len, read_data));
+    else if (read_state == PARTIAL) {
         /*
          * If a portion of the read region is serviceable, combine a read from the source and
          * destination.
          */
         /*
+         *!!!
          *              <--read len--->
          * read:        |-------------|
-         * extent list: |####|----hole----|
+         *      bitmap: |####|----hole----|
          *              ^    ^        |
          *              |    |        |
          *           read off|        |
@@ -812,7 +850,7 @@ __live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
 /*
  * __live_restore_fill_hole --
  *     Fill a single hole in the destination file. If the hole list is empty indicate using the
- *     finished parameter. Must be called while holding the extent list write lock.
+ *     finished parameter. Must be called while holding the file handle write lock.
  */
 static int
 __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_session, char *buf,
@@ -1510,7 +1548,7 @@ __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
          * We're creating a new destination file which is backed by a source file. It currently has
          * a length of zero, but we want its length to be the same as the source file. Set its size
          * by truncating. This is a positive length truncate so it actually extends the file. We're
-         * bypassing the live_restore layer so we don't try to modify the relevant extent entries.
+         * bypassing the live_restore layer so we don't try to modify the relevant bitmap entries.
          */
         WT_RET(lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, source_size));
     }
@@ -1557,7 +1595,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
      * subsequent open they will be immediately complete.
      *
      * Data type files are the b-trees, they are not copied on open and are expected to go through
-     * the extent import path which will initialize the relevant extent lists.
+     * the bitmap import path.
      */
     WT_ASSERT(session, file_type != WT_FS_OPEN_FILE_TYPE_CHECKPOINT);
 
