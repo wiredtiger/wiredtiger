@@ -185,6 +185,7 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     __wt_stats_aggregate_conn(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
 #define WT_STAT_DSRC_READ(stats, fld) \
     __wt_stats_aggregate_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+#define WT_STAT_SESSION_READ(stats, fld) ((stats)->fld)
 #define WT_STAT_WRITE(session, stats, fld, v) \
     do {                                      \
         if (WT_STAT_ENABLED(session))         \
@@ -229,12 +230,16 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     WT_STAT_DECRV_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_DECR_ATOMIC(session, fld) \
     WT_STAT_DECRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, 1)
+#define WT_STAT_CONN_DECRV_ATOMIC(session, fld, value) \
+    WT_STAT_DECRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_DECR(session, fld) WT_STAT_CONN_DECRV(session, fld, 1)
 
 #define WT_STAT_CONN_INCRV(session, fld, value) \
     WT_STAT_INCRV_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_INCR_ATOMIC(session, fld) \
     WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, 1)
+#define WT_STAT_CONN_INCRV_ATOMIC(session, fld, value) \
+    WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session, fld, 1)
 
 #define WT_STATP_CONN_SET(session, stats, fld, value)                           \
@@ -412,16 +417,6 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
  */
 #define WT_CONNECTION_STATS_BASE 1000
 struct __wt_connection_stats {
-    int64_t lsm_work_queue_app;
-    int64_t lsm_work_queue_manager;
-    int64_t lsm_rows_merged;
-    int64_t lsm_checkpoint_throttle;
-    int64_t lsm_merge_throttle;
-    int64_t lsm_work_queue_switch;
-    int64_t lsm_work_units_discarded;
-    int64_t lsm_work_units_done;
-    int64_t lsm_work_units_created;
-    int64_t lsm_work_queue_max;
     int64_t autocommit_readonly_retry;
     int64_t autocommit_update_retry;
     int64_t background_compact_fail;
@@ -439,6 +434,7 @@ struct __wt_connection_stats {
     int64_t backup_cursor_open;
     int64_t backup_dup_open;
     int64_t backup_granularity;
+    int64_t backup_bits_clr;
     int64_t backup_incremental;
     int64_t backup_start;
     int64_t backup_blocks;
@@ -470,17 +466,26 @@ struct __wt_connection_stats {
     int64_t block_read;
     int64_t block_write;
     int64_t block_byte_read;
+    int64_t block_byte_read_intl;
+    int64_t block_byte_read_intl_disk;
+    int64_t block_byte_read_leaf;
+    int64_t block_byte_read_leaf_disk;
     int64_t block_byte_read_mmap;
     int64_t block_byte_read_syscall;
     int64_t block_byte_write;
     int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
+    int64_t block_byte_write_intl_disk;
+    int64_t block_byte_write_intl;
+    int64_t block_byte_write_leaf_disk;
+    int64_t block_byte_write_leaf;
     int64_t block_byte_write_mmap;
     int64_t block_byte_write_syscall;
     int64_t block_map_read;
     int64_t block_byte_map_read;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
+    int64_t eviction_interupted_by_app;
     int64_t eviction_app_time;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
@@ -520,6 +525,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
     int64_t eviction_server_skip_unwanted_tree;
+    int64_t eviction_server_skip_trees_too_many_active_walks;
     int64_t eviction_server_skip_checkpointing_trees;
     int64_t eviction_server_skip_trees_stick_in_cache;
     int64_t eviction_server_skip_trees_eviction_disabled;
@@ -652,6 +658,8 @@ struct __wt_connection_stats {
     int64_t cache_pages_dirty;
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
+    int64_t cache_updates_txn_uncommitted_bytes;
+    int64_t cache_updates_txn_uncommitted_count;
     int64_t fsync_all_fh_total;
     int64_t fsync_all_fh;
     int64_t fsync_all_time;
@@ -854,6 +862,8 @@ struct __wt_connection_stats {
     int64_t dh_sweep_skip_ckpt;
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
+    int64_t live_restore_state;
+    int64_t live_restore_work_remaining;
     int64_t lock_btree_page_count;
     int64_t lock_btree_page_wait_application;
     int64_t lock_btree_page_wait_internal;
@@ -1032,11 +1042,10 @@ struct __wt_connection_stats {
     int64_t session_table_create_fail;
     int64_t session_table_create_success;
     int64_t session_table_create_import_fail;
+    int64_t session_table_create_import_repair;
     int64_t session_table_create_import_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_rename_fail;
-    int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
     int64_t session_table_salvage_success;
     int64_t session_table_truncate_fail;
@@ -1051,10 +1060,13 @@ struct __wt_connection_stats {
     int64_t thread_read_active;
     int64_t thread_write_active;
     int64_t application_cache_ops;
+    int64_t application_cache_interruptible_ops;
+    int64_t application_cache_uninterruptible_ops;
     int64_t application_evict_snapshot_refreshed;
     int64_t application_cache_time;
+    int64_t application_cache_interruptible_time;
+    int64_t application_cache_uninterruptible_time;
     int64_t txn_release_blocked;
-    int64_t conn_close_blocked_lsm;
     int64_t dhandle_lock_blocked;
     int64_t page_index_slot_ref_blocked;
     int64_t prepared_transition_blocked_page;
@@ -1130,18 +1142,6 @@ struct __wt_connection_stats {
  */
 #define WT_DSRC_STATS_BASE 2000
 struct __wt_dsrc_stats {
-    int64_t bloom_false_positive;
-    int64_t bloom_hit;
-    int64_t bloom_miss;
-    int64_t bloom_page_evict;
-    int64_t bloom_page_read;
-    int64_t bloom_count;
-    int64_t lsm_chunk_count;
-    int64_t lsm_generation_max;
-    int64_t lsm_lookup_no_bloom;
-    int64_t lsm_checkpoint_throttle;
-    int64_t lsm_merge_throttle;
-    int64_t bloom_size;
     int64_t autocommit_readonly_retry;
     int64_t autocommit_update_retry;
     int64_t backup_blocks_compressed;
@@ -1432,18 +1432,6 @@ struct __wt_dsrc_stats {
 };
 
 /*
- * Statistics entries for join cursors.
- */
-#define WT_JOIN_STATS_BASE 3000
-struct __wt_join_stats {
-    int64_t main_access;
-    int64_t bloom_false_positive;
-    int64_t membership_check;
-    int64_t bloom_insert;
-    int64_t iterated;
-};
-
-/*
  * Statistics entries for session.
  */
 #define WT_SESSION_STATS_BASE 4000
@@ -1452,10 +1440,13 @@ struct __wt_session_stats {
     int64_t bytes_write;
     int64_t lock_dhandle_wait;
     int64_t txn_bytes_dirty;
+    int64_t txn_updates;
     int64_t read_time;
     int64_t write_time;
     int64_t lock_schema_wait;
     int64_t cache_time;
+    int64_t cache_time_interruptible;
+    int64_t cache_time_mandatory;
 };
 
 /* Statistics section: END */

@@ -167,7 +167,7 @@ __wti_block_configure_first_fit(WT_BLOCK *block, bool on)
 int
 __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objectid,
   const char *cfg[], bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize,
-  WT_BLOCK **blockp)
+  WT_LIVE_RESTORE_FH_META *lr_fh_meta, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
@@ -225,8 +225,6 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
 
     /*
      * Open the underlying file handle.
-     *
-     * "direct_io=checkpoint" configures direct I/O for readonly data files.
      */
     flags = 0;
     WT_ERR(__wt_config_gets(session, cfg, "access_pattern_hint", &cval));
@@ -237,10 +235,6 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
 
     if (fixed)
         LF_SET(WT_FS_OPEN_FIXED);
-    if (readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT))
-        LF_SET(WT_FS_OPEN_DIRECTIO);
-    if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
-        LF_SET(WT_FS_OPEN_DIRECTIO);
     /*
      * Tiered storage sets file permissions to readonly, but nobody else does. This flag means the
      * underlying file is read-only, and NOT that the handle access pattern is read-only.
@@ -250,6 +244,13 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
         block->readonly = true;
     }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
+
+    /*
+     * We need to do this as close to __wt_open as possible as there is a descriptor block read
+     * further down which requires the extent lists to be initialized. Even if the extent list is
+     * NULL there is bookkeeping to do.
+     */
+    WT_ERR(__wt_live_restore_metadata_to_fh(session, block->fh->handle, lr_fh_meta));
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));
@@ -303,7 +304,6 @@ __wti_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         return (0);
 
-    /* Use a scratch buffer to get correct alignment for direct I/O. */
     WT_RET(__wt_scr_alloc(session, allocsize, &buf));
     memset(buf->mem, 0, allocsize);
 
@@ -385,7 +385,6 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
           block->name, block->size, allocsize);
     }
 
-    /* Use a scratch buffer to get correct alignment for direct I/O. */
     WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 
     /* Read the first allocation-sized block and verify the file format. */

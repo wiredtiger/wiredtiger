@@ -56,7 +56,9 @@ public:
     ~connection_manager();
 
     void close();
-    void create(const std::string &config, const std::string &home);
+    void create(
+      const std::string &config, const std::string &home, bool create_log_directory = false);
+    void reopen(const std::string &config, const std::string &home);
     scoped_session create_session();
 
     WT_CONNECTION *get_connection();

@@ -426,11 +426,11 @@ __wti_txn_ts_log(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_checkpoint_log --
+ * __wt_checkpoint_log --
  *     Write a log record for a checkpoint operation.
  */
 int
-__wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN *lsnp)
+__wt_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN *lsnp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(logrec);
@@ -546,8 +546,8 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
          * metadata LSN and we do not want to remove log files in that case.
          */
         if (__wt_atomic_load64(&conn->hot_backup_start) == 0 &&
-          (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
-            FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
+          (!F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DIRTY) ||
+            F_ISSET(&conn->log_mgr, WT_LOG_FORCE_DOWNGRADE)) &&
           txn->full_ckpt)
             __wt_log_ckpt(session, ckpt_lsn);
         /* FALLTHROUGH */
@@ -662,7 +662,6 @@ static int
 __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
   void *cookie, int firstrecord)
 {
-    WT_DECL_ITEM(lsn_str);
     WT_DECL_RET;
     WT_LOG_RECORD *logrec;
     WT_TXN_PRINTLOG_ARGS *args;
@@ -670,6 +669,7 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     uint32_t fileid, lsnfile, lsnoffset, rectype;
     int32_t start;
     const uint8_t *end, *p;
+    char lsn_str[WT_MAX_LSN_STRING];
     const char *msg;
     bool compressed;
 
@@ -698,9 +698,8 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     if (!firstrecord)
         WT_RET(__wt_fprintf(session, args->fs, ",\n"));
 
-    WT_ERR(__wt_scr_alloc(session, 0, &lsn_str));
-    WT_ERR(__wt_lsn_string(session, lsnp, lsn_str));
-    WT_ERR(__wt_fprintf(session, args->fs, "  { \"lsn\" : [%s],\n", (char *)lsn_str->mem));
+    WT_ERR(__wt_lsn_string(lsnp, sizeof(lsn_str), lsn_str));
+    WT_ERR(__wt_fprintf(session, args->fs, "  { \"lsn\" : [%s],\n", lsn_str));
     WT_ERR(__wt_fprintf(
       session, args->fs, "    \"hdr_flags\" : \"%s\",\n", compressed ? "compressed" : ""));
     WT_ERR(__wt_fprintf(session, args->fs, "    \"rec_len\" : %" PRIu32 ",\n", logrec->len));
@@ -748,7 +747,6 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     WT_ERR(__wt_fprintf(session, args->fs, "  }"));
 
 err:
-    __wt_scr_free(session, &lsn_str);
     return (ret);
 }
 

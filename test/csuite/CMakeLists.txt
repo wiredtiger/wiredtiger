@@ -136,30 +136,10 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt2403_lsm_workload
-    SOURCES wt2403_lsm_workload/main.c
-    DIR_NAME wt2403_lsm_workload
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2403_lsm_workload>/WT_HOME>
-    DEPENDS "WT_POSIX"
-    # This test takes over 15 minutes under TSan testing
-    LABEL "long_running"
-)
-
-define_c_test(
     TARGET test_wt2246_col_append
     SOURCES wt2246_col_append/main.c
     DIR_NAME wt2246_col_append
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2246_col_append>/WT_HOME>
-    # This test takes over 15 minutes under TSan testing
-    LABEL "long_running"
-)
-
-define_c_test(
-    TARGET test_wt2323_join_visibility
-    SOURCES wt2323_join_visibility/main.c
-    DIR_NAME wt2323_join_visibility
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2323_join_visibility>/WT_HOME>
-    DEPENDS "WT_POSIX"
     # This test takes over 15 minutes under TSan testing
     LABEL "long_running"
 )
@@ -176,26 +156,10 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt2447_join_main_table
-    SOURCES wt2447_join_main_table/main.c
-    DIR_NAME wt2447_join_main_table
-    VARIANTS
-        "test_wt2447_join_main_table_row;-t r"
-        "test_wt2447_join_main_table_col;-t c"
-)
-
-define_c_test(
     TARGET test_wt2695_checksum
     SOURCES wt2695_checksum/main.c
     DIR_NAME wt2695_checksum
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2695_checksum>/WT_HOME>
-)
-
-define_c_test(
-    TARGET test_wt2592_join_schema
-    SOURCES wt2592_join_schema/main.c
-    DIR_NAME wt2592_join_schema
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2592_join_schema>/WT_HOME>
 )
 
 define_c_test(
@@ -204,15 +168,6 @@ define_c_test(
     DIR_NAME wt2719_reconfig
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2719_reconfig>/WT_HOME>
     DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_wt2834_join_bloom_fix
-    SOURCES wt2834_join_bloom_fix/main.c
-    DIR_NAME wt2834_join_bloom_fix
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2834_join_bloom_fix>/WT_HOME>
-    # This test takes over 15 minutes under TSan testing
-    LABEL "long_running"
 )
 
 define_c_test(
@@ -229,13 +184,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt2999_join_extractor
-    SOURCES wt2999_join_extractor/main.c
-    DIR_NAME wt2999_join_extractor
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2999_join_extractor>/WT_HOME>
-)
-
-define_c_test(
     TARGET test_wt3120_filesys
     SOURCES wt3120_filesys/main.c
     DIR_NAME wt3120_filesys
@@ -244,13 +192,6 @@ define_c_test(
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
     ARGUMENTS -b ${CMAKE_BINARY_DIR} -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt3120_filesys>/WT_HOME>
     DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_wt3135_search_near_collator
-    SOURCES wt3135_search_near_collator/main.c
-    DIR_NAME wt3135_search_near_collator
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt3135_search_near_collator>/WT_HOME>
 )
 
 define_c_test(
@@ -319,13 +260,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt4699_json
-    SOURCES wt4699_json/main.c
-    DIR_NAME wt4699_json
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt4699_json>/WT_HOME>
-)
-
-define_c_test(
     TARGET test_wt4891_meta_ckptlist_get_alloc
     SOURCES wt4891_meta_ckptlist_get_alloc/main.c
     DIR_NAME wt4891_meta_ckptlist_get_alloc
@@ -387,16 +321,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt8659_reconstruct_database_from_logs
-    SOURCES wt8659_reconstruct_database_from_logs/main.c
-    DIR_NAME wt8659_reconstruct_database_from_logs
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8659_reconstruct_database_from_logs>/WT_HOME>
-    DEPENDS "WT_POSIX"
-    # This test takes over 20 minutes under ASan testing
-    LABEL "long_running"
-)
-
-define_c_test(
     TARGET test_wt8963_insert_stress
     SOURCES wt8963_insert_stress/main.c
     DIR_NAME wt8963_insert_stress
@@ -446,4 +370,12 @@ define_c_test(
     DEPENDS "WT_POSIX"
     # This test takes over 15 minutes under TSan testing
     LABEL "long_running"
+)
+
+define_c_test(
+    TARGET wt13867_interrupt_eviction_handler
+    SOURCES wt13867_interrupt_eviction_handler/main.c
+    DIR_NAME wt13867_interrupt_eviction_handler
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
 )

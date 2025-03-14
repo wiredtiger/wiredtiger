@@ -28,17 +28,9 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     TAILQ_INIT(&conn->collqh);                /* Collator list */
     TAILQ_INIT(&conn->compqh);                /* Compressor list */
     TAILQ_INIT(&conn->encryptqh);             /* Encryptor list */
-    TAILQ_INIT(&conn->extractorqh);           /* Extractor list */
     TAILQ_INIT(&conn->storagesrcqh);          /* Storage source list */
     TAILQ_INIT(&conn->tieredqh);              /* Tiered work unit list */
     TAILQ_INIT(&conn->pfqh);                  /* Pre-fetch reference list */
-
-    TAILQ_INIT(&conn->lsmqh); /* WT_LSM_TREE list */
-
-    /* Setup the LSM work queues. */
-    TAILQ_INIT(&conn->lsm_manager.switchqh);
-    TAILQ_INIT(&conn->lsm_manager.appqh);
-    TAILQ_INIT(&conn->lsm_manager.managerqh);
 
     /* Random numbers. */
     __wt_random_init(&session->rnd);
@@ -71,12 +63,6 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_rwlock_init(session, &conn->hot_backup_lock));
     WT_RWLOCK_INIT_TRACKED(session, &conn->table_lock, table);
 
-    /* Setup serialization for the LSM manager queues. */
-    WT_RET(__wt_spin_init(session, &conn->lsm_manager.app_lock, "LSM application queue lock"));
-    WT_RET(__wt_spin_init(session, &conn->lsm_manager.manager_lock, "LSM manager queue lock"));
-    WT_RET(__wt_spin_init(session, &conn->lsm_manager.switch_lock, "LSM switch queue lock"));
-    WT_RET(__wt_cond_alloc(session, "LSM worker cond", &conn->lsm_manager.work_cond));
-
     /* Initialize the generation manager. */
     __wt_gen_init(session);
 
@@ -87,9 +73,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->block_lock, "block manager"));
     TAILQ_INIT(&conn->blockqh); /* Block manager list */
 
-    conn->ckpt_prep_min = UINT64_MAX;
-    conn->ckpt_time_min = UINT64_MAX;
-    conn->ckpt_scrub_min = UINT64_MAX;
+    __wt_checkpoint_timer_stats_clear(session);
 
 err:
     return (ret);
@@ -139,12 +123,6 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->tiered_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
     __wt_spin_destroy(session, &conn->prefetch_lock);
-
-    /* Free LSM serialization resources. */
-    __wt_spin_destroy(session, &conn->lsm_manager.switch_lock);
-    __wt_spin_destroy(session, &conn->lsm_manager.app_lock);
-    __wt_spin_destroy(session, &conn->lsm_manager.manager_lock);
-    __wt_cond_destroy(session, &conn->lsm_manager.work_cond);
 
     /* Free allocated hash buckets. */
     __wt_free(session, conn->blockhash);

@@ -109,10 +109,10 @@ class EvictStat(Stat):
     prefix = 'cache'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, EvictStat.prefix, desc, flags)
-class JoinStat(Stat):
-    prefix = 'join'
+class LiveRestoreStat(Stat):
+    prefix = 'live-restore'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, JoinStat.prefix, desc, flags)
+        Stat.__init__(self, name, LiveRestoreStat.prefix, desc, flags)
 class LockStat(Stat):
     prefix = 'lock'
     def __init__(self, name, desc, flags=''):
@@ -121,10 +121,6 @@ class LogStat(Stat):
     prefix = 'log'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, LogStat.prefix, desc, flags)
-class LSMStat(Stat):
-    prefix = 'LSM'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, LSMStat.prefix, desc, flags)
 class SessionStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
@@ -207,6 +203,7 @@ conn_stats = [
     ##########################################
     # Backup statistics
     ##########################################
+    BackupStat('backup_bits_clr', 'backup total bits cleared'),
     BackupStat('backup_blocks', 'total modified incremental blocks'),
     BackupStat('backup_cursor_open', 'backup cursor open', 'no_clear,no_scale'),
     BackupStat('backup_dup_open', 'backup duplicate cursor open', 'no_clear,no_scale'),
@@ -245,11 +242,19 @@ conn_stats = [
     ##########################################
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
     BlockStat('block_byte_read', 'bytes read', 'size'),
+    BlockStat('block_byte_read_intl', 'bytes read for internal pages', 'size'),
+    BlockStat('block_byte_read_intl_disk', 'bytes read for internal pages before decompression and decryption', 'size'),
+    BlockStat('block_byte_read_leaf', 'bytes read for leaf pages', 'size'),
+    BlockStat('block_byte_read_leaf_disk', 'bytes read for leaf pages before decompression and decryption', 'size'),
     BlockStat('block_byte_read_mmap', 'bytes read via memory map API', 'size'),
     BlockStat('block_byte_read_syscall', 'bytes read via system call API', 'size'),
     BlockStat('block_byte_write', 'bytes written', 'size'),
     BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_byte_write_compact', 'bytes written by compaction', 'size'),
+    BlockStat('block_byte_write_intl', 'bytes written for internal pages before compression and encryption', 'size'),
+    BlockStat('block_byte_write_intl_disk', 'bytes written for internal pages after compression and encryption', 'size'),
+    BlockStat('block_byte_write_leaf', 'bytes written for leaf pages before compression and encryption', 'size'),
+    BlockStat('block_byte_write_leaf_disk', 'bytes written for leaf pages after compression and encryption', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
     BlockStat('block_map_read', 'mapped blocks read'),
@@ -279,6 +284,8 @@ conn_stats = [
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
+    CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
+    CacheStat('cache_updates_txn_uncommitted_count', 'updates in uncommitted txn - count', 'no_clear,no_scale,size'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
     CacheStat('npos_evict_walk_max', 'eviction walk restored - had to walk this many pages', 'max_aggregate,no_scale'),
@@ -316,6 +323,7 @@ conn_stats = [
     EvictStat('eviction_internal_pages_already_queued', 'internal pages seen by eviction walk that are already queued'),
     EvictStat('eviction_internal_pages_queued', 'internal pages queued for eviction'),
     EvictStat('eviction_internal_pages_seen', 'internal pages seen by eviction walk'),
+    EvictStat('eviction_interupted_by_app', 'application requested eviction interrupt'),
     EvictStat('eviction_maximum_milliseconds', 'maximum milliseconds spent at a single eviction', 'no_clear,no_scale,size'),
     EvictStat('eviction_maximum_page_size', 'maximum page size seen at eviction', 'no_clear,no_scale,size'),
     EvictStat('eviction_pages_already_queued', 'pages seen by eviction walk that are already queued'),
@@ -342,6 +350,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_trees_eviction_disabled', 'eviction server skips trees that disable eviction'),
     EvictStat('eviction_server_skip_trees_not_useful_before', 'eviction server skips trees that were not useful before'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
+    EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
     EvictStat('eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
     EvictStat('eviction_server_skip_unwanted_tree', 'eviction server skips tree that we do not want to evict'),
     EvictStat('eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
@@ -528,6 +537,12 @@ conn_stats = [
     DhandleStat('dh_sweeps', 'connection sweeps'),
 
     ##########################################
+    # Live Restore statistics
+    ##########################################
+    LiveRestoreStat('live_restore_state', 'live restore state', 'no_clear,no_scale'),
+    LiveRestoreStat('live_restore_work_remaining', 'the number of files remaining for live restore completion', 'no_clear,no_scale'),
+
+    ##########################################
     # Locking statistics
     ##########################################
     LockStat('lock_btree_page_count', 'btree page lock acquisitions'),
@@ -604,18 +619,6 @@ conn_stats = [
     LogStat('log_write_lsn_skip', 'log server thread write LSN walk skipped'),
     LogStat('log_writes', 'log write operations'),
     LogStat('log_zero_fills', 'log files manually zero-filled'),
-
-    ##########################################
-    # LSM statistics
-    ##########################################
-    LSMStat('lsm_rows_merged', 'rows merged in an LSM tree'),
-    LSMStat('lsm_work_queue_app', 'application work units currently queued', 'no_clear,no_scale'),
-    LSMStat('lsm_work_queue_manager', 'merge work units currently queued', 'no_clear,no_scale'),
-    LSMStat('lsm_work_queue_max', 'tree queue hit maximum'),
-    LSMStat('lsm_work_queue_switch', 'switch work units currently queued', 'no_clear,no_scale'),
-    LSMStat('lsm_work_units_created', 'tree maintenance operations scheduled'),
-    LSMStat('lsm_work_units_discarded', 'tree maintenance operations discarded'),
-    LSMStat('lsm_work_units_done', 'tree maintenance operations executed'),
 
     ##########################################
     # Performance Histogram Stats
@@ -706,12 +709,11 @@ conn_stats = [
     SessionOpStat('session_table_compact_timeout', 'table compact timeout', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_fail', 'table create failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_fail', 'table create with import failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_create_import_repair', 'table create with import repair calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
-    SessionOpStat('session_table_rename_fail', 'table rename failed calls', 'no_clear,no_scale'),
-    SessionOpStat('session_table_rename_success', 'table rename successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_fail', 'table salvage failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_success', 'table salvage successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_truncate_fail', 'table truncate failed calls', 'no_clear,no_scale'),
@@ -785,11 +787,14 @@ conn_stats = [
     ##########################################
     # Yield statistics
     ##########################################
+    YieldStat('application_cache_interruptible_ops', 'application thread operations waiting for interruptible cache eviction'),
+    YieldStat('application_cache_interruptible_time', 'application thread time waiting for interruptible cache eviction (usecs)'),
     YieldStat('application_cache_ops', 'application thread operations waiting for cache'),
     YieldStat('application_cache_time', 'application thread time waiting for cache (usecs)'),
+    YieldStat('application_cache_uninterruptible_ops', 'application thread operations waiting for mandatory cache eviction'),
+    YieldStat('application_cache_uninterruptible_time', 'application thread time waiting for mandatory cache eviction (usecs)'),
     YieldStat('application_evict_snapshot_refreshed', 'application thread snapshot refreshed for eviction'),
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
-    YieldStat('conn_close_blocked_lsm', 'connection close yielded for lsm manager shutdown'),
     YieldStat('dhandle_lock_blocked', 'data handle lock yielded'),
     YieldStat('page_busy_blocked', 'page acquire busy blocked'),
     YieldStat('page_del_rollback_blocked', 'page delete rollback time sleeping for state change (usecs)'),
@@ -934,20 +939,6 @@ dsrc_stats = [
     CursorStat('cursor_update', 'update calls'),
     CursorStat('cursor_update_bytes', 'update key and value bytes', 'size'),
     CursorStat('cursor_update_bytes_changed', 'update value size change', 'size'),
-
-    ##########################################
-    # LSM statistics
-    ##########################################
-    LSMStat('bloom_count', 'bloom filters in the LSM tree', 'no_scale'),
-    LSMStat('bloom_false_positive', 'bloom filter false positives'),
-    LSMStat('bloom_hit', 'bloom filter hits'),
-    LSMStat('bloom_miss', 'bloom filter misses'),
-    LSMStat('bloom_page_evict', 'bloom filter pages evicted from cache'),
-    LSMStat('bloom_page_read', 'bloom filter pages read into cache'),
-    LSMStat('bloom_size', 'total size of bloom filters', 'no_scale,size'),
-    LSMStat('lsm_chunk_count', 'chunks in the LSM tree', 'no_scale'),
-    LSMStat('lsm_generation_max', 'highest merge generation in the LSM tree', 'max_aggregate,no_scale'),
-    LSMStat('lsm_lookup_no_bloom', 'queries that could have benefited from a Bloom filter that did not exist'),
 
     ##########################################
     # Reconciliation statistics
@@ -1125,12 +1116,6 @@ conn_dsrc_stats = [
     CursorErrorStat('cursor_update_error', 'cursor update calls that return an error'),
 
     ##########################################
-    # LSM statistics
-    ##########################################
-    LSMStat('lsm_checkpoint_throttle', 'sleep for LSM checkpoint throttle'),
-    LSMStat('lsm_merge_throttle', 'sleep for LSM merge throttle'),
-
-    ##########################################
     # Reconciliation statistics
     ##########################################
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
@@ -1187,26 +1172,18 @@ conn_dsrc_stats = [
 ]
 
 ##########################################
-# Cursor Join statistics
-##########################################
-join_stats = [
-    JoinStat('bloom_false_positive', 'bloom filter false positives'),
-    JoinStat('bloom_insert', 'items inserted into a bloom filter'),
-    JoinStat('iterated', 'items iterated'),
-    JoinStat('main_access', 'accesses to the main table'),
-    JoinStat('membership_check', 'checks that conditions of membership are satisfied'),
-]
-
-##########################################
 # Session statistics
 ##########################################
 session_stats = [
     SessionStat('bytes_read', 'bytes read into cache'),
     SessionStat('bytes_write', 'bytes written from cache'),
     SessionStat('cache_time', 'time waiting for cache (usecs)'),
+    SessionStat('cache_time_interruptible', 'time waiting for cache interruptible eviction (usecs)'),
+    SessionStat('cache_time_mandatory', 'time waiting for mandatory cache eviction (usecs)'),
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),
-    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn'),
+    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn', 'no_clear,no_scale,size'),
+    SessionStat('txn_updates', 'number of updates in this txn', 'no_clear,no_scale,size'),
     SessionStat('write_time', 'page write from cache to disk time (usecs)'),
 ]

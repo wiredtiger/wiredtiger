@@ -350,7 +350,7 @@ __wti_rts_btree_walk_btree_apply(
      * to confirm that the btree is modified in the previous restart cycle.
      */
     if (WT_CHECK_RECOVERY_FLAG_TXNID(session, rollback_txnid) &&
-      (write_gen >= S2C(session)->last_ckpt_base_write_gen)) {
+      (write_gen >= S2C(session)->ckpt.last_base_write_gen)) {
         has_txn_updates_gt_than_ckpt_snap = true;
         /* Increment the inconsistent checkpoint stats counter. */
         WT_STAT_CONN_DSRC_INCR(session, txn_rts_inconsistent_ckpt);
@@ -445,7 +445,7 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
       WT_RTS_VERB_TAG_TREE_LOGGING
       "rollback to stable connection_logging_enabled=%s and btree_logging_enabled=%s",
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
+      F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) ? "true" : "false",
       F_ISSET(btree, WT_BTREE_LOGGED) ? "true" : "false");
 
     /* Files with commit-level durability (without timestamps), don't get their commits wiped. */

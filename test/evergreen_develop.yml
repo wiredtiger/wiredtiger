@@ -16,8 +16,6 @@ variables:
   tasks:
     - name: compile
     - ".btree-perf"
-    # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
-    # - ".lsm-perf"
     - ".stress-perf"
     - ".checkpoint-perf"
     - ".evict-perf"
@@ -49,6 +47,15 @@ buildvariants:
   display_name: Ubuntu 20.04 Performance tests (ARM64)
   run_on:
     - ubuntu2004-arm64-perf-testing
+  expansions:
+    <<: *ubuntu2004-perf-tests-expansions-template
+    collection: AllPerfTestsARM64
+
+- <<: *perf-tasks-template
+  name: amazon2023-perf-tests-arm64
+  display_name: (ARMV9) Amazon Linux 2023 Performance tests (ARM64)
+  run_on:
+   - amazon2023-arm64-latest-large-m8g
   expansions:
     <<: *ubuntu2004-perf-tests-expansions-template
     collection: AllPerfTestsARM64
@@ -97,6 +104,7 @@ buildvariants:
     - name: generate-coverage-report
     - name: cyclomatic-complexity
     - name: code-change-report
+    - name: modularity_metrics
 
 - name: compatibility-tests-less-frequent
   display_name: Compatibility tests (less frequent)

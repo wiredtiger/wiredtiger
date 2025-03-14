@@ -141,7 +141,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (evict->eviction_updates_target < DBL_EPSILON) {
         WT_CONFIG_DEBUG(session,
           "config eviction_updates_target (%f) cannot be zero. Setting "
-          "to 50%% of eviction_updates_target (%f).",
+          "to 50%% of eviction_dirty_target (%f).",
           evict->eviction_updates_target, evict->eviction_dirty_target / 2);
         evict->eviction_updates_target = evict->eviction_dirty_target / 2;
     }
@@ -149,7 +149,7 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (evict->eviction_updates_trigger < DBL_EPSILON) {
         WT_CONFIG_DEBUG(session,
           "config eviction_updates_trigger (%f) cannot be zero. Setting "
-          "to 50%% of eviction_updates_trigger (%f).",
+          "to 50%% of eviction_dirty_trigger (%f).",
           evict->eviction_updates_trigger, evict->eviction_dirty_trigger / 2);
         evict->eviction_updates_trigger = evict->eviction_dirty_trigger / 2;
     }
@@ -222,9 +222,20 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     WT_RET(__wt_config_gets(session, cfg, "eviction.evict_sample_inmem", &cval));
     conn->evict_sample_inmem = cval.val != 0;
 
+    WT_RET(__wt_config_gets(session, cfg, "eviction.evict_use_softptr", &cval));
+    __wt_atomic_storebool(&conn->evict_use_npos, cval.val != 0);
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction.legacy_page_visit_strategy", &cval));
+    conn->evict_legacy_page_visit_strategy = cval.val != 0;
+
     /* Retrieve the wait time and convert from milliseconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
-    evict->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
+    if (cval.val > 1)
+        evict->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
+    else if (cval.val == 1)
+        evict->cache_max_wait_us = 1;
+    else
+        evict->cache_max_wait_us = 0;
 
     /* Retrieve the timeout value and convert from seconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_stuck_timeout_ms", &cval));
@@ -290,8 +301,8 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET_MSG(NULL, ret, "Failed to create session for eviction walks");
 
     /* Allocate the LRU eviction queue. */
-    evict->evict_slots = WT_EVICT_WALK_BASE + WT_EVICT_WALK_INCR;
-    for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
+    evict->evict_slots = WTI_EVICT_WALK_BASE + WTI_EVICT_WALK_INCR;
+    for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
         WT_RET(__wt_calloc_def(session, evict->evict_slots, &evict->evict_queues[i].evict_queue));
         WT_RET(__wt_spin_init(session, &evict->evict_queues[i].evict_lock, "evict queue"));
     }
@@ -299,7 +310,7 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     /* Ensure there are always non-NULL queues. */
     evict->evict_current_queue = evict->evict_fill_queue = &evict->evict_queues[0];
     evict->evict_other_queue = &evict->evict_queues[1];
-    evict->evict_urgent_queue = &evict->evict_queues[WT_EVICT_URGENT_QUEUE];
+    evict->evict_urgent_queue = &evict->evict_queues[WTI_EVICT_URGENT_QUEUE];
 
     /*
      * We get/set some values in the evict statistics (rather than have two copies), configure them.
@@ -337,7 +348,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
     if (evict->walk_session != NULL)
         WT_TRET(__wt_session_close_internal(evict->walk_session));
 
-    for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
+    for (i = 0; i < WTI_EVICT_QUEUE_MAX; ++i) {
         __wt_spin_destroy(session, &evict->evict_queues[i].evict_lock);
         __wt_free(session, evict->evict_queues[i].evict_queue);
     }

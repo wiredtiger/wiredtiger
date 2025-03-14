@@ -8,7 +8,8 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1 /* 1 second */
+#define WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL 5 /* 5 seconds */
+#define WT_CHECKPOINT_CLEANUP_FILE_INTERVAL 1            /* 1 second */
 #define WT_URI_FILE_PREFIX "file:"
 
 /*
@@ -579,7 +580,7 @@ __checkpoint_cleanup_eligibility(WT_SESSION_IMPL *session, const char *uri, cons
      * Logged table. The logged tables do not support timestamps, so we need to check for obsolete
      * pages in them.
      */
-    if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED)) {
+    if (F_ISSET(&S2C(session)->log_mgr, WT_LOG_ENABLED)) {
         WT_RET(__wt_config_getones(session, config, "log.enabled", &cval));
         if (cval.val)
             return (true);
@@ -749,7 +750,7 @@ __checkpoint_cleanup(void *arg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t last, now;
+    uint64_t cleanup_interval, last, now;
     bool cv_signalled;
 
     session = arg;
@@ -757,8 +758,12 @@ __checkpoint_cleanup(void *arg)
 
     __wt_seconds(session, &last);
     for (;;) {
+        /* We want to ensure the thread checks often enough if it is supposed to work. */
+        cleanup_interval =
+          WT_MIN(conn->cc_cleanup.interval, WT_CHECKPOINT_CLEANUP_DEFAULT_WAKE_UP_INTERVAL);
+
         /* Check periodically in case the signal was missed. */
-        __wt_cond_wait_signal(session, conn->cc_cleanup.cond, 5 * WT_MILLION,
+        __wt_cond_wait_signal(session, conn->cc_cleanup.cond, cleanup_interval * WT_MILLION,
           __checkpoint_cleanup_run_chk, &cv_signalled);
 
         /* Check if we're quitting. */

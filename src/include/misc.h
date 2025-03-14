@@ -320,7 +320,7 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
 
 /* Check if a string matches a suffix. */
 #define WT_SUFFIX_MATCH(str, sfx) \
-    (strlen(str) >= strlen(sfx) && strcmp(&str[strlen(str) - strlen(sfx)], sfx) == 0)
+    (strlen(str) >= strlen(sfx) && strcmp(&(str)[strlen(str) - strlen(sfx)], sfx) == 0)
 
 /* Check if a string matches a prefix, and move past it. */
 #define WT_PREFIX_SKIP(str, pfx) (WT_PREFIX_MATCH(str, pfx) ? ((str) += strlen(pfx), 1) : 0)
@@ -483,5 +483,18 @@ union __wt_rand_state {
             WT_ERR(__wt_buf_extend(session, buf, (buf)->size + __len + 1));     \
         }                                                                       \
     } while (0)
-
+/*
+ * __wt_atomic_decrement_if_positive --
+ *     Use compare and swap to atomically decrement value by 1 if it's positive.
+ */
+static WT_INLINE void
+__wt_atomic_decrement_if_positive(uint32_t *valuep)
+{
+    uint32_t old_value;
+    do {
+        old_value = __wt_atomic_load32(valuep);
+        if (old_value == 0)
+            break;
+    } while (!__wt_atomic_cas32(valuep, old_value, old_value - 1));
+}
 #endif /* __WT_MISC_H */

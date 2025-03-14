@@ -103,7 +103,6 @@ create_write_buffer(WT_BM *bm, std::shared_ptr<mock_session> session, std::strin
     test_and_validate_write_size(bm, session, buf_memsize, allocation_size);
 
     // Initialize the buffer with aligned size.
-    F_SET(buf, WT_ITEM_ALIGNED);
     REQUIRE(__wt_buf_initsize(session->get_wt_session_impl(), buf, buf_memsize) == 0);
 
     /*
@@ -145,9 +144,9 @@ setup_bm(std::shared_ptr<mock_session> &session, WT_BM *bm, const std::string &f
     config_parser cp({{"allocation_size", allocation_size}, {"block_allocation", block_allocation},
       {"os_cache_max", os_cache_max}, {"os_cache_dirty_max", os_cache_dirty_max},
       {"access_pattern_hint", access_pattern}});
-    REQUIRE(
-      __wt_block_open(session->get_wt_session_impl(), file_path.c_str(), WT_TIERED_OBJECTID_NONE,
-        cp.get_config_array(), false, false, false, std::stoi(allocation_size), &bm->block) == 0);
+    REQUIRE(__wt_block_open(session->get_wt_session_impl(), file_path.c_str(),
+              WT_TIERED_OBJECTID_NONE, cp.get_config_array(), false, false, false,
+              std::stoi(allocation_size), NULL, &bm->block) == 0);
 
     // Initialize the extent lists inside the block handle.
     REQUIRE(__wti_block_ckpt_init(session->get_wt_session_impl(), &bm->block->live, nullptr) == 0);

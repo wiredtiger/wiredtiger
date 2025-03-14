@@ -173,26 +173,13 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     chunkcache_hit = full_checksum_mismatch = false;
     check_size = 0;
     failures = 0;
+    bufsize = size;
     max_failures = F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED) ? 2 : 1;
     __wt_verbose_debug2(session, WT_VERB_READ,
       "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32, (uintmax_t)offset, size, checksum);
 
     WT_STAT_CONN_INCR(session, block_read);
     WT_STAT_CONN_INCRV(session, block_byte_read, size);
-
-    /*
-     * Grow the buffer as necessary and read the block. Buffers should be aligned for reading, but
-     * there are lots of buffers (for example, file cursors have two buffers each, key and value),
-     * and it's difficult to be sure we've found all of them. If the buffer isn't aligned, it's an
-     * easy fix: set the flag and guarantee we reallocate it. (Most of the time on reads, the buffer
-     * memory has not yet been allocated, so we're not adding any additional processing time.)
-     */
-    if (F_ISSET(buf, WT_ITEM_ALIGNED))
-        bufsize = size;
-    else {
-        F_SET(buf, WT_ITEM_ALIGNED);
-        bufsize = WT_MAX(size, buf->memsize + 10);
-    }
 
     /*
      * Ensure we don't read information that isn't there. It shouldn't ever happen, but it's a cheap
@@ -236,6 +223,12 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
         __wt_block_header_byteswap_copy(blk, &swap);
         check_size = F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ? size : WT_BLOCK_COMPRESS_SKIP;
         if (swap.checksum == checksum) {
+            /*
+             * Set block header checksum to 0 to allow the checksum to be computed, as its
+             * calculation includes the block header. Not clearing it would result in the checksum
+             * being miscalculated. blk->checksum remains cleared, as it will not be revisited
+             * during a B-tree traversal.
+             */
             blk->checksum = 0;
             if (__wt_checksum_match(buf->mem, check_size, checksum)) {
                 /*

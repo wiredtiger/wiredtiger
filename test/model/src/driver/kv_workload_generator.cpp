@@ -59,6 +59,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     truncate = 0.005;
 
     checkpoint = 0.02;
+    checkpoint_crash = 0.002;
     crash = 0.002;
     evict = 0.1;
     restart = 0.002;
@@ -75,6 +76,17 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     nonprepared_transaction_rollback = 0.1;
     prepared_transaction_rollback_after_prepare = 0.1;
     prepared_transaction_rollback_before_prepare = 0.1;
+
+    timing_stress_ckpt_slow = 0.1;
+    timing_stress_ckpt_evict_page = 0.1;
+    timing_stress_ckpt_handle = 0.1;
+    timing_stress_ckpt_stop = 0.1;
+    timing_stress_compact_slow = 0.1;
+    timing_stress_hs_ckpt_delay = 0.1;
+    timing_stress_hs_search = 0.1;
+    timing_stress_hs_sweep_race = 0.1;
+    timing_stress_prepare_ckpt_delay = 0.1;
+    timing_stress_commit_txn_slow = 0.1;
 }
 
 /*
@@ -313,6 +325,40 @@ kv_workload_generator::choose_table(kv_workload_sequence_ptr txn)
 }
 
 /*
+ * kv_workload_generator::generate_connection_config --
+ *     Generate random WiredTiger connection configurations.
+ */
+std::string
+kv_workload_generator::generate_connection_config()
+{
+    std::string wt_env_config;
+    probability_switch(_random.next_float())
+    {
+        probability_case(_spec.timing_stress_ckpt_slow) wt_env_config +=
+          "timing_stress_for_test=[checkpoint_slow]";
+        probability_case(_spec.timing_stress_ckpt_evict_page) wt_env_config +=
+          "timing_stress_for_test=[checkpoint_evict_page]";
+        probability_case(_spec.timing_stress_ckpt_handle) wt_env_config +=
+          "timing_stress_for_test=[checkpoint_handle]";
+        probability_case(_spec.timing_stress_ckpt_stop) wt_env_config +=
+          "timing_stress_for_test=[checkpoint_stop]";
+        probability_case(_spec.timing_stress_compact_slow) wt_env_config +=
+          "timing_stress_for_test=[compact_slow]";
+        probability_case(_spec.timing_stress_hs_ckpt_delay) wt_env_config +=
+          "timing_stress_for_test=[history_store_checkpoint_delay]";
+        probability_case(_spec.timing_stress_hs_search) wt_env_config +=
+          "timing_stress_for_test=[history_store_search]";
+        probability_case(_spec.timing_stress_hs_sweep_race) wt_env_config +=
+          "timing_stress_for_test=[history_store_sweep_race]";
+        probability_case(_spec.timing_stress_prepare_ckpt_delay) wt_env_config +=
+          "timing_stress_for_test=[prepare_checkpoint_delay]";
+        probability_case(_spec.timing_stress_commit_txn_slow) wt_env_config +=
+          "timing_stress_for_test=[commit_transaction_slow]";
+    }
+    return wt_env_config;
+}
+
+/*
  * kv_workload_generator::create_table --
  *     Create a table.
  */
@@ -505,6 +551,14 @@ kv_workload_generator::run()
                 *p << operation::checkpoint();
                 _sequences.push_back(p);
             }
+            probability_case(_spec.checkpoint_crash)
+            {
+                kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
+                  _sequences.size(), kv_workload_sequence_type::checkpoint_crash);
+                uint64_t random_number = _random.next_uint64(1000);
+                *p << operation::checkpoint_crash(random_number);
+                _sequences.push_back(p);
+            }
             probability_case(_spec.crash)
             {
                 kv_workload_sequence_ptr p = std::make_shared<kv_workload_sequence>(
@@ -625,6 +679,7 @@ kv_workload_generator::run()
                     ckpt_oldest = k_timestamp_none;
             }
             if (s->sequence->type() == kv_workload_sequence_type::crash ||
+              s->sequence->type() == kv_workload_sequence_type::checkpoint_crash ||
               s->sequence->type() == kv_workload_sequence_type::restart) {
                 oldest = ckpt_oldest;
                 stable = ckpt_stable;
@@ -667,6 +722,7 @@ kv_workload_generator::run()
 
         /* If the operation resulted in a database crash or restart, stop all started sequences. */
         if (std::holds_alternative<operation::crash>(op) ||
+          std::holds_alternative<operation::checkpoint_crash>(op) ||
           std::holds_alternative<operation::restart>(op)) {
             t.complete_all();
             continue;

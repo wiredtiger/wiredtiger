@@ -99,6 +99,10 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
             "read-committed" :
             (dump_session->isolation == WT_ISO_READ_UNCOMMITTED ? "read-uncommitted" :
                                                                   "snapshot")));
+        WT_ERR(__wt_msg(session, "  last saved error code: %d", dump_session->err_info.err));
+        WT_ERR(__wt_msg(
+          session, "  last saved sub-level error code: %d", dump_session->err_info.sub_level_err));
+        WT_ERR(__wt_msg(session, "  last saved error message: %s", dump_session->err_info.err_msg));
         WT_ERR(__wt_msg(session, "  Transaction:"));
         WT_ERR(__wt_verbose_dump_txn_one(session, dump_session, 0, NULL));
     } else {
@@ -133,4 +137,69 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
 err:
     __wt_scr_free(session, &buf);
     return (ret);
+}
+
+/*
+ * __wt_session_reset_last_error --
+ *     Reset all variables in the session error information structure back to default.
+ */
+void
+__wt_session_reset_last_error(WT_SESSION_IMPL *session)
+{
+    if (session == NULL || !F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+        return;
+
+    WT_ERROR_INFO *err_info = &(session->err_info);
+    err_info->err = 0;
+    err_info->sub_level_err = WT_NONE;
+    err_info->err_msg = WT_ERROR_INFO_SUCCESS;
+}
+
+/*
+ * __wt_session_set_last_error --
+ *     Record errors that occur in the lifetime of a session API call.
+ */
+void
+__wt_session_set_last_error(
+  WT_SESSION_IMPL *session, int err, int sub_level_err, const char *fmt, ...)
+{
+    WT_DECL_RET;
+
+    /*
+     * Only update the error struct if an error occurs during a session API call, or if the error
+     * struct is being initialized. If the session is NULL, there is nothing to update.
+     */
+    if (session == NULL || !F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+        return;
+
+    /* Don't overwrite the err_info struct if it has been previously set. */
+    if (session->err_info.err != 0)
+        return;
+
+    /* Validate the incoming fmt string and sub level error code. */
+    WT_ASSERT(session, __wt_is_valid_sub_level_error(sub_level_err));
+    WT_ASSERT(session, fmt != NULL);
+
+    /*
+     * The entry of the session API call ensures that error information is set to default. Therefore
+     * call this function only when an actual error has happened.
+     */
+    WT_ASSERT(session, err != 0);
+    /*
+     * Load error codes and message into err_info. If the message is empty use static string
+     * buffers. Otherwise, format the message into the buffer.
+     */
+    WT_ERROR_INFO *err_info = &(session->err_info);
+    err_info->err = err;
+    err_info->sub_level_err = sub_level_err;
+    if (strlen(fmt) == 0)
+        err_info->err_msg = WT_ERROR_INFO_EMPTY;
+    else {
+        WT_VA_ARGS_BUF_FORMAT(session, &(err_info->err_msg_buf), fmt, false);
+        err_info->err_msg = err_info->err_msg_buf.data;
+    }
+
+    return;
+err:
+    WT_ASSERT_ALWAYS(session, false, "Error encountered when formatting into a scratch buffer");
 }

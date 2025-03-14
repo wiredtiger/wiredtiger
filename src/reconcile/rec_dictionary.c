@@ -7,15 +7,17 @@
  */
 
 #include "wt_internal.h"
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 
 /*
  * __rec_dictionary_skip_search --
  *     Search a dictionary skiplist.
  */
-static WT_REC_DICTIONARY *
-__rec_dictionary_skip_search(WT_REC_DICTIONARY **head, uint64_t hash)
+static WTI_REC_DICTIONARY *
+__rec_dictionary_skip_search(WTI_REC_DICTIONARY **head, uint64_t hash)
 {
-    WT_REC_DICTIONARY **e;
+    WTI_REC_DICTIONARY **e;
     int i;
 
     /*
@@ -49,9 +51,9 @@ __rec_dictionary_skip_search(WT_REC_DICTIONARY **head, uint64_t hash)
  */
 static void
 __rec_dictionary_skip_search_stack(
-  WT_REC_DICTIONARY **head, WT_REC_DICTIONARY ***stack, uint64_t hash)
+  WTI_REC_DICTIONARY **head, WTI_REC_DICTIONARY ***stack, uint64_t hash)
 {
-    WT_REC_DICTIONARY **e;
+    WTI_REC_DICTIONARY **e;
     int i;
 
     /*
@@ -70,9 +72,9 @@ __rec_dictionary_skip_search_stack(
  *     Insert an entry into the dictionary skip-list.
  */
 static void
-__rec_dictionary_skip_insert(WT_REC_DICTIONARY **head, WT_REC_DICTIONARY *e, uint64_t hash)
+__rec_dictionary_skip_insert(WTI_REC_DICTIONARY **head, WTI_REC_DICTIONARY *e, uint64_t hash)
 {
-    WT_REC_DICTIONARY **stack[WT_SKIP_MAXDEPTH];
+    WTI_REC_DICTIONARY **stack[WT_SKIP_MAXDEPTH];
     u_int i;
 
     /* Insert the new entry into the skiplist. */
@@ -88,7 +90,7 @@ __rec_dictionary_skip_insert(WT_REC_DICTIONARY **head, WT_REC_DICTIONARY *e, uin
  *     Allocate and initialize the dictionary.
  */
 int
-__wti_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u_int slots)
+__wti_rec_dictionary_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, u_int slots)
 {
     u_int depth, i;
 
@@ -96,11 +98,11 @@ __wti_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u_int slots
     __wti_rec_dictionary_free(session, r);
 
     r->dictionary_slots = slots;
-    WT_RET(__wt_calloc(session, r->dictionary_slots, sizeof(WT_REC_DICTIONARY *), &r->dictionary));
+    WT_RET(__wt_calloc(session, r->dictionary_slots, sizeof(WTI_REC_DICTIONARY *), &r->dictionary));
     for (i = 0; i < r->dictionary_slots; ++i) {
         depth = __wt_skip_choose_depth(session);
         WT_RET(__wt_calloc(session, 1,
-          sizeof(WT_REC_DICTIONARY) + depth * sizeof(WT_REC_DICTIONARY *), &r->dictionary[i]));
+          sizeof(WTI_REC_DICTIONARY) + depth * sizeof(WTI_REC_DICTIONARY *), &r->dictionary[i]));
         r->dictionary[i]->depth = depth;
     }
     return (0);
@@ -111,7 +113,7 @@ __wti_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u_int slots
  *     Free the dictionary.
  */
 void
-__wti_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__wti_rec_dictionary_free(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     u_int i;
 
@@ -133,7 +135,7 @@ __wti_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     potential split).
  */
 void
-__wti_rec_dictionary_reset(WT_RECONCILE *r)
+__wti_rec_dictionary_reset(WTI_RECONCILE *r)
 {
     if (r->dictionary_slots) {
         r->dictionary_next = 0;
@@ -142,14 +144,14 @@ __wti_rec_dictionary_reset(WT_RECONCILE *r)
 }
 
 /*
- * __wt_rec_dictionary_lookup --
+ * __wti_rec_dictionary_lookup --
  *     Check the dictionary for a matching value on this page.
  */
 int
-__wt_rec_dictionary_lookup(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *val, WT_REC_DICTIONARY **dpp)
+__wti_rec_dictionary_lookup(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *val, WTI_REC_DICTIONARY **dpp)
 {
-    WT_REC_DICTIONARY *dp, *next;
+    WTI_REC_DICTIONARY *dp, *next;
     uint64_t hash;
     bool match;
 

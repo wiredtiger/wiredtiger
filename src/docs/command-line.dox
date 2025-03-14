@@ -22,6 +22,8 @@ Specify an encryption secret key for the ::wiredtiger_open function.
 Specify a database home directory.
 @par \c -L
 Forcibly turn off logging subsystem for debugging purposes.
+@par \c -l directory
+Open a database that is in the process of being live restored. This parameter takes the path to the source directory as an argument.
 @par \c -m
 Verify the WiredTiger metadata as part of opening the database.
 @par \c -R
@@ -410,18 +412,6 @@ The \c read command exits non-zero if a specified record is not found.
 
 @subsection util_read_options Options
 The \c read command has no command-specific options.
-
-<hr>
-@section util_rename wt rename
-Rename a table.
-
-The \c rename command renames the specified table.
-
-@subsection util_rename_synopsis Synopsis
-`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] rename uri new-uri`
-
-@subsection util_rename_options Options
-The \c rename command has no command-specific options.
 
 <hr>
 @section util_salvage wt salvage

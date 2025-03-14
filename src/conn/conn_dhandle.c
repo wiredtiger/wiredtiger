@@ -39,7 +39,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     char *metaconf, *tmp;
-    const char *base, *cfg[4], *strip;
+    const char *base, *cfg[5], *strip;
 
     dhandle = session->dhandle;
     base = NULL;
@@ -65,7 +65,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
      * in metaconf. If we fail before we copy a reference to it into the object's configuration
      * array, we must free it, after the copy, we don't want to free it.
      */
-    WT_ERR(__wt_calloc_def(session, 3, &dhandle->cfg));
+    WT_ERR(__wt_calloc_def(session, 4, &dhandle->cfg));
     switch (__wt_atomic_load_enum(&dhandle->type)) {
     case WT_DHANDLE_TYPE_BTREE:
     case WT_DHANDLE_TYPE_TIERED:
@@ -84,14 +84,15 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         cfg[0] = metaconf;
         cfg[1] = "checkpoint=()";
         cfg[2] = "checkpoint_backup_info=()";
-        cfg[3] = NULL;
+        cfg[3] = "live_restore=";
+        cfg[4] = NULL;
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, file_meta), &dhandle->cfg[0]));
         WT_ASSERT(session, dhandle->meta_base == NULL);
         WT_ASSERT(session, dhandle->orig_meta_base == NULL);
         WT_ERR(__wt_config_collapse(session, cfg, &tmp));
         /*
-         * Now strip out the checkpoint related items from the configuration string and that is now
-         * our base metadata string.
+         * Now strip out the checkpoint and live restore related items from the configuration string
+         * and that is now our base metadata string.
          */
         cfg[0] = tmp;
         cfg[1] = NULL;
@@ -100,7 +101,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
               "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,flush_time=,flush_timestamp=,"
               "last=,tiers=()";
         else
-            strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=";
+            strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,live_restore=";
         WT_ERR(__wt_config_merge(session, cfg, strip, &base));
         __wt_free(session, tmp);
         break;
@@ -323,7 +324,8 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         WT_ASSERT_ALWAYS(session, btree->max_upd_txn != WT_TXN_ABORTED,
           "Assert failure: session: %s: btree->max_upd_txn == WT_TXN_ABORTED", session->name);
         if (check_visibility && !__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
-            return (EBUSY);
+            WT_RET_SUB(session, EBUSY, WT_UNCOMMITTED_DATA,
+              "the table has uncommitted data and cannot be dropped yet");
 
         /* Turn off eviction. */
         WT_RET(__wt_evict_file_exclusive_on(session));
@@ -635,12 +637,9 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t time_diff, time_start, time_stop;
     bool skip;
-
-    conn = S2C(session);
 
     /* Always apply the name function, if supplied. */
     skip = false;
@@ -653,7 +652,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 
     /*
      * We need to pull the handle into the session handle cache and make sure it's referenced to
-     * stop other internal code dropping the handle (e.g in LSM when cleaning up obsolete chunks).
+     * stop other internal code dropping the handle.
      */
     if ((ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
         return (ret == EBUSY ? 0 : ret);
@@ -664,13 +663,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     if (time_start != 0) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-        if (F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT)) {
-            ++conn->ckpt_skip;
-            conn->ckpt_skip_time += time_diff;
-        } else {
-            ++conn->ckpt_apply;
-            conn->ckpt_apply_time += time_diff;
-        }
+        __wt_checkpoint_apply_or_skip_handle_stats(session, time_diff);
     }
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
@@ -713,8 +706,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
         time_start = 0;
         if (WT_SESSION_IS_CHECKPOINT(session)) {
             time_start = __wt_clock(session);
-            conn->ckpt_apply = conn->ckpt_skip = 0;
-            conn->ckpt_apply_time = conn->ckpt_skip_time = 0;
+            __wt_checkpoint_handle_stats_clear(session);
             F_SET(conn, WT_CONN_CKPT_GATHER);
         }
         for (dhandle = NULL;;) {
@@ -734,18 +726,7 @@ done:
             F_CLR(conn, WT_CONN_CKPT_GATHER);
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-            WT_STAT_CONN_SET(session, checkpoint_handle_applied, conn->ckpt_apply);
-            WT_STAT_CONN_SET(session, checkpoint_handle_apply_duration, conn->ckpt_apply_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_dropped, conn->ckpt_drop);
-            WT_STAT_CONN_SET(session, checkpoint_handle_drop_duration, conn->ckpt_drop_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_duration, time_diff);
-            WT_STAT_CONN_SET(session, checkpoint_handle_locked, conn->ckpt_lock);
-            WT_STAT_CONN_SET(session, checkpoint_handle_lock_duration, conn->ckpt_lock_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_meta_checked, conn->ckpt_meta_check);
-            WT_STAT_CONN_SET(
-              session, checkpoint_handle_meta_check_duration, conn->ckpt_meta_check_time);
-            WT_STAT_CONN_SET(session, checkpoint_handle_skipped, conn->ckpt_skip);
-            WT_STAT_CONN_SET(session, checkpoint_handle_skip_duration, conn->ckpt_skip_time);
+            __wt_checkpoint_handle_stats(session, time_diff);
             WT_STAT_CONN_SET(session, checkpoint_handle_walked, conn->dhandle_count);
         }
         return (0);

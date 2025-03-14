@@ -231,19 +231,18 @@ test_bulk(THREAD_DATA *td)
     WT_CURSOR *c;
     WT_DECL_RET;
     WT_SESSION *session;
-    bool create;
+
+    /* Bulk operations are incompatible with transactions. */
+    if (use_txn)
+        return;
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    if (use_txn)
-        testutil_check(session->begin_transaction(session, NULL));
-    create = false;
     if ((ret = session->create(session, uri, config)) != 0)
         if (ret != EEXIST && ret != EBUSY)
             testutil_die(ret, "session.create");
 
     if (ret == 0) {
-        create = true;
         if ((ret = session->open_cursor(session, uri, NULL, "bulk", &c)) == 0) {
             __wt_yield();
             testutil_check(c->close(c));
@@ -251,18 +250,6 @@ test_bulk(THREAD_DATA *td)
             testutil_die(ret, "session.open_cursor bulk");
     }
 
-    if (use_txn) {
-        /* If create fails, rollback else will commit.*/
-        if (!create)
-            ret = session->rollback_transaction(session, NULL);
-        else
-            ret = session->commit_transaction(session, NULL);
-
-        if (ret == EINVAL) {
-            fprintf(stderr, "BULK: EINVAL on %s. ABORT\n", create ? "commit" : "rollback");
-            testutil_die(ret, "session.commit bulk");
-        }
-    }
     testutil_check(session->close(session, NULL));
 }
 
@@ -278,6 +265,10 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
     WT_SESSION *session;
     char dropconf[128], new_uri[64];
 
+    /* Bulk operations are incompatible with transactions. */
+    if (use_txn)
+        return;
+
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     /*
@@ -286,8 +277,6 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
      */
     testutil_snprintf(new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, unique_id);
 
-    if (use_txn)
-        testutil_check(session->begin_transaction(session, NULL));
     testutil_check(session->create(session, new_uri, config));
 
     __wt_yield();
@@ -308,8 +297,6 @@ test_bulk_unique(THREAD_DATA *td, uint64_t unique_id, int force)
         if (ret != EBUSY)
             testutil_die(ret, "session.drop: %s %s", new_uri, dropconf);
 
-    if (use_txn && (ret = session->commit_transaction(session, NULL)) != 0 && ret != EINVAL)
-        testutil_die(ret, "session.commit bulk unique");
     testutil_check(session->close(session, NULL));
 }
 
@@ -510,6 +497,21 @@ get_all_committed_ts(void)
 }
 
 /*
+ * is_set_timestamp_required --
+ *     Return True if set_timestamp is required.
+ */
+static bool
+is_set_timestamp_required(uint64_t last_ts, uint64_t oldest_ts)
+{
+    /*
+     * The set_timestamp should be invoked only when current oldest timestamp is greater than last
+     * oldest timestamp and the difference is greater than the STABLE_PERIOD.
+     */
+    return ((oldest_ts == stop_timestamp && oldest_ts != last_ts) ||
+      (oldest_ts != UINT64_MAX && oldest_ts > last_ts && oldest_ts - last_ts > STABLE_PERIOD));
+}
+
+/*
  * thread_ts_run --
  *     Runner function for a timestamp thread.
  */
@@ -536,8 +538,7 @@ thread_ts_run(void *arg)
         if (oldest_ts != UINT64_MAX && stop_timestamp != 0 && oldest_ts > stop_timestamp)
             oldest_ts = stop_timestamp;
 
-        if ((oldest_ts == stop_timestamp && oldest_ts != last_ts) ||
-          (oldest_ts != UINT64_MAX && oldest_ts - last_ts > STABLE_PERIOD)) {
+        if (is_set_timestamp_required(last_ts, oldest_ts)) {
             /*
              * Set both the oldest and stable timestamp so that we don't need to maintain read
              * availability at older timestamps.
@@ -690,6 +691,7 @@ thread_run(void *arg)
     FILE *fp;
     THREAD_DATA *td;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
+    WT_DECL_RET;
     WT_ITEM data;
     WT_SESSION *oplog_session, *session;
     uint64_t i, iter, reserved_ts, stable_ts;
@@ -834,11 +836,15 @@ thread_run(void *arg)
         data.size = __wt_random(&td->data_rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
-        testutil_check(cur_coll->insert(cur_coll));
+        if ((ret = cur_coll->insert(cur_coll)) == WT_ROLLBACK)
+            goto rollback;
+        testutil_check(ret);
         data.size = __wt_random(&td->data_rnd) % MAX_VAL;
         data.data = obuf;
         cur_oplog->set_value(cur_oplog, &data);
-        testutil_check(cur_oplog->insert(cur_oplog));
+        if ((ret = cur_oplog->insert(cur_oplog)) == WT_ROLLBACK)
+            goto rollback;
+        testutil_check(ret);
         if (use_ts) {
             /*
              * Run with prepare every once in a while. And also yield after prepare sometimes too.
@@ -888,6 +894,13 @@ thread_run(void *arg)
          */
         if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", stable_ts, i) < 0)
             testutil_die(EIO, "fprintf");
+
+        if (0) {
+rollback:
+            testutil_check(session->rollback_transaction(session, NULL));
+            if (use_prep)
+                testutil_check(oplog_session->rollback_transaction(oplog_session, NULL));
+        }
     }
     /* NOTREACHED */
 }

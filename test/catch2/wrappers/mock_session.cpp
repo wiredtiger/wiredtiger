@@ -38,6 +38,11 @@ mock_session::~mock_session()
             __wt_free(nullptr, _session_impl->dhandle->handle);
         __wt_free(nullptr, _session_impl->dhandle);
     }
+
+    // Free any stored error messages.
+    if (_session_impl->err_info.err_msg != nullptr)
+        __wt_free(nullptr, _session_impl->err_info.err_msg);
+
     // WiredTiger caches any allocated scratch buffer during the lifetime of the test. Free all
     // the memory here.
     __wt_scr_discard(_session_impl);
@@ -47,10 +52,12 @@ mock_session::~mock_session()
 std::shared_ptr<mock_session>
 mock_session::build_test_mock_session()
 {
-    auto mock_connection = mock_connection::build_test_mock_connection();
-
+    std::shared_ptr<mock_connection> mock_connection;
     WT_SESSION_IMPL *session_impl = nullptr;
+
     utils::throw_if_non_zero(__wt_calloc(nullptr, 1, sizeof(WT_SESSION_IMPL), &session_impl));
+    mock_connection = mock_connection::build_test_mock_connection(session_impl);
+
     session_impl->iface.connection = mock_connection->get_wt_connection();
 
     // Construct an object that will now own the two pointers passed in.

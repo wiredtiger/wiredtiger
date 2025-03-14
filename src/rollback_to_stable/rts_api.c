@@ -257,6 +257,7 @@ static void
 __rollback_to_stable_finalize(WT_ROLLBACK_TO_STABLE *rts)
 {
     rts->dryrun = false;
+    rts->threads_num = 0;
 }
 
 /*
@@ -315,11 +316,8 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
       dryrun ? " dryrun" : "", time_diff_ms);
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
-    __rollback_to_stable_finalize(S2C(session)->rts);
-
     /* Reset the RTS configuration to default. */
-    S2C(session)->rts->dryrun = false;
-    S2C(session)->rts->threads_num = 0;
+    __rollback_to_stable_finalize(S2C(session)->rts);
 
     WT_TRET(__wt_session_close_internal(session));
 
@@ -330,9 +328,15 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
  * __wt_rollback_to_stable_init --
  *     Initialize the data structures for the rollback to stable subsystem
  */
-void
-__wt_rollback_to_stable_init(WT_CONNECTION_IMPL *conn)
+int
+__wt_rollback_to_stable_init(WT_SESSION_IMPL *session, const char **cfg)
 {
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
     /*
      * Setup the pointer so the data structure can be accessed easily while avoiding the need to do
      * explicit memory management.
@@ -345,4 +349,32 @@ __wt_rollback_to_stable_init(WT_CONNECTION_IMPL *conn)
 
     /* Setup variables. */
     conn->rts->dryrun = false;
+
+    /* Setup worker threads at connection level. */
+    if ((ret = __wt_config_gets(session, cfg, "rollback_to_stable.threads", &cval)) == 0)
+        conn->rts->cfg_threads_num = (uint32_t)cval.val;
+    WT_RET_NOTFOUND_OK(ret);
+
+    return (0);
+}
+
+/*
+ * __wt_rollback_to_stable_reconfig --
+ *     Re-configure the RTS worker threads.
+ */
+int
+__wt_rollback_to_stable_reconfig(WT_SESSION_IMPL *session, const char **cfg)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    /* Re-configure the RTS worker threads at connection level. */
+    if ((ret = __wt_config_gets(session, cfg, "rollback_to_stable.threads", &cval)) == 0)
+        conn->rts->cfg_threads_num = (uint32_t)cval.val;
+    WT_RET_NOTFOUND_OK(ret);
+
+    return (0);
 }

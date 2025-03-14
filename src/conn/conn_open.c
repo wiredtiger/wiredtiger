@@ -58,7 +58,7 @@ __wti_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     /* Initialize transaction support. */
     WT_RET(__wt_txn_global_init(session, cfg));
 
-    __wt_rollback_to_stable_init(conn);
+    WT_RET(__wt_rollback_to_stable_init(session, cfg));
     WT_STAT_CONN_SET(session, dh_conn_handle_size, sizeof(WT_DATA_HANDLE));
     return (0);
 }
@@ -79,12 +79,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     wt_conn = &conn->iface;
     session = conn->default_session;
 
-    /*
-     * The LSM services are not shut down in this path (which is called when wiredtiger_open hits an
-     * error (as well as during normal shutdown). Assert they're not running.
-     */
-    WT_ASSERT(session, !FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LSM));
-
     /* Shut down the subsystems, ensuring workers see the state change. */
     F_SET(conn, WT_CONN_CLOSING);
     WT_FULL_BARRIER();
@@ -96,8 +90,9 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
      * Shut down server threads. Some of these threads access btree handles and eviction, shut them
      * down before the eviction server, and shut all servers down before closing open data handles.
      */
+    WT_TRET(__wt_live_restore_server_destroy(session));
     WT_TRET(__wti_background_compact_server_destroy(session));
-    WT_TRET(__wti_checkpoint_server_destroy(session));
+    WT_TRET(__wt_checkpoint_server_destroy(session));
     WT_TRET(__wti_statlog_destroy(session, true));
     WT_TRET(__wti_tiered_storage_destroy(session, false));
     WT_TRET(__wti_sweep_destroy(session));
@@ -129,9 +124,9 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
      * is outside the conditional because we allocate the log path so that printlog can run without
      * running logging or recovery.
      */
-    if (ret == 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
-      FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE))
-        WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
+    if (ret == 0 && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) &&
+      F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DONE))
+        WT_TRET(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
 
     /* Free memory for collators, compressors, data sources. */
@@ -139,7 +134,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wti_conn_remove_compressor(session));
     WT_TRET(__wti_conn_remove_data_source(session));
     WT_TRET(__wti_conn_remove_encryptor(session));
-    WT_TRET(__wti_conn_remove_extractor(session));
     WT_TRET(__wti_conn_remove_storage_source(session));
 
     /* Disconnect from shared cache - must be before cache destroy. */
@@ -242,6 +236,13 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_txn_recover(session, cfg));
 
+    /*
+     * If we're performing a live restore start the server. This is intentionally placed after
+     * recovery finishes as we depend on the metadata file containing the list of objects that need
+     * live restoration.
+     */
+    WT_RET(__wt_live_restore_server_create(session, cfg));
+
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));
 
@@ -278,7 +279,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_capacity_server_create(session, cfg));
 
     /* Start the optional checkpoint thread. */
-    WT_RET(__wti_checkpoint_server_create(session, cfg));
+    WT_RET(__wt_checkpoint_server_create(session, cfg));
 
     /* Start pre-fetch utilities. */
     WT_RET(__wti_prefetch_create(session, cfg));

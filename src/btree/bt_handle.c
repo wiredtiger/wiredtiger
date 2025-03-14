@@ -86,8 +86,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
       F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(btree, WT_BTREE_READONLY);
 
+    WT_LIVE_RESTORE_FH_META lr_fh_meta;
+    WT_CLEAR(lr_fh_meta);
+
     /* Get the checkpoint information for this name/checkpoint pair. */
-    WT_RET(__wt_meta_checkpoint(session, dhandle->name, dhandle->checkpoint, &ckpt));
+    WT_ERR(__wt_meta_checkpoint(session, dhandle->name, dhandle->checkpoint, &ckpt, &lr_fh_meta));
 
     /* Set the order number. */
     dhandle->checkpoint_order = ckpt.order;
@@ -109,10 +112,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Initialize and configure the WT_BTREE structure. */
     WT_ERR(__btree_conf(session, &ckpt, WT_DHANDLE_IS_CHECKPOINT(dhandle)));
+    lr_fh_meta.allocsize = btree->allocsize;
 
     /* Connect to the underlying block manager. */
-    WT_ERR(__wt_blkcache_open(
-      session, dhandle->name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
+    WT_ERR(__wt_blkcache_open(session, dhandle->name, dhandle->cfg, forced_salvage, false,
+      btree->allocsize, &lr_fh_meta, &btree->bm));
 
     bm = btree->bm;
 
@@ -177,7 +181,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 err:
         WT_TRET(__wt_btree_close(session));
     }
-    __wt_meta_checkpoint_free(session, &ckpt);
+    __wt_free(session, lr_fh_meta.bitmap_str);
+    __wt_checkpoint_free(session, &ckpt);
 
     __wt_scr_free(session, &tmp);
     return (ret);
@@ -217,7 +222,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
         (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree->dhandle)));
 
     /* Clear the saved checkpoint information. */
-    __wt_meta_saved_ckptlist_free(session);
+    __wt_ckptlist_saved_free(session);
 
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
@@ -391,7 +396,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * level durability and supported timestamps. In-memory configurations default to ignoring all
      * timestamps, and the application uses the logging configuration flag to turn on timestamps.
      */
-    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
+    if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED)) {
         WT_RET(__wt_config_gets(session, cfg, "log.enabled", &cval));
         if (cval.val)
             F_SET(btree, WT_BTREE_LOGGED);
@@ -575,7 +580,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      * checkpoint.
      */
     if ((!F_ISSET(conn, WT_CONN_RECOVERING) || F_ISSET(btree, WT_BTREE_LOGGED) ||
-          ckpt->run_write_gen < conn->last_ckpt_base_write_gen) &&
+          ckpt->run_write_gen < conn->ckpt.last_base_write_gen) &&
       !is_ckpt)
         btree->base_write_gen = btree->run_write_gen;
     else
@@ -924,15 +929,20 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     /*
      * Get the allocation size. Allocation sizes must be a power-of-two, nothing else makes sense.
      */
-    WT_RET(__wt_direct_io_size_check(session, cfg, "allocation_size", &btree->allocsize));
+    WT_RET(__wt_config_gets(session, cfg, "allocation_size", &cval));
+    btree->allocsize = (uint32_t)cval.val;
+
     if (!__wt_ispo2(btree->allocsize))
         WT_RET_MSG(session, EINVAL, "the allocation size must be a power of two");
 
     /*
      * Get the internal/leaf page sizes. All page sizes must be in units of the allocation size.
      */
-    WT_RET(__wt_direct_io_size_check(session, cfg, "internal_page_max", &btree->maxintlpage));
-    WT_RET(__wt_direct_io_size_check(session, cfg, "leaf_page_max", &btree->maxleafpage));
+    WT_RET(__wt_config_gets(session, cfg, "internal_page_max", &cval));
+    btree->maxintlpage = (uint32_t)cval.val;
+    WT_RET(__wt_config_gets(session, cfg, "leaf_page_max", &cval));
+    btree->maxleafpage = (uint32_t)cval.val;
+
     if (btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0 ||
       btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0)
         WT_RET_MSG(session, EINVAL,

@@ -151,8 +151,13 @@ __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
      * creating the connection. We do this after checking the required minimum version so that we
      * don't rewrite the turtle file if there is an error.
      */
-    if (reconfig)
-        WT_RET(__wt_metadata_turtle_rewrite(session));
+    if (reconfig) {
+        if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
+            ret = __wt_live_restore_turtle_rewrite(session);
+        else
+            WT_WITH_TURTLE_LOCK(session, ret = __wt_metadata_turtle_rewrite(session));
+        WT_RET(ret);
+    }
 
     /*
      * The required maximum and minimum cannot be set via reconfigure and they are meaningless on a
@@ -413,19 +418,19 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wt_evict_config(session, cfg, true));
     WT_ERR(__wti_conn_cache_pool_create(session, cfg));
     WT_ERR(__wti_capacity_server_create(session, cfg));
-    WT_ERR(__wti_checkpoint_server_create(session, cfg));
+    WT_ERR(__wt_checkpoint_server_create(session, cfg));
     WT_ERR(__wti_debug_mode_config(session, cfg));
     WT_ERR(__wti_heuristic_controls_config(session, cfg));
     WT_ERR(__wti_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_hs_config(session, cfg));
     WT_ERR(__wt_logmgr_reconfig(session, cfg));
-    WT_ERR(__wt_lsm_manager_reconfig(session, cfg));
     WT_ERR(__wti_statlog_create(session, cfg));
     WT_ERR(__wt_tiered_conn_config(session, cfg, true));
     WT_ERR(__wti_sweep_config(session, cfg));
     WT_ERR(__wti_timing_stress_config(session, cfg));
     WT_ERR(__wti_json_config(session, cfg, true));
     WT_ERR(__wt_verbose_config(session, cfg, true));
+    WT_ERR(__wt_rollback_to_stable_reconfig(session, cfg));
 
     /* Third, merge everything together, creating a new connection state. */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &p));

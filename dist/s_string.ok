@@ -9,7 +9,6 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 ADDR
 ADDRs
 AJ
-ANDed
 APIs
 AREALLSET
 ARG
@@ -55,7 +54,6 @@ CAS
 CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
-CET
 CHUNKCACHE
 CKPT
 CLOEXEC
@@ -65,7 +63,6 @@ CONFIG
 CPP
 CPUs
 CRC
-CSV
 CURSORs
 CURSTD
 CallsCustDate
@@ -90,10 +87,9 @@ Crt
 Crummey
 CustomersPhone
 Cygwin
-DAX
 DESC
+DEST
 DHANDLE
-DIRECTIO
 DNE
 DONTNEED
 DS
@@ -141,7 +137,6 @@ FLD
 FLSv
 FLv
 FNV
-FORALL
 FOREACH
 FS
 FULLFSYNC
@@ -236,7 +231,6 @@ LogSystemInterface
 MADV
 MALLOC
 MEM
-MEMALIGN
 MERCHANTABILITY
 MONGODB
 MOVEFILE
@@ -356,7 +350,6 @@ SIMD
 SLVG
 SMT
 SPINLOCK
-SSHH
 SSq
 STATP
 STR
@@ -390,6 +383,7 @@ TORTIOUS
 TRET
 TRYLOCK
 TSAN
+TSC
 TSO
 TSan
 TW
@@ -441,6 +435,7 @@ WILLNEED
 WIREDTIGER
 WRLSN
 WRNOLOCK
+WTI
 WTPERF
 WaitForSingleObject
 WaitOn
@@ -601,7 +596,6 @@ ckptlist
 cksum
 cloexec
 closedir
-clsm
 cmd
 cmp
 cntvct
@@ -639,7 +633,6 @@ cryptobad
 cryptographic
 cstring
 csuite
-csv
 ctime
 ctype
 curbackup
@@ -647,11 +640,9 @@ curbt
 curbulk
 curconfig
 curdump
-curextract
 curfile
 curhs
 curindex
-curjoin
 curlog
 curmetadata
 cursoring
@@ -667,6 +658,7 @@ cv
 cval
 cx
 cxa
+dKB
 dT
 darwin
 data's
@@ -708,7 +700,6 @@ difftime
 dir
 directio
 dirlist
-disjunction
 disproportionally
 dlclose
 dlh
@@ -768,14 +759,9 @@ fclose
 fcntl
 fd
 fdatasync
-fe
-feffff
 fextend
 ffc
 fff
-fffff
-ffffff
-ffffffff
 ffffffffffffffff
 fflush
 ffs
@@ -790,7 +776,6 @@ fileops
 filesize
 filesystem
 filesystems
-fillms
 firstfit
 fixup
 flcs
@@ -811,7 +796,6 @@ fseek
 fstat
 fstream
 fsync
-fsyncs
 ftruncate
 func
 funcid
@@ -824,7 +808,6 @@ gb
 gcc
 gcp
 gdb
-ge
 getenv
 getlasterror
 getline
@@ -857,7 +840,6 @@ hashtable
 hashval
 havesize
 hdr
-hhh
 hijinx
 hpp
 hs
@@ -869,17 +851,14 @@ iS
 iSh
 iaa
 iaaInterface
-ibackup
 icount
-idlems
 idx
 ie
 iface
 ifdef's
+iff
 iiSii
 iiiS
-iiii
-iiu
 ikey
 im
 img
@@ -901,6 +880,7 @@ inmem
 inmemory
 inserters
 instantiation
+interruptible
 intl
 intnum
 intpack
@@ -920,9 +900,7 @@ ishst
 islocked
 ispo
 isprint
-isrc
 isspace
-iter
 jjj
 js
 json
@@ -1010,7 +988,6 @@ mb
 mbll
 mbss
 mem
-memalign
 membar
 memcmp
 memcpy
@@ -1041,6 +1018,7 @@ multiblock
 multicycle
 multiprocess
 multithreaded
+multithreading
 munmap
 mutex
 mutexes
@@ -1050,7 +1028,6 @@ nTemp
 namespace
 namespaces
 nbits
-nchunks
 nclr
 nd
 needkey
@@ -1060,7 +1037,6 @@ nentries
 nentriesp
 newbar
 newfile
-newuri
 newv
 nextprev
 nf
@@ -1127,7 +1103,6 @@ packv
 pageref
 pagesize
 param
-params
 pareto
 parserp
 patchp
@@ -1193,6 +1168,7 @@ rc
 rdlock
 rdtsc
 rduppo
+readdir
 readgen
 readlock
 readonly
@@ -1237,7 +1213,6 @@ runone
 runtime
 rw
 rwlock
-sH
 sHQ
 sXXXXXX
 sanitizer
@@ -1274,6 +1249,7 @@ sn
 snaplen
 snapsort
 snprintf
+softptr
 sortable
 sp
 spinlock
@@ -1284,6 +1260,7 @@ ss
 ssize
 statlog
 stb
+stdbool
 stderr
 stdin
 stdout
@@ -1314,6 +1291,8 @@ su
 subdir
 subdirectories
 subdirectory
+subfolder
+subfolders
 subget
 subgetraw
 subgets
@@ -1338,7 +1317,6 @@ sz
 t's
 tIf
 tV
-tablename
 td
 teardown
 tempdir
@@ -1346,6 +1324,7 @@ testext
 testutil
 th
 tid
+timeslice
 timespec
 tinfo
 tlb
@@ -1371,6 +1350,7 @@ truncations
 trylock
 tryrdlock
 trywrlock
+tsc
 tupdate
 tw
 txn
@@ -1380,7 +1360,6 @@ txt
 typedef
 typeof
 uS
-ui
 uint
 uintAny
 ulock
@@ -1402,8 +1381,6 @@ uninstantiated
 unistd
 unlink
 unmap
-unmapping
-unmerged
 unmodify
 unmount
 unpackv

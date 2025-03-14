@@ -542,7 +542,7 @@ void testutil_copy_data_opt(const char *, const char *);
 void testutil_copy_ext(const char *, const char *, const WT_FILE_COPY_OPTS *opts);
 void testutil_copy_file(WT_SESSION *, const char *);
 void testutil_copy_if_exists(WT_SESSION *, const char *);
-void testutil_create_backup_directory(const char *);
+void testutil_create_backup_directory(const char *, uint64_t, bool);
 void testutil_deduce_build_dir(TEST_OPTS *opts);
 void testutil_delete_old_backups(int);
 bool testutil_exists(const char *, const char *);
@@ -555,6 +555,7 @@ void testutil_lazyfs_setup(WT_LAZY_FS *, const char *);
 void testutil_mkdir(const char *);
 void testutil_mkdir_ext(const char *, const WT_MKDIR_OPTS *);
 void testutil_modify_apply(WT_ITEM *, WT_ITEM *, WT_MODIFY *, int, uint8_t);
+void testutil_move(const char *source, const char *dest);
 uint64_t testutil_pareto(uint64_t, uint64_t, u_int);
 void testutil_parse_begin_opt(int, char *const *, const char *, TEST_OPTS *);
 void testutil_parse_end_opt(TEST_OPTS *);
@@ -584,7 +585,6 @@ void testutil_tiered_storage_configuration(
   TEST_OPTS *, const char *, char *, size_t, char *, size_t);
 uint64_t testutil_time_us(WT_SESSION *);
 void testutil_verify_model(TEST_OPTS *opts, const char *);
-void testutil_verify_src_backup(WT_CONNECTION *, const char *, const char *, char *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 

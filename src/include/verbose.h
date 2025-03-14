@@ -33,9 +33,9 @@
     "WT_VERB_HANDLEOPS", \
     "WT_VERB_HS", \
     "WT_VERB_HS_ACTIVITY", \
+    "WT_VERB_LIVE_RESTORE", \
+    "WT_VERB_LIVE_RESTORE_PROGRESS", \
     "WT_VERB_LOG", \
-    "WT_VERB_LSM", \
-    "WT_VERB_LSM_MANAGER", \
     "WT_VERB_MUTEX", \
     "WT_VERB_METADATA", \
     "WT_VERB_OUT_OF_ORDER", \

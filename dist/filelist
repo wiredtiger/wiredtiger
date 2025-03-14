@@ -50,6 +50,10 @@ src/btree/row_key.c
 src/btree/row_modify.c
 src/btree/row_srch.c
 src/call_log/call_log.c
+src/checkpoint/checkpoint_ckptlist.c
+src/checkpoint/checkpoint_conn.c
+src/checkpoint/checkpoint_stats.c
+src/checkpoint/checkpoint_txn.c
 src/checksum/arm64/crc32-arm64.c                ARM64_HOST
 src/checksum/loongarch64/crc32-loongarch64.c    LOONGARCH64_HOST
 src/checksum/power8/crc32_wrapper.c             POWERPC_HOST
@@ -78,7 +82,6 @@ src/conn/conn_cache.c
 src/conn/conn_cache_pool.c
 src/conn/conn_capacity.c
 src/conn/conn_chunkcache.c
-src/conn/conn_ckpt.c
 src/conn/conn_compact.c
 src/conn/conn_dhandle.c
 src/conn/conn_handle.c
@@ -97,7 +100,6 @@ src/cursor/cur_dump.c
 src/cursor/cur_file.c
 src/cursor/cur_hs.c
 src/cursor/cur_index.c
-src/cursor/cur_join.c
 src/cursor/cur_metadata.c
 src/cursor/cur_stat.c
 src/cursor/cur_std.c
@@ -110,23 +112,16 @@ src/evict/evict_page.c
 src/evict/evict_stat.c
 src/history/hs_conn.c
 src/history/hs_cursor.c
-src/history/hs_rec.c
 src/history/hs_verify.c
+src/live_restore/live_restore_fs.c
+src/live_restore/live_restore_server.c
+src/live_restore/live_restore_state.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_cursor.c
 src/log/log_mgr.c
 src/log/log_slot.c
 src/log/log_sys.c
-src/lsm/lsm_cursor.c
-src/lsm/lsm_cursor_bulk.c
-src/lsm/lsm_manager.c
-src/lsm/lsm_merge.c
-src/lsm/lsm_meta.c
-src/lsm/lsm_stat.c
-src/lsm/lsm_tree.c
-src/lsm/lsm_work_unit.c
-src/lsm/lsm_worker.c
 src/meta/meta_apply.c
 src/meta/meta_ckpt.c
 src/meta/meta_ext.c
@@ -192,6 +187,7 @@ src/reconcile/rec_row.c
 src/reconcile/rec_track.c
 src/reconcile/rec_visibility.c
 src/reconcile/rec_write.c
+src/reconcile/rec_hs.c
 src/schema/schema_alter.c
 src/schema/schema_create.c
 src/schema/schema_drop.c
@@ -199,7 +195,6 @@ src/schema/schema_list.c
 src/schema/schema_open.c
 src/schema/schema_plan.c
 src/schema/schema_project.c
-src/schema/schema_rename.c
 src/schema/schema_stat.c
 src/schema/schema_truncate.c
 src/schema/schema_util.c
@@ -239,7 +234,6 @@ src/tiered/tiered_config.c
 src/tiered/tiered_handle.c
 src/tiered/tiered_work.c
 src/txn/txn.c
-src/txn/txn_ckpt.c
 src/txn/txn_log.c
 src/txn/txn_recover.c
 src/txn/txn_timestamp.c

@@ -46,8 +46,8 @@ usage(void)
 {
     static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
       "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
-      "database directory", "-L", "turn logging off for debug-mode", "-m", "run verify on metadata",
-      "-p",
+      "database directory", "-L", "turn logging off for debug-mode", "-l",
+      "run live restore using the source path specified.", "-m", "run verify on metadata", "-p",
       "disable pre-fetching on the connection (use this option when dumping/verifying corrupted "
       "data)",
       "-R", "run recovery (if recovery configured)", "-r",
@@ -59,10 +59,9 @@ usage(void)
       "create an object", "downgrade", "downgrade a database", "drop", "drop an object", "dump",
       "dump an object", "list", "list database objects", "load", "load an object", "loadtext",
       "load an object from a text file", "printlog", "display the database log", "read",
-      "read values from an object", "rename", "rename an object", "salvage", "salvage a file",
-      "stat", "display statistics for an object", "truncate",
-      "truncate an object, removing all content", "verify", "verify an object", "write",
-      "write values to an object", NULL, NULL};
+      "read values from an object", "salvage", "salvage a file", "stat",
+      "display statistics for an object", "truncate", "truncate an object, removing all content",
+      "verify", "verify an object", "write", "write values to an object", NULL, NULL};
 
     fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
       WIREDTIGER_VERSION_MINOR);
@@ -84,8 +83,8 @@ main(int argc, char *argv[])
     size_t len;
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
-    const char *cmd_config, *conn_config, *p1, *p2, *p3, *readonly_config, *rec_config,
-      *salvage_config, *session_config;
+    const char *cmd_config, *conn_config, *live_restore_path, *p1, *p2, *p3, *readonly_config,
+      *rec_config, *salvage_config, *session_config;
     bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
 
     conn = NULL;
@@ -107,7 +106,8 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
-    cmd_config = conn_config = readonly_config = salvage_config = session_config = secretkey = NULL;
+    cmd_config = conn_config = live_restore_path = readonly_config = salvage_config =
+      session_config = secretkey = NULL;
     /*
      * We default to returning an error if recovery needs to be run. Generally we expect this to be
      * run after a clean shutdown. The printlog command disables logging entirely. If recovery is
@@ -118,7 +118,7 @@ main(int argc, char *argv[])
       false;
     /* Check for standard options. */
     __wt_optwt = 1; /* enable WT-specific behavior */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LmpRrSVv?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:l:LmpRrSVv?")) != EOF)
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
@@ -142,6 +142,9 @@ main(int argc, char *argv[])
         case 'L': /* no logging */
             rec_config = REC_LOGOFF;
             logoff = true;
+            break;
+        case 'l':
+            live_restore_path = __wt_optarg;
             break;
         case 'm': /* verify metadata on connection open */
             cmd_config = "verify_metadata=true";
@@ -246,8 +249,6 @@ main(int argc, char *argv[])
     case 'r':
         if (strcmp(command, "read") == 0)
             func = util_read;
-        else if (strcmp(command, "rename") == 0)
-            func = util_rename;
         break;
     case 's':
         if (strcmp(command, "salvage") == 0)
@@ -293,6 +294,11 @@ open:
         len += strlen(conn_config);
     if (cmd_config != NULL)
         len += strlen(cmd_config);
+    len += strlen("live_restore=(enabled=,threads_max=0,path=)");
+    if (live_restore_path != NULL)
+        len += strlen(live_restore_path) + strlen("true");
+    else
+        len += strlen("false");
     if (readonly_config != NULL)
         len += strlen(readonly_config);
     if (salvage_config != NULL)
@@ -308,8 +314,11 @@ open:
         (void)util_err(NULL, errno, NULL);
         goto err;
     }
-    if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s,%s,%s%s%s%s",
+    if ((ret = __wt_snprintf(p, len,
+           "error_prefix=wt,%s,%s,live_restore=(enabled=%s,threads_max=0,path=%s),%s,%s,%s%s%s%s",
            conn_config == NULL ? "" : conn_config, cmd_config == NULL ? "" : cmd_config,
+           live_restore_path == NULL ? "false" : "true",
+           live_restore_path == NULL ? "" : live_restore_path,
            readonly_config == NULL ? "" : readonly_config, rec_config,
            salvage_config == NULL ? "" : salvage_config, p1, p2, p3)) != 0) {
         (void)util_err(NULL, ret, NULL);

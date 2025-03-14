@@ -153,14 +153,7 @@ __wt_backup_file_remove(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
-    /*
-     * Note that order matters for removing the incremental files. We must remove the backup file
-     * before removing the source file so that we always know we were a source directory while
-     * there's any chance of an incremental backup file existing.
-     */
     WT_TRET(__wt_remove_if_exists(session, WT_BACKUP_TMP, true));
-    WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_BACKUP, true));
-    WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_SRC, true));
     WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP, true));
     return (ret);
 }
@@ -288,11 +281,11 @@ err:
 
         /* Mark the connection modified to make sure a checkpoint happens even on an idle system. */
         conn->modified = true;
-        WT_TRET(__wt_txn_checkpoint(session, cfg, true));
+        WT_TRET(__wt_checkpoint_db(session, cfg, true));
     }
     /* Clear the flag on force stop after the completion of the checkpoint. */
     if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP))
-        FLD_CLR(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
+        F_CLR(&conn->log_mgr, WT_LOG_INCR_BACKUP);
 
     /*
      * When starting a hot backup, we serialize hot backup cursors and set the connection's
@@ -532,7 +525,7 @@ __backup_log_append(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool active)
     logcount = 0;
     ret = 0;
 
-    if (conn->log) {
+    if (conn->log_mgr.log) {
         WT_ERR(__wt_log_get_backup_files(session, &logfiles, &logcount, &cb->maxid, active));
         for (i = 0; i < logcount; i++)
             WT_ERR(__backup_list_append(session, cb, logfiles[i], NULL));
@@ -552,7 +545,7 @@ err:
  */
 static int
 __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[],
-  WT_CURSOR_BACKUP *othercb, bool *foundp, bool *log_only)
+  WT_CURSOR_BACKUP *othercb, bool *foundp)
 {
     WT_CONFIG targetconf;
     WT_CONFIG_ITEM cval, k, v;
@@ -562,7 +555,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     const char *uri;
     bool consolidate, incremental_config, is_dup, log_config, target_list;
 
-    *foundp = *log_only = false;
+    *foundp = false;
 
     conn = S2C(session);
     incremental_config = log_config = false;
@@ -672,18 +665,15 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
 
         /*
          * Handle log targets. We do not need to go through the schema worker, just call the
-         * function to append them. Set log_only only if it is our only URI target.
+         * function to append them.
          */
         if (WT_PREFIX_MATCH(uri, "log:")) {
             log_config = true;
-            *log_only = !target_list;
             WT_ERR(__backup_log_append(session, session->bkp_cursor, false));
         } else if (is_dup)
             WT_ERR_MSG(
               session, EINVAL, "duplicate backup cursor cannot be used for non-log target");
         else {
-            *log_only = false;
-
             /*
              * If backing up individual tables, we have to include indexes, which may involve
              * opening those indexes. Acquire the table lock in write mode for that case.
@@ -698,13 +688,10 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     /*
      * Compatibility checking.
      *
-     * Log remove cannot mix with log-file based incremental backups (but if a duplicate cursor,
-     * removal has been temporarily suspended).
-     *
      * Duplicate backup cursors are only for log targets or block-based incremental backups. But log
      * targets don't make sense with block-based incremental backup.
      */
-    if (!is_dup && log_config && FLD_ISSET(conn->log_flags, WT_CONN_LOG_REMOVE))
+    if (!is_dup && log_config && F_ISSET(&conn->log_mgr, WT_LOG_REMOVE))
         WT_ERR_MSG(session, EINVAL,
           "incremental log file backup not possible when automatic log removal configured");
     if (is_dup && (!incremental_config && !log_config))
@@ -723,10 +710,6 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
               session, EINVAL, "Incremental primary cursor must have a known source identifier");
         F_SET(cb, WT_CURBACKUP_INCR);
     }
-
-    /* Return an error if block-based incremental backup is performed with open LSM trees. */
-    if (incremental_config && !TAILQ_EMPTY(&conn->lsmqh))
-        WT_ERR_MSG(session, ENOTSUP, "LSM does not work with block-based incremental backup");
 
 err:
     if (ret != 0 && cb->incr_src != NULL) {
@@ -771,7 +754,7 @@ __backup_start(
     WT_DECL_RET;
     WT_FSTREAM *srcfs;
     const char *dest;
-    bool exist, is_dup, log_only, target_list;
+    bool exist, is_dup, target_list;
 
     conn = S2C(session);
     srcfs = NULL;
@@ -861,7 +844,7 @@ __backup_start(
      * database objects and log files to the list.
      */
     target_list = false;
-    WT_ERR(__backup_config(session, cb, cfg, othercb, &target_list, &log_only));
+    WT_ERR(__backup_config(session, cb, cfg, othercb, &target_list));
     /*
      * For a duplicate cursor, all the work is done in backup_config.
      */
@@ -888,30 +871,15 @@ __backup_start(
     }
 
     /* Add the hot backup and standard WiredTiger files to the list. */
-    if (log_only) {
-        /*
-         * If this is not a duplicate cursor, using the log target is an incremental backup. If this
-         * is a duplicate cursor then using the log target on an existing backup cursor means this
-         * cursor returns the current list of log files. That list was set up when parsing the URI
-         * so we don't have anything to do here.
-         *
-         * We also open an incremental backup source file so that we can detect a crash with an
-         * incremental backup existing in the source directory versus an improper destination.
-         */
-        dest = WT_LOGINCR_BACKUP;
-        WT_ERR(__wt_fopen(session, WT_LOGINCR_SRC, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
-        WT_ERR(__backup_list_append(session, cb, dest, NULL));
-    } else {
-        dest = F_ISSET(cb, WT_CURBACKUP_EXPORT) ? WT_EXPORT_BACKUP : WT_METADATA_BACKUP;
-        WT_ERR(__backup_list_append(session, cb, dest, NULL));
-        WT_ERR(__wt_fs_exist(session, WT_BASECONFIG, &exist));
-        if (exist)
-            WT_ERR(__backup_list_append(session, cb, WT_BASECONFIG, NULL));
-        WT_ERR(__wt_fs_exist(session, WT_USERCONFIG, &exist));
-        if (exist)
-            WT_ERR(__backup_list_append(session, cb, WT_USERCONFIG, NULL));
-        WT_ERR(__backup_list_append(session, cb, WT_WIREDTIGER, NULL));
-    }
+    dest = F_ISSET(cb, WT_CURBACKUP_EXPORT) ? WT_EXPORT_BACKUP : WT_METADATA_BACKUP;
+    WT_ERR(__backup_list_append(session, cb, dest, NULL));
+    WT_ERR(__wt_fs_exist(session, WT_BASECONFIG, &exist));
+    if (exist)
+        WT_ERR(__backup_list_append(session, cb, WT_BASECONFIG, NULL));
+    WT_ERR(__wt_fs_exist(session, WT_USERCONFIG, &exist));
+    if (exist)
+        WT_ERR(__backup_list_append(session, cb, WT_USERCONFIG, NULL));
+    WT_ERR(__backup_list_append(session, cb, WT_WIREDTIGER, NULL));
 
 query_done:
 err:
@@ -1002,18 +970,20 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
     /*
      * While reading the metadata file, check there are no data sources that can't support hot
      * backup. This checks for a data source that's non-standard, which can't be backed up, but is
-     * also sanity checking: if there's an entry backed by anything other than a file or lsm entry,
-     * we're confused.
+     * also sanity checking: if there's an entry backed by anything other than a file, we're
+     * confused.
      */
     if (!WT_PREFIX_MATCH(name, "file:") && !WT_PREFIX_MATCH(name, "colgroup:") &&
-      !WT_PREFIX_MATCH(name, "index:") && !WT_PREFIX_MATCH(name, "lsm:") &&
-      !WT_PREFIX_MATCH(name, "object:") && !WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX) &&
-      !WT_PREFIX_MATCH(name, "table:") && !WT_PREFIX_MATCH(name, "tier:") &&
-      !WT_PREFIX_MATCH(name, "tiered:"))
+      !WT_PREFIX_MATCH(name, "index:") && !WT_PREFIX_MATCH(name, "object:") &&
+      !WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX) && !WT_PREFIX_MATCH(name, "table:") &&
+      !WT_PREFIX_MATCH(name, "tier:") && !WT_PREFIX_MATCH(name, "tiered:"))
         WT_RET_MSG(session, ENOTSUP, "hot backup is not supported for objects of type %s", name);
 
     /* Add the metadata entry to the backup file. */
     WT_RET(__wt_metadata_search(session, name, &value));
+
+    WT_ERR(__wt_live_restore_clean_metadata_string(session, value));
+
     WT_ERR(__wt_fprintf(session, cb->bfs, "%s\n%s\n", name, value));
     /*
      * We want to retain the system information in the backup metadata file above, but there is no

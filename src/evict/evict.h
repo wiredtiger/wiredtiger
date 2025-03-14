@@ -79,17 +79,17 @@ struct __wt_evict {
     WT_DATA_HANDLE *walk_tree;     /* LRU walk current tree */
 
     WT_SPINLOCK evict_queue_lock; /* Eviction current queue lock */
-    WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
-    WT_EVICT_QUEUE *evict_current_queue; /* LRU current queue in use */
-    WT_EVICT_QUEUE *evict_fill_queue;    /* LRU next queue to fill.
+    WTI_EVICT_QUEUE evict_queues[WTI_EVICT_QUEUE_MAX];
+    WTI_EVICT_QUEUE *evict_current_queue; /* LRU current queue in use */
+    WTI_EVICT_QUEUE *evict_fill_queue;    /* LRU next queue to fill.
                                             This is usually the same as the
                                             "other" queue but under heavy
                                             load the eviction server will
                                             start filling the current queue
                                             before it switches. */
-    WT_EVICT_QUEUE *evict_other_queue;   /* LRU queue not in use */
-    WT_EVICT_QUEUE *evict_urgent_queue;  /* LRU urgent queue */
-    uint32_t evict_slots;                /* LRU list eviction slots */
+    WTI_EVICT_QUEUE *evict_other_queue;   /* LRU queue not in use */
+    WTI_EVICT_QUEUE *evict_urgent_queue;  /* LRU urgent queue */
+    uint32_t evict_slots;                 /* LRU list eviction slots */
 
 #define WT_EVICT_PRESSURE_THRESHOLD 0.95
 #define WT_EVICT_SCORE_BUMP 10
@@ -127,6 +127,7 @@ struct __wt_evict {
 #define WT_EVICT_CACHE_HARD \
     (WT_EVICT_CACHE_CLEAN_HARD | WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD)
     uint32_t flags;
+    bool use_npos_in_pass; /* Cached value of conn->evict_use_npos for the run of eviction server */
 };
 
 /* Flags used with __wt_evict */
@@ -135,6 +136,8 @@ struct __wt_evict {
 #define WT_EVICT_CALL_NO_SPLIT 0x2u /* Splits not allowed */
 #define WT_EVICT_CALL_URGENT 0x4u   /* Urgent eviction */
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+
+#define WT_EVICT_MAX_WORKERS 20
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
@@ -180,8 +183,9 @@ static WT_INLINE bool __wt_evict_page_is_soon(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_page_is_soon_or_wont_need(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE int __wt_evict_app_assist_worker_check(WT_SESSION_IMPL *session, bool busy,
-  bool readonly, bool *didworkp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE int __wt_evict_app_assist_worker_check(
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, bool *didworkp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE void __wt_evict_clear_npos(WT_BTREE *btree);
 static WT_INLINE void __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);

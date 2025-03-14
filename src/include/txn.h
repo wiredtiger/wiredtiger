@@ -21,10 +21,10 @@
  * the session get rollback reason API call. Users of the API could have a dependency on the format
  * of these messages so changing them must be done with care.
  */
-#define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "transaction rolled back because of cache overflow"
-#define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
+#define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "Cache capacity has overflown"
+#define WT_TXN_ROLLBACK_REASON_CONFLICT "Write conflict between concurrent operations"
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
-    "oldest pinned transaction ID rolled back for eviction"
+    "Transaction has the oldest pinned transaction ID"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
@@ -50,6 +50,11 @@ typedef enum {
     WT_VISIBLE_PREPARE = 1, /* Prepared update */
     WT_VISIBLE_TRUE = 2     /* A visible update */
 } WT_VISIBLE_TYPE;
+
+/*
+ * Enumeration used to track the context of reconstructing modifies within a update list.
+ */
+typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
 
 /*
  * Transaction ID comparison dealing with edge cases.
@@ -348,8 +353,6 @@ struct __wt_txn {
 
     /* Timeout */
     uint64_t operation_timeout_us;
-
-    const char *rollback_reason; /* If rollback, the reason */
 
 /*
  * WT_TXN_HAS_TS_COMMIT --

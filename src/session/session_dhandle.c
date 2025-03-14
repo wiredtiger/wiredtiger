@@ -456,16 +456,8 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
 
     if (hs_dhandlep != NULL)
         *hs_dhandlep = NULL;
-    if (ckpt_snapshot != NULL) {
-        ckpt_snapshot->ckpt_id = 0;
-        ckpt_snapshot->oldest_ts = WT_TS_NONE;
-        ckpt_snapshot->stable_ts = WT_TS_NONE;
-        ckpt_snapshot->snapshot_write_gen = 0;
-        ckpt_snapshot->snapshot_min = WT_TXN_MAX;
-        ckpt_snapshot->snapshot_max = WT_TXN_MAX;
-        ckpt_snapshot->snapshot_txns = NULL;
-        ckpt_snapshot->snapshot_count = 0;
-    }
+    if (ckpt_snapshot != NULL)
+        __wt_checkpoint_snapshot_clear(ckpt_snapshot);
 
     /*
      * This function exists to handle checkpoint configuration. Callers that never open a checkpoint
@@ -540,7 +532,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * previous database so we can ensure checkpoint times increase across restarts. This avoids
      * trouble if the system clock moves backwards between runs, and also avoids possible issues if
      * the checkpoint clock runs forward. (See comment about that in
-     * __txn_checkpoint_establish_time().) When reading from a previous database, the checkpoint
+     * __checkpoint_establish_time().) When reading from a previous database, the checkpoint
      * time in the snapshot and timestamp metadata default to zero if not present, avoiding
      * confusion caused by older versions that don't include these values.
      *

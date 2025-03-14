@@ -21,27 +21,27 @@ target_link_libraries(wiredtiger_model_test_common wiredtiger_model wt::wiredtig
 create_test_executable(test_model_basic
     SOURCES model_basic/main.cpp
     LIBS wiredtiger_model wiredtiger_model_test_common
-    CXX
+    CXX NO_TEST_UTIL
 )
 create_test_executable(test_model_checkpoint
     SOURCES model_checkpoint/main.cpp
     LIBS wiredtiger_model wiredtiger_model_test_common
-    CXX
+    CXX NO_TEST_UTIL
 )
 create_test_executable(test_model_rts
     SOURCES model_rts/main.cpp
     LIBS wiredtiger_model wiredtiger_model_test_common
-    CXX
+    CXX NO_TEST_UTIL
 )
 create_test_executable(test_model_transaction
     SOURCES model_transaction/main.cpp
     LIBS wiredtiger_model wiredtiger_model_test_common
-    CXX
+    CXX NO_TEST_UTIL
 )
 create_test_executable(test_model_workload
     SOURCES model_workload/main.cpp
     LIBS wiredtiger_model wiredtiger_model_test_common
-    CXX
+    CXX NO_TEST_UTIL
 )
 
 # The test script.

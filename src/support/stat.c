@@ -3,18 +3,6 @@
 #include "wt_internal.h"
 
 static const char *const __stats_dsrc_desc[] = {
-  "LSM: bloom filter false positives",
-  "LSM: bloom filter hits",
-  "LSM: bloom filter misses",
-  "LSM: bloom filter pages evicted from cache",
-  "LSM: bloom filter pages read into cache",
-  "LSM: bloom filters in the LSM tree",
-  "LSM: chunks in the LSM tree",
-  "LSM: highest merge generation in the LSM tree",
-  "LSM: queries that could have benefited from a Bloom filter that did not exist",
-  "LSM: sleep for LSM checkpoint throttle",
-  "LSM: sleep for LSM merge throttle",
-  "LSM: total size of bloom filters",
   "autocommit: retries for readonly operations",
   "autocommit: retries for update operations",
   "backup: total modified incremental blocks with compressed data",
@@ -362,18 +350,6 @@ __wt_stat_dsrc_discard(WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle)
 void
 __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 {
-    stats->bloom_false_positive = 0;
-    stats->bloom_hit = 0;
-    stats->bloom_miss = 0;
-    stats->bloom_page_evict = 0;
-    stats->bloom_page_read = 0;
-    stats->bloom_count = 0;
-    stats->lsm_chunk_count = 0;
-    stats->lsm_generation_max = 0;
-    stats->lsm_lookup_no_bloom = 0;
-    stats->lsm_checkpoint_throttle = 0;
-    stats->lsm_merge_throttle = 0;
-    stats->bloom_size = 0;
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
     stats->backup_blocks_compressed = 0;
@@ -675,19 +651,6 @@ __wt_stat_dsrc_clear_all(WT_DSRC_STATS **stats)
 void
 __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
 {
-    to->bloom_false_positive += from->bloom_false_positive;
-    to->bloom_hit += from->bloom_hit;
-    to->bloom_miss += from->bloom_miss;
-    to->bloom_page_evict += from->bloom_page_evict;
-    to->bloom_page_read += from->bloom_page_read;
-    to->bloom_count += from->bloom_count;
-    to->lsm_chunk_count += from->lsm_chunk_count;
-    if (from->lsm_generation_max > to->lsm_generation_max)
-        to->lsm_generation_max = from->lsm_generation_max;
-    to->lsm_lookup_no_bloom += from->lsm_lookup_no_bloom;
-    to->lsm_checkpoint_throttle += from->lsm_checkpoint_throttle;
-    to->lsm_merge_throttle += from->lsm_merge_throttle;
-    to->bloom_size += from->bloom_size;
     to->autocommit_readonly_retry += from->autocommit_readonly_retry;
     to->autocommit_update_retry += from->autocommit_update_retry;
     to->backup_blocks_compressed += from->backup_blocks_compressed;
@@ -1005,19 +968,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
 {
     int64_t v;
 
-    to->bloom_false_positive += WT_STAT_DSRC_READ(from, bloom_false_positive);
-    to->bloom_hit += WT_STAT_DSRC_READ(from, bloom_hit);
-    to->bloom_miss += WT_STAT_DSRC_READ(from, bloom_miss);
-    to->bloom_page_evict += WT_STAT_DSRC_READ(from, bloom_page_evict);
-    to->bloom_page_read += WT_STAT_DSRC_READ(from, bloom_page_read);
-    to->bloom_count += WT_STAT_DSRC_READ(from, bloom_count);
-    to->lsm_chunk_count += WT_STAT_DSRC_READ(from, lsm_chunk_count);
-    if ((v = WT_STAT_DSRC_READ(from, lsm_generation_max)) > to->lsm_generation_max)
-        to->lsm_generation_max = v;
-    to->lsm_lookup_no_bloom += WT_STAT_DSRC_READ(from, lsm_lookup_no_bloom);
-    to->lsm_checkpoint_throttle += WT_STAT_DSRC_READ(from, lsm_checkpoint_throttle);
-    to->lsm_merge_throttle += WT_STAT_DSRC_READ(from, lsm_merge_throttle);
-    to->bloom_size += WT_STAT_DSRC_READ(from, bloom_size);
     to->autocommit_readonly_retry += WT_STAT_DSRC_READ(from, autocommit_readonly_retry);
     to->autocommit_update_retry += WT_STAT_DSRC_READ(from, autocommit_update_retry);
     to->backup_blocks_compressed += WT_STAT_DSRC_READ(from, backup_blocks_compressed);
@@ -1366,16 +1316,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
 }
 
 static const char *const __stats_connection_desc[] = {
-  "LSM: application work units currently queued",
-  "LSM: merge work units currently queued",
-  "LSM: rows merged in an LSM tree",
-  "LSM: sleep for LSM checkpoint throttle",
-  "LSM: sleep for LSM merge throttle",
-  "LSM: switch work units currently queued",
-  "LSM: tree maintenance operations discarded",
-  "LSM: tree maintenance operations executed",
-  "LSM: tree maintenance operations scheduled",
-  "LSM: tree queue hit maximum",
   "autocommit: retries for readonly operations",
   "autocommit: retries for update operations",
   "background-compact: background compact failed calls",
@@ -1393,6 +1333,7 @@ static const char *const __stats_connection_desc[] = {
   "backup: backup cursor open",
   "backup: backup duplicate cursor open",
   "backup: backup granularity size",
+  "backup: backup total bits cleared",
   "backup: incremental backup enabled",
   "backup: opening the backup cursor in progress",
   "backup: total modified incremental blocks",
@@ -1424,11 +1365,19 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: blocks read",
   "block-manager: blocks written",
   "block-manager: bytes read",
+  "block-manager: bytes read for internal pages",
+  "block-manager: bytes read for internal pages before decompression and decryption",
+  "block-manager: bytes read for leaf pages",
+  "block-manager: bytes read for leaf pages before decompression and decryption",
   "block-manager: bytes read via memory map API",
   "block-manager: bytes read via system call API",
   "block-manager: bytes written",
   "block-manager: bytes written by compaction",
   "block-manager: bytes written for checkpoint",
+  "block-manager: bytes written for internal pages after compression and encryption",
+  "block-manager: bytes written for internal pages before compression and encryption",
+  "block-manager: bytes written for leaf pages after compression and encryption",
+  "block-manager: bytes written for leaf pages before compression and encryption",
   "block-manager: bytes written via memory map API",
   "block-manager: bytes written via system call API",
   "block-manager: mapped blocks read",
@@ -1436,6 +1385,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "cache: application requested eviction interrupt",
   "cache: application thread time evicting (usecs)",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
@@ -1481,6 +1431,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server skips pages that previously failed eviction and likely will again",
   "cache: eviction server skips pages that we do not want to evict",
   "cache: eviction server skips tree that we do not want to evict",
+  "cache: eviction server skips trees because there are too many active walks",
   "cache: eviction server skips trees that are being checkpointed",
   "cache: eviction server skips trees that are configured to stick in cache",
   "cache: eviction server skips trees that disable eviction",
@@ -1625,6 +1576,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: tracked dirty pages in the cache",
   "cache: uncommitted truncate blocked page eviction",
   "cache: unmodified pages evicted",
+  "cache: updates in uncommitted txn - bytes",
+  "cache: updates in uncommitted txn - count",
   "capacity: background fsync file handles considered",
   "capacity: background fsync file handles synced",
   "capacity: background fsync time (msecs)",
@@ -1829,6 +1782,8 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: connection sweeps skipped due to checkpoint gathering handles",
   "data-handle: session dhandles swept",
   "data-handle: session sweep attempts",
+  "live-restore: live restore state",
+  "live-restore: the number of files remaining for live restore completion",
   "lock: btree page lock acquisitions",
   "lock: btree page lock application thread wait time (usecs)",
   "lock: btree page lock internal thread wait time (usecs)",
@@ -2009,11 +1964,10 @@ static const char *const __stats_connection_desc[] = {
   "session: table create failed calls",
   "session: table create successful calls",
   "session: table create with import failed calls",
+  "session: table create with import repair calls",
   "session: table create with import successful calls",
   "session: table drop failed calls",
   "session: table drop successful calls",
-  "session: table rename failed calls",
-  "session: table rename successful calls",
   "session: table salvage failed calls",
   "session: table salvage successful calls",
   "session: table truncate failed calls",
@@ -2028,10 +1982,13 @@ static const char *const __stats_connection_desc[] = {
   "thread-state: active filesystem read calls",
   "thread-state: active filesystem write calls",
   "thread-yield: application thread operations waiting for cache",
+  "thread-yield: application thread operations waiting for interruptible cache eviction",
+  "thread-yield: application thread operations waiting for mandatory cache eviction",
   "thread-yield: application thread snapshot refreshed for eviction",
   "thread-yield: application thread time waiting for cache (usecs)",
+  "thread-yield: application thread time waiting for interruptible cache eviction (usecs)",
+  "thread-yield: application thread time waiting for mandatory cache eviction (usecs)",
   "thread-yield: connection close blocked waiting for transaction state stabilization",
-  "thread-yield: connection close yielded for lsm manager shutdown",
   "thread-yield: data handle lock yielded",
   "thread-yield: get reference for page index and slot time sleeping (usecs)",
   "thread-yield: page access yielded due to prepare state change",
@@ -2146,16 +2103,6 @@ __wt_stat_connection_discard(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handl
 void
 __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 {
-    /* not clearing lsm_work_queue_app */
-    /* not clearing lsm_work_queue_manager */
-    stats->lsm_rows_merged = 0;
-    stats->lsm_checkpoint_throttle = 0;
-    stats->lsm_merge_throttle = 0;
-    /* not clearing lsm_work_queue_switch */
-    stats->lsm_work_units_discarded = 0;
-    stats->lsm_work_units_done = 0;
-    stats->lsm_work_units_created = 0;
-    stats->lsm_work_queue_max = 0;
     stats->autocommit_readonly_retry = 0;
     stats->autocommit_update_retry = 0;
     stats->background_compact_fail = 0;
@@ -2173,6 +2120,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing backup_cursor_open */
     /* not clearing backup_dup_open */
     stats->backup_granularity = 0;
+    stats->backup_bits_clr = 0;
     /* not clearing backup_incremental */
     /* not clearing backup_start */
     stats->backup_blocks = 0;
@@ -2204,17 +2152,26 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_read = 0;
     stats->block_write = 0;
     stats->block_byte_read = 0;
+    stats->block_byte_read_intl = 0;
+    stats->block_byte_read_intl_disk = 0;
+    stats->block_byte_read_leaf = 0;
+    stats->block_byte_read_leaf_disk = 0;
     stats->block_byte_read_mmap = 0;
     stats->block_byte_read_syscall = 0;
     stats->block_byte_write = 0;
     stats->block_byte_write_compact = 0;
     stats->block_byte_write_checkpoint = 0;
+    stats->block_byte_write_intl_disk = 0;
+    stats->block_byte_write_intl = 0;
+    stats->block_byte_write_leaf_disk = 0;
+    stats->block_byte_write_leaf = 0;
     stats->block_byte_write_mmap = 0;
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    stats->eviction_interupted_by_app = 0;
     stats->eviction_app_time = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
@@ -2254,6 +2211,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_server_skip_pages_retry = 0;
     stats->eviction_server_skip_unwanted_pages = 0;
     stats->eviction_server_skip_unwanted_tree = 0;
+    stats->eviction_server_skip_trees_too_many_active_walks = 0;
     stats->eviction_server_skip_checkpointing_trees = 0;
     stats->eviction_server_skip_trees_stick_in_cache = 0;
     stats->eviction_server_skip_trees_eviction_disabled = 0;
@@ -2386,6 +2344,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_pages_dirty */
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
+    /* not clearing cache_updates_txn_uncommitted_bytes */
+    /* not clearing cache_updates_txn_uncommitted_count */
     stats->fsync_all_fh_total = 0;
     stats->fsync_all_fh = 0;
     /* not clearing fsync_all_time */
@@ -2588,6 +2548,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_sweep_skip_ckpt = 0;
     stats->dh_session_handles = 0;
     stats->dh_session_sweeps = 0;
+    /* not clearing live_restore_state */
+    /* not clearing live_restore_work_remaining */
     stats->lock_btree_page_count = 0;
     stats->lock_btree_page_wait_application = 0;
     stats->lock_btree_page_wait_internal = 0;
@@ -2766,11 +2728,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_create_fail */
     /* not clearing session_table_create_success */
     /* not clearing session_table_create_import_fail */
+    /* not clearing session_table_create_import_repair */
     /* not clearing session_table_create_import_success */
     /* not clearing session_table_drop_fail */
     /* not clearing session_table_drop_success */
-    /* not clearing session_table_rename_fail */
-    /* not clearing session_table_rename_success */
     /* not clearing session_table_salvage_fail */
     /* not clearing session_table_salvage_success */
     /* not clearing session_table_truncate_fail */
@@ -2785,10 +2746,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing thread_read_active */
     /* not clearing thread_write_active */
     stats->application_cache_ops = 0;
+    stats->application_cache_interruptible_ops = 0;
+    stats->application_cache_uninterruptible_ops = 0;
     stats->application_evict_snapshot_refreshed = 0;
     stats->application_cache_time = 0;
+    stats->application_cache_interruptible_time = 0;
+    stats->application_cache_uninterruptible_time = 0;
     stats->txn_release_blocked = 0;
-    stats->conn_close_blocked_lsm = 0;
     stats->dhandle_lock_blocked = 0;
     stats->page_index_slot_ref_blocked = 0;
     stats->prepared_transition_blocked_page = 0;
@@ -2873,16 +2837,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
 {
     int64_t v;
 
-    to->lsm_work_queue_app += WT_STAT_CONN_READ(from, lsm_work_queue_app);
-    to->lsm_work_queue_manager += WT_STAT_CONN_READ(from, lsm_work_queue_manager);
-    to->lsm_rows_merged += WT_STAT_CONN_READ(from, lsm_rows_merged);
-    to->lsm_checkpoint_throttle += WT_STAT_CONN_READ(from, lsm_checkpoint_throttle);
-    to->lsm_merge_throttle += WT_STAT_CONN_READ(from, lsm_merge_throttle);
-    to->lsm_work_queue_switch += WT_STAT_CONN_READ(from, lsm_work_queue_switch);
-    to->lsm_work_units_discarded += WT_STAT_CONN_READ(from, lsm_work_units_discarded);
-    to->lsm_work_units_done += WT_STAT_CONN_READ(from, lsm_work_units_done);
-    to->lsm_work_units_created += WT_STAT_CONN_READ(from, lsm_work_units_created);
-    to->lsm_work_queue_max += WT_STAT_CONN_READ(from, lsm_work_queue_max);
     to->autocommit_readonly_retry += WT_STAT_CONN_READ(from, autocommit_readonly_retry);
     to->autocommit_update_retry += WT_STAT_CONN_READ(from, autocommit_update_retry);
     to->background_compact_fail += WT_STAT_CONN_READ(from, background_compact_fail);
@@ -2904,6 +2858,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->backup_cursor_open += WT_STAT_CONN_READ(from, backup_cursor_open);
     to->backup_dup_open += WT_STAT_CONN_READ(from, backup_dup_open);
     to->backup_granularity += WT_STAT_CONN_READ(from, backup_granularity);
+    to->backup_bits_clr += WT_STAT_CONN_READ(from, backup_bits_clr);
     to->backup_incremental += WT_STAT_CONN_READ(from, backup_incremental);
     to->backup_start += WT_STAT_CONN_READ(from, backup_start);
     to->backup_blocks += WT_STAT_CONN_READ(from, backup_blocks);
@@ -2937,17 +2892,26 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_read += WT_STAT_CONN_READ(from, block_read);
     to->block_write += WT_STAT_CONN_READ(from, block_write);
     to->block_byte_read += WT_STAT_CONN_READ(from, block_byte_read);
+    to->block_byte_read_intl += WT_STAT_CONN_READ(from, block_byte_read_intl);
+    to->block_byte_read_intl_disk += WT_STAT_CONN_READ(from, block_byte_read_intl_disk);
+    to->block_byte_read_leaf += WT_STAT_CONN_READ(from, block_byte_read_leaf);
+    to->block_byte_read_leaf_disk += WT_STAT_CONN_READ(from, block_byte_read_leaf_disk);
     to->block_byte_read_mmap += WT_STAT_CONN_READ(from, block_byte_read_mmap);
     to->block_byte_read_syscall += WT_STAT_CONN_READ(from, block_byte_read_syscall);
     to->block_byte_write += WT_STAT_CONN_READ(from, block_byte_write);
     to->block_byte_write_compact += WT_STAT_CONN_READ(from, block_byte_write_compact);
     to->block_byte_write_checkpoint += WT_STAT_CONN_READ(from, block_byte_write_checkpoint);
+    to->block_byte_write_intl_disk += WT_STAT_CONN_READ(from, block_byte_write_intl_disk);
+    to->block_byte_write_intl += WT_STAT_CONN_READ(from, block_byte_write_intl);
+    to->block_byte_write_leaf_disk += WT_STAT_CONN_READ(from, block_byte_write_leaf_disk);
+    to->block_byte_write_leaf += WT_STAT_CONN_READ(from, block_byte_write_leaf);
     to->block_byte_write_mmap += WT_STAT_CONN_READ(from, block_byte_write_mmap);
     to->block_byte_write_syscall += WT_STAT_CONN_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_CONN_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_CONN_READ(from, block_byte_map_read);
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
+    to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
     to->eviction_app_time += WT_STAT_CONN_READ(from, eviction_app_time);
     to->cache_read_app_count += WT_STAT_CONN_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_CONN_READ(from, cache_read_app_time);
@@ -3002,6 +2966,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, eviction_server_skip_unwanted_pages);
     to->eviction_server_skip_unwanted_tree +=
       WT_STAT_CONN_READ(from, eviction_server_skip_unwanted_tree);
+    to->eviction_server_skip_trees_too_many_active_walks +=
+      WT_STAT_CONN_READ(from, eviction_server_skip_trees_too_many_active_walks);
     to->eviction_server_skip_checkpointing_trees +=
       WT_STAT_CONN_READ(from, eviction_server_skip_checkpointing_trees);
     to->eviction_server_skip_trees_stick_in_cache +=
@@ -3165,6 +3131,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_uncommitted_truncate +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_uncommitted_truncate);
     to->cache_eviction_clean += WT_STAT_CONN_READ(from, cache_eviction_clean);
+    to->cache_updates_txn_uncommitted_bytes +=
+      WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_bytes);
+    to->cache_updates_txn_uncommitted_count +=
+      WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_count);
     to->fsync_all_fh_total += WT_STAT_CONN_READ(from, fsync_all_fh_total);
     to->fsync_all_fh += WT_STAT_CONN_READ(from, fsync_all_fh);
     to->fsync_all_time += WT_STAT_CONN_READ(from, fsync_all_time);
@@ -3389,6 +3359,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->dh_sweep_skip_ckpt += WT_STAT_CONN_READ(from, dh_sweep_skip_ckpt);
     to->dh_session_handles += WT_STAT_CONN_READ(from, dh_session_handles);
     to->dh_session_sweeps += WT_STAT_CONN_READ(from, dh_session_sweeps);
+    to->live_restore_state += WT_STAT_CONN_READ(from, live_restore_state);
+    to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);
     to->lock_btree_page_count += WT_STAT_CONN_READ(from, lock_btree_page_count);
     to->lock_btree_page_wait_application +=
       WT_STAT_CONN_READ(from, lock_btree_page_wait_application);
@@ -3596,12 +3568,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_create_success += WT_STAT_CONN_READ(from, session_table_create_success);
     to->session_table_create_import_fail +=
       WT_STAT_CONN_READ(from, session_table_create_import_fail);
+    to->session_table_create_import_repair +=
+      WT_STAT_CONN_READ(from, session_table_create_import_repair);
     to->session_table_create_import_success +=
       WT_STAT_CONN_READ(from, session_table_create_import_success);
     to->session_table_drop_fail += WT_STAT_CONN_READ(from, session_table_drop_fail);
     to->session_table_drop_success += WT_STAT_CONN_READ(from, session_table_drop_success);
-    to->session_table_rename_fail += WT_STAT_CONN_READ(from, session_table_rename_fail);
-    to->session_table_rename_success += WT_STAT_CONN_READ(from, session_table_rename_success);
     to->session_table_salvage_fail += WT_STAT_CONN_READ(from, session_table_salvage_fail);
     to->session_table_salvage_success += WT_STAT_CONN_READ(from, session_table_salvage_success);
     to->session_table_truncate_fail += WT_STAT_CONN_READ(from, session_table_truncate_fail);
@@ -3616,11 +3588,18 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->thread_read_active += WT_STAT_CONN_READ(from, thread_read_active);
     to->thread_write_active += WT_STAT_CONN_READ(from, thread_write_active);
     to->application_cache_ops += WT_STAT_CONN_READ(from, application_cache_ops);
+    to->application_cache_interruptible_ops +=
+      WT_STAT_CONN_READ(from, application_cache_interruptible_ops);
+    to->application_cache_uninterruptible_ops +=
+      WT_STAT_CONN_READ(from, application_cache_uninterruptible_ops);
     to->application_evict_snapshot_refreshed +=
       WT_STAT_CONN_READ(from, application_evict_snapshot_refreshed);
     to->application_cache_time += WT_STAT_CONN_READ(from, application_cache_time);
+    to->application_cache_interruptible_time +=
+      WT_STAT_CONN_READ(from, application_cache_interruptible_time);
+    to->application_cache_uninterruptible_time +=
+      WT_STAT_CONN_READ(from, application_cache_uninterruptible_time);
     to->txn_release_blocked += WT_STAT_CONN_READ(from, txn_release_blocked);
-    to->conn_close_blocked_lsm += WT_STAT_CONN_READ(from, conn_close_blocked_lsm);
     to->dhandle_lock_blocked += WT_STAT_CONN_READ(from, dhandle_lock_blocked);
     to->page_index_slot_ref_blocked += WT_STAT_CONN_READ(from, page_index_slot_ref_blocked);
     to->prepared_transition_blocked_page +=
@@ -3697,66 +3676,18 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_update_conflict += WT_STAT_CONN_READ(from, txn_update_conflict);
 }
 
-static const char *const __stats_join_desc[] = {
-  "join: accesses to the main table",
-  "join: bloom filter false positives",
-  "join: checks that conditions of membership are satisfied",
-  "join: items inserted into a bloom filter",
-  "join: items iterated",
-};
-
-int
-__wt_stat_join_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
-{
-    WT_UNUSED(cst);
-    *p = __stats_join_desc[slot];
-    return (0);
-}
-
-void
-__wt_stat_join_init_single(WT_JOIN_STATS *stats)
-{
-    memset(stats, 0, sizeof(*stats));
-}
-
-void
-__wt_stat_join_clear_single(WT_JOIN_STATS *stats)
-{
-    stats->main_access = 0;
-    stats->bloom_false_positive = 0;
-    stats->membership_check = 0;
-    stats->bloom_insert = 0;
-    stats->iterated = 0;
-}
-
-void
-__wt_stat_join_clear_all(WT_JOIN_STATS **stats)
-{
-    u_int i;
-
-    for (i = 0; i < WT_STAT_CONN_COUNTER_SLOTS; ++i)
-        __wt_stat_join_clear_single(stats[i]);
-}
-
-void
-__wt_stat_join_aggregate(WT_JOIN_STATS **from, WT_JOIN_STATS *to)
-{
-    to->main_access += WT_STAT_CONN_READ(from, main_access);
-    to->bloom_false_positive += WT_STAT_CONN_READ(from, bloom_false_positive);
-    to->membership_check += WT_STAT_CONN_READ(from, membership_check);
-    to->bloom_insert += WT_STAT_CONN_READ(from, bloom_insert);
-    to->iterated += WT_STAT_CONN_READ(from, iterated);
-}
-
 static const char *const __stats_session_desc[] = {
   "session: bytes read into cache",
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
   "session: dirty bytes in this txn",
+  "session: number of updates in this txn",
   "session: page read from disk to cache time (usecs)",
   "session: page write from cache to disk time (usecs)",
   "session: schema lock wait time (usecs)",
   "session: time waiting for cache (usecs)",
+  "session: time waiting for cache interruptible eviction (usecs)",
+  "session: time waiting for mandatory cache eviction (usecs)",
 };
 
 int
@@ -3779,9 +3710,12 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->bytes_read = 0;
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
-    stats->txn_bytes_dirty = 0;
+    /* not clearing txn_bytes_dirty */
+    /* not clearing txn_updates */
     stats->read_time = 0;
     stats->write_time = 0;
     stats->lock_schema_wait = 0;
     stats->cache_time = 0;
+    stats->cache_time_interruptible = 0;
+    stats->cache_time_mandatory = 0;
 }

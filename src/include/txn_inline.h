@@ -44,8 +44,10 @@ static WT_INLINE bool
 __wt_txn_log_op_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_LOG_MANAGER *log_mgr;
 
     conn = S2C(session);
+    log_mgr = &conn->log_mgr;
 
     /*
      * Objects with checkpoint durability don't need logging unless we're in debug mode. That rules
@@ -59,7 +61,7 @@ __wt_txn_log_op_check(WT_SESSION_IMPL *session)
      * Correct the above check for logging being configured. Files are configured for logging to
      * turn off timestamps, so stop here if there aren't actually any log files.
      */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+    if (!FLD_ISSET(log_mgr->flags, WT_LOG_ENABLED))
         return (false);
 
     /* No logging during recovery. */
@@ -90,14 +92,6 @@ __wt_txn_err_set(WT_SESSION_IMPL *session, int ret)
 
     /* The transaction has to be rolled back. */
     F_SET(txn, WT_TXN_ERROR);
-
-    /*
-     * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
-     * a prepared transaction.
-     */
-    if (F_ISSET(txn, WT_TXN_PREPARE))
-        WT_IGNORE_RET(__wt_panic(session, ret,
-          "transactional error logged after transaction was prepared, failing the system"));
 }
 
 /*
@@ -414,11 +408,12 @@ __txn_op_delete_commit_apply_page_del_timestamp(WT_SESSION_IMPL *session, WT_TXN
 }
 
 /*
- * __wt_txn_op_delete_commit_apply_timestamps --
+ * __wt_txn_op_delete_commit --
  *     Apply the correct start and durable timestamps to any updates in the page del update list.
  */
 static WT_INLINE int
-__wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate)
+__wt_txn_op_delete_commit(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate, bool assign_timestamp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
@@ -432,6 +427,17 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *
     ref = op->u.ref;
     txn = session->txn;
     page_del = ref->page_del;
+
+    /* Timestamps are ignored on logged files. */
+    if (F_ISSET(op->btree, WT_BTREE_LOGGED))
+        return (false);
+
+    /*
+     * Disable timestamp validation for transactions that are explicitly configured without a
+     * timestamp.
+     */
+    if (F_ISSET(txn, WT_TXN_TS_NOT_SET))
+        return (false);
 
     /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
@@ -470,7 +476,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *
                                                             txn->commit_timestamp,
                           (*updp)->prev_durable_ts));
 
-                    if ((*updp)->start_ts == WT_TS_NONE) {
+                    if (assign_timestamp && (*updp)->start_ts == WT_TS_NONE) {
                         (*updp)->start_ts = txn->commit_timestamp;
                         (*updp)->durable_ts = txn->durable_timestamp;
                     }
@@ -495,7 +501,8 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_TXN_OP *
         WT_ERR(ret);
     }
 
-    __txn_op_delete_commit_apply_page_del_timestamp(session, op);
+    if (assign_timestamp)
+        __txn_op_delete_commit_apply_page_del_timestamp(session, op);
 
 err:
     WT_REF_UNLOCK(ref, previous_state);
@@ -617,7 +624,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
     if (!__txn_should_assign_timestamp(session, op)) {
         if (validate) {
             if (op->type == WT_TXN_OP_REF_DELETE)
-                WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op, validate));
+                WT_RET(__wt_txn_op_delete_commit(session, op, validate, false));
             else
                 WT_RET(__wt_txn_timestamp_usage_check(
                   session, op, txn->commit_timestamp, op->u.op_upd->prev_durable_ts));
@@ -640,7 +647,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool validate
         }
     } else {
         if (op->type == WT_TXN_OP_REF_DELETE)
-            WT_RET(__wt_txn_op_delete_commit_apply_timestamps(session, op, validate));
+            WT_RET(__wt_txn_op_delete_commit(session, op, validate, true));
         else {
             /*
              * The timestamp is in the update for operations other than truncate. Both commit and
@@ -801,16 +808,18 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
-
-    *pinned_tsp = WT_TS_NONE;
+    bool has_pinned_timestamp;
 
     txn_global = &S2C(session)->txn_global;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
      */
-    if (!txn_global->has_pinned_timestamp)
+    WT_ACQUIRE_READ(has_pinned_timestamp, txn_global->has_pinned_timestamp);
+    if (!has_pinned_timestamp) {
+        *pinned_tsp = WT_TS_NONE;
         return;
+    }
 
     /* If we have a version cursor open, use the pinned timestamp when it is opened. */
     if (S2C(session)->version_cursor_count > 0) {
@@ -818,20 +827,27 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         return;
     }
 
-    *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
+    /*
+     * It is important to ensure we only read the global pinned timestamp once. Otherwise, we may
+     * return a pinned timestamp that is larger than the checkpoint timestamp. For example, the
+     * first time we read the global pinned timestamp as 100 and set it to the local variable
+     * pinned_ts. If the checkpoint timestamp is 110 and the second time we read the global pinned
+     * timestamp as 120, we will return 120 instead of the checkpoint timestamp 110.
+     */
+    WT_ACQUIRE_READ(pinned_ts, txn_global->pinned_timestamp);
 
     /*
      * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
-     * read the pinned timestamp and the checkpoint generation, otherwise, we may read earlier
-     * checkpoint timestamp before the checkpoint generation that is read resulting more data being
-     * pinned. If a checkpoint is starting and we have to use the checkpoint timestamp, we take the
-     * minimum of it with the oldest timestamp, which is what we want.
+     * read the pinned timestamp, otherwise, we may read earlier checkpoint timestamp resulting more
+     * data being pinned. If a checkpoint is starting and we have to use the checkpoint timestamp,
+     * we take the minimum of it with the oldest timestamp, which is what we want.
      */
-    WT_ACQUIRE_BARRIER();
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
-    if (checkpoint_ts != 0 && checkpoint_ts < pinned_ts)
+    if (checkpoint_ts != WT_TS_NONE && checkpoint_ts < pinned_ts)
         *pinned_tsp = checkpoint_ts;
+    else
+        *pinned_tsp = pinned_ts;
 }
 
 /*
@@ -1593,6 +1609,67 @@ retry:
 }
 
 /*
+ * __txn_incr_bytes_dirty --
+ *     Increment the number of bytes dirty in the transaction.
+ *
+ * The "new_update" argument indicates whether a piece of data is: (1) Newly created (not just data
+ *     being moved). (2) Exclusively belongs to the current transaction.
+ *
+ * There are two types of "dirty" data in the system for the purpose of this function: (1) Dirty
+ *     data associated with a specific transaction. (2) Dirty data that isn't tied to a single
+ *     transaction (e.g., a page with updates from multiple transactions).
+ *
+ * Examples:
+ *
+ * 1. A page can be dirty with multiple updates, each belonging to different transactions. In this
+ *     case: (a) The updates are tied to specific transactions. (b) The page itself isn't
+ *     exclusively tied to any one transaction.
+ *
+ * 2. During a page split, updates move between pages. However, this movement doesn't create new
+ *     dirty data, so the "new_update" flag would be set to false.
+ */
+static void
+__txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
+{
+    /*
+     * For application threads, track the transaction bytes added to cache usage. We want to capture
+     * only the application's own changes to page data structures. Exclude changes to internal pages
+     * or changes that are the result of the application thread being co-opted into eviction work.
+     */
+    if (!new_update || F_ISSET(session, WT_SESSION_INTERNAL) ||
+      !F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID) ||
+      __wt_session_gen(session, WT_GEN_EVICT) != 0)
+        return;
+
+    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
+    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
+    WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
+    WT_STAT_SESSION_INCRV(session, txn_updates, 1);
+}
+
+/*
+ * __txn_clear_bytes_dirty --
+ *     Clear the number of bytes dirty in the transaction.
+ */
+static void
+__txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
+{
+    int64_t val;
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
+        WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+    }
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_count, val);
+        WT_STAT_SESSION_SET(session, txn_updates, 0);
+    }
+}
+
+/*
  * __wt_txn_begin --
  *     Begin a transaction.
  */
@@ -1603,8 +1680,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     txn = session->txn;
     txn->isolation = session->isolation;
-    txn->txn_logsync = S2C(session)->txn_logsync;
+    txn->txn_logsync = S2C(session)->log_mgr.txn_logsync;
     txn->commit_timestamp = WT_TS_NONE;
+    txn->durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
@@ -1625,7 +1703,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
          * WT_SESSION.begin_transaction API can't, continue on.
          */
         WT_RET_ERROR_OK(
-          __wt_evict_app_assist_worker_check(session, false, true, NULL), WT_ROLLBACK);
+          __wt_evict_app_assist_worker_check(session, false, true, true, NULL), WT_ROLLBACK);
 
         __wt_txn_get_snapshot(session);
     }
@@ -1636,6 +1714,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     WT_ASSERT_ALWAYS(
       session, txn->mod_count == 0, "The mod count should be 0 when beginning a transaction");
+
+    __txn_clear_bytes_dirty(session);
 
     return (0);
 }
@@ -1680,7 +1760,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
       __wt_atomic_loadv64(&txn_shared->pinned_id) == WT_TXN_NONE)
-        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, NULL));
+        WT_RET(__wt_evict_app_assist_worker_check(session, false, true, true, NULL));
 
     return (0);
 }
@@ -1905,7 +1985,9 @@ __txn_modify_block(
         }
 
         WT_STAT_CONN_DSRC_INCR(session, txn_update_conflict);
-        ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CONFLICT);
+        ret = WT_ROLLBACK;
+        __wt_session_set_last_error(
+          session, ret, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
     }
 
     /*
@@ -1967,7 +2049,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         txn_global = &S2C(session)->txn_global;
         if (txn_global->debug_rollback != 0 &&
           ++txn_global->debug_ops % txn_global->debug_rollback == 0)
-            return (__wt_txn_rollback_required(session, "debug mode simulated conflict"));
+            WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, "debug mode simulated conflict");
     }
     return (0);
 }

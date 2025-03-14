@@ -5,8 +5,12 @@ __bit_ffs
 __bit_nclr
 __ovfl_discard_dump
 __ovfl_reuse_dump
+__wt_bloom_create
 __wt_bloom_drop
+__wt_bloom_finalize
 __wt_bloom_get
+__wt_bloom_insert
+__wt_bloom_open
 __wt_bulk_insert_fix
 __wt_bulk_insert_row
 __wt_bulk_insert_var
@@ -32,8 +36,6 @@ __wt_log_scan
 __wt_nlpo2
 __wt_nlpo2_round
 __wt_session_breakpoint
-__wt_stat_join_aggregate
-__wt_stat_join_clear_all
 __wt_strcat
 __wt_stream_set_no_buffer
 __wt_try_readlock

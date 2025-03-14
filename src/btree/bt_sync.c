@@ -23,34 +23,22 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT_SPINLOCK_OWNED(session, &S2BT(session)->flush_lock);
 
     /*
-     * Don't skip checkpoint if at least one of the following conditions is met:
-     *
-     *  - This checkpoint happens during RTS, recovery or shutdown. Those scenarios should not leave
-     * anything dirty behind.
-     *  - This is the history store btree. As part of the checkpointing the data store, we will move
-     * the older values into the history store without using any transactions. This led to
-     * representation of all the modifications on the history store page with a transaction that is
-     * maximum than the checkpoint snapshot. But these modifications are done by the checkpoint
-     * itself, so we shouldn't ignore them for consistency.
-     * - If we got to this point and we are dealing with an internal page, this means at least one
-     * of its leaf pages has been reconciled and we need to process the internal page as well.
-     * - There is no snapshot transaction active. Usually, there is one in ordinary application
-     * checkpoints but not all internal cases. Furthermore, this guarantees the metadata file is
-     * never skipped.
-     * - the checkpoint's snapshot includes the first dirty update on the page.
-     * - Not every disk block involved has a disk address.
+     * If we got to this point and we are dealing with an internal page, this means at least one of
+     * its leaf pages has been reconciled and we need to process the internal page as well.
      */
-    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
-        return (false);
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) | WT_CONN_CLOSING_CHECKPOINT)
-        return (false);
-    if (WT_IS_HS(session->dhandle))
-        return (false);
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
-    txn = session->txn;
-    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+
+    /*
+     * This is the history store btree. As part of the checkpointing the data store, we will move
+     * the older values into the history store without using any transactions, we shouldn't ignore
+     * them for consistency
+     */
+    if (WT_IS_HS(session->dhandle))
         return (false);
+
+    /* The checkpoint's snapshot includes the first dirty update on the page. */
+    txn = session->txn;
     mod = ref->page->modify;
     if (!WT_TXNID_LT(txn->snapshot_data.snap_max, mod->first_dirty_txn))
         return (false);
@@ -69,6 +57,20 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
             if (multi->addr.addr == NULL)
                 return (false);
+
+    /* RTS, recovery or shutdown should not leave anything dirty behind. */
+    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+        return (false);
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
+        return (false);
+
+    /*
+     * There is no snapshot transaction active. Usually, there is one in ordinary application
+     * checkpoints but not all internal cases. Furthermore, this guarantees the metadata file is
+     * never skipped.
+     */
+    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+        return (false);
 
     return (true);
 }
@@ -289,7 +291,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             dirty = __wt_page_is_modified(page);
             WT_ACQUIRE_BARRIER();
 
-            /* Skip clean pages, but always update the maximum transaction ID. */
+            /* Skip clean pages, but always update the maximum transaction ID and timestamp. */
             if (!dirty) {
                 mod = page->modify;
                 if (mod != NULL && mod->rec_max_txn > btree->rec_max_txn)
@@ -357,17 +359,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
-            /*
-             * Update checkpoint IO tracking data if configured to log verbose progress messages.
-             */
-            if (conn->ckpt_timer_start.tv_sec > 0) {
-                conn->ckpt_write_bytes += __wt_atomic_loadsize(&page->memory_footprint);
-                ++conn->ckpt_write_pages;
-
-                /* Periodically log checkpoint progress. */
-                if (conn->ckpt_write_pages % (5 * WT_THOUSAND) == 0)
-                    __wt_checkpoint_progress(session, false);
-            }
+            /* Update checkpoint IO tracking data. */
+            if (__wt_checkpoint_verbose_timer_started(session))
+                __wt_checkpoint_progress_stats(
+                  session, __wt_atomic_loadsize(&page->memory_footprint));
         }
 
         /*

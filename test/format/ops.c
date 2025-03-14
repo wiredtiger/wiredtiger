@@ -230,12 +230,20 @@ tinfo_teardown(void)
 static void
 rollback_to_stable(WT_SESSION *session)
 {
+    u_int num_threads;
+    char cfg[32];
+
     /* Rollback-to-stable only makes sense for timestamps. */
     if (!g.transaction_timestamps_config)
         return;
 
-    /* Rollback the system. */
-    testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, NULL));
+    /*
+     * Rollback the system using up to 10 threads. Extend to 11 values to cover the NULL config
+     * case.
+     */
+    num_threads = mmrand(&g.extra_rnd, 0, 11);
+    testutil_snprintf(cfg, sizeof(cfg), "threads=%" PRIu32, num_threads);
+    testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, num_threads == 11 ? NULL : cfg));
 
     /*
      * Get the stable timestamp, and update ours. They should be the same, but there's no point in
@@ -500,6 +508,7 @@ begin_transaction_ts(TINFO *tinfo)
     WT_DECL_RET;
     WT_SESSION *session;
     uint64_t ts;
+    const char *config;
 
     session = tinfo->session;
 
@@ -514,9 +523,18 @@ begin_transaction_ts(TINFO *tinfo)
          * both modes: 75% of the time, pick a read timestamp before any commit timestamp still in
          * use, 25% of the time don't set a timestamp at all.
          */
-        ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_maximum_committed();
+        ts = mmrand(&tinfo->data_rnd, 1, 4) == 1 ? 0 : timestamp_minimum_committed();
     if (ts != 0) {
-        wt_wrap_begin_transaction(session, NULL);
+        /* 10% of times configure ignore_prepare */
+        if (GV(OPS_PREPARE) && (mmrand(&tinfo->data_rnd, 1, 10) == 1)) {
+            config = "ignore_prepare=true";
+            tinfo->ignore_prepare = true;
+        } else {
+            config = NULL;
+            tinfo->ignore_prepare = false;
+        }
+
+        wt_wrap_begin_transaction(session, config);
 
         /*
          * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
@@ -528,7 +546,6 @@ begin_transaction_ts(TINFO *tinfo)
             trace_uri_op(tinfo, NULL, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
             return;
         }
-
         testutil_assert(ret == EINVAL);
         testutil_check(session->rollback_transaction(session, NULL));
     }
@@ -569,6 +586,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
     session = tinfo->session;
 
     ++tinfo->commit;
+    tinfo->ignore_prepare = false;
 
     ts = 0; /* -Wconditional-uninitialized */
     if (g.transaction_timestamps_config) {
@@ -614,6 +632,7 @@ rollback_transaction(TINFO *tinfo)
     session = tinfo->session;
 
     ++tinfo->rollback;
+    tinfo->ignore_prepare = false;
 
     testutil_check(session->rollback_transaction(session, NULL));
     replay_rollback(tinfo);
@@ -747,9 +766,10 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
          * If we're in a snapshot-isolation transaction, optionally reserve a row (it's an update so
          * can't be done at lower isolation levels). Reserving a row in an implicit transaction will
          * work, but doesn't make sense. Reserving a row before a read won't be useful but it's not
-         * unexpected.
+         * unexpected. A row cannot be reserved with ignore prepare.
          */
-        if (intxn && iso_level == ISOLATION_SNAPSHOT && mmrand(&tinfo->data_rnd, 0, 20) == 1) {
+        if (intxn && iso_level == ISOLATION_SNAPSHOT && tinfo->ignore_prepare == false &&
+          mmrand(&tinfo->data_rnd, 0, 20) == 1) {
             switch (table->type) {
             case ROW:
                 ret = row_reserve(tinfo, positioned);
@@ -1112,11 +1132,12 @@ rollback_retry:
         }
 
         /*
-         * Select an operation: updates cannot happen at lower isolation levels and modify must be
-         * in an explicit transaction.
+         * Select an operation: updates cannot happen at lower isolation levels or with
+         * ignore_prepare and modify must be in an explicit transaction.
          */
         op = READ;
-        if (iso_level == ISOLATION_IMPLICIT || iso_level == ISOLATION_SNAPSHOT) {
+        if ((iso_level == ISOLATION_IMPLICIT || iso_level == ISOLATION_SNAPSHOT) &&
+          (tinfo->ignore_prepare == false)) {
             i = mmrand(&tinfo->data_rnd, 1, 100);
             if (i < TV(OPS_PCT_DELETE)) {
                 op = REMOVE;

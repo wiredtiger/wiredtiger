@@ -7,6 +7,22 @@ set -e
 set -x
 
 #############################################################
+# bcopy:
+#       arg1: branch name
+#############################################################
+bcopy()
+{
+    # Return true if the branch's format backup generates a BACKUP.copy directory.
+    test "$1" = "mongodb-8.0" && echo "1"
+    test "$1" = "mongodb-7.0" && echo "1"
+    test "$1" = "mongodb-6.0" && echo "1"
+    test "$1" = "mongodb-5.0" && echo "1"
+    test "$1" = "mongodb-4.4" && echo "1"
+    # Anything newer than mongodb-8.0 returns false.
+    return 0
+}
+
+#############################################################
 # bflag:
 #       arg1: branch name
 #############################################################
@@ -154,27 +170,28 @@ create_configs()
     fi
 
     echo "##################################################" > $file_name
-    echo "runs.type=row" >> $file_name              # WT-7379 - Temporarily disable column store tests
-    echo "btree.huffman_value=0" >> $file_name      # WT-12456 - Never used, removed from newer releases
-    echo "btree.prefix=0" >> $file_name             # WT-7579 - Prefix testing isn't portable between releases
-    echo "cache=80" >> $file_name                   # Medium cache so there's eviction
-    echo "checksum=on" >> $file_name                # WT-7851 Fix illegal checksum configuration
-    echo "checkpoints=1"  >> $file_name             # Force periodic writes
-    echo "compression=snappy"  >> $file_name        # We only build with snappy, force the choice
+    echo "runs.type=row" >> $file_name                # WT-7379 - Temporarily disable column store tests
+    echo "btree.huffman_value=0" >> $file_name        # WT-12456 - Never used, removed from newer releases
+    echo "btree.prefix=0" >> $file_name               # WT-7579 - Prefix testing isn't portable between releases
+    echo "cache=80" >> $file_name                     # Medium cache so there's eviction
+    echo "checksum=on" >> $file_name                  # WT-7851 Fix illegal checksum configuration
+    echo "checkpoints=1"  >> $file_name               # Force periodic writes
+    echo "compression=snappy"  >> $file_name          # We only build with snappy, force the choice
     echo "data_source=table" >> $file_name
-    echo "debug.background_compact=0" >> $file_name # WT-13276 - Not supported by older releases
-    echo "debug.cursor_reposition=0" >> $file_name  # WT-10594 - Not supported by older releases
-    echo "debug.log_retention=0" >> $file_name      # WT-10434 - Not supported by older releases
-    echo "debug.realloc_malloc=0" >> $file_name     # WT-10111 - Not supported by older releases
-    echo "in_memory=0" >> $file_name                # Interested in the on-disk format
-    echo "leak_memory=1" >> $file_name              # Faster runs
-    echo "logging=1" >> $file_name                  # Test log compatibility
-    echo "logging_compression=snappy" >> $file_name # We only built with snappy, force the choice
-    echo "prefetch=0" >> $file_name                 # WT-12978 - Not supported by older releases
+    echo "debug.background_compact=0" >> $file_name   # WT-13276 - Not supported by older releases
+    echo "debug.cursor_reposition=0" >> $file_name    # WT-10594 - Not supported by older releases
+    echo "debug.log_retention=0" >> $file_name        # WT-10434 - Not supported by older releases
+    echo "debug.realloc_malloc=0" >> $file_name       # WT-10111 - Not supported by older releases
+    echo "eviction.evict_use_softptr=0" >> $file_name # WT-14013 - Not supported by older releases
+    echo "in_memory=0" >> $file_name                  # Interested in the on-disk format
+    echo "leak_memory=1" >> $file_name                # Faster runs
+    echo "logging=1" >> $file_name                    # Test log compatibility
+    echo "logging_compression=snappy" >> $file_name   # We only built with snappy, force the choice
+    echo "prefetch=0" >> $file_name                   # WT-12978 - Not supported by older releases
     echo "rows=1000000" >> $file_name
-    echo "salvage=0" >> $file_name                  # Faster runs
-    echo "statistics_log.sources=off" >> $file_name # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
-    echo "stress.checkpoint=0" >> $file_name        # Faster runs
+    echo "salvage=0" >> $file_name                    # Faster runs
+    echo "statistics_log.sources=off" >> $file_name   # WT-12710 - Prevent statistics from enabling both 'all' and 'sources'
+    echo "stress.checkpoint=0" >> $file_name          # Faster runs
     echo "timer=4" >> $file_name
     echo "verify=1" >> $file_name
     if [ "$branch_name" == "mongodb-4.2" ] ; then
@@ -484,6 +501,22 @@ upgrade_downgrade()
                 echo "transaction.timestamps=1" >> $config
                 echo "transaction.implicit=0" >> $config
             fi
+	    # Older releases (8.0 and older) expect to find a BACKUP.copy
+	    # directory if BACKUP exists. After 8.0 the directory structure
+	    # changed. So copy it for older releases if testing against a
+	    # develop run that is doing backups.
+            need_bcopy1=$(bcopy $1)
+            need_bcopy2=$(bcopy $2)
+	    dir2=$top/$format_dir_branch2/RUNDIR.$am
+	    # If there is a BACKUP and the older release needs a BACKUP.copy directory and
+	    # the source version does not create one, remove any from an earlier run and
+	    # copy the BACKUP contents for this run.
+	    if [ -e $dir2/BACKUP -a "$need_bcopy1" == "1" -a -z "$need_bcopy2" ] ; then
+                echo "Remove any earlier $dir2/BACKUP.copy for older releases"
+		rm -rf $dir2/BACKUP.copy
+                echo "Copying backup directory for older releases"
+		cp -rp $dir2/BACKUP $dir2/BACKUP.copy
+	    fi
             echo "$1 format running on $2 access method $am..."
             cd "$top/$format_dir_branch1"
             flags="-1Rq $(bflag $1)"

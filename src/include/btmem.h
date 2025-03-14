@@ -39,20 +39,6 @@
  */
 #define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
 
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_REC_APP_EVICTION_SNAPSHOT 0x001u
-#define WT_REC_CALL_URGENT 0x002u
-#define WT_REC_CHECKPOINT 0x004u
-#define WT_REC_CHECKPOINT_RUNNING 0x008u
-#define WT_REC_CLEAN_AFTER_REC 0x010u
-#define WT_REC_EVICT 0x020u
-#define WT_REC_HS 0x040u
-#define WT_REC_IN_MEMORY 0x080u
-#define WT_REC_SCRUB 0x100u
-#define WT_REC_VISIBILITY_ERR 0x200u
-#define WT_REC_VISIBLE_ALL 0x400u
-/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-
 /*
  * WT_PAGE_HEADER --
  *	Blocks have a common header, a WT_PAGE_HEADER structure followed by a
@@ -1667,15 +1653,15 @@ struct __wt_insert {
 /*
  * Atomically allocate and swap a structure or array into place.
  */
-#define WT_PAGE_ALLOC_AND_SWAP(s, page, dest, v, count)                      \
-    do {                                                                     \
-        if (((v) = (dest)) == NULL) {                                        \
-            WT_ERR(__wt_calloc_def(s, count, &(v)));                         \
-            if (__wt_atomic_cas_ptr(&(dest), NULL, v))                       \
-                __wt_cache_page_inmem_incr(s, page, (count) * sizeof(*(v))); \
-            else                                                             \
-                __wt_free(s, v);                                             \
-        }                                                                    \
+#define WT_PAGE_ALLOC_AND_SWAP(s, page, dest, v, count)                             \
+    do {                                                                            \
+        if (((v) = (dest)) == NULL) {                                               \
+            WT_ERR(__wt_calloc_def(s, count, &(v)));                                \
+            if (__wt_atomic_cas_ptr(&(dest), NULL, v))                              \
+                __wt_cache_page_inmem_incr(s, page, (count) * sizeof(*(v)), false); \
+            else                                                                    \
+                __wt_free(s, v);                                                    \
+        }                                                                           \
     } while (0)
 
 /*
