@@ -385,7 +385,7 @@ __clayered_adjust_state(
         current_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
 
     if (current_leader != clayered->leader || current_checkpoint_id != clayered->checkpoint_id) {
-        change_ingest = change_stable = false;
+        change_ingest = false;
         snapshot_gen = clayered->snapshot_gen;
 
         /* Is this a step up or step down? */
