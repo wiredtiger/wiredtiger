@@ -13,7 +13,7 @@ static int __clayered_lookup(WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
-static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool *);
+static int __clayered_adjust_state(WT_CURSOR_LAYERED *, bool, bool, bool *);
 
 /*
  * __clayered_deleted --
@@ -127,7 +127,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
         WT_RET(__clayered_reset_cursors(clayered, false));
     }
 
-    WT_RET(__clayered_adjust_state(clayered, iteration, &external_state_change));
+    WT_RET(__clayered_adjust_state(clayered, update, iteration, &external_state_change));
 
     for (;;) {
         /*
@@ -316,18 +316,61 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 }
 
 /*
+ * __clayered_can_stable_upgrade --
+ *     Return true if the stable cursor can be upgraded at this time. For the most part we mirror
+ *     our decision about when we can upgrade by when a snapshot is allowed to be upgraded.
+ */
+static bool
+__clayered_can_stable_upgrade(WT_CURSOR_LAYERED *clayered, bool iteration)
+{
+    WT_SESSION_IMPL *session;
+    WT_TXN_SHARED *txn_shared;
+    bool can_upgrade;
+
+    session = CUR2S(clayered);
+    can_upgrade = false;
+
+    /*
+     * First, layered cursors are sometimes paired with read timestamps. When using read timestamps,
+     * it's always safe to update cursors, even during iterations. That's because the view at a
+     * timestamp is always consistent, the history store covers that.
+     */
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+    if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
+        can_upgrade = true;
+    else {
+        /* if this is an iteration, we won't upgrade the cursor, we're done. */
+        if (iteration)
+            return (0);
+
+        /*
+         * There are other points when it is appropriate to update cursors. If we don't currently
+         * have a transactional snapshot, or if the snapshot has changed, we can update.
+         *
+         * Why shouldn't we update when in a transaction? We may have read some values, and we'd
+         * expect to see the same values if we read them again. Reading from a newer checkpoint can
+         * violate that.
+         */
+        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+          (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != clayered->snapshot_gen))
+            can_upgrade = true;
+    }
+    return (can_upgrade);
+}
+
+/*
  * __clayered_adjust_state --
  *     Update the state of the cursor to match the state of the disaggregated system. In particular,
  *     if the system has changed in a way that makes constituent cursors out of date, either reopen
  *     them or close them, and let them be opened later as needed.
  */
 static int
-__clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state_updated)
+__clayered_adjust_state(
+  WT_CURSOR_LAYERED *clayered, bool update, bool iteration, bool *state_updated)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *old_stable;
     WT_SESSION_IMPL *session;
-    WT_TXN_SHARED *txn_shared;
     uint64_t current_checkpoint_id, snapshot_gen;
     bool change_ingest, change_stable, current_leader;
 
@@ -345,43 +388,43 @@ __clayered_adjust_state(WT_CURSOR_LAYERED *clayered, bool iteration, bool *state
         change_ingest = change_stable = false;
         snapshot_gen = clayered->snapshot_gen;
 
+        /* Is this a step up or step down? */
         if (current_leader != clayered->leader) {
             /*
-             * If leader state has changed, all cursors are affected.
-             *
-             * FIXME-SLS-1449 Maybe this can be relaxed - a stable cursor might be left open on
-             * downgrade as long as it does readonly operations from then on.
+             * For the ingest table, we'll need to close it or open it. Either way it's a change.
              */
             change_ingest = true;
-            change_stable = true;
-        } else {
-            /*
-             * We have a new checkpoint on the follower. We'd like to reopen the stable cursor, but
-             * we must abide by cursor and transactional semantics.
-             */
-            /*
-             * First, layered cursors are sometimes paired with read timestamps. When using read
-             * timestamps, it's always safe to update cursors, even during iterations. That's
-             * because the view at a timestamp is always consistent, the history store covers that.
-             */
-            txn_shared = WT_SESSION_TXN_SHARED(session);
-            if (txn_shared != NULL && txn_shared->read_timestamp != WT_TS_NONE)
-                change_stable = true;
-            else {
-                /* if this is an iteration, we won't upgrade the cursor, we're done. */
-                if (iteration)
-                    return (0);
 
-                /*
-                 * There are other points when it is appropriate to update cursors. If we don't
-                 * currently have a transactional snapshot, or if the snapshot has changed, we can
-                 * update.
-                 */
-                if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
-                  (__wt_session_gen(session, WT_GEN_HAS_SNAPSHOT) != snapshot_gen))
-                    change_stable = true;
+            /*
+             * If we're stepping down, then we're currently have a R/W stable cursor and all write
+             * would go to it. Any writes we were about to make or have made could never be
+             * committed at this point.
+             */
+            if (!current_leader && (update || session->txn->mod_count != 0)) {
+                __wt_txn_err_set(session, WT_ROLLBACK);
+                WT_RET(__wt_txn_rollback_required(
+                  session, "write operations are not allowed after stepping down from leader role"));
             }
+
+            /*
+             * It turns out that the right choice for step up and step down is always to reopen the
+             * stable cursor whenever we can.
+             *
+             * For step up, we're currently using a readonly stable cursor at a checkpoint. We can
+             * reopen the stable cursor, we'd get a R/W cursor. We don't need the ability to write,
+             * as this request was kicked off on the follower, so it must be all reads. But we want
+             * to discard the stable cursor when we can, as long as we're not breaking transactional
+             * semantics for cursors.
+             *
+             * For step down, we're currently using a R/W stable cursor. After the check above, we
+             * know we've done read operations to this point. So again, we should upgrade if we can.
+             */
         }
+        /*
+         * Even if the leader hasn't changed, we can get here if we have a new checkpoint on the
+         * follower. And again, we'd like to reopen the stable cursor if we can.
+         */
+        change_stable = __clayered_can_stable_upgrade(clayered, iteration);
 
         /* See if there's nothing to do for the ingest cursor. */
         if (clayered->ingest_cursor == NULL)
