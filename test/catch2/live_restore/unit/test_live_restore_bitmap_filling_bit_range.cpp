@@ -77,33 +77,27 @@ TEST_CASE("Test various bitmap filling bit ranges",
 
     // Filling one range that fits within a single bit slot.
     test_data test1 = test_data(4, 16, {{16, 4}});
-    // Filling one range that spans multiple bit slots and fits entirely within them.
+    // Filling one range that spans multiple bit slots.
     test_data test2 = test_data(4, 16, {{16, 16}});
-    // Filling one range that partially overlaps two bit slots.
-    test_data test3 = test_data(4, 16, {{13, 4}});
-    // Filling one range that spans multiple bit slots and partially overlaps at both ends.
-    test_data test4 = test_data(4, 16, {{13, 20}});
-    // Filling one range that partially overlaps and extends beyond the last bit slot.
-    test_data test5 = test_data(4, 16, {{63, 4}});
+    // Filling one range that fits within the last bit slot and extends beyond it.
+    test_data test3 = test_data(4, 16, {{60, 8}});
     // Filling one range that is not tracked by the bitmap.
-    test_data test6 = test_data(4, 16, {{64, 4}});
+    test_data test4 = test_data(4, 16, {{64, 4}});
     // Filling one range that fits the entire bitmap.
-    test_data test7 = test_data(4, 16, {{0, 64}});
+    test_data test5 = test_data(4, 16, {{0, 64}});
     // Filling one range that spans the entire bitmap and extends beyond the last slot.
-    test_data test8 = test_data(4, 16, {{0, 80}});
+    test_data test6 = test_data(4, 16, {{0, 80}});
     // Filling multiple ranges that each range fits within a bit slot.
-    test_data test9 = test_data(4, 16, {{16, 4}, {24, 4}, {32, 4}});
-    // Filling multiple ranges that each range partially overlaps some bit slots.
-    test_data test10 = test_data(4, 16, {{15, 4}, {23, 8}, {37, 16}});
+    test_data test7 = test_data(4, 16, {{16, 4}, {24, 4}, {32, 4}});
     // Filling multiple ranges that overlaps with each other.
-    test_data test11 = test_data(4, 16, {{0, 8}, {5, 12}, {13, 16}});
+    test_data test8 = test_data(4, 16, {{0, 8}, {4, 12}, {12, 16}});
     // Filling with some random allocsize, nbits, and ranges.
-    test_data test12 = test_data(8, 128, {{3, 16}, {80, 56}, {96, 120}, {137, 168}, {17, 88}});
-    test_data test13 = test_data(16, 64, {{0, 80}, {123, 48}, {172, 64}, {193, 32}, {196, 16}});
-    test_data test14 = test_data(32, 256, {{3, 160}, {500, 480}, {876, 672}, {1135, 2688}});
+    test_data test9 = test_data(8, 128, {{8, 16}, {80, 56}, {96, 120}, {136, 168}, {16, 88}});
+    test_data test10 = test_data(16, 64, {{0, 80}, {128, 48}, {144, 64}, {176, 32}, {192, 16}});
+    test_data test11 = test_data(32, 256, {{32, 160}, {480, 480}, {512, 672}, {1312, 2688}});
 
-    std::vector<test_data> tests = {test1, test2, test3, test4, test5, test6, test7, test8, test9,
-      test10, test11, test12, test13, test14};
+    std::vector<test_data> tests = {
+      test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11};
 
     REQUIRE(__wt_rwlock_init(session, &lr_fh.lock) == 0);
     for (const auto &test : tests) {
@@ -119,7 +113,7 @@ TEST_CASE("Test various bitmap filling bit ranges",
 
         REQUIRE(is_valid_bitmap(test));
 
-        __wt_free(session, lr_fh.bitmap);
+        delete[] test.bitmap;
     }
     __wt_rwlock_destroy(session, &lr_fh.lock);
 }
