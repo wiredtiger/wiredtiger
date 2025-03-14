@@ -182,7 +182,7 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
             if (ret != 0)
                 throw std::runtime_error("Cannot open the database: " +
                   std::string(wiredtiger_strerror(ret)) + " (" + std::to_string(ret) + ")");
-            model::wiredtiger_connection_guard conn_guard(conn); /* Automatically close. */
+            model::wiredtiger_connection_guard conn_guard(conn); /* Close automatically. */
 
             /* Get the list of tables. */
             std::vector<std::string> tables;
