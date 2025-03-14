@@ -402,8 +402,8 @@ __clayered_adjust_state(
              */
             if (!current_leader && (update || session->txn->mod_count != 0)) {
                 __wt_txn_err_set(session, WT_ROLLBACK);
-                WT_RET(__wt_txn_rollback_required(
-                  session, "write operations are not allowed after stepping down from leader role"));
+                WT_RET(__wt_txn_rollback_required(session,
+                  "write operations are not allowed after stepping down from leader role"));
             }
 
             /*
