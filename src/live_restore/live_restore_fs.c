@@ -1186,7 +1186,9 @@ __wt_live_restore_metadata_to_fh(
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
-    WT_ASSERT_ALWAYS(session, lr_fh->bitmap == NULL, "Bitmap not empty while trying to parse");
+    WT_ASSERT_ALWAYS(session, lr_fh->bitmap == NULL,
+      "Reading in bitmap information from metadata but bitmap information already exists in "
+      "memory");
 
     /*
      * Once we're in the clean up stage or later all data has been migrated across to the
@@ -1526,8 +1528,8 @@ err:
  */
 static int
 __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
-  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
-  bool dest_exist, bool source_exist)
+  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool dest_exist,
+  bool source_exist)
 {
     WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
     if (!source_exist)
