@@ -314,6 +314,7 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
  */
 #define WT_STAT_SESSION_INCRV(session, fld, value) \
     WT_STAT_INCRV_BASE(session, &(session)->stats, fld, value)
+#define WT_STAT_SESSION_INCR(session, fld) WT_STAT_INCRV_BASE(session, &(session)->stats, fld, 1)
 #define WT_STAT_SESSION_SET(session, fld, value) \
     WT_STAT_SET_BASE(session, &(session)->stats, fld, value)
 
@@ -1420,7 +1421,10 @@ struct __wt_session_stats {
     int64_t bytes_write;
     int64_t lock_dhandle_wait;
     int64_t txn_bytes_dirty;
+    int64_t session_read;
     int64_t read_time;
+    int64_t read_internal;
+    int64_t read_leaf;
     int64_t write_time;
     int64_t lock_schema_wait;
     int64_t cache_time;

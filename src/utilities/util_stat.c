@@ -15,10 +15,11 @@
 static int
 usage(void)
 {
-    static const char *options[] = {"-f", "include only \"fast\" statistics in the output", "-?",
-      "show this message", NULL, NULL};
+    static const char *options[] = {"-f", "include only \"fast\" statistics in the output", "-w",
+      "include statistics that require walking the entire tree", "-?", "show this message", NULL,
+      NULL};
 
-    util_usage("stat [-f] [uri]", "options:", options);
+    util_usage("stat [-f] [-w] [uri]", "options:", options);
     return (1);
 }
 
@@ -40,7 +41,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     objname_free = false;
     objname = uri = NULL;
     config = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "af?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "afw?")) != EOF)
         switch (ch) {
         case 'a':
             /*
@@ -52,6 +53,9 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
             break;
         case 'f':
             config = "statistics=(fast)";
+            break;
+        case 'w':
+            config = "statistics=(tree_walk)";
             break;
         case '?':
             usage();

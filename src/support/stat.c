@@ -3630,7 +3630,10 @@ static const char *const __stats_session_desc[] = {
   "session: bytes written from cache",
   "session: dhandle lock wait time (usecs)",
   "session: dirty bytes in this txn",
+  "session: page read from disk to cache count",
   "session: page read from disk to cache time (usecs)",
+  "session: page read from disk was internal",
+  "session: page read from disk was leaf",
   "session: page write from cache to disk time (usecs)",
   "session: schema lock wait time (usecs)",
   "session: time waiting for cache (usecs)",
@@ -3657,7 +3660,10 @@ __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
     stats->bytes_write = 0;
     stats->lock_dhandle_wait = 0;
     stats->txn_bytes_dirty = 0;
+    stats->session_read = 0;
     stats->read_time = 0;
+    stats->read_internal = 0;
+    stats->read_leaf = 0;
     stats->write_time = 0;
     stats->lock_schema_wait = 0;
     stats->cache_time = 0;

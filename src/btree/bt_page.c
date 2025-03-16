@@ -443,6 +443,11 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
         WT_ERR(__wt_illegal_value(session, page->type));
     }
 
+    if (WT_PAGE_IS_INTERNAL(page))
+        WT_STAT_SESSION_INCR(session, read_internal);
+    else
+        WT_STAT_SESSION_INCR(session, read_leaf);
+
     /* Update the page's cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size);
 
