@@ -469,7 +469,9 @@ __live_restore_fh_fill_bit_range(
     if (offset_bit >= lr_fh->nbits)
         return;
 
-    uint64_t fill_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len) - 1);
+    WT_ASSERT_ALWAYS(session, (WTI_OFFSET_END(offset, len) % lr_fh->allocsize) == 0,
+      "Offset end must always be a multiple of alloc size");
+    uint64_t fill_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len)) - 1;
     bool partial_fill = false;
     if (fill_end_bit >= lr_fh->nbits) {
         partial_fill = true;
