@@ -18,17 +18,15 @@ using namespace utils;
 
 struct test_data {
     test_data(uint32_t allocsize, uint64_t nbits, std::vector<std::pair<uint64_t, uint64_t>> ranges)
-        : allocsize(allocsize), nbits(nbits), ranges(std::move(ranges))
+        : allocsize(allocsize), nbits(nbits), bitmap_len(__bitstr_size(nbits)),
+          bitmap(bitmap_len, 0x0), ranges(std::move(ranges))
     {
-        bitmap_len = __bitstr_size(nbits);
-        bitmap = new uint8_t[bitmap_len];
-        memset(bitmap, 0x0, bitmap_len);
     }
 
     uint32_t allocsize;
     uint64_t nbits;
-    uint8_t *bitmap;
     uint64_t bitmap_len;
+    std::vector<uint8_t> bitmap;
     // range.first represents filling offset, range.second represents filling length.
     std::vector<std::pair<uint64_t, uint64_t>> ranges;
 };
@@ -53,9 +51,8 @@ static bool
 is_valid_bitmap(const test_data &test)
 {
     for (uint64_t i = 0; i < test.bitmap_len; i++) {
-        uint64_t bitmap_i = test.bitmap[i];
         for (uint64_t j = 0; j < 8; j++) {
-            bool bit_set = bitmap_i & (1 << j);
+            bool bit_set = test.bitmap[i] & (1 << j);
             bool bit_in_range = is_bit_in_range((i << 3) | j, test);
             if (bit_set != bit_in_range)
                 return false;
@@ -100,9 +97,9 @@ TEST_CASE("Test various bitmap filling bit ranges",
       test1, test2, test3, test4, test5, test6, test7, test8, test9, test10, test11};
 
     REQUIRE(__wt_rwlock_init(session, &lr_fh.lock) == 0);
-    for (const auto &test : tests) {
+    for (auto &test : tests) {
         lr_fh.allocsize = test.allocsize;
-        lr_fh.bitmap = test.bitmap;
+        lr_fh.bitmap = test.bitmap.data();
         lr_fh.nbits = test.nbits;
 
         __wt_writelock(session, &lr_fh.lock);
@@ -112,8 +109,6 @@ TEST_CASE("Test various bitmap filling bit ranges",
         __wt_writeunlock(session, &lr_fh.lock);
 
         REQUIRE(is_valid_bitmap(test));
-
-        delete[] test.bitmap;
     }
     __wt_rwlock_destroy(session, &lr_fh.lock);
 }
