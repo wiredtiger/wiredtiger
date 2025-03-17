@@ -1543,7 +1543,7 @@ __live_restore_fs_create_destination_data_file(WT_SESSION_IMPL *session, WTI_LIV
     WT_SESSION *wt_session = (WT_SESSION *)session;
     wt_off_t source_size;
     bool closed = false;
-    /* In theory we may have crashed during a temporary file copy, remove that file now. */
+    /* We may have crashed during a temporary file copy, remove that file now. */
     WT_ERR(__live_restore_remove_temporary_file(
       session, lr_fs->os_file_system, dest_path, &tmp_dest_path));
 
