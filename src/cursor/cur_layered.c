@@ -384,6 +384,12 @@ __clayered_adjust_state(
     else
         current_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
 
+    /*
+     * Has any state changed? What is not checked here is the possibility that a step down and step
+     * up have both occurred since the last check. We don't have a way to detect that (or its
+     * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
+     * any changes. FIXME-SLS-1607.
+     */
     if (current_leader != clayered->leader || current_checkpoint_id != clayered->checkpoint_id) {
         change_ingest = false;
         snapshot_gen = clayered->snapshot_gen;
@@ -395,8 +401,9 @@ __clayered_adjust_state(
 
             /*
              * If we're stepping down, then we currently have a R/W stable cursor and all writes
-             * would go to it. Any writes we were about to make or have made could never be
-             * committed at this point.
+             * would go to it. Any writes we were about to make or have made to this table could
+             * never be committed at this point. We're going to be a little more strict than that
+             * here and disallow continuing any transaction that has writes.
              */
             if (!current_leader && (update || session->txn->mod_count != 0)) {
                 __wt_txn_err_set(session, WT_ROLLBACK);
