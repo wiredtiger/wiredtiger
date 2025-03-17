@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wiredtiger, wttest
+import os, time, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
 
 # test_layered11.py
@@ -78,7 +78,7 @@ class test_layered11(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor.close()
             time.sleep(1)
             self.session.checkpoint()
-            self.reopen_conn()
+            self.reopen_disagg_conn(self.conn_config)
 
             self.pr('opening cursor')
             item_count = 0

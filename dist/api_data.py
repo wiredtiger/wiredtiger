@@ -115,15 +115,15 @@ connection_disaggregated_config_common = [
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
+    Config('last_materialized_lsn', '', r'''
+        the page LSN indicating that all pages up until this LSN are available for reading''',
+        type='int', undoc=True),
     Config('next_checkpoint_id', '-1', r'''
         the next checkpoint ID to open when starting (or restarting) the node''',
         min='-1', type='int', undoc=True),
     Config('role', '', r'''
         whether the stable table in a layered data store should lead or follow''',
         choices=['leader', 'follower'], undoc=True),
-    Config('shutdown_checkpoint', 'false', r'''
-        whether do checkpoint at shutdown''',
-        type='boolean'),
 ]
 disaggregated_config_common = [
     Config('page_log', '', r'''

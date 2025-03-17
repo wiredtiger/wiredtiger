@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import datetime, functools, inspect, os, random, wiredtiger, wttest
+import functools, os, wttest
 
 # These routines help run the various page log sources used by disaggregated storage.
 # They are required to manage the generation of disaggregated storage specific configurations.
@@ -232,3 +232,13 @@ class DisaggConfigMixin:
         # Follower step up, including picking up the last complete checkpoint
         conn_follower.reconfigure(f'disaggregated=(checkpoint_meta="{meta}",' +\
                                   f'next_checkpoint_id={next_id},role="leader")')
+
+    def reopen_disagg_conn(self, base_config, directory="."):
+        """
+        Reopen the connection.
+        """
+        config = base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
+        # Step down to avoid shutdown checkpoint
+        self.conn.reconfigure('disaggregated=(role="follower")')
+        self.close_conn()
+        self.open_conn(directory, config)

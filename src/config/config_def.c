@@ -286,12 +286,12 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_disaggregated_sub
     INT64_MAX, NULL},
   {"checkpoint_meta", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 94,
     INT64_MIN, INT64_MAX, NULL},
-  {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 95, -1,
+  {"last_materialized_lsn", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 95,
+    INT64_MIN, INT64_MAX, NULL},
+  {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 96, -1,
     INT64_MAX, NULL},
   {"role", "string", NULL, "choices=[\"leader\",\"follower\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 96, INT64_MIN, INT64_MAX, confchk_role_choices},
-  {"shutdown_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 97,
-    INT64_MIN, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_STRING, 97, INT64_MIN, INT64_MAX, confchk_role_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -299,7 +299,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+    0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_eviction_subconfigs[] = {
   {"evict_sample_inmem", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 238,
@@ -2049,14 +2049,14 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_disaggregated_subconfigs[] 
     INT64_MAX, NULL},
   {"checkpoint_meta", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 94,
     INT64_MIN, INT64_MAX, NULL},
-  {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 95, -1,
+  {"last_materialized_lsn", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 95,
+    INT64_MIN, INT64_MAX, NULL},
+  {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 96, -1,
     INT64_MAX, NULL},
   {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 21, INT64_MIN,
     INT64_MAX, NULL},
   {"role", "string", NULL, "choices=[\"leader\",\"follower\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 96, INT64_MIN, INT64_MAX, confchk_role2_choices},
-  {"shutdown_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 97,
-    INT64_MIN, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_STRING, 97, INT64_MIN, INT64_MAX, confchk_role2_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -2064,7 +2064,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
+    2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
 
 static const char *confchk_verbose8_choices[] = {__WT_CONFIG_CHOICE_write_timestamp, NULL};
 
@@ -3986,7 +3986,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "disaggregated=(checkpoint_id=-1,checkpoint_meta=,"
-    "next_checkpoint_id=-1,role=,shutdown_checkpoint=false),"
+    "last_materialized_lsn=,next_checkpoint_id=-1,role=),"
     "error_prefix=,eviction=(evict_sample_inmem=true,threads_max=8,"
     "threads_min=1),eviction_checkpoint_target=1,"
     "eviction_dirty_target=5,eviction_dirty_trigger=20,"
@@ -4196,9 +4196,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "collator=,columns=,disaggregated=(checkpoint_id=-1,"
-    "checkpoint_meta=,next_checkpoint_id=-1,page_log=,role=,"
-    "shutdown_checkpoint=false),ingest=,key_format=u,stable=,"
-    "value_format=u,verbose=[],write_timestamp_usage=none",
+    "checkpoint_meta=,last_materialized_lsn=,next_checkpoint_id=-1,"
+    "page_log=,role=),ingest=,key_format=u,stable=,value_format=u,"
+    "verbose=[],write_timestamp_usage=none",
     confchk_layered_meta, 11, confchk_layered_meta_jump, 49, WT_CONF_SIZING_NONE, false},
   {"lsm.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
@@ -4322,8 +4322,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "slow_checkpoint=false,stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "direct_io=,disaggregated=(checkpoint_id=-1,checkpoint_meta=,"
-    "next_checkpoint_id=-1,page_log=,role=,shutdown_checkpoint=false)"
-    ",encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "last_materialized_lsn=,next_checkpoint_id=-1,page_log=,role=),"
+    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
@@ -4374,8 +4374,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "slow_checkpoint=false,stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "direct_io=,disaggregated=(checkpoint_id=-1,checkpoint_meta=,"
-    "next_checkpoint_id=-1,page_log=,role=,shutdown_checkpoint=false)"
-    ",encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "last_materialized_lsn=,next_checkpoint_id=-1,page_log=,role=),"
+    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
@@ -4427,8 +4427,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "direct_io=,disaggregated=(checkpoint_id=-1,checkpoint_meta=,"
-    "next_checkpoint_id=-1,page_log=,role=,shutdown_checkpoint=false)"
-    ",encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "last_materialized_lsn=,next_checkpoint_id=-1,page_log=,role=),"
+    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
@@ -4479,8 +4479,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stress_skiplist=false,table_logging=false,"
     "tiered_flush_error_continue=false,update_restore_evict=false),"
     "direct_io=,disaggregated=(checkpoint_id=-1,checkpoint_meta=,"
-    "next_checkpoint_id=-1,page_log=,role=,shutdown_checkpoint=false)"
-    ",encryption=(keyid=,name=,secretkey=),error_prefix=,"
+    "last_materialized_lsn=,next_checkpoint_id=-1,page_log=,role=),"
+    "encryption=(keyid=,name=,secretkey=),error_prefix=,"
     "eviction=(evict_sample_inmem=true,threads_max=8,threads_min=1),"
     "eviction_checkpoint_target=1,eviction_dirty_target=5,"
     "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"

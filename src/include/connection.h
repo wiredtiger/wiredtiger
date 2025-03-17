@@ -165,6 +165,8 @@ struct __wt_disagg_copy_metadata {
     TAILQ_ENTRY(__wt_disagg_copy_metadata) q; /* Linked list of entries. */
 };
 
+#define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
+
 /*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
@@ -176,6 +178,7 @@ struct __wt_disaggregated_storage {
     wt_shared uint64_t global_checkpoint_id;     /* The ID of the currently opened checkpoint. */
                                                  /* Updates are protected by the checkpoint lock. */
     wt_shared uint64_t last_checkpoint_meta_lsn; /* The LSN of the last checkpoint metadata. */
+    wt_shared uint64_t last_materialized_lsn;    /* The LSN of the last materialized page. */
 
     wt_timestamp_t cur_checkpoint_timestamp; /* The timestamp of the in-progress checkpoint. */
     wt_shared wt_timestamp_t last_checkpoint_timestamp; /* The timestamp of the last checkpoint. */
@@ -190,8 +193,6 @@ struct __wt_disaggregated_storage {
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
     WT_SPINLOCK copy_metadata_lock;
-
-    bool shutdown_checkpoint;
 };
 
 /*

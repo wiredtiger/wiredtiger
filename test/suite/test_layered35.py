@@ -27,99 +27,93 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from helper_disagg import DisaggConfigMixin, gen_disagg_storages
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_layered19.py
-# Test adjustable consecutive deltas
+# test_layered35.py
+# Simple read write testing for leaf page delta
 
-class test_layered19(wttest.WiredTigerTestCase, DisaggConfigMixin):
+@disagg_test_class
+class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    encrypt = [
+        ('none', dict(encryptor='none', encrypt_args='')),
+        ('rotn', dict(encryptor='rotn', encrypt_args='keyid=13')),
+    ]
+
+    compress = [
+        ('none', dict(block_compress='none')),
+        ('snappy', dict(block_compress='snappy')),
+    ]
+
     uris = [
-        ('layered', dict(uri='layered:test_layered19')),
-        ('btree', dict(uri='file:test_layered19')),
+        ('layered', dict(uri='layered:test_layered09')),
+        ('btree', dict(uri='file:test_layered09')),
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
-    disagg_storages = gen_disagg_storages('test_layered19', disagg_only = True)
-
-    nitems = 1000
+                     + 'disaggregated=(page_log=palm),checkpoint=(precise=true),'
+    disagg_storages = gen_disagg_storages('test_layered35', disagg_only = True)
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(disagg_storages, uris)
+    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ignoreStdoutPattern('WT_VERB_RTS')
+    nitems = 100
 
     def session_create_config(self):
-        # The delta percentage of 200 is an arbitrary large value, intended to produce
+        # The delta percentage of 80 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(max_consecutive_delta=1),key_format=S,value_format=S'
+        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
 
     def conn_config(self):
-        return self.conn_base_config + 'disaggregated=(role="leader"),'
+        enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
+        return self.conn_base_config + 'disaggregated=(role="leader"),' + enc_conf
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
+        extlist.extension('compressors', self.block_compress)
+        extlist.extension('encryptors', self.encryptor)
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    def test_layered_read_write(self):
+    def test_layered_skip_empty_delta(self):
         self.session.create(self.uri, self.session_create_config())
 
         cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "aaaa"
+        value1 = "a" * 100
         value2 = "bbbb"
 
         for i in range(self.nitems):
+            self.session.begin_transaction()
             cursor[str(i)] = value1
+            self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(5))
 
-        # XXX
-        # Inserted timing delays before checkpoint, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
+
         self.session.checkpoint()
 
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                cursor[str(i)] = value2
+        self.session.begin_transaction()
+        cursor[str(1)] = value2
+        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
 
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        import time
-        time.sleep(1.0)
-        self.session.checkpoint()
-
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                cursor[str(i)] = value2
-
-        # XXX
-        # Inserted timing delays around reopen, apparently needed because of the
-        # layered table watcher implementation
-        time.sleep(1.0)
+        # We should build an empty delta
         self.session.checkpoint()
 
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
-        time.sleep(1.0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
 
+        self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
         for i in range(self.nitems):
-            if i % 10 == 0:
-                self.assertEqual(cursor[str(i)], value2)
-            else:
-                self.assertEqual(cursor[str(i)], value1)
+            self.assertEquals(cursor[str(i)], value1)
+        self.session.rollback_transaction()
 
+        # Assert that we have written no leaf page delta.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        read_delta = stat_cursor[stat.conn.cache_read_leaf_delta][2]
-        self.assertEqual(read_delta, 0)
+        rec_page_delta_leaf = stat_cursor[stat.conn.rec_page_delta_leaf][2]
+        self.assertEqual(rec_page_delta_leaf, 0)
         stat_cursor.close()

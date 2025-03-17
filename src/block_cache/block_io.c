@@ -384,7 +384,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
     WT_DECL_ITEM(ctmp);
     WT_DECL_ITEM(etmp);
     WT_DECL_RET;
-    const WT_DELTA_HEADER *delta_hdr;
+    const WT_DELTA_HEADER *delta;
     WT_ITEM results[WT_DELTA_LIMIT + 1];
     WT_ITEM *tmp, *ip;
     WT_PAGE_BLOCK_META block_meta_tmp;
@@ -442,6 +442,17 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
     else
         WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
+
+    WT_STAT_CONN_DSRC_INCR(session, cache_read);
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_checkpoint);
+    if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
+        WT_STAT_DSRC_INCR(session, compress_read);
+
+    /* TODO: How do we want to account for deltas in these statistics? */
+    WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
+    WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
+    (void)__wt_atomic_add64(&S2C(session)->cache->bytes_read, dsk->mem_size);
 
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
@@ -511,10 +522,9 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
             ip = etmp;
         }
         if (F_ISSET(blk, WT_BLOCK_DISAGG_COMPRESSED)) {
-            delta_hdr = ip->data;
+            delta = ip->data;
             WT_ERR(__wt_scr_alloc(session, 0, &ctmp));
-            WT_ERR(
-              __read_decompress(session, ip->data, delta_hdr->mem_size, ctmp, addr, addr_size));
+            WT_ERR(__read_decompress(session, ip->data, delta->mem_size, ctmp, addr, addr_size));
             ip = ctmp;
         }
         if (ip != &results[i]) {

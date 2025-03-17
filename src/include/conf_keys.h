@@ -205,6 +205,7 @@
 #define WT_CONF_ID_key_gap 37ULL
 #define WT_CONF_ID_keyid 26ULL
 #define WT_CONF_ID_last 73ULL
+#define WT_CONF_ID_last_materialized_lsn 95ULL
 #define WT_CONF_ID_leaf_item_max 38ULL
 #define WT_CONF_ID_leaf_key_max 39ULL
 #define WT_CONF_ID_leaf_page_max 40ULL
@@ -228,7 +229,7 @@
 #define WT_CONF_ID_mmap_all 315ULL
 #define WT_CONF_ID_multiprocess 316ULL
 #define WT_CONF_ID_name 25ULL
-#define WT_CONF_ID_next_checkpoint_id 95ULL
+#define WT_CONF_ID_next_checkpoint_id 96ULL
 #define WT_CONF_ID_next_random 151ULL
 #define WT_CONF_ID_next_random_sample_size 152ULL
 #define WT_CONF_ID_next_random_seed 153ULL
@@ -280,7 +281,7 @@
 #define WT_CONF_ID_require_max 298ULL
 #define WT_CONF_ID_require_min 299ULL
 #define WT_CONF_ID_reserve 272ULL
-#define WT_CONF_ID_role 96ULL
+#define WT_CONF_ID_role 97ULL
 #define WT_CONF_ID_rollback_error 228ULL
 #define WT_CONF_ID_run_once 115ULL
 #define WT_CONF_ID_salvage 319ULL
@@ -290,7 +291,6 @@
 #define WT_CONF_ID_session_table_cache 322ULL
 #define WT_CONF_ID_sessions 191ULL
 #define WT_CONF_ID_shared 60ULL
-#define WT_CONF_ID_shutdown_checkpoint 97ULL
 #define WT_CONF_ID_size 198ULL
 #define WT_CONF_ID_skip_sort_check 156ULL
 #define WT_CONF_ID_slow_checkpoint 229ULL
@@ -427,10 +427,10 @@ static const struct {
     struct {
         uint64_t checkpoint_id;
         uint64_t checkpoint_meta;
+        uint64_t last_materialized_lsn;
         uint64_t next_checkpoint_id;
         uint64_t page_log;
         uint64_t role;
-        uint64_t shutdown_checkpoint;
     } Disaggregated;
     struct {
         uint64_t keyid;
@@ -807,10 +807,10 @@ static const struct {
   {
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_checkpoint_id << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_checkpoint_meta << 16),
+    WT_CONF_ID_Disaggregated | (WT_CONF_ID_last_materialized_lsn << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_next_checkpoint_id << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_page_log << 16),
     WT_CONF_ID_Disaggregated | (WT_CONF_ID_role << 16),
-    WT_CONF_ID_Disaggregated | (WT_CONF_ID_shutdown_checkpoint << 16),
   },
   {
     WT_CONF_ID_Encryption | (WT_CONF_ID_keyid << 16),
