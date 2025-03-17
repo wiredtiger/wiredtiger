@@ -35,6 +35,8 @@ from wiredtiger import stat
 # transaction IDs.
 class test_truncate27(wttest.WiredTigerTestCase):
 
+    conn_config = "statistics=(all),statistics_log=(wait=1,json=true,on_close=true),"
+
     def evict_cursor(self, uri, nrows):
         # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
