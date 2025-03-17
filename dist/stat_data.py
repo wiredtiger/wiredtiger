@@ -1186,10 +1186,12 @@ conn_dsrc_stats = [
     LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from ingest table'),
     LayeredStat('layered_curs_search_ingest', 'Layered table cursor search operations from ingest table'),
     LayeredStat('layered_curs_search_near_ingest', 'Layered table cursor search near operations from ingest table'),
+    LayeredStat('layered_curs_upgrade_ingest', 'Layered table cursor upgrade state for ingest table'),
     LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from stable table'),
     LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from stable table'),
     LayeredStat('layered_curs_search_stable', 'Layered table cursor search operations from stable table'),
     LayeredStat('layered_curs_search_near_stable', 'Layered table cursor search near operations from stable table'),
+    LayeredStat('layered_curs_upgrade_stable', 'Layered table cursor upgrade state for stable table'),
 
     LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
     LayeredStat('layered_table_manager_checkpoints_refreshed', 'checkpoints refreshed on shared layered constituents'),

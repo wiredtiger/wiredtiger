@@ -390,13 +390,11 @@ __clayered_adjust_state(
 
         /* Is this a step up or step down? */
         if (current_leader != clayered->leader) {
-            /*
-             * For the ingest table, we'll need to close it or open it. Either way it's a change.
-             */
+            /* For the ingest table, we'll need to close it or open it. Either way it's a change. */
             change_ingest = true;
 
             /*
-             * If we're stepping down, then we're currently have a R/W stable cursor and all write
+             * If we're stepping down, then we currently have a R/W stable cursor and all writes
              * would go to it. Any writes we were about to make or have made could never be
              * committed at this point.
              */
@@ -441,6 +439,7 @@ __clayered_adjust_state(
              */
             WT_RET(clayered->ingest_cursor->close(clayered->ingest_cursor));
             clayered->ingest_cursor = NULL;
+            WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_ingest);
         }
 
         if (change_stable) {
@@ -454,6 +453,7 @@ __clayered_adjust_state(
             snapshot_gen = __wt_session_gen(session, WT_GEN_HAS_SNAPSHOT);
 
             WT_RET(__clayered_open_stable(clayered, current_leader));
+            WT_STAT_CONN_DSRC_INCR(session, layered_curs_upgrade_stable);
 
             /* If the old cursor has a position, copy it to the newly opened cursor. */
             if (F_ISSET(old_stable, WT_CURSTD_KEY_SET))

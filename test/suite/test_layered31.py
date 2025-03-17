@@ -116,6 +116,13 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             result_cursors[uri] = cursor
         return result_cursors
 
+    # Scan data from low to high expecting to see all the keys and values using the given prefix.
+    #
+    # This function is sometimes called doing partial scans, and later, after a state change,
+    # continuing using the same cursor.  We are promised that cursor iteration results aren't
+    # affected by other transactions. Extending this reasoning to state changes, like picking up
+    # checkpoints and stepping up to leader, cursors should similarly be unaffected by state
+    # changes happening concurrently to the lifetime of the cursor.
     def scan_data_follower(self, value_prefix, low = 0, high = nitems, cursors = None, uris = all_uris):
         result_cursors = dict()
         if value_prefix == 'eee':
@@ -133,12 +140,6 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     break
                 self.assertEqual(ret, 0)
 
-                # We're checking that we haven't lost our place in the key space.
-                # For the value, we're only checking that the prefix contains the
-                # key, as it always does in this test. As for which value, the old
-                # or the new, we'll accept either in this test. We don't want to
-                # assume to know exactly when the cursor is promoted on the follower.
-                #
                 expected_key = self.keys_in_order[i]
                 self.assertEqual(cursor.get_key(), expected_key)
                 self.assertEqual(cursor.get_value(), value_prefix + expected_key)

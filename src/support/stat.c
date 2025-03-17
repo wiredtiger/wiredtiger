@@ -285,6 +285,8 @@ static const char *const __stats_dsrc_desc[] = {
   "layered: Layered table cursor search operations from ingest table",
   "layered: Layered table cursor search operations from stable table",
   "layered: Layered table cursor update operations",
+  "layered: Layered table cursor upgrade state for ingest table",
+  "layered: Layered table cursor upgrade state for stable table",
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: checkpoints refreshed on shared layered constituents",
   "layered: how many log applications the layered table manager applied on this tree",
@@ -661,6 +663,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_update = 0;
+    stats->layered_curs_upgrade_ingest = 0;
+    stats->layered_curs_upgrade_stable = 0;
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_refreshed = 0;
     stats->layered_table_manager_logops_applied = 0;
@@ -1028,6 +1032,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->layered_curs_search_ingest += from->layered_curs_search_ingest;
     to->layered_curs_search_stable += from->layered_curs_search_stable;
     to->layered_curs_update += from->layered_curs_update;
+    to->layered_curs_upgrade_ingest += from->layered_curs_upgrade_ingest;
+    to->layered_curs_upgrade_stable += from->layered_curs_upgrade_stable;
     to->layered_table_manager_checkpoints += from->layered_table_manager_checkpoints;
     to->layered_table_manager_checkpoints_refreshed +=
       from->layered_table_manager_checkpoints_refreshed;
@@ -1417,6 +1423,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->layered_curs_search_ingest += WT_STAT_DSRC_READ(from, layered_curs_search_ingest);
     to->layered_curs_search_stable += WT_STAT_DSRC_READ(from, layered_curs_search_stable);
     to->layered_curs_update += WT_STAT_DSRC_READ(from, layered_curs_update);
+    to->layered_curs_upgrade_ingest += WT_STAT_DSRC_READ(from, layered_curs_upgrade_ingest);
+    to->layered_curs_upgrade_stable += WT_STAT_DSRC_READ(from, layered_curs_upgrade_stable);
     to->layered_table_manager_checkpoints +=
       WT_STAT_DSRC_READ(from, layered_table_manager_checkpoints);
     to->layered_table_manager_checkpoints_refreshed +=
@@ -1978,6 +1986,8 @@ static const char *const __stats_connection_desc[] = {
   "layered: Layered table cursor search operations from ingest table",
   "layered: Layered table cursor search operations from stable table",
   "layered: Layered table cursor update operations",
+  "layered: Layered table cursor upgrade state for ingest table",
+  "layered: Layered table cursor upgrade state for stable table",
   "layered: checkpoints performed on this table by the layered table manager",
   "layered: checkpoints refreshed on shared layered constituents",
   "layered: how many log applications the layered table manager applied on this tree",
@@ -2777,6 +2787,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_curs_search_ingest = 0;
     stats->layered_curs_search_stable = 0;
     stats->layered_curs_update = 0;
+    stats->layered_curs_upgrade_ingest = 0;
+    stats->layered_curs_upgrade_stable = 0;
     stats->layered_table_manager_checkpoints = 0;
     stats->layered_table_manager_checkpoints_refreshed = 0;
     stats->layered_table_manager_logops_applied = 0;
@@ -3629,6 +3641,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_curs_search_ingest += WT_STAT_CONN_READ(from, layered_curs_search_ingest);
     to->layered_curs_search_stable += WT_STAT_CONN_READ(from, layered_curs_search_stable);
     to->layered_curs_update += WT_STAT_CONN_READ(from, layered_curs_update);
+    to->layered_curs_upgrade_ingest += WT_STAT_CONN_READ(from, layered_curs_upgrade_ingest);
+    to->layered_curs_upgrade_stable += WT_STAT_CONN_READ(from, layered_curs_upgrade_stable);
     to->layered_table_manager_checkpoints +=
       WT_STAT_CONN_READ(from, layered_table_manager_checkpoints);
     to->layered_table_manager_checkpoints_refreshed +=
