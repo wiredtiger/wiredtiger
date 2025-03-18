@@ -9,6 +9,8 @@
 #include "wt_internal.h"
 #include "live_restore_private.h"
 
+WT_STAT_MSECS_HIST_INCR_FUNC(live_restore, live_restore_hist_source_read_latency)
+
 static int __live_restore_fs_directory_list_free(
   WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, char **dirlist, uint32_t count);
 
@@ -620,8 +622,8 @@ __live_restore_fh_write_destination(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
  *     Write to a file. Callers of this function must hold the file handle lock.
  */
 static int
-__live_restore_fh_write_int(
-  WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
+__live_restore_fh_write_int(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len,
+  const void *buf, bool background_thread)
 {
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
@@ -632,6 +634,8 @@ __live_restore_fh_write_int(
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
       "Live restore lock not taken when needed");
     WT_RET(__live_restore_fh_write_destination(session, lr_fh, offset, len, buf));
+    if (background_thread)
+        WT_STAT_CONN_INCRV(session, live_restore_bytes_copied, len);
     __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
     return (0);
 }
@@ -660,7 +664,7 @@ __live_restore_fh_write(
         return (__live_restore_fh_write_destination(session, lr_fh, offset, len, buf));
 
     WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK(
-      session, lr_fh, ret = __live_restore_fh_write_int(fh, wt_session, offset, len, buf));
+      session, lr_fh, ret = __live_restore_fh_write_int(fh, wt_session, offset, len, buf, false));
     return (ret);
 }
 
@@ -669,12 +673,31 @@ __live_restore_fh_write(
  *     Read from the destination file handle.
  */
 static int
-__live_restore_fh_read_destination(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
-  wt_off_t offset, size_t len, void *buf)
+__live_restore_fh_read_destination(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *destination, wt_off_t offset, size_t len, void *buf)
 {
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM DEST");
-    return (
-      lr_fh->destination->fh_read(lr_fh->destination, (WT_SESSION *)session, offset, len, buf));
+    return (destination->fh_read(destination, (WT_SESSION *)session, offset, len, buf));
+}
+
+/*
+ * __live_restore_fh_read_source --
+ *     Read data from the source directory and update appropriate statistics.
+ */
+static int
+__live_restore_fh_read_source(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *source, wt_off_t off, size_t len, void *buf)
+{
+    uint64_t time_start, time_stop;
+
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
+
+    time_start = __wt_clock(session);
+    WT_RET(source->fh_read(source, (WT_SESSION *)session, off, len, buf));
+    time_stop = __wt_clock(session);
+    __wt_stat_msecs_hist_incr_live_restore(session, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_INCR(session, live_restore_source_read_count);
+    return (0);
 }
 
 /*
@@ -704,7 +727,7 @@ __live_restore_fh_read(
      * result.
      */
     if (WTI_DEST_COMPLETE(lr_fh))
-        WT_RET(__live_restore_fh_read_destination(session, lr_fh, offset, len, buf));
+        WT_RET(__live_restore_fh_read_destination(session, lr_fh->destination, offset, len, buf));
 
     __wt_readlock(session, &lr_fh->lock);
     /*
@@ -717,7 +740,8 @@ __live_restore_fh_read(
     WT_LIVE_RESTORE_SERVICE_STATE read_state =
       __live_restore_can_service_read(lr_fh, session, offset, len, &hole_begin_off);
     if (read_state == FULL)
-        WT_ERR(__live_restore_fh_read_destination(session, lr_fh, offset, len, read_data));
+        WT_ERR(
+          __live_restore_fh_read_destination(session, lr_fh->destination, offset, len, read_data));
     else if (read_state == PARTIAL) {
         /*
          * If a portion of the read region is serviceable, combine a read from the source and
@@ -741,23 +765,16 @@ __live_restore_fh_read(
         size_t source_partial_read_len = len - dest_partial_read_len;
 
         /* First read the serviceable portion from the destination. */
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-          "    PARTIAL READ FROM DEST (offset: %" PRId64 ", len: %" WT_SIZET_FMT ")", offset,
-          dest_partial_read_len);
-        WT_ERR(lr_fh->destination->fh_read(
-          lr_fh->destination, wt_session, offset, dest_partial_read_len, read_data));
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    PARTIAL READ TRIGGERED");
+        WT_ERR(__live_restore_fh_read_destination(
+          session, lr_fh->destination, offset, dest_partial_read_len, read_data));
 
         /* Now read the remaining data from the source. */
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-          "    PARTIAL READ FROM SOURCE (offset: %" PRId64 ", len: %" WT_SIZET_FMT ")",
-          hole_begin_off, source_partial_read_len);
-        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, hole_begin_off,
+        WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, hole_begin_off,
           source_partial_read_len, read_data + dest_partial_read_len));
-    } else {
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
+    } else
         /* Read the full read from the source. */
-        WT_ERR(lr_fh->source->fh_read(lr_fh->source, wt_session, offset, len, read_data));
-    }
+        WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, offset, len, read_data));
 
 err:
     /*
@@ -889,9 +906,9 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
       read_size);
 
     *read_offsetp = read_start;
-    WT_RET(lr_fh->source->fh_read(lr_fh->source, wt_session, read_start, read_size, buf));
-    return (
-      __live_restore_fh_write_int((WT_FILE_HANDLE *)lr_fh, wt_session, read_start, read_size, buf));
+    WT_RET(__live_restore_fh_read_source(session, lr_fh->source, read_start, read_size, buf));
+    return (__live_restore_fh_write_int(
+      (WT_FILE_HANDLE *)lr_fh, wt_session, read_start, read_size, buf, true));
 }
 
 /*
@@ -935,7 +952,6 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
               " seconds. Currently copying offset %" PRId64 " of file size %" PRId64,
               lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_offset, WTI_BITMAP_END(lr_fh));
             msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
-            __wt_tree_modify_set(session);
         }
 
         /*
@@ -951,7 +967,6 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
           "%s: Finished background restoration, closing source file", fh->name);
         WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
-        __wt_tree_modify_set(session);
     }
 err:
     __wt_free(session, buf);
@@ -1193,20 +1208,24 @@ __wt_live_restore_metadata_to_fh(
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
+    WT_ASSERT_ALWAYS(session, lr_fh->bitmap == NULL,
+      "Reading in bitmap information from metadata but bitmap information already exists in "
+      "memory");
+
     /*
      * Once we're in the clean up stage or later all data has been migrated across to the
-     * destination. There's no need for hole tracking and therefore nothing to reconstruct.
+     * destination. There's no need for hole tracking and therefore nothing to reconstruct. The
+     * migration state must be checked before we check the number of bits in the bitmap as we clear
+     * that once it finishes.
      */
     if (__wti_live_restore_migration_complete(session)) {
         /*
-         * This is an unlocked access of the source file handle. Given the migration has completed,
-         * it is safe.
+         * Even though the migration has completed we may still have a source file, this indicates
+         * that the live restore finished while this file was being opened.
          */
-        WT_ASSERT(session, WTI_DEST_COMPLETE(lr_fh));
+        WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
         return (0);
     }
-
-    WT_ASSERT_ALWAYS(session, lr_fh->bitmap == NULL, "Bitmap not empty while trying to parse");
 
     __wt_writelock(session, &lr_fh->lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
@@ -1221,7 +1240,7 @@ __wt_live_restore_metadata_to_fh(
      * !!!
      * While the live restore is in progress, the bit count reported by in the live restore metadata
      * can hold three states:
-     *  (0)         : This means file has not yet had a bitmap representation written to the k
+     *  (0)         : This means file has not yet had a bitmap representation written to the
      *                metadata file and therefore no application writes have gone to the
      *                destination. In theory background thread writes may have happened but unless
      *                the tree was dirtied the metadata update was not written out.
@@ -1496,7 +1515,7 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
     WT_ERR(__wt_calloc(session, 1, read_size, &buf));
     for (wt_off_t off = 0; off < source_size; off += (wt_off_t)len) {
         len = WT_MIN((size_t)(source_size - off), read_size);
-        WT_ERR(source_fh->fh_read(source_fh, wt_session, off, len, buf));
+        WT_ERR(__live_restore_fh_read_source(session, source_fh, off, len, buf));
         WT_ERR(dest_fh->fh_write(dest_fh, wt_session, off, len, buf));
 
         /* Check the system has not entered a panic state since the copy can take a long time. */
@@ -1525,35 +1544,85 @@ err:
 }
 
 /*
+ * __live_restore_fs_create_destination_data_file --
+ *     Create a destination file backed by a source file for the first time, atomically sizing it.
+ */
+static int
+__live_restore_fs_create_destination_data_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
+  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, const char *name)
+{
+    WT_DECL_RET;
+
+    char *dest_path, *tmp_dest_path;
+
+    /* This function should only ever be called for data files. */
+    WT_ASSERT(session, lr_fh->file_type == WT_FS_OPEN_FILE_TYPE_DATA);
+
+    WT_RET(__live_restore_fs_backing_filename(
+      &lr_fs->destination, session, lr_fs->destination.home, name, &dest_path));
+
+    WT_FILE_HANDLE *dest_fh = NULL;
+    WT_SESSION *wt_session = (WT_SESSION *)session;
+    wt_off_t source_size;
+    bool closed = false;
+    /* We may have crashed during a temporary file copy, remove that file now. */
+    WT_ERR(__live_restore_remove_temporary_file(
+      session, lr_fs->os_file_system, dest_path, &tmp_dest_path));
+
+    WT_ERR(lr_fs->os_file_system->fs_open_file(lr_fs->os_file_system, wt_session, tmp_dest_path,
+      WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &dest_fh));
+
+    /* Get the source size. */
+    WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
+    WT_ASSERT(session, source_size != 0);
+    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+      "%s: Creating destination file backed by source file", tmp_dest_path);
+    /*
+     * We're creating a new destination file which is backed by a source file. It currently has a
+     * length of zero, but we want its length to be the same as the source file. Set its size by
+     * truncating. This is a positive length truncate so it actually extends the file. We're
+     * bypassing the live_restore layer so we don't try to modify the relevant bitmap entries.
+     */
+    WT_ERR(dest_fh->fh_truncate(dest_fh, wt_session, source_size));
+
+    /* Sync the truncate, then rename the file so on completion it is an "atomic" operation. */
+    WT_ERR(dest_fh->fh_sync(dest_fh, wt_session));
+    WT_ERR(dest_fh->close(dest_fh, wt_session));
+    closed = true;
+    WT_ERR(lr_fs->os_file_system->fs_rename(
+      lr_fs->os_file_system, wt_session, tmp_dest_path, dest_path, 0));
+
+err:
+    if (dest_fh != NULL && !closed)
+        WT_TRET(dest_fh->close(dest_fh, wt_session));
+    __wt_free(session, dest_path);
+    __wt_free(session, tmp_dest_path);
+    return (ret);
+}
+
+/*
  * __live_restore_setup_lr_fh_file_data --
  *     Open a data file type (probably a b-tree). In live restore these are the only types of files
  *     that we track holes for.
  */
 static int
 __live_restore_setup_lr_fh_file_data(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *lr_fs,
-  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool have_stop,
-  bool dest_exist, bool source_exist)
+  const char *name, uint32_t flags, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, bool dest_exist,
+  bool source_exist)
 {
-    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
-    if (have_stop || __wti_live_restore_migration_complete(session) || !source_exist)
-        return (0);
-
-    WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
-    if (!dest_exist) {
-        WT_SESSION *wt_session = (WT_SESSION *)session;
-        wt_off_t source_size;
-        WT_RET(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
-        WT_ASSERT(session, source_size != 0);
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-          "%s: Creating destination file backed by source file", lr_fh->iface.name);
+    /* Open the source file and setup the destination file if needed. */
+    if (source_exist) {
         /*
-         * We're creating a new destination file which is backed by a source file. It currently has
-         * a length of zero, but we want its length to be the same as the source file. Set its size
-         * by truncating. This is a positive length truncate so it actually extends the file. We're
-         * bypassing the live_restore layer so we don't try to modify the relevant bitmap entries.
+         * In theory we have already completed the migration for this file which would mean this
+         * open call is redundant and the file will be immediately closed out. But we know the flags
+         * here and also whether or not the source file exists so it's easier to open it here and
+         * close it out later than to determine that information when importing the bitmap.
          */
-        WT_RET(lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, source_size));
+        WT_RET(__live_restore_fs_open_in_source(lr_fs, session, lr_fh, flags));
+        if (!dest_exist)
+            __live_restore_fs_create_destination_data_file(session, lr_fs, lr_fh, name);
     }
+    WT_RET(__live_restore_fs_open_in_destination(lr_fs, session, lr_fh, name, flags, !dest_exist));
     return (0);
 }
 
@@ -1640,7 +1709,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
 
     if (file_type == WT_FILE_TYPE_DATA)
         WT_RET(__live_restore_setup_lr_fh_file_data(
-          session, lr_fs, name, flags, lr_fh, have_stop, dest_exist, source_exist));
+          session, lr_fs, name, flags, lr_fh, dest_exist, source_exist));
     else
         WT_RET(__live_restore_setup_lr_fh_file_regular(
           session, lr_fs, name, flags, lr_fh, file_type, dest_exist, source_exist));
