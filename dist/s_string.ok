@@ -331,6 +331,7 @@ RCPC
 RCS
 RCpc
 RDNOLOCK
+READGEN
 READONLY
 REALLOC
 RECNO
@@ -719,6 +720,7 @@ dev
 dh
 dhandle
 dhandles
+didworkp
 difftime
 dir
 directio
@@ -1180,6 +1182,7 @@ precompilation
 precompiled
 precompiling
 prefetch
+prefetching
 preload
 prepend
 prepended
@@ -1356,6 +1359,7 @@ supd
 supercalafragalisticexpialadoshus
 superset
 sw
+syncop
 sys
 syscall
 syscrypto
