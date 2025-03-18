@@ -429,11 +429,11 @@ struct __wt_name_flag {
  * Set all flags related to incremental backup in one macro. The flags do get individually cleared
  * at different times so there is no corresponding macro for clearing.
  */
-#define WT_CONN_SET_INCR_BACKUP(conn)                                 \
-    do {                                                              \
-        F_SET((conn), WT_CONN_INCR_BACKUP);                           \
-        FLD_SET((conn)->log_info.log_flags, WT_CONN_LOG_INCR_BACKUP); \
-        WT_STAT_CONN_SET(session, backup_incremental, 1);             \
+#define WT_CONN_SET_INCR_BACKUP(conn)                     \
+    do {                                                  \
+        F_SET((conn), WT_CONN_INCR_BACKUP);               \
+        F_SET(&(conn)->log_mgr, WT_LOG_INCR_BACKUP);      \
+        WT_STAT_CONN_SET(session, backup_incremental, 1); \
     } while (0)
 
 /*
@@ -804,7 +804,7 @@ struct __wt_connection_impl {
     bool chunkcache_metadata_tid_set;             /* Chunk cache metadata thread set */
     WT_CONDVAR *chunkcache_metadata_cond;         /* Chunk cache metadata wait mutex */
 
-    WT_LOG_INFO log_info;
+    WT_LOG_MANAGER log_mgr;
 
     WT_ROLLBACK_TO_STABLE *rts, _rts;   /* Rollback to stable subsystem */
     WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
