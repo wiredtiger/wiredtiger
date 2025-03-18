@@ -80,6 +80,19 @@
     } while (0)
 #endif
 
+#ifdef __GNUC__
+#if __GNUC__ == 14
+    /*
+    * !!!
+    * GCC with -Warray-bounds complains about calls to __wt_vunpack_uint in this file.
+    * This is a GCC compiler bug referenced in https://gcc.gnu.org/bugzilla/show_bug.cgi?id=117829.
+    */
+    #pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#elif __GNUC__ >= 15
+    #pragma message( \
+        "Building with GCC 14 or later. Please check if we can close WT-XXXXX and remove suppression.")
+#endif
+#endif
 /*
  * __wt_vpack_posint --
  *     Packs a positive variable-length integer in the specified location.
@@ -248,10 +261,6 @@ __wt_vpack_int(uint8_t **pp, size_t maxlen, int64_t x)
     return (0);
 }
 
-/*
- * __wt_vunpack_uint --
- *     Variable-sized unpacking for unsigned integers
- */
 static WT_INLINE int
 __wt_vunpack_uint(const uint8_t **pp, size_t maxlen, uint64_t *xp)
 {
