@@ -209,8 +209,6 @@ struct __wt_cursor_join_entry;
 typedef struct __wt_cursor_join_entry WT_CURSOR_JOIN_ENTRY;
 struct __wt_cursor_join_iter;
 typedef struct __wt_cursor_join_iter WT_CURSOR_JOIN_ITER;
-struct __wt_cursor_json;
-typedef struct __wt_cursor_json WT_CURSOR_JSON;
 struct __wt_cursor_layered;
 typedef struct __wt_cursor_layered WT_CURSOR_LAYERED;
 struct __wt_cursor_log;
@@ -295,6 +293,8 @@ struct __wt_join_stats;
 typedef struct __wt_join_stats WT_JOIN_STATS;
 struct __wt_join_stats_group;
 typedef struct __wt_join_stats_group WT_JOIN_STATS_GROUP;
+struct __wt_json;
+typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
 struct __wt_layered_table;
@@ -566,6 +566,7 @@ typedef uint64_t wt_timestamp_t;
 #include "futex.h"
 #include "generation.h"
 #include "hazard.h"
+#include "json.h"
 #include "log.h"
 #include "lsm.h"
 #include "meta.h" /* required by block.h */
