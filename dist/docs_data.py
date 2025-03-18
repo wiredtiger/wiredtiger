@@ -75,7 +75,7 @@ arch_doc_pages = [
          'src/cursor/cur_layered.c']),
     ArchDocPage('arch-eviction',
         ['WT_EVICT', 'WT_EVICT_ENTRY', 'WT_EVICT_QUEUE'],
-        ['src/include/evict.h', 'src/evict/']),
+        ['src/evict/']),
     ArchDocPage('arch-fast-truncate',
         ['WT_PAGE_DELETED'],
         # It would be nice to have this link to the list of places at the bottom of the page
