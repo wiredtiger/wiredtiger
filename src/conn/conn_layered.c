@@ -117,6 +117,8 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
             WT_ERR(__wt_disagg_copy_metadata_later(
               internal_session, stable_uri, layered_uri + strlen("layered:")));
         }
+
+        __wt_free(session, stable_uri);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
