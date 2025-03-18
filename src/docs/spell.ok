@@ -366,6 +366,7 @@ eq
 erlang
 errno
 evictable
+evictserver
 exe
 extensibility
 fadvise
@@ -434,6 +435,7 @@ hs
 hsearch
 html
 htmlinclude
+huffman
 hugepage
 iSi
 iaa
