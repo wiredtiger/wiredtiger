@@ -58,7 +58,7 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
     case WT_CELL_KEY_OVFL:
     /* Overflow keys are not supported. */
     default:
-        WT_RET(__wt_illegal_value(session, delta->key.type));
+        WT_RET(__wt_illegal_value(session, key_type));
     }
 
     switch (value_type) {
@@ -72,7 +72,7 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
     case WT_CELL_ADDR_DEL:
     /* Fast truncated pages are not supported. */
     default:
-        WT_RET(__wt_illegal_value(session, delta->value.type));
+        WT_RET(__wt_illegal_value(session, value_type));
     }
 
     switch (value_type) {
@@ -105,7 +105,7 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
     case WT_CELL_ADDR_DEL:
     /* Fast truncated pages are not supported. */
     default:
-        WT_ERR(__wt_illegal_value(session, delta->value.type));
+        WT_ERR(__wt_illegal_value(session, value_type));
     }
 
     if (0) {
