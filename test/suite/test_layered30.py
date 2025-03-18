@@ -93,6 +93,9 @@ class test_layered30(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Test creating an empty table.
     def test_layered30(self):
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
+
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
 

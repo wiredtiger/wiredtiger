@@ -61,6 +61,9 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
         return self.ckpt_config
 
     def test_checkpoint02(self):
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
+
         done = threading.Event()
         self.session.create(self.uri,
             "key_format={},value_format={}".format(self.key_format, self.value_format))

@@ -121,6 +121,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
     # Main checkpoint test driver.
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
+
         # Build a file with a set of checkpoints, and confirm they all have
         # the correct key/value pairs.
         self.session.create(self.uri,

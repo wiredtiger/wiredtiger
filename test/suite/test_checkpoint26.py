@@ -52,6 +52,9 @@ class test_checkpoint26(wttest.WiredTigerTestCase):
                 self.ckpt_config)
 
     def test_checkpoint_evict_page(self):
+        # Avoid checkpoint error with the disagg hook
+        self.conn.set_timestamp('stable_timestamp=1')
+
         self.session.create(self.uri, 'key_format=i,value_format=S')
 
         cursor = self.session.open_cursor(self.uri)

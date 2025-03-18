@@ -70,7 +70,8 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
         config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(self.uri, config)
         self.session.begin_transaction()
-        self.conn.set_timestamp('oldest_timestamp=1')
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('oldest_timestamp=1,stable_timestamp=1')
 
         # Insert 3 updates in separate transactions.
         cur1 = self.session.open_cursor(self.uri)

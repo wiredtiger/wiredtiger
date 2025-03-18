@@ -28,7 +28,6 @@
 
 import threading, time
 import wttest
-import wiredtiger
 from wiredtiger import stat
 from wtthread import checkpoint_thread
 from wtdataset import SimpleDataSet
@@ -91,6 +90,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         #self.session.rollback_transaction()
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint18'
         nrows = 10000
 

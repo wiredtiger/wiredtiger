@@ -105,6 +105,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint10'
         nrows = 10000
         overlap = 5000 if self.do_overlap else 0

@@ -64,6 +64,9 @@ class test_checkpoint32(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint32'
         nrows = 1000
 
