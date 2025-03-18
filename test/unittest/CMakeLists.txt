@@ -47,6 +47,7 @@ set(unittest_sources
     tests/main.cpp
     tests/utils.cpp
     tests/utils_extlist.cpp
+    tests/block/util_block.cpp
     tests/wrappers/block_mods.cpp
     tests/wrappers/config_parser.cpp
     tests/wrappers/connection_wrapper.cpp
