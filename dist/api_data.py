@@ -629,7 +629,8 @@ connection_runtime_config = [
         Config('precise', 'false', r'''
             Only write data with timestamps that are smaller or equal to the stable timestamp to the
             checkpoint. Rollback to stable after restart is a no-op if enabled. However, it leads to
-            extra cache pressure.''',
+            extra cache pressure. The user must have set the stable timestamp. It is not compatible
+            with use_timestamp=false config.''',
             type='boolean'),
         ]),
     Config('checkpoint_cleanup', '', r'''
