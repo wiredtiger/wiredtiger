@@ -416,7 +416,7 @@ __live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *
     WTI_LIVE_RESTORE_FS_LAYER_TYPE layer;
     WT_RET(__live_restore_fs_find_layer(fs, (WT_SESSION_IMPL *)wt_session, name, &layer, existp));
 
-    if (layer == WTI_LIVE_RESTORE_FS_LAYER_SOURCE) {
+    if (*existp && layer == WTI_LIVE_RESTORE_FS_LAYER_SOURCE) {
         bool has_stop = false;
         WT_RET(__dest_has_stop_file(
           (WTI_LIVE_RESTORE_FS *)fs, name, (WT_SESSION_IMPL *)wt_session, &has_stop));
