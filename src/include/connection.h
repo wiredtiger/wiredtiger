@@ -157,8 +157,6 @@ struct __wt_layered_table_manager {
     WT_THREAD_GROUP threads;
 
     bool leader;
-    bool internal_page_delta;
-    bool leaf_page_delta;
 };
 
 struct __wt_disagg_copy_metadata {
@@ -195,6 +193,9 @@ struct __wt_disaggregated_storage {
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
     WT_SPINLOCK copy_metadata_lock;
+
+    bool internal_page_delta;
+    bool leaf_page_delta;
 };
 
 /*

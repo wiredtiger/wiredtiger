@@ -895,10 +895,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.internal_page_delta", &cval));
         if (cval.val)
-            conn->layered_table_manager.internal_page_delta = true;
+            conn->disaggregated_storage.internal_page_delta = true;
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.leaf_page_delta", &cval));
         if (cval.val)
-            conn->layered_table_manager.leaf_page_delta = true;
+            conn->disaggregated_storage.leaf_page_delta = true;
     }
 
 err:
