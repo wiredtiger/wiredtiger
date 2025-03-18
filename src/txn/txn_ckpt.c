@@ -456,6 +456,9 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         /* Skip checkpointing shared tables if we are not a leader. */
         if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !S2C(session)->layered_table_manager.leader)
             return (0);
+        /* Skip checkpointing outdated trees. */
+        if (F_ISSET(btree->dhandle, WT_DHANDLE_OUTDATED))
+            return (0);
     }
 
     /*

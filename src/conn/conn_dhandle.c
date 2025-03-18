@@ -284,7 +284,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
     bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     if (checkpoint == NULL) {
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED))
                 continue;
             if (dhandle->checkpoint == NULL && strcmp(uri, dhandle->name) == 0) {
                 session->dhandle = dhandle;
@@ -293,7 +293,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
         }
     } else
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
-            if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
+            if (F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED))
                 continue;
             if (dhandle->checkpoint != NULL && strcmp(uri, dhandle->name) == 0 &&
               strcmp(checkpoint, dhandle->checkpoint) == 0) {

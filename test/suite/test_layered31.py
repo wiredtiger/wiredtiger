@@ -42,6 +42,10 @@ test_milestone4 = True
 class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
+    # The keys in this test are integer values less than nitems that have been "stringized".
+    # Make an array of the keys in sort order so we can verify the results from scanning.
+    keys_in_order = sorted([str(k) for k in range(nitems)])
+
     conn_base_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palm),'
     conn_config = conn_base_config + 'disaggregated=(role="leader")'
@@ -90,6 +94,70 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.reset()
         return cursor
 
+    def put_data(self, value_prefix, low = 0, high = nitems, session = None):
+        if session == None:
+            session = self.session   # leader by default
+        for uri in self.all_uris:
+            cursor = session.open_cursor(uri, None, None)
+            for i in range(low, high):
+                cursor[str(i)] = value_prefix + str(i)
+            cursor.close()
+
+    def check_data_follower(self, value_prefix, low = 0, high = nitems, cursors = None, uris = all_uris):
+        result_cursors = dict()
+        for uri in self.all_uris:
+            if cursors:
+                cursor = cursors[uri]
+            else:
+                cursor = self.open_follow_cursor(self.session_follow, uri)
+
+            for i in range(low, high):
+                self.assertEqual(cursor[str(i)], value_prefix + str(i))
+            result_cursors[uri] = cursor
+        return result_cursors
+
+    # Scan data from low to high expecting to see all the keys and values using the given prefix.
+    #
+    # This function is sometimes called doing partial scans, and later, after a state change,
+    # continuing using the same cursor.  We are promised that cursor iteration results aren't
+    # affected by other transactions. Extending this reasoning to state changes, like picking up
+    # checkpoints and stepping up to leader, cursors should similarly be unaffected by state
+    # changes happening concurrently to the lifetime of the cursor.
+    def scan_data_follower(self, value_prefix, low = 0, high = nitems, cursors = None, uris = all_uris):
+        result_cursors = dict()
+        if value_prefix == 'eee':
+            self.session_follow.breakpoint()
+        for uri in self.all_uris:
+            if cursors:
+                cursor = cursors[uri]
+            else:
+                cursor = self.open_follow_cursor(self.session_follow, uri)
+
+            found = 0
+            for i in range(low, high):
+                ret = cursor.next()
+                if ret == wiredtiger.WT_NOTFOUND:
+                    break
+                self.assertEqual(ret, 0)
+
+                expected_key = self.keys_in_order[i]
+                self.assertEqual(cursor.get_key(), expected_key)
+                self.assertEqual(cursor.get_value(), value_prefix + expected_key)
+                found += 1
+            result_cursors[uri] = cursor
+            self.assertEqual(found, high - low)
+        return result_cursors
+
+    def close_cursors(self, cursors):
+        for uri in self.all_uris:
+            cursor = cursors[uri]
+            cursor.close()
+
+    def reset_cursors(self, cursors):
+        for uri in self.all_uris:
+            cursor = cursors[uri]
+            cursors[uri] = self.reset_follow_cursor(cursor)
+
     # Test more than one table.
     def test_layered31(self):
         # Create all tables in the leader
@@ -102,7 +170,8 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Create the follower
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
-        follower_cursors = dict()
+
+        self.session_follow = session_follow   # Useful for convenience functions
 
         #
         # Setup: Check data in the follower normally.
@@ -110,21 +179,14 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Put data to all tables, version 0
         value_prefix0 = '---'
-        for uri in self.all_uris:
-            cursor = self.session.open_cursor(uri, None, None)
-            for i in range(self.nitems):
-                cursor[str(i)] = value_prefix0 + str(i)
-            cursor.close()
+        self.put_data(value_prefix0)
 
         self.session.checkpoint()
 
         # Check data in the follower
         self.disagg_advance_checkpoint(conn_follow)
-        for uri in self.all_uris:
-            cursor = self.open_follow_cursor(session_follow, uri)
-            for i in range(self.nitems):
-                self.assertEqual(cursor[str(i)], value_prefix0 + str(i))
-            cursor.close()
+        cursors = self.check_data_follower(value_prefix0)
+        self.close_cursors(cursors)
 
         #
         # Part 1: Check data in the follower, but keep the cursors open.
@@ -132,22 +194,14 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Put data to all tables, version 1
         value_prefix1 = 'aaa'
-        for uri in self.all_uris:
-            cursor = self.session.open_cursor(uri, None, None)
-            for i in range(self.nitems):
-                cursor[str(i)] = value_prefix1 + str(i)
-            cursor.close()
+        self.put_data(value_prefix1)
 
         self.session.checkpoint()
 
         # Check data in the follower
         self.disagg_advance_checkpoint(conn_follow)
-        for uri in self.all_uris:
-            self.pr(f'{uri}: Open a cursor')
-            cursor = self.open_follow_cursor(session_follow, uri)
-            follower_cursors[uri] = cursor
-            for i in range(self.nitems):
-                self.assertEqual(cursor[str(i)], value_prefix1 + str(i))
+        follower_cursors = self.check_data_follower(value_prefix1)
+        # keep the follower cursors
 
         #
         # Part 2: Close and reopen the cursor after picking up a checkpoint.
@@ -155,24 +209,15 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Put data to all tables, version 2
         value_prefix2 = 'bbb'
-        for uri in self.all_uris:
-            cursor = self.session.open_cursor(uri, None, None)
-            for i in range(self.nitems):
-                cursor[str(i)] = value_prefix2 + str(i)
-            cursor.close()
+        self.put_data(value_prefix2)
 
         self.session.checkpoint()
 
         # Check data in the follower
         self.disagg_advance_checkpoint(conn_follow)
-        for uri in self.all_uris:
-            self.pr(f'{uri}: Close and reopen the cursor')
-            if uri in follower_cursors:
-                follower_cursors[uri].close()
-            cursor = self.open_follow_cursor(session_follow, uri)
-            follower_cursors[uri] = cursor
-            for i in range(self.nitems):
-                self.assertEqual(cursor[str(i)], value_prefix2 + str(i))
+        self.close_cursors(follower_cursors)
+        follower_cursors = self.check_data_follower(value_prefix2)
+        # keep the follower cursors
 
         #
         # Part 3: Reset the cursor after picking up a checkpoint.
@@ -180,102 +225,102 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Put data to all tables, version 3
         value_prefix3 = 'ccc'
-        for uri in self.all_uris:
-            cursor = self.session.open_cursor(uri, None, None)
-            for i in range(self.nitems):
-                cursor[str(i)] = value_prefix3 + str(i)
-            cursor.close()
+        self.put_data(value_prefix3)
 
         self.session.checkpoint()
 
-        # Check data in the follower
+        # Check data in the follower after a reset
         self.disagg_advance_checkpoint(conn_follow)
-        for uri in self.all_uris:
-            self.pr(f'{uri}: Reset and reuse the cursor')
-            cursor = follower_cursors[uri]
-            cursor = self.reset_follow_cursor(cursor)
-            for i in range(self.nitems):
-                self.assertEqual(cursor[str(i)], value_prefix3 + str(i))
+        self.reset_cursors(follower_cursors)
+        follower_cursors = self.check_data_follower(value_prefix3, cursors=follower_cursors)
 
         #
-        # Part 4: Check that an open cursor's position
+        # Part 4: Check that a follower's open cursor's position
         # does not change after picking up a checkpoint.
         #
 
         # In scanning, do a first batch, reading half the items.
         first_read = self.nitems // 2
 
-        # Stringized integers (the keys used) are not in the same order as integers.
-        # Make a list of the keys in order so we can verify the results from scanning.
-        keys_in_order = sorted([str(k) for k in range(self.nitems)])
-
         # On the follower, scan and check the first half, leaving cursors open
-        for uri in self.all_uris:
-            self.pr(f'{uri}: Reset the cursor and scan the first half of items')
-            cursor = follower_cursors[uri]
-            cursor = self.reset_follow_cursor(cursor)
-            found = 0
+        self.reset_cursors(follower_cursors)
+        follower_cursors = self.scan_data_follower(value_prefix3, 0, first_read, cursors=follower_cursors)
 
-            # Scan the first half of the items.
-            for i in range(first_read):
-                ret = cursor.next()
-                if ret == wiredtiger.WT_NOTFOUND:
-                    break
-                self.assertEqual(ret, 0)
-                expected_key = keys_in_order[i]
-                self.assertEqual(cursor.get_key(), expected_key)
-                self.assertEqual(cursor.get_value(), value_prefix3 + expected_key)
-                found += 1
-
-        # Make a change on the leader, and propogate to the follower, so that the
-        # follower cursors reopen.
+        # Make a change on the leader, and propogate to the follower.
         value_prefix4 = 'ddd'
-        for uri in self.all_uris:
-            cursor = self.session.open_cursor(uri, None, None)
-            for i in range(self.nitems):
-                cursor[str(i)] = value_prefix4 + str(i)
-            cursor.close()
+        self.put_data(value_prefix4)
 
         self.session.checkpoint()
-        self.pr(f'{uri}: Advance the checkpoint')
         self.disagg_advance_checkpoint(conn_follow)
 
-        # Check the continuation of each scan in the follower.
+        # Check the continuation of each scan in the follower. Pure cursor scans should be insulated from state changes.
+        #
         # Note that we are checking with layered URIs only.
         # Non-layered URIs in this test have a hack (in reset_follow_cursors)
         # that reopens those cursors, thus losing their position.
-        for uri in self.layered_uris:
-            self.pr(f'{uri}: continue reading items, expecting to see the second half')
-            cursor = follower_cursors[uri]
-            found = first_read
-            for i in range(first_read, self.nitems):
-                ret = cursor.next()
-                if ret == wiredtiger.WT_NOTFOUND:
-                    break
-                self.assertEqual(ret, 0)
+        follower_cursors = self.scan_data_follower(value_prefix3, first_read, self.nitems, cursors=follower_cursors, uris=self.layered_uris)
 
-                # We're checking that we haven't lost our place in the key space.
-                # For the value, we're only checking that the prefix contains the
-                # key, as it always does in this test. As for which value, the old
-                # or the new, we'll accept either in this test. We don't want to
-                # assume to know exactly when the cursor is promoted on the follower.
-                #
-                # At the moment, this is the behavior of follower cursors,
-                # that if reading without a timestamp, they may give the most recent
-                # result.  Mongodb will always reads with a timestamp.
-                # TODO: consider "fixing" this, by only promoting follower cursors if they
-                # are reading at a timestamp, or at specific points, like Cursor.reset
-                expected_key = keys_in_order[i]
-                self.assertEqual(cursor.get_key(), expected_key)
-                current_value = cursor.get_value()
-                self.assertTrue(current_value == value_prefix3 + expected_key or \
-                                current_value == value_prefix4 + expected_key)
-                found += 1
-            self.assertEqual(found, self.nitems)
+        # Now check that after closing, we get the new value
+        self.close_cursors(follower_cursors)
+        follower_cursors = self.scan_data_follower(value_prefix4, uris=self.layered_uris)
 
-        # Clean up
-        for cursor in follower_cursors.values():
-            cursor.close()
+        #
+        # Part 5: Check that a follower's open cursor's position
+        # does not change after stepping up to leader.
+        #
+        self.reset_cursors(follower_cursors)
+        follower_cursors = self.scan_data_follower(value_prefix4, 0, first_read, cursors=follower_cursors)
+
+        # Make a change on the leader, and propogate to the follower.
+        value_prefix5 = 'eee'
+        self.put_data(value_prefix5)
+
+        # Advance the checkpoint, but leave cursors open
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(conn_follow)
+
+        # Step up, leaving cursors open
+        # At this point, we have two connections, our old leader and the follower that is
+        # becoming the new leader. Close the old leader first so there's no confusion within this test.
+        self.conn.close()
+        conn_follow.reconfigure('disaggregated=(role="leader")')
+
+        # Check the continuation of each scan.  Again, we are checking with layered URIs only.
+        cursors = self.scan_data_follower(value_prefix4, first_read, self.nitems, cursors=follower_cursors, uris=self.layered_uris)
+
+        # Now check that after closing, we get the new value
+        self.close_cursors(cursors)
+        cursors = self.scan_data_follower(value_prefix5, uris=self.layered_uris)
+        self.close_cursors(cursors)
+
+        #
+        # Part 6: Check that the new leader's open cursor's position
+        # does not change after stepping back down to follower.
+        #
+        # TODO: enable this test when stepping down is debugged.
+        if False:
+            # Read the first half.
+            cursors = self.scan_data_follower(value_prefix5, 0, first_read)
+
+            # Make a change on this new leader
+            value_prefix6 = 'fff'
+            self.put_data(value_prefix6, session=session_follow)
+
+            # Step down.
+            conn_follow.reconfigure('disaggregated=(role="follower",checkpoint_meta=,checkpoint_id=-1)')
+
+            # Read a couple items to make sure the cursor has been insulated.
+            cursors = self.scan_data_follower(value_prefix5, first_read, first_read + 2)
+
+            # Make sure that writing to these layered cursors is now disallowed.
+            for uri in self.layered_uris:
+                cursor = cursors[uri]
+                cursor.set_key('a')
+                cursor.set_key('b')
+                msg = '/conflict between concurrent operations/'
+                self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.insert(), msg1)
+
+            self.close_cursors(cursors)
 
         session_follow.close()
         conn_follow.close()
