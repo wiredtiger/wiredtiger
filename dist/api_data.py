@@ -115,7 +115,7 @@ connection_disaggregated_config_common = [
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
-    Config('internal_page_delta', 'false', r'''
+    Config('internal_page_delta', 'true', r'''
         When enabled, reconciliation writes deltas for internal pages
         instead of writing entire pages every time''',
         type='boolean', undoc=True),
