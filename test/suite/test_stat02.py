@@ -85,14 +85,14 @@ class test_stat_cursor_conn_clear(wttest.WiredTigerTestCase):
         ComplexDataSet(self, uri, 100).populate()
 
         # cursor_insert should clear
-        # cache_bytes_dirty_leaf should not clear
+        # cache_bytes_dirty should not clear
         cursor = self.session.open_cursor(
             'statistics:', None, 'statistics=(all,clear)')
-        self.assertGreater(cursor[stat.conn.cache_bytes_dirty_leaf][2], 0)
+        self.assertGreater(cursor[stat.conn.cache_bytes_dirty][2], 0)
         self.assertGreater(cursor[stat.conn.cursor_insert][2], 0)
         cursor = self.session.open_cursor(
             'statistics:', None, 'statistics=(all,clear)')
-        self.assertGreater(cursor[stat.conn.cache_bytes_dirty_leaf][2], 0)
+        self.assertGreater(cursor[stat.conn.cache_bytes_dirty][2], 0)
         self.assertEqual(cursor[stat.conn.cursor_insert][2], 0)
 
 # Test the data-source "clear" configuration.
