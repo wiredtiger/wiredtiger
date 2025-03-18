@@ -1757,7 +1757,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, bool full, const char *name, siz
 
     /* Print what we did. */
 
-    __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
+    __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
       "saving checkpoint snapshot min: %" PRIu64 ", snapshot max: %" PRIu64
       " snapshot count: %" PRIu32
       ", oldest timestamp: %s , meta checkpoint timestamp: %s"
