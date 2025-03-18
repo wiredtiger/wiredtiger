@@ -87,7 +87,7 @@
  * GCC with -Warray-bounds complains about calls to __wt_vunpack_uint in this file.
  * This is a GCC compiler bug referenced in https://gcc.gnu.org/bugzilla/show_bug.cgi?id=117829.
  */
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#pragma GCC diagnostic ignored "-Warray-bounds"
 #elif __GNUC__ >= 15
 #pragma message( \
   "Building with GCC 15 or later. Please check if we can close WT-14292 and remove suppression.")
