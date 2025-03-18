@@ -495,7 +495,6 @@ int
 __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs,
   WT_PAGE **pagep, uint32_t flags)
 {
-    WT_CACHE *cache;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
@@ -504,8 +503,6 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     void *p;
 
     *pagep = NULL;
-
-    cache = S2C(session)->cache;
     page = NULL;
 
     size = sizeof(WT_PAGE);
@@ -589,8 +586,8 @@ err:
 
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size);
-    (void)__wt_atomic_add64(&cache->pages_inmem, 1);
-    page->cache_create_gen = __wt_atomic_load64(&cache->evict_pass_gen);
+    (void)__wt_atomic_add64(&S2C(session)->cache->pages_inmem, 1);
+    page->cache_create_gen = __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen);
 
     *pagep = page;
     return (0);
