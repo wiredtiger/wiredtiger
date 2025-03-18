@@ -54,19 +54,6 @@ class test_layered36(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     num_restarts = 0
 
-    # Load the page log extension, which has object storage support
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
-    # Custom test case setup
-    def early_setup(self):
-        os.mkdir('follower')
-        # Create the home directory for the PALM k/v store, and share it with the follower.
-        os.mkdir('kv_home')
-        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
-
     # Restart the node without local files
     def restart_without_local_files(self):
         # Close the current connection
