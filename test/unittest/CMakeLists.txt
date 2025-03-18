@@ -37,6 +37,7 @@ else()
         tests/block/test_extent_list_insert_wo_block.cpp
         tests/block/test_extent_list_search.cpp
         tests/block/test_extent_list_insert_block.cpp
+        tests/block/util_block.cpp
         tests/cursors/test_bulk_cursor.cpp
         tests/cursors/test_cursor_get_raw_key_value.cpp
         tests/packing/test_intpack.cpp
