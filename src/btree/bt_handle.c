@@ -494,14 +494,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (strstr(btree->dhandle->name, ".wt_stable") != NULL || WT_CONFIG_LIT_MATCH("disagg", cval)) {
         F_SET(btree, WT_BTREE_DISAGGREGATED);
 
-        WT_RET(__wt_config_gets(session, cfg, "disaggregated.internal_page_delta", &cval));
-        if (cval.val != 0)
-            F_SET(btree, WT_BTREE_DISAGGREGATED_INTL_PAGE_DELTA);
-
-        WT_RET(__wt_config_gets(session, cfg, "disaggregated.leaf_page_delta", &cval));
-        if (cval.val != 0)
-            F_SET(btree, WT_BTREE_DISAGGREGATED_LEAF_PAGE_DELTA);
-
         /*
          * Get the percentage of a page size that a delta must be less than in order to write that
          * delta (instead of just giving up and writing the full page).

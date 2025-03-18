@@ -277,25 +277,23 @@ struct __wt_btree {
  * explanation.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 12 */
-#define WT_BTREE_ALTER 0x00001000u                         /* Handle is for alter */
-#define WT_BTREE_BULK 0x00002000u                          /* Bulk-load handle */
-#define WT_BTREE_CLOSED 0x00004000u                        /* Handle closed */
-#define WT_BTREE_DISAGGREGATED 0x00008000u                 /* In disaggregated storage */
-#define WT_BTREE_DISAGGREGATED_INTL_PAGE_DELTA 0x00010000u /* Internal page deltas */
-#define WT_BTREE_DISAGGREGATED_LEAF_PAGE_DELTA 0x00020000u /* Leaf page deltas */
-#define WT_BTREE_GARBAGE_COLLECT 0x00040000u /* Content becomes obsolete automatically */
-#define WT_BTREE_IGNORE_CACHE 0x00080000u    /* Cache-resident object */
-#define WT_BTREE_IN_MEMORY 0x00100000u       /* No checkpoint. Never write to disk in eviction. */
-#define WT_BTREE_LOGGED 0x00200000u          /* Commit-level durability without timestamps */
-#define WT_BTREE_NO_CHECKPOINT 0x00400000u   /* Disable checkpoints */
-#define WT_BTREE_NO_EVICT 0x00800000u        /* Cache-resident object. Never run eviction on it. */
-#define WT_BTREE_OBSOLETE_PAGES 0x01000000u  /* Handle has obsolete pages */
-#define WT_BTREE_READONLY 0x02000000u        /* Handle is readonly */
-#define WT_BTREE_SALVAGE 0x04000000u         /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x08000000u       /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x10000000u         /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x20000000u          /* Handle is for verify */
-                                             /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_BTREE_ALTER 0x0001000u           /* Handle is for alter */
+#define WT_BTREE_BULK 0x0002000u            /* Bulk-load handle */
+#define WT_BTREE_CLOSED 0x0004000u          /* Handle closed */
+#define WT_BTREE_DISAGGREGATED 0x0008000u   /* In disaggregated storage */
+#define WT_BTREE_GARBAGE_COLLECT 0x0010000u /* Content becomes obsolete automatically */
+#define WT_BTREE_IGNORE_CACHE 0x0020000u    /* Cache-resident object */
+#define WT_BTREE_IN_MEMORY 0x0040000u       /* No checkpoint. Never write to disk in eviction. */
+#define WT_BTREE_LOGGED 0x0080000u          /* Commit-level durability without timestamps */
+#define WT_BTREE_NO_CHECKPOINT 0x0100000u   /* Disable checkpoints */
+#define WT_BTREE_NO_EVICT 0x0200000u        /* Cache-resident object. Never run eviction on it. */
+#define WT_BTREE_OBSOLETE_PAGES 0x0400000u  /* Handle has obsolete pages */
+#define WT_BTREE_READONLY 0x0800000u        /* Handle is readonly */
+#define WT_BTREE_SALVAGE 0x1000000u         /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x2000000u       /* Handle skipped checkpoint */
+#define WT_BTREE_UPGRADE 0x4000000u         /* Handle is for upgrade */
+#define WT_BTREE_VERIFY 0x8000000u          /* Handle is for verify */
+                                            /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 

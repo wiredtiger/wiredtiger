@@ -58,7 +58,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),'
+                     + 'disaggregated=(page_log=palm,internal_page_delta=true,leaf_page_delta=true),'
     disagg_storages = gen_disagg_storages('test_layered32', disagg_only = True)
 
     # Make scenarios for different cloud service providers
@@ -69,7 +69,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def session_create_config(self):
         # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=100,internal_page_delta=true),key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
+        cfg = 'disaggregated=(delta_pct=100),key_format=S,value_format=S,allocation_size=512,leaf_page_max=512,internal_page_max=512,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg

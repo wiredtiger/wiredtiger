@@ -115,6 +115,14 @@ connection_disaggregated_config_common = [
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
+    Config('internal_page_delta', 'false', r'''
+        When enabled, reconciliation writes deltas for internal pages
+        instead of writing entire pages every time''',
+        type='boolean', undoc=True),
+    Config('leaf_page_delta', 'true', r'''
+        When enabled, reconciliation writes deltas for leaf pages
+        instead of writing entire pages every time''',
+        type='boolean', undoc=True),
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
@@ -151,14 +159,6 @@ file_disaggregated_config = [
                 Conversely, if the delta came to 21 bytes, reconciliation would not emit a
                 delta. Deltas larger than full pages are permitted for measurement and testing
                 reasons, and may be disallowed in future.''', min='1', max='1000'),
-            Config('internal_page_delta', 'false', r'''
-                When enabled, reconciliation writes deltas for internal pages
-                instead of writing entire pages every time''',
-                type='boolean', undoc=True),
-            Config('leaf_page_delta', 'true', r'''
-                When enabled, reconciliation writes deltas for leaf pages
-                instead of writing entire pages every time''',
-                type='boolean', undoc=True),
             Config('max_consecutive_delta', '32', r'''
                 the max consecutive deltas allowed for a single page. The maximum value is set
                 at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
