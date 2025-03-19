@@ -37,7 +37,7 @@ __drop_file(
     /* Close all btree handles associated with this file. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
-    if (ret == EBUSY && session->err_info.err != EBUSY)
+    if (ret == EBUSY)
         WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
     WT_RET(ret);
 
@@ -183,7 +183,7 @@ __drop_table(
      * table that are already open must at least be closed before this call proceeds.
      */
     ret = __wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table);
-    if (ret == EBUSY && session->err_info.err != EBUSY)
+    if (ret == EBUSY)
         WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
     WT_ERR(ret);
     WT_ERR(__wti_schema_release_table_gen(session, &table, true));
@@ -272,7 +272,7 @@ __drop_tiered(
     name = NULL;
     /* Get the tiered data handle. */
     ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
-    if (ret == EBUSY && session->err_info.err != EBUSY)
+    if (ret == EBUSY)
         WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
     WT_RET(ret);
     got_dhandle = true;
@@ -299,7 +299,7 @@ __drop_tiered(
     got_dhandle = false;
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
-    if (ret == EBUSY && session->err_info.err != EBUSY)
+    if (ret == EBUSY)
         WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
     WT_ERR(ret);
 
@@ -321,7 +321,7 @@ __drop_tiered(
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
-        if (ret == EBUSY && session->err_info.err != EBUSY)
+        if (ret == EBUSY)
             WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
@@ -340,7 +340,7 @@ __drop_tiered(
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
-        if (ret == EBUSY && session->err_info.err != EBUSY)
+        if (ret == EBUSY)
             WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
