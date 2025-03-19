@@ -1113,12 +1113,26 @@ __live_restore_fs_terminate(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session)
 }
 
 /*
+ * __validate_live_restore_path --
+ *     Confirm that the given source directory is able to be opened.
+ */
+static int
+__validate_live_restore_path(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *path)
+{
+    WT_FILE_HANDLE *fh;
+    /* Open the source directory. At this stage we do not validate what files it contains. */
+    WT_RET(
+      fs->fs_open_file(fs, (WT_SESSION *)session, path, WT_FS_OPEN_FILE_TYPE_DIRECTORY, 0, &fh));
+    return (fh->close(fh, (WT_SESSION *)session));
+}
+
+/*
  * __wt_os_live_restore_fs --
  *     Initialize a live restore file system configuration.
  */
 int
-__wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
-  const char *destination, WT_FILE_SYSTEM **fsp)
+__wt_os_live_restore_fs(
+  WT_SESSION_IMPL *session, const char *cfg[], const char *destination, WT_FILE_SYSTEM **fsp)
 {
     WT_DECL_RET;
     WT_LIVE_RESTORE_FS *lr_fs;
@@ -1140,8 +1154,18 @@ __wt_os_live_restore_fs(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *source_cfg,
     /* Initialize the layers. */
     lr_fs->destination.home = destination;
     lr_fs->destination.which = WT_LIVE_RESTORE_FS_LAYER_DESTINATION;
-    WT_ERR(__wt_strndup(session, source_cfg->str, source_cfg->len, &lr_fs->source.home));
+
+    WT_CONFIG_ITEM cval;
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.path", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &lr_fs->source.home));
+
+    WT_ERR(__validate_live_restore_path(lr_fs->os_file_system, session, lr_fs->source.home));
+
     lr_fs->source.which = WT_LIVE_RESTORE_FS_LAYER_SOURCE;
+
+    /* Configure the background thread count maximum. */
+    WT_ERR(__wt_config_gets(session, cfg, "live_restore.threads_max", &cval));
+    lr_fs->background_threads_max = (uint8_t)cval.val;
 
     __wt_verbose_debug1(session, WT_VERB_FILEOPS,
       "WiredTiger started in live restore mode! Source path is: %s, Destination path is %s",
