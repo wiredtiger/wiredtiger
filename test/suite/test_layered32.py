@@ -57,12 +57,19 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         ('non-ts', dict(ts=False)),
     ]
 
+    delta = [
+        ('write_leaf_only', dict(delta_config='internal_page_delta=false,leaf_page_delta=true', delta_type='leaf_only')),
+        ('write_internal_only', dict(delta_config='internal_page_delta=true,leaf_page_delta=false', delta_type='internal_only')),
+        ('write_none', dict(delta_config='internal_page_delta=false,leaf_page_delta=false', delta_type='none')),
+        ('write_both', dict(delta_config='internal_page_delta=true,leaf_page_delta=true', delta_type='both')),
+    ]
+
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                      + 'disaggregated=(page_log=palm),'
     disagg_storages = gen_disagg_storages('test_layered32', disagg_only = True)
 
     # Make scenarios for different cloud service providers
-    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts)
+    scenarios = make_scenarios(encrypt, compress, disagg_storages, uris, ts, delta)
 
     nitems = 10_000
 
@@ -76,7 +83,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def conn_config(self):
         enc_conf = 'encryption=(name={0},{1}),'.format(self.encryptor, self.encrypt_args)
-        return self.conn_base_config + 'disaggregated=(role="leader"),' + enc_conf
+        return self.conn_base_config + f'disaggregated=(role="leader",{self.delta_config}),' + enc_conf
 
     # Load the storage store extension.
     def conn_extensions(self, extlist):
@@ -132,9 +139,13 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Perform a checkpoint to write out a delta.
         self.session.checkpoint()
 
-        # Assert that we have written at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
+            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+        if (self.delta_type == 'none'):
+            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
@@ -143,7 +154,10 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify(kv_modfied, inital_value)
 
         # Assert that we have constructed at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        else:
+            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
         follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
         self.reopen_disagg_conn(follower_config)
@@ -153,7 +167,10 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify(kv_modfied, inital_value)
 
         # Assert that we have constructed at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        else:
+            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
     def test_internal_page_delta_random(self):
         self.session.create(self.uri, self.session_create_config())
@@ -185,8 +202,13 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
             kv_modfied.update(kv)
 
         # Assert that we have written at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
-        self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'leaf_only'):
+            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
+        if (self.delta_type == 'none'):
+            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_leaf), 0)
+            self.assertEqual(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
         # Re-open the connection to clear contents out of memory.
         self.reopen_disagg_conn(self.conn_config())
@@ -195,7 +217,10 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify(kv_modfied, inital_value)
 
         # Assert that we have constructed at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        else:
+            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
         follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
         self.reopen_disagg_conn(follower_config)
@@ -205,4 +230,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.verify(kv_modfied, inital_value)
 
         # Assert that we have constructed at least one internal page delta.
-        self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        if (self.delta_type == 'both' or self.delta_type == 'internal_only'):
+            self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
+        else:
+            self.assertEqual(self.get_stat(stat.conn.cache_read_internal_delta), 0)
