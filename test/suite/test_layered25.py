@@ -155,6 +155,9 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.conn.reconfigure(f'disaggregated=(role="leader")')
 
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp2)}')
+
         # Check the data with the second timestamp
         self.session.begin_transaction(f'read_timestamp={self.timestamp_str(timestamp2)}')
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -179,6 +182,9 @@ class test_layered25(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.restart_without_local_files()
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.conn.reconfigure(f'disaggregated=(role="leader")')
+
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp2)}')
 
         # Check the data with the second timestamp
         self.session.begin_transaction(f'read_timestamp={self.timestamp_str(timestamp2)}')

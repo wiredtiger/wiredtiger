@@ -53,6 +53,10 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         return val
 
     def test_checkpoint07(self):
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'checkpoint=(precise=true)':
+            self.conn.set_timestamp('stable_timestamp=1')
+
         self.uri1 = 'table:ckpt07.1'
         self.uri2 = 'table:ckpt07.2'
         self.uri3 = 'table:ckpt07.3'
