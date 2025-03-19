@@ -206,10 +206,10 @@
 #define WT_CONF_ID_key_gap 37ULL
 #define WT_CONF_ID_keyid 26ULL
 #define WT_CONF_ID_last 73ULL
-#define WT_CONF_ID_last_materialized_lsn 97ULL
+#define WT_CONF_ID_last_materialized_lsn 96ULL
 #define WT_CONF_ID_leaf_item_max 38ULL
 #define WT_CONF_ID_leaf_key_max 39ULL
-#define WT_CONF_ID_leaf_page_delta 96ULL
+#define WT_CONF_ID_leaf_page_delta 97ULL
 #define WT_CONF_ID_leaf_page_max 40ULL
 #define WT_CONF_ID_leaf_value_max 41ULL
 #define WT_CONF_ID_leak_memory 187ULL
