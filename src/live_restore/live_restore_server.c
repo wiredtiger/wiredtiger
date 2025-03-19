@@ -43,7 +43,7 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * complete.
          */
         if (TAILQ_EMPTY(&server->work_queue)) {
-            WT_ERR(__wti_live_restore_cleanup_tombstones(session));
+            WT_ERR(__wti_live_restore_cleanup_stop_files(session));
             uint64_t time_diff_ms;
             WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
             __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
