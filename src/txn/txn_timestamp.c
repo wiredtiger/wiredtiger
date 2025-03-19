@@ -307,13 +307,13 @@ __wti_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
     if (pinned_timestamp != WT_TS_NONE &&
       (!txn_global->has_pinned_timestamp || force ||
         txn_global->pinned_timestamp < pinned_timestamp)) {
-        WT_RELEASE_WRITE(txn_global->pinned_timestamp, pinned_timestamp);
+        WT_RELEASE_WRITE_WITH_BARRIER(txn_global->pinned_timestamp, pinned_timestamp);
         /*
          * Release write requires the data and destination have exactly the same size. stdbool.h
          * only defines true as `#define true 1` so we need a bool cast to provide proper type
          * information.
          */
-        WT_RELEASE_WRITE(txn_global->has_pinned_timestamp, (bool)true);
+        WT_RELEASE_WRITE_WITH_BARRIER(txn_global->has_pinned_timestamp, (bool)true);
         txn_global->oldest_is_pinned = txn_global->pinned_timestamp == txn_global->oldest_timestamp;
         txn_global->stable_is_pinned = txn_global->pinned_timestamp == txn_global->stable_timestamp;
         __wt_verbose_timestamp(session, pinned_timestamp, "Updated pinned timestamp");
