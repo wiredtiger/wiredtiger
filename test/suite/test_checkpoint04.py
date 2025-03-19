@@ -75,8 +75,9 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
         ntables = 50
         multiplier = 1
 
-        # Avoid checkpoint error with the disagg hook
-        self.conn.set_timestamp('stable_timestamp=1')
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'checkpoint=(precise=true)':
+            self.conn.set_timestamp('stable_timestamp=1')
 
         # Run the loop and increase the value size with each iteration until
         # the test passes.
