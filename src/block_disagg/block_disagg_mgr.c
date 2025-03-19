@@ -34,6 +34,19 @@ __bmd_block_header(WT_BM *bm)
 }
 
 /*
+ * __bmd_can_truncate --
+ *     Nominally whether there's free space at the end of the file; useless in disagg.
+ */
+static bool
+__bmd_can_truncate(WT_BM *bm, WT_SESSION_IMPL *session)
+{
+    WT_UNUSED(bm);
+    WT_UNUSED(session);
+
+    return (false);
+}
+
+/*
  * __bmd_close --
  *     Close a file.
  */
@@ -133,6 +146,7 @@ __bmd_method_set(WT_BM *bm, bool readonly)
     bm->addr_invalid = __bmd_addr_invalid;
     bm->addr_string = __wt_block_disagg_addr_string;
     bm->block_header = __bmd_block_header;
+    bm->can_truncate = __bmd_can_truncate;
     bm->checkpoint = __wt_block_disagg_checkpoint;
     bm->checkpoint_load = __wt_block_disagg_checkpoint_load;
     bm->checkpoint_resolve = __wt_block_disagg_checkpoint_resolve;
