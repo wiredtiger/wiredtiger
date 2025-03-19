@@ -39,6 +39,7 @@ live_restore_test_env::live_restore_test_env()
 
     session = conn->create_session();
     lr_fs = (WTI_LIVE_RESTORE_FS *)conn->get_wt_connection_impl()->file_system;
+    lr_fs->finished = false;
 }
 
 live_restore_test_env::~live_restore_test_env()
