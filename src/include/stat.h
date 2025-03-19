@@ -884,8 +884,6 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_tables;
     int64_t layered_table_manager_running;
     int64_t layered_table_manager_active;
-    int64_t live_restore_state;
-    int64_t live_restore_queue_length;
     int64_t lock_btree_page_count;
     int64_t lock_btree_page_wait_application;
     int64_t lock_btree_page_wait_internal;
