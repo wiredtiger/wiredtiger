@@ -101,9 +101,7 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 
         /* Extract the stable URI. */
         WT_ERR(__wt_config_getones(session, layered_cfg, "stable", &cval));
-        WT_ERR(__wt_calloc_def(session, cval.len + 1, &stable_uri));
-        memcpy(stable_uri, cval.str, cval.len);
-        stable_uri[cval.len] = '\0';
+        WT_ERR(__wt_strndup(session, cval.str, cval.len, &stable_uri));
 
         /* Check if the URI exists. */
         cursor_check->set_key(cursor_check, stable_uri);
@@ -124,10 +122,8 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 
 err:
     __wt_free(session, stable_uri);
-    if (cursor_check != NULL)
-        WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_check));
-    if (cursor_scan != NULL)
-        WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_scan));
+    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_check));
+    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_scan));
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
