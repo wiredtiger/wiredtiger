@@ -8,18 +8,16 @@
 
 #include <catch2/catch.hpp>
 #include "wt_internal.h"
-#include "../../wrappers/connection_wrapper.h"
-#include "../utils_sub_level_error.h"
+#include "../wrappers/connection_wrapper.h"
+#include "../utils.h"
 
 /*
- * [sub_level_error_session_set_last_error]: test_sub_level_error_session_set_last_error.cpp
+ * [session_set_last_error]: test_session_set_last_error.cpp
  * Tests the function for storing verbose information about the last error of the session.
  */
 
-using namespace utils;
-
 TEST_CASE("Session set last error - test storing verbose info about the last error in the session",
-  "[sub_level_error_session_set_last_error],[sub_level_error]")
+  "[session_set_last_error]")
 {
     WT_SESSION *session;
 
@@ -34,7 +32,7 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
     {
         const char *err_msg_content = WT_ERROR_INFO_EMPTY;
         REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, err_msg_content) == 0);
-        check_error_info(err_info, 0, WT_NONE, err_msg_content);
+        utils::check_error_info(err_info, 0, WT_NONE, err_msg_content);
     }
 
     SECTION("Test with EINVAL error")
@@ -42,7 +40,8 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
         const char *err_msg_content = "Some EINVAL error";
         REQUIRE(__wt_session_set_last_error(session_impl, EINVAL,
                   WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content) == 0);
-        check_error_info(err_info, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content);
+        utils::check_error_info(
+          err_info, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content);
     }
 
     SECTION("Test with multiple errors (varying err/sub_level_err/err_msg)")
@@ -50,19 +49,19 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
         const char *err_msg_content_EINVAL = "Some EINVAL error";
         const char *err_msg_content_EBUSY = "Some EBUSY error";
         REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, WT_ERROR_INFO_EMPTY) == 0);
-        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
         REQUIRE(__wt_session_set_last_error(session_impl, EINVAL,
                   WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content_EINVAL) == 0);
-        check_error_info(
+        utils::check_error_info(
           err_info, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING, err_msg_content_EINVAL);
         REQUIRE(__wt_session_set_last_error(
                   session_impl, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_EBUSY) == 0);
-        check_error_info(err_info, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_EBUSY);
+        utils::check_error_info(err_info, EBUSY, WT_UNCOMMITTED_DATA, err_msg_content_EBUSY);
         REQUIRE(__wt_session_set_last_error(
                   session_impl, EBUSY, WT_DIRTY_DATA, err_msg_content_EBUSY) == 0);
-        check_error_info(err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_EBUSY);
+        utils::check_error_info(err_info, EBUSY, WT_DIRTY_DATA, err_msg_content_EBUSY);
         REQUIRE(__wt_session_set_last_error(session_impl, 0, WT_NONE, NULL) == 0);
-        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+        utils::check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test with large error message")
@@ -70,6 +69,6 @@ TEST_CASE("Session set last error - test storing verbose info about the last err
         std::string err_msg_string(1024, 'a');
         const char *err_msg_content = err_msg_string.c_str();
         REQUIRE(__wt_session_set_last_error(session_impl, EINVAL, WT_NONE, err_msg_content) == 0);
-        check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
+        utils::check_error_info(err_info, EINVAL, WT_NONE, err_msg_content);
     }
 }

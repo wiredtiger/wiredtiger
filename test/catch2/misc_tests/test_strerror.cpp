@@ -17,8 +17,7 @@ check_error_code(int error, std::string expected)
     CHECK(result == expected);
 }
 
-TEST_CASE("Test generation of sub-level error codes when strerror is called",
-  "[sub_level_error_strerror],[sub_level_error]")
+TEST_CASE("Test generation of sub-level error codes when strerror is called", "[strerror]")
 {
     SECTION("Unique sub-level error codes")
     {
