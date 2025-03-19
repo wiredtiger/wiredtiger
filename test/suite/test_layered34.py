@@ -62,7 +62,7 @@ class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # Test creating an empty table.
     def test_layered34(self):
         # Avoid checkpoint error with precise checkpoint
-        self.conn.set_timestamp('oldest_timestamp=1,stable_timestamp=1')
+        self.conn.set_timestamp('stable_timestamp=1')
 
         page_log = self.conn.get_page_log('palm')
 
