@@ -1926,6 +1926,7 @@ __live_restore_fs_size(
         WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", name);
 
     /* Get the file size from the destination if possible, otherwise fallback to the source. */
+    /* FIXME-WT-14299: Cleanup backing file name so this if block goes away. */
     if (which == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION)
         WT_RET(__live_restore_fs_backing_filename(
           &lr_fs->destination, session, lr_fs->destination.home, name, &path));
