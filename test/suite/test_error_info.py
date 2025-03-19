@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import errno
 import wiredtiger, wttest, time
 from wtdataset import SimpleDataSet
 
@@ -33,8 +34,24 @@ from wtdataset import SimpleDataSet
 #   Test that the placeholder get_last_error() session API returns placeholder error values.
 class test_error_info(wttest.WiredTigerTestCase):
 
+    table_name1 = 'test_error_info.wt'
+
     def test_error_info(self):
         err, sub_level_err, err_msg = self.session.get_last_error()
         self.assertEqual(err, 0)
         self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
         self.assertEqual(err_msg, "")
+
+    def test_invalid_config(self):
+        expectMessage = 'unknown configuration key'
+        with self.expectedStderrPattern(expectMessage):
+            try:
+                self.session.create('table:' + self.table_name1,
+                                    'expect_this_error,okay?')
+            except wiredtiger.WiredTigerError as e:
+                self.assertTrue(str(e).find('nvalid argument') >= 0)
+
+        err, sub_level_err, err_msg = self.session.get_last_error()
+        self.assertEqual(err, errno.EINVAL)
+        self.assertEqual(sub_level_err, wiredtiger.WT_NONE)
+        self.assertEqual(err_msg, "unknown configuration key 'expect_this_error'")
