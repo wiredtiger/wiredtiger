@@ -1224,7 +1224,7 @@ err:
      */
     WT_TRET(__wti_background_compact_server_destroy(session));
     WT_TRET(__wt_checkpoint_cleanup_destroy(session));
-    WT_TRET(__wti_checkpoint_server_destroy(session));
+    WT_TRET(__wt_checkpoint_server_destroy(session));
 
     /*
      * Shut down the layered table manager thread, ideally this would be taken care of in connection
