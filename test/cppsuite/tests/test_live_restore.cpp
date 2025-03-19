@@ -262,7 +262,7 @@ reopen_conn(scoped_session &session, const std::string &conn_config, const std::
 static void
 do_random_crud(scoped_session &session, const int64_t collection_count, const int64_t op_count,
   const bool fresh_start, const std::string &conn_config, const std::string &home,
-  const bool enable_reopen = true)
+  const bool allow_reopen = true)
 {
     bool file_created = fresh_start == false;
 
@@ -291,7 +291,7 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
             logger::log_msg(LOG_INFO, "Taking checkpoint");
-        } else if (ran < 15 && !fresh_start && enable_reopen) {
+        } else if (ran < 15 && !fresh_start && allow_reopen) {
             logger::log_msg(LOG_INFO, "Commencing connection reopen");
             reopen_conn(session, conn_config, home);
             session = std::move(connection_manager::instance().create_session());
@@ -354,9 +354,6 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
       ",live_restore=(enabled=true,read_size=2MB,threads_max=" + std::to_string(thread_count) +
       ",path=\"" + source + "\"),cache_size=5GB," + verbose_string +
       ",statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,path=journal)";
-    const std::string post_completion_conn_config =
-      "cache_size=5GB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,"
-      "path=journal)";
 
     /* Create connection. */
     if (recovery)
@@ -383,9 +380,11 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
                 break;
             __wt_sleep(1, 0);
         }
-        // Test live store not crash after completion.
+        // Test live store not crash after completion, remove source to ensure it will never be
+        // accessed.
         testutil_remove(SOURCE_PATH);
         logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
+        // Set allow_reopen to false to avoid reopening connection.
         do_random_crud(crud_session, collection_count, op_count, false, conn_config, home, false);
         logger::log_msg(LOG_INFO, "Done!");
     }
