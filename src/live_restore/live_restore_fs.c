@@ -1312,10 +1312,6 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (WT_NOTFOUND);
 
-    /* Once we're past the background migration stage there's no need to track hole information. */
-    if (__wti_live_restore_migration_complete(session))
-        return (WT_NOTFOUND);
-
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
 
     WT_ITEM buf;
@@ -1373,27 +1369,21 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
 
         /*
          * Live restore uses -1 in the nbits field to indicate the file has been fully migrated.
-         * This value should be updated to 0 when live restore moves past the background migration
-         * phase, but we can only do so if the file is open when we force a checkpoint during clean
-         * up, or if its btree is dirtied after live restore completes but before restarting in
-         * non-live restore mode. If neither of these events take place the metadata won't be
-         * updated on disk and the -1 value persists. A future live restore using this file as a
-         * source will see this value and incorrectly assume the file has already been migrated. To
-         * prevent this manually overwrite the -1 with the correct value 0.
+         * However if this value is copied into a backup future live restores using this backup as a
+         * source will see the nbits=-1 value and assume an uncopied file has already been copied.
          */
         WT_RET(__wt_config_subgets(session, &v, "nbits", &cval));
 
+        WT_ASSERT_ALWAYS(session, WT_STRING_LIT_MATCH("-1", cval.str, 2),
+          "nbits value other than -1 found when cleaning metadata string: %s\n", value);
+
         wt_off_t nbits_val_str_offset = cval.str - value;
-        if (WT_STRING_LIT_MATCH("-1", cval.str, 2)) {
-            /*
-             * We need to overwrite two characters, but only need to write one. Add a redundant
-             * comma so we don't need to resize the string. The config parser will ignore it.
-             */
-            value[nbits_val_str_offset] = '0';
-            value[nbits_val_str_offset + 1] = ',';
-        } else
-            WT_ASSERT_ALWAYS(session, cval.len == 1 && WT_STRING_LIT_MATCH("0", cval.str, 1),
-              "nbits value other than -1 or 0 found when cleaning metadata string: %s\n", value);
+        /*
+         * We need to overwrite two characters, but only need to write one. Add a redundant comma so
+         * we don't need to resize the string. The config parser will ignore it.
+         */
+        value[nbits_val_str_offset] = '0';
+        value[nbits_val_str_offset + 1] = ',';
     }
 
     return (0);
