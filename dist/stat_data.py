@@ -117,6 +117,10 @@ class LayeredStat(Stat):
     prefix = 'layered'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, LayeredStat.prefix, desc, flags)
+class LiveRestoreStat(Stat):
+    prefix = 'live-restore'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, LiveRestoreStat.prefix, desc, flags)
 class LockStat(Stat):
     prefix = 'lock'
     def __init__(self, name, desc, flags=''):
@@ -543,6 +547,12 @@ conn_stats = [
     LayeredStat('layered_table_manager_active', 'whether the layered table manager thread is currently busy doing work'),
     LayeredStat('layered_table_manager_running', 'whether the layered table manager thread has been started'),
     LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
+
+    ##########################################
+    # Live Restore statistics
+    ##########################################
+    LiveRestoreStat('live_restore_queue_length', 'the number of files remaining for live restore completion', 'no_clear,no_scale'),
+    LiveRestoreStat('live_restore_state', 'live restore state', 'no_clear,no_scale'),
 
     ##########################################
     # Locking statistics
