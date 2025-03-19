@@ -380,13 +380,13 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
                 break;
             __wt_sleep(1, 0);
         }
+        logger::log_msg(LOG_INFO, "Done!");
         // Test live store not crash after completion, remove source to ensure it will never be
         // accessed.
         testutil_remove(SOURCE_PATH);
         logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
         // Set allow_reopen to false to avoid reopening connection.
         do_random_crud(crud_session, collection_count, op_count, false, conn_config, home, false);
-        logger::log_msg(LOG_INFO, "Done!");
     }
 
     // We need to close the session here because the connection close will close it out for us if we
