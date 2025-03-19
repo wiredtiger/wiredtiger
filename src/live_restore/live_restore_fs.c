@@ -331,7 +331,6 @@ __live_restore_fs_free_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FIL
     WT_LIVE_RESTORE_HOLE_LIST *hole;
     WT_LIVE_RESTORE_HOLE_LIST *temp;
 
-    temp = hole = NULL;
     hole = lr_fh->destination.hole_list;
     lr_fh->destination.hole_list = NULL;
 
@@ -763,7 +762,8 @@ __live_restore_fh_find_holes_in_dest_file(
     int fd;
 
     data_end_offset = 0;
-    fd = open(filename, O_RDONLY);
+    WT_SYSCALL(((fd = open(filename, O_RDONLY)) == -1 ? -1 : 0), ret);
+    WT_ERR(ret);
 
     /* Check that we opened a valid file descriptor. */
     WT_ASSERT(session, fcntl(fd, F_GETFD) != -1 || errno != EBADF);
@@ -799,7 +799,7 @@ __live_restore_fh_find_holes_in_dest_file(
     }
 
 err:
-    close(fd);
+    WT_SYSCALL_TRET(close(fd), ret);
     return (ret);
 }
 
@@ -904,7 +904,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  */
                 wt_off_t source_size;
 
-                lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size);
+                WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
                 __wt_verbose_debug1(session, WT_VERB_FILEOPS,
                   "Creating destination file backed by source file. Copying size (%" PRId64
                   ") from source "
@@ -916,7 +916,8 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  * the file. We're bypassing the live_restore layer so we don't try to modify the
                  * extents in hole_list.
                  */
-                lr_fh->destination.fh->fh_truncate(lr_fh->destination.fh, wt_session, source_size);
+                WT_ERR(lr_fh->destination.fh->fh_truncate(
+                  lr_fh->destination.fh, wt_session, source_size));
 
                 /*
                  * Initialize the extent as one hole covering the entire file. We need to read
