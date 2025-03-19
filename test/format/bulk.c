@@ -280,6 +280,11 @@ wts_load(void)
     /* Checkpoint to ensure bulk loaded records are durable. */
     if (!GV(RUNS_IN_MEMORY)) {
         memset(&sap, 0, sizeof(sap));
+        /* Precise checkpoint requires a valid stable timestamp. */
+        if (GV(CHECKPOINT_PRECISE)) {
+            testutil_check(conn->set_timestamp(conn, "stable_timestamp=0x1"));
+            g.stable_timestamp = 1;
+        }
         wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
         testutil_check(session->checkpoint(session, NULL));
         wt_wrap_close_session(session);

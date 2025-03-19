@@ -93,11 +93,11 @@ class test_layered30(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Test creating an empty table.
     def test_layered30(self):
-        # Avoid checkpoint error with precise checkpoint
-        self.conn.set_timestamp('stable_timestamp=1')
-
         # The node started as a follower, so step it up as the leader
         self.conn.reconfigure('disaggregated=(role="leader")')
+
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
 
         # Create table
         self.uri = self.prefix + self.table_name
@@ -142,6 +142,9 @@ class test_layered30(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.restart_without_local_files()
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
         self.conn.reconfigure(f'disaggregated=(role="leader")')
+
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
 
         # Check that the table exists and is empty
         cursor = self.session.open_cursor(self.uri, None, None)
