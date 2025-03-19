@@ -72,8 +72,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     dhandle_name = dhandle->name;
     checkpoint = dhandle->checkpoint;
 
-    char *live_restore_extent_str = NULL;
-
     /*
      * This may be a re-open, clean up the btree structure. Clear the fields that don't persist
      * across a re-open. Clear all flags other than the operation flags (which are set by the
@@ -96,8 +94,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_ERR(__wt_btree_shared_base_name(session, &dhandle_name, &checkpoint, &name_buf));
 
     /* Get the checkpoint information for this name/checkpoint pair. */
-    WT_ERR(__wt_meta_checkpoint(
-      session, dhandle_name, dhandle->checkpoint, &ckpt, &live_restore_extent_str));
+    WT_RET(__wt_meta_checkpoint(session, dhandle_name, dhandle->checkpoint, &ckpt));
 
     /* Set the order number. */
     dhandle->checkpoint_order = ckpt.order;
@@ -121,8 +118,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_ERR(__btree_conf(session, &ckpt, WT_DHANDLE_IS_CHECKPOINT(dhandle)));
 
     /* Connect to the underlying block manager. */
-    WT_ERR(__wt_blkcache_open(session, dhandle_name, dhandle->cfg, forced_salvage, false,
-      btree->allocsize, live_restore_extent_str, &btree->bm));
+    WT_ERR(__wt_blkcache_open(
+      session, dhandle_name, dhandle->cfg, forced_salvage, false, btree->allocsize, &btree->bm));
 
     bm = btree->bm;
 
@@ -155,6 +152,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
             WT_ERR(__btree_tree_open_empty(session, creation));
         else {
             WT_ERR(__wti_btree_tree_open(session, root_addr, root_addr_size));
+
             /* Warm the cache, if possible. */
             if (!__wt_conn_is_disagg(session)) {
                 WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
@@ -187,7 +185,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 err:
         WT_TRET(__wt_btree_close(session));
     }
-    __wt_free(session, live_restore_extent_str);
     __wt_checkpoint_free(session, &ckpt);
 
     __wt_scr_free(session, &name_buf);

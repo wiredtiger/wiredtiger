@@ -134,7 +134,6 @@ void insert(scoped_cursor &cursor, std::string &coll);
 void update(scoped_cursor &cursor, std::string &coll);
 void remove(scoped_session &session, scoped_cursor &cursor, std::string &coll);
 void configure_database(scoped_session &session);
-void reopen_conn(scoped_session &session, const std::string &conn_config, const std::string &home);
 
 void
 read(scoped_session &session)
@@ -251,17 +250,9 @@ create_collection(scoped_session &session)
     db.add_new_collection(session);
 }
 
-void
-reopen_conn(scoped_session &session, const std::string &conn_config, const std::string &home)
-{
-    session.close_session();
-    connection_manager::instance().close();
-    connection_manager::instance().reopen(conn_config, home);
-}
-
 static void
 do_random_crud(scoped_session &session, const int64_t collection_count, const int64_t op_count,
-  const bool fresh_start, const std::string &conn_config, const std::string &home)
+  const bool fresh_start)
 {
     bool file_created = fresh_start == false;
 
@@ -289,11 +280,6 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
             logger::log_msg(LOG_INFO, "Taking checkpoint");
-        } else if (ran < 5) {
-            reopen_conn(session, conn_config, home);
-            logger::log_msg(LOG_INFO, "Reopening connection");
-
-            session = std::move(connection_manager::instance().create_session());
         } else if (ran < 9000) {
             // 90% Write.
             write(session, false);
@@ -355,16 +341,13 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
       ",statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,path=journal)";
 
     /* Create connection. */
-    if (recovery)
-        connection_manager::instance().reopen(conn_config, home);
-    else
-        connection_manager::instance().create(conn_config, home, true);
+    connection_manager::instance().create(conn_config, home, true);
 
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
         configure_database(crud_session);
     if (!background_thread_mode)
-        do_random_crud(crud_session, collection_count, op_count, first, conn_config, home);
+        do_random_crud(crud_session, collection_count, op_count, first);
     if (die)
         raise(SIGKILL);
 
@@ -499,19 +482,22 @@ main(int argc, char *argv[])
         home_path = HOME_PATH;
     logger::log_msg(LOG_INFO, "Home path: " + home_path);
 
-    // Assuming this run is following a -d "death" run then no folder manipulation is required
-    // as the home and source path remain the same.
     if (!recovery) {
         // Delete any existing source dir and home path.
         logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
         testutil_recreate_dir(SOURCE_PATH);
         testutil_remove(home_path.c_str());
+    } else {
+        // Assuming this run is following a -d "death" run then the previous home path will be the
+        // source path.
+        testutil_remove(SOURCE_PATH);
+        testutil_move(home_path.c_str(), SOURCE_PATH);
     }
 
     /* When setting up the database we don't want to wait for the background threads to complete. */
     int death_it = -1;
-    if (death_mode && it_count > 1) {
-        death_it = random_generator::instance().generate_integer(1, (int)it_count - 1);
+    if (death_mode) {
+        death_it = random_generator::instance().generate_integer(0, (int)it_count - 1);
         logger::log_msg(LOG_INFO, "Dying on iteration " + std::to_string(death_it));
     }
     for (int i = 0; i < it_count; i++) {
