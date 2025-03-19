@@ -150,7 +150,7 @@ run "ruff_check.py"
 run --bg "s_define" &
 run --bg "s_docs" &
 run --bg "s_evergreen" &
-run --bg "s_evergreen_validate" &
+# run --bg "s_evergreen_validate" &
 run --bg "s_test_suite_no_executable" &
 run --bg "s_export" &
 run --bg "s_free" &

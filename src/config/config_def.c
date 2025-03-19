@@ -4,11 +4,11 @@
 const char __WT_CONFIG_CHOICE_NULL[] = ""; /* not set in configuration */
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_close[] = {
-  {"final_flush", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 186,
+  {"final_flush", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 179,
     INT64_MIN, INT64_MAX, NULL},
-  {"leak_memory", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 187,
+  {"leak_memory", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 180,
     INT64_MIN, INT64_MAX, NULL},
-  {"use_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 185,
+  {"use_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 178,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -19,19 +19,19 @@ static const uint8_t confchk_WT_CONNECTION_close_jump[WT_CONFIG_JUMP_TABLE_SIZE]
   1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_debug_info[] = {
-  {"backup", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 188, INT64_MIN,
+  {"backup", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 181, INT64_MIN,
     INT64_MAX, NULL},
-  {"cache", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 189, INT64_MIN,
+  {"cache", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 182, INT64_MIN,
     INT64_MAX, NULL},
-  {"cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 190, INT64_MIN,
+  {"cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 183, INT64_MIN,
     INT64_MAX, NULL},
-  {"handles", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 191, INT64_MIN,
+  {"handles", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 184, INT64_MIN,
     INT64_MAX, NULL},
-  {"log", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 192, INT64_MIN,
+  {"log", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 185, INT64_MIN,
     INT64_MAX, NULL},
-  {"sessions", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 193,
+  {"sessions", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 186,
     INT64_MIN, INT64_MAX, NULL},
-  {"txn", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 194, INT64_MIN,
+  {"txn", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 187, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -42,13 +42,13 @@ static const uint8_t confchk_WT_CONNECTION_debug_info_jump[WT_CONFIG_JUMP_TABLE_
   3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_load_extension[] = {
-  {"config", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 287, INT64_MIN,
+  {"config", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 280, INT64_MIN,
     INT64_MAX, NULL},
-  {"early_load", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 288,
+  {"early_load", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 281,
     INT64_MIN, INT64_MAX, NULL},
-  {"entry", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 289, INT64_MIN,
+  {"entry", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 282, INT64_MIN,
     INT64_MAX, NULL},
-  {"terminate", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 290, INT64_MIN,
+  {"terminate", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 283, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -60,8 +60,8 @@ static const uint8_t confchk_WT_CONNECTION_load_extension_jump[WT_CONFIG_JUMP_TA
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session_debug_subconfigs[] = {
   {"checkpoint_fail_before_turtle_update", "boolean", NULL, NULL, NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 292, INT64_MIN, INT64_MAX, NULL},
-  {"release_evict_page", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 293,
+    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 285, INT64_MIN, INT64_MAX, NULL},
+  {"release_evict_page", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 286,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -91,23 +91,23 @@ static const uint8_t
     0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session[] = {
-  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 291,
+  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 284,
     INT64_MIN, INT64_MAX, NULL},
-  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 206, 0,
+  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 199, 0,
     INT64_MAX, NULL},
   {"debug", "category", NULL, NULL, confchk_WT_CONNECTION_open_session_debug_subconfigs, 2,
-    confchk_WT_CONNECTION_open_session_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 136,
+    confchk_WT_CONNECTION_open_session_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 129,
     INT64_MIN, INT64_MAX, NULL},
-  {"ignore_cache_size", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 294,
+  {"ignore_cache_size", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 287,
     INT64_MIN, INT64_MAX, NULL},
   {"isolation", "string", NULL,
     "choices=[\"read-uncommitted\",\"read-committed\","
     "\"snapshot\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 174, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 167, INT64_MIN, INT64_MAX,
     confchk_isolation_choices},
   {"prefetch", "category", NULL, NULL, confchk_WT_CONNECTION_open_session_prefetch_subconfigs, 1,
     confchk_WT_CONNECTION_open_session_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    295, INT64_MIN, INT64_MAX, NULL},
+    288, INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_CONNECTION_open_session_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0,
@@ -138,7 +138,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp[] = {
     "\"last_checkpoint\",\"oldest\",\"oldest_reader\","
     "\"oldest_timestamp\",\"pinned\",\"recovery\",\"stable\","
     "\"stable_timestamp\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 160, INT64_MIN, INT64_MAX, confchk_get_choices},
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 153, INT64_MIN, INT64_MAX, confchk_get_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_CONNECTION_query_timestamp_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0,
@@ -149,26 +149,26 @@ static const uint8_t confchk_WT_CONNECTION_query_timestamp_jump[WT_CONFIG_JUMP_T
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_block_cache_subconfigs[] = {
   {"blkcache_eviction_aggression", "int", NULL, "min=1,max=7200", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 198, 1, 7200, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 191, 1, 7200, NULL},
   {"cache_on_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    196, INT64_MIN, INT64_MAX, NULL},
-  {"cache_on_writes", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 197,
+    189, INT64_MIN, INT64_MAX, NULL},
+  {"cache_on_writes", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 190,
     INT64_MIN, INT64_MAX, NULL},
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
-  {"full_target", "int", NULL, "min=30,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 199,
+  {"full_target", "int", NULL, "min=30,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 192,
     30, 100, NULL},
-  {"hashsize", "int", NULL, "min=512,max=256K", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 201,
+  {"hashsize", "int", NULL, "min=512,max=256K", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 194,
     512, 256LL * WT_KILOBYTE, NULL},
   {"max_percent_overhead", "int", NULL, "min=1,max=500", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    202, 1, 500, NULL},
-  {"nvram_path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 203,
+    195, 1, 500, NULL},
+  {"nvram_path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 196,
     INT64_MIN, INT64_MAX, NULL},
   {"percent_file_in_dram", "int", NULL, "min=0,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    204, 0, 100, NULL},
-  {"size", "int", NULL, "min=0,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 200, 0,
+    197, 0, 100, NULL},
+  {"size", "int", NULL, "min=0,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 193, 0,
     10LL * WT_TERABYTE, NULL},
-  {"system_ram", "int", NULL, "min=0,max=1024GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 205,
+  {"system_ram", "int", NULL, "min=0,max=1024GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 198,
     0, 1024LL * WT_GIGABYTE, NULL},
   {"type", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 9, INT64_MIN,
     INT64_MAX, NULL},
@@ -182,11 +182,11 @@ static const uint8_t
     3, 4, 5, 5, 6, 6, 6, 6, 6, 7, 8, 8, 9, 9, 9, 11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_checkpoint_subconfigs[] = {
-  {"log_size", "int", NULL, "min=0,max=2GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 211, 0,
+  {"log_size", "int", NULL, "min=0,max=2GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 204, 0,
     2LL * WT_GIGABYTE, NULL},
-  {"precise", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 213, INT64_MIN,
+  {"precise", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 206, INT64_MIN,
     INT64_MAX, NULL},
-  {"wait", "int", NULL, "min=0,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 212, 0,
+  {"wait", "int", NULL, "min=0,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 205, 0,
     100000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -203,8 +203,8 @@ static const char *confchk_method_choices[] = {
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_checkpoint_cleanup_subconfigs[] = {
   {"method", "string", NULL, "choices=[\"none\",\"reclaim_space\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 215, INT64_MIN, INT64_MAX, confchk_method_choices},
-  {"wait", "int", NULL, "min=60,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 212, 60,
+    WT_CONFIG_COMPILED_TYPE_STRING, 208, INT64_MIN, INT64_MAX, confchk_method_choices},
+  {"wait", "int", NULL, "min=60,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 205, 60,
     100000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -216,7 +216,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_chunk_cache_subconfigs[] = {
-  {"pinned", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 217, INT64_MIN,
+  {"pinned", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 210, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -228,7 +228,7 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_compatibility_subconfigs[] = {
-  {"release", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 219, INT64_MIN,
+  {"release", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 212, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -240,40 +240,40 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_debug_mode_subconfigs[] = {
-  {"background_compact", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 221,
+  {"background_compact", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 214,
     INT64_MIN, INT64_MAX, NULL},
   {"checkpoint_retention", "int", NULL, "min=0,max=1024", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 223, 0, 1024, NULL},
-  {"configuration", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 224,
+    WT_CONFIG_COMPILED_TYPE_INT, 216, 0, 1024, NULL},
+  {"configuration", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 217,
     INT64_MIN, INT64_MAX, NULL},
-  {"corruption_abort", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 222,
+  {"corruption_abort", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 215,
     INT64_MIN, INT64_MAX, NULL},
-  {"cursor_copy", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 225,
+  {"cursor_copy", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 218,
     INT64_MIN, INT64_MAX, NULL},
-  {"cursor_reposition", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 226,
+  {"cursor_reposition", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 219,
     INT64_MIN, INT64_MAX, NULL},
-  {"eviction", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 227,
+  {"eviction", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 220,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction_checkpoint_ts_ordering", "boolean", NULL, NULL, NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 237, INT64_MIN, INT64_MAX, NULL},
-  {"log_retention", "int", NULL, "min=0,max=1024", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 228,
+    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 230, INT64_MIN, INT64_MAX, NULL},
+  {"log_retention", "int", NULL, "min=0,max=1024", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 221,
     0, 1024, NULL},
-  {"realloc_exact", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 229,
+  {"realloc_exact", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 222,
     INT64_MIN, INT64_MAX, NULL},
-  {"realloc_malloc", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 230,
+  {"realloc_malloc", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 223,
     INT64_MIN, INT64_MAX, NULL},
-  {"rollback_error", "int", NULL, "min=0,max=10M", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 231,
+  {"rollback_error", "int", NULL, "min=0,max=10M", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 224,
     0, 10LL * WT_MEGABYTE, NULL},
-  {"slow_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 232,
+  {"slow_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 225,
     INT64_MIN, INT64_MAX, NULL},
-  {"stress_skiplist", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 233,
+  {"stress_skiplist", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 226,
     INT64_MIN, INT64_MAX, NULL},
-  {"table_logging", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 234,
+  {"table_logging", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 227,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_flush_error_continue", "boolean", NULL, NULL, NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 235, INT64_MIN, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 228, INT64_MIN, INT64_MAX, NULL},
   {"update_restore_evict", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    236, INT64_MIN, INT64_MAX, NULL},
+    229, INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_debug_mode_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] =
@@ -289,15 +289,15 @@ static const char *confchk_role_choices[] = {
   __WT_CONFIG_CHOICE_leader, __WT_CONFIG_CHOICE_follower, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs[] = {
-  {"checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 93, -1,
+  {"checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 91, -1,
     INT64_MAX, NULL},
-  {"checkpoint_meta", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 94,
+  {"checkpoint_meta", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 92,
     INT64_MIN, INT64_MAX, NULL},
-  {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 95, -1,
+  {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 93, -1,
     INT64_MAX, NULL},
   {"role", "string", NULL, "choices=[\"leader\",\"follower\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 96, INT64_MIN, INT64_MAX, confchk_role_choices},
-  {"shutdown_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 97,
+    WT_CONFIG_COMPILED_TYPE_STRING, 94, INT64_MIN, INT64_MAX, confchk_role_choices},
+  {"shutdown_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 95,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -309,11 +309,11 @@ static const uint8_t
     0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_eviction_subconfigs[] = {
-  {"evict_sample_inmem", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 242,
+  {"evict_sample_inmem", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 235,
     INT64_MIN, INT64_MAX, NULL},
-  {"threads_max", "int", NULL, "min=1,max=20", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 240, 1,
+  {"threads_max", "int", NULL, "min=1,max=20", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 233, 1,
     20, NULL},
-  {"threads_min", "int", NULL, "min=1,max=20", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 241, 1,
+  {"threads_min", "int", NULL, "min=1,max=20", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 234, 1,
     20, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -343,12 +343,12 @@ static const char *confchk_extra_diagnostics_choices[] = {__WT_CONFIG_CHOICE_all
   __WT_CONFIG_CHOICE_slow_operation, __WT_CONFIG_CHOICE_txn_visibility, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_file_manager_subconfigs[] = {
-  {"close_handle_minimum", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 252, 0,
+  {"close_handle_minimum", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 245, 0,
     INT64_MAX, NULL},
   {"close_idle_time", "int", NULL, "min=0,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    253, 0, 100000, NULL},
+    246, 0, 100000, NULL},
   {"close_scan_interval", "int", NULL, "min=1,max=100000", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 254, 1, 100000, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 247, 1, 100000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -360,11 +360,11 @@ static const uint8_t
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_heuristic_controls_subconfigs[] = {
   {"checkpoint_cleanup_obsolete_tw_pages_dirty_max", "int", NULL, "min=0,max=100000", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 257, 0, 100000, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 250, 0, 100000, NULL},
   {"eviction_obsolete_tw_pages_dirty_max", "int", NULL, "min=0,max=100000", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 258, 0, 100000, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 251, 0, 100000, NULL},
   {"obsolete_tw_btree_max", "int", NULL, "min=0,max=500000", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 259, 0, 500000, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 252, 0, 500000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -375,7 +375,7 @@ static const uint8_t
     0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_history_store_subconfigs[] = {
-  {"file_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 261, 0, INT64_MAX,
+  {"file_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 254, 0, INT64_MAX,
     NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -387,9 +387,9 @@ static const uint8_t
     0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_io_capacity_subconfigs[] = {
-  {"chunk_cache", "int", NULL, "min=0,max=1TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 264, 0,
+  {"chunk_cache", "int", NULL, "min=0,max=1TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 257, 0,
     1LL * WT_TERABYTE, NULL},
-  {"total", "int", NULL, "min=0,max=1TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 263, 0,
+  {"total", "int", NULL, "min=0,max=1TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 256, 0,
     1LL * WT_TERABYTE, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -406,17 +406,17 @@ static const char *confchk_json_output_choices[] = {
   __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_message, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_log_subconfigs[] = {
-  {"archive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 266, INT64_MIN,
+  {"archive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 259, INT64_MIN,
     INT64_MAX, NULL},
   {"os_cache_dirty_pct", "int", NULL, "min=0,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    267, 0, 100, NULL},
-  {"prealloc", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 268,
+    260, 0, 100, NULL},
+  {"prealloc", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 261,
     INT64_MIN, INT64_MAX, NULL},
   {"prealloc_init_count", "int", NULL, "min=1,max=500", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    269, 1, 500, NULL},
-  {"remove", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 270, INT64_MIN,
+    262, 1, 500, NULL},
+  {"remove", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 263, INT64_MIN,
     INT64_MAX, NULL},
-  {"zero_fill", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 271,
+  {"zero_fill", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 264,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -428,10 +428,10 @@ static const uint8_t
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_lsm_manager_subconfigs[] = {
-  {"merge", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 274, INT64_MIN,
+  {"merge", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 267, INT64_MIN,
     INT64_MAX, NULL},
   {"worker_thread_max", "int", NULL, "min=3,max=20", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    273, 3, 20, NULL},
+    266, 3, 20, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -444,7 +444,7 @@ static const uint8_t
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_operation_tracking_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
-  {"path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 276, INT64_MIN,
+  {"path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 269, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -456,15 +456,15 @@ static const uint8_t
     0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_shared_cache_subconfigs[] = {
-  {"chunk", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 278,
+  {"chunk", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 271,
     1LL * WT_MEGABYTE, 10LL * WT_TERABYTE, NULL},
   {"name", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 25, INT64_MIN,
     INT64_MAX, NULL},
-  {"quota", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 279, INT64_MIN,
+  {"quota", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 272, INT64_MIN,
     INT64_MAX, NULL},
-  {"reserve", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 280, INT64_MIN,
+  {"reserve", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 273, INT64_MIN,
     INT64_MAX, NULL},
-  {"size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 200,
+  {"size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 193,
     1LL * WT_MEGABYTE, 10LL * WT_TERABYTE, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -484,15 +484,15 @@ static const char *confchk_statistics_choices[] = {__WT_CONFIG_CHOICE_all,
   __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs[] = {
-  {"json", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 282, INT64_MIN,
+  {"json", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 275, INT64_MIN,
     INT64_MAX, NULL},
-  {"on_close", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 283,
+  {"on_close", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 276,
     INT64_MIN, INT64_MAX, NULL},
-  {"sources", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 284, INT64_MIN,
+  {"sources", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 277, INT64_MIN,
     INT64_MAX, NULL},
-  {"timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 285, INT64_MIN,
+  {"timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 278, INT64_MIN,
     INT64_MAX, NULL},
-  {"wait", "int", NULL, "min=0,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 212, 0,
+  {"wait", "int", NULL, "min=0,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 205, 0,
     100000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -632,104 +632,104 @@ static const char *confchk_verbose_choices[] = {__WT_CONFIG_CHOICE_all, __WT_CON
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12,
-    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 195,
+    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 188,
     INT64_MIN, INT64_MAX, NULL},
-  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 206, 0,
+  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 199, 0,
     INT64_MAX, NULL},
-  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 207,
+  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 200,
     0, 30, NULL},
-  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 208,
+  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 201,
     1LL * WT_MEGABYTE, 10LL * WT_TERABYTE, NULL},
-  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 209,
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 202,
     0, INT64_MAX, NULL},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 3,
-    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 210,
+    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 203,
     INT64_MIN, INT64_MAX, NULL},
   {"checkpoint_cleanup", "category", NULL, NULL,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs, 2,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    214, INT64_MIN, INT64_MAX, NULL},
+    207, INT64_MIN, INT64_MAX, NULL},
   {"chunk_cache", "category", NULL, NULL, confchk_WT_CONNECTION_reconfigure_chunk_cache_subconfigs,
     1, confchk_WT_CONNECTION_reconfigure_chunk_cache_subconfigs_jump,
-    WT_CONFIG_COMPILED_TYPE_CATEGORY, 216, INT64_MIN, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_CATEGORY, 209, INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_compatibility_subconfigs, 1,
     confchk_WT_CONNECTION_reconfigure_compatibility_subconfigs_jump,
-    WT_CONFIG_COMPILED_TYPE_CATEGORY, 218, INT64_MIN, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_CATEGORY, 211, INT64_MIN, INT64_MAX, NULL},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 17,
-    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 220,
+    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 213,
     INT64_MIN, INT64_MAX, NULL},
   {"disaggregated", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs, 5,
     confchk_WT_CONNECTION_reconfigure_disaggregated_subconfigs_jump,
     WT_CONFIG_COMPILED_TYPE_CATEGORY, 20, INT64_MIN, INT64_MAX, NULL},
-  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 238,
+  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 231,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction", "category", NULL, NULL, confchk_wiredtiger_open_eviction_subconfigs, 3,
-    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 239,
+    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 232,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction_checkpoint_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 243, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 236, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_target", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 244, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 237, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_trigger", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 245, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 238, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_target", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    246, 10, 10LL * WT_TERABYTE, NULL},
+    239, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_trigger", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    247, 10, 10LL * WT_TERABYTE, NULL},
+    240, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 248, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 241, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_trigger", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 249, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 242, 0, 10LL * WT_TERABYTE, NULL},
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validate\",\"cursor_check\""
     ",\"disk_validate\",\"eviction_check\",\"generation_check\","
     "\"hs_validate\",\"key_out_of_order\",\"log_validate\","
     "\"prepared\",\"slow_operation\",\"txn_visibility\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 250, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 243, INT64_MIN, INT64_MAX,
     confchk_extra_diagnostics_choices},
   {"file_manager", "category", NULL, NULL, confchk_wiredtiger_open_file_manager_subconfigs, 3,
-    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 251,
+    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 244,
     INT64_MIN, INT64_MAX, NULL},
   {"generation_drain_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    255, 0, INT64_MAX, NULL},
+    248, 0, INT64_MAX, NULL},
   {"heuristic_controls", "category", NULL, NULL,
     confchk_wiredtiger_open_heuristic_controls_subconfigs, 3,
     confchk_wiredtiger_open_heuristic_controls_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    256, INT64_MIN, INT64_MAX, NULL},
+    249, INT64_MIN, INT64_MAX, NULL},
   {"history_store", "category", NULL, NULL, confchk_wiredtiger_open_history_store_subconfigs, 1,
-    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 260,
+    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 253,
     INT64_MIN, INT64_MAX, NULL},
   {"io_capacity", "category", NULL, NULL, confchk_wiredtiger_open_io_capacity_subconfigs, 2,
-    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 262,
+    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 255,
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 265, INT64_MIN, INT64_MAX, confchk_json_output_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 258, INT64_MIN, INT64_MAX, confchk_json_output_choices},
   {"log", "category", NULL, NULL, confchk_WT_CONNECTION_reconfigure_log_subconfigs, 6,
     confchk_WT_CONNECTION_reconfigure_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42,
     INT64_MIN, INT64_MAX, NULL},
   {"lsm_manager", "category", NULL, NULL, confchk_wiredtiger_open_lsm_manager_subconfigs, 2,
-    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 272,
+    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 265,
     INT64_MIN, INT64_MAX, NULL},
-  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 176, 0,
+  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 169, 0,
     INT64_MAX, NULL},
   {"operation_tracking", "category", NULL, NULL,
     confchk_wiredtiger_open_operation_tracking_subconfigs, 2,
     confchk_wiredtiger_open_operation_tracking_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    275, INT64_MIN, INT64_MAX, NULL},
+    268, INT64_MIN, INT64_MAX, NULL},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5,
-    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 277,
+    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 270,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 158, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 151, INT64_MIN, INT64_MAX,
     confchk_statistics_choices},
   {"statistics_log", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs, 5,
     confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs_jump,
-    WT_CONFIG_COMPILED_TYPE_CATEGORY, 281, INT64_MIN, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_CATEGORY, 274, INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs, 1,
     confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs_jump,
@@ -748,7 +748,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"prepare_resolution_2\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
     "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 286, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 279, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test_choices},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
@@ -774,9 +774,9 @@ static const uint8_t confchk_WT_CONNECTION_reconfigure_jump[WT_CONFIG_JUMP_TABLE
   37, 37, 37};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_rollback_to_stable[] = {
-  {"dryrun", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 112, INT64_MIN,
+  {"dryrun", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 110, INT64_MIN,
     INT64_MAX, NULL},
-  {"threads", "int", NULL, "min=0,max=10", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 297, 0, 10,
+  {"threads", "int", NULL, "min=0,max=10", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 290, 0, 10,
     NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -789,11 +789,11 @@ static const uint8_t confchk_WT_CONNECTION_rollback_to_stable_jump[WT_CONFIG_JUM
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
   {"durable_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 3,
     INT64_MIN, INT64_MAX, NULL},
-  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104, INT64_MIN,
+  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 102, INT64_MIN,
     INT64_MAX, NULL},
-  {"oldest_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 296,
+  {"oldest_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 289,
     INT64_MIN, INT64_MAX, NULL},
-  {"stable_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 171,
+  {"stable_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 164,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -814,10 +814,10 @@ static const char *confchk_bound_choices[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_CURSOR_bound[] = {
   {"action", "string", NULL, "choices=[\"clear\",\"set\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 107, INT64_MIN, INT64_MAX, confchk_action_choices},
+    WT_CONFIG_COMPILED_TYPE_STRING, 105, INT64_MIN, INT64_MAX, confchk_action_choices},
   {"bound", "string", NULL, "choices=[\"lower\",\"upper\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 108, INT64_MIN, INT64_MAX, confchk_bound_choices},
-  {"inclusive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 109,
+    WT_CONFIG_COMPILED_TYPE_STRING, 106, INT64_MIN, INT64_MAX, confchk_bound_choices},
+  {"inclusive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 107,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -828,13 +828,13 @@ static const uint8_t confchk_WT_CURSOR_bound_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const WT_CONFIG_CHECK confchk_WT_CURSOR_reconfigure[] = {
-  {"append", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 103, INT64_MIN,
+  {"append", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 101, INT64_MIN,
     INT64_MAX, NULL},
-  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104, INT64_MIN,
+  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 102, INT64_MIN,
     INT64_MAX, NULL},
-  {"overwrite", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 105,
+  {"overwrite", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 103,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_search", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 106,
+  {"prefix_search", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -923,7 +923,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_alter[] = {
   {"checkpoint", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 62, INT64_MIN,
     INT64_MAX, NULL},
   {"exclusive_refreshed", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    110, INT64_MIN, INT64_MAX, NULL},
+    108, INT64_MIN, INT64_MAX, NULL},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1,
     confchk_WT_SESSION_create_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42, INT64_MIN,
     INT64_MAX, NULL},
@@ -956,9 +956,9 @@ static const char *confchk_isolation2_choices[] = {__WT_CONFIG_CHOICE_read_uncom
   __WT_CONFIG_CHOICE_read_committed, __WT_CONFIG_CHOICE_snapshot, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction_roundup_timestamps_subconfigs[] =
-  {{"prepared", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 179,
+  {{"prepared", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 172,
      INT64_MIN, INT64_MAX, NULL},
-    {"read", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 180, INT64_MIN,
+    {"read", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 173, INT64_MIN,
       INT64_MAX, NULL},
     {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -971,27 +971,27 @@ static const uint8_t confchk_WT_SESSION_begin_transaction_roundup_timestamps_sub
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
   {"ignore_prepare", "string", NULL, "choices=[\"false\",\"force\",\"true\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 173, INT64_MIN, INT64_MAX, confchk_ignore_prepare_choices},
+    WT_CONFIG_COMPILED_TYPE_STRING, 166, INT64_MIN, INT64_MAX, confchk_ignore_prepare_choices},
   {"isolation", "string", NULL,
     "choices=[\"read-uncommitted\",\"read-committed\","
     "\"snapshot\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 174, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 167, INT64_MIN, INT64_MAX,
     confchk_isolation2_choices},
   {"name", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 25, INT64_MIN,
     INT64_MAX, NULL},
-  {"no_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 175,
+  {"no_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 168,
     INT64_MIN, INT64_MAX, NULL},
-  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 176, 0,
+  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 169, 0,
     INT64_MAX, NULL},
-  {"priority", "int", NULL, "min=-100,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 177,
+  {"priority", "int", NULL, "min=-100,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 170,
     -100, 100, NULL},
   {"read_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 4,
     INT64_MIN, INT64_MAX, NULL},
   {"roundup_timestamps", "category", NULL, NULL,
     confchk_WT_SESSION_begin_transaction_roundup_timestamps_subconfigs, 2,
     confchk_WT_SESSION_begin_transaction_roundup_timestamps_subconfigs_jump,
-    WT_CONFIG_COMPILED_TYPE_CATEGORY, 178, INT64_MIN, INT64_MAX, NULL},
-  {"sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 133, INT64_MIN,
+    WT_CONFIG_COMPILED_TYPE_CATEGORY, 171, INT64_MIN, INT64_MAX, NULL},
+  {"sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 126, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1002,7 +1002,7 @@ static const uint8_t confchk_WT_SESSION_begin_transaction_jump[WT_CONFIG_JUMP_TA
   0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 4, 5, 6, 6, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_debug_subconfigs[] = {
-  {"checkpoint_cleanup", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 182,
+  {"checkpoint_cleanup", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 175,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1016,11 +1016,11 @@ static const uint8_t
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint_flush_tier_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
-  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104, INT64_MIN,
+  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 102, INT64_MIN,
     INT64_MAX, NULL},
-  {"sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 133, INT64_MIN,
+  {"sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 126, INT64_MIN,
     INT64_MAX, NULL},
-  {"timeout", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 116, INT64_MIN,
+  {"timeout", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 114, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1033,20 +1033,18 @@ static const uint8_t
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
   {"debug", "category", NULL, NULL, confchk_WT_SESSION_checkpoint_debug_subconfigs, 1,
-    confchk_WT_SESSION_checkpoint_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 136,
+    confchk_WT_SESSION_checkpoint_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 129,
     INT64_MIN, INT64_MAX, NULL},
-  {"drop", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 183, INT64_MIN,
+  {"drop", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 176, INT64_MIN,
     INT64_MAX, NULL},
   {"flush_tier", "category", NULL, NULL, confchk_WT_SESSION_checkpoint_flush_tier_subconfigs, 4,
-    confchk_WT_SESSION_checkpoint_flush_tier_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 184,
+    confchk_WT_SESSION_checkpoint_flush_tier_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 177,
     INT64_MIN, INT64_MAX, NULL},
-  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104, INT64_MIN,
+  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 102, INT64_MIN,
     INT64_MAX, NULL},
   {"name", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 25, INT64_MIN,
     INT64_MAX, NULL},
-  {"target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 159, INT64_MIN,
-    INT64_MAX, NULL},
-  {"use_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 185,
+  {"use_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 178,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1054,7 +1052,7 @@ static const uint8_t confchk_WT_SESSION_checkpoint_jump[WT_CONFIG_JUMP_TABLE_SIZ
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4,
-  4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
+  4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
 
 static const char *confchk_sync_choices[] = {__WT_CONFIG_CHOICE_off, __WT_CONFIG_CHOICE_on, NULL};
 
@@ -1063,10 +1061,10 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_commit_transaction[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"durable_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 3,
     INT64_MIN, INT64_MAX, NULL},
-  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 176, 0,
+  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 169, 0,
     INT64_MAX, NULL},
   {"sync", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 133, INT64_MIN, INT64_MAX, confchk_sync_choices},
+    WT_CONFIG_COMPILED_TYPE_STRING, 126, INT64_MIN, INT64_MAX, confchk_sync_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_SESSION_commit_transaction_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0,
@@ -1076,17 +1074,17 @@ static const uint8_t confchk_WT_SESSION_commit_transaction_jump[WT_CONFIG_JUMP_T
   2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_compact[] = {
-  {"background", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 111,
+  {"background", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 109,
     INT64_MIN, INT64_MAX, NULL},
-  {"dryrun", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 112, INT64_MIN,
+  {"dryrun", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 110, INT64_MIN,
     INT64_MAX, NULL},
-  {"exclude", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 113, INT64_MIN,
+  {"exclude", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 111, INT64_MIN,
     INT64_MAX, NULL},
-  {"free_space_target", "int", NULL, "min=1MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 114,
+  {"free_space_target", "int", NULL, "min=1MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 112,
     1LL * WT_MEGABYTE, INT64_MAX, NULL},
-  {"run_once", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 115,
+  {"run_once", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 113,
     INT64_MIN, INT64_MAX, NULL},
-  {"timeout", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 116, INT64_MIN,
+  {"timeout", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 114, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1155,17 +1153,17 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create_import_subconfigs[] = {
   {"compare_timestamp", "string", NULL,
     "choices=[\"oldest\",\"oldest_timestamp\",\"stable\","
     "\"stable_timestamp\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 119, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 117, INT64_MIN, INT64_MAX,
     confchk_compare_timestamp_choices},
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
-  {"file_metadata", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 120,
+  {"file_metadata", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 118,
     INT64_MIN, INT64_MAX, NULL},
-  {"metadata_file", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 121,
+  {"metadata_file", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 119,
     INT64_MIN, INT64_MAX, NULL},
-  {"panic_corrupt", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 122,
+  {"panic_corrupt", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 120,
     INT64_MIN, INT64_MAX, NULL},
-  {"repair", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 123, INT64_MIN,
+  {"repair", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 121, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1176,11 +1174,11 @@ static const uint8_t confchk_WT_SESSION_create_import_subconfigs_jump[WT_CONFIG_
   0, 1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_merge_custom_subconfigs[] = {
-  {"prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 85, INT64_MIN,
+  {"prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 83, INT64_MIN,
     INT64_MAX, NULL},
-  {"start_generation", "int", NULL, "min=0,max=10", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 86,
+  {"start_generation", "int", NULL, "min=0,max=10", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 84,
     0, 10, NULL},
-  {"suffix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 87, INT64_MIN,
+  {"suffix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 85, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1192,30 +1190,30 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_lsm_subconfigs[] = {
-  {"auto_throttle", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 75,
+  {"auto_throttle", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 73,
     INT64_MIN, INT64_MAX, NULL},
-  {"bloom", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 76, INT64_MIN,
+  {"bloom", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 74, INT64_MIN,
     INT64_MAX, NULL},
-  {"bloom_bit_count", "int", NULL, "min=2,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 77,
+  {"bloom_bit_count", "int", NULL, "min=2,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 75,
     2, 1000, NULL},
-  {"bloom_config", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 78,
+  {"bloom_config", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 76,
     INT64_MIN, INT64_MAX, NULL},
-  {"bloom_hash_count", "int", NULL, "min=2,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 79,
+  {"bloom_hash_count", "int", NULL, "min=2,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 77,
     2, 100, NULL},
-  {"bloom_oldest", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 80,
+  {"bloom_oldest", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 78,
     INT64_MIN, INT64_MAX, NULL},
-  {"chunk_count_limit", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 81,
+  {"chunk_count_limit", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 79,
     INT64_MIN, INT64_MAX, NULL},
-  {"chunk_max", "int", NULL, "min=100MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 82,
+  {"chunk_max", "int", NULL, "min=100MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 80,
     100LL * WT_MEGABYTE, 10LL * WT_TERABYTE, NULL},
-  {"chunk_size", "int", NULL, "min=512K,max=500MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 83,
+  {"chunk_size", "int", NULL, "min=512K,max=500MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 81,
     512LL * WT_KILOBYTE, 500LL * WT_MEGABYTE, NULL},
   {"merge_custom", "category", NULL, NULL, confchk_WT_SESSION_create_merge_custom_subconfigs, 3,
-    confchk_WT_SESSION_create_merge_custom_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 84,
+    confchk_WT_SESSION_create_merge_custom_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 82,
     INT64_MIN, INT64_MAX, NULL},
-  {"merge_max", "int", NULL, "min=2,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 88, 2,
+  {"merge_max", "int", NULL, "min=2,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 86, 2,
     100, NULL},
-  {"merge_min", "int", NULL, "max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 89, INT64_MIN,
+  {"merge_min", "int", NULL, "max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 87, INT64_MIN,
     100, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1282,7 +1280,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
     "\"unencrypted\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 18, INT64_MIN, INT64_MAX,
     confchk_checksum_choices},
-  {"colgroups", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 100, INT64_MIN,
+  {"colgroups", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 98, INT64_MIN,
     INT64_MAX, NULL},
   {"collator", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 6, INT64_MIN,
     INT64_MAX, NULL},
@@ -1296,10 +1294,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 24,
     INT64_MIN, INT64_MAX, NULL},
-  {"exclusive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 117,
+  {"exclusive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 115,
     INT64_MIN, INT64_MAX, NULL},
-  {"extractor", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 69, INT64_MIN,
-    INT64_MAX, NULL},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
     27, INT64_MIN, INT64_MAX, confchk_format_choices},
   {"huffman_key", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 28,
@@ -1308,14 +1304,14 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_BOOLEAN, 30, INT64_MIN, INT64_MAX, NULL},
-  {"immutable", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 70,
+  {"immutable", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 69,
     INT64_MIN, INT64_MAX, NULL},
   {"import", "category", NULL, NULL, confchk_WT_SESSION_create_import_subconfigs, 6,
-    confchk_WT_SESSION_create_import_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 118,
+    confchk_WT_SESSION_create_import_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 116,
     INT64_MIN, INT64_MAX, NULL},
   {"in_memory", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 31,
     INT64_MIN, INT64_MAX, NULL},
-  {"ingest", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 98, INT64_MIN,
+  {"ingest", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 96, INT64_MIN,
     INT64_MAX, NULL},
   {"internal_item_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 32, 0,
     INT64_MAX, NULL},
@@ -1341,7 +1337,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
     confchk_WT_SESSION_create_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42, INT64_MIN,
     INT64_MAX, NULL},
   {"lsm", "category", NULL, NULL, confchk_WT_SESSION_create_lsm_subconfigs, 12,
-    confchk_WT_SESSION_create_lsm_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 74, INT64_MIN,
+    confchk_WT_SESSION_create_lsm_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 72, INT64_MIN,
     INT64_MAX, NULL},
   {"memory_page_image_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44, 0,
     INT64_MAX, NULL},
@@ -1363,7 +1359,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"split_pct", "int", NULL, "min=50,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 52, 50,
     100, NULL},
-  {"stable", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 99, INT64_MIN,
+  {"stable", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 97, INT64_MIN,
     INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
     confchk_WT_SESSION_create_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 53,
@@ -1384,20 +1380,20 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
 static const uint8_t confchk_WT_SESSION_create_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 12, 14, 17,
-  18, 18, 20, 29, 29, 31, 37, 39, 39, 41, 43, 43, 43, 48, 50, 50, 52, 53, 53, 53, 53, 53, 53, 53,
-  53};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 7, 12, 14, 16,
+  17, 17, 19, 28, 28, 30, 36, 38, 38, 40, 42, 42, 42, 47, 49, 49, 51, 52, 52, 52, 52, 52, 52, 52,
+  52};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_drop[] = {
-  {"checkpoint_wait", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 124,
+  {"checkpoint_wait", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 122,
     INT64_MIN, INT64_MAX, NULL},
-  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104, INT64_MIN,
+  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 102, INT64_MIN,
     INT64_MAX, NULL},
-  {"lock_wait", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 125,
+  {"lock_wait", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 123,
     INT64_MIN, INT64_MAX, NULL},
-  {"remove_files", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 126,
+  {"remove_files", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 124,
     INT64_MIN, INT64_MAX, NULL},
-  {"remove_shared", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 127,
+  {"remove_shared", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 125,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1406,52 +1402,12 @@ static const uint8_t confchk_WT_SESSION_drop_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2,
   2, 2, 2, 3, 3, 3, 3, 3, 3, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
-const char __WT_CONFIG_CHOICE_eq[] = "eq";
-const char __WT_CONFIG_CHOICE_ge[] = "ge";
-const char __WT_CONFIG_CHOICE_gt[] = "gt";
-const char __WT_CONFIG_CHOICE_le[] = "le";
-const char __WT_CONFIG_CHOICE_lt[] = "lt";
-
-static const char *confchk_compare_choices[] = {__WT_CONFIG_CHOICE_eq, __WT_CONFIG_CHOICE_ge,
-  __WT_CONFIG_CHOICE_gt, __WT_CONFIG_CHOICE_le, __WT_CONFIG_CHOICE_lt, NULL};
-const char __WT_CONFIG_CHOICE_and[] = "and";
-const char __WT_CONFIG_CHOICE_or[] = "or";
-
-static const char *confchk_operation_choices[] = {
-  __WT_CONFIG_CHOICE_and, __WT_CONFIG_CHOICE_or, NULL};
-const char __WT_CONFIG_CHOICE_bloom[] = "bloom";
-
-static const char *confchk_strategy_choices[] = {
-  __WT_CONFIG_CHOICE_bloom, __WT_CONFIG_CHOICE_default, NULL};
-
-static const WT_CONFIG_CHECK confchk_WT_SESSION_join[] = {
-  {"bloom_bit_count", "int", NULL, "min=2,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 77,
-    2, 1000, NULL},
-  {"bloom_false_positives", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    128, INT64_MIN, INT64_MAX, NULL},
-  {"bloom_hash_count", "int", NULL, "min=2,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 79,
-    2, 100, NULL},
-  {"compare", "string", NULL, "choices=[\"eq\",\"ge\",\"gt\",\"le\",\"lt\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 129, INT64_MIN, INT64_MAX, confchk_compare_choices},
-  {"count", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 130, INT64_MIN,
-    INT64_MAX, NULL},
-  {"operation", "string", NULL, "choices=[\"and\",\"or\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 131, INT64_MIN, INT64_MAX, confchk_operation_choices},
-  {"strategy", "string", NULL, "choices=[\"bloom\",\"default\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 132, INT64_MIN, INT64_MAX, confchk_strategy_choices},
-  {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
-
-static const uint8_t confchk_WT_SESSION_join_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 5, 5, 5, 5, 5, 5,
-  5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7};
 
 static const char *confchk_sync2_choices[] = {__WT_CONFIG_CHOICE_off, __WT_CONFIG_CHOICE_on, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_log_flush[] = {
   {"sync", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 133, INT64_MIN, INT64_MAX, confchk_sync2_choices},
+    WT_CONFIG_COMPILED_TYPE_STRING, 126, INT64_MIN, INT64_MAX, confchk_sync2_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_SESSION_log_flush_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0,
@@ -1463,13 +1419,13 @@ static const uint8_t confchk_WT_SESSION_log_flush_jump[WT_CONFIG_JUMP_TABLE_SIZE
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor_dump_version_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
-  {"raw_key_value", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 142,
+  {"raw_key_value", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 135,
     INT64_MIN, INT64_MAX, NULL},
-  {"start_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 140,
+  {"start_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 133,
     INT64_MIN, INT64_MAX, NULL},
-  {"timestamp_order", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 141,
+  {"timestamp_order", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 134,
     INT64_MIN, INT64_MAX, NULL},
-  {"visible_only", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 139,
+  {"visible_only", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 132,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1482,11 +1438,11 @@ static const uint8_t
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor_debug_subconfigs[] = {
   {"checkpoint_read_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
-    137, INT64_MIN, INT64_MAX, NULL},
+    130, INT64_MIN, INT64_MAX, NULL},
   {"dump_version", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_dump_version_subconfigs,
     5, confchk_WT_SESSION_open_cursor_dump_version_subconfigs_jump,
-    WT_CONFIG_COMPILED_TYPE_CATEGORY, 138, INT64_MIN, INT64_MAX, NULL},
-  {"release_evict", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 143,
+    WT_CONFIG_COMPILED_TYPE_CATEGORY, 131, INT64_MIN, INT64_MAX, NULL},
+  {"release_evict", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 136,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1506,19 +1462,19 @@ static const char *confchk_dump_choices[] = {__WT_CONFIG_CHOICE_hex, __WT_CONFIG
   __WT_CONFIG_CHOICE_pretty, __WT_CONFIG_CHOICE_pretty_hex, __WT_CONFIG_CHOICE_print, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor_incremental_subconfigs[] = {
-  {"consolidate", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 146,
+  {"consolidate", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 139,
     INT64_MIN, INT64_MAX, NULL},
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
-  {"file", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 147, INT64_MIN,
+  {"file", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 140, INT64_MIN,
     INT64_MAX, NULL},
-  {"force_stop", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 148,
+  {"force_stop", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 141,
     INT64_MIN, INT64_MAX, NULL},
-  {"granularity", "int", NULL, "min=4KB,max=2GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 149,
+  {"granularity", "int", NULL, "min=4KB,max=2GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 142,
     4LL * WT_KILOBYTE, 2LL * WT_GIGABYTE, NULL},
-  {"src_id", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 150, INT64_MIN,
+  {"src_id", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 143, INT64_MIN,
     INT64_MAX, NULL},
-  {"this_id", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 151, INT64_MIN,
+  {"this_id", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 144, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1535,52 +1491,52 @@ static const char *confchk_statistics2_choices[] = {__WT_CONFIG_CHOICE_all,
   __WT_CONFIG_CHOICE_size, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
-  {"append", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 103, INT64_MIN,
+  {"append", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 101, INT64_MIN,
     INT64_MAX, NULL},
-  {"bulk", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 134, INT64_MIN,
+  {"bulk", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 127, INT64_MIN,
     INT64_MAX, NULL},
   {"checkpoint", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 62, INT64_MIN,
     INT64_MAX, NULL},
   {"checkpoint_use_history", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    135, INT64_MIN, INT64_MAX, NULL},
-  {"checkpoint_wait", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 124,
+    128, INT64_MIN, INT64_MAX, NULL},
+  {"checkpoint_wait", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 122,
     INT64_MIN, INT64_MAX, NULL},
   {"debug", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_debug_subconfigs, 3,
-    confchk_WT_SESSION_open_cursor_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 136,
+    confchk_WT_SESSION_open_cursor_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 129,
     INT64_MIN, INT64_MAX, NULL},
   {"dump", "string", NULL,
     "choices=[\"hex\",\"json\",\"pretty\",\"pretty_hex\","
     "\"print\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 144, INT64_MIN, INT64_MAX, confchk_dump_choices},
-  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104, INT64_MIN,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 137, INT64_MIN, INT64_MAX, confchk_dump_choices},
+  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 102, INT64_MIN,
     INT64_MAX, NULL},
   {"incremental", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_incremental_subconfigs, 7,
     confchk_WT_SESSION_open_cursor_incremental_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    145, INT64_MIN, INT64_MAX, NULL},
-  {"next_random", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 152,
+    138, INT64_MIN, INT64_MAX, NULL},
+  {"next_random", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 145,
     INT64_MIN, INT64_MAX, NULL},
   {"next_random_sample_size", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
-    153, INT64_MIN, INT64_MAX, NULL},
-  {"next_random_seed", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 154,
+    146, INT64_MIN, INT64_MAX, NULL},
+  {"next_random_seed", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 147,
     INT64_MIN, INT64_MAX, NULL},
-  {"overwrite", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 105,
+  {"overwrite", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 103,
     INT64_MIN, INT64_MAX, NULL},
-  {"prefix_search", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 106,
+  {"prefix_search", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104,
     INT64_MIN, INT64_MAX, NULL},
-  {"raw", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 155, INT64_MIN,
+  {"raw", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 148, INT64_MIN,
     INT64_MAX, NULL},
-  {"read_once", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 156,
+  {"read_once", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 149,
     INT64_MIN, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 66, INT64_MIN,
     INT64_MAX, NULL},
-  {"skip_sort_check", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 157,
+  {"skip_sort_check", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 150,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"clear\","
     "\"size\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 158, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 151, INT64_MIN, INT64_MAX,
     confchk_statistics2_choices},
-  {"target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 159, INT64_MIN,
+  {"target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 152, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1591,7 +1547,7 @@ static const uint8_t confchk_WT_SESSION_open_cursor_jump[WT_CONFIG_JUMP_TABLE_SI
   8, 8, 8, 9, 9, 9, 9, 9, 12, 13, 14, 14, 17, 19, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_prepare_transaction[] = {
-  {"prepare_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 181,
+  {"prepare_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 174,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1611,7 +1567,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_query_timestamp[] = {
   {"get", "string", NULL,
     "choices=[\"commit\",\"first_commit\",\"prepare\","
     "\"read\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 160, INT64_MIN, INT64_MAX, confchk_get2_choices},
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 153, INT64_MIN, INT64_MAX, confchk_get2_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_SESSION_query_timestamp_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0,
@@ -1624,23 +1580,23 @@ static const char *confchk_isolation3_choices[] = {__WT_CONFIG_CHOICE_read_uncom
   __WT_CONFIG_CHOICE_read_committed, __WT_CONFIG_CHOICE_snapshot, NULL};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_reconfigure[] = {
-  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 291,
+  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 284,
     INT64_MIN, INT64_MAX, NULL},
-  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 206, 0,
+  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 199, 0,
     INT64_MAX, NULL},
   {"debug", "category", NULL, NULL, confchk_WT_CONNECTION_open_session_debug_subconfigs, 2,
-    confchk_WT_CONNECTION_open_session_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 136,
+    confchk_WT_CONNECTION_open_session_debug_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 129,
     INT64_MIN, INT64_MAX, NULL},
-  {"ignore_cache_size", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 294,
+  {"ignore_cache_size", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 287,
     INT64_MIN, INT64_MAX, NULL},
   {"isolation", "string", NULL,
     "choices=[\"read-uncommitted\",\"read-committed\","
     "\"snapshot\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 174, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 167, INT64_MIN, INT64_MAX,
     confchk_isolation3_choices},
   {"prefetch", "category", NULL, NULL, confchk_WT_CONNECTION_open_session_prefetch_subconfigs, 1,
     confchk_WT_CONNECTION_open_session_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    295, INT64_MIN, INT64_MAX, NULL},
+    288, INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_WT_SESSION_reconfigure_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0,
@@ -1650,7 +1606,7 @@ static const uint8_t confchk_WT_SESSION_reconfigure_jump[WT_CONFIG_JUMP_TABLE_SI
   3, 3, 3, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_rollback_transaction[] = {
-  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 176, 0,
+  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 169, 0,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1661,7 +1617,7 @@ static const uint8_t confchk_WT_SESSION_rollback_transaction_jump[WT_CONFIG_JUMP
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_salvage[] = {
-  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 104, INT64_MIN,
+  {"force", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 102, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -1676,7 +1632,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_timestamp_transaction[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"durable_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 3,
     INT64_MIN, INT64_MAX, NULL},
-  {"prepare_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 181,
+  {"prepare_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 174,
     INT64_MIN, INT64_MAX, NULL},
   {"read_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 4,
     INT64_MIN, INT64_MAX, NULL},
@@ -1690,28 +1646,28 @@ static const uint8_t confchk_WT_SESSION_timestamp_transaction_jump[WT_CONFIG_JUM
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
   {"do_not_clear_txn_id", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    161, INT64_MIN, INT64_MAX, NULL},
-  {"dump_address", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 162,
+    154, INT64_MIN, INT64_MAX, NULL},
+  {"dump_address", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 155,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_all_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 163,
+  {"dump_all_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 156,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_blocks", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 164,
+  {"dump_blocks", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 157,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_key_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 165,
+  {"dump_key_data", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 158,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_layout", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 166,
+  {"dump_layout", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 159,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_offsets", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 167, INT64_MIN,
+  {"dump_offsets", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 160, INT64_MIN,
     INT64_MAX, NULL},
-  {"dump_pages", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 168,
+  {"dump_pages", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 161,
     INT64_MIN, INT64_MAX, NULL},
-  {"dump_tree_shape", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 169,
+  {"dump_tree_shape", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 162,
     INT64_MIN, INT64_MAX, NULL},
-  {"read_corrupt", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 170,
+  {"read_corrupt", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 163,
     INT64_MIN, INT64_MAX, NULL},
-  {"stable_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 171,
+  {"stable_timestamp", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 164,
     INT64_MIN, INT64_MAX, NULL},
-  {"strict", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 172, INT64_MIN,
+  {"strict", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 165, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2040,11 +1996,7 @@ static const WT_CONFIG_CHECK confchk_index_meta[] = {
     INT64_MAX, NULL},
   {"columns", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 7, INT64_MIN,
     INT64_MAX, NULL},
-  {"extractor", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 69, INT64_MIN,
-    INT64_MAX, NULL},
-  {"immutable", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 70,
-    INT64_MIN, INT64_MAX, NULL},
-  {"index_key_columns", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 71,
+  {"immutable", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 69,
     INT64_MIN, INT64_MAX, NULL},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_FORMAT,
     36, INT64_MIN, INT64_MAX, NULL},
@@ -2066,24 +2018,24 @@ static const WT_CONFIG_CHECK confchk_index_meta[] = {
 static const uint8_t confchk_index_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 4, 5, 5, 5, 5, 7,
-  7, 8, 8, 8, 8, 8, 8, 8, 8, 9, 10, 10, 12, 13, 13, 13, 13, 13, 13, 13, 13};
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 4, 4, 4, 4, 4, 5,
+  5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 8, 8, 10, 11, 11, 11, 11, 11, 11, 11, 11};
 
 static const char *confchk_role2_choices[] = {
   __WT_CONFIG_CHOICE_leader, __WT_CONFIG_CHOICE_follower, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_disaggregated_subconfigs[] = {
-  {"checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 93, -1,
+  {"checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 91, -1,
     INT64_MAX, NULL},
-  {"checkpoint_meta", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 94,
+  {"checkpoint_meta", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 92,
     INT64_MIN, INT64_MAX, NULL},
-  {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 95, -1,
+  {"next_checkpoint_id", "int", NULL, "min=-1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 93, -1,
     INT64_MAX, NULL},
   {"page_log", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 21, INT64_MIN,
     INT64_MAX, NULL},
   {"role", "string", NULL, "choices=[\"leader\",\"follower\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 96, INT64_MIN, INT64_MAX, confchk_role2_choices},
-  {"shutdown_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 97,
+    WT_CONFIG_COMPILED_TYPE_STRING, 94, INT64_MIN, INT64_MAX, confchk_role2_choices},
+  {"shutdown_checkpoint", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 95,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2113,11 +2065,11 @@ static const WT_CONFIG_CHECK confchk_layered_meta[] = {
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
-  {"ingest", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 98, INT64_MIN,
+  {"ingest", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 96, INT64_MIN,
     INT64_MAX, NULL},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_FORMAT,
     36, INT64_MIN, INT64_MAX, NULL},
-  {"stable", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 99, INT64_MIN,
+  {"stable", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 97, INT64_MIN,
     INT64_MAX, NULL},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_FORMAT, 61, INT64_MIN, INT64_MAX, NULL},
@@ -2180,7 +2132,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
     "\"unencrypted\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 18, INT64_MIN, INT64_MAX,
     confchk_checksum4_choices},
-  {"chunks", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 72, INT64_MIN,
+  {"chunks", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 70, INT64_MIN,
     INT64_MAX, NULL},
   {"collator", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 6, INT64_MIN,
     INT64_MAX, NULL},
@@ -2216,7 +2168,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
     36, INT64_MIN, INT64_MAX, NULL},
   {"key_gap", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 37, 0, INT64_MAX,
     NULL},
-  {"last", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 73, INT64_MIN,
+  {"last", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 71, INT64_MIN,
     INT64_MAX, NULL},
   {"leaf_item_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 38, 0,
     INT64_MAX, NULL},
@@ -2230,13 +2182,13 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
     confchk_WT_SESSION_create_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42, INT64_MIN,
     INT64_MAX, NULL},
   {"lsm", "category", NULL, NULL, confchk_WT_SESSION_create_lsm_subconfigs, 12,
-    confchk_WT_SESSION_create_lsm_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 74, INT64_MIN,
+    confchk_WT_SESSION_create_lsm_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 72, INT64_MIN,
     INT64_MAX, NULL},
   {"memory_page_image_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 44, 0,
     INT64_MAX, NULL},
   {"memory_page_max", "int", NULL, "min=512B,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
     45, 512, 10LL * WT_TERABYTE, NULL},
-  {"old_chunks", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 90, INT64_MIN,
+  {"old_chunks", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 88, INT64_MIN,
     INT64_MAX, NULL},
   {"os_cache_dirty_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46, 0,
     INT64_MAX, NULL},
@@ -2334,9 +2286,9 @@ static const WT_CONFIG_CHECK confchk_object_meta[] = {
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 24,
     INT64_MIN, INT64_MAX, NULL},
-  {"flush_time", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 91, INT64_MIN,
+  {"flush_time", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 89, INT64_MIN,
     INT64_MAX, NULL},
-  {"flush_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 92,
+  {"flush_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 90,
     INT64_MIN, INT64_MAX, NULL},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
     27, INT64_MIN, INT64_MAX, confchk_format5_choices},
@@ -2429,7 +2381,7 @@ static const WT_CONFIG_CHECK confchk_table_meta[] = {
   {"assert", "category", NULL, NULL, confchk_WT_SESSION_create_assert_subconfigs, 4,
     confchk_WT_SESSION_create_assert_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 1,
     INT64_MIN, INT64_MAX, NULL},
-  {"colgroups", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 100, INT64_MIN,
+  {"colgroups", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 98, INT64_MIN,
     INT64_MAX, NULL},
   {"collator", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 6, INT64_MIN,
     INT64_MAX, NULL},
@@ -2663,9 +2615,9 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2,
     confchk_WT_SESSION_create_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 24,
     INT64_MIN, INT64_MAX, NULL},
-  {"flush_time", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 91, INT64_MIN,
+  {"flush_time", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 89, INT64_MIN,
     INT64_MAX, NULL},
-  {"flush_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 92,
+  {"flush_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 90,
     INT64_MIN, INT64_MAX, NULL},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
     27, INT64_MIN, INT64_MAX, confchk_format7_choices},
@@ -2691,7 +2643,7 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
     36, INT64_MIN, INT64_MAX, NULL},
   {"key_gap", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 37, 0, INT64_MAX,
     NULL},
-  {"last", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 73, INT64_MIN,
+  {"last", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 71, INT64_MIN,
     INT64_MAX, NULL},
   {"leaf_item_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 38, 0,
     INT64_MAX, NULL},
@@ -2708,7 +2660,7 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
     INT64_MAX, NULL},
   {"memory_page_max", "int", NULL, "min=512B,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
     45, 512, 10LL * WT_TERABYTE, NULL},
-  {"oldest", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 101, INT64_MIN,
+  {"oldest", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 99, INT64_MIN,
     INT64_MAX, NULL},
   {"os_cache_dirty_max", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 46, 0,
     INT64_MAX, NULL},
@@ -2731,7 +2683,7 @@ static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs, 8,
     confchk_WT_SESSION_create_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 53,
     INT64_MIN, INT64_MAX, NULL},
-  {"tiers", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 102, INT64_MIN,
+  {"tiers", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 100, INT64_MIN,
     INT64_MAX, NULL},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_FORMAT, 61, INT64_MIN, INT64_MAX, NULL},
@@ -2758,21 +2710,21 @@ static const char *confchk_type_choices[] = {
   __WT_CONFIG_CHOICE_FILE, __WT_CONFIG_CHOICE_DRAM, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_chunk_cache_subconfigs[] = {
-  {"capacity", "int", NULL, "min=512KB,max=100TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 302,
+  {"capacity", "int", NULL, "min=512KB,max=100TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 295,
     512LL * WT_KILOBYTE, 100LL * WT_TERABYTE, NULL},
   {"chunk_cache_evict_trigger", "int", NULL, "min=0,max=100", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 303, 0, 100, NULL},
-  {"chunk_size", "int", NULL, "min=512KB,max=100GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 83,
+    WT_CONFIG_COMPILED_TYPE_INT, 296, 0, 100, NULL},
+  {"chunk_size", "int", NULL, "min=512KB,max=100GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 81,
     512LL * WT_KILOBYTE, 100LL * WT_GIGABYTE, NULL},
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
   {"flushed_data_cache_insertion", "boolean", NULL, NULL, NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 305, INT64_MIN, INT64_MAX, NULL},
-  {"hashsize", "int", NULL, "min=64,max=1048576", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 201,
+    WT_CONFIG_COMPILED_TYPE_BOOLEAN, 298, INT64_MIN, INT64_MAX, NULL},
+  {"hashsize", "int", NULL, "min=64,max=1048576", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 194,
     64, 1048576LL, NULL},
-  {"pinned", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 217, INT64_MIN,
+  {"pinned", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 210, INT64_MIN,
     INT64_MAX, NULL},
-  {"storage_path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 304,
+  {"storage_path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 297,
     INT64_MIN, INT64_MAX, NULL},
   {"type", "string", NULL, "choices=[\"FILE\",\"DRAM\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_STRING, 9, INT64_MIN, INT64_MAX, confchk_type_choices},
@@ -2786,11 +2738,11 @@ static const uint8_t
     3, 4, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_compatibility_subconfigs[] = {
-  {"release", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 219, INT64_MIN,
+  {"release", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 212, INT64_MIN,
     INT64_MAX, NULL},
-  {"require_max", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 306,
+  {"require_max", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 299,
     INT64_MIN, INT64_MAX, NULL},
-  {"require_min", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 307,
+  {"require_min", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 300,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2800,17 +2752,13 @@ static const uint8_t
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
-const char __WT_CONFIG_CHOICE_data[] = "data";
-
-static const char *confchk_direct_io_choices[] = {
-  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_encryption_subconfigs[] = {
   {"keyid", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 26, INT64_MIN,
     INT64_MAX, NULL},
   {"name", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 25, INT64_MIN,
     INT64_MAX, NULL},
-  {"secretkey", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 312, INT64_MIN,
+  {"secretkey", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 305, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2826,15 +2774,16 @@ static const char *confchk_extra_diagnostics2_choices[] = {__WT_CONFIG_CHOICE_al
   __WT_CONFIG_CHOICE_generation_check, __WT_CONFIG_CHOICE_hs_validate,
   __WT_CONFIG_CHOICE_key_out_of_order, __WT_CONFIG_CHOICE_log_validate, __WT_CONFIG_CHOICE_prepared,
   __WT_CONFIG_CHOICE_slow_operation, __WT_CONFIG_CHOICE_txn_visibility, NULL};
+const char __WT_CONFIG_CHOICE_data[] = "data";
 
 static const char *confchk_file_extend_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_hash_subconfigs[] = {
-  {"buckets", "int", NULL, "min=64,max=65536", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 316, 64,
+  {"buckets", "int", NULL, "min=64,max=65536", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 309, 64,
     65536, NULL},
   {"dhandle_buckets", "int", NULL, "min=64,max=65536", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    317, 64, 65536, NULL},
+    310, 64, 65536, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_hash_subconfigs_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0,
@@ -2850,29 +2799,29 @@ static const char *confchk_recover_choices[] = {
   __WT_CONFIG_CHOICE_error, __WT_CONFIG_CHOICE_on, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_log_subconfigs[] = {
-  {"archive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 266, INT64_MIN,
+  {"archive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 259, INT64_MIN,
     INT64_MAX, NULL},
-  {"compressor", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 319,
+  {"compressor", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 312,
     INT64_MIN, INT64_MAX, NULL},
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
-  {"file_max", "int", NULL, "min=100KB,max=2GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 261,
+  {"file_max", "int", NULL, "min=100KB,max=2GB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 254,
     100LL * WT_KILOBYTE, 2LL * WT_GIGABYTE, NULL},
-  {"force_write_wait", "int", NULL, "min=1,max=60", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 320,
+  {"force_write_wait", "int", NULL, "min=1,max=60", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 313,
     1, 60, NULL},
   {"os_cache_dirty_pct", "int", NULL, "min=0,max=100", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    267, 0, 100, NULL},
-  {"path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 276, INT64_MIN,
+    260, 0, 100, NULL},
+  {"path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 269, INT64_MIN,
     INT64_MAX, NULL},
-  {"prealloc", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 268,
+  {"prealloc", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 261,
     INT64_MIN, INT64_MAX, NULL},
   {"prealloc_init_count", "int", NULL, "min=1,max=500", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    269, 1, 500, NULL},
+    262, 1, 500, NULL},
   {"recover", "string", NULL, "choices=[\"error\",\"on\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 321, INT64_MIN, INT64_MAX, confchk_recover_choices},
-  {"remove", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 270, INT64_MIN,
+    WT_CONFIG_COMPILED_TYPE_STRING, 314, INT64_MIN, INT64_MAX, confchk_recover_choices},
+  {"remove", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 263, INT64_MIN,
     INT64_MAX, NULL},
-  {"zero_fill", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 271,
+  {"zero_fill", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 264,
     INT64_MIN, INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2883,9 +2832,9 @@ static const uint8_t confchk_wiredtiger_open_log_subconfigs_jump[WT_CONFIG_JUMP_
   2, 3, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 9, 9, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_prefetch_subconfigs[] = {
-  {"available", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 325,
+  {"available", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 318,
     INT64_MIN, INT64_MAX, NULL},
-  {"default", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 326, INT64_MIN,
+  {"default", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 319, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2900,17 +2849,17 @@ static const char *confchk_statistics3_choices[] = {__WT_CONFIG_CHOICE_all,
   __WT_CONFIG_CHOICE_clear, __WT_CONFIG_CHOICE_tree_walk, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_statistics_log_subconfigs[] = {
-  {"json", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 282, INT64_MIN,
+  {"json", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 275, INT64_MIN,
     INT64_MAX, NULL},
-  {"on_close", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 283,
+  {"on_close", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 276,
     INT64_MIN, INT64_MAX, NULL},
-  {"path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 276, INT64_MIN,
+  {"path", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 269, INT64_MIN,
     INT64_MAX, NULL},
-  {"sources", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 284, INT64_MIN,
+  {"sources", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 277, INT64_MIN,
     INT64_MAX, NULL},
-  {"timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 285, INT64_MIN,
+  {"timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 278, INT64_MIN,
     INT64_MAX, NULL},
-  {"wait", "int", NULL, "min=0,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 212, 0,
+  {"wait", "int", NULL, "min=0,max=100000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 205, 0,
     100000, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -2930,7 +2879,7 @@ static const WT_CONFIG_CHECK confchk_tiered_storage_subconfigs[] = {
     INT64_MIN, INT64_MAX, NULL},
   {"cache_directory", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 57,
     INT64_MIN, INT64_MAX, NULL},
-  {"interval", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 331, 1,
+  {"interval", "int", NULL, "min=1,max=1000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 324, 1,
     1000, NULL},
   {"local_retention", "int", NULL, "min=0,max=10000", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
     58, 0, 10000, NULL},
@@ -2973,7 +2922,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_transaction_sync_subconfigs
   {"enabled", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 43, INT64_MIN,
     INT64_MAX, NULL},
   {"method", "string", NULL, "choices=[\"dsync\",\"fsync\",\"none\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_STRING, 215, INT64_MIN, INT64_MAX, confchk_method2_choices},
+    WT_CONFIG_COMPILED_TYPE_STRING, 208, INT64_MIN, INT64_MAX, confchk_method2_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t
@@ -3005,154 +2954,154 @@ static const char *confchk_write_through_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
-  {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 298,
+  {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 291,
     INT64_MIN, INT64_MAX, NULL},
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12,
-    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 195,
+    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 188,
     INT64_MIN, INT64_MAX, NULL},
   {"buffer_alignment", "int", NULL, "min=-1,max=1MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    299, -1, 1LL * WT_MEGABYTE, NULL},
+    292, -1, 1LL * WT_MEGABYTE, NULL},
   {"builtin_extension_config", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
-    300, INT64_MIN, INT64_MAX, NULL},
-  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 291,
+    293, INT64_MIN, INT64_MAX, NULL},
+  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 284,
     INT64_MIN, INT64_MAX, NULL},
-  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 206, 0,
+  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 199, 0,
     INT64_MAX, NULL},
-  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 207,
+  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 200,
     0, 30, NULL},
-  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 208,
+  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 201,
     1LL * WT_MEGABYTE, 10LL * WT_TERABYTE, NULL},
-  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 209,
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 202,
     0, INT64_MAX, NULL},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 3,
-    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 210,
+    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 203,
     INT64_MIN, INT64_MAX, NULL},
   {"checkpoint_cleanup", "category", NULL, NULL,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs, 2,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    214, INT64_MIN, INT64_MAX, NULL},
-  {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 301,
+    207, INT64_MIN, INT64_MAX, NULL},
+  {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 294,
     INT64_MIN, INT64_MAX, NULL},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 9,
-    confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 216,
+    confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 209,
     INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3,
-    confchk_wiredtiger_open_compatibility_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 218,
+    confchk_wiredtiger_open_compatibility_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 211,
     INT64_MIN, INT64_MAX, NULL},
   {"compile_configuration_count", "int", NULL, "min=500", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 308, 500, INT64_MAX, NULL},
-  {"config_base", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 309,
+    WT_CONFIG_COMPILED_TYPE_INT, 301, 500, INT64_MAX, NULL},
+  {"config_base", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 302,
     INT64_MIN, INT64_MAX, NULL},
-  {"create", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 310, INT64_MIN,
+  {"create", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 303, INT64_MIN,
     INT64_MAX, NULL},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 17,
-    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 220,
+    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 213,
     INT64_MIN, INT64_MAX, NULL},
-  {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX, confchk_direct_io_choices},
+  {"direct_io", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 304, INT64_MIN,
+    INT64_MAX, NULL},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
     confchk_wiredtiger_open_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 24,
     INT64_MIN, INT64_MAX, NULL},
-  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 238,
+  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 231,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction", "category", NULL, NULL, confchk_wiredtiger_open_eviction_subconfigs, 3,
-    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 239,
+    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 232,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction_checkpoint_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 243, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 236, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_target", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 244, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 237, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_trigger", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 245, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 238, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_target", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    246, 10, 10LL * WT_TERABYTE, NULL},
+    239, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_trigger", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    247, 10, 10LL * WT_TERABYTE, NULL},
+    240, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 248, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 241, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_trigger", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 249, 0, 10LL * WT_TERABYTE, NULL},
-  {"exclusive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 117,
+    WT_CONFIG_COMPILED_TYPE_INT, 242, 0, 10LL * WT_TERABYTE, NULL},
+  {"exclusive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 115,
     INT64_MIN, INT64_MAX, NULL},
-  {"extensions", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 313, INT64_MIN,
+  {"extensions", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 306, INT64_MIN,
     INT64_MAX, NULL},
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validate\",\"cursor_check\""
     ",\"disk_validate\",\"eviction_check\",\"generation_check\","
     "\"hs_validate\",\"key_out_of_order\",\"log_validate\","
     "\"prepared\",\"slow_operation\",\"txn_visibility\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 250, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 243, INT64_MIN, INT64_MAX,
     confchk_extra_diagnostics2_choices},
   {"file_extend", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 314, INT64_MIN, INT64_MAX, confchk_file_extend_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 307, INT64_MIN, INT64_MAX, confchk_file_extend_choices},
   {"file_manager", "category", NULL, NULL, confchk_wiredtiger_open_file_manager_subconfigs, 3,
-    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 251,
+    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 244,
     INT64_MIN, INT64_MAX, NULL},
   {"generation_drain_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    255, 0, INT64_MAX, NULL},
+    248, 0, INT64_MAX, NULL},
   {"hash", "category", NULL, NULL, confchk_wiredtiger_open_hash_subconfigs, 2,
-    confchk_wiredtiger_open_hash_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN,
+    confchk_wiredtiger_open_hash_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 308, INT64_MIN,
     INT64_MAX, NULL},
-  {"hazard_max", "int", NULL, "min=15", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 318, 15,
+  {"hazard_max", "int", NULL, "min=15", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 311, 15,
     INT64_MAX, NULL},
   {"heuristic_controls", "category", NULL, NULL,
     confchk_wiredtiger_open_heuristic_controls_subconfigs, 3,
     confchk_wiredtiger_open_heuristic_controls_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    256, INT64_MIN, INT64_MAX, NULL},
+    249, INT64_MIN, INT64_MAX, NULL},
   {"history_store", "category", NULL, NULL, confchk_wiredtiger_open_history_store_subconfigs, 1,
-    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 260,
+    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 253,
     INT64_MIN, INT64_MAX, NULL},
   {"in_memory", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 31,
     INT64_MIN, INT64_MAX, NULL},
   {"io_capacity", "category", NULL, NULL, confchk_wiredtiger_open_io_capacity_subconfigs, 2,
-    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 262,
+    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 255,
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 265, INT64_MIN, INT64_MAX, confchk_json_output2_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 258, INT64_MIN, INT64_MAX, confchk_json_output2_choices},
   {"log", "category", NULL, NULL, confchk_wiredtiger_open_log_subconfigs, 12,
     confchk_wiredtiger_open_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42, INT64_MIN,
     INT64_MAX, NULL},
   {"lsm_manager", "category", NULL, NULL, confchk_wiredtiger_open_lsm_manager_subconfigs, 2,
-    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 272,
+    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 265,
     INT64_MIN, INT64_MAX, NULL},
-  {"mmap", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 322, INT64_MIN,
+  {"mmap", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 315, INT64_MIN,
     INT64_MAX, NULL},
-  {"mmap_all", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 323,
+  {"mmap_all", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 316,
     INT64_MIN, INT64_MAX, NULL},
-  {"multiprocess", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 324,
+  {"multiprocess", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 317,
     INT64_MIN, INT64_MAX, NULL},
-  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 176, 0,
+  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 169, 0,
     INT64_MAX, NULL},
   {"operation_tracking", "category", NULL, NULL,
     confchk_wiredtiger_open_operation_tracking_subconfigs, 2,
     confchk_wiredtiger_open_operation_tracking_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    275, INT64_MIN, INT64_MAX, NULL},
+    268, INT64_MIN, INT64_MAX, NULL},
   {"prefetch", "category", NULL, NULL, confchk_wiredtiger_open_prefetch_subconfigs, 2,
-    confchk_wiredtiger_open_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 295,
+    confchk_wiredtiger_open_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 288,
     INT64_MIN, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 66, INT64_MIN,
     INT64_MAX, NULL},
-  {"salvage", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 327, INT64_MIN,
+  {"salvage", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 320, INT64_MIN,
     INT64_MAX, NULL},
-  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 328, 1,
+  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 321, 1,
     INT64_MAX, NULL},
-  {"session_scratch_max", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 329,
+  {"session_scratch_max", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 322,
     INT64_MIN, INT64_MAX, NULL},
   {"session_table_cache", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    330, INT64_MIN, INT64_MAX, NULL},
+    323, INT64_MIN, INT64_MAX, NULL},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5,
-    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 277,
+    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 270,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 158, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 151, INT64_MIN, INT64_MAX,
     confchk_statistics3_choices},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6,
-    confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 281,
+    confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 274,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 8,
     confchk_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 53, INT64_MIN,
@@ -3171,15 +3120,15 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"prepare_resolution_2\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
     "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 286, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 279, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test2_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2, confchk_wiredtiger_open_transaction_sync_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    332, INT64_MIN, INT64_MAX, NULL},
-  {"use_environment", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 333,
+    325, INT64_MIN, INT64_MAX, NULL},
+  {"use_environment", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 326,
     INT64_MIN, INT64_MAX, NULL},
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    334, INT64_MIN, INT64_MAX, NULL},
+    327, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
@@ -3195,10 +3144,10 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose14_choices},
-  {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 335,
+  {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 328,
     INT64_MIN, INT64_MAX, NULL},
   {"write_through", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 336, INT64_MIN, INT64_MAX, confchk_write_through_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 329, INT64_MIN, INT64_MAX, confchk_write_through_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0, 0, 0,
@@ -3206,9 +3155,6 @@ static const uint8_t confchk_wiredtiger_open_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 17, 20, 33, 35,
   36, 40, 42, 43, 43, 45, 48, 48, 50, 51, 51, 52, 59, 62, 64, 66, 67, 67, 67, 67, 67, 67, 67, 67};
-
-static const char *confchk_direct_io2_choices[] = {
-  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const char *confchk_extra_diagnostics3_choices[] = {__WT_CONFIG_CHOICE_all,
   __WT_CONFIG_CHOICE_checkpoint_validate, __WT_CONFIG_CHOICE_cursor_check,
@@ -3267,154 +3213,154 @@ static const char *confchk_write_through2_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
-  {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 298,
+  {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 291,
     INT64_MIN, INT64_MAX, NULL},
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12,
-    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 195,
+    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 188,
     INT64_MIN, INT64_MAX, NULL},
   {"buffer_alignment", "int", NULL, "min=-1,max=1MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    299, -1, 1LL * WT_MEGABYTE, NULL},
+    292, -1, 1LL * WT_MEGABYTE, NULL},
   {"builtin_extension_config", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
-    300, INT64_MIN, INT64_MAX, NULL},
-  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 291,
+    293, INT64_MIN, INT64_MAX, NULL},
+  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 284,
     INT64_MIN, INT64_MAX, NULL},
-  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 206, 0,
+  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 199, 0,
     INT64_MAX, NULL},
-  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 207,
+  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 200,
     0, 30, NULL},
-  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 208,
+  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 201,
     1LL * WT_MEGABYTE, 10LL * WT_TERABYTE, NULL},
-  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 209,
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 202,
     0, INT64_MAX, NULL},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 3,
-    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 210,
+    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 203,
     INT64_MIN, INT64_MAX, NULL},
   {"checkpoint_cleanup", "category", NULL, NULL,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs, 2,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    214, INT64_MIN, INT64_MAX, NULL},
-  {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 301,
+    207, INT64_MIN, INT64_MAX, NULL},
+  {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 294,
     INT64_MIN, INT64_MAX, NULL},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 9,
-    confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 216,
+    confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 209,
     INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3,
-    confchk_wiredtiger_open_compatibility_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 218,
+    confchk_wiredtiger_open_compatibility_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 211,
     INT64_MIN, INT64_MAX, NULL},
   {"compile_configuration_count", "int", NULL, "min=500", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 308, 500, INT64_MAX, NULL},
-  {"config_base", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 309,
+    WT_CONFIG_COMPILED_TYPE_INT, 301, 500, INT64_MAX, NULL},
+  {"config_base", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 302,
     INT64_MIN, INT64_MAX, NULL},
-  {"create", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 310, INT64_MIN,
+  {"create", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 303, INT64_MIN,
     INT64_MAX, NULL},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 17,
-    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 220,
+    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 213,
     INT64_MIN, INT64_MAX, NULL},
-  {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX, confchk_direct_io2_choices},
+  {"direct_io", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 304, INT64_MIN,
+    INT64_MAX, NULL},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
     confchk_wiredtiger_open_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 24,
     INT64_MIN, INT64_MAX, NULL},
-  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 238,
+  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 231,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction", "category", NULL, NULL, confchk_wiredtiger_open_eviction_subconfigs, 3,
-    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 239,
+    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 232,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction_checkpoint_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 243, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 236, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_target", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 244, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 237, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_trigger", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 245, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 238, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_target", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    246, 10, 10LL * WT_TERABYTE, NULL},
+    239, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_trigger", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    247, 10, 10LL * WT_TERABYTE, NULL},
+    240, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 248, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 241, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_trigger", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 249, 0, 10LL * WT_TERABYTE, NULL},
-  {"exclusive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 117,
+    WT_CONFIG_COMPILED_TYPE_INT, 242, 0, 10LL * WT_TERABYTE, NULL},
+  {"exclusive", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 115,
     INT64_MIN, INT64_MAX, NULL},
-  {"extensions", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 313, INT64_MIN,
+  {"extensions", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 306, INT64_MIN,
     INT64_MAX, NULL},
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validate\",\"cursor_check\""
     ",\"disk_validate\",\"eviction_check\",\"generation_check\","
     "\"hs_validate\",\"key_out_of_order\",\"log_validate\","
     "\"prepared\",\"slow_operation\",\"txn_visibility\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 250, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 243, INT64_MIN, INT64_MAX,
     confchk_extra_diagnostics3_choices},
   {"file_extend", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 314, INT64_MIN, INT64_MAX, confchk_file_extend2_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 307, INT64_MIN, INT64_MAX, confchk_file_extend2_choices},
   {"file_manager", "category", NULL, NULL, confchk_wiredtiger_open_file_manager_subconfigs, 3,
-    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 251,
+    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 244,
     INT64_MIN, INT64_MAX, NULL},
   {"generation_drain_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    255, 0, INT64_MAX, NULL},
+    248, 0, INT64_MAX, NULL},
   {"hash", "category", NULL, NULL, confchk_wiredtiger_open_hash_subconfigs, 2,
-    confchk_wiredtiger_open_hash_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN,
+    confchk_wiredtiger_open_hash_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 308, INT64_MIN,
     INT64_MAX, NULL},
-  {"hazard_max", "int", NULL, "min=15", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 318, 15,
+  {"hazard_max", "int", NULL, "min=15", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 311, 15,
     INT64_MAX, NULL},
   {"heuristic_controls", "category", NULL, NULL,
     confchk_wiredtiger_open_heuristic_controls_subconfigs, 3,
     confchk_wiredtiger_open_heuristic_controls_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    256, INT64_MIN, INT64_MAX, NULL},
+    249, INT64_MIN, INT64_MAX, NULL},
   {"history_store", "category", NULL, NULL, confchk_wiredtiger_open_history_store_subconfigs, 1,
-    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 260,
+    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 253,
     INT64_MIN, INT64_MAX, NULL},
   {"in_memory", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 31,
     INT64_MIN, INT64_MAX, NULL},
   {"io_capacity", "category", NULL, NULL, confchk_wiredtiger_open_io_capacity_subconfigs, 2,
-    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 262,
+    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 255,
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 265, INT64_MIN, INT64_MAX, confchk_json_output3_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 258, INT64_MIN, INT64_MAX, confchk_json_output3_choices},
   {"log", "category", NULL, NULL, confchk_wiredtiger_open_log_subconfigs, 12,
     confchk_wiredtiger_open_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42, INT64_MIN,
     INT64_MAX, NULL},
   {"lsm_manager", "category", NULL, NULL, confchk_wiredtiger_open_lsm_manager_subconfigs, 2,
-    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 272,
+    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 265,
     INT64_MIN, INT64_MAX, NULL},
-  {"mmap", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 322, INT64_MIN,
+  {"mmap", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 315, INT64_MIN,
     INT64_MAX, NULL},
-  {"mmap_all", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 323,
+  {"mmap_all", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 316,
     INT64_MIN, INT64_MAX, NULL},
-  {"multiprocess", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 324,
+  {"multiprocess", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 317,
     INT64_MIN, INT64_MAX, NULL},
-  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 176, 0,
+  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 169, 0,
     INT64_MAX, NULL},
   {"operation_tracking", "category", NULL, NULL,
     confchk_wiredtiger_open_operation_tracking_subconfigs, 2,
     confchk_wiredtiger_open_operation_tracking_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    275, INT64_MIN, INT64_MAX, NULL},
+    268, INT64_MIN, INT64_MAX, NULL},
   {"prefetch", "category", NULL, NULL, confchk_wiredtiger_open_prefetch_subconfigs, 2,
-    confchk_wiredtiger_open_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 295,
+    confchk_wiredtiger_open_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 288,
     INT64_MIN, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 66, INT64_MIN,
     INT64_MAX, NULL},
-  {"salvage", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 327, INT64_MIN,
+  {"salvage", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 320, INT64_MIN,
     INT64_MAX, NULL},
-  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 328, 1,
+  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 321, 1,
     INT64_MAX, NULL},
-  {"session_scratch_max", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 329,
+  {"session_scratch_max", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 322,
     INT64_MIN, INT64_MAX, NULL},
   {"session_table_cache", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    330, INT64_MIN, INT64_MAX, NULL},
+    323, INT64_MIN, INT64_MAX, NULL},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5,
-    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 277,
+    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 270,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 158, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 151, INT64_MIN, INT64_MAX,
     confchk_statistics4_choices},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6,
-    confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 281,
+    confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 274,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 8,
     confchk_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 53, INT64_MIN,
@@ -3433,15 +3379,15 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"prepare_resolution_2\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
     "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 286, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 279, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test3_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2, confchk_wiredtiger_open_transaction_sync_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    332, INT64_MIN, INT64_MAX, NULL},
-  {"use_environment", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 333,
+    325, INT64_MIN, INT64_MAX, NULL},
+  {"use_environment", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 326,
     INT64_MIN, INT64_MAX, NULL},
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    334, INT64_MIN, INT64_MAX, NULL},
+    327, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
@@ -3457,12 +3403,12 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose15_choices},
-  {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 335,
+  {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 328,
     INT64_MIN, INT64_MAX, NULL},
   {"version", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 68, INT64_MIN,
     INT64_MAX, NULL},
   {"write_through", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 336, INT64_MIN, INT64_MAX, confchk_write_through2_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 329, INT64_MIN, INT64_MAX, confchk_write_through2_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_all_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0, 0,
@@ -3471,9 +3417,6 @@ static const uint8_t confchk_wiredtiger_open_all_jump[WT_CONFIG_JUMP_TABLE_SIZE]
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 17, 20, 33,
   35, 36, 40, 42, 43, 43, 45, 48, 48, 50, 51, 51, 52, 59, 62, 64, 67, 68, 68, 68, 68, 68, 68, 68,
   68};
-
-static const char *confchk_direct_io3_choices[] = {
-  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const char *confchk_extra_diagnostics4_choices[] = {__WT_CONFIG_CHOICE_all,
   __WT_CONFIG_CHOICE_checkpoint_validate, __WT_CONFIG_CHOICE_cursor_check,
@@ -3532,146 +3475,146 @@ static const char *confchk_write_through3_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
-  {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 298,
+  {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 291,
     INT64_MIN, INT64_MAX, NULL},
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12,
-    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 195,
+    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 188,
     INT64_MIN, INT64_MAX, NULL},
   {"buffer_alignment", "int", NULL, "min=-1,max=1MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    299, -1, 1LL * WT_MEGABYTE, NULL},
+    292, -1, 1LL * WT_MEGABYTE, NULL},
   {"builtin_extension_config", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
-    300, INT64_MIN, INT64_MAX, NULL},
-  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 291,
+    293, INT64_MIN, INT64_MAX, NULL},
+  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 284,
     INT64_MIN, INT64_MAX, NULL},
-  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 206, 0,
+  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 199, 0,
     INT64_MAX, NULL},
-  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 207,
+  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 200,
     0, 30, NULL},
-  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 208,
+  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 201,
     1LL * WT_MEGABYTE, 10LL * WT_TERABYTE, NULL},
-  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 209,
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 202,
     0, INT64_MAX, NULL},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 3,
-    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 210,
+    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 203,
     INT64_MIN, INT64_MAX, NULL},
   {"checkpoint_cleanup", "category", NULL, NULL,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs, 2,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    214, INT64_MIN, INT64_MAX, NULL},
-  {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 301,
+    207, INT64_MIN, INT64_MAX, NULL},
+  {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 294,
     INT64_MIN, INT64_MAX, NULL},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 9,
-    confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 216,
+    confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 209,
     INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3,
-    confchk_wiredtiger_open_compatibility_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 218,
+    confchk_wiredtiger_open_compatibility_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 211,
     INT64_MIN, INT64_MAX, NULL},
   {"compile_configuration_count", "int", NULL, "min=500", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 308, 500, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 301, 500, INT64_MAX, NULL},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 17,
-    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 220,
+    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 213,
     INT64_MIN, INT64_MAX, NULL},
-  {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX, confchk_direct_io3_choices},
+  {"direct_io", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 304, INT64_MIN,
+    INT64_MAX, NULL},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
     confchk_wiredtiger_open_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 24,
     INT64_MIN, INT64_MAX, NULL},
-  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 238,
+  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 231,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction", "category", NULL, NULL, confchk_wiredtiger_open_eviction_subconfigs, 3,
-    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 239,
+    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 232,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction_checkpoint_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 243, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 236, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_target", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 244, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 237, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_trigger", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 245, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 238, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_target", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    246, 10, 10LL * WT_TERABYTE, NULL},
+    239, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_trigger", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    247, 10, 10LL * WT_TERABYTE, NULL},
+    240, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 248, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 241, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_trigger", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 249, 0, 10LL * WT_TERABYTE, NULL},
-  {"extensions", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 313, INT64_MIN,
+    WT_CONFIG_COMPILED_TYPE_INT, 242, 0, 10LL * WT_TERABYTE, NULL},
+  {"extensions", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 306, INT64_MIN,
     INT64_MAX, NULL},
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validate\",\"cursor_check\""
     ",\"disk_validate\",\"eviction_check\",\"generation_check\","
     "\"hs_validate\",\"key_out_of_order\",\"log_validate\","
     "\"prepared\",\"slow_operation\",\"txn_visibility\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 250, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 243, INT64_MIN, INT64_MAX,
     confchk_extra_diagnostics4_choices},
   {"file_extend", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 314, INT64_MIN, INT64_MAX, confchk_file_extend3_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 307, INT64_MIN, INT64_MAX, confchk_file_extend3_choices},
   {"file_manager", "category", NULL, NULL, confchk_wiredtiger_open_file_manager_subconfigs, 3,
-    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 251,
+    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 244,
     INT64_MIN, INT64_MAX, NULL},
   {"generation_drain_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    255, 0, INT64_MAX, NULL},
+    248, 0, INT64_MAX, NULL},
   {"hash", "category", NULL, NULL, confchk_wiredtiger_open_hash_subconfigs, 2,
-    confchk_wiredtiger_open_hash_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN,
+    confchk_wiredtiger_open_hash_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 308, INT64_MIN,
     INT64_MAX, NULL},
-  {"hazard_max", "int", NULL, "min=15", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 318, 15,
+  {"hazard_max", "int", NULL, "min=15", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 311, 15,
     INT64_MAX, NULL},
   {"heuristic_controls", "category", NULL, NULL,
     confchk_wiredtiger_open_heuristic_controls_subconfigs, 3,
     confchk_wiredtiger_open_heuristic_controls_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    256, INT64_MIN, INT64_MAX, NULL},
+    249, INT64_MIN, INT64_MAX, NULL},
   {"history_store", "category", NULL, NULL, confchk_wiredtiger_open_history_store_subconfigs, 1,
-    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 260,
+    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 253,
     INT64_MIN, INT64_MAX, NULL},
   {"io_capacity", "category", NULL, NULL, confchk_wiredtiger_open_io_capacity_subconfigs, 2,
-    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 262,
+    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 255,
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 265, INT64_MIN, INT64_MAX, confchk_json_output4_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 258, INT64_MIN, INT64_MAX, confchk_json_output4_choices},
   {"log", "category", NULL, NULL, confchk_wiredtiger_open_log_subconfigs, 12,
     confchk_wiredtiger_open_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42, INT64_MIN,
     INT64_MAX, NULL},
   {"lsm_manager", "category", NULL, NULL, confchk_wiredtiger_open_lsm_manager_subconfigs, 2,
-    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 272,
+    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 265,
     INT64_MIN, INT64_MAX, NULL},
-  {"mmap", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 322, INT64_MIN,
+  {"mmap", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 315, INT64_MIN,
     INT64_MAX, NULL},
-  {"mmap_all", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 323,
+  {"mmap_all", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 316,
     INT64_MIN, INT64_MAX, NULL},
-  {"multiprocess", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 324,
+  {"multiprocess", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 317,
     INT64_MIN, INT64_MAX, NULL},
-  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 176, 0,
+  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 169, 0,
     INT64_MAX, NULL},
   {"operation_tracking", "category", NULL, NULL,
     confchk_wiredtiger_open_operation_tracking_subconfigs, 2,
     confchk_wiredtiger_open_operation_tracking_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    275, INT64_MIN, INT64_MAX, NULL},
+    268, INT64_MIN, INT64_MAX, NULL},
   {"prefetch", "category", NULL, NULL, confchk_wiredtiger_open_prefetch_subconfigs, 2,
-    confchk_wiredtiger_open_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 295,
+    confchk_wiredtiger_open_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 288,
     INT64_MIN, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 66, INT64_MIN,
     INT64_MAX, NULL},
-  {"salvage", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 327, INT64_MIN,
+  {"salvage", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 320, INT64_MIN,
     INT64_MAX, NULL},
-  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 328, 1,
+  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 321, 1,
     INT64_MAX, NULL},
-  {"session_scratch_max", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 329,
+  {"session_scratch_max", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 322,
     INT64_MIN, INT64_MAX, NULL},
   {"session_table_cache", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    330, INT64_MIN, INT64_MAX, NULL},
+    323, INT64_MIN, INT64_MAX, NULL},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5,
-    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 277,
+    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 270,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 158, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 151, INT64_MIN, INT64_MAX,
     confchk_statistics5_choices},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6,
-    confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 281,
+    confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 274,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 8,
     confchk_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 53, INT64_MIN,
@@ -3690,11 +3633,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"prepare_resolution_2\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
     "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 286, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 279, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test4_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2, confchk_wiredtiger_open_transaction_sync_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    332, INT64_MIN, INT64_MAX, NULL},
+    325, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
@@ -3710,12 +3653,12 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose16_choices},
-  {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 335,
+  {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 328,
     INT64_MIN, INT64_MAX, NULL},
   {"version", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 68, INT64_MIN,
     INT64_MAX, NULL},
   {"write_through", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 336, INT64_MIN, INT64_MAX, confchk_write_through3_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 329, INT64_MIN, INT64_MAX, confchk_write_through3_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_basecfg_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0,
@@ -3724,9 +3667,6 @@ static const uint8_t confchk_wiredtiger_open_basecfg_jump[WT_CONFIG_JUMP_TABLE_S
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 15, 18,
   30, 32, 33, 37, 38, 39, 39, 41, 44, 44, 46, 47, 47, 48, 55, 58, 58, 61, 62, 62, 62, 62, 62, 62,
   62, 62};
-
-static const char *confchk_direct_io4_choices[] = {
-  __WT_CONFIG_CHOICE_checkpoint, __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const char *confchk_extra_diagnostics5_choices[] = {__WT_CONFIG_CHOICE_all,
   __WT_CONFIG_CHOICE_checkpoint_validate, __WT_CONFIG_CHOICE_cursor_check,
@@ -3785,146 +3725,146 @@ static const char *confchk_write_through4_choices[] = {
   __WT_CONFIG_CHOICE_data, __WT_CONFIG_CHOICE_log, NULL};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
-  {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 298,
+  {"backup_restore_target", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 291,
     INT64_MIN, INT64_MAX, NULL},
   {"block_cache", "category", NULL, NULL, confchk_wiredtiger_open_block_cache_subconfigs, 12,
-    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 195,
+    confchk_wiredtiger_open_block_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 188,
     INT64_MIN, INT64_MAX, NULL},
   {"buffer_alignment", "int", NULL, "min=-1,max=1MB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    299, -1, 1LL * WT_MEGABYTE, NULL},
+    292, -1, 1LL * WT_MEGABYTE, NULL},
   {"builtin_extension_config", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING,
-    300, INT64_MIN, INT64_MAX, NULL},
-  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 291,
+    293, INT64_MIN, INT64_MAX, NULL},
+  {"cache_cursors", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 284,
     INT64_MIN, INT64_MAX, NULL},
-  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 206, 0,
+  {"cache_max_wait_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 199, 0,
     INT64_MAX, NULL},
-  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 207,
+  {"cache_overhead", "int", NULL, "min=0,max=30", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 200,
     0, 30, NULL},
-  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 208,
+  {"cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 201,
     1LL * WT_MEGABYTE, 10LL * WT_TERABYTE, NULL},
-  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 209,
+  {"cache_stuck_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 202,
     0, INT64_MAX, NULL},
   {"checkpoint", "category", NULL, NULL, confchk_wiredtiger_open_checkpoint_subconfigs, 3,
-    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 210,
+    confchk_wiredtiger_open_checkpoint_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 203,
     INT64_MIN, INT64_MAX, NULL},
   {"checkpoint_cleanup", "category", NULL, NULL,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs, 2,
     confchk_wiredtiger_open_checkpoint_cleanup_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    214, INT64_MIN, INT64_MAX, NULL},
-  {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 301,
+    207, INT64_MIN, INT64_MAX, NULL},
+  {"checkpoint_sync", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 294,
     INT64_MIN, INT64_MAX, NULL},
   {"chunk_cache", "category", NULL, NULL, confchk_wiredtiger_open_chunk_cache_subconfigs, 9,
-    confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 216,
+    confchk_wiredtiger_open_chunk_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 209,
     INT64_MIN, INT64_MAX, NULL},
   {"compatibility", "category", NULL, NULL, confchk_wiredtiger_open_compatibility_subconfigs, 3,
-    confchk_wiredtiger_open_compatibility_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 218,
+    confchk_wiredtiger_open_compatibility_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 211,
     INT64_MIN, INT64_MAX, NULL},
   {"compile_configuration_count", "int", NULL, "min=500", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 308, 500, INT64_MAX, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 301, 500, INT64_MAX, NULL},
   {"debug_mode", "category", NULL, NULL, confchk_wiredtiger_open_debug_mode_subconfigs, 17,
-    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 220,
+    confchk_wiredtiger_open_debug_mode_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 213,
     INT64_MIN, INT64_MAX, NULL},
-  {"direct_io", "list", NULL, "choices=[\"checkpoint\",\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 311, INT64_MIN, INT64_MAX, confchk_direct_io4_choices},
+  {"direct_io", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 304, INT64_MIN,
+    INT64_MAX, NULL},
   {"disaggregated", "category", NULL, NULL, confchk_wiredtiger_open_disaggregated_subconfigs, 6,
     confchk_wiredtiger_open_disaggregated_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 20,
     INT64_MIN, INT64_MAX, NULL},
   {"encryption", "category", NULL, NULL, confchk_wiredtiger_open_encryption_subconfigs, 3,
     confchk_wiredtiger_open_encryption_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 24,
     INT64_MIN, INT64_MAX, NULL},
-  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 238,
+  {"error_prefix", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 231,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction", "category", NULL, NULL, confchk_wiredtiger_open_eviction_subconfigs, 3,
-    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 239,
+    confchk_wiredtiger_open_eviction_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 232,
     INT64_MIN, INT64_MAX, NULL},
   {"eviction_checkpoint_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 243, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 236, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_target", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 244, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 237, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_dirty_trigger", "int", NULL, "min=1,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 245, 1, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 238, 1, 10LL * WT_TERABYTE, NULL},
   {"eviction_target", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    246, 10, 10LL * WT_TERABYTE, NULL},
+    239, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_trigger", "int", NULL, "min=10,max=10TB", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    247, 10, 10LL * WT_TERABYTE, NULL},
+    240, 10, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_target", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 248, 0, 10LL * WT_TERABYTE, NULL},
+    WT_CONFIG_COMPILED_TYPE_INT, 241, 0, 10LL * WT_TERABYTE, NULL},
   {"eviction_updates_trigger", "int", NULL, "min=0,max=10TB", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_INT, 249, 0, 10LL * WT_TERABYTE, NULL},
-  {"extensions", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 313, INT64_MIN,
+    WT_CONFIG_COMPILED_TYPE_INT, 242, 0, 10LL * WT_TERABYTE, NULL},
+  {"extensions", "list", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 306, INT64_MIN,
     INT64_MAX, NULL},
   {"extra_diagnostics", "list", NULL,
     "choices=[\"all\",\"checkpoint_validate\",\"cursor_check\""
     ",\"disk_validate\",\"eviction_check\",\"generation_check\","
     "\"hs_validate\",\"key_out_of_order\",\"log_validate\","
     "\"prepared\",\"slow_operation\",\"txn_visibility\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 250, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 243, INT64_MIN, INT64_MAX,
     confchk_extra_diagnostics5_choices},
   {"file_extend", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 314, INT64_MIN, INT64_MAX, confchk_file_extend4_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 307, INT64_MIN, INT64_MAX, confchk_file_extend4_choices},
   {"file_manager", "category", NULL, NULL, confchk_wiredtiger_open_file_manager_subconfigs, 3,
-    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 251,
+    confchk_wiredtiger_open_file_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 244,
     INT64_MIN, INT64_MAX, NULL},
   {"generation_drain_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT,
-    255, 0, INT64_MAX, NULL},
+    248, 0, INT64_MAX, NULL},
   {"hash", "category", NULL, NULL, confchk_wiredtiger_open_hash_subconfigs, 2,
-    confchk_wiredtiger_open_hash_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 315, INT64_MIN,
+    confchk_wiredtiger_open_hash_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 308, INT64_MIN,
     INT64_MAX, NULL},
-  {"hazard_max", "int", NULL, "min=15", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 318, 15,
+  {"hazard_max", "int", NULL, "min=15", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 311, 15,
     INT64_MAX, NULL},
   {"heuristic_controls", "category", NULL, NULL,
     confchk_wiredtiger_open_heuristic_controls_subconfigs, 3,
     confchk_wiredtiger_open_heuristic_controls_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    256, INT64_MIN, INT64_MAX, NULL},
+    249, INT64_MIN, INT64_MAX, NULL},
   {"history_store", "category", NULL, NULL, confchk_wiredtiger_open_history_store_subconfigs, 1,
-    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 260,
+    confchk_wiredtiger_open_history_store_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 253,
     INT64_MIN, INT64_MAX, NULL},
   {"io_capacity", "category", NULL, NULL, confchk_wiredtiger_open_io_capacity_subconfigs, 2,
-    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 262,
+    confchk_wiredtiger_open_io_capacity_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 255,
     INT64_MIN, INT64_MAX, NULL},
   {"json_output", "list", NULL, "choices=[\"error\",\"message\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 265, INT64_MIN, INT64_MAX, confchk_json_output5_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 258, INT64_MIN, INT64_MAX, confchk_json_output5_choices},
   {"log", "category", NULL, NULL, confchk_wiredtiger_open_log_subconfigs, 12,
     confchk_wiredtiger_open_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42, INT64_MIN,
     INT64_MAX, NULL},
   {"lsm_manager", "category", NULL, NULL, confchk_wiredtiger_open_lsm_manager_subconfigs, 2,
-    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 272,
+    confchk_wiredtiger_open_lsm_manager_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 265,
     INT64_MIN, INT64_MAX, NULL},
-  {"mmap", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 322, INT64_MIN,
+  {"mmap", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 315, INT64_MIN,
     INT64_MAX, NULL},
-  {"mmap_all", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 323,
+  {"mmap_all", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 316,
     INT64_MIN, INT64_MAX, NULL},
-  {"multiprocess", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 324,
+  {"multiprocess", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 317,
     INT64_MIN, INT64_MAX, NULL},
-  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 176, 0,
+  {"operation_timeout_ms", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 169, 0,
     INT64_MAX, NULL},
   {"operation_tracking", "category", NULL, NULL,
     confchk_wiredtiger_open_operation_tracking_subconfigs, 2,
     confchk_wiredtiger_open_operation_tracking_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    275, INT64_MIN, INT64_MAX, NULL},
+    268, INT64_MIN, INT64_MAX, NULL},
   {"prefetch", "category", NULL, NULL, confchk_wiredtiger_open_prefetch_subconfigs, 2,
-    confchk_wiredtiger_open_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 295,
+    confchk_wiredtiger_open_prefetch_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 288,
     INT64_MIN, INT64_MAX, NULL},
   {"readonly", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 66, INT64_MIN,
     INT64_MAX, NULL},
-  {"salvage", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 327, INT64_MIN,
+  {"salvage", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 320, INT64_MIN,
     INT64_MAX, NULL},
-  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 328, 1,
+  {"session_max", "int", NULL, "min=1", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 321, 1,
     INT64_MAX, NULL},
-  {"session_scratch_max", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 329,
+  {"session_scratch_max", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 322,
     INT64_MIN, INT64_MAX, NULL},
   {"session_table_cache", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN,
-    330, INT64_MIN, INT64_MAX, NULL},
+    323, INT64_MIN, INT64_MAX, NULL},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5,
-    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 277,
+    confchk_wiredtiger_open_shared_cache_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 270,
     INT64_MIN, INT64_MAX, NULL},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"none\","
     "\"clear\",\"tree_walk\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 158, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 151, INT64_MIN, INT64_MAX,
     confchk_statistics6_choices},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6,
-    confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 281,
+    confchk_wiredtiger_open_statistics_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 274,
     INT64_MIN, INT64_MAX, NULL},
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 8,
     confchk_tiered_storage_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 53, INT64_MIN,
@@ -3943,11 +3883,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"prepare_resolution_2\",\"sleep_before_read_overflow_onpage\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
     "\"split_6\",\"split_7\",\"split_8\",\"tiered_flush_finish\"]",
-    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 286, INT64_MIN, INT64_MAX,
+    NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 279, INT64_MIN, INT64_MAX,
     confchk_timing_stress_for_test5_choices},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2, confchk_wiredtiger_open_transaction_sync_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY,
-    332, INT64_MIN, INT64_MAX, NULL},
+    325, INT64_MIN, INT64_MAX, NULL},
   {"verbose", "list", NULL,
     "choices=[\"all\",\"api\",\"backup\",\"block\","
     "\"block_cache\",\"checkpoint\",\"checkpoint_cleanup\","
@@ -3963,10 +3903,10 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"timestamp\",\"transaction\",\"verify\",\"version\",\"write\"]",
     NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_LIST, 10, INT64_MIN, INT64_MAX,
     confchk_verbose17_choices},
-  {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 335,
+  {"verify_metadata", "boolean", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_BOOLEAN, 328,
     INT64_MIN, INT64_MAX, NULL},
   {"write_through", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0, NULL,
-    WT_CONFIG_COMPILED_TYPE_LIST, 336, INT64_MIN, INT64_MAX, confchk_write_through4_choices},
+    WT_CONFIG_COMPILED_TYPE_LIST, 329, INT64_MIN, INT64_MAX, confchk_write_through4_choices},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
 static const uint8_t confchk_wiredtiger_open_usercfg_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 0, 0, 0,
@@ -3981,31 +3921,30 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"WT_CONNECTION.add_compressor", "", NULL, 0, NULL, 1, WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.add_data_source", "", NULL, 0, NULL, 2, WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.add_encryptor", "", NULL, 0, NULL, 3, WT_CONF_SIZING_NONE, false},
-  {"WT_CONNECTION.add_extractor", "", NULL, 0, NULL, 4, WT_CONF_SIZING_NONE, false},
-  {"WT_CONNECTION.add_page_log", "", NULL, 0, NULL, 5, WT_CONF_SIZING_NONE, false},
-  {"WT_CONNECTION.add_storage_source", "", NULL, 0, NULL, 6, WT_CONF_SIZING_NONE, false},
+  {"WT_CONNECTION.add_page_log", "", NULL, 0, NULL, 4, WT_CONF_SIZING_NONE, false},
+  {"WT_CONNECTION.add_storage_source", "", NULL, 0, NULL, 5, WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.close", "final_flush=false,leak_memory=false,use_timestamp=true",
-    confchk_WT_CONNECTION_close, 3, confchk_WT_CONNECTION_close_jump, 7, WT_CONF_SIZING_NONE,
+    confchk_WT_CONNECTION_close, 3, confchk_WT_CONNECTION_close_jump, 6, WT_CONF_SIZING_NONE,
     false},
   {"WT_CONNECTION.debug_info",
     "backup=false,cache=false,cursors=false,handles=false,log=false,"
     "sessions=false,txn=false",
-    confchk_WT_CONNECTION_debug_info, 7, confchk_WT_CONNECTION_debug_info_jump, 8,
+    confchk_WT_CONNECTION_debug_info, 7, confchk_WT_CONNECTION_debug_info_jump, 7,
     WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.load_extension",
     "config=,early_load=false,entry=wiredtiger_extension_init,"
     "terminate=wiredtiger_extension_terminate",
-    confchk_WT_CONNECTION_load_extension, 4, confchk_WT_CONNECTION_load_extension_jump, 9,
+    confchk_WT_CONNECTION_load_extension, 4, confchk_WT_CONNECTION_load_extension_jump, 8,
     WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.open_session",
     "cache_cursors=true,cache_max_wait_ms=0,"
     "debug=(checkpoint_fail_before_turtle_update=false,"
     "release_evict_page=false),ignore_cache_size=false,"
     "isolation=snapshot,prefetch=(enabled=false)",
-    confchk_WT_CONNECTION_open_session, 6, confchk_WT_CONNECTION_open_session_jump, 10,
+    confchk_WT_CONNECTION_open_session, 6, confchk_WT_CONNECTION_open_session_jump, 9,
     WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.query_timestamp", "get=all_durable", confchk_WT_CONNECTION_query_timestamp, 1,
-    confchk_WT_CONNECTION_query_timestamp_jump, 11, WT_CONF_SIZING_NONE, false},
+    confchk_WT_CONNECTION_query_timestamp_jump, 10, WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.reconfigure",
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
@@ -4044,22 +3983,22 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "on_close=false,sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
     "tiered_storage=(local_retention=300),timing_stress_for_test=,"
     "verbose=[]",
-    confchk_WT_CONNECTION_reconfigure, 37, confchk_WT_CONNECTION_reconfigure_jump, 12,
+    confchk_WT_CONNECTION_reconfigure, 37, confchk_WT_CONNECTION_reconfigure_jump, 11,
     WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.rollback_to_stable", "dryrun=false,threads=4",
-    confchk_WT_CONNECTION_rollback_to_stable, 2, confchk_WT_CONNECTION_rollback_to_stable_jump, 13,
+    confchk_WT_CONNECTION_rollback_to_stable, 2, confchk_WT_CONNECTION_rollback_to_stable_jump, 12,
     WT_CONF_SIZING_NONE, false},
-  {"WT_CONNECTION.set_file_system", "", NULL, 0, NULL, 14, WT_CONF_SIZING_NONE, false},
+  {"WT_CONNECTION.set_file_system", "", NULL, 0, NULL, 13, WT_CONF_SIZING_NONE, false},
   {"WT_CONNECTION.set_timestamp",
     "durable_timestamp=,force=false,oldest_timestamp=,"
     "stable_timestamp=",
-    confchk_WT_CONNECTION_set_timestamp, 4, confchk_WT_CONNECTION_set_timestamp_jump, 15,
+    confchk_WT_CONNECTION_set_timestamp, 4, confchk_WT_CONNECTION_set_timestamp_jump, 14,
     WT_CONF_SIZING_NONE, false},
   {"WT_CURSOR.bound", "action=set,bound=,inclusive=true", confchk_WT_CURSOR_bound, 3,
-    confchk_WT_CURSOR_bound_jump, 16, WT_CONF_SIZING_INITIALIZE(WT_CURSOR, bound), true},
-  {"WT_CURSOR.close", "", NULL, 0, NULL, 17, WT_CONF_SIZING_NONE, false},
+    confchk_WT_CURSOR_bound_jump, 15, WT_CONF_SIZING_INITIALIZE(WT_CURSOR, bound), true},
+  {"WT_CURSOR.close", "", NULL, 0, NULL, 16, WT_CONF_SIZING_NONE, false},
   {"WT_CURSOR.reconfigure", "append=false,force=false,overwrite=true,prefix_search=false",
-    confchk_WT_CURSOR_reconfigure, 4, confchk_WT_CURSOR_reconfigure_jump, 18, WT_CONF_SIZING_NONE,
+    confchk_WT_CURSOR_reconfigure, 4, confchk_WT_CURSOR_reconfigure_jump, 17, WT_CONF_SIZING_NONE,
     false},
   {"WT_SESSION.alter",
     "access_pattern_hint=none,app_metadata=,"
@@ -4068,29 +4007,29 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "checkpoint=,exclusive_refreshed=true,log=(enabled=true),"
     "os_cache_dirty_max=0,os_cache_max=0,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_WT_SESSION_alter, 11, confchk_WT_SESSION_alter_jump, 19, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_alter, 11, confchk_WT_SESSION_alter_jump, 18, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.begin_transaction",
     "ignore_prepare=false,isolation=,name=,no_timestamp=false,"
     "operation_timeout_ms=0,priority=0,read_timestamp=,"
     "roundup_timestamps=(prepared=false,read=false),sync=",
-    confchk_WT_SESSION_begin_transaction, 9, confchk_WT_SESSION_begin_transaction_jump, 20,
+    confchk_WT_SESSION_begin_transaction, 9, confchk_WT_SESSION_begin_transaction_jump, 19,
     WT_CONF_SIZING_INITIALIZE(WT_SESSION, begin_transaction), true},
   {"WT_SESSION.checkpoint",
     "debug=(checkpoint_cleanup=false),drop=,flush_tier=(enabled=false"
-    ",force=false,sync=true,timeout=0),force=false,name=,target=,"
+    ",force=false,sync=true,timeout=0),force=false,name=,"
     "use_timestamp=true",
-    confchk_WT_SESSION_checkpoint, 7, confchk_WT_SESSION_checkpoint_jump, 21, WT_CONF_SIZING_NONE,
+    confchk_WT_SESSION_checkpoint, 6, confchk_WT_SESSION_checkpoint_jump, 20, WT_CONF_SIZING_NONE,
     false},
-  {"WT_SESSION.close", "", NULL, 0, NULL, 22, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.close", "", NULL, 0, NULL, 21, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.commit_transaction",
     "commit_timestamp=,durable_timestamp=,operation_timeout_ms=0,"
     "sync=",
-    confchk_WT_SESSION_commit_transaction, 4, confchk_WT_SESSION_commit_transaction_jump, 23,
+    confchk_WT_SESSION_commit_transaction, 4, confchk_WT_SESSION_commit_transaction_jump, 22,
     WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.compact",
     "background=,dryrun=false,exclude=,free_space_target=20MB,"
     "run_once=false,timeout=1200",
-    confchk_WT_SESSION_compact, 6, confchk_WT_SESSION_compact_jump, 24, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_compact, 6, confchk_WT_SESSION_compact_jump, 23, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.create",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -4098,16 +4037,16 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "block_compressor=,block_manager=default,cache_resident=false,"
     "checksum=on,colgroups=,collator=,columns=,dictionary=0,"
     "disaggregated=(delta_pct=20,max_consecutive_delta=32,page_log=),"
-    "encryption=(keyid=,name=),exclusive=false,extractor=,"
-    "format=btree,huffman_key=,huffman_value=,"
-    "ignore_in_memory_cache_size=false,immutable=false,"
-    "import=(compare_timestamp=oldest_timestamp,enabled=false,"
-    "file_metadata=,metadata_file=,panic_corrupt=true,repair=false),"
-    "in_memory=false,ingest=,internal_item_max=0,internal_key_max=0,"
-    "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
-    "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
-    "leaf_value_max=0,log=(enabled=true),lsm=(auto_throttle=true,"
-    "bloom=true,bloom_bit_count=16,bloom_config=,bloom_hash_count=8,"
+    "encryption=(keyid=,name=),exclusive=false,format=btree,"
+    "huffman_key=,huffman_value=,ignore_in_memory_cache_size=false,"
+    "immutable=false,import=(compare_timestamp=oldest_timestamp,"
+    "enabled=false,file_metadata=,metadata_file=,panic_corrupt=true,"
+    "repair=false),in_memory=false,ingest=,internal_item_max=0,"
+    "internal_key_max=0,internal_key_truncate=true,"
+    "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
+    "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
+    "log=(enabled=true),lsm=(auto_throttle=true,bloom=true,"
+    "bloom_bit_count=16,bloom_config=,bloom_hash_count=8,"
     "bloom_oldest=false,chunk_count_limit=0,chunk_max=5GB,"
     "chunk_size=10MB,merge_custom=(prefix=,start_generation=0,"
     "suffix=),merge_max=15,merge_min=0),memory_page_image_max=0,"
@@ -4118,19 +4057,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),type=file,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_WT_SESSION_create, 53, confchk_WT_SESSION_create_jump, 25, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_create, 52, confchk_WT_SESSION_create_jump, 24, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.drop",
     "checkpoint_wait=true,force=false,lock_wait=true,"
     "remove_files=true,remove_shared=false",
-    confchk_WT_SESSION_drop, 5, confchk_WT_SESSION_drop_jump, 26, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.join",
-    "bloom_bit_count=16,bloom_false_positives=false,"
-    "bloom_hash_count=8,compare=\"eq\",count=0,operation=\"and\","
-    "strategy=",
-    confchk_WT_SESSION_join, 7, confchk_WT_SESSION_join_jump, 27, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_drop, 5, confchk_WT_SESSION_drop_jump, 25, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.log_flush", "sync=on", confchk_WT_SESSION_log_flush, 1,
-    confchk_WT_SESSION_log_flush_jump, 28, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.log_printf", "", NULL, 0, NULL, 29, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_log_flush_jump, 26, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.log_printf", "", NULL, 0, NULL, 27, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.open_cursor",
     "append=false,bulk=false,checkpoint=,checkpoint_use_history=true,"
     "checkpoint_wait=true,debug=(checkpoint_read_timestamp=,"
@@ -4140,47 +4074,46 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "next_random=false,next_random_sample_size=0,next_random_seed=0,"
     "overwrite=true,prefix_search=false,raw=false,read_once=false,"
     "readonly=false,skip_sort_check=false,statistics=,target=",
-    confchk_WT_SESSION_open_cursor, 20, confchk_WT_SESSION_open_cursor_jump, 30,
+    confchk_WT_SESSION_open_cursor, 20, confchk_WT_SESSION_open_cursor_jump, 28,
     WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.prepare_transaction", "prepare_timestamp=", confchk_WT_SESSION_prepare_transaction,
-    1, confchk_WT_SESSION_prepare_transaction_jump, 31, WT_CONF_SIZING_NONE, false},
+    1, confchk_WT_SESSION_prepare_transaction_jump, 29, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1,
-    confchk_WT_SESSION_query_timestamp_jump, 32, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_query_timestamp_jump, 30, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.reconfigure",
     "cache_cursors=true,cache_max_wait_ms=0,"
     "debug=(checkpoint_fail_before_turtle_update=false,"
     "release_evict_page=false),ignore_cache_size=false,"
     "isolation=snapshot,prefetch=(enabled=false)",
-    confchk_WT_SESSION_reconfigure, 6, confchk_WT_SESSION_reconfigure_jump, 33, WT_CONF_SIZING_NONE,
+    confchk_WT_SESSION_reconfigure, 6, confchk_WT_SESSION_reconfigure_jump, 31, WT_CONF_SIZING_NONE,
     false},
-  {"WT_SESSION.rename", "", NULL, 0, NULL, 34, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.reset", "", NULL, 0, NULL, 35, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.reset_snapshot", "", NULL, 0, NULL, 36, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.reset", "", NULL, 0, NULL, 32, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.reset_snapshot", "", NULL, 0, NULL, 33, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.rollback_transaction", "operation_timeout_ms=0",
-    confchk_WT_SESSION_rollback_transaction, 1, confchk_WT_SESSION_rollback_transaction_jump, 37,
+    confchk_WT_SESSION_rollback_transaction, 1, confchk_WT_SESSION_rollback_transaction_jump, 34,
     WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.salvage", "force=false", confchk_WT_SESSION_salvage, 1,
-    confchk_WT_SESSION_salvage_jump, 38, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.strerror", "", NULL, 0, NULL, 39, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_salvage_jump, 35, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.strerror", "", NULL, 0, NULL, 36, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.timestamp_transaction",
     "commit_timestamp=,durable_timestamp=,prepare_timestamp=,"
     "read_timestamp=",
-    confchk_WT_SESSION_timestamp_transaction, 4, confchk_WT_SESSION_timestamp_transaction_jump, 40,
+    confchk_WT_SESSION_timestamp_transaction, 4, confchk_WT_SESSION_timestamp_transaction_jump, 37,
     WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.timestamp_transaction_uint", "", NULL, 0, NULL, 41, WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.truncate", "", NULL, 0, NULL, 42, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.timestamp_transaction_uint", "", NULL, 0, NULL, 38, WT_CONF_SIZING_NONE, false},
+  {"WT_SESSION.truncate", "", NULL, 0, NULL, 39, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.verify",
     "do_not_clear_txn_id=false,dump_address=false,dump_all_data=false"
     ",dump_blocks=false,dump_key_data=false,dump_layout=false,"
     "dump_offsets=,dump_pages=false,dump_tree_shape=false,"
     "read_corrupt=false,stable_timestamp=false,strict=false",
-    confchk_WT_SESSION_verify, 12, confchk_WT_SESSION_verify_jump, 43, WT_CONF_SIZING_NONE, false},
+    confchk_WT_SESSION_verify, 12, confchk_WT_SESSION_verify_jump, 40, WT_CONF_SIZING_NONE, false},
   {"colgroup.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "collator=,columns=,source=,type=file,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_colgroup_meta, 8, confchk_colgroup_meta_jump, 44, WT_CONF_SIZING_NONE, false},
+    confchk_colgroup_meta, 8, confchk_colgroup_meta_jump, 41, WT_CONF_SIZING_NONE, false},
   {"file.config",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -4201,7 +4134,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_file_config, 43, confchk_file_config_jump, 45, WT_CONF_SIZING_NONE, false},
+    confchk_file_config, 43, confchk_file_config_jump, 42, WT_CONF_SIZING_NONE, false},
   {"file.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -4223,14 +4156,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=0,shared=false),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_file_meta, 50, confchk_file_meta_jump, 46, WT_CONF_SIZING_NONE, false},
+    confchk_file_meta, 50, confchk_file_meta_jump, 43, WT_CONF_SIZING_NONE, false},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
-    "collator=,columns=,extractor=,immutable=false,index_key_columns="
-    ",key_format=u,source=,type=file,value_format=u,verbose=[],"
-    "write_timestamp_usage=none",
-    confchk_index_meta, 13, confchk_index_meta_jump, 47, WT_CONF_SIZING_NONE, false},
+    "collator=,columns=,immutable=false,key_format=u,source=,"
+    "type=file,value_format=u,verbose=[],write_timestamp_usage=none",
+    confchk_index_meta, 11, confchk_index_meta_jump, 44, WT_CONF_SIZING_NONE, false},
   {"layered.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
@@ -4238,7 +4170,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "checkpoint_meta=,next_checkpoint_id=-1,page_log=,role=,"
     "shutdown_checkpoint=false),ingest=,key_format=u,stable=,"
     "value_format=u,verbose=[],write_timestamp_usage=none",
-    confchk_layered_meta, 11, confchk_layered_meta_jump, 48, WT_CONF_SIZING_NONE, false},
+    confchk_layered_meta, 11, confchk_layered_meta_jump, 45, WT_CONF_SIZING_NONE, false},
   {"lsm.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -4264,7 +4196,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_lsm_meta, 47, confchk_lsm_meta_jump, 49, WT_CONF_SIZING_NONE, false},
+    confchk_lsm_meta, 47, confchk_lsm_meta_jump, 46, WT_CONF_SIZING_NONE, false},
   {"object.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -4286,13 +4218,13 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=0,shared=false),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_object_meta, 52, confchk_object_meta_jump, 50, WT_CONF_SIZING_NONE, false},
+    confchk_object_meta, 52, confchk_object_meta_jump, 47, WT_CONF_SIZING_NONE, false},
   {"table.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "colgroups=,collator=,columns=,key_format=u,value_format=u,"
     "verbose=[],write_timestamp_usage=none",
-    confchk_table_meta, 9, confchk_table_meta_jump, 51, WT_CONF_SIZING_NONE, false},
+    confchk_table_meta, 9, confchk_table_meta_jump, 48, WT_CONF_SIZING_NONE, false},
   {"tier.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -4315,7 +4247,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "bucket_prefix=,cache_directory=,local_retention=300,name=,"
     "object_target_size=0,shared=false),value_format=u,verbose=[],"
     "version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_tier_meta, 53, confchk_tier_meta_jump, 52, WT_CONF_SIZING_NONE, false},
+    confchk_tier_meta, 53, confchk_tier_meta_jump, 49, WT_CONF_SIZING_NONE, false},
   {"tiered.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
@@ -4338,15 +4270,15 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_directory=,local_retention=300,name=,object_target_size=0,"
     "shared=false),tiers=,value_format=u,verbose=[],version=(major=0,"
     "minor=0),write_timestamp_usage=none",
-    confchk_tiered_meta, 55, confchk_tiered_meta_jump, 53, WT_CONF_SIZING_NONE, false},
+    confchk_tiered_meta, 55, confchk_tiered_meta_jump, 50, WT_CONF_SIZING_NONE, false},
   {"wiredtiger_open",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=32768,max_percent_overhead=10,"
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
-    "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
-    ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
+    "buffer_alignment=,builtin_extension_config=,cache_cursors=true,"
+    "cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,"
     "precise=false,wait=0),checkpoint_cleanup=(method=none,wait=300),"
     "checkpoint_sync=true,chunk_cache=(capacity=10GB,"
@@ -4394,15 +4326,15 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "transaction_sync=(enabled=false,method=fsync),"
     "use_environment=true,use_environment_priv=false,verbose=[],"
     "verify_metadata=false,write_through=",
-    confchk_wiredtiger_open, 67, confchk_wiredtiger_open_jump, 54, WT_CONF_SIZING_NONE, false},
+    confchk_wiredtiger_open, 67, confchk_wiredtiger_open_jump, 51, WT_CONF_SIZING_NONE, false},
   {"wiredtiger_open_all",
     "backup_restore_target=,"
     "block_cache=(blkcache_eviction_aggression=1800,"
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=32768,max_percent_overhead=10,"
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
-    "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
-    ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
+    "buffer_alignment=,builtin_extension_config=,cache_cursors=true,"
+    "cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,"
     "precise=false,wait=0),checkpoint_cleanup=(method=none,wait=300),"
     "checkpoint_sync=true,chunk_cache=(capacity=10GB,"
@@ -4450,7 +4382,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "transaction_sync=(enabled=false,method=fsync),"
     "use_environment=true,use_environment_priv=false,verbose=[],"
     "verify_metadata=false,version=(major=0,minor=0),write_through=",
-    confchk_wiredtiger_open_all, 68, confchk_wiredtiger_open_all_jump, 55, WT_CONF_SIZING_NONE,
+    confchk_wiredtiger_open_all, 68, confchk_wiredtiger_open_all_jump, 52, WT_CONF_SIZING_NONE,
     false},
   {"wiredtiger_open_basecfg",
     "backup_restore_target=,"
@@ -4458,8 +4390,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=32768,max_percent_overhead=10,"
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
-    "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
-    ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
+    "buffer_alignment=,builtin_extension_config=,cache_cursors=true,"
+    "cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,"
     "precise=false,wait=0),checkpoint_cleanup=(method=none,wait=300),"
     "checkpoint_sync=true,chunk_cache=(capacity=10GB,"
@@ -4505,7 +4437,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "shared=false),timing_stress_for_test=,"
     "transaction_sync=(enabled=false,method=fsync),verbose=[],"
     "verify_metadata=false,version=(major=0,minor=0),write_through=",
-    confchk_wiredtiger_open_basecfg, 62, confchk_wiredtiger_open_basecfg_jump, 56,
+    confchk_wiredtiger_open_basecfg, 62, confchk_wiredtiger_open_basecfg_jump, 53,
     WT_CONF_SIZING_NONE, false},
   {"wiredtiger_open_usercfg",
     "backup_restore_target=,"
@@ -4513,8 +4445,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_on_checkpoint=true,cache_on_writes=true,enabled=false,"
     "full_target=95,hashsize=32768,max_percent_overhead=10,"
     "nvram_path=,percent_file_in_dram=50,size=0,system_ram=0,type=),"
-    "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
-    ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
+    "buffer_alignment=,builtin_extension_config=,cache_cursors=true,"
+    "cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"
     "cache_stuck_timeout_ms=300000,checkpoint=(log_size=0,"
     "precise=false,wait=0),checkpoint_cleanup=(method=none,wait=300),"
     "checkpoint_sync=true,chunk_cache=(capacity=10GB,"
@@ -4560,7 +4492,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "shared=false),timing_stress_for_test=,"
     "transaction_sync=(enabled=false,method=fsync),verbose=[],"
     "verify_metadata=false,write_through=",
-    confchk_wiredtiger_open_usercfg, 61, confchk_wiredtiger_open_usercfg_jump, 57,
+    confchk_wiredtiger_open_usercfg, 61, confchk_wiredtiger_open_usercfg_jump, 54,
     WT_CONF_SIZING_NONE, false},
   {NULL, NULL, NULL, 0, NULL, 0, WT_CONF_SIZING_NONE, false}};
 

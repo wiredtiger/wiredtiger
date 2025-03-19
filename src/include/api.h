@@ -316,30 +316,10 @@
     /* !!!! This is a while(1) loop. !!!! */                                                     \
     while (1)
 
-#define JOINABLE_CURSOR_CALL_CHECK(cur) \
-    if (F_ISSET(cur, WT_CURSTD_JOINED)) \
-    WT_ERR(__wt_curjoin_joined(cur))
-
-#define JOINABLE_CURSOR_API_CALL(cur, s, ret, func_name, dh) \
-    CURSOR_API_CALL(cur, s, ret, func_name, dh);             \
-    JOINABLE_CURSOR_CALL_CHECK(cur)
-
-#define JOINABLE_CURSOR_API_CALL_CONF(cur, s, ret, func_name, config, cfg, dh) \
-    CURSOR_API_CALL_CONF(cur, s, ret, func_name, config, cfg, dh);             \
-    JOINABLE_CURSOR_CALL_CHECK(cur)
-
-#define JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, func_name, dh) \
-    CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, func_name, dh);             \
-    JOINABLE_CURSOR_CALL_CHECK(cur)
-
 #define CURSOR_REMOVE_API_CALL(cur, s, ret, dh)      \
     (s) = CUR2S(cur);                                \
     TXN_API_CALL_NOCONF(s, WT_CURSOR, remove, (dh)); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, remove)
-
-#define JOINABLE_CURSOR_REMOVE_API_CALL(cur, s, ret, dh) \
-    CURSOR_REMOVE_API_CALL(cur, s, ret, dh);             \
-    JOINABLE_CURSOR_CALL_CHECK(cur)
 
 #define CURSOR_UPDATE_API_CALL_BTREE(cur, s, ret, func_name)                                  \
     (s) = CUR2S(cur);                                                                         \
@@ -353,10 +333,6 @@
     (s) = CUR2S(cur);                                      \
     TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, dh);      \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name)
-
-#define JOINABLE_CURSOR_UPDATE_API_CALL(cur, s, ret, func_name, dh) \
-    CURSOR_UPDATE_API_CALL(cur, s, ret, func_name, dh);             \
-    JOINABLE_CURSOR_CALL_CHECK(cur)
 
 #define CURSOR_UPDATE_API_END_RETRY(s, ret, retry) \
     if ((ret) == WT_PREPARE_CONFLICT)              \

@@ -99,12 +99,6 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
         blk = WT_BLOCK_HEADER_REF(buf->mem);
     memset(blk, 0, sizeof(*blk));
 
-    /* Buffers should be aligned for writing. */
-    if (!F_ISSET(buf, WT_ITEM_ALIGNED)) {
-        WT_ASSERT(session, F_ISSET(buf, WT_ITEM_ALIGNED));
-        WT_RET_MSG(session, EINVAL, "direct I/O check: write buffer incorrectly allocated");
-    }
-
     if (buf->size > UINT32_MAX) {
         WT_ASSERT(session, buf->size <= UINT32_MAX);
         WT_RET_MSG(session, EINVAL, "buffer size check: write buffer too large to write");
