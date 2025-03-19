@@ -353,6 +353,9 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
       ",live_restore=(enabled=true,read_size=2MB,threads_max=" + std::to_string(thread_count) +
       ",path=\"" + source + "\"),cache_size=5GB," + verbose_string +
       ",statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,path=journal)";
+    const std::string post_completion_conn_config =
+      "cache_size=5GB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,"
+      "path=journal)";
 
     /* Create connection. */
     if (recovery)
@@ -369,7 +372,7 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
         raise(SIGKILL);
 
     // Loop until the state stat is complete!
-    if (thread_count > 0 || background_thread_mode) {
+    if (thread_count > 0) {
         logger::log_msg(LOG_INFO, "Waiting for background data transfer to complete...");
         while (true) {
             auto stat_cursor = crud_session.open_scoped_cursor("statistics:");
@@ -379,6 +382,10 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
                 break;
             __wt_sleep(1, 0);
         }
+        // Test live store not crash after completion.
+        logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
+        do_random_crud(
+          crud_session, collection_count, op_count, false, post_completion_conn_config, home);
         logger::log_msg(LOG_INFO, "Done!");
     }
 
