@@ -339,6 +339,8 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxintlpage_precomp, 0));
     if (build_delta)
         WT_RET(__wti_rec_build_delta_init(session, r));
+    else
+        r->delta.size = 0;
 
     /*
      * Ideally, we'd never store the 0th key on row-store internal pages because it's never used
