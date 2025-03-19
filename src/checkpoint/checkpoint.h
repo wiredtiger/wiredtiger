@@ -32,21 +32,6 @@ struct __wt_ckpt_session {
 };
 
 /*
- * WT_CKPT_THREAD --
- *     Checkpoint server information.
- */
-struct __wt_ckpt_thread {
-    WT_CONDVAR *cond;         /* wait mutex */
-    WT_SESSION_IMPL *session; /* session associated with thread */
-    wt_thread_t tid;          /* thread id */
-    bool tid_set;             /* thread set */
-#define WT_CKPT_LOGSIZE(conn) (__wt_atomic_loadi64(&(conn)->ckpt.server.logsize) != 0)
-    wt_shared wt_off_t logsize; /* thread log size period */
-    bool signalled;             /* thread signalled */
-    uint64_t usecs;             /* thread timer */
-};
-
-/*
  * WT_CKPT_CONNECTION --
  *     Checkpoint information.
  */
@@ -56,7 +41,7 @@ struct __wt_ckpt_connection {
     WTI_CKPT_HANDLE_STATS handle_stats;
 
     /* Checkpoint thread. */
-    WT_CKPT_THREAD server;
+    WTI_CKPT_THREAD server;
 
     /* Time-related stats. */
     WTI_CKPT_TIMER ckpt_api;
