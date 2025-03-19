@@ -43,6 +43,16 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * complete.
          */
         if (TAILQ_EMPTY(&server->work_queue)) {
+            /*
+             * Force a checkpoint, we need our last metadata updates to be written out. The order is
+             * important here as we cannot mark the live restore complete if we have not written out
+             * empty extent lists to the metadata file durably. If we were to mark it as complete
+             * prematurely after a crash we may startup and still find files with "holes" in them
+             * which would be unexpected.
+             */
+            const char *cfg[] = {
+              WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=true", NULL};
+            WT_ERR(__wt_checkpoint_db(ctx->session, cfg, true));
             WT_ERR(__wti_live_restore_cleanup_stop_files(session));
             uint64_t time_diff_ms;
             WT_STAT_CONN_SET(session, live_restore_state, WT_LIVE_RESTORE_COMPLETE);
@@ -199,8 +209,6 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     ret = __wti_live_restore_fs_fill_holes(fh, wt_session);
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
       "Live restore worker: Finished finished filling holes in %s ret %d", work_item->uri, ret);
-
-    /* Free the work item. */
     __live_restore_free_work_item(session, &work_item);
     WT_TRET(cursor->close(cursor));
     return (ret);
