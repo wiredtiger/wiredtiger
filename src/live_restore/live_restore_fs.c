@@ -74,14 +74,14 @@ err:
 static void
 __live_restore_debug_dump_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
-    WT_LIVE_RESTORE_HOLE_LIST *prev;
+    WT_LIVE_RESTORE_HOLE_NODE *hole;
+    WT_LIVE_RESTORE_HOLE_NODE *prev;
     bool list_valid;
 
     prev = NULL;
     __wt_verbose_debug1(
       session, WT_VERB_FILEOPS, "Dumping extent list for %s\n", lr_fh->iface.name);
-    hole = lr_fh->destination.hole_list;
+    hole = lr_fh->destination.hole_list_head;
     list_valid = true;
 
     while (hole != NULL) {
@@ -308,9 +308,9 @@ __live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *
  */
 static int
 __live_restore_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t len,
-  WT_LIVE_RESTORE_HOLE_LIST *next, WT_LIVE_RESTORE_HOLE_LIST **holep)
+  WT_LIVE_RESTORE_HOLE_NODE *next, WT_LIVE_RESTORE_HOLE_NODE **holep)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *new;
+    WT_LIVE_RESTORE_HOLE_NODE *new;
 
     WT_RET(__wt_calloc_one(session, &new));
     new->off = offset;
@@ -328,11 +328,11 @@ __live_restore_alloc_extent(WT_SESSION_IMPL *session, wt_off_t offset, size_t le
 static void
 __live_restore_fs_free_extent_list(WT_SESSION_IMPL *session, WT_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
-    WT_LIVE_RESTORE_HOLE_LIST *temp;
+    WT_LIVE_RESTORE_HOLE_NODE *hole;
+    WT_LIVE_RESTORE_HOLE_NODE *temp;
 
-    hole = lr_fh->destination.hole_list;
-    lr_fh->destination.hole_list = NULL;
+    hole = lr_fh->destination.hole_list_head;
+    lr_fh->destination.hole_list_head = NULL;
 
     while (hole != NULL) {
         temp = hole;
@@ -366,7 +366,7 @@ static int
 __live_restore_remove_extlist_hole(
   WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *hole, *tmp, *new, *prev_hole;
+    WT_LIVE_RESTORE_HOLE_NODE *hole, *tmp, *new, *prev_hole;
     wt_off_t write_end;
 
     __wt_verbose_debug2(session, WT_VERB_FILEOPS, "REMOVE HOLE %s: %" PRId64 "-%" PRId64,
@@ -374,8 +374,8 @@ __live_restore_remove_extlist_hole(
 
     write_end = WT_OFFSET_END(offset, len);
 
-    /* FIXME-WT-13825 - We need to make sure we're thread safe when touching the hole_list. */
-    hole = lr_fh->destination.hole_list;
+    /* FIXME-WT-13825 - We need to make sure we're thread safe when touching the hole_list_head. */
+    hole = lr_fh->destination.hole_list_head;
     prev_hole = NULL;
     while (hole != NULL) {
 
@@ -391,7 +391,7 @@ __live_restore_remove_extlist_hole(
 
             tmp = hole;
             if (prev_hole == NULL)
-                lr_fh->destination.hole_list = hole->next;
+                lr_fh->destination.hole_list_head = hole->next;
             else
                 prev_hole->next = hole->next;
             hole = hole->next;
@@ -451,13 +451,13 @@ static bool
 __live_restore_can_service_read(
   WT_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
+    WT_LIVE_RESTORE_HOLE_NODE *hole;
     wt_off_t read_end;
     bool read_begins_in_hole, read_ends_in_hole;
 
     read_end = WT_OFFSET_END(offset, len);
 
-    hole = lr_fh->destination.hole_list;
+    hole = lr_fh->destination.hole_list_head;
     while (hole != NULL) {
 
         if (read_end < hole->off)
@@ -596,12 +596,12 @@ __live_restore_fs_fill_holes_on_file_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_se
  */
 #define WT_LIVE_RESTORE_READ_SIZE ((size_t)(4 * WT_KILOBYTE))
     WT_LIVE_RESTORE_FILE_HANDLE *lr_fh;
-    WT_LIVE_RESTORE_HOLE_LIST *hole;
+    WT_LIVE_RESTORE_HOLE_NODE *hole;
 
     char buf[WT_LIVE_RESTORE_READ_SIZE];
     lr_fh = (WT_LIVE_RESTORE_FILE_HANDLE *)fh;
 
-    while ((hole = lr_fh->destination.hole_list) != NULL) {
+    while ((hole = lr_fh->destination.hole_list_head) != NULL) {
         __wt_verbose_debug3((WT_SESSION_IMPL *)wt_session, WT_VERB_FILEOPS,
           "Found hole in %s at %" PRId64 "-%" PRId64 " during file close. Filling", fh->name,
           hole->off, WT_EXTENT_END(hole));
@@ -783,7 +783,7 @@ __live_restore_fh_find_holes_in_dest_file(
          * remove those ranges from the hole list.
          */
         WT_ERR(__live_restore_alloc_extent(
-          session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list));
+          session, 0, (size_t)file_size, NULL, &lr_fh->destination.hole_list_head));
 
     /*
      * Find the next data block. data_end_offset is initialized to zero so we start from the
@@ -920,7 +920,7 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                 /*
                  * Set size by truncating. This is a positive length truncate so it actually extends
                  * the file. We're bypassing the live_restore layer so we don't try to modify the
-                 * extents in hole_list.
+                 * extents in hole_list_head.
                  */
                 WT_ERR(lr_fh->destination.fh->fh_truncate(
                   lr_fh->destination.fh, wt_session, source_size));
@@ -929,9 +929,9 @@ __live_restore_fs_open_file(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const ch
                  * Initialize the extent as one hole covering the entire file. We need to read
                  * everything from source.
                  */
-                WT_ASSERT(session, lr_fh->destination.hole_list == NULL);
+                WT_ASSERT(session, lr_fh->destination.hole_list_head == NULL);
                 WT_ERR(__live_restore_alloc_extent(
-                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list));
+                  session, 0, (size_t)source_size, NULL, &lr_fh->destination.hole_list_head));
             }
         } else
             lr_fh->destination.complete = true;
