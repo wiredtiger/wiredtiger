@@ -477,7 +477,7 @@ struct __wt_log_info {
     WT_SESSION_IMPL *log_wrlsn_session;    /* Log write lsn thread session */
     wt_thread_t log_wrlsn_tid;             /* Log write lsn thread */
     bool log_wrlsn_tid_set;                /* Log write lsn thread set */
-    WT_LOG *log;                           /* Logging structure */
+    WTI_LOG *log;                          /* Logging structure */
     WT_COMPRESSOR *log_compressor;         /* Logging compressor */
     wt_shared uint32_t log_cursors;        /* Log cursor count */
     wt_off_t log_dirty_max;                /* Log dirty system cache max size */

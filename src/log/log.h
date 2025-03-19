@@ -137,7 +137,7 @@ struct __wt_log_thread {
 struct __wt_log_manager {
     WT_RWLOCK debug_log_retention_lock; /* Log retention reconfiguration lock */
 
-    WT_LOG *log; /* Logging structure */
+    WTI_LOG *log; /* Logging structure */
 
     WT_COMPRESSOR *compressor; /* configuration : Logging compressor */
 
