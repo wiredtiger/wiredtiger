@@ -138,8 +138,6 @@ __wt_schema_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[
         ret = __wt_session_range_truncate(session, uri, NULL, NULL);
     else if (WT_PREFIX_MATCH(uri, "layered:"))
         ret = __truncate_layered(session, uri);
-    else if (WT_PREFIX_MATCH(uri, "lsm:"))
-        ret = __wt_lsm_tree_truncate(session, uri, cfg);
     else if (WT_PREFIX_SKIP(tablename, "table:"))
         ret = __truncate_table(session, tablename, cfg);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))

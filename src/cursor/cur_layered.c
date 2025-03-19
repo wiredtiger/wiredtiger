@@ -1704,7 +1704,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __clayered_update,                              /* update */
       __clayered_remove,                              /* remove */
       __clayered_reserve,                             /* reserve */
-      __wt_cursor_reconfigure,                        /* reconfigure */
+      __wti_cursor_reconfigure,                       /* reconfigure */
       __clayered_largest_key,                         /* largest_key */
       __clayered_bound,                               /* bound */
       __wt_cursor_notsup,                             /* cache */
@@ -1755,7 +1755,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
     if (cval.val != 0) {
         F_SET(clayered, WT_CLAYERED_RANDOM);
-        __wt_cursor_set_notsup(cursor);
+        __wti_cursor_set_notsup(cursor);
         cursor->next = __clayered_next_random;
 
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_seed", 0, &cval));

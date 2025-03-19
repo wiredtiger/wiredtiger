@@ -151,15 +151,14 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_file_meta 43
 #define WT_CONFIG_ENTRY_index_meta 44
 #define WT_CONFIG_ENTRY_layered_meta 45
-#define WT_CONFIG_ENTRY_lsm_meta 46
-#define WT_CONFIG_ENTRY_object_meta 47
-#define WT_CONFIG_ENTRY_table_meta 48
-#define WT_CONFIG_ENTRY_tier_meta 49
-#define WT_CONFIG_ENTRY_tiered_meta 50
-#define WT_CONFIG_ENTRY_wiredtiger_open 51
-#define WT_CONFIG_ENTRY_wiredtiger_open_all 52
-#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 53
-#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 54
+#define WT_CONFIG_ENTRY_object_meta 46
+#define WT_CONFIG_ENTRY_table_meta 47
+#define WT_CONFIG_ENTRY_tier_meta 48
+#define WT_CONFIG_ENTRY_tiered_meta 49
+#define WT_CONFIG_ENTRY_wiredtiger_open 50
+#define WT_CONFIG_ENTRY_wiredtiger_open_all 51
+#define WT_CONFIG_ENTRY_wiredtiger_open_basecfg 52
+#define WT_CONFIG_ENTRY_wiredtiger_open_usercfg 53
 
 extern const char __WT_CONFIG_CHOICE_NULL[]; /* not set in configuration */
 extern const char __WT_CONFIG_CHOICE_DRAM[];
@@ -235,8 +234,6 @@ extern const char __WT_CONFIG_CHOICE_leader[];
 extern const char __WT_CONFIG_CHOICE_log[];
 extern const char __WT_CONFIG_CHOICE_log_validate[];
 extern const char __WT_CONFIG_CHOICE_lower[];
-extern const char __WT_CONFIG_CHOICE_lsm[];
-extern const char __WT_CONFIG_CHOICE_lsm_manager[];
 extern const char __WT_CONFIG_CHOICE_message[];
 extern const char __WT_CONFIG_CHOICE_metadata[];
 extern const char __WT_CONFIG_CHOICE_mixed_mode[];

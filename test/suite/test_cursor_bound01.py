@@ -41,7 +41,6 @@ class test_cursor_bound01(bound_base, DisaggConfigMixin):
     types = [
         ('file', dict(uri='file:', use_index = False, use_colgroup = False)),
         ('table', dict(uri='table:', use_index = False, use_colgroup = False)),
-        ('lsm', dict(uri='lsm:', use_index = False, use_colgroup = False)),
         ('colgroup', dict(uri='table:', use_index = False, use_colgroup = False)),
         ('index', dict(uri='table:', use_index = True, use_colgroup = False)),
         ('layered', dict(uri='layered:', use_index = False, use_colgroup = False)),
@@ -68,8 +67,7 @@ class test_cursor_bound01(bound_base, DisaggConfigMixin):
         DisaggConfigMixin.conn_extensions(self, extlist)
 
     def test_bound_api(self):
-        # LSM doesn't support column store type, therefore we can just return early here.
-        if (self.key_format == 'r' and (self.uri == 'lsm:' or self.uri == 'layered:')):
+        if (self.key_format == 'r' and self.uri == 'layered:'):
             return
 
         uri = self.uri + self.file_name
@@ -94,11 +92,6 @@ class test_cursor_bound01(bound_base, DisaggConfigMixin):
         else:
             cursor = self.session.open_cursor(uri)
 
-        # LSM format is not supported with range cursors.
-        if self.uri == 'lsm:':
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
-                '/Operation not supported/')
-            return
         if self.value_format == '8t':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: cursor.bound("action=set,bound=lower"),
                 '/Invalid argument/')

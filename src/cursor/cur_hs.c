@@ -1394,7 +1394,7 @@ __wt_curhs_open_ext(WT_SESSION_IMPL *session, uint32_t hs_id, uint32_t btree_id,
       __wt_cursor_notsup,                             /* search */
       __curhs_search_near,                            /* search-near */
       __curhs_insert,                                 /* insert */
-      __wt_cursor_modify_value_format_notsup,         /* modify */
+      __wti_cursor_modify_value_format_notsup,        /* modify */
       __curhs_update,                                 /* update */
       __curhs_remove,                                 /* remove */
       __wt_cursor_notsup,                             /* reserve */

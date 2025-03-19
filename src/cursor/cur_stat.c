@@ -567,8 +567,6 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         WT_RET(__wt_curstat_index_init(session, dsrc_uri, cfg, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "layered:"))
         WT_RET(__curstat_layered_init(session, dsrc_uri, cfg, cst));
-    else if (WT_PREFIX_MATCH(dsrc_uri, "lsm:"))
-        WT_RET(__wt_curstat_lsm_init(session, dsrc_uri, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "table:"))
         WT_RET(__wt_curstat_table_init(session, dsrc_uri, cfg, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "tiered:"))

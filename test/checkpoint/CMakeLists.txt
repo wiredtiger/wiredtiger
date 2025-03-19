@@ -44,9 +44,6 @@ define_test_variants(test_checkpoint
         "test_checkpoint_6_row_named_prepare;-t r -T 6 -c TeSt -p"
         "test_checkpoint_row_stress_sweep_timestamps;-t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000 -D"
         "test_checkpoint_row_sweep_timestamps;-t r -W 3 -r 2 -s 1 -x -n 100000 -k 100000"
-
-        # 5. LSM cases.
-        "test_checkpoint_6_lsm;-t l -T 6"
     LABELS
         check
         test_checkpoint
