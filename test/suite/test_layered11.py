@@ -57,6 +57,7 @@ class test_layered11(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     # Test inserting a record into a layered tree
     def test_layered11(self):
+        self.ignoreStdoutPattern('WT_VERB_RTS')
         base_create = 'key_format=S,value_format=S'
 
         self.pr("create layered tree")
