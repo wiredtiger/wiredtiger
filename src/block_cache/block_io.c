@@ -770,6 +770,16 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *
         }
     }
 
+    if (dsk != NULL) {
+        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl, dsk->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
+        } else {
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf, dsk->mem_size);
+            WT_STAT_CONN_INCRV(session, block_byte_write_leaf_disk, ip->size);
+        }
+    }
+
     /*
      * Store a copy of the compressed buffer in the block cache.
      *
