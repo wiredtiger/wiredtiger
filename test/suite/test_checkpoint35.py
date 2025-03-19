@@ -35,12 +35,12 @@ class test_checkpoint35(wttest.WiredTigerTestCase):
     conn_config = "checkpoint=(precise=true)"
 
     def test_checkpoint(self):
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.checkpoint("use_timestamp=false"), '')
-
         # Call checkpoint before setting the stable timestamp
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.checkpoint("use_timestamp=false"), '')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.checkpoint(), '')
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
 
         # Call checkpoint after setting the stable timestamp
         self.session.checkpoint()
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: self.session.checkpoint("use_timestamp=false"), '')
