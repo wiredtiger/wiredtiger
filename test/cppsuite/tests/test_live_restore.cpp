@@ -27,6 +27,7 @@
  */
 
 /*
+ * [live_restore]: live_restore_fs.c
  * This file tests WiredTiger's live restore behavior. If called with the -f flag it will populate a
  * test database and place it in a "backup" folder. Subsequent runs that don't have -f will open
  * WiredTiger in live restore mode using the backup folder as the source. It will then perform
@@ -309,7 +310,7 @@ main(int argc, char *argv[])
     /* Create a connection, set the cache size and specify the home directory. */
     // TODO: Make verbosity level configurable at runtime.
     const std::string conn_config = CONNECTION_CREATE + ",live_restore=(enabled=true,path=\"" +
-      SOURCE_DIR + "\"),cache_size=1GB,verbose=[fileops:2]";
+      SOURCE_DIR + "\",debug=(fill_holes_on_close=true)),cache_size=1GB,verbose=[fileops:2]";
 
     logger::log_msg(LOG_TRACE, "arg count: " + std::to_string(argc));
     bool fresh_start = false;
