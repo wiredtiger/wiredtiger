@@ -35,6 +35,8 @@
     "WT_VERB_HS", \
     "WT_VERB_HS_ACTIVITY", \
     "WT_VERB_LAYERED", \
+    "WT_VERB_LIVE_RESTORE", \
+    "WT_VERB_LIVE_RESTORE_PROGRESS", \
     "WT_VERB_LOG", \
     "WT_VERB_MUTEX", \
     "WT_VERB_METADATA", \

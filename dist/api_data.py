@@ -900,6 +900,8 @@ connection_runtime_config = [
             'history_store',
             'history_store_activity',
             'layered',
+            'live_restore',
+            'live_restore_progress',
             'log',
             'metadata',
             'mutex',

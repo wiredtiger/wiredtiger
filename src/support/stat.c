@@ -2728,7 +2728,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_running = 0;
     stats->layered_table_manager_active = 0;
     /* not clearing live_restore_state */
-    /* not clearing live_restore_queue_length */
+    /* not clearing live_restore_work_remaining */
     stats->lock_btree_page_count = 0;
     stats->lock_btree_page_wait_application = 0;
     stats->lock_btree_page_wait_internal = 0;
@@ -3580,7 +3580,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_running += WT_STAT_CONN_READ(from, layered_table_manager_running);
     to->layered_table_manager_active += WT_STAT_CONN_READ(from, layered_table_manager_active);
     to->live_restore_state += WT_STAT_CONN_READ(from, live_restore_state);
-    to->live_restore_queue_length += WT_STAT_CONN_READ(from, live_restore_queue_length);
+    to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);
     to->lock_btree_page_count += WT_STAT_CONN_READ(from, lock_btree_page_count);
     to->lock_btree_page_wait_application +=
       WT_STAT_CONN_READ(from, lock_btree_page_wait_application);
