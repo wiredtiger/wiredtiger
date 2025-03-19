@@ -1861,12 +1861,10 @@ __live_restore_fs_rename(
     WTI_LIVE_RESTORE_FS_LAYER_TYPE which;
     WT_SESSION_IMPL *session;
     char *path_from, *path_to;
-    bool exist;
 
     session = (WT_SESSION_IMPL *)wt_session;
     lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
 
-    exist = false;
     path_from = NULL;
     path_to = NULL;
 
