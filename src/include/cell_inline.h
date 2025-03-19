@@ -1185,7 +1185,7 @@ __cell_unpack_window_need_cleanup(WT_SESSION_IMPL *session, uint64_t dsk_write_g
      *                        durable_ts=NONE               durable_ts=NONE
      */
 
-    if (WT_READING_CHECKPOINT(session) && session->checkpoint_write_gen != 0) {
+    if (WT_READING_CHECKPOINT(session) && session->ckpt.write_gen != 0) {
         /*
          * When reading a checkpoint, override the tree's base write generation with the write
          * generation from the global metadata, which might be newer. This comes into play if the
@@ -1194,7 +1194,7 @@ __cell_unpack_window_need_cleanup(WT_SESSION_IMPL *session, uint64_t dsk_write_g
          * checkpoint write generation isn't set because the checkpoint is from an older version of
          * WiredTiger; in that case we use the tree's write generation and hope for the best.
          */
-        write_gen = session->checkpoint_write_gen;
+        write_gen = session->ckpt.write_gen;
         WT_ASSERT(session, write_gen >= S2BT(session)->base_write_gen);
     } else
         write_gen = S2BT(session)->base_write_gen;
