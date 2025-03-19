@@ -295,6 +295,14 @@ struct __wt_layered_table_manager;
 typedef struct __wt_layered_table_manager WT_LAYERED_TABLE_MANAGER;
 struct __wt_layered_table_manager_entry;
 typedef struct __wt_layered_table_manager_entry WT_LAYERED_TABLE_MANAGER_ENTRY;
+struct __wt_live_restore_file_handle;
+typedef struct __wt_live_restore_file_handle WT_LIVE_RESTORE_FILE_HANDLE;
+struct __wt_live_restore_fs;
+typedef struct __wt_live_restore_fs WT_LIVE_RESTORE_FS;
+struct __wt_live_restore_fs_layer;
+typedef struct __wt_live_restore_fs_layer WT_LIVE_RESTORE_FS_LAYER;
+struct __wt_live_restore_hole_list;
+typedef struct __wt_live_restore_hole_list WT_LIVE_RESTORE_HOLE_LIST;
 struct __wt_log;
 typedef struct __wt_log WT_LOG;
 struct __wt_log_desc;
@@ -561,6 +569,7 @@ typedef uint64_t wt_timestamp_t;
 #include "generation.h"
 #include "hazard.h"
 #include "json.h"
+#include "../live_restore/live_restore.h"
 #include "../log/log.h"
 #include "lsm.h"
 #include "meta.h" /* required by block.h */

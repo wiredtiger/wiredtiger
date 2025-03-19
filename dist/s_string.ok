@@ -89,6 +89,7 @@ CustomersPhone
 Cygwin
 DBI
 DESC
+DEST
 DHANDLE
 DISAGG
 DISAGGREGATED
@@ -520,6 +521,7 @@ backlink
 backoff
 bal
 basecfg
+basename
 bb
 bba
 bbb
