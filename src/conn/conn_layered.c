@@ -10,7 +10,7 @@
 
 static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
-static int __layered_gc_ingest_tables(WT_SESSION_IMPL *session);
+static int __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session);
 static int __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timestamp);
 static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
@@ -347,8 +347,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
     /* Keep a record of past checkpoints, they will be needed for ingest garbage collection. */
     WT_ERR(__layered_track_checkpoint(session, checkpoint_timestamp));
 
-    /* Do ingest table garbage collection. */
-    WT_ERR(__layered_gc_ingest_tables(internal_session));
+    /* Update ingest tables' prune timestamps. */
+    WT_ERR(__layered_update_gc_ingest_tables_prune_timestamps(internal_session));
 
 err:
     if (cursor != NULL)
@@ -1475,11 +1475,11 @@ err:
 }
 
 /*
- * __layered_gc_ingest_tables --
- *     Remove obsolete data from the ingest tables.
+ * __layered_update_gc_ingest_tables_prune_timestamps --
+ *     Update the timestamp we can prune the ingest tables.
  */
 static int
-__layered_gc_ingest_tables(WT_SESSION_IMPL *session)
+__layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -1580,13 +1580,14 @@ __layered_gc_ingest_tables(WT_SESSION_IMPL *session)
                       ckpt_inuse);
 
                 prune_timestamp = ds->ckpt_track[track].timestamp;
+                WT_ASSERT(
+                  session, prune_timestamp >= ((WT_BREE *)layered_table->ingest)->prune_timestamp);
+                WT_RELEASE_WRITE(
+                  ((WT_BREE *)layered_table->ingest)->prune_timestamp, prune_timestamp);
 
-                /*
-                 * TODO: GC here, or it can be queued.
-                 */
                 __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                  "GC %s: pruning anything below timestamp %" PRIu64 "\n",
-                  layered_table->iface.name, prune_timestamp);
+                  "GC %s: update pruning timestamp to %" PRIu64 "\n", layered_table->iface.name,
+                  prune_timestamp);
 
                 layered_table->last_ckpt_inuse = ckpt_inuse;
             }
