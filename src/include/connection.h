@@ -172,8 +172,8 @@ struct __wt_disagg_copy_metadata {
  *      A relationship between the checkpoint order number and the history timestamp.
  */
 struct __wt_disaggregated_checkpoint_track {
-    int64_t ckpt_order;
-    uint64_t timestamp;
+    uint64_t ckpt_order;
+    wt_timestamp_t timestamp;
 };
 
 /*
