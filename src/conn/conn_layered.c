@@ -1481,6 +1481,7 @@ err:
 static int
 __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
 {
+    WT_BTREE *ingest;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *ds;
@@ -1580,10 +1581,13 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                       ckpt_inuse);
 
                 prune_timestamp = ds->ckpt_track[track].timestamp;
-                WT_ASSERT(
-                  session, prune_timestamp >= ((WT_BREE *)layered_table->ingest)->prune_timestamp);
-                WT_RELEASE_WRITE(
-                  ((WT_BREE *)layered_table->ingest)->prune_timestamp, prune_timestamp);
+                /*
+                 * TODO: this assumes the ingest table dhandle is open if the layered table dhandle
+                 * is open.
+                 */
+                ingest = (WT_BTREE *)layered_table->ingest;
+                WT_ASSERT(session, prune_timestamp >= ingest->prune_timestamp);
+                WT_RELEASE_WRITE(ingest->prune_timestamp, prune_timestamp);
 
                 __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
                   "GC %s: update pruning timestamp to %" PRIu64 "\n", layered_table->iface.name,
