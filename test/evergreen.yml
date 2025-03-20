@@ -1644,6 +1644,16 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
+          ctest_extra_args: -LE "long_running" ${ctest_extra_args}
+          directory: test/checkpoint
+
+  - name: checkpoint-test-long-running
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          ctest_extra_args: -L "long_running" ${ctest_extra_args}
           directory: test/checkpoint
 
   - name: cursor-order-test
