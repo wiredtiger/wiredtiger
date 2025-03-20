@@ -55,10 +55,13 @@ typedef struct PALM_KV_ENV {
 typedef struct PALM_KV_CONTEXT {
     PALM_KV_ENV *env;
     MDB_txn *lmdb_txn;
+    uint64_t last_materialized_lsn;
     uint32_t materialization_delay_us;
 } PALM_KV_CONTEXT;
 
 typedef struct PALM_KV_PAGE_MATCHES {
+    PALM_KV_CONTEXT *context;
+
     MDB_cursor *lmdb_cursor;
     size_t size;
     void *data;
