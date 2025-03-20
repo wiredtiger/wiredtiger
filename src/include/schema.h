@@ -92,10 +92,10 @@ struct __wt_layered_table {
     int collator_owned;
 
     /*
-     * For ingest table garbage collection, the last checkpoint order number (generation) that was
-     * drained.
+     * For ingest table garbage collection, the last checkpoint generation number that we know was
+     * in use.
      */
-    int64_t last_gc_checkpoint_order;
+    int64_t last_ckpt_inuse;
 
     const char *key_format, *value_format;
     const char *ingest_uri, *stable_uri;

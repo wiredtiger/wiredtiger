@@ -1345,7 +1345,7 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     table_count = manager->open_layered_table_count;
 
     /*
-     * TODO: shouldn't we hold this lock longer, e.g. manager->entries could get realloc'ed, or
+     * TODO: shouldn't we hold this lock longer, e.g. manager->entries could get reallocated, or
      * individual entries could get removed or freed.
      */
     __wt_spin_unlock(session, &manager->layered_table_lock);
@@ -1407,18 +1407,26 @@ __layered_gc_ingest_tables(WT_SESSION_IMPL *session)
                 continue;
 
             /*
-             * For each layered table, set CKPT_INUSE to last_gc_checkpoint_order. If CKPT_INUSE is
-             * 0, get the last checkpoint order in the metadata table, If there is none, we're done
-             * with this table, there's nothing we can do. Otherwise, for CKPT_INUSE, get the
-             * dhandle for URI/WiredTigerCheckpoint.CKPT_INUSE. If it doesn't exist in the
-             * connection, or if the in_use count is 0, then we can gc this table. Bump CKPT_INUSE
-             * and repeat (at otherwise...) But we can't bump the CKPT_INUSE if it is the most
-             * recent checkpoint. If CKPT_INUSE got bumped (is different from gc_checkpoint_order),
-             * then we can use that checkpoint to set the boundary for gc.
+             * For each layered table, we want to see what is the oldest checkpoint on that table
+             * that is in use by any open cursor. Even if there are no open cursors on it, the most
+             * recent checkpoint on the table is always considered in use. The basic plan is to
+             * start with the last checkpoint in use that we knew about, and check it again. If it's
+             * no longer in use, we go to the next one, etc. This gives us a list (possibly zero
+             * length), of checkpoints that are no longer in use by cursors on this table. Thus, the
+             * timestamp associated with the newest such checkpoint can be used for GC pruning. Any
+             * item in the ingest table older than that timestamp must be including in one of the
+             * checkpoints we're saving, and thus can be removed.
              */
-            ckpt_inuse = layered_table->last_gc_checkpoint_order;
+            ckpt_inuse = layered_table->last_ckpt_inuse;
             if (ckpt_inuse == 0) {
-                // TODO
+                /*
+                 * If we've never checked this layered table before, it's safe to start at the
+                 * oldest checkpoint that we're tracking. There are no cursors in the system that
+                 * are open at checkpoints older than that one. It's probably impossible that we
+                 * haven't tracked any checkpoints, if that happens, we'll start checking at zero.
+                 */
+                if (ds->ckpt_track_cnt > 0)
+                    ckpt_inuse = ds->ckpt_track[track].ckpt_order;
             }
 
             /*
@@ -1451,7 +1459,7 @@ __layered_gc_ingest_tables(WT_SESSION_IMPL *session)
              * last time we checked, find out what timestamp that checkpoint corresponds to. That
              * will be the timestamp we use for pruning.
              */
-            if (ckpt_inuse != layered_table->last_gc_checkpoint_order) {
+            if (ckpt_inuse != layered_table->last_ckpt_inuse) {
                 for (track = 0; track < ds->ckpt_track_cnt; ++track)
                     if (ds->ckpt_track[track].ckpt_order == ckpt_inuse)
                         break;
@@ -1469,7 +1477,7 @@ __layered_gc_ingest_tables(WT_SESSION_IMPL *session)
                   "GC %s: pruning anything below timestamp %" PRIu64 "\n",
                   layered_table->iface.name, prune_timestamp);
 
-                layered_table->last_gc_checkpoint_order = ckpt_inuse;
+                layered_table->last_ckpt_inuse = ckpt_inuse;
             }
             min_ckpt_inuse = WT_MIN(ckpt_inuse, min_ckpt_inuse);
         }
@@ -1479,8 +1487,8 @@ __layered_gc_ingest_tables(WT_SESSION_IMPL *session)
 err:
     /*
      * TODO: we could hold lock for a shorter time. Maybe release it after getting/copying each URI,
-     * then an individual URI could be gc'd without a lock, then re-acquire to get the next entry in
-     * the table.
+     * then an individual URI could be garbage collected without a lock, then re-acquire to get the
+     * next entry in the table.
      */
     __wt_spin_unlock(session, &manager->layered_table_lock);
 
@@ -1495,7 +1503,7 @@ static int
 __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order)
 {
-    int scanf_return;
+    int scanf_ret;
 
     const char *checkpoint_name;
     int64_t order_from_name;
@@ -1506,13 +1514,13 @@ __layered_last_checkpoint_order(
     WT_RET(__wt_meta_checkpoint_last_name(session, shared_uri, &checkpoint_name, ckpt_order, NULL));
 
     /* Sanity check: we make sure that the name returned matches the order number. */
-    scanf_return = sscanf(checkpoint_name, WT_CHECKPOINT ".%" PRId64, &order_from_name);
+    scanf_ret = sscanf(checkpoint_name, WT_CHECKPOINT ".%" PRId64, &order_from_name);
     __wt_free(session, checkpoint_name);
 
-    if (scanf_return != 1)
+    if (scanf_ret != 1)
         WT_RET_MSG(session, EINVAL,
-          "shared metadata checkpoint unknown format: %s, scanf returns %d", checkpoint_name,
-          scanf_return);
+          "shared metadata checkpoint unknown format: %s, scan returns %d", checkpoint_name,
+          scanf_ret);
 
     /* These should always be the same. */
     WT_ASSERT(session, *ckpt_order == order_from_name);
@@ -1529,8 +1537,8 @@ __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timesta
 {
     WT_CONNECTION_IMPL *conn;
     WT_DISAGGREGATED_STORAGE *ds;
-    uint32_t entry, expire;
     int64_t order;
+    uint32_t entry, expire;
 
     conn = S2C(session);
     ds = &conn->disaggregated_storage;
