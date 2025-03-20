@@ -342,7 +342,7 @@ configure_database(scoped_session &session)
 // Take a backup of the provided database and then delete it. This backup will be used in the
 // next loop as a source directory.
 static void
-take_backup_and_delete(const std::string& home, const std::string& backup_dir)
+take_backup_and_delete(const std::string &home, const std::string &backup_dir)
 {
     testutil_recreate_dir(backup_dir.c_str());
     const std::string conn_config = "log=(enabled=true,path=journal)";
