@@ -2151,6 +2151,7 @@ __wti_rec_pack_delta_internal(
     *head_byte = flags;
 
     ++header->u.entries;
+    header->mem_size = (uint32_t)r->delta.size;
 
     return (0);
 }

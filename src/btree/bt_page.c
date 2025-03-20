@@ -16,6 +16,12 @@ static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool *);
 static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
 /*
+ * Define functions that increment histogram statistics for reconstruction of pages with deltas.
+ */
+WT_STAT_USECS_HIST_INCR_FUNC(internal_reconstruct, perf_hist_internal_reconstruct_latency)
+WT_STAT_USECS_HIST_INCR_FUNC(leaf_reconstruct, perf_hist_leaf_reconstruct_latency)
+
+/*
  * __page_build_ref --
  *     Create a ref from a base image or a delta.
  */
@@ -24,10 +30,13 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
   WT_CELL_UNPACK_ADDR *base_val, WT_CELL_UNPACK_DELTA_INT *delta, bool base, WT_REF **refp,
   size_t *incrp)
 {
+    WT_ADDR *addr;
+    WT_DECL_RET;
     WT_REF *ref;
     uint8_t key_type, value_type;
 
     WT_ASSERT(session, incrp != NULL);
+    addr = NULL;
 
     WT_RET(__wt_calloc_one(session, refp));
     *incrp += sizeof(WT_REF);
@@ -66,11 +75,48 @@ __page_build_ref(WT_SESSION_IMPL *session, WT_REF *parent_ref, WT_CELL_UNPACK_AD
         WT_RET(__wt_illegal_value(session, delta->value.type));
     }
 
-    if (base)
-        ref->addr = base_val->cell;
-    else
-        WT_RET(__wt_memdup(session, delta->value.data, delta->value.size, &ref->addr));
-    return (0);
+    switch (value_type) {
+    case WT_CELL_ADDR_INT:
+    case WT_CELL_ADDR_LEAF:
+    case WT_CELL_ADDR_LEAF_NO:
+        if (base)
+            ref->addr = base_val->cell;
+        else {
+            WT_RET(__wt_calloc_one(session, &addr));
+            ref->addr = addr;
+            WT_TIME_AGGREGATE_COPY(&addr->ta, &delta->value.ta);
+            WT_ERR(__wt_memdup(session, delta->value.data, delta->value.size, &addr->block_cookie));
+            addr->block_cookie_size = (uint8_t)delta->value.size;
+            switch (delta->value.raw) {
+            case WT_CELL_ADDR_INT:
+                addr->type = WT_ADDR_INT;
+                break;
+            case WT_CELL_ADDR_LEAF:
+                addr->type = WT_ADDR_LEAF;
+                break;
+            case WT_CELL_ADDR_LEAF_NO:
+                addr->type = WT_ADDR_LEAF_NO;
+                break;
+            default:
+                WT_ERR(__wt_illegal_value(session, delta->value.raw));
+            }
+        }
+        break;
+    case WT_CELL_ADDR_DEL:
+    /* Fast truncated pages are not supported. */
+    default:
+        WT_ERR(__wt_illegal_value(session, delta->value.type));
+    }
+
+    if (0) {
+err:
+        if (addr != NULL) {
+            __wt_free(session, addr->block_cookie);
+            __wt_free(session, addr);
+        }
+    }
+
+    return (ret);
 }
 
 /*
@@ -418,23 +464,34 @@ int
 __wti_page_reconstruct_deltas(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size)
 {
+    uint64_t time_start, time_stop;
     int i;
 
     WT_ASSERT(session, delta_size != 0);
 
     switch (ref->page->type) {
     case WT_PAGE_ROW_LEAF:
+
         /*
          * We apply the order in reverse order because we only care about the latest change of a
          * key. The older changes are ignore.
          *
          * TODO: this is not the optimal algorithm. We can optimize this by using a min heap.
          */
+        time_start = __wt_clock(session);
         for (i = (int)delta_size - 1; i >= 0; --i)
             WT_RET(__page_reconstruct_leaf_delta(session, ref, &deltas[i]));
+        time_stop = __wt_clock(session);
+        __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
         break;
     case WT_PAGE_ROW_INT:
+        time_start = __wt_clock(session);
         WT_RET(__page_reconstruct_internal_deltas(session, ref, deltas, delta_size));
+        time_stop = __wt_clock(session);
+        __wt_stat_usecs_hist_incr_internal_reconstruct(
+          session, WT_CLOCKDIFF_US(time_stop, time_start));
+        WT_STAT_CONN_DSRC_INCR(session, cache_read_internal_delta);
         break;
     default:
         WT_RET(__wt_illegal_value(session, ref->page->type));
