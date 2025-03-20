@@ -892,6 +892,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
         }
+
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.internal_page_delta", &cval));
+        conn->disaggregated_storage.internal_page_delta = cval.val != 0;
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.leaf_page_delta", &cval));
+        conn->disaggregated_storage.leaf_page_delta = cval.val != 0;
     }
 
 err:
