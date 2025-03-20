@@ -75,7 +75,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         return cfg
 
     def conn_config(self):
-        enc_conf = 'encryption=(name={0},{1})'.format(self.encryptor, self.encrypt_args)
+        enc_conf = 'encryption=(name={0},{1}),'.format(self.encryptor, self.encrypt_args)
         return self.conn_base_config + 'disaggregated=(role="leader"),' + enc_conf
 
     # Load the storage store extension.
@@ -124,8 +124,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
         # Re-open the connection to clear contents out of memory.
-        new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
-        self.reopen_conn(config=new_config)
+        self.reopen_disagg_conn(self.conn_config())
 
         # Perform two small updates.
         kv_modfied = {str(10): "10abc", str(220): "220abc"}
@@ -138,8 +137,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
         # Re-open the connection to clear contents out of memory.
-        new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
-        self.reopen_conn(config=new_config)
+        self.reopen_disagg_conn(self.conn_config())
 
         # Verify the updated values in the table.
         self.verify(kv_modfied, inital_value)
@@ -147,9 +145,8 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Assert that we have constructed at least one internal page delta.
         self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-        f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
+        self.reopen_disagg_conn(follower_config)
         time.sleep(1.0)
 
         # Verify the updated values in the table.
@@ -169,8 +166,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
         # Re-open the connection to clear contents out of memory.
-        new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
-        self.reopen_conn(config=new_config)
+        self.reopen_disagg_conn(self.conn_config())
 
         kv_modfied = {}
         num_deltas = random.randint(1, 10)
@@ -193,8 +189,7 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertGreater(self.get_stat(stat.conn.rec_page_delta_internal), 0)
 
         # Re-open the connection to clear contents out of memory.
-        new_config = self.conn_base_config + f'disaggregated=(checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}"),'
-        self.reopen_conn(config=new_config)
+        self.reopen_disagg_conn(self.conn_config())
 
         # Verify the updated values in the table.
         self.verify(kv_modfied, inital_value)
@@ -202,9 +197,8 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Assert that we have constructed at least one internal page delta.
         self.assertGreater(self.get_stat(stat.conn.cache_read_internal_delta), 0)
 
-        follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
-        f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
-        self.reopen_conn(config = follower_config)
+        follower_config = self.conn_base_config + 'disaggregated=(role="follower"),'
+        self.reopen_disagg_conn(follower_config)
         time.sleep(1.0)
 
         # Verify the updated values in the table.

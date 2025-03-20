@@ -1167,9 +1167,9 @@ operator<<(std::ostream &out, const wt_config &op)
  *     Any workload operation.
  */
 using any = std::variant<begin_transaction, breakpoint, checkpoint, checkpoint_crash,
-  commit_transaction, config, crash, create_table, evict, insert, nop, prepare_transaction,
-  remove, restart, rollback_to_stable, rollback_transaction, set_commit_timestamp,
-  set_oldest_timestamp, set_stable_timestamp, truncate, wt_config>;
+  commit_transaction, config, crash, create_table, evict, insert, nop, prepare_transaction, remove,
+  restart, rollback_to_stable, rollback_transaction, set_commit_timestamp, set_oldest_timestamp,
+  set_stable_timestamp, truncate, wt_config>;
 
 /*
  * operator<< --
