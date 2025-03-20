@@ -172,7 +172,7 @@ struct __wt_disagg_copy_metadata {
  *      A relationship between the checkpoint order number and the history timestamp.
  */
 struct __wt_disaggregated_checkpoint_track {
-    uint64_t ckpt_order;
+    int64_t ckpt_order;
     wt_timestamp_t timestamp;
 };
 
@@ -206,7 +206,7 @@ struct __wt_disaggregated_storage {
     WT_DISAGGREGATED_CHECKPOINT_TRACK *ckpt_track; /* Checkpoint info retained for GC. */
     size_t ckpt_track_alloc;                       /* Allocated bytes for checkpoint track. */
     uint32_t ckpt_track_cnt; /* Number of entries in use for checkpoint track. */
-    uint64_t ckpt_min_inuse; /* The minimum checkpoint order in use. */
+    int64_t ckpt_min_inuse; /* The minimum checkpoint order in use. */
 
     bool internal_page_delta;
     bool leaf_page_delta;
