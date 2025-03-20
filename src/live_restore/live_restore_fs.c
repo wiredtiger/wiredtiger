@@ -1357,7 +1357,8 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
         /*
          * Live restore uses -1 in the nbits field to indicate the file has been fully migrated.
          * However if this value is copied into a backup future live restores using this backup as a
-         * source will see the nbits=-1 value and assume an uncopied file has already been copied.
+         * source will see the nbits=-1 value and assume a file that still needs migrating has
+         * already been migrated.
          */
         WT_RET(__wt_config_subgets(session, &v, "nbits", &cval));
 
