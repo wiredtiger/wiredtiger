@@ -443,8 +443,8 @@ usage()
               << std::endl;
     std::cout << "\t-o The number of crud operations to apply while live restoring." << std::endl;
     std::cout << "\t-r Start from existing data files and run recovery." << std::endl;
-    std::cout << "\t-t Thread count for the background thread. A value of 0 is not allowed in "
-                 "which case data files will not be transferred in the background."
+    std::cout << "\t-t Thread count for the background thread. A value greater than 0 must be "
+                 "specified."
               << std::endl;
     std::cout << "\t-o Verbose level, this setting will set WT_VERB_FILE_OPS with whatever level "
                  "is provided. The default is off."
