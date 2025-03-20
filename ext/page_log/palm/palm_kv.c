@@ -46,6 +46,7 @@
  *
  * Possibly some functions like swap should live in a more general library than WT.
  */
+#include <gcc.h>
 #include <swap.h>
 
 #include "palm_kv.h"

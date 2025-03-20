@@ -53,7 +53,6 @@ func_ok()
         -e '/int __im_fs_directory_list_free$/d' \
         -e '/int __im_fs_exist$/d' \
         -e '/int __layered_modify_check$/d' \
-        -e '/int __live_restore_worker_stop$/d' \
         -e '/int __log_record_verify$/d' \
         -e '/int __log_salvage_message$/d' \
         -e '/int __page_write_gen_wrapped_check$/d' \

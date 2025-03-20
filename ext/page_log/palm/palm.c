@@ -37,6 +37,7 @@
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
+#include <gcc.h>
 #include <swap.h> /* for __wt_bswap64 */
 #include "queue.h"
 

@@ -6,8 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#ifndef __WT_MISC_H
-#define __WT_MISC_H
+#pragma once
 
 /*
  * When compiling for code coverage measurement it is necessary to ensure that inline functions in
@@ -531,4 +530,3 @@ __wt_atomic_decrement_if_positive(uint32_t *valuep)
             break;
     } while (!__wt_atomic_cas32(valuep, old_value, old_value - 1));
 }
-#endif /* __WT_MISC_H */
