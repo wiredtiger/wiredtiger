@@ -1374,16 +1374,23 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
          */
         WT_RET(__wt_config_subgets(session, &v, "nbits", &cval));
 
-        WT_ASSERT_ALWAYS(session, WT_STRING_LIT_MATCH("-1", cval.str, 2),
-          "nbits value other than -1 found when cleaning metadata string: %s\n", value);
-
-        wt_off_t nbits_val_str_offset = cval.str - value;
-        /*
-         * We need to overwrite two characters, but only need to write one. Add a redundant comma so
-         * we don't need to resize the string. The config parser will ignore it.
-         */
-        value[nbits_val_str_offset] = '0';
-        value[nbits_val_str_offset + 1] = ',';
+        if (WT_STRING_LIT_MATCH("-1", cval.str, 2)) {
+            wt_off_t nbits_val_str_offset = cval.str - value;
+            /*
+             * We need to overwrite two characters, but only need to write one. Add a redundant
+             * comma so we don't need to resize the string. The config parser will ignore it.
+             */
+            value[nbits_val_str_offset] = '0';
+            value[nbits_val_str_offset + 1] = ',';
+        } else
+            /*
+             * There are only two possible values for nbits here. Either nbits=-1 because the file
+             * underwent a complete live restore, or nbits=0 because we're backing up a database
+             * that didn't undergo live restore. Any other value indicates a file has been partially
+             * live restored and is missing data.
+             */
+            WT_ASSERT_ALWAYS(session, WT_STRING_LIT_MATCH("0", cval.str, 1),
+              "Invalid live restore metadata detected while cleaning string");
     }
 
     return (0);
