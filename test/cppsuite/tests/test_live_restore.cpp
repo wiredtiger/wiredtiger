@@ -380,9 +380,11 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     }
     logger::log_msg(LOG_INFO, "Done!");
 
-    // Once background migration has finished there's no reason for us to access the backing source
-    // files any more. Verify this by deleting the backing directory. Any accesses to the deleted
-    // files will trigger a crash.
+    /*
+     * Once background migration has finished there's no reason for us to access the backing source
+     * files any more. Verify this by deleting the backing directory. Any accesses to the deleted
+     * files will trigger a crash.
+     */
     testutil_remove(SOURCE_PATH);
     logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
     // We've deleted the source folder, so reopening the connection will fail. Disable reopens in
