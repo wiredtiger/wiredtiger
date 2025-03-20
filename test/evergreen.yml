@@ -1149,7 +1149,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
-        ../../../test/evergreen/checkpoint_stress_test.sh ${tiered|0} ${times|1} ${no_of_procs|1} "${wt_config|cache_size=100M}"
+        ../../../test/evergreen/checkpoint_stress_test.sh ${tiered|0} ${times|1} ${no_of_procs|1} "${wt_config|cache_size=100M}" "${timestamp_config|}"
 
   "compatibility test":
     - command: shell.exec
@@ -3702,15 +3702,6 @@ tasks:
         vars:
           run_test_checkpoint_args: -x -C cache_size=1000MB,checkpoint=(precise=true)
 
-  - name: data-validation-stress-test-precise-checkpoint-no-timestamp
-    tags: ["data-validation-stress-test"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          run_test_checkpoint_args: -C cache_size=1000MB,checkpoint=(precise=true)
-
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s1
     tags: ["data-validation-stress-test"]
     depends_on:
@@ -3719,15 +3710,6 @@ tasks:
       - func: "run data validation stress test checkpoint"
         vars:
           run_test_checkpoint_args: -x -s 1 -C cache_size=1000MB,checkpoint=(precise=true)
-
-  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s1-no-timestamp
-    tags: ["data-validation-stress-test"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          run_test_checkpoint_args: -s 1 -C cache_size=1000MB,checkpoint=(precise=true)
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s2
     tags: ["data-validation-stress-test"]
@@ -3747,15 +3729,6 @@ tasks:
         vars:
           run_test_checkpoint_args: -x -s 3 -C cache_size=1000MB,checkpoint=(precise=true)
 
-  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s3-no-timestamp
-    tags: ["data-validation-stress-test"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          run_test_checkpoint_args: -s 3 -C cache_size=1000MB,checkpoint=(precise=true)
-
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s4
     tags: ["data-validation-stress-test"]
     depends_on:
@@ -3773,15 +3746,6 @@ tasks:
       - func: "run data validation stress test checkpoint"
         vars:
           run_test_checkpoint_args: -x -s 5 -C cache_size=1000MB,checkpoint=(precise=true)
-
-  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s5-no-timestamp
-    tags: ["data-validation-stress-test"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "run data validation stress test checkpoint"
-        vars:
-          run_test_checkpoint_args: -s 5 -C cache_size=1000MB,checkpoint=(precise=true)
 
   - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s6
     tags: ["data-validation-stress-test"]
@@ -3892,6 +3856,7 @@ tasks:
           <<: *configure_flags_with_builtins
       - func: "checkpoint stress test"
         vars:
+          timestamp_config: -x
           wt_config: cache_size=1000M,checkpoint=(precise=true)
           no_of_procs: 10 # Number of processes to run in the background
           tiered: 0       # Don't enable tiered storage
@@ -3909,6 +3874,7 @@ tasks:
           <<: *configure_flags_with_builtins
       - func: "checkpoint stress test"
         vars:
+          timestamp_config: -x
           wt_config: cache_size=1000M,checkpoint=(precise=true)
           no_of_procs: 5  # Number of processes to run in the background
           tiered: 1       # Enable tiered storage
