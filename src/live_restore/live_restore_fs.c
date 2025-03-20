@@ -1038,7 +1038,6 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
     if (F_ISSET(&conn->log_mgr, WT_LOG_CONFIG_ENABLED)) {
         WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
-        WT_ERR(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
         /*
          * The log path is the only WiredTiger-owned subdirectory that can exist. Check its contents
          * explicitly.
@@ -1047,6 +1046,8 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
           (char *)conn->log_mgr.log_path, UINTMAX_MAX, UINT32_MAX, filepath));
         /* FIXME-WT-14047: Currently we do not support absolute log paths. */
         WT_ASSERT(session, !__wt_absolute_path((char *)conn->log_mgr.log_path));
+
+        WT_ERR(os_fs->fs_directory_list_free(os_fs, wt_session, files, count));
         WT_ERR(os_fs->fs_directory_list(
           os_fs, wt_session, (char *)filepath->data, NULL, &files, &count));
         for (uint32_t i = 0; i < count; i++) {
@@ -1927,6 +1928,7 @@ __live_restore_fs_size(
         WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", name);
 
     /* Get the file size from the destination if possible, otherwise fallback to the source. */
+    /* FIXME-WT-14299: Cleanup backing file name so this if block goes away. */
     if (which == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION)
         WT_RET(__live_restore_fs_backing_filename(
           &lr_fs->destination, session, lr_fs->destination.home, name, &path));
