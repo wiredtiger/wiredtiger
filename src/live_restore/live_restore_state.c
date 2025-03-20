@@ -369,6 +369,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     char **dirlist_source = NULL, **dirlist_dest = NULL;
     uint32_t num_source_files = 0, num_dest_files = 0;
     WTI_LIVE_RESTORE_STATE state_from_file;
+    bool contain_backup_file = false;
 
     /*
      * First check that the source doesn't contain any live restore metadata files, but does contain
@@ -380,7 +381,6 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     if (num_source_files == 0)
         WT_ERR_MSG(session, EINVAL, "Source directory is empty. Nothing to restore!");
 
-    bool contain_backup_file = false;
     for (uint32_t i = 0; i < num_source_files; ++i) {
         if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX))
             WT_ERR_MSG(session, EINVAL,
