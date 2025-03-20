@@ -207,6 +207,9 @@ struct __wt_disaggregated_storage {
     size_t ckpt_track_alloc;                       /* Allocated bytes for checkpoint track. */
     uint32_t ckpt_track_cnt; /* Number of entries in use for checkpoint track. */
     uint32_t ckpt_min_inuse; /* The minimum checkpoint order in use. */
+
+    bool internal_page_delta;
+    bool leaf_page_delta;
 };
 
 /*

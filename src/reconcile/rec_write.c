@@ -2128,7 +2128,7 @@ __wti_rec_pack_delta_internal(
     __wt_rec_kv_copy(session, p, key);
     p += key->len;
     if (value == NULL)
-        LF_SET(WT_DELTA_LEAF_IS_DELETE);
+        LF_SET(WT_DELTA_INT_IS_DELETE);
     else
         __wt_rec_kv_copy(session, p, value);
 

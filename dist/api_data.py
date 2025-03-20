@@ -115,9 +115,17 @@ connection_disaggregated_config_common = [
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
+    Config('internal_page_delta', 'true', r'''
+        When enabled, reconciliation writes deltas for internal pages
+        instead of writing entire pages every time''',
+        type='boolean', undoc=True),
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
+    Config('leaf_page_delta', 'true', r'''
+        When enabled, reconciliation writes deltas for leaf pages
+        instead of writing entire pages every time''',
+        type='boolean', undoc=True),
     Config('next_checkpoint_id', '-1', r'''
         the next checkpoint ID to open when starting (or restarting) the node''',
         min='-1', type='int', undoc=True),
@@ -629,7 +637,8 @@ connection_runtime_config = [
         Config('precise', 'false', r'''
             Only write data with timestamps that are smaller or equal to the stable timestamp to the
             checkpoint. Rollback to stable after restart is a no-op if enabled. However, it leads to
-            extra cache pressure.''',
+            extra cache pressure. The user must have set the stable timestamp. It is not compatible
+            with use_timestamp=false config.''',
             type='boolean'),
         ]),
     Config('checkpoint_cleanup', '', r'''

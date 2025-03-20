@@ -61,6 +61,9 @@ class test_layered26(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     def test_layered26(self):
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
+
         self.uri = self.prefix + 'test_layered26'
 
         # The node started as a follower, so step it up as the leader

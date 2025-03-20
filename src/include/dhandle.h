@@ -34,8 +34,10 @@
     (F_ISSET(dhandle, WT_DHANDLE_DEAD) || !F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_OPEN))
 
 /* Check if a handle could be reopened. */
-#define WT_DHANDLE_CAN_REOPEN(dhandle) \
-    (F_MASK(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN) == WT_DHANDLE_OPEN)
+#define WT_DHANDLE_CAN_REOPEN(dhandle)                                                           \
+    (F_MASK(                                                                                     \
+       dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_DROPPED | WT_DHANDLE_OPEN | WT_DHANDLE_OUTDATED) == \
+      WT_DHANDLE_OPEN)
 
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
@@ -146,6 +148,7 @@ struct __wt_data_handle {
 #define WT_DHANDLE_IS_METADATA 0x080u  /* Metadata handle */
 #define WT_DHANDLE_LOCK_ONLY 0x100u    /* Handle only used as a lock */
 #define WT_DHANDLE_OPEN 0x200u         /* Handle is open */
+#define WT_DHANDLE_OUTDATED 0x400u     /* Handle is outdated */
                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 12 */
     uint16_t flags;
 

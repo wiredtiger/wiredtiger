@@ -46,6 +46,93 @@ err:
 }
 
 /*
+ * __layered_create_missing_stable_table --
+ *     Create a missing ingest table from an existing layered table configuration.
+ */
+static int
+__layered_create_missing_stable_table(
+  WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
+{
+    WT_CONFIG_ITEM key_format, value_format;
+    WT_DECL_ITEM(stable_config);
+    WT_DECL_RET;
+
+    WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
+    WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
+
+    /* TODO Refactor this with __create_layered? */
+    WT_ERR(__wt_scr_alloc(session, 0, &stable_config));
+    WT_ERR(__wt_buf_fmt(session, stable_config, "key_format=\"%.*s\",value_format=\"%.*s\",",
+      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
+
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, stable_config->data));
+
+err:
+    __wt_scr_free(session, &stable_config);
+    return (ret);
+}
+
+/*
+ * __layered_create_missing_stable_tables --
+ *     Create missing stable tables.
+ */
+static int
+__layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor_check, *cursor_scan;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+    char *stable_uri;
+    const char *layered_uri, *layered_cfg;
+
+    conn = S2C(session);
+    cursor_check = cursor_scan = NULL;
+    stable_uri = NULL;
+
+    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
+    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_check));
+    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_scan));
+
+    cursor_scan->set_key(cursor_scan, "layered:");
+    WT_ERR(cursor_scan->bound(cursor_scan, "bound=lower"));
+    while ((ret = cursor_scan->next(cursor_scan)) == 0) {
+        WT_ERR(cursor_scan->get_key(cursor_scan, &layered_uri));
+        WT_ERR(cursor_scan->get_value(cursor_scan, &layered_cfg));
+        if (!WT_PREFIX_MATCH(layered_uri, "layered:"))
+            break;
+
+        /* Extract the stable URI. */
+        WT_ERR(__wt_config_getones(session, layered_cfg, "stable", &cval));
+        WT_ERR(__wt_strndup(session, cval.str, cval.len, &stable_uri));
+
+        /* Check if the URI exists. */
+        cursor_check->set_key(cursor_check, stable_uri);
+        WT_ERR_NOTFOUND_OK(cursor_check->search(cursor_check), true);
+
+        /* Create the stable table if it does not exist. */
+        if (ret == WT_NOTFOUND) {
+            WT_ERR(
+              __layered_create_missing_stable_table(internal_session, stable_uri, layered_cfg));
+            /* Ensure that we properly handle empty tables. */
+            WT_ERR(__wt_disagg_copy_metadata_later(
+              internal_session, stable_uri, layered_uri + strlen("layered:")));
+        }
+
+        __wt_free(session, stable_uri);
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    __wt_free(session, stable_uri);
+    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_check));
+    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_scan));
+    WT_TRET(__wt_session_close_internal(internal_session));
+    return (ret);
+}
+
+/*
  * __disagg_pick_up_checkpoint --
  *     Pick up a new checkpoint.
  */
@@ -194,6 +281,22 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR(md_cursor->insert(md_cursor));
             __wt_free(session, cfg_ret);
+
+            /*
+             * If there is a matching data handle, it is out of date, as the metadata has changed.
+             * Mark it so, the data handle caches will know to ignore it, and it will eventually age
+             * out. Races are benign, cursors in the midst of an open may get an older btree, and
+             * that will continue to work. Having references to the older dhandle just means some
+             * data in the ingest table will be pinned for a longer time.
+             */
+            WT_WITH_HANDLE_LIST_READ_LOCK(session,
+              if ((ret = __wt_conn_dhandle_find(session, metadata_key, NULL)) == 0)
+                WT_DHANDLE_ACQUIRE(session->dhandle));
+            if (ret == 0) {
+                F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+                WT_DHANDLE_RELEASE(session->dhandle);
+            }
+
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */
@@ -822,6 +925,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
 
+            /* Create any missing stable tables. */
+            WT_ERR(__layered_create_missing_stable_tables(session));
+
             /* Drain the ingest tables before switching to leader. */
             WT_ERR(__layered_drain_ingest_tables(session));
         }
@@ -886,6 +992,11 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));
             WT_ERR(ret);
         }
+
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.internal_page_delta", &cval));
+        conn->disaggregated_storage.internal_page_delta = cval.val != 0;
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.leaf_page_delta", &cval));
+        conn->disaggregated_storage.leaf_page_delta = cval.val != 0;
     }
 
 err:

@@ -30,10 +30,10 @@ import os, os.path, shutil, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
-# test_layered30.py
-#    Test creating empty tables.
+# test_layered36.py
+#    Test creating missing stable tables.
 @disagg_test_class
-class test_layered30(wttest.WiredTigerTestCase, DisaggConfigMixin):
+class test_layered36(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
     conn_base_config = 'statistics=(all),' \
@@ -43,32 +43,16 @@ class test_layered30(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    table_name = "test_layered30"
+    table_name_empty = "test_layered36a"
+    table_name_filled = "test_layered36b"
 
-    disagg_storages = gen_disagg_storages('test_layered30', disagg_only = True)
+    disagg_storages = gen_disagg_storages('test_layered36', disagg_only = True)
     scenarios = make_scenarios(disagg_storages, [
         ('layered-prefix', dict(prefix='layered:', table_config='')),
         ('layered-type', dict(prefix='table:', table_config='block_manager=disagg,type=layered')),
-    ],
-    [
-        ('one-table', dict(another_table=False)),
-        ('two-tables', dict(another_table=True)),
     ])
 
     num_restarts = 0
-
-    # Load the page log extension, which has object storage support
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        DisaggConfigMixin.conn_extensions(self, extlist)
-
-    # Custom test case setup
-    def early_setup(self):
-        os.mkdir('follower')
-        # Create the home directory for the PALM k/v store, and share it with the follower.
-        os.mkdir('kv_home')
-        os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
     # Restart the node without local files
     def restart_without_local_files(self):
@@ -91,65 +75,47 @@ class test_layered30(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Reopen the connection
         self.open_conn()
 
-    # Test creating an empty table.
-    def test_layered30(self):
-        # The node started as a follower, so step it up as the leader
-        self.conn.reconfigure('disaggregated=(role="leader")')
+    # A simple test with a single node.
+    def test_layered36(self):
 
-        # Avoid checkpoint error with precise checkpoint
-        self.conn.set_timestamp('stable_timestamp=1')
-
-        # Create table
-        self.uri = self.prefix + self.table_name
+        # Create an empty table.
+        uri_empty = self.prefix + self.table_name_empty
         config = self.create_session_config + ',' + self.table_config
-        self.session.create(self.uri, config)
+        self.session.create(uri_empty, config)
 
-        # Create a second table (with some data)
-        if self.another_table:
-            self.session.create(self.uri + 'x', config)
-            cursor = self.session.open_cursor(self.uri + 'x', None, None)
+        # Create a table with some data.
+        uri_filled = self.prefix + self.table_name_filled
+        config = self.create_session_config + ',' + self.table_config
+        self.session.create(uri_filled, config)
+
+        # FIXME-SLS-760: This test triggers SLS-760.
+        if False:
+            self.session.begin_transaction() # Draining requires timestamps
+            cursor = self.session.open_cursor(uri_filled, None, None)
             cursor['a'] = 'b'
             cursor.close()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        # Create a checkpoint
+        # Step up and checkpoint.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
+        self.conn.reconfigure('disaggregated=(role="leader")')
         self.session.checkpoint()
 
-        #
-        # Part 1: Check the new table in the follower
-        #
-
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_config)
-        self.disagg_advance_checkpoint(conn_follow)
-        session_follow = conn_follow.open_session('')
-
-        # Check that the table exists in the follower
-        cursor = session_follow.open_cursor(self.uri, None, None)
-        item_count = 0
-        while cursor.next() == 0:
-            item_count += 1
-        cursor.close()
-        self.assertEqual(item_count, 0)
-
-        # Clean up
-        session_follow.close()
-        conn_follow.close()
-
-        #
-        # Part 2: Check the new table after restart
-        #
-
+        # Restart without local files to check that the tables are created and have correct data.
         checkpoint_meta = self.disagg_get_complete_checkpoint_meta()
         self.restart_without_local_files()
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
-        self.conn.reconfigure(f'disaggregated=(role="leader")')
 
-        # Avoid checkpoint error with precise checkpoint
-        self.conn.set_timestamp('stable_timestamp=1')
-
-        # Check that the table exists and is empty
-        cursor = self.session.open_cursor(self.uri, None, None)
+        # Check the tables
+        cursor = self.session.open_cursor(uri_empty, None, None)
         item_count = 0
         while cursor.next() == 0:
             item_count += 1
         cursor.close()
         self.assertEqual(item_count, 0)
+
+        cursor = self.session.open_cursor(uri_filled, None, None)
+        # FIXME-SLS-760: This test triggers SLS-760.
+        if False:
+            self.assertEqual(cursor['a'], 'b')
+        cursor.close()
