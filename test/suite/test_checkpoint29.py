@@ -45,6 +45,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         return self.ckpt_config
 
     def test_checkpoint(self):
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'checkpoint=(precise=true)':
+            self.conn.set_timestamp('stable_timestamp=1')
+
         uri = 'table:checkpoint29'
         internal_checkpoint_name = 'WiredTigerCheckpoint'
 

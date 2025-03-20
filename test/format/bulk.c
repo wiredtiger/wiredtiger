@@ -281,6 +281,8 @@ wts_load(void)
     if (!GV(RUNS_IN_MEMORY)) {
         memset(&sap, 0, sizeof(sap));
         wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+        if (GV(CHECKPOINT_PRECISE))
+            timestamp_once(session, false, false);
         testutil_check(session->checkpoint(session, NULL));
         wt_wrap_close_session(session);
     }

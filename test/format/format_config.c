@@ -776,7 +776,7 @@ config_checkpoint(void)
             break;
         }
 
-    if (GV(OPS_PREPARE) && GV(CHECKPOINT_PRECISE))
+    if (GV(OPS_PREPARE))
         config_off(NULL, "checkpoint.precise");
 }
 
@@ -1538,8 +1538,10 @@ config_transaction(void)
         config_off(NULL, "ops.salvage");
         config_off(NULL, "logging");
     }
-    if (!GV(TRANSACTION_TIMESTAMPS))
+    if (!GV(TRANSACTION_TIMESTAMPS)) {
         config_off(NULL, "ops.prepare");
+        config_off(NULL, "checkpoint.precise");
+    }
 
     /* Set a default transaction timeout limit if one is not specified. */
     if (!config_explicit(NULL, "transaction.operation_timeout_ms"))
