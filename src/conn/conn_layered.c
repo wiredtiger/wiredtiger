@@ -190,6 +190,22 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR(md_cursor->insert(md_cursor));
             __wt_free(session, cfg_ret);
+
+            /*
+             * If there is a matching data handle, it is out of date, as the metadata has changed.
+             * Mark it so, the data handle caches will know to ignore it, and it will eventually age
+             * out. Races are benign, cursors in the midst of an open may get an older btree, and
+             * that will continue to work. Having references to the older dhandle just means some
+             * data in the ingest table will be pinned for a longer time.
+             */
+            WT_WITH_HANDLE_LIST_READ_LOCK(session,
+              if ((ret = __wt_conn_dhandle_find(session, metadata_key, NULL)) == 0)
+                WT_DHANDLE_ACQUIRE(session->dhandle));
+            if (ret == 0) {
+                F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+                WT_DHANDLE_RELEASE(session->dhandle);
+            }
+
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */
