@@ -25,15 +25,16 @@ live_restore_test_env::live_restore_test_env()
     // Live restore requires the source directory to be a valid backup. Create one now.
     {
         static std::string non_lr_config = "create=true";
-        auto backup_conn = std::make_unique<connection_wrapper>(DB_DEST.c_str(), non_lr_config.c_str());
+        auto backup_conn =
+          std::make_unique<connection_wrapper>(DB_DEST.c_str(), non_lr_config.c_str());
 
         backup_conn->get_wt_connection_impl();
-        WT_SESSION *session = (WT_SESSION*)backup_conn->create_session();
+        WT_SESSION *session = (WT_SESSION *)backup_conn->create_session();
         WT_CURSOR *backup_cursor = nullptr;
         REQUIRE(session->open_cursor(session, "backup:", nullptr, nullptr, &backup_cursor) == 0);
 
         testutil_mkdir(DB_SOURCE.c_str());
-        while(backup_cursor->next(backup_cursor) == 0) {
+        while (backup_cursor->next(backup_cursor) == 0) {
             const char *uri = nullptr;
             REQUIRE(backup_cursor->get_key(backup_cursor, &uri) == 0);
             std::string dest_file = DB_DEST + "/" + uri;
