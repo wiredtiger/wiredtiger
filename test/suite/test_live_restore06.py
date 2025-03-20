@@ -29,7 +29,6 @@
 import os, glob, time, wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from helper import copy_wiredtiger_home
 from wtbackup import backup_base
 
 
@@ -49,14 +48,15 @@ class test_live_restore06(backup_base):
         if os.name == 'nt':
             return
 
-        # Create a DB in SOURCE to be restored
+        # Create an initial DB in SOURCE to be restored
         for i in range(0, 3):
             ds = SimpleDataSet(self, f'file:collection_{i}', 10_000,
             key_format='S', value_format='S')
             ds.populate()
 
+        os.mkdir("SOURCE")
+        self.take_full_backup("SOURCE")
         self.close_conn()
-        copy_wiredtiger_home(self, '.', "SOURCE")
 
         # Remove everything but SOURCE / stderr / stdout.
         for f in glob.glob("*"):
