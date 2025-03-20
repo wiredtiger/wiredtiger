@@ -649,7 +649,7 @@ std::string wt_build_dir_path();
  * wt_disagg_config_string --
  *     Get the config string for disaggregated storage.
  */
-std::string wt_disagg_config_string(bool checkpoint_on_shutdown = true);
+std::string wt_disagg_config_string();
 
 /*
  * wt_disagg_pick_up_latest_checkpoint --

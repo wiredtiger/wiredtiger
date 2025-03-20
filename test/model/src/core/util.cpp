@@ -479,7 +479,7 @@ wt_build_dir_path()
  *     Get the config string for disaggregated storage.
  */
 std::string
-wt_disagg_config_string(bool checkpoint_on_shutdown)
+wt_disagg_config_string()
 {
     std::string extension = wt_extension_path("page_log/palm/libwiredtiger_page_log.so");
 
@@ -487,9 +487,7 @@ wt_disagg_config_string(bool checkpoint_on_shutdown)
     config << "checkpoint=(precise=true),";
     config << "extensions=[" << extension << "],";
     /* config << "extensions=[" << extension << "=(config=\"(verbose=1)\")" << "],"; */
-    config << "disaggregated=(page_log=palm,role=follower,";
-    config << "shutdown_checkpoint=" << checkpoint_on_shutdown;
-    config << ")";
+    config << "disaggregated=(page_log=palm,role=follower)";
 
     return config.str();
 }

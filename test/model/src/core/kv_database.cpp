@@ -51,8 +51,8 @@ const kv_database_config kv_database::_default_config;
  */
 kv_database_config::kv_database_config()
 {
-    checkpoint_on_shutdown = true;
     disaggregated = false;
+    leader = true;
 }
 
 /*
@@ -67,10 +67,10 @@ kv_database_config::from_string(const std::string &config)
     config_map m = config_map::from_string(config);
     std::vector<std::string> keys = m.keys();
     for (std::string &k : keys) {
-        if (k == "checkpoint_on_shutdown")
-            r.checkpoint_on_shutdown = m.get_bool(k.c_str());
-        else if (k == "disaggregated")
+        if (k == "disaggregated")
             r.disaggregated = m.get_bool(k.c_str());
+        else if (k == "leader")
+            r.leader = m.get_bool(k.c_str());
         else
             throw std::runtime_error("Invalid database configuration key: " + k);
     }
@@ -296,7 +296,7 @@ kv_database::restart(bool crash)
     rollback_all_nolock();
 
     /* If we are not crashing, create a checkpoint. */
-    if (!crash && _config.checkpoint_on_shutdown)
+    if (!crash && (!_config.disaggregated || _config.leader))
         create_checkpoint();
 
     /* Start WiredTiger. */
