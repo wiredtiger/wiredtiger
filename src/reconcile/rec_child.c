@@ -7,14 +7,15 @@
  */
 
 #include "wt_internal.h"
-
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 /*
  * __rec_child_deleted --
  *     Handle pages with leaf pages in the WT_REF_DELETED state.
  */
 static int
 __rec_child_deleted(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_PAGE_DELETED *page_del;
@@ -211,7 +212,7 @@ __rec_child_deleted(
  *     Return if the internal page's child references any modifications.
  */
 int
-__wti_rec_child_modify(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
+__wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
   WTI_CHILD_MODIFY_STATE *cmsp, bool *build_delta)
 {
     WT_DECL_RET;

@@ -7,19 +7,21 @@
  */
 
 #include "wt_internal.h"
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 
-static int __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
+static int __rec_cleanup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
-static int __rec_hs_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
+static int __rec_hs_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
-static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
-static int __rec_split_write(WT_SESSION_IMPL *, WT_RECONCILE *, WTI_REC_CHUNK *, bool);
-static void __rec_write_page_status(WT_SESSION_IMPL *, WT_RECONCILE *);
-static int __rec_write_err(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
-static int __rec_write_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
+static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *, uint8_t);
+static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, bool);
+static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
+static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
+static int __rec_write_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
 /*
@@ -153,7 +155,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
  */
 static int
 __reconcile_post_wrapup(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, uint32_t flags, bool *page_lockedp)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, uint32_t flags, bool *page_lockedp)
 {
     WT_BTREE *btree;
 
@@ -225,7 +227,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_RECONCILE *r;
+    WTI_RECONCILE *r;
     uint64_t rec, rec_finish, rec_hs_wrapup, rec_img_build, rec_start;
     void *addr;
 
@@ -394,7 +396,7 @@ err:
  *     Set the page status after reconciliation.
  */
 static void
-__rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
@@ -567,7 +569,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_RECONCILE *r;
+    WTI_RECONCILE *r;
     WT_TXN_GLOBAL *txn_global;
     uint64_t ckpt_txn;
 
@@ -579,7 +581,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * WT_SESSION_IMPL.WT_SESSION_NO_RECONCILE to prevent it, but it's been a problem in the past,
      * check to be sure.
      */
-    r = *(WT_RECONCILE **)reconcilep;
+    r = *(WTI_RECONCILE **)reconcilep;
     if (r != NULL && r->ref != NULL)
         WT_RET_MSG(session, WT_ERROR, "reconciliation re-entered");
 
@@ -767,9 +769,9 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
  * passed in a structure, they own it.
  */
 err:
-    if (*(WT_RECONCILE **)reconcilep == NULL) {
+    if (*(WTI_RECONCILE **)reconcilep == NULL) {
         if (ret == 0)
-            *(WT_RECONCILE **)reconcilep = r;
+            *(WTI_RECONCILE **)reconcilep = r;
         else {
             WT_TRET(__rec_cleanup(session, r));
             WT_TRET(__rec_destroy(session, &r));
@@ -784,7 +786,7 @@ err:
  *     Clean up after a reconciliation run, except for structures cached across runs.
  */
 static int
-__rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_cleanup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
     WT_MULTI *multi;
@@ -818,15 +820,15 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 static int
 __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
 {
-    WT_RECONCILE *r;
+    WTI_RECONCILE *r;
 
-    if ((r = *(WT_RECONCILE **)reconcilep) == NULL)
+    if ((r = *(WTI_RECONCILE **)reconcilep) == NULL)
         return (0);
 
     if (r->hs_cursor != NULL)
         WT_RET(r->hs_cursor->close(r->hs_cursor));
 
-    *(WT_RECONCILE **)reconcilep = NULL;
+    *(WTI_RECONCILE **)reconcilep = NULL;
 
     __wt_buf_free(session, &r->chunk_A.key);
     __wt_buf_free(session, &r->chunk_A.key_at_split_boundary);
@@ -940,7 +942,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
  *     Figure out the maximum leaf page size for a salvage reconciliation.
  */
 static WT_INLINE uint32_t
-__rec_leaf_page_max_slvg(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_leaf_page_max_slvg(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
@@ -1036,7 +1038,7 @@ __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
  *     Initialize a single chunk structure.
  */
 static int
-__rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_REC_CHUNK *chunk)
+__rec_split_chunk_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk)
 {
     chunk->recno = WT_RECNO_OOB;
     /* Don't touch the key item memory, that memory is reused. */
@@ -1081,7 +1083,7 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_REC_CHUNK 
  *     Initialization for the reconciliation split functions.
  */
 int
-__wti_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, uint64_t recno,
+__wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, uint64_t recno,
   uint64_t primary_size, uint32_t auxiliary_size)
 {
     /* FUTURE: primary_size should probably also be 32 bits. */
@@ -1231,7 +1233,7 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, u
  *     Return if we're writing a checkpoint.
  */
 static bool
-__rec_is_checkpoint(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_is_checkpoint(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
 
@@ -1258,7 +1260,7 @@ __rec_is_checkpoint(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Key promotion for a row-store.
  */
 static int
-__rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key, uint8_t type)
+__rec_split_row_promote(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key, uint8_t type)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(update);
@@ -1366,7 +1368,7 @@ err:
  *     Grow the split buffer.
  */
 int
-__wti_rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
+__wti_rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -1412,7 +1414,7 @@ __wti_rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
  *     Consider eliminating the empty space on an FLCS page.
  */
 static void
-__rec_split_fix_shrink(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_split_fix_shrink(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     uint32_t auxsize, emptysize, primarysize, totalsize;
     uint8_t *dst, *src;
@@ -1464,7 +1466,7 @@ __rec_split_fix_shrink(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     in a row? Sweet-tooth does, too.)
  */
 int
-__wti_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
+__wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 {
     WT_BTREE *btree;
     WTI_REC_CHUNK *tmp;
@@ -1597,7 +1599,7 @@ done:
  *     Save the details for the minimum split size boundary or call for a split.
  */
 int
-__wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
+__wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 {
     /*
      * If crossing the minimum split size boundary, store the boundary details at the current
@@ -1645,7 +1647,7 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t n
  *     (last) buffer in memory, pointed to by the current image pointer.
  */
 static int
-__rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
     WT_PAGE_HEADER *dsk;
@@ -1751,7 +1753,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Finish processing a page.
  */
 int
-__wti_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__wti_rec_split_finish(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     /*
      * We're done reconciling, write the final page. We may arrive here with no entries to write if
@@ -1832,8 +1834,8 @@ __rec_supd_move(WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, ui
  *     structure.
  */
 static int
-__rec_split_write_supd(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_REC_CHUNK *chunk, WT_MULTI *multi, bool last_block)
+__rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk,
+  WT_MULTI *multi, bool last_block)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(key);
@@ -1947,7 +1949,7 @@ __rec_set_page_write_gen(WT_BTREE *btree, WT_PAGE_HEADER *dsk)
  *     Initialize a disk page's header.
  */
 static void
-__rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_REC_CHUNK *chunk,
+__rec_split_write_header(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk,
   WT_MULTI *multi, WT_PAGE_HEADER *dsk)
 {
     WT_BTREE *btree;
@@ -2063,7 +2065,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
  *     Build delta init.
  */
 int
-__wti_rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__wti_rec_build_delta_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_RET(__wt_buf_init(session, &r->delta, r->disk_img_buf_size));
     memset(r->delta.mem, 0, WT_DELTA_HEADER_SIZE);
@@ -2077,7 +2079,7 @@ __wti_rec_build_delta_init(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Pack the delta key
  */
 static WT_INLINE int
-__rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_INSERT *ins,
+__rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_ITEM *key)
 {
     WT_DECL_RET;
@@ -2113,7 +2115,7 @@ __rec_delta_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
  */
 int
 __wti_rec_pack_delta_internal(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_REC_KV *key, WTI_REC_KV *value)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *key, WTI_REC_KV *value)
 {
     WT_DELTA_HEADER *header;
     size_t packed_size;
@@ -2153,7 +2155,7 @@ __wti_rec_pack_delta_internal(
  *     Pack a delta for a leaf page
  */
 static int
-__rec_pack_delta_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SAVE_UPD *supd)
+__rec_pack_delta_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_SAVE_UPD *supd)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -2274,7 +2276,7 @@ err:
  *     Build delta for leaf pages.
  */
 static int
-__rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WT_RECONCILE *r)
+__rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI_RECONCILE *r)
 {
     WT_DELTA_HEADER *header;
     WT_MULTI *multi;
@@ -2329,7 +2331,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WT_
  */
 static int
 __rec_build_delta(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE_HEADER *full_image, bool *build_deltap)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE_HEADER *full_image, bool *build_deltap)
 {
     *build_deltap = false;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
@@ -2347,7 +2349,7 @@ __rec_build_delta(
  *     Write a disk block out for the split helper functions.
  */
 static int
-__rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_REC_CHUNK *chunk, bool last_block)
+__rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, bool last_block)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
@@ -2606,7 +2608,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
     WT_BTREE *btree;
     WT_PAGE_INDEX *pindex;
-    WT_RECONCILE *r;
+    WTI_RECONCILE *r;
     uint64_t recno;
 
     btree = S2BT(session);
@@ -2645,7 +2647,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *parent;
-    WT_RECONCILE *r;
+    WTI_RECONCILE *r;
 
     btree = S2BT(session);
     if ((r = cbulk->reconcile) == NULL)
@@ -2752,7 +2754,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Dump out the split keys in verbose mode.
  */
 static int
-__rec_split_dump_keys(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_split_dump_keys(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(tkey);
@@ -2813,7 +2815,7 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
  *     Set the updates durable. This must be called when the reconciliation can no longer fail.
  */
 static WT_INLINE void
-__rec_set_updates_durable(WT_RECONCILE *r)
+__rec_set_updates_durable(WTI_RECONCILE *r)
 {
     WT_MULTI *multi;
     WT_SAVE_UPD *supd;
@@ -2845,7 +2847,7 @@ __rec_set_updates_durable(WT_RECONCILE *r)
  *     Finish the reconciliation.
  */
 static int
-__rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
+__rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -3111,7 +3113,7 @@ split:
  *     Finish the reconciliation on error.
  */
 static int
-__rec_write_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
+__rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 {
     WT_DECL_RET;
     WT_MULTI *multi;
@@ -3136,7 +3138,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
  *     Copy all of the saved updates into the database's history store table.
  */
 static int
-__rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -3156,11 +3158,11 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * Delete the updates left in the history store by prepared rollback first before moving updates
      * to the history store.
      */
-    WT_ERR(__wt_hs_delete_updates(session, r));
+    WT_ERR(__wti_rec_hs_delete_updates(session, r));
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         if (multi->supd != NULL)
-            WT_ERR(__wt_hs_insert_updates(session, r, multi));
+            WT_ERR(__wti_rec_hs_insert_updates(session, r, multi));
     }
 
 err:
@@ -3172,7 +3174,7 @@ err:
  *     Store overflow items in the file, returning the address cookie.
  */
 int
-__wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_REC_KV *kv, uint8_t type,
+__wti_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv, uint8_t type,
   WT_TIME_WINDOW *tw, uint64_t rle)
 {
     WT_BM *bm;
@@ -3244,7 +3246,7 @@ err:
  */
 int
 __wti_rec_hs_clear_on_tombstone(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, uint64_t recno, WT_ITEM *rowkey, bool reinsert)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t recno, WT_ITEM *rowkey, bool reinsert)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -3288,7 +3290,7 @@ __wti_rec_hs_clear_on_tombstone(
      * checkpoint itself and lead to history store inconsistency. (Note: WT_REC_CHECKPOINT_RUNNING
      * is set only during evictions, and never in the checkpoint thread itself.)
      */
-    WT_RET(__wt_hs_delete_key(
+    WT_RET(__wti_rec_hs_delete_key(
       session, r->hs_cursor, btree->id, key, reinsert, F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)));
 
     /* Fail 0.01% of the time. */
