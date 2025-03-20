@@ -27,6 +27,7 @@
  */
 
 #include <sys/time.h>
+#include <sys/types.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
 
@@ -118,8 +119,14 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
           "Failed to run the workload in the model: " + std::string(e.what()));
     }
 
-    /* Create the database directory and save the workload. */
+    /* Create the database directory. */
     testutil_recreate_dir(home.c_str());
+    if (database.config().disaggregated) {
+        std::string kv_home = home + "/kv_home";
+        testutil_recreate_dir(kv_home.c_str());
+    }
+
+    /* Save the workload. */
     std::string workload_file = home + DIR_DELIM_STR + MAIN_WORKLOAD_FILE;
     std::ofstream workload_out;
     workload_out.open(workload_file);
@@ -153,12 +160,12 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
         throw std::runtime_error("WiredTiger executed " + std::to_string(ret_wt.size()) +
           " operations, but " + std::to_string(ret_model.size()) + " was expected.");
 
-    /*
-     * Verify the database in a separate process to protect against any crashes during verification,
-     * which would allow the counter-example reduction to run in this case.
-     */
+    /* Verify the database in a separate process. */
 
-    /* Initialize the shared memory to pass state from the verification process to the parent. */
+    /*
+     * Initialize the shared memory state, that we will share between the controller (parent)
+     * process, and the process that will actually run the workload.
+     */
     model::shared_memory shm_state(sizeof(shared_verify_state));
     shared_verify_state *verify_state = (shared_verify_state *)shm_state.data();
 
@@ -175,6 +182,11 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
             /* Open the WiredTiger database to verify. */
             WT_CONNECTION *conn;
             std::string conn_config_verify = model::kv_workload_runner_wt::k_config_base;
+            if (database.config().disaggregated) {
+                conn_config_verify += ",";
+                conn_config_verify +=
+                  model::wt_disagg_config_string(false /* checkpoint on shutdown */);
+            }
             if (conn_config_override != "")
                 conn_config_verify += "," + conn_config_override;
             int ret = wiredtiger_open(
@@ -182,7 +194,12 @@ run_and_verify(std::shared_ptr<model::kv_workload> workload, const std::string &
             if (ret != 0)
                 throw std::runtime_error("Cannot open the database: " +
                   std::string(wiredtiger_strerror(ret)) + " (" + std::to_string(ret) + ")");
-            model::wiredtiger_connection_guard conn_guard(conn); /* Close automatically. */
+            model::wiredtiger_connection_guard conn_guard(
+              conn); /* Automatically close at the end. */
+
+            /* If this is disaggregated storage, pick up the latest checkpoint. */
+            if (database.config().disaggregated)
+                model::wt_disagg_pick_up_latest_checkpoint(conn);
 
             /* Get the list of tables. */
             std::vector<std::string> tables;
@@ -622,6 +639,9 @@ reduce_counterexample(std::shared_ptr<model::kv_workload> workload, const std::s
         const model::kv_workload_operation &op, size_t) { return op.seq_no != model::k_no_seq_no; },
       [](const model::kv_workload_operation &op, size_t) { return op.seq_no; },
       [](const model::kv_workload_operation &op, size_t) {
+          /* Always include model-level configuration in the workload. */
+          if (std::holds_alternative<model::operation::config>(op.operation))
+              return true;
           /*
            * Always include metadata operations in the workload, so that we don't produce a
            * malformed workload at this stage due to a missing table.

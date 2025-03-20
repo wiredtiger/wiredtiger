@@ -45,6 +45,7 @@ target_compile_options(
 
 find_package(Iconv REQUIRED)
 target_link_libraries(wiredtiger_model Iconv::Iconv)
+target_link_libraries(wiredtiger_model ${CMAKE_DL_LIBS})
 target_link_libraries(wiredtiger_model wt::wiredtiger)
 
 # Build the tests and the tools.
