@@ -339,10 +339,10 @@ configure_database(scoped_session &session)
     }
 }
 
-// Take a backup of the provided database and then delete it. This backup will be used in the
-// next loop as a source directory.
+// Take a backup of the provided database and then delete the original db. This backup will be used
+// in the next loop as a source directory.
 static void
-take_backup_and_delete(const std::string &home, const std::string &backup_dir)
+take_backup_and_delete_original(const std::string &home, const std::string &backup_dir)
 {
     testutil_recreate_dir(backup_dir.c_str());
     const std::string conn_config = "log=(enabled=true,path=journal)";
@@ -565,7 +565,7 @@ main(int argc, char *argv[])
 
         // We need to create a database to restore from initially.
         create_db(home_path, thread_count, coll_count, op_count, verbose_level);
-        take_backup_and_delete(home_path, std::string(SOURCE_PATH));
+        take_backup_and_delete_original(home_path, std::string(SOURCE_PATH));
     }
 
     /* When setting up the database we don't want to wait for the background threads to complete. */
@@ -578,7 +578,7 @@ main(int argc, char *argv[])
         logger::log_msg(LOG_INFO, "!!!! Beginning iteration: " + std::to_string(i) + " !!!!");
         run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count,
           background_thread_debug_mode, verbose_level, i == death_it, recovery);
-        take_backup_and_delete(home_path, std::string(SOURCE_PATH));
+        take_backup_and_delete_original(home_path, std::string(SOURCE_PATH));
     }
 
     return (0);
