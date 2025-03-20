@@ -494,6 +494,11 @@ __live_restore_fh_fill_bit_range(
     if (WTI_DEST_COMPLETE(lr_fh))
         return;
 
+    WT_ASSERT_ALWAYS(session, offset % lr_fh->allocsize == 0,
+      "Fill offset must always be a multiple of alloc size");
+    WT_ASSERT_ALWAYS(
+      session, len % lr_fh->allocsize == 0, "Fill length must always be a multiple of alloc size");
+
     /*
      * Don't compute the offset before checking if the destination is complete, it depends on
      * allocsize which may not exist if the destination is complete.
@@ -502,6 +507,8 @@ __live_restore_fh_fill_bit_range(
     if (offset_bit >= lr_fh->nbits)
         return;
 
+    WT_ASSERT_ALWAYS(session, (WTI_OFFSET_END(offset, len) % lr_fh->allocsize) == 0,
+      "Offset end must always be a multiple of alloc size");
     uint64_t fill_end_bit = WTI_OFFSET_TO_BIT(WTI_OFFSET_END(offset, len)) - 1;
     bool partial_fill = false;
     if (fill_end_bit >= lr_fh->nbits) {
@@ -2077,5 +2084,12 @@ __ut_live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
     return (__live_restore_decode_bitmap(session, bitmap_str, nbits, lr_fh));
+}
+
+void
+__ut_live_restore_fh_fill_bit_range(
+  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+{
+    __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
 }
 #endif
