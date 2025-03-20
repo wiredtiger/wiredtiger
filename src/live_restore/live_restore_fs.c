@@ -1235,25 +1235,10 @@ __wt_live_restore_metadata_to_fh(
       "Reading in bitmap information from metadata but bitmap information already exists in "
       "memory");
 
-    /*
-     * Once we're in the clean up stage or later all data has been migrated across to the
-     * destination. There's no need for hole tracking and therefore nothing to reconstruct. The
-     * migration state must be checked before we check the number of bits in the bitmap as we clear
-     * that once it finishes.
-     */
-    if (__wti_live_restore_migration_complete(session)) {
-        /*
-         * Even though the migration has completed we may still have a source file, this indicates
-         * that the live restore finished while this file was being opened.
-         */
-        WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
-        return (0);
-    }
-
     __wt_writelock(session, &lr_fh->lock);
     lr_fh->allocsize = lr_fh_meta->allocsize;
 
-    /* If there is no source file the migration has completed. */
+    /* If there is no source file there is nothing to migrate and therefore no metadata to parse. */
     if (WTI_DEST_COMPLETE(lr_fh)) {
         __wt_writeunlock(session, &lr_fh->lock);
         return (0);
@@ -1263,12 +1248,10 @@ __wt_live_restore_metadata_to_fh(
      * !!!
      * While the live restore is in progress, the bit count reported by in the live restore metadata
      * can hold three states:
-     *  (0)         : This means file has not yet had a bitmap representation written to the
-     *                metadata file and therefore no application writes have gone to the
-     *                destination. In theory background thread writes may have happened but unless
-     *                the tree was dirtied the metadata update was not written out.
+     *  (0)         : This means the file has not started migration.
      *  (-1)        : This indicates the file has finished migration and the bitmap is empty.
-     *  (nbits > 0) : The number of bits in the bitmap.
+     *  (nbits > 0) : The number of bits in the bitmap. This is set when the file is in the
+     *                process of being migrated.
      */
     if (lr_fh_meta->nbits == 0) {
         WT_ASSERT(session, !WTI_DEST_COMPLETE(lr_fh));
@@ -1289,6 +1272,10 @@ __wt_live_restore_metadata_to_fh(
           session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
     } else {
         WT_ASSERT(session, lr_fh_meta->nbits == -1);
+        /*
+         * Our file open logic always opens the backing source file when it exists, but since we've
+         * completed migration we don't need it.
+         */
         WT_ERR(__live_restore_fh_close_source(session, lr_fh, false));
     }
 
