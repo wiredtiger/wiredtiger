@@ -1489,8 +1489,8 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
     size_t i, len, table_count, uri_alloc;
-    uint64_t prune_timestamp;
-    int64_t ckpt_inuse, last_ckpt, min_ckpt_inuse;
+    wt_timestamp_t prune_timestamp;
+    uint64_t ckpt_inuse, last_ckpt, min_ckpt_inuse;
     uint32_t track;
     char *uri_at_checkpoint;
 
