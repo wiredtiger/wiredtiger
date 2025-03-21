@@ -364,7 +364,9 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
         configure_database(crud_session);
-    do_random_crud(crud_session, collection_count, op_count, false, conn_config, home);
+    // Run 90% of random crud here and do the rest when live restore completes.
+    do_random_crud(
+      crud_session, collection_count, (int64_t)(op_count * 0.9), false, conn_config, home);
     if (die)
         raise(SIGKILL);
 
@@ -388,8 +390,9 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     testutil_remove(SOURCE_PATH);
     logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
     // We've deleted the source folder, so reopening the connection will fail. Disable reopens in
-    // our crud operations.
-    do_random_crud(crud_session, collection_count, op_count, false, conn_config, home, false);
+    // our crud operations, and do the rest 10% of random crud.
+    do_random_crud(
+      crud_session, collection_count, (int64_t)(op_count * 0.1), false, conn_config, home, false);
 
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
