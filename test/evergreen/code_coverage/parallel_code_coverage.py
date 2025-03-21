@@ -61,7 +61,7 @@ def run_task(index, task):
     end_time = datetime.now()
     diff = end_time - start_time
     logging.debug("Finished task {} in {} : took {} seconds".format(task, build_dir, diff.total_seconds()))
-    return (task, diff.total_seconds())
+    return task, diff.total_seconds()
 
 def main():
     parser = argparse.ArgumentParser()
@@ -95,12 +95,12 @@ def main():
     logging.debug('  Perform setup actions:           {}'.format(setup))
     logging.debug('  Check errors:                    {}'.format(check_errors))
 
-    if (bucket and bucket != "python" and bucket != "other"):
+    if bucket and bucket != "python" and bucket != "other":
         sys.exit("Only buckets options \"python\" and \"other\" are allowed")
 
     # optimize_test_order will rewrite the list of coverage tests. If we use this when running a
     # subset of tests only that subset will be written and we'll lose the unscheduled tests.
-    if (bucket and optimize_test_order):
+    if bucket and optimize_test_order:
         sys.exit("Analysis mode can not be done with bucket")
 
     if parallel_tests < 1:
@@ -136,10 +136,10 @@ def main():
         # To do this we divide the tests into two buckets into either only python tests or
         # non-python tests. If python is set, only include python tests in the task list.
         is_python_test = re.search("python", test)
-        if (not is_python_test and bucket == "python"):
+        if not is_python_test and bucket == "python":
             continue
         # Else if other is set, only include non-python tests in the task list.
-        elif (is_python_test and bucket == "other"):
+        elif is_python_test and bucket == "other":
             continue
         logging.debug("Prepping test {} ".format(test))
         task_list.append(test)

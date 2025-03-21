@@ -74,7 +74,7 @@ def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, optimize_te
                 future.result()
 
         # took to run
-        if (optimize_test_order):
+        if optimize_test_order:
             for future in concurrent.futures.as_completed(futures):
                 data = future.result()
                 analyse_test_timings.append(data)
