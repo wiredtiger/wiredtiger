@@ -20,9 +20,9 @@
 static void
 __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 {
-    WT_DECL_RET;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
     WT_TABLE *table;
 
     conn = S2C(session);
