@@ -1481,15 +1481,15 @@ err:
 static int
 __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
 {
-    WT_BTREE *ingest;
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *ingest;
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *ds;
     WT_LAYERED_TABLE *layered_table;
     WT_LAYERED_TABLE_MANAGER *manager;
     WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
-    size_t i, len, table_count, uri_alloc;
     wt_timestamp_t prune_timestamp;
+    size_t i, len, table_count, uri_alloc;
     int64_t ckpt_inuse, last_ckpt, min_ckpt_inuse;
     uint32_t track;
     char *uri_at_checkpoint;
@@ -1585,7 +1585,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                  * TODO: this assumes the ingest table dhandle is open if the layered table dhandle
                  * is open.
                  */
-                ingest = (WT_BTREE *)layered_table->ingest;
+                ingest = layered_table->ingest;
                 WT_ASSERT(session, prune_timestamp >= ingest->prune_timestamp);
                 WT_RELEASE_WRITE(ingest->prune_timestamp, prune_timestamp);
 
