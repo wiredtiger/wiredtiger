@@ -1195,29 +1195,6 @@ err:
 }
 
 /*
- * __live_restore_decode_bitmap --
- *     Decode a bitmap from a hex string.
- */
-static int
-__live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str, uint64_t nbits,
-  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
-{
-    WT_DECL_RET;
-    WT_ASSERT_ALWAYS(session, bitmap_str != NULL, "Live restore bitmap string is NULL");
-
-    WT_RET(__bit_alloc(session, nbits, &lr_fh->bitmap));
-    lr_fh->nbits = nbits;
-
-    WT_ITEM buf;
-    WT_CLEAR(buf);
-    WT_ERR(__wt_hex_to_raw(session, bitmap_str, &buf));
-    memcpy(lr_fh->bitmap, buf.mem, buf.size);
-err:
-    __wt_buf_free(session, &buf);
-    return (ret);
-}
-
-/*
  * __live_restore_compute_nbits --
  *     Compute the number of bits needed for the bitmap, based off the destination file size.
  */
@@ -1231,6 +1208,43 @@ __live_restore_compute_nbits(
       "The file size isn't a multiple of the file allocation size!");
     *nbitsp = (uint64_t)size / (uint64_t)lr_fh->allocsize;
     return (0);
+}
+
+/*
+ * __live_restore_decode_bitmap --
+ *     Decode a bitmap from a hex string.
+ */
+static int
+__live_restore_decode_bitmap(WT_SESSION_IMPL *session, const char *bitmap_str,
+  uint64_t metadata_nbits, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
+{
+    WT_DECL_RET;
+    WT_ASSERT_ALWAYS(session, bitmap_str != NULL, "Live restore bitmap string is NULL");
+
+    WT_RET(__bit_alloc(session, metadata_nbits, &lr_fh->bitmap));
+    lr_fh->nbits = metadata_nbits;
+
+    WT_ITEM buf;
+    WT_CLEAR(buf);
+    WT_ERR(__wt_hex_to_raw(session, bitmap_str, &buf));
+    memcpy(lr_fh->bitmap, buf.mem, buf.size);
+
+    uint64_t file_size_nbits;
+    WT_ERR(__live_restore_compute_nbits(session, lr_fh, &file_size_nbits));
+    /*
+     * We may have truncated a file and the filesize on disk is shorter than that in the bitmap
+     * itself. This would happen even without a crash, we can assert that all the bits in the file
+     * past the file size nbits are set.
+     */
+    if (file_size_nbits < metadata_nbits)
+        for (uint64_t i = file_size_nbits; i < metadata_nbits; i++)
+            WT_ASSERT_ALWAYS(session, __bit_test(lr_fh->bitmap, i),
+              "Live restore bitmap corruption detected in %s, bit %" PRIu64 " of %" PRIu64
+              " is unset!",
+              lr_fh->iface.name, i, metadata_nbits);
+err:
+    __wt_buf_free(session, &buf);
+    return (ret);
 }
 
 /*
@@ -1268,9 +1282,9 @@ __wt_live_restore_metadata_to_fh(
      *  (nbits > 0) : The number of bits in the bitmap. This is set when the file is in the
      *                process of being migrated.
      */
-    uint64_t nbits = 0;
     if (lr_fh_meta->nbits == 0) {
         WT_ASSERT(session, !WTI_DEST_COMPLETE(lr_fh));
+        uint64_t nbits;
         WT_ERR(__live_restore_compute_nbits(session, lr_fh, &nbits));
         WT_ERR(__bit_alloc(session, nbits, &lr_fh->bitmap));
         lr_fh->nbits = nbits;
@@ -1282,13 +1296,6 @@ __wt_live_restore_metadata_to_fh(
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Reconstructing bitmap for %s, bitmap_sz %" PRId64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
-        WT_ERR(__live_restore_compute_nbits(session, lr_fh, &nbits));
-        /*
-         * Catch rare scenarios like truncating before a crash, we don't handle them but they could
-         * create some kind of data corruption.
-         */
-        WT_ASSERT_ALWAYS(
-          session, (uint64_t)lr_fh_meta->nbits == nbits, "file size doesn't match bitmap size");
         /* Reconstruct a pre-existing bitmap. */
         WT_ERR(__live_restore_decode_bitmap(
           session, lr_fh_meta->bitmap_str, (uint64_t)lr_fh_meta->nbits, lr_fh));
