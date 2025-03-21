@@ -1538,7 +1538,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                  * haven't tracked any checkpoints, if that happens, we'll start checking at zero.
                  */
                 if (ds->ckpt_track_cnt > 0)
-                    ckpt_inuse = ds->ckpt_track[ds->ckpt_track_cnt - 1].ckpt_order;
+                    ckpt_inuse = ds->ckpt_track[0].ckpt_order;
             }
 
             /*
