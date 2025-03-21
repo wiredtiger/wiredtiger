@@ -261,8 +261,7 @@ reopen_conn(scoped_session &session, const std::string &conn_config, const std::
 
 static void
 do_random_crud(scoped_session &session, const int64_t collection_count, const int64_t op_count,
-  const bool fresh_start, const std::string &conn_config, const std::string &home,
-  const bool allow_reopen = true)
+  const bool fresh_start, const std::string &conn_config, const std::string &home)
 {
     bool file_created = fresh_start == false;
 
@@ -291,7 +290,7 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
             logger::log_msg(LOG_INFO, "Taking checkpoint");
-        } else if (ran < 15 && !fresh_start && allow_reopen) {
+        } else if (ran < 15 && !fresh_start) {
             logger::log_msg(LOG_INFO, "Commencing connection reopen");
             reopen_conn(session, conn_config, home);
             session = std::move(connection_manager::instance().create_session());
@@ -378,8 +377,8 @@ take_backup_and_delete_original(const std::string &home, const std::string &back
 
 static void
 run_restore(const std::string &home, const std::string &source, const int64_t thread_count,
-  const int64_t collection_count, const int64_t op_count, const int64_t verbose_level,
-  const bool die, const bool recovery)
+  const int64_t collection_count, const int64_t op_count, const bool background_thread_mode,
+  const int64_t verbose_level, const bool die, const bool recovery)
 {
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string verbose_string = verbose_level == 0 ?
@@ -400,32 +399,24 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
         configure_database(crud_session);
-    do_random_crud(crud_session, collection_count, op_count, false, conn_config, home);
+    if (!background_thread_mode)
+        do_random_crud(crud_session, collection_count, op_count, false, conn_config, home);
     if (die)
         raise(SIGKILL);
 
     // Loop until the state stat is complete!
-    logger::log_msg(LOG_INFO, "Waiting for background data transfer to complete...");
-    while (true) {
-        auto stat_cursor = crud_session.open_scoped_cursor("statistics:");
-        int64_t state;
-        get_stat(stat_cursor.get(), WT_STAT_CONN_LIVE_RESTORE_STATE, &state);
-        if (state == WT_LIVE_RESTORE_COMPLETE)
-            break;
-        __wt_sleep(1, 0);
+    if (thread_count > 0 || background_thread_mode) {
+        logger::log_msg(LOG_INFO, "Waiting for background data transfer to complete...");
+        while (true) {
+            auto stat_cursor = crud_session.open_scoped_cursor("statistics:");
+            int64_t state;
+            get_stat(stat_cursor.get(), WT_STAT_CONN_LIVE_RESTORE_STATE, &state);
+            if (state == WT_LIVE_RESTORE_COMPLETE)
+                break;
+            __wt_sleep(1, 0);
+        }
+        logger::log_msg(LOG_INFO, "Done!");
     }
-    logger::log_msg(LOG_INFO, "Done!");
-
-    /*
-     * Once background migration has finished there's no reason for us to access the backing source
-     * files any more. Verify this by deleting the backing directory. Any accesses to the deleted
-     * files will trigger a crash.
-     */
-    testutil_remove(SOURCE_PATH);
-    logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
-    // We've deleted the source folder, so reopening the connection will fail. Disable reopens in
-    // our crud operations.
-    do_random_crud(crud_session, collection_count, op_count, false, conn_config, home, false);
 
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
@@ -462,6 +453,11 @@ usage()
                  "no options are specified it will run with a default configuration."
               << std::endl;
     std::cout << "OPTIONS" << std::endl;
+    std::cout << "\t-b Background thread debug mode, initialize the database then loop for "
+                 "iteration count. Each iteration will wait for the background thread to finish "
+                 "transferring data before terminating. No additional CRUD operations will take "
+                 "place during background thread debug mode. "
+              << std::endl;
     std::cout << "\t-c The maximum number of collections to run the test with, if unset "
                  "collections are created at random."
               << std::endl;
@@ -479,8 +475,8 @@ usage()
               << std::endl;
     std::cout << "\t-o The number of crud operations to apply while live restoring." << std::endl;
     std::cout << "\t-r Start from existing data files and run recovery." << std::endl;
-    std::cout << "\t-t Thread count for the background thread. A value greater than 0 must be "
-                 "specified."
+    std::cout << "\t-t Thread count for the background thread. A value of 0 is legal in which case "
+                 "data files will not be transferred in the background."
               << std::endl;
     std::cout << "\t-o Verbose level, this setting will set WT_VERB_FILE_OPS with whatever level "
                  "is provided. The default is off."
@@ -514,10 +510,6 @@ main(int argc, char *argv[])
     int64_t thread_count =
       thread_count_str.empty() ? thread_count_default : atoi(thread_count_str.c_str());
     logger::log_msg(LOG_INFO, "Background thread count: " + std::to_string(thread_count));
-    if (thread_count == 0) {
-        logger::log_msg(LOG_ERROR, "Background thread count can't have a value of 0.");
-        return EXIT_FAILURE;
-    }
 
     // Get the collection count if it exists.
     auto coll_count_str = value_for_opt("-c", argc, argv);
@@ -549,6 +541,14 @@ main(int argc, char *argv[])
     int64_t verbose_level = verbose_str.empty() ? 0 : atoi(verbose_str.c_str());
     logger::log_msg(LOG_INFO, "Verbose level: " + std::to_string(verbose_level));
 
+    // Background thread debug mode option.
+    bool background_thread_debug_mode = option_exists("-b", argc, argv);
+    if (background_thread_debug_mode && thread_count == 0) {
+        logger::log_msg(
+          LOG_ERROR, "Cannot run in background thread debug mode with zero background threads.");
+        return EXIT_FAILURE;
+    }
+
     // Home path option.
     std::string home_path = value_for_opt("-H", argc, argv);
     if (home_path.empty())
@@ -576,8 +576,8 @@ main(int argc, char *argv[])
     }
     for (int i = 0; i < it_count; i++) {
         logger::log_msg(LOG_INFO, "!!!! Beginning iteration: " + std::to_string(i) + " !!!!");
-        run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count, verbose_level,
-          i == death_it, recovery);
+        run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count,
+          background_thread_debug_mode, verbose_level, i == death_it, recovery);
         take_backup_and_delete_original(home_path, std::string(SOURCE_PATH));
     }
 
