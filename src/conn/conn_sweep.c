@@ -20,8 +20,10 @@
 static void
 __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 {
+    WT_DECL_RET;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
+    WT_TABLE *table;
 
     conn = S2C(session);
 
@@ -45,6 +47,26 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
           __wt_atomic_loadi32(&dhandle->session_inuse) > 0 || dhandle->timeofdeath != 0)
             continue;
 
+        /*
+         * When MongoDB opens cursors on table URIs, WiredTiger opens and releases table dhandles,
+         * particularly for simple tables. This repetitive dhandle creation and release, handled by
+         * the sweep server, leads to schema lock contention. To prevent this, the below algorithm
+         * modifies the sweep server's behavior. The algorithm now checks if any file dhandles are
+         * associated with the table before marking a table dhandle for sweeping, thus preventing
+         * unnecessary closures.
+         */
+        if (dhandle->type == WT_DHANDLE_TYPE_TABLE) {
+            table = (WT_TABLE *)dhandle;
+            if (table->is_simple) {
+                WT_WITHOUT_DHANDLE(session,
+                  WT_WITH_HANDLE_LIST_READ_LOCK(
+                    session, (ret = __wt_conn_dhandle_find(session, dhandle->name, NULL))));
+
+                /* Continue if the file dhandle exists for the associated table dhandle. */
+                if (ret == 0)
+                    continue;
+            }
+        }
         /*
          * Never close out the history store handle via sweep. It can cause a deadlock if eviction
          * needs to re-open a handle to the history store while a checkpoint is getting started.
