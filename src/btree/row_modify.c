@@ -369,7 +369,7 @@ __wt_update_obsolete_check(
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
 
-    WT_ACQUIRE_READ(prune_timestamp, session->dhandle->prune_timestamp);
+    WT_ACQUIRE_READ(prune_timestamp, CUR2BT(cbt)->prune_timestamp);
 
     oldest_id = __wt_txn_oldest_id(session);
 

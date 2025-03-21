@@ -1481,8 +1481,8 @@ err:
 static int
 __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
 {
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *ingest;
     WT_DECL_RET;
     WT_DISAGGREGATED_STORAGE *ds;
     WT_LAYERED_TABLE *layered_table;
@@ -1581,21 +1581,27 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                       ckpt_inuse);
 
                 prune_timestamp = ds->ckpt_track[track].timestamp;
+
                 /*
-                 * TODO: this assumes the ingest table dhandle is open if the layered table dhandle
-                 * is open.
+                 * Set the prune timestamp in the btree if it is open, typically it is. When we open
+                 * the layered data handle, we also set the ingest dhandle to be in use. That
+                 * indicates that the btree will never be closed once it is opened. However, it's
+                 * possible that it hasn't been opened yet. In that case, we need to skip updating
+                 * its timestamp for pruning, and we'll get another chance to update the prune
+                 * timestamp at the next checkpoint.
                  */
-                ingest = layered_table->ingest;
-                WT_ASSERT(session, prune_timestamp >= ingest->prune_timestamp);
-                WT_RELEASE_WRITE(ingest->prune_timestamp, prune_timestamp);
+                btree = (WT_BTREE *)layered_table->ingest->handle;
+                if (btree != NULL) {
+                    WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
+                    WT_RELEASE_WRITE(btree->prune_timestamp, prune_timestamp);
 
-                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-                  "GC %s: update pruning timestamp to %" PRIu64 "\n", layered_table->iface.name,
-                  prune_timestamp);
-
-                layered_table->last_ckpt_inuse = ckpt_inuse;
+                    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+                      "GC %s: update pruning timestamp to %" PRIu64 "\n", layered_table->iface.name,
+                      prune_timestamp);
+                    layered_table->last_ckpt_inuse = ckpt_inuse;
+                }
             }
-            min_ckpt_inuse = WT_MIN(ckpt_inuse, min_ckpt_inuse);
+            min_ckpt_inuse = WT_MIN(layered_table->last_ckpt_inuse, min_ckpt_inuse);
         }
     }
     ds->ckpt_min_inuse = min_ckpt_inuse;
@@ -1667,7 +1673,8 @@ __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timesta
         if (ds->ckpt_track[expire].ckpt_order >= ds->ckpt_min_inuse)
             break;
         __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-          "expiring tracked checkpoint: %" PRId64 " %" PRIu64 "\n", order, checkpoint_timestamp);
+          "expiring tracked checkpoint: %" PRId64 " %" PRIu64 "\n",
+          ds->ckpt_track[expire].ckpt_order, ds->ckpt_track[expire].timestamp);
     }
 
     /* Shift the array of tracked items down to remove any expired entries. */
