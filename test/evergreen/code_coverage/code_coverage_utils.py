@@ -51,7 +51,7 @@ def setup_run_tasks_parallel(init_args):
     return 0
 
 # Execute each list of tasks in parallel
-def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, optimize_test_order):
+def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, optimize_test_order, check_errors):
     parallel = len(build_dirs_list)
     task_start_time = datetime.now()
 
@@ -68,6 +68,11 @@ def run_task_lists_in_parallel(build_dirs_list, task_list, run_func, optimize_te
             futures.append(executor.submit(run_func, index, task))
 
         # Only in analysis mode, do we construct an list of all the tasks and how long they
+        if check_errors:
+            # Check the results of each of the futures. Calling result() will throw an exception for any that failed.
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
+
         # took to run
         if (optimize_test_order):
             for future in concurrent.futures.as_completed(futures):
