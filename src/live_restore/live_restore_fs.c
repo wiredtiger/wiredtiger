@@ -1354,14 +1354,14 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
         WT_ASSERT_ALWAYS(
           session, cval.len == 0, "Found non-empty bitmap when cleaning config string");
 
-        /*
-         * Live restore uses -1 in the nbits field to indicate the file has been fully migrated.
-         * However if this value is copied into a backup future live restores using this backup as a
-         * source will see the nbits=-1 value and assume a file that still needs migrating has
-         * already been migrated.
-         */
         WT_RET(__wt_config_subgets(session, &v, "nbits", &cval));
 
+        /*
+         * Live restore uses -1 in the nbits field to indicate the file has been fully migrated.
+         * However, if this value is copied into a backup, future live restores using this backup as
+         * a source will see the nbits=-1 value and assume a file that still needs migrating has
+         * already been migrated. Set it to 0 now to indicate it is yet to be migrated.
+         */
         if (WT_STRING_LIT_MATCH("-1", cval.str, 2)) {
             wt_off_t nbits_val_str_offset = cval.str - value;
             /*
