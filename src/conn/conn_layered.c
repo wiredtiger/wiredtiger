@@ -1545,7 +1545,7 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
              * Allocate enough room for the uri and the WiredTigerCheckpoint.NNN
              */
             len = strlen(layered_table->stable_uri) + strlen(WT_CHECKPOINT) + 20;
-            __wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint);
+            WT_ERR(__wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint));
 
             /*
              * For each checkpoint, see of the handle is in use. If not, it is safe to gc.
