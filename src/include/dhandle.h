@@ -105,13 +105,6 @@ struct __wt_data_handle {
     uint64_t timeofdeath;            /* Use count went to 0 */
     WT_SESSION_IMPL *excl_session;   /* Session with exclusive use, if any */
 
-    /*
-     * TODO: this is ugly and should not be at the dhandle layer. We need a better way to share the
-     * data.
-     */
-    wt_shared wt_timestamp_t prune_timestamp; /* Garbage collection timestamp for the ingest table
-                                                 in the layered storage */
-
     WT_DATA_SOURCE *dsrc; /* Data source for this handle */
     void *handle;         /* Generic handle */
 
@@ -134,6 +127,13 @@ struct __wt_data_handle {
      * underneath checkpoint, lock the data handle when closing it.
      */
     WT_SPINLOCK close_lock; /* Lock to close the handle */
+
+    /*
+     * TODO: this is ugly and should not be at the dhandle layer. We need a better way to share the
+     * data.
+     */
+    wt_shared wt_timestamp_t prune_timestamp; /* Garbage collection timestamp for the ingest table
+     in the layered storage */
 
     /* Data-source statistics */
     WT_DSRC_STATS *stats[WT_STAT_DSRC_COUNTER_SLOTS];
