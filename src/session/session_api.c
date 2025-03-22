@@ -360,6 +360,13 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     if (conn->txn_global.txn_shared_list != NULL)
         __wt_txn_release_snapshot(session);
 
+    /* Reconciliation cleanup. Must be done before the cursors are closed. */
+    // XXX CKPT
+    if (session->reconcile_cleanup != NULL) {
+        WT_TRET(session->reconcile_cleanup(session));
+        session->reconcile_cleanup = NULL;
+    }
+
     /*
      * Close all open cursors. We don't need to explicitly close the session's pointer to the
      * history store cursor since it will also be included in session's cursor table.

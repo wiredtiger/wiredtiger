@@ -137,6 +137,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
+    WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -258,7 +259,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-            WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
+            WT_ERR(__wt_tree_walk_custom_skip(
+              session, &walk, NULL, NULL, flags | WT_READ_NO_PAGE_RELEASE));
 
             if (walk == NULL)
                 break;
@@ -287,6 +289,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
 
+                WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
 
@@ -297,6 +300,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              */
             if (__sync_checkpoint_can_skip(session, walk)) {
                 __wt_tree_modify_set(session);
+                WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
 
@@ -336,6 +340,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 walk = prev;
                 prev = NULL;
                 tried_eviction = true;
+                WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
             tried_eviction = false;
@@ -345,9 +350,29 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (FLD_ISSET(rec_flags, WT_REC_HS))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
-            /* It's not an error if we make no progress. */
-            WT_ERR_ERROR_OK(
-              __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
+            /* Reconcile leaf pages in parallel, waiting at each internal page. */
+            if (!WT_SESSION_IS_CHECKPOINT(session)) {
+                /* It's not an error if we make no progress. */
+                WT_ERR_ERROR_OK(
+                  __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
+                WT_ERR(__wt_page_release(session, walk, flags));
+            } else if (!is_internal) {
+                WT_ERR(__wt_checkpoint_reconcile_push_page(session, walk, rec_flags));
+            } else {
+                __wt_checkpoint_reconcile_workers_wait(session);
+                for (;;) {
+                    __wt_checkpoint_reconcile_pop_done(session, &entry);
+                    if (entry == NULL)
+                        break;
+                    WT_ASSERT(session, entry->ret == 0);
+                    WT_ERR(__wt_page_release(session, entry->ref, flags));
+                }
+                /* It's not an error if we make no progress. */
+                WT_ERR_ERROR_OK(
+                  __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
+                WT_ERR(__wt_page_release(session, walk, flags));
+                __wt_checkpoint_reconcile_free(session, entry);
+            }
 
             /*
              * Update checkpoint IO tracking data if configured to log verbose progress messages.
@@ -359,6 +384,19 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 /* Periodically log checkpoint progress. */
                 if (conn->ckpt_write_pages % (5 * WT_THOUSAND) == 0)
                     __wt_checkpoint_progress(session, false);
+            }
+        }
+
+        /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
+        if (WT_SESSION_IS_CHECKPOINT(session)) {
+            __wt_checkpoint_reconcile_workers_wait(session);
+            for (;;) {
+                __wt_checkpoint_reconcile_pop_done(session, &entry);
+                if (entry == NULL)
+                    break;
+                WT_ASSERT(session, entry->ret == 0);
+                WT_ERR(__wt_page_release(session, entry->ref, flags));
+                __wt_checkpoint_reconcile_free(session, entry);
             }
         }
 

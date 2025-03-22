@@ -15,17 +15,18 @@
 #define WT_READ_IGNORE_CACHE_SIZE 0x0002u
 #define WT_READ_NOTFOUND_OK 0x0004u
 #define WT_READ_NO_GEN 0x0008u
-#define WT_READ_NO_SPLIT 0x0010u
-#define WT_READ_NO_WAIT 0x0020u
-#define WT_READ_PREFETCH 0x0040u
-#define WT_READ_PREV 0x0080u
-#define WT_READ_RESTART_OK 0x0100u
-#define WT_READ_SEE_DELETED 0x0200u
-#define WT_READ_SKIP_DELETED 0x0400u
-#define WT_READ_SKIP_INTL 0x0800u
-#define WT_READ_TRUNCATE 0x1000u
-#define WT_READ_VISIBLE_ALL 0x2000u
-#define WT_READ_WONT_NEED 0x4000u
+#define WT_READ_NO_PAGE_RELEASE 0x0010u
+#define WT_READ_NO_SPLIT 0x0020u
+#define WT_READ_NO_WAIT 0x0040u
+#define WT_READ_PREFETCH 0x0080u
+#define WT_READ_PREV 0x0100u
+#define WT_READ_RESTART_OK 0x0200u
+#define WT_READ_SEE_DELETED 0x0400u
+#define WT_READ_SKIP_DELETED 0x0800u
+#define WT_READ_SKIP_INTL 0x1000u
+#define WT_READ_TRUNCATE 0x2000u
+#define WT_READ_VISIBLE_ALL 0x4000u
+#define WT_READ_WONT_NEED 0x8000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -736,7 +737,7 @@ struct __wt_page {
         uint32_t __entries;                                                          \
         WT_INTL_INDEX_GET(session, page, __pindex);                                  \
         for (__refp = __pindex->index, __entries = __pindex->entries; __entries > 0; \
-             --__entries) {                                                          \
+          --__entries) {                                                             \
             (ref) = *__refp++;
 #define WT_INTL_FOREACH_REVERSE_BEGIN(session, page, ref)                                 \
     do {                                                                                  \
@@ -745,7 +746,7 @@ struct __wt_page {
         uint32_t __entries;                                                               \
         WT_INTL_INDEX_GET(session, page, __pindex);                                       \
         for (__refp = __pindex->index + __pindex->entries, __entries = __pindex->entries; \
-             __entries > 0; --__entries) {                                                \
+          __entries > 0; --__entries) {                                                   \
             (ref) = *--__refp;
 #define WT_INTL_FOREACH_END \
     }                       \
@@ -1417,7 +1418,7 @@ struct __wt_row { /* On-page key, on-page cell, or off-page WT_IKEY */
     for ((i) = (page)->entries, (rip) = (page)->pg_row; (i) > 0; ++(rip), --(i))
 #define WT_ROW_FOREACH_REVERSE(page, rip, i)                                             \
     for ((i) = (page)->entries, (rip) = (page)->pg_row + ((page)->entries - 1); (i) > 0; \
-         --(rip), --(i))
+      --(rip), --(i))
 
 /*
  * WT_ROW_SLOT --
@@ -1795,15 +1796,15 @@ struct __wt_insert_head {
         (page)->modify->mod_col_append[0])
 
 /* WT_COL_FIX_FOREACH_BITS walks fixed-length bit-fields on a disk page. */
-#define WT_COL_FIX_FOREACH_BITS(btree, dsk, v, i)                            \
-    for ((i) = 0,                                                            \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
-           0;                                                                \
-         (i) < (dsk)->u.entries; ++(i),                                      \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
-           0)
+#define WT_COL_FIX_FOREACH_BITS(btree, dsk, v, i)                         \
+    for ((i) = 0,                                                         \
+        (v) = (i) < (dsk)->u.entries ?                                    \
+        __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
+        0;                                                                \
+      (i) < (dsk)->u.entries; ++(i),                                      \
+        (v) = (i) < (dsk)->u.entries ?                                    \
+        __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
+        0)
 
 /*
  * FLCS pages with time information have a small additional header after the main page data that
