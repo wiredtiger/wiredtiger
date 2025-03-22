@@ -1147,7 +1147,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
 
     WT_RET(lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, len));
     /* Only modify the bitmap if we are shortening the file and we have taken the lock. */
-    if (old_len < len && locked) {
+    if (old_len > len && locked) {
         /*
          * Set the relevant bits in the bitmap. This won't be persisted across a crash without a
          * metadata write. We catch this rare scenario with an assertion on file reopen.
