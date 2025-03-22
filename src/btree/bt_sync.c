@@ -366,12 +366,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                         break;
                     WT_ASSERT(session, entry->ret == 0);
                     WT_ERR(__wt_page_release(session, entry->ref, flags));
+                    __wt_checkpoint_reconcile_free(session, entry);
                 }
                 /* It's not an error if we make no progress. */
                 WT_ERR_ERROR_OK(
                   __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
                 WT_ERR(__wt_page_release(session, walk, flags));
-                __wt_checkpoint_reconcile_free(session, entry);
             }
 
             /*
