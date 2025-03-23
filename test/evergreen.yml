@@ -3932,6 +3932,62 @@ tasks:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
 
+  - name: format-stress-zseries-test-repro-5
+    tags: ["stress-test-zseries"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
+
+  - name: format-stress-zseries-test-repro-6
+    tags: ["stress-test-zseries"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
+
+  - name: format-stress-zseries-test-repro-7
+    tags: ["stress-test-zseries"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
+
+  - name: format-stress-zseries-test-repro-8
+    tags: ["stress-test-zseries"]
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "format test script"
+        vars:
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -F -t 120 -- -c ../../../CONFIG.fail
+
   - name: format-stress-ppc-test
     tags: ["stress-test-ppc-1"]
     # Set 2.5 hours timeout (60 * 60 * 2.5)
