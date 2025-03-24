@@ -425,8 +425,8 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
      */
     testutil_remove(SOURCE_PATH);
     logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
-    // We've deleted the source folder, so reopening the connection will fail. Disable reopens in
-    // our crud operations, and do the rest 10% of random crud.
+    // We've deleted the source folder, so reopening the connection will fail. Disable reopens and
+    // do the remaining 10% of random crud operations.
     do_random_crud(
       crud_session, collection_count, (int64_t)(op_count * 0.1), false, conn_config, home, false);
 
