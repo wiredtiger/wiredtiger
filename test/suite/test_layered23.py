@@ -48,7 +48,7 @@ from wiredtiger import stat
 # - Check the current state of the oplog (up to some position) against tables
 #   accessed by a WT session. Both point reads and a read scan are done.
 class Oplog(object):
-    def __init__(self):
+    def __init__(self, key_size=-1, value_size=-1):
         self._timestamp = 0       # last (1-based) timestamp used
         self._entries = []        # list of (table,k,v) triples.
         self._uris = []           # list of (uri,entlist) pairs.  Each entlist is an ordered list of
@@ -59,6 +59,40 @@ class Oplog(object):
         # For debugging - when _use_timestamps is false, don't actually
         # use the internally generated timestamps with WT calls.
         self._use_timestamps = True
+        self.key_size = key_size
+        self.value_size = value_size
+
+    # Generate the key from an int, by default a simple string.
+    # The key size can be modified to make this longer.
+    def gen_key(self, i):
+        result = str(i)
+        if self.key_size > 0 and self.key_size > len(result):
+            result += '.' * (self.key_size - len(result))
+        return result
+
+    # Generate the key integer, the reverse of gen_key.
+    def decode_key(self, s):
+        if self.key_size <= 0:
+            return int(s)
+        if '.' in s:
+            end = s.index('.')
+        else:
+            end = len(s)
+        result = int(s[:end])
+        if self.key_size > end:
+            if s[end:] != '.' * (self.key_size - end):
+                raise Exception(f'Oplog key returned: {s}, unexpected format for key_size={self.key_size}')
+        elif end != len(s):
+            raise Exception(f'Oplog key returned: {s}, unexpected format for key_size={self.key_size}')
+        return result
+
+    # Generate the value from an int, by default a simple string.
+    # Note: this can be overridden, as long as decode_value is as well
+    def gen_value(self, i):
+        result = str(i)
+        if self.value_size > 0 and self.value_size > len(result):
+            result += '.' * (self.value_size - len(result))
+        return result
 
     def add_uri(self, uri):
         self._uris.append((uri,[]))
@@ -162,10 +196,10 @@ class Oplog(object):
             cursor = session.open_cursor(uri)
             session.begin_transaction()
             if v == self._tombstone_value:
-                cursor.set_key(str(k))
+                cursor.set_key(self.gen_key(k))
                 cursor.remove()
             else:
-                cursor[str(k)] = str(v)
+                cursor[self.gen_key(k)] = self.gen_value(v)
             if self._use_timestamps:
                 session.commit_transaction(f'commit_timestamp={testcase.timestamp_str(ts)}')
             else:
@@ -185,18 +219,21 @@ class Oplog(object):
             uri = self._uris[table - 1][0]
             cursor = session.open_cursor(uri)
             if self._use_timestamps:
-                expected_value = v
+                expected_value_int = v
                 session.begin_transaction(f'read_timestamp={testcase.timestamp_str(ts)}')
             else:
-                expected_value = self._current_value(table, k)
+                expected_value_int = self._current_value(table, k)
                 session.begin_transaction()
-            if expected_value == self._tombstone_value:
-                cursor.set_key(str(k))
+            if expected_value_int == self._tombstone_value:
+                cursor.set_key(self.gen_key(k))
                 testcase.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
-                if (cursor[str(k)] != str(expected_value)):
-                    testcase.pr(f'point-read of {k} at ts={ts} gives {cursor[str(k)]}, expected {expected_value}')
-                    testcase.assertEqual(cursor[str(k)], str(expected_value))
+                actual_key = self.gen_key(k)
+                expected_value = self.gen_value(expected_value_int)
+                result_value = cursor[actual_key]
+                if (result_value != expected_value):
+                    testcase.pr(f'point-read of {actual_key} at ts={ts} gives {result_value}, expected {expected_value}')
+                    testcase.assertEqual(result_value, expected_value)
             session.rollback_transaction()
             cursor.close()
             pos += 1
@@ -218,12 +255,12 @@ class Oplog(object):
             # Walk the cursor and check
             cursor = session.open_cursor(uri)
             for k,v in cursor:
-                kint = int(k)
+                kint = self.decode_key(k)
                 if not kint in values:
                     testcase.pr(f'FAILURE got unexpected key {kint}, value {v} from cursor')
-                elif v != str(values[kint]):
+                elif v != self.gen_value(values[kint]):
                     testcase.pr(f'FAILURE at key {kint}, got value {v} want {values[kint]}')
-                testcase.assertEqual(v, str(values[kint]))
+                testcase.assertEqual(v, self.gen_value(values[kint]))
                 del values[kint]
             cursor.close()
 
