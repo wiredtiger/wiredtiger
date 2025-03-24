@@ -14,7 +14,6 @@
 
 using namespace utils;
 
-namespace test_live_restore_fs_size {
 // Wrapper for the calling the C implementation of fs_size.
 int
 file_size(live_restore_test_env &env, const std::string &file_name, wt_off_t *sizep)
@@ -124,4 +123,3 @@ TEST_CASE("Live Restore fs_size", "[live_restore],[live_restore_fs_size]")
     REQUIRE(test_file_size(&env, DEST, SOURCE, MIGRATING, STOP, &size) == 0);
     REQUIRE(size == DEST_FILE_SIZE);
 }
-} // namespace test_live_restore_fs_size
