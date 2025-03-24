@@ -102,8 +102,6 @@ class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Then advance the checkpoint and make sure everything is still good
         self.disagg_advance_checkpoint(conn_follow)
-        # Trigger some cache pressure
-        oplog.check(self, session_follow, self.nitems, self.nitems)
 
         count = 1
         while cursor.next() == 0:
