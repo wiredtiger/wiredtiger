@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "wiredtiger.h"
 #include "wt_internal.h"
 
 #define WT_DHANDLE_CAN_DISCARD(dhandle)                           \
@@ -57,14 +58,18 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
          */
         if (dhandle->type == WT_DHANDLE_TYPE_TABLE) {
             table = (WT_TABLE *)dhandle;
-            if (table->is_simple) {
+            if (table->is_simple && table->cgroups != NULL) {
                 WT_WITHOUT_DHANDLE(session,
                   WT_WITH_HANDLE_LIST_READ_LOCK(session,
                     (ret = __wt_conn_dhandle_find(session, table->cgroups[0]->source, NULL))));
 
                 /* Continue if the file dhandle exists for the associated table dhandle. */
-                if (ret == 0)
+                if (ret == 0) {
+                    dhandle->timeofdeath = 0;
                     continue;
+                }
+                WT_ASSERT_ALWAYS(
+                  session, ret == WT_NOTFOUND, "Connection dhandle find has returned an error.");
             }
         }
         /*
