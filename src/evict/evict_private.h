@@ -12,11 +12,11 @@
     &((WT_BTREE *)(dhandle->handle))->evict_data.evict_bucketset[set_number]
 
 /*
- * Buckets are an array in the enclosing bucketset.
- * Address of the first bucket is the address of the bucketset.
+ * Buckets are an array in the enclosing bucketset. Address of the first bucket is the address of
+ * the bucketset.
  */
 #define WT_BUCKET_TO_BUCKETSET(bucket) \
-	(WT_EVICT_BUCKETSET *)((size_t)bucket - (size_t)bucket->id * sizeof(WT_EVICT_BUCKET))
+    (WT_EVICT_BUCKETSET *)((size_t)bucket - (size_t)bucket->id * sizeof(WT_EVICT_BUCKET))
 
 #define WT_READGEN_NOTSET 0
 #define WT_READGEN_EVICT_SOON 1

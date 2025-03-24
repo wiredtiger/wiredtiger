@@ -157,6 +157,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     stats_flags = 0;
     clean_page = ebusy_only = false;
 
+	WT_ASSERT(session,  WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
 

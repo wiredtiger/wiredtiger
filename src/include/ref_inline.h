@@ -122,6 +122,11 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
     if (cas_result)
         __ref_track_state(session, ref, new_state, func, line);
 #endif
+	if (cas_result && new_state == WT_REF_LOCKED)
+		__wt_atomic_store64(&ref->owner, (uint64_t)session);
+	else if (cas_result && old_state == WT_REF_LOCKED)
+		__wt_atomic_store64(&ref->owner, 0);
+	printf("Set state to %d with result %d\n", new_state, cas_result); fflush(stdout);
     return (cas_result);
 }
 
@@ -144,8 +149,12 @@ __ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE *previous_statep)
             break;
     }
     *(previous_statep) = previous_state;
+	printf("Setting owner\n"); fflush(stdout);
+	__wt_atomic_store64(&ref->owner, (uint64_t)session);
 }
 
 #define WT_REF_LOCK(session, ref, previous_statep) __ref_lock((session), (ref), (previous_statep))
 
-#define WT_REF_UNLOCK(ref, state) WT_REF_SET_STATE(ref, state)
+#define WT_REF_UNLOCK(ref, state) __wt_atomic_store64(&ref->owner, 0); WT_REF_SET_STATE(ref, state)
+
+#define WT_REF_OWNER(session, ref) __wt_atomic_load64(&ref->owner) == (uint64_t)session

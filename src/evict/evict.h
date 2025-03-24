@@ -11,7 +11,7 @@
 #include "evict_private.h"
 
 #define WT_EVICT_DISABLED(btree) btree->evict_data.evict_disabled
-#define WT_EVICT_PAGE_CLEARED(page) page->evict_data.bucket == NULL
+#define WT_EVICT_PAGE_CLEARED(page) (page->evict_data.bucket == NULL)
 
 /*
  * Connection evict data.
