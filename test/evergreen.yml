@@ -154,7 +154,7 @@ functions:
     params:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
-      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}${postfix|}.tgz
       bucket: build_external
       extract_to: ${destination|wiredtiger}
   "fetch endian format artifacts" :
@@ -4948,6 +4948,21 @@ tasks:
         vars:
           upload_filename: WT_TEST.tgz
           upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      # Now take and upload a backup. We use this as the source in our live restore perf tests.
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/bench/wtperf"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ${python_binary|python3} ../../../test/live_restore/take_backup.py
+      - func: "upload artifact"
+        vars:
+          upload_filename: WT_TEST_backup.tgz
+          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0_backup/
+          postfix: "_backup"
       # Call cleanup function to avoid duplicated artifact upload in the post-task stage.
       - func: "cleanup"
 
@@ -5106,6 +5121,7 @@ tasks:
         vars:
           dependent_task: perf-test-long-500m-btree-populate
           destination: "wiredtiger/cmake_build/bench/wtperf/SOURCE"
+          postfix: "_backup"
       # Create an empty home directory to be used as the destination for live restore.
       - command: shell.exec
         params:
@@ -5146,6 +5162,7 @@ tasks:
         vars:
           dependent_task: perf-test-long-500m-btree-populate
           destination: "wiredtiger/cmake_build/bench/wtperf/SOURCE"
+          postfix: "_backup"
       # Create an empty home directory to be used as the destination for live restore.
       - command: shell.exec
         params:
