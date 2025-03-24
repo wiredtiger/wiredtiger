@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 # Test pinning the content in the ingest table
 @disagg_test_class
 class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_base_config = ',create,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                  + 'disaggregated=(page_log=palm),'
 
     disagg_storages = gen_disagg_storages('test_layered37', disagg_only = True)
@@ -44,7 +44,7 @@ class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     uri = 'layered:test_layered37'
 
-    nitems = 10000
+    nitems = 20000
 
     def conn_config(self):
         return self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="leader")'
@@ -54,14 +54,14 @@ class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
         oplog = Oplog()
 
         # Create the table on leader and tell oplog about it
-        self.session.create(self.uri, "key_format=S,value_format=S")
+        self.session.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
         t = oplog.add_uri(self.uri)
 
         # Create the follower and create its table
         # To keep this test relatively easy, we're only using a single URI.
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
-        session_follow.create(self.uri, "key_format=S,value_format=S")
+        session_follow.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
 
         # Load the data for oplog
         oplog.insert(t, self.nitems)
@@ -70,7 +70,9 @@ class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
         oplog.apply(self, self.session, 0, self.nitems)
         oplog.check(self, self.session, 0, self.nitems)
 
-        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(oplog.last_timestamp())}')
+        ts = oplog.last_timestamp()
+
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
 
         # On the follower -
         # Apply all the entries to follower
@@ -79,7 +81,7 @@ class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Ping a read transaction
         session_follow2 = conn_follow.open_session('')
-        session_follow2.begin_transaction(f'read_timestamp={self.timestamp_str(oplog.last_timestamp())}')
+        session_follow2.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
         cursor = session_follow2.open_cursor(self.uri)
         # Ping the cursor on the ingest table
         self.assertEqual(cursor.next(), 0)
@@ -102,6 +104,15 @@ class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Then advance the checkpoint and make sure everything is still good
         self.disagg_advance_checkpoint(conn_follow)
+
+        # Trigger eviction on the ingest table
+        evict_cursor = session_follow.open_cursor("file:test_layered37.wt_ingest", None, "debug=(release_evict)")
+        for i in (1, self.nitems):
+            session_follow.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
+            evict_cursor.set_key(str(i))
+            self.assertEqual(evict_cursor.search(), 0)
+            evict_cursor.reset()
+            session_follow.rollback_transaction()
 
         count = 1
         while cursor.next() == 0:
