@@ -59,8 +59,8 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
             table = (WT_TABLE *)dhandle;
             if (table->is_simple) {
                 WT_WITHOUT_DHANDLE(session,
-                  WT_WITH_HANDLE_LIST_READ_LOCK(
-                    session, (ret = __wt_conn_dhandle_find(session, dhandle->name, NULL))));
+                  WT_WITH_HANDLE_LIST_READ_LOCK(session,
+                    (ret = __wt_conn_dhandle_find(session, table->cgroups[0]->source, NULL))));
 
                 /* Continue if the file dhandle exists for the associated table dhandle. */
                 if (ret == 0)
