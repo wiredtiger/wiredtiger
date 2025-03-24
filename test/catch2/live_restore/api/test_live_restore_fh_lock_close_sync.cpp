@@ -15,7 +15,8 @@
 
 using namespace utils;
 
-TEST_CASE("Live Restore fh_lock fh_close fh_sync", "[live_restore],[live_restore_fh_lock_close_sync]")
+TEST_CASE(
+  "Live Restore fh_lock fh_close fh_sync", "[live_restore],[live_restore_fh_lock_close_sync]")
 {
     live_restore_test_env env;
 
@@ -26,7 +27,7 @@ TEST_CASE("Live Restore fh_lock fh_close fh_sync", "[live_restore],[live_restore
 
     WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env.session);
     REQUIRE(env.lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)env.lr_fs, wt_session,
-    env.dest_file_path(file_name).c_str(), WT_FS_OPEN_FILE_TYPE_DATA, 0, &fh) == 0);
+              env.dest_file_path(file_name).c_str(), WT_FS_OPEN_FILE_TYPE_DATA, 0, &fh) == 0);
 
     // If we test this any deeper then we'd be testing the posix implementation.
     REQUIRE(fh->fh_lock(fh, wt_session, true) == 0);
