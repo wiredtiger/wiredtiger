@@ -8,10 +8,13 @@
 
 /*
  * [live_restore_fh_lock_close_sync]: live_restore_fs.c
- * Test some minimal file handle APIs.
+ * Test file handle lock, sync, and close API functions.
+ * These functions are simple often call directly into the underlying file system layer, so they
+ * require minimal testing.
  */
 
 #include "../utils_live_restore.h"
+#include "../../wrappers/mock_session.h"
 
 using namespace utils;
 
@@ -32,7 +35,8 @@ TEST_CASE(
     // If we test this any deeper then we'd be testing the posix implementation.
     REQUIRE(fh->fh_lock(fh, wt_session, true) == 0);
     REQUIRE(fh->fh_lock(fh, wt_session, false) == 0);
-
+    // Re-entrant locking is allowed.
+    REQUIRE(fh->fh_lock(fh, wt_session, true) == 0);
     // Call sync with no writes.
     REQUIRE(fh->fh_sync(fh, wt_session) == 0);
 
