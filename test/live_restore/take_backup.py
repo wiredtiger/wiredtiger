@@ -61,10 +61,6 @@ def main():
         backup_file = f'{backup_dir}/{backup_cursor.get_key()}'
         shutil.copyfile(orig_file, backup_file)
 
-    # # I don't know what this is
-    # shutil.copyfile(f"{home}/CONFIG.wtperf", f"{backup_dir}/CONFIG.wtperf")
-
-
     backup_cursor.close()
     session.close()
     conn.close()
