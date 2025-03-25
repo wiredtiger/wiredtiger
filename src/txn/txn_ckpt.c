@@ -3166,25 +3166,19 @@ __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
     uint64_t done_popped, work_pushed;
 
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
-
-    work_pushed = __wt_atomic_load64(&ckpt_threads->work_pushed);
-    if (work_pushed == 0) /* We have never pushed any work. */
-        return (0);
-
     done_popped = 0;
-    while (work_pushed > done_popped) {
-        // while (!signalled)
-        //     __wt_cond_wait_signal(session, ckpt_threads->done_cond, WT_MILLION, NULL,
-        //     &signalled);
+    work_pushed = __wt_atomic_load64(&ckpt_threads->work_pushed);
 
+    while (work_pushed > done_popped) {
         // XXX
         if (sem_wait(&ckpt_threads->work_sem) != 0)
             WT_RET(errno);
-        done_popped++;
 
         __wt_checkpoint_reconcile_pop_done(session, &entry);
         if (entry == NULL)
             break;
+        done_popped++;
+
         WT_ASSERT(session, entry->ret == 0);
         WT_TRET(__wt_page_release(session, entry->ref, entry->release_flags));
         __wt_checkpoint_reconcile_free(session, entry);

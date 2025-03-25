@@ -276,6 +276,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
 
             /*
+             * Wait for the leaf pages to finish reconciling before checking whether the internal
+             * page is dirty, as reconciling the leaf pages could have made the internal page dirty.
+             */
+            if (WT_SESSION_IS_CHECKPOINT(session) && is_internal)
+                WT_ERR(__wt_checkpoint_reconcile_finish(session));
+
+            /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
              * any page modify structure. (It needs to be ordered else a page could be dirtied after
              * taking the local reference.)
@@ -353,15 +360,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
             /* Reconcile leaf pages in parallel, waiting at each internal page. */
-            if (!WT_SESSION_IS_CHECKPOINT(session)) {
-                /* It's not an error if we make no progress. */
-                WT_ERR_ERROR_OK(
-                  __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
-                WT_ERR(__wt_page_release(session, walk, flags));
-            } else if (!is_internal)
+            if (WT_SESSION_IS_CHECKPOINT(session) && !is_internal)
                 WT_ERR(__wt_checkpoint_reconcile_push_page(session, walk, rec_flags, flags));
             else {
-                WT_ERR(__wt_checkpoint_reconcile_finish(session));
                 /* It's not an error if we make no progress. */
                 WT_ERR_ERROR_OK(
                   __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
