@@ -12,7 +12,7 @@ static bool __evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, 
 static int __evict_lru_pages(WT_SESSION_IMPL *session);
 static int __evict_page(WT_SESSION_IMPL *session);
 static bool __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
-										   WT_PAGE *page, bool verbose);
+										   WT_PAGE *page, bool new, bool verbose);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref);
 
@@ -996,6 +996,16 @@ __evict_get_ref(
             TAILQ_FOREACH (page, &bucket->evict_queue, evict_data.evict_q) {
 				ref = page->ref;
 				WT_ASSERT(session, ref != NULL);
+#ifdef HAVE_DIAGNOSTIC
+				if ((previous_state = WT_REF_GET_STATE(ref)) != WT_REF_MEM
+					&& previous_state != WT_REF_LOCKED) {
+					WT_IGNORE_RET(__wt_msg(session,
+						"page (%s) %p has state %d, but is in eviction structures\n",
+						__wt_page_type_string(ref->page->type), (void*)ref->page, previous_state));
+					fflush(stdout);
+					WT_ASSERT(session, false);
+				}
+#endif
                 /* Try to lock the reference. If it's already locked, skip it. */
                 if ((previous_state = WT_REF_GET_STATE(ref)) != WT_REF_MEM ||
                   !WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
@@ -1077,7 +1087,7 @@ done:
     (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
 
 #if defined(HAVE_DIAGNOSTIC)
-	__evict_page_consistency_check(session,  ref->page->evict_data.dhandle, ref->page, true);
+	__evict_page_consistency_check(session,  ref->page->evict_data.dhandle, ref->page, false, true);
 #endif
 
 err:
@@ -1394,7 +1404,7 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
         page = next_walk->page;
         size = __wt_atomic_loadsize(&page->memory_footprint);
 
-		if (__evict_page_consistency_check(session, dhandle, page, true) == false)
+		if (__evict_page_consistency_check(session, dhandle, page, false, true) == false)
 			WT_RET(__wt_msg(session, "page %p inconsistent eviction state", (void*)page));
 
         if (F_ISSET(next_walk, WT_REF_FLAG_INTERNAL)) {
@@ -1633,7 +1643,6 @@ __evict_bucket_range(WT_SESSION_IMPL *session, WT_EVICT_BUCKET *bucket,
 void
 __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-	WT_EVICT_BUCKET *bucket_before, *bucket_after;
     WT_PAGE *page;
     WT_REF_STATE previous_state;
 	WT_SPINLOCK *before, *after;
@@ -1643,24 +1652,24 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
 	previous_state = 0;
 
     WT_ASSERT(session, ref->page != NULL);
+	page = ref->page;
+
     if (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(session, ref)) {
 		/* The ref is already locked by us */
-		printf("ref already locked in __wt_evict_remove!\n");
+		printf("ref for page %p %s (type %d) already locked in __wt_evict_remove by session %d\n",
+			   (void*)ref->page, __wt_page_type_string(ref->page->type), ref->page->type, session->id);
 		fflush(stdout);
         must_unlock_ref = false;
     } else {
-		printf("ref NOT already locked in __wt_remove!\n");
+		printf("Session %d about to LOCK ref for page %p %s (type %d) already locked in __wt_evict_remove!\n",
+			   session->id, (void*)page, __wt_page_type_string(page->type), page->type);
 		fflush(stdout);
 		WT_REF_LOCK(session, ref, &previous_state);
 		must_unlock_ref = true;
-
-		printf("LOCKED!\n");
 		fflush(stdout);
 	}
-    page = ref->page;
 
 	if (!WT_EVICT_PAGE_CLEARED(page)) {
-		bucket_before = page->evict_data.bucket;
 		before = &page->evict_data.bucket->evict_queue_lock;
 		__wt_spin_lock_name(session, &page->evict_data.bucket->evict_queue_lock, "__wt_evict_remove");
 
@@ -1669,10 +1678,10 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
 		WT_ASSERT(session, page->evict_data.bucket->num_items >= 0);
 
 		after = &page->evict_data.bucket->evict_queue_lock;
-		bucket_after = page->evict_data.bucket;
 		if (before != after) {
-			printf("Lock %p is not the same as %p\n", (void*)before, (void*)after);
-			printf("Bucket before: %p, bucket after: %p\n", (void*)bucket_before, (void*)bucket_after);
+			printf("Lock %p is not the same as %p: page %p %s (type %d), session %d \n",
+				   (void*)before, (void*)after, (void*)page, __wt_page_type_string(page->type),
+				   page->type, session->id);
 			fflush(stdout);
 			while(1);
 		}
@@ -1793,7 +1802,7 @@ __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT
  */
 static bool
 __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
-							   bool verbose)
+							   bool new, bool verbose)
 {
 	WT_EVICT_BUCKETSET *bucketset;
 	WT_EVICT_HANDLE_DATA *evict_handle_data;
@@ -1822,15 +1831,18 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 				   (page->evict_data.dhandle == NULL) ? "null" : page->evict_data.dhandle->name));
 		return (false);
 	}
-	if ((state = WT_REF_GET_STATE(page->ref)) != WT_REF_LOCKED && state != WT_REF_MEM) {
-		if (verbose)
-		  WT_RET(__wt_msg(session, "page %s %p state is neither locked nor in-memory\n",
-						  __wt_page_type_string(page->type), (void*)page));
-		return (false);
+	if (!new) {
+		if ((state = WT_REF_GET_STATE(page->ref)) != WT_REF_LOCKED && state != WT_REF_MEM) {
+			if (verbose)
+				WT_RET(__wt_msg(session, "page %s %p state is neither locked nor in-memory\n",
+								__wt_page_type_string(page->type), (void*)page));
+			fflush(stdout);
+			while(1);
+			return (false);
+		}
 	}
 	WT_ASSERT(session,
-		page->evict_data.bucket->id >= 0 && page->evict_data.bucket->id < WT_EVICT_NUM_BUCKETS);
-
+			  page->evict_data.bucket->id >= 0 && page->evict_data.bucket->id < WT_EVICT_NUM_BUCKETS);
 	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &home_bucketset_level);
 
 	if (bucketset == NULL) {
@@ -1839,6 +1851,14 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 			"page (%s) %p is not in a bucketset or the bucketset does not belong to its dhandle",
 							__wt_page_type_string(page->type),(void*)page));
 		return (false);
+	}
+
+	if (page->evict_data.bucket != NULL && page->evict_data.evict_q.tqe_next == NULL &&
+		page->evict_data.evict_q.tqe_prev == NULL) {
+		printf("page (%s) %p is in a bucket %p, but not in a queue",
+			   __wt_page_type_string(page->type),(void*)page, (void*)page->evict_data.bucket);
+		fflush(stdout);
+		WT_ASSERT(session, false);
 	}
 
 	if (!evict_handle_data->initialized) {
@@ -1876,7 +1896,7 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
  *     Put the page into the evict bucket corresponding to its read generation.
  */
 void
-__wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref)
+__wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref, bool is_new)
 {
     WT_EVICT_BUCKET *bucket;
     WT_EVICT_BUCKETSET *bucketset;
@@ -1902,16 +1922,24 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     evict_data = &((WT_BTREE*)dhandle->handle)->evict_data;
     WT_ASSERT(session, evict_data->initialized);
 
+	if (page->type < WT_PAGE_INVALID || page->type > WT_PAGE_ROW_LEAF) {
+		printf("Unexpected page type!!!!!!!!!!!\n");
+		fflush(stdout);
+		while(1);
+	}
+
     /*
      * Lock the page so it doesn't disappear. We aren't evicting the page, so we don't need to check
      * for hazard pointers.
      */
 	if (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(session, ref)) {
-		printf("ref already locked by us!\n");
+		printf("ref for page %p %s (type %d) already locked in __wt_evict_enqueue_page by session %d\n",
+			   (void*)page, __wt_page_type_string(page->type), page->type, session->id);
 		fflush(stdout);
 		must_unlock_ref = false;
 	} else /* We must lock */ {
-		printf("ref NOT already locked by us!\n");
+		printf("Session %d about to LOCK ref for page %p %s (type %d) in __wt_evict_enqueue_page!\n",
+			  session->id, (void*)page, __wt_page_type_string(page->type), page->type);
 		fflush(stdout);
 		WT_REF_LOCK(session, ref, &previous_state);
 		must_unlock_ref = true;
@@ -1921,6 +1949,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	}
 
 	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level);
+	if (is_new)
+		WT_ASSERT(session, bucketset == NULL && page->evict_data.bucket == NULL);
 
 	/* If the page is already in a bucketset, is this the right one? */
 	if (bucketset != NULL && __evict_page_correct_bucketset(page, bucketset_level)) {
@@ -1937,6 +1967,9 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 		/* Page is in the wrong bucketset */
 		__wt_evict_remove(session, ref);
 	}
+	printf("page %p %s (type %d) was removed from its bucketset by session %d\n",
+		   (void*)page, __wt_page_type_string(page->type), page->type, session->id);
+	fflush(stdout);
 
     /* Find the bucket set for the page depending on its type */
     if (WT_PAGE_IS_INTERNAL(page)) {
@@ -1991,16 +2024,24 @@ retry:
     __wt_spin_unlock_name(session, &bucket->evict_queue_lock, "__wt_evict_enqueue_page");
 	my_printf("Session %p RELEASED %p\n", (void*)session, (void*)&bucket->evict_queue_lock);
 
+
+	if (page->type < WT_PAGE_INVALID || page->type > WT_PAGE_ROW_LEAF) {
+		printf("Unexpected page type!!!!!!!!!!!\n");
+		fflush(stdout);
+		while(1);
+	}
 	my_printf(
-		"page (%s) %p read_gen %" PRId64 ": enqueued in bucket %" PRId64 " (%p) of bucketset %d (%p) ur: %" PRId64 "",
-		__wt_page_type_string(page->type), (void *)page, page->evict_data.read_gen, dst_bucket,
-		(void *)bucket, bucketset_level, (void *)bucketset, bucketset->lowest_bucket_upper_range);
+		"page (%s) %p type %d read_gen %" PRId64 ": enqueued by session %d in bucket %" PRId64
+		" (%p) of bucketset %d (%p) ur: %" PRId64 "",
+		__wt_page_type_string(page->type), (void *)page, page->type, session->id,
+		page->evict_data.read_gen, dst_bucket, (void *)bucket, bucketset_level, (void *)bucketset,
+		bucketset->lowest_bucket_upper_range);
 
 done:
 	if (must_unlock_ref)
 		WT_REF_UNLOCK(ref, previous_state);
 #if defined(HAVE_DIAGNOSTIC)
-	__evict_page_consistency_check(session,  page->evict_data.dhandle, page, true);
+	__evict_page_consistency_check(session,  page->evict_data.dhandle, page, is_new, true);
 #endif
 }
 
@@ -2034,10 +2075,10 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
             __wt_atomic_store64(&page->evict_data.read_gen, WT_READGEN_WONT_NEED);
         else
             __evict_read_gen_new(session, page);
-		__wt_evict_enqueue_page(session, dhandle, ref);
+		__wt_evict_enqueue_page(session, dhandle, ref, true);
     } else if (!internal_only) {
         __wti_evict_read_gen_bump(session, page);
-		__wt_evict_enqueue_page(session, dhandle, ref);
+		__wt_evict_enqueue_page(session, dhandle, ref, false);
 	}
 }
 
@@ -2059,7 +2100,7 @@ void
 __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     __wt_atomic_store64(&ref->page->evict_data.read_gen, WT_READGEN_EVICT_SOON);
-    __wt_evict_enqueue_page(session, session->dhandle, ref);
+    __wt_evict_enqueue_page(session, session->dhandle, ref, false);
 }
 
 /*
@@ -2251,24 +2292,9 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 	/* Move the page to the right bucketset */
 	if (page->ref != NULL && page->evict_data.dhandle != NULL)
-		__wt_evict_enqueue_page(session, page->evict_data.dhandle, page->ref);
+		__wt_evict_enqueue_page(session, page->evict_data.dhandle, page->ref, false);
 }
 
-/*
- * __wt_ref_assign_page --
- *     Must be called every time we associate a new page with a ref. Adds the ref to eviction data
- *     structures.
- */
-void
-__wt_ref_assign_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref, WT_PAGE *page)
-{
-    ref->page = page;
-	page->ref = ref;
-	/*
-	 * Here the ref is either locked, or we are just creating a new one, so no one else would
-	 * have this reference. */
-	__wt_evict_touch_page(session, dhandle, ref, false, false);
-}
 
 /*
  * __evict_skip_page --

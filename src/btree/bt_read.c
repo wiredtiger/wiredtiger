@@ -277,7 +277,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
-    WT_REF_SET_STATE(ref, WT_REF_MEM);
+	__wt_ref_make_visible(session, S2BT(session)->dhandle, ref);
 
     WT_ASSERT(session, ret == 0);
     return (0);

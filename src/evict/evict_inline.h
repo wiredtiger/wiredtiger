@@ -8,6 +8,18 @@
 
 #pragma once
 
+/*
+ * __wt_ref_assign_page --
+ *     Must be called every time we associate a new page with a ref. A page must have a back pointer
+ *     to its ref. Otherwise eviction won't work properly.
+ */
+static WT_INLINE void
+__wt_ref_assign_page(WT_REF *ref, WT_PAGE *page)
+{
+    ref->page = page;
+	page->ref = ref;
+}
+
 /* !!!
  * __wt_evict_aggressive --
  *     Check whether eviction is unable to make any progress for some amount of time.

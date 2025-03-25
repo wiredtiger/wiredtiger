@@ -456,8 +456,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
             page->pg_intl_parent_ref = ref;
             break;
         }
-		/* This also puts the page into eviction data structures, which is mandatory for cached pages. */
-        __wt_ref_assign_page(session, S2BT(session)->dhandle, ref, page);
+        __wt_ref_assign_page(ref, page);
     }
 
     *pagep = page;

@@ -85,6 +85,12 @@ __ref_track_state(
     } while (0)
 #endif
 
+static WT_INLINE void
+__wt_ref_make_visible(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref) {
+	__wt_evict_touch_page(session, dhandle, ref, false, false);
+	WT_REF_SET_STATE(ref, WT_REF_MEM);
+}
+
 /*
  * __ref_get_state --
  *     Get a ref's state variable safely.
@@ -149,8 +155,6 @@ __ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE *previous_statep)
             break;
     }
     *(previous_statep) = previous_state;
-	printf("Setting owner\n"); fflush(stdout);
-	__wt_atomic_store64(&ref->owner, (uint64_t)session);
 }
 
 #define WT_REF_LOCK(session, ref, previous_statep) __ref_lock((session), (ref), (previous_statep))

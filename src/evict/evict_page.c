@@ -157,7 +157,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     stats_flags = 0;
     clean_page = ebusy_only = false;
 
-	WT_ASSERT(session,  WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
+	if (!closing)
+		WT_ASSERT(session,  WT_REF_GET_STATE(ref) == WT_REF_LOCKED);
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -291,7 +292,7 @@ err:
              */
             __wt_atomic_storebool(&ref->page->evict_data.evict_skip, true);
             /* Put the page back into the list it belongs */
-            __wt_evict_enqueue_page(session, session->dhandle, ref);
+            __wt_evict_enqueue_page(session, session->dhandle, ref, false);
             /* Release the page */
             __evict_exclusive_clear(session, ref, previous_state);
         }

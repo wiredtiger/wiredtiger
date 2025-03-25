@@ -129,7 +129,8 @@ extern int __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_evict_cache_stat_walk(WT_SESSION_IMPL *session);
-extern void __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref);
+extern void __wt_evict_enqueue_page(
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref, bool is_new);
 extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref);
@@ -140,8 +141,6 @@ extern void __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref,
   bool internal_only, bool wont_need);
-extern void __wt_ref_assign_page(
-  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref, WT_PAGE *page);
 static WT_INLINE bool __wt_evict_aggressive(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
@@ -160,6 +159,7 @@ static WT_INLINE void __wt_evict_favor_clearing_dirty_cache(WT_SESSION_IMPL *ses
 static WT_INLINE void __wt_evict_inherit_page_state(WT_PAGE *orig_page, WT_PAGE *new_page);
 static WT_INLINE void __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_evict_page_init(WT_PAGE *page, uint64_t evict_pass_gen);
+static WT_INLINE void __wt_ref_assign_page(WT_REF *ref, WT_PAGE *page);
 
 #ifdef HAVE_UNITTEST
 
