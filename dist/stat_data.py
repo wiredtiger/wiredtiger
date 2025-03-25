@@ -1217,6 +1217,7 @@ conn_dsrc_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_ingest_garbage_collection_keys', 'number of keys that are garbage collected in the ingest table for disaggregated storage'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),
@@ -1249,7 +1250,6 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
     RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
     RecStat('rec_vlcs_emptied_pages', 'VLCS pages explicitly reconciled as empty'),
-    RecStat('rec_ingest_garbage_collection_keys', 'number of keys that are garbage collected in the ingest table for disaggregated storage'),
 
     ##########################################
     # Transaction statistics
