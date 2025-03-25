@@ -91,6 +91,12 @@ struct __wt_layered_table {
     WT_COLLATOR *collator; /* Custom collator */
     int collator_owned;
 
+    /*
+     * For ingest table garbage collection, the last checkpoint generation number that we know was
+     * in use.
+     */
+    int64_t last_ckpt_inuse;
+
     const char *key_format, *value_format;
     const char *ingest_uri, *stable_uri;
 };

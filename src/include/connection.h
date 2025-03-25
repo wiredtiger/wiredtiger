@@ -168,6 +168,15 @@ struct __wt_disagg_copy_metadata {
 #define WT_DISAGG_LSN_NONE 0 /* The LSN is not set. */
 
 /*
+ * WT_DISAGGREGATED_CHECKPOINT_TRACK --
+ *      A relationship between the checkpoint order number and the history timestamp.
+ */
+struct __wt_disaggregated_checkpoint_track {
+    int64_t ckpt_order;
+    wt_timestamp_t timestamp;
+};
+
+/*
  * WT_DISAGGREGATED_STORAGE --
  *      Configuration and the current state for disaggregated storage, which tells the Block Manager
  *      how to find remote object storage. This is a separate configuration from layered tables.
@@ -196,6 +205,11 @@ struct __wt_disaggregated_storage {
     /* To copy at the next checkpoint. */
     TAILQ_HEAD(__wt_disagg_copy_metadata_qh, __wt_disagg_copy_metadata) copy_metadata_qh;
     WT_SPINLOCK copy_metadata_lock;
+
+    WT_DISAGGREGATED_CHECKPOINT_TRACK *ckpt_track; /* Checkpoint info retained for GC. */
+    size_t ckpt_track_alloc;                       /* Allocated bytes for checkpoint track. */
+    uint32_t ckpt_track_cnt; /* Number of entries in use for checkpoint track. */
+    int64_t ckpt_min_inuse;  /* The minimum checkpoint order in use. */
 
     bool internal_page_delta;
     bool leaf_page_delta;

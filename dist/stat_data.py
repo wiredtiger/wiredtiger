@@ -726,9 +726,6 @@ conn_stats = [
     RecStat('rec_pages_with_txn', 'page reconciliation calls that resulted in values with transaction ids'),
     RecStat('rec_split_stashed_bytes', 'split bytes currently awaiting free', 'no_clear,no_scale,size'),
     RecStat('rec_split_stashed_objects', 'split objects currently awaiting free', 'no_clear,no_scale'),
-    RecStat('rec_time_window_pages_prepared', 'pages written including at least one prepare state'),
-    RecStat('rec_time_window_pages_start_ts', 'pages written including at least one start timestamp'),
-    RecStat('rec_time_window_prepared', 'records written including a prepare state'),
 
     ##########################################
     # Session operations
@@ -1004,9 +1001,6 @@ dsrc_stats = [
     RecStat('rec_multiblock_max', 'maximum blocks required for a page', 'max_aggregate,no_scale'),
     RecStat('rec_prefix_compression', 'leaf page key bytes discarded using prefix compression', 'size'),
     RecStat('rec_suffix_compression', 'internal page key bytes discarded using suffix compression', 'size'),
-    RecStat('rec_time_window_pages_prepared', 'pages written including at least one prepare'),
-    RecStat('rec_time_window_pages_start_ts', 'pages written including at least one start timestamp'),
-    RecStat('rec_time_window_prepared', 'records written including a prepare'),
 
     ##########################################
     # Session operations
@@ -1223,6 +1217,7 @@ conn_dsrc_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_ingest_garbage_collection_keys', 'number of keys that are garbage collected in the ingest table for disaggregated storage'),
     RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
     RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
@@ -1246,9 +1241,12 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_durable_stop_ts', 'records written including a stop durable timestamp'),
     RecStat('rec_time_window_pages_durable_start_ts', 'pages written including at least one start durable timestamp'),
     RecStat('rec_time_window_pages_durable_stop_ts', 'pages written including at least one stop durable timestamp'),
+    RecStat('rec_time_window_pages_start_ts', 'pages written including at least one start timestamp'),
     RecStat('rec_time_window_pages_start_txn', 'pages written including at least one start transaction ID'),
     RecStat('rec_time_window_pages_stop_ts', 'pages written including at least one stop timestamp'),
     RecStat('rec_time_window_pages_stop_txn', 'pages written including at least one stop transaction ID'),
+    RecStat('rec_time_window_pages_prepared', 'pages written including at least one prepare state'),
+    RecStat('rec_time_window_prepared', 'records written including a prepare state'),
     RecStat('rec_time_window_start_ts', 'records written including a start timestamp'),
     RecStat('rec_time_window_start_txn', 'records written including a start transaction ID'),
     RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
