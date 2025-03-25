@@ -194,12 +194,6 @@ struct __wt_disaggregated_storage {
 
     wt_shared uint64_t max_internal_delta_count; /* The maximum number of internal deltas. */
     wt_shared uint64_t max_leaf_delta_count;     /* The maximum number of leaf deltas. */
-    wt_shared uint64_t
-      total_internal_delta_count; /* The total number of internal page deltas written. */
-    wt_shared uint64_t total_leaf_delta_count; /* The total number of leaf page deltas written. */
-    wt_shared uint64_t
-      total_page_with_internal_delta; /* The total number of pages with internal deltas. */
-    wt_shared uint64_t total_page_with_leaf_delta; /* The total number of pages with leaf deltas. */
 
     WT_NAMED_PAGE_LOG *npage_log;
     WT_PAGE_LOG_HANDLE *page_log_meta;
