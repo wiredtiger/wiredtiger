@@ -990,9 +990,9 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
             msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
 
             /*
-             * Dirty the tree periodically to ensure the live restore metadata is written out with
-             * checkpoint. Avoid original files as they take "fake" checkpoints and cannot be
-             * original and modified at the same time.
+             * Dirty the tree periodically to ensure the live restore metadata is written out by the next
+             * checkpoint. Avoid original files as they take "fake" checkpoints and setting both the
+             * original and modified flags at the same time is an illegal state.
              */
             if (!S2BT(session)->original)
                 __wt_tree_modify_set(session);
