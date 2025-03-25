@@ -105,8 +105,16 @@ class test_live_restore08(backup_base):
         # Simulate a crash by copying the partially restored database to a new directory "RESTART".
         self.simulate_crash_restart()
 
-        # Ensure bulk cursors can still be used on the restored file.
-        cursor = self.session.open_cursor('file:bulk', None, "bulk")
+        # Ensure bulk cursors can still be used on the restored file. Bulk cursors require exclusive
+        # access and could therefore return EBUSY while live restore background threads are running.
+        while (self.get_stat(stat.conn.cursor_bulk_count) < 1):
+            try:
+                cursor = self.session.open_cursor('file:bulk', None, "bulk")
+            except wiredtiger.WiredTigerError as e:
+                ebusy_str = "Device or resource busy"
+                if (ebusy_str not in str(e)):
+                    raise(e)
+
         self.assertEqual(self.get_stat(stat.conn.cursor_bulk_count), 1)
 
         for i in range(1, 10):
