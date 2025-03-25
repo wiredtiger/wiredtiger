@@ -360,6 +360,10 @@ __wti_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STATP_CONN_SET(session, stats, rec_maximum_image_build_milliseconds,
       conn->rec_maximum_image_build_milliseconds);
     WT_STATP_CONN_SET(session, stats, rec_maximum_milliseconds, conn->rec_maximum_milliseconds);
+    WT_STATP_CONN_SET(session, stats, rec_max_internal_page_deltas,
+      conn->disaggregated_storage.max_internal_delta_count);
+    WT_STATP_CONN_SET(
+      session, stats, rec_max_leaf_page_deltas, conn->disaggregated_storage.max_leaf_delta_count);
 }
 
 /*

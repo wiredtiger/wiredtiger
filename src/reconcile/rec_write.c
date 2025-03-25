@@ -2533,10 +2533,19 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
 
-        if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
+        if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
-        else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))
+            if (block_meta->delta_count >
+              __wt_atomic_load64(&conn->disaggregated_storage.max_internal_delta_count))
+                __wt_atomic_store64(
+                  &conn->disaggregated_storage.max_internal_delta_count, block_meta->delta_count);
+        } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
+            if (block_meta->delta_count >
+              __wt_atomic_load64(&conn->disaggregated_storage.max_leaf_delta_count))
+                __wt_atomic_store64(
+                  &conn->disaggregated_storage.max_leaf_delta_count, block_meta->delta_count);
+        }
     } else {
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
         if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {

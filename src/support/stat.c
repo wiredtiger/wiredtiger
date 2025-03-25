@@ -305,6 +305,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: leaf page key bytes discarded using prefix compression",
   "reconciliation: leaf page multi-block writes",
   "reconciliation: leaf-page overflow keys",
+  "reconciliation: max deltas seen on internal page during reconciliation",
+  "reconciliation: max deltas seen on leaf page during reconciliation",
   "reconciliation: maximum blocks required for a page",
   "reconciliation: overflow values written",
   "reconciliation: page reconciliation calls",
@@ -684,6 +686,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_prefix_compression = 0;
     stats->rec_multiblock_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
+    stats->rec_max_internal_page_deltas = 0;
+    stats->rec_max_leaf_page_deltas = 0;
     stats->rec_multiblock_max = 0;
     stats->rec_overflow_value = 0;
     stats->rec_pages = 0;
@@ -1055,6 +1059,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_prefix_compression += from->rec_prefix_compression;
     to->rec_multiblock_leaf += from->rec_multiblock_leaf;
     to->rec_overflow_key_leaf += from->rec_overflow_key_leaf;
+    to->rec_max_internal_page_deltas += from->rec_max_internal_page_deltas;
+    to->rec_max_leaf_page_deltas += from->rec_max_leaf_page_deltas;
     if (from->rec_multiblock_max > to->rec_multiblock_max)
         to->rec_multiblock_max = from->rec_multiblock_max;
     to->rec_overflow_value += from->rec_overflow_value;
@@ -1450,6 +1456,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_prefix_compression += WT_STAT_DSRC_READ(from, rec_prefix_compression);
     to->rec_multiblock_leaf += WT_STAT_DSRC_READ(from, rec_multiblock_leaf);
     to->rec_overflow_key_leaf += WT_STAT_DSRC_READ(from, rec_overflow_key_leaf);
+    to->rec_max_internal_page_deltas += WT_STAT_DSRC_READ(from, rec_max_internal_page_deltas);
+    to->rec_max_leaf_page_deltas += WT_STAT_DSRC_READ(from, rec_max_leaf_page_deltas);
     if ((v = WT_STAT_DSRC_READ(from, rec_multiblock_max)) > to->rec_multiblock_max)
         to->rec_multiblock_max = v;
     to->rec_overflow_value += WT_STAT_DSRC_READ(from, rec_overflow_value);
@@ -2150,6 +2158,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: internal page deltas written",
   "reconciliation: leaf page deltas written",
   "reconciliation: leaf-page overflow keys",
+  "reconciliation: max deltas seen on internal page during reconciliation",
+  "reconciliation: max deltas seen on leaf page during reconciliation",
   "reconciliation: maximum milliseconds spent in a reconciliation call",
   "reconciliation: maximum milliseconds spent in building a disk image in a reconciliation",
   "reconciliation: maximum milliseconds spent in moving updates to the history store in a "
@@ -2966,6 +2976,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_delta_internal = 0;
     stats->rec_page_delta_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
+    stats->rec_max_internal_page_deltas = 0;
+    stats->rec_max_leaf_page_deltas = 0;
     /* not clearing rec_maximum_milliseconds */
     /* not clearing rec_maximum_image_build_milliseconds */
     /* not clearing rec_maximum_hs_wrapup_milliseconds */
@@ -3873,6 +3885,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_delta_internal += WT_STAT_CONN_READ(from, rec_page_delta_internal);
     to->rec_page_delta_leaf += WT_STAT_CONN_READ(from, rec_page_delta_leaf);
     to->rec_overflow_key_leaf += WT_STAT_CONN_READ(from, rec_overflow_key_leaf);
+    to->rec_max_internal_page_deltas += WT_STAT_CONN_READ(from, rec_max_internal_page_deltas);
+    to->rec_max_leaf_page_deltas += WT_STAT_CONN_READ(from, rec_max_leaf_page_deltas);
     to->rec_maximum_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_milliseconds);
     to->rec_maximum_image_build_milliseconds +=
       WT_STAT_CONN_READ(from, rec_maximum_image_build_milliseconds);
