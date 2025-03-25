@@ -616,11 +616,8 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
     if (first_upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    if (WT_TXNID_LT(first_upd->txnid, r->last_running) &&
-      r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
-      first_upd->durable_ts <= r->rec_last_checkpoint_timestamp) {
-        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5, "%s",
-          "layered table record garbage collected 5");
+    if (WT_TXNID_LT(first_upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
+      first_upd->durable_ts <= r->rec_prune_timestamp) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         /*
          * Use the transaction ID of the prior update to avoid out-of-order IDs, we know that update
@@ -631,6 +628,8 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WT_RECONCI
         tombstone->next = first_upd;
         upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
         *upd_entry = tombstone;
+
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
     }
     return (0);
 }
@@ -658,11 +657,8 @@ __rec_row_garbage_collect_fixup_insert_list(
     if (first_upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    if (WT_TXNID_LT(first_upd->txnid, r->last_running) &&
-      r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
-      first_upd->durable_ts <= r->rec_last_checkpoint_timestamp) {
-        /* __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s", */
-        /*   "layered table record garbage collected 4"); */
+    if (WT_TXNID_LT(first_upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
+      first_upd->durable_ts <= r->rec_prune_timestamp) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         /*
          * Use the transaction ID of the prior update to avoid out-of-order IDs, we know that update
@@ -672,6 +668,8 @@ __rec_row_garbage_collect_fixup_insert_list(
         tombstone->txnid = first_upd->txnid;
         tombstone->next = first_upd;
         ins->upd = tombstone;
+
+        WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
     }
     return (0);
 }
@@ -963,18 +961,16 @@ __wti_rec_row_leaf(
          * new updates for that key, skip writing that key. Or if garbage collection is enabled for
          * the table, and the value has become obsolete.
          */
-        if (upd == NULL &&
-          (__wt_txn_tw_stop_visible_all(session, twp) ||
-            (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
+        if (upd == NULL) {
+            if (__wt_txn_tw_stop_visible_all(session, twp))
+                upd = &upd_tombstone;
+            else if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
               WT_TXNID_LT(twp->start_txn, r->last_running) &&
-              r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
-              twp->durable_start_ts <= r->rec_last_checkpoint_timestamp))) {
-            /*
-            if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
-                __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_1, "%s",
-                  "layered table record garbage collected 2");
-             */
-            upd = &upd_tombstone;
+              r->rec_prune_timestamp != WT_TS_NONE &&
+              twp->durable_start_ts <= r->rec_prune_timestamp) {
+                upd = &upd_tombstone;
+                WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
+            }
         }
 
         /* Build value cell. */
@@ -1038,8 +1034,8 @@ __wti_rec_row_leaf(
                 __wt_txn_tw_start_visible_all(session, twp) ||
                 (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) &&
                   WT_TXNID_LT(twp->start_txn, r->last_running) &&
-                  r->rec_last_checkpoint_timestamp != WT_TS_NONE &&
-                  twp->durable_start_ts <= r->rec_last_checkpoint_timestamp));
+                  r->rec_prune_timestamp != WT_TS_NONE &&
+                  twp->durable_start_ts <= r->rec_prune_timestamp));
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)

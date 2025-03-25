@@ -59,6 +59,9 @@ class test_checkpoint05(wttest.WiredTigerTestCase):
 
     def test_checkpoints_during_backup(self):
         self.uri = 'table:ckpt05'
+        # Avoid checkpoint error with precise checkpoint
+        if self.ckpt_config == 'checkpoint=(precise=true)':
+            self.conn.set_timestamp('stable_timestamp=1')
         self.session.create(self.uri, 'key_format=i,value_format=i')
 
         # Setup: Insert some data and checkpoint it

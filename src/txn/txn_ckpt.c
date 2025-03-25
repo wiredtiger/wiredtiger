@@ -787,6 +787,16 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_ERR(__wt_config_gets(session, cfg, "flush_tier.force", &cval));
     flush_force = cval.val;
 
+    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        /* Precise checkpoint doesn't support non-timestamped checkpoint. */
+        if (!use_timestamp)
+            return (EINVAL);
+
+        /* Precise checkpoint needs the stable timestamp. */
+        if (txn_global->stable_timestamp == WT_TS_NONE)
+            return (EINVAL);
+    }
+
     /*
      * Start a snapshot transaction for the checkpoint.
      *
