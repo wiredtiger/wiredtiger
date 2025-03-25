@@ -2041,16 +2041,15 @@ __checkpoint_lock_dirty_tree(
     }
 
     /*
-     * Force every checkpoint when using a live restore file system. Live restore needs to write
-     * metadata for each file being restored, but it doesn't necessarily dirty the btree during
-     * background migration. By forcing checkpoints we ensure that all open btrees will have their
-     * metadata updated.
+     * Force checkpoint for original files when using a live restore file system. Live restore needs
+     * to write metadata for each file being restored, but it doesn't dirty original btree's during
+     * background migration. By forcing checkpoints we ensure that all original btrees will have
+     * their metadata updated.
      *
-     * There were two alternative solutions here, which we list for posterity:
-     * - Periodically dirtying the btree by calling __wt_tree_modify_set from the background thread.
-     * - Perform a forced checkpoint on completion of migration for every file migrated.
+     * Alternatively, we could perform a forced checkpoint on completion of migration for every file
+     * migrated. However, that would be an expensive operation.
      */
-    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS) && btree->original)
         force = true;
 
     /*
