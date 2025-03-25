@@ -2732,7 +2732,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * a live restore file system we'll need to checkpoint anyway to ensure we write the live
      * restore metadata.
      */
-    if (!btree->modified && !bulk && !F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+    if (!btree->modified && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /*
