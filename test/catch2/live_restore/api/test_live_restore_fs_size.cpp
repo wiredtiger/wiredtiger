@@ -75,7 +75,7 @@ TEST_CASE("Live Restore fs_size", "[live_restore],[live_restore_fs_size]")
 {
     live_restore_test_env env;
     /*
-     * There are four factors that impact fs_size:
+     * There are four factors that impact how we compute fs_size:
      * - If the file exists in the destination
      * - If the file exists in the source
      * - If live restore is currently background migrating files
