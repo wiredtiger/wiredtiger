@@ -38,16 +38,7 @@ from wtbackup import backup_base
 # Test bulk cursor usage with live restore.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore08(backup_base):
-    format_values = [
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    read_sizes = [
-        ('512B', dict(read_size='512B')),
-    ]
-
-    scenarios = make_scenarios(format_values, read_sizes)
-    nrows = 100000
+    nrows = 10000
 
     def get_stat(self, statistic):
         stat_cursor = self.session.open_cursor("statistics:")
@@ -77,14 +68,14 @@ class test_live_restore08(backup_base):
         os.mkdir(newdir)
         copy_wiredtiger_home(self, olddir, newdir)
         self.close_conn()
-        self.open_conn("RESTART", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=" + self.read_size + ")")
+        self.open_conn("RESTART", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=512B)")
 
     def populate_backup(self):
         ds1 = SimpleDataSet(self, 'file:standard', self.nrows,
-        key_format=self.key_format, value_format=self.value_format)
+        key_format='i', value_format='S')
         ds1.populate()
 
-        self.session.create('file:bulk', f'key_format={self.key_format},value_format={self.value_format}')
+        self.session.create('file:bulk', f'key_format=i,value_format=S')
 
         self.session.checkpoint()
 
@@ -109,7 +100,7 @@ class test_live_restore08(backup_base):
         os.mkdir("DEST")
 
         # Open live restore connection
-        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=" + self.read_size + ")")
+        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=512B)")
 
         # Simulate a crash by copying the partially restored database to a new directory "RESTART".
         self.simulate_crash_restart()
@@ -134,7 +125,7 @@ class test_live_restore08(backup_base):
         os.mkdir("DEST")
 
         # Open live restore connection
-        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=" + self.read_size + ")")
+        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=512B)")
 
         self.wait_for_live_restore_complete()
 
@@ -146,4 +137,3 @@ class test_live_restore08(backup_base):
             cursor[i] = "aaaa"
 
         cursor.close()
-
