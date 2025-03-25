@@ -296,6 +296,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
+  "reconciliation: average length of delta chain on internal page with deltas",
+  "reconciliation: average length of delta chain on leaf page with deltas",
   "reconciliation: dictionary matches",
   "reconciliation: fast-path pages deleted",
   "reconciliation: internal page deltas written",
@@ -677,6 +679,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
+    stats->rec_average_internal_page_delta = 0;
+    stats->rec_average_leaf_page_delta = 0;
     stats->rec_dictionary = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_delta_internal = 0;
@@ -1050,6 +1054,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
+    to->rec_average_internal_page_delta += from->rec_average_internal_page_delta;
+    to->rec_average_leaf_page_delta += from->rec_average_leaf_page_delta;
     to->rec_dictionary += from->rec_dictionary;
     to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_page_delta_internal += from->rec_page_delta_internal;
@@ -1447,6 +1453,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
+    to->rec_average_internal_page_delta += WT_STAT_DSRC_READ(from, rec_average_internal_page_delta);
+    to->rec_average_leaf_page_delta += WT_STAT_DSRC_READ(from, rec_average_leaf_page_delta);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
     to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
     to->rec_page_delta_internal += WT_STAT_DSRC_READ(from, rec_page_delta_internal);
@@ -2154,6 +2162,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
+  "reconciliation: average length of delta chain on internal page with deltas",
+  "reconciliation: average length of delta chain on leaf page with deltas",
   "reconciliation: fast-path pages deleted",
   "reconciliation: internal page deltas written",
   "reconciliation: leaf page deltas written",
@@ -2972,6 +2982,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
+    stats->rec_average_internal_page_delta = 0;
+    stats->rec_average_leaf_page_delta = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_delta_internal = 0;
     stats->rec_page_delta_leaf = 0;
@@ -3881,6 +3893,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_vlcs_emptied_pages += WT_STAT_CONN_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_CONN_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_CONN_READ(from, rec_time_window_bytes_txn);
+    to->rec_average_internal_page_delta += WT_STAT_CONN_READ(from, rec_average_internal_page_delta);
+    to->rec_average_leaf_page_delta += WT_STAT_CONN_READ(from, rec_average_leaf_page_delta);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_page_delta_internal += WT_STAT_CONN_READ(from, rec_page_delta_internal);
     to->rec_page_delta_leaf += WT_STAT_CONN_READ(from, rec_page_delta_leaf);

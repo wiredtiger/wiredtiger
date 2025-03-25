@@ -1223,6 +1223,8 @@ conn_dsrc_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_average_internal_page_delta', 'average length of delta chain on internal page with deltas'),
+    RecStat('rec_average_leaf_page_delta', 'average length of delta chain on leaf page with deltas'),
     RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
     RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
