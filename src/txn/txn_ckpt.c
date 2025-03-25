@@ -3163,11 +3163,9 @@ __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
     WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
     WT_DECL_RET;
-    bool signalled;
     uint64_t done_popped, work_pushed;
 
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
-    signalled = false;
 
     work_pushed = __wt_atomic_load64(&ckpt_threads->work_pushed);
     if (work_pushed == 0) /* We have never pushed any work. */
