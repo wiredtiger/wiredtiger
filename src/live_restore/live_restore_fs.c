@@ -1124,8 +1124,8 @@ __live_restore_fh_sync(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 static int
 __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t len)
 {
-    wt_off_t old_len;
-    old_len = 0;
+    WT_DECL_RET;
+    wt_off_t old_len = 0;
 
     WT_RET(__live_restore_fh_size(fh, wt_session, &old_len));
     /* Sometimes we call truncate but don't change the length. Ignore */
@@ -1145,7 +1145,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
         locked = true;
     }
 
-    WT_RET(lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, len));
+    WT_ERR(lr_fh->destination->fh_truncate(lr_fh->destination, wt_session, len));
     /* Only modify the bitmap if we are shortening the file and we have taken the lock. */
     if (old_len > len && locked) {
         /*
@@ -1154,9 +1154,10 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
          */
         __live_restore_fh_fill_bit_range(lr_fh, session, len, (size_t)(old_len - len));
     }
+err:
     if (locked)
         __wt_writeunlock(session, &lr_fh->lock);
-    return (0);
+    return (ret);
 }
 
 /*

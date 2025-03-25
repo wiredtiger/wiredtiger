@@ -50,15 +50,17 @@ TEST_CASE("Encode various bitmaps", "[live_restore_bitmap],[live_restore_bitmap_
     live_restore_test_env env;
     for (const auto &test : test_bitmaps) {
         size_t filesize = test.nbits == 0 ? 4096 : 4096 * test.nbits;
-        create_file(env.source_file_path("file"), filesize);
+        std::string dest_file = env.dest_file_path("file");
+        std::string source_file = env.source_file_path("file");
+        create_file(source_file, filesize);
 
         WT_FILE_HANDLE *fh;
         REQUIRE(env.lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)env.lr_fs,
-                  reinterpret_cast<WT_SESSION *>(env.session), env.dest_file_path("file").c_str(),
+                  reinterpret_cast<WT_SESSION *>(env.session), dest_file.c_str(),
                   WT_FS_OPEN_FILE_TYPE_DATA, 0, &fh) == 0);
         WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
 
-        REQUIRE(testutil_exists(".", env.dest_file_path("file").c_str()));
+        REQUIRE(testutil_exists(".", dest_file.c_str()));
 
         lr_fh->bitmap = test.bitmap;
         lr_fh->nbits = test.nbits;
@@ -78,8 +80,8 @@ TEST_CASE("Encode various bitmaps", "[live_restore_bitmap],[live_restore_bitmap_
             REQUIRE(memcmp(lr_fh->bitmap, test.bitmap, test.nbits / 8) == 0);
 
         lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)env.session);
-        testutil_remove(env.dest_file_path("file").c_str());
-        testutil_remove(env.source_file_path("file").c_str());
+        testutil_remove(dest_file.c_str());
+        testutil_remove(source_file.c_str());
 
         delete[] test.bitmap;
         __wt_buf_free(session, &buf);

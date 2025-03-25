@@ -63,6 +63,11 @@ struct __wti_live_restore_file_handle {
     WT_RWLOCK lock;
     /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
     uint64_t nbits;
+    /* The live restore bitmap is never resized throughout the live restore, this means reads or
+     * writes beyond the end of the bitmap are only relevant to the destination file. The
+     * destination file could shrink to be smaller than the original source file size, in this case
+     * we could shrink the bitmap but we have chosen not to as that is an optimization.
+     */
     uint8_t *bitmap;
     WT_FILE_HANDLE *source;
 };
