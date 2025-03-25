@@ -54,7 +54,7 @@ class test_live_restore08(backup_base):
         val = stat_cursor[statistic][2]
         stat_cursor.close()
         return val
-    
+
     def wait_for_live_restore_complete(self):
         state = 0
         timeout = 120
@@ -72,21 +72,21 @@ class test_live_restore08(backup_base):
             time.sleep(1)
             iteration_count += 1
         self.assertEqual(state, wiredtiger.WT_LIVE_RESTORE_COMPLETE)
-    
+
     def simulate_crash_restart(self):
         olddir = "DEST"
         newdir = "RESTART"
-        
+
         os.mkdir(newdir)
         copy_wiredtiger_home(self, olddir, newdir)
         self.close_conn()
         self.open_conn("RESTART", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=" + self.read_size + ")")
-                
+
     def populate_backup(self):
         ds1 = SimpleDataSet(self, 'file:standard', self.nrows,
         key_format=self.key_format, value_format=self.value_format)
         ds1.populate()
-        
+
         self.session.create('file:bulk', f'key_format={self.key_format},value_format={self.value_format}')
 
         self.session.checkpoint()
@@ -106,32 +106,32 @@ class test_live_restore08(backup_base):
         # Live restore is not supported on Windows.
         if os.name == 'nt':
             return
-        
+
         self.populate_backup()
 
         os.mkdir("DEST")
-        
+
         # Open live restore connection
         self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=" + self.read_size + ")")
 
         # Simulate a crash by copying the partially restored database to a new directory "RESTART".
         self.simulate_crash_restart()
-                
+
         # Ensure bulk cursors can still be used on the restored file.
         cursor = self.session.open_cursor('file:bulk', None, "bulk")
         self.assertEqual(self.get_stat(stat.conn.cursor_bulk_count), 1)
-        
+
         for i in range(1, 10):
             cursor[i] = "aaaa"
-        
+
         cursor.close()
-        
+
     # Test bulk cursors on a fully restored database using live restore.
     def test_live_restore_complete_with_bulk(self):
         # Live restore is not supported on Windows.
         if os.name == 'nt':
             return
-        
+
         self.populate_backup()
 
         os.mkdir("DEST")
@@ -140,13 +140,13 @@ class test_live_restore08(backup_base):
         self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=" + self.read_size + ")")
 
         self.wait_for_live_restore_complete()
-                
+
         # Ensure bulk cursors can still be used on the restored file.
         cursor = self.session.open_cursor('file:bulk', None, "bulk")
         self.assertEqual(self.get_stat(stat.conn.cursor_bulk_count), 1)
-        
+
         for i in range(1, 10):
             cursor[i] = "aaaa"
-        
+
         cursor.close()
-        
+

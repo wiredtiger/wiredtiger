@@ -989,8 +989,11 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
               lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_offset, WTI_BITMAP_END(lr_fh));
             msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
 
-            // Dirty the tree periodically.
-            // Dirty only if it's not original.
+            /*
+             * Dirty the tree periodically to ensure the live restore metadata is written out with
+             * checkpoint. Avoid original files as they take "fake" checkpoints and cannot be
+             * original and modified at the same time.
+             */
             if (!S2BT(session)->original)
                 __wt_tree_modify_set(session);
         }
@@ -1009,7 +1012,11 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
           "%s: Finished background restoration, closing source file", fh->name);
         WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
 
-        // Dirty only if it's not original.
+        /*
+         * Dirty the tree again to ensure the live restore metadata is written out with checkpoint.
+         * Avoid original files as they take "fake" checkpoints and cannot be original and modified
+         * at the same time.
+         */
         if (!S2BT(session)->original)
             __wt_tree_modify_set(session);
     }

@@ -2727,11 +2727,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (final && !metadata)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
-    /*
-     * Evict the unmodified file without taking a checkpoint when closing the handle. If we're using
-     * a live restore file system we'll need to checkpoint anyway to ensure we write the live
-     * restore metadata.
-     */
+    /* Closing an unmodified file. */
     if (!btree->modified && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
