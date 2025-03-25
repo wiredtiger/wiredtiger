@@ -64,7 +64,6 @@ class test_live_restore08(backup_base):
             state = self.get_stat(stat.conn.live_restore_state)
             self.pr(f'Looping until finish, live restore state is: {state}, \
                       Current iteration: is {iteration_count}')
-            # State 2 means the live restore has completed.
             if (state == wiredtiger.WT_LIVE_RESTORE_COMPLETE):
                 break
             time.sleep(1)
