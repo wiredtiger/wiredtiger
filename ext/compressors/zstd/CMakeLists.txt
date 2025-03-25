@@ -42,6 +42,12 @@ endif()
 
 if(ENABLE_ZSTD)
     target_link_libraries(wiredtiger_zstd wt::zstd)
+    # target_link_libraries(wiredtiger_zstd build/ext/compressors/zstd/zstd/build/cmake/lib/libzstd.so)
+    target_link_libraries(wiredtiger_zstd libzstd_shared)
+    install(TARGETS libzstd_shared
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
     install(TARGETS wiredtiger_zstd
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

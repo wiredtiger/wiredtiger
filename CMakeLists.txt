@@ -9,6 +9,8 @@ endif(CCACHE_FOUND)
 
 project(WiredTiger C CXX ASM)
 
+add_subdirectory(ext/compressors/zstd/zstd/build/cmake)
+
 # Import our available build types prior to initializing the
 # project.
 include(cmake/configs/modes.cmake)
