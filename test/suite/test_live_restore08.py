@@ -62,8 +62,6 @@ class test_live_restore08(backup_base):
         # Build in a 2 minute timeout. Once we see the complete state exit the loop.
         while (iteration_count < timeout):
             state = self.get_stat(stat.conn.live_restore_state)
-            # Stress the file create path in the meantime, this checks some assert conditions.
-            # self.session.create(f'file:abc{iteration_count}', f'key_format={self.key_format},value_format={self.value_format}')
             self.pr(f'Looping until finish, live restore state is: {state}, \
                       Current iteration: is {iteration_count}')
             # State 2 means the live restore has completed.
