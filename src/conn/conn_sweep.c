@@ -6,7 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "wiredtiger.h"
 #include "wt_internal.h"
 
 #define WT_DHANDLE_CAN_DISCARD(dhandle)                           \
