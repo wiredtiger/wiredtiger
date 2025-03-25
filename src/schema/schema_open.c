@@ -714,6 +714,7 @@ __schema_open_layered(WT_SESSION_IMPL *session)
 int
 __wt_schema_open_layered(WT_SESSION_IMPL *session)
 {
+    WT_BTREE *ingest_btree;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     uint32_t ingest_id, stable_id;
@@ -739,6 +740,14 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
       session, ret = __schema_open_layered_member(session, layered, layered->ingest_uri, true));
     WT_RET(ret);
 
+    ingest_btree = (WT_BTREE *)layered->ingest->handle;
+
+    /* Flag the ingest btree as participating in automatic garbage collection */
+    F_SET(ingest_btree, WT_BTREE_GARBAGE_COLLECT);
+
+    WT_ACQUIRE_READ(
+      ingest_btree->prune_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+
     WT_SAVE_DHANDLE(
       session, ret = __schema_open_layered_member(session, layered, layered->stable_uri, false));
     WT_RET(ret);
@@ -752,12 +761,10 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     /* Start the layered table manager thread if it isn't running. */
     WT_RET(__wt_layered_table_manager_start(session));
 
-    /* Add the ingest table file identifier into the layered table managers list of tracked tables
+    /*
+     * Add the ingest table file identifier into the layered table managers list of tracked tables
      */
-    ingest_id = ((WT_BTREE *)layered->ingest->handle)->id;
-
-    /* Flag the ingest btree as participating in automatic garbage collection */
-    F_SET(((WT_BTREE *)layered->ingest->handle), WT_BTREE_GARBAGE_COLLECT);
+    ingest_id = ingest_btree->id;
 
     WT_RET(__wt_layered_table_manager_add_table(session, ingest_id, stable_id));
 

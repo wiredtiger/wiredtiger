@@ -10,6 +10,10 @@
 
 static int __disagg_copy_shared_metadata_one(WT_SESSION_IMPL *session, const char *uri);
 static int __layered_drain_ingest_tables(WT_SESSION_IMPL *session);
+static int __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session);
+static int __layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timestamp);
+static int __layered_last_checkpoint_order(
+  WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
 /*
  * __layered_create_missing_ingest_table --
@@ -339,6 +343,12 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
 
     /* Update the checkpoint timestamp. */
     WT_RELEASE_WRITE(conn->disaggregated_storage.last_checkpoint_timestamp, checkpoint_timestamp);
+
+    /* Keep a record of past checkpoints, they will be needed for ingest garbage collection. */
+    WT_ERR(__layered_track_checkpoint(session, checkpoint_timestamp));
+
+    /* Update ingest tables' prune timestamps. */
+    WT_ERR(__layered_update_gc_ingest_tables_prune_timestamps(internal_session));
 
 err:
     if (cursor != NULL)
@@ -1445,6 +1455,10 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 
     table_count = manager->open_layered_table_count;
 
+    /*
+     * TODO: shouldn't we hold this lock longer, e.g. manager->entries could get reallocated, or
+     * individual entries could get removed or freed.
+     */
     __wt_spin_unlock(session, &manager->layered_table_lock);
 
     /* TODO: skip empty ingest tables. */
@@ -1458,6 +1472,228 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
 err:
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
+}
+
+/*
+ * __layered_update_gc_ingest_tables_prune_timestamps --
+ *     Update the timestamp we can prune the ingest tables.
+ */
+static int
+__layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_DISAGGREGATED_STORAGE *ds;
+    WT_LAYERED_TABLE *layered_table;
+    WT_LAYERED_TABLE_MANAGER *manager;
+    WT_LAYERED_TABLE_MANAGER_ENTRY *entry;
+    wt_timestamp_t prune_timestamp;
+    size_t i, len, table_count, uri_alloc;
+    int64_t ckpt_inuse, last_ckpt, min_ckpt_inuse;
+    uint32_t track;
+    char *uri_at_checkpoint;
+
+    conn = S2C(session);
+    manager = &conn->layered_table_manager;
+    ds = &conn->disaggregated_storage;
+    min_ckpt_inuse = ds->ckpt_track_cnt;
+    uri_at_checkpoint = NULL;
+    uri_alloc = 0;
+
+    __wt_spin_lock(session, &manager->layered_table_lock);
+
+    table_count = manager->open_layered_table_count;
+
+    for (i = 0; i < table_count; i++) {
+        if ((entry = manager->entries[i]) != NULL) {
+            layered_table = entry->layered_table;
+            WT_ERR_NOTFOUND_OK(
+              __layered_last_checkpoint_order(session, layered_table->stable_uri, &last_ckpt),
+              true);
+            /*
+             * If we've never seen a checkpoint, then there's nothing in the ingest table we can
+             * remove. Move on.
+             */
+            if (ret == WT_NOTFOUND)
+                continue;
+
+            /*
+             * For each layered table, we want to see what is the oldest checkpoint on that table
+             * that is in use by any open cursor. Even if there are no open cursors on it, the most
+             * recent checkpoint on the table is always considered in use. The basic plan is to
+             * start with the last checkpoint in use that we knew about, and check it again. If it's
+             * no longer in use, we go to the next one, etc. This gives us a list (possibly zero
+             * length), of checkpoints that are no longer in use by cursors on this table. Thus, the
+             * timestamp associated with the newest such checkpoint can be used for GC pruning. Any
+             * item in the ingest table older than that timestamp must be including in one of the
+             * checkpoints we're saving, and thus can be removed.
+             */
+            ckpt_inuse = layered_table->last_ckpt_inuse;
+            if (ckpt_inuse == 0) {
+                /*
+                 * If we've never checked this layered table before, it's safe to start at the
+                 * oldest checkpoint that we're tracking. There are no cursors in the system that
+                 * are open at checkpoints older than that one. It's probably impossible that we
+                 * haven't tracked any checkpoints, if that happens, we'll start checking at zero.
+                 */
+                if (ds->ckpt_track_cnt > 0)
+                    ckpt_inuse = ds->ckpt_track[0].ckpt_order;
+            }
+
+            /*
+             * Allocate enough room for the uri and the WiredTigerCheckpoint.NNN
+             */
+            len = strlen(layered_table->stable_uri) + strlen(WT_CHECKPOINT) + 20;
+            WT_ERR(__wt_realloc_def(session, &uri_alloc, len, &uri_at_checkpoint));
+
+            /*
+             * For each checkpoint, see of the handle is in use. If not, it is safe to gc.
+             */
+            while (ckpt_inuse < last_ckpt) {
+                WT_ERR(__wt_snprintf(uri_at_checkpoint, uri_alloc, "%s/%s.%" PRId64,
+                  layered_table->stable_uri, WT_CHECKPOINT, ckpt_inuse));
+
+                /* If it's in use, then it must be in the connection cache. */
+                WT_WITH_HANDLE_LIST_READ_LOCK(
+                  session, (ret = __wt_conn_dhandle_find(session, uri_at_checkpoint, NULL)));
+
+                /* If it's in use by any session, then we're done. */
+                if (ret == 0 && session->dhandle->session_inuse > 0)
+                    break;
+
+                WT_ERR_NOTFOUND_OK(ret, false);
+                ++ckpt_inuse;
+            }
+
+            /*
+             * We now have the oldest checkpoint in use for this table. If it's different from the
+             * last time we checked, find out what timestamp that checkpoint corresponds to. That
+             * will be the timestamp we use for pruning.
+             */
+            if (ckpt_inuse != layered_table->last_ckpt_inuse) {
+                for (track = 0; track < ds->ckpt_track_cnt; ++track)
+                    if (ds->ckpt_track[track].ckpt_order == ckpt_inuse)
+                        break;
+                if (track >= ds->ckpt_track_cnt)
+                    WT_ERR_MSG(session, WT_NOTFOUND,
+                      "could not find checkpoint order %" PRId64 " in list of tracked checkpoints",
+                      ckpt_inuse);
+
+                prune_timestamp = ds->ckpt_track[track].timestamp;
+
+                /*
+                 * Set the prune timestamp in the btree if it is open, typically it is. When we open
+                 * the layered data handle, we also set the ingest dhandle to be in use. That
+                 * indicates that the btree will never be closed once it is opened. However, it's
+                 * possible that it hasn't been opened yet. In that case, we need to skip updating
+                 * its timestamp for pruning, and we'll get another chance to update the prune
+                 * timestamp at the next checkpoint.
+                 */
+                btree = (WT_BTREE *)layered_table->ingest->handle;
+                if (btree != NULL) {
+                    WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
+                    WT_RELEASE_WRITE(btree->prune_timestamp, prune_timestamp);
+
+                    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+                      "GC %s: update pruning timestamp to %" PRIu64 "\n", layered_table->iface.name,
+                      prune_timestamp);
+                    layered_table->last_ckpt_inuse = ckpt_inuse;
+                }
+            }
+            min_ckpt_inuse = WT_MIN(layered_table->last_ckpt_inuse, min_ckpt_inuse);
+        }
+    }
+    ds->ckpt_min_inuse = min_ckpt_inuse;
+
+err:
+    /*
+     * TODO: we could hold lock for a shorter time. Maybe release it after getting/copying each URI,
+     * then an individual URI could be garbage collected without a lock, then re-acquire to get the
+     * next entry in the table.
+     */
+    __wt_spin_unlock(session, &manager->layered_table_lock);
+
+    return (ret);
+}
+
+/*
+ * __layered_last_checkpoint_order --
+ *     For a URI, get the order number for the most recent checkpoint.
+ */
+static int
+__layered_last_checkpoint_order(
+  WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order)
+{
+    int scanf_ret;
+
+    const char *checkpoint_name;
+    int64_t order_from_name;
+
+    *ckpt_order = 0;
+
+    /* Pull up the last checkpoint for this URI. It could return WT_NOTFOUND. */
+    WT_RET(__wt_meta_checkpoint_last_name(session, shared_uri, &checkpoint_name, ckpt_order, NULL));
+
+    /* Sanity check: we make sure that the name returned matches the order number. */
+    scanf_ret = sscanf(checkpoint_name, WT_CHECKPOINT ".%" PRId64, &order_from_name);
+    __wt_free(session, checkpoint_name);
+
+    if (scanf_ret != 1)
+        WT_RET_MSG(session, EINVAL,
+          "shared metadata checkpoint unknown format: %s, scan returns %d", checkpoint_name,
+          scanf_ret);
+
+    /* These should always be the same. */
+    WT_ASSERT(session, *ckpt_order == order_from_name);
+
+    return (0);
+}
+
+/*
+ * __layered_track_checkpoint --
+ *     Keep a record of past checkpoints, they will be needed for ingest garbage collection.
+ */
+static int
+__layered_track_checkpoint(WT_SESSION_IMPL *session, uint64_t checkpoint_timestamp)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DISAGGREGATED_STORAGE *ds;
+    int64_t order;
+    uint32_t entry, expire;
+
+    conn = S2C(session);
+    ds = &conn->disaggregated_storage;
+
+    /* We never expect a not found error, as we just picked up a checkpoint. */
+    WT_RET(__layered_last_checkpoint_order(session, WT_DISAGG_METADATA_URI, &order));
+
+    /* Figure out how many entries at the beginning are no longer useful. */
+    for (expire = 0; expire < ds->ckpt_track_cnt; ++expire) {
+        if (ds->ckpt_track[expire].ckpt_order >= ds->ckpt_min_inuse)
+            break;
+        __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+          "expiring tracked checkpoint: %" PRId64 " %" PRIu64 "\n",
+          ds->ckpt_track[expire].ckpt_order, ds->ckpt_track[expire].timestamp);
+    }
+
+    /* Shift the array of tracked items down to remove any expired entries. */
+    if (expire != 0) {
+        memmove(&ds->ckpt_track[0], &ds->ckpt_track[expire],
+          sizeof(ds->ckpt_track[0]) * (ds->ckpt_track_cnt - expire));
+        ds->ckpt_track_cnt -= expire;
+    }
+
+    /* Allocate one more, and fill it. */
+    entry = ds->ckpt_track_cnt;
+    WT_RET(__wt_realloc_def(session, &ds->ckpt_track_alloc, entry + 1, &ds->ckpt_track));
+    ds->ckpt_track[entry].ckpt_order = order;
+    ds->ckpt_track[entry].timestamp = checkpoint_timestamp;
+    ++ds->ckpt_track_cnt;
+    __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
+      "tracking checkpoint: %" PRId64 " %" PRIu64 "\n", order, checkpoint_timestamp);
+
+    return (0);
 }
 
 /*

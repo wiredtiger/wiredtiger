@@ -645,8 +645,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     __wt_txn_pinned_stable_timestamp(session, &r->rec_start_pinned_stable_ts);
 
-    WT_ACQUIRE_READ(r->rec_last_checkpoint_timestamp,
-      S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+    WT_ACQUIRE_READ(r->rec_prune_timestamp, btree->prune_timestamp);
 
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
@@ -2539,20 +2538,20 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
               multi->block_meta.delta_count);
             __wt_atomic_add64(&conn->disaggregated_storage.total_page_with_internal_delta, 1);
 
-            if (block_meta->delta_count >
+            if (multi->block_meta.delta_count >
               __wt_atomic_load64(&conn->disaggregated_storage.max_internal_delta_count))
-                __wt_atomic_store64(
-                  &conn->disaggregated_storage.max_internal_delta_count, block_meta->delta_count);
+                __wt_atomic_store64(&conn->disaggregated_storage.max_internal_delta_count,
+                  multi->block_meta.delta_count);
         } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
             __wt_atomic_add64(
               &conn->disaggregated_storage.total_leaf_delta_count, multi->block_meta.delta_count);
             __wt_atomic_add64(&conn->disaggregated_storage.total_page_with_leaf_delta, 1);
 
-            if (block_meta->delta_count >
+            if (multi->block_meta.delta_count >
               __wt_atomic_load64(&conn->disaggregated_storage.max_leaf_delta_count))
                 __wt_atomic_store64(
-                  &conn->disaggregated_storage.max_leaf_delta_count, block_meta->delta_count);
+                  &conn->disaggregated_storage.max_leaf_delta_count, multi->block_meta.delta_count);
         }
     } else {
         /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
