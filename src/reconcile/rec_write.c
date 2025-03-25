@@ -2535,13 +2535,13 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
         if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
-            if (block_meta->delta_count >
+            if (multi->block_meta.delta_count >
               __wt_atomic_load64(&conn->disaggregated_storage.max_internal_delta_count))
                 __wt_atomic_store64(
                   &conn->disaggregated_storage.max_internal_delta_count, block_meta->delta_count);
         } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
-            if (block_meta->delta_count >
+            if (multi->block_meta.delta_count >
               __wt_atomic_load64(&conn->disaggregated_storage.max_leaf_delta_count))
                 __wt_atomic_store64(
                   &conn->disaggregated_storage.max_leaf_delta_count, block_meta->delta_count);
