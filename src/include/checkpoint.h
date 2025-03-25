@@ -54,10 +54,14 @@ struct __wt_checkpoint_page_to_reconcile {
     WT_TXN_SNAPSHOT *snapshot;
 
     WT_REF *ref;
-    uint32_t flags;
+    uint32_t reconcile_flags;
+    uint32_t release_flags;
 
     int ret; /* Result - will be filled out later. */
 };
+
+// XXX
+#include <semaphore.h>
 
 /*
  * WT_CHECKPOINT_RECONCILE_THREADS --
@@ -71,6 +75,7 @@ struct __wt_checkpoint_reconcile_threads {
     WT_CONDVAR *work_cond; /* Signal that work is available. */
     WT_SPINLOCK work_lock;
     wt_shared uint64_t work_pushed;
+    sem_t work_sem;
 
     TAILQ_HEAD(__wt_checkpoint_reconcile_done_qh, __wt_checkpoint_page_to_reconcile) done_qh;
     WT_CONDVAR *done_cond; /* Signal that the work is done (not just that the queue has stuff). */

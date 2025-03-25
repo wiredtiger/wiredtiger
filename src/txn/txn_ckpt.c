@@ -2854,7 +2854,8 @@ __wt_checkpoint_reconcile_free(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_R
  *     Push a work unit to the queue.
  */
 int
-__wt_checkpoint_reconcile_push_page(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__wt_checkpoint_reconcile_push_page(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
 {
     WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
@@ -2868,7 +2869,8 @@ __wt_checkpoint_reconcile_push_page(WT_SESSION_IMPL *session, WT_REF *ref, uint3
     // entry->isolation = session->txn->isolation;
     entry->snapshot = &session->txn->snapshot_data;
     entry->ref = ref;
-    entry->flags = flags;
+    entry->reconcile_flags = reconcile_flags;
+    entry->release_flags = release_flags;
 
     __wt_spin_lock(session, &ckpt_threads->work_lock);
     TAILQ_INSERT_TAIL(&ckpt_threads->work_qh, entry, q);
@@ -2941,19 +2943,17 @@ static int
 __checkpoint_reconcile_push_done(WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE *entry)
 {
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
-    uint64_t done_pushed, work_pushed;
 
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
 
     __wt_spin_lock(session, &ckpt_threads->done_lock);
     TAILQ_INSERT_TAIL(&ckpt_threads->done_qh, entry, q);
-    work_pushed = __wt_atomic_load64(&ckpt_threads->work_pushed);
-    done_pushed = __wt_atomic_add64(&ckpt_threads->done_pushed, 1);
+    __wt_atomic_add64(&ckpt_threads->done_pushed, 1);
     __wt_spin_unlock(session, &ckpt_threads->done_lock);
+    //__wt_cond_signal(session, ckpt_threads->done_cond);
 
-    /* Signal only if it looks like the work is done. */
-    if (__wt_checkpoint_reconcile_queue_empty(session) && work_pushed == done_pushed)
-        __wt_cond_signal(session, ckpt_threads->done_cond);
+    if (sem_post(&ckpt_threads->work_sem) != 0)
+        WT_RET(errno);
 
     return (0);
 }
@@ -3015,21 +3015,26 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     __wt_cond_wait_signal(
       session, ckpt_threads->work_cond, WT_MILLION, __checkpoint_reconcile_thread_chk, &signalled);
 
-    __checkpoint_reconcile_pop_page(session, &entry);
-    if (entry == NULL)
-        return (0);
+    for (;;) {
+        __checkpoint_reconcile_pop_page(session, &entry);
+        if (entry == NULL)
+            break;
 
-    memcpy(&session->txn->snapshot_data, entry->snapshot, sizeof(WT_TXN_SNAPSHOT));
-    F_SET(session, WT_SESSION_CHECKPOINT);
-    F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
-    F_SET(session->txn, WT_TXN_RUNNING);
-    session->txn->id = S2C(session)->txn_global.checkpoint_txn_shared.id;
-    // session->txn->isolation = entry->isolation;
+        memcpy(&session->txn->snapshot_data, entry->snapshot, sizeof(WT_TXN_SNAPSHOT));
+        F_SET(session, WT_SESSION_CHECKPOINT);
+        F_SET(session->txn, WT_TXN_HAS_SNAPSHOT);
+        F_SET(session->txn, WT_TXN_RUNNING);
+        session->txn->id = S2C(session)->txn_global.checkpoint_txn_shared.id;
+        // session->txn->isolation = entry->isolation;
 
-    /* It's not an error if we make no progress. */
-    WT_WITH_DHANDLE(
-      session, entry->dhandle, ret = __wt_reconcile(session, entry->ref, NULL, entry->flags));
-    WT_ERR_ERROR_OK(ret, WT_REC_NO_PROGRESS, false);
+        /* It's not an error if we make no progress. */
+        WT_WITH_DHANDLE(session, entry->dhandle,
+          ret = __wt_reconcile(session, entry->ref, NULL, entry->reconcile_flags));
+        WT_ERR_ERROR_OK(ret, WT_REC_NO_PROGRESS, false);
+
+        entry->ret = ret;
+        __checkpoint_reconcile_push_done(session, entry);
+    }
 
     if (0) {
 err:
@@ -3041,9 +3046,6 @@ err:
     F_CLR(session->txn, WT_TXN_HAS_SNAPSHOT);
     F_CLR(session->txn, WT_TXN_RUNNING);
     session->txn->id = WT_TXN_NONE;
-
-    entry->ret = ret;
-    __checkpoint_reconcile_push_done(session, entry);
     return (0);
 }
 
@@ -3095,6 +3097,10 @@ __wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session)
       __wt_cond_auto_alloc(session, "checkpoint page reconciliation threads - done queue (signal)",
         10 * WT_THOUSAND, WT_MILLION, &ckpt_threads->done_cond));
 
+    // XXX
+    if (sem_init(&ckpt_threads->work_sem, 0, 0) != 0)
+        WT_RET(errno);
+
     /* Create the checkpoint thread group. */
     session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &ckpt_threads->thread_group,
@@ -3139,33 +3145,56 @@ __wt_checkpoint_reconcile_thread_destroy(WT_SESSION_IMPL *session)
     __wt_spin_destroy(session, &ckpt_threads->done_lock);
     __wt_cond_destroy(session, &ckpt_threads->done_cond);
 
+    // XXX
+    if (sem_destroy(&ckpt_threads->work_sem) != 0)
+        WT_RET(errno);
+
     return (ret);
 }
 
 /*
- * __wt_checkpoint_reconcile_workers_wait --
- *     Wait for the checkpoint page reconciliation workers to finished the assigned work.
+ * __wt_checkpoint_reconcile_finish --
+ *     Wait for the checkpoint page reconciliation workers to finish and release the acquired
+ *     resources.
  */
-void
-__wt_checkpoint_reconcile_workers_wait(WT_SESSION_IMPL *session)
+int
+__wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
 {
+    WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
     WT_CHECKPOINT_RECONCILE_THREADS *ckpt_threads;
+    WT_DECL_RET;
     bool signalled;
-    uint64_t work_pushed;
+    uint64_t done_popped, work_pushed;
 
     ckpt_threads = S2C(session)->ckpt_reconcile_threads;
     signalled = false;
 
     work_pushed = __wt_atomic_load64(&ckpt_threads->work_pushed);
     if (work_pushed == 0) /* We have never pushed any work. */
-        return;
+        return (0);
 
-    /* Wait until the work queue is done. */
-    while (!signalled)
-        __wt_cond_wait_signal(session, ckpt_threads->done_cond, WT_MILLION, NULL, &signalled);
+    done_popped = 0;
+    while (work_pushed > done_popped) {
+        // while (!signalled)
+        //     __wt_cond_wait_signal(session, ckpt_threads->done_cond, WT_MILLION, NULL,
+        //     &signalled);
+
+        // XXX
+        if (sem_wait(&ckpt_threads->work_sem) != 0)
+            WT_RET(errno);
+        done_popped++;
+
+        __wt_checkpoint_reconcile_pop_done(session, &entry);
+        if (entry == NULL)
+            break;
+        WT_ASSERT(session, entry->ret == 0);
+        WT_TRET(__wt_page_release(session, entry->ref, entry->release_flags));
+        __wt_checkpoint_reconcile_free(session, entry);
+    }
 
     WT_ASSERT(session, __wt_checkpoint_reconcile_queue_empty(session));
 
     ckpt_threads->work_pushed = 0;
     ckpt_threads->done_pushed = 0;
+    return (ret);
 }

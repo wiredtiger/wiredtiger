@@ -427,8 +427,11 @@ extern int __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_checkpoint_reconcile_push_page(WT_SESSION_IMPL *session, WT_REF *ref,
-  uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_reconcile_finish(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_reconcile_push_page(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t reconcile_flags, uint32_t release_flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_reconcile_thread_create(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_reconcile_thread_destroy(WT_SESSION_IMPL *session)
@@ -2018,7 +2021,6 @@ extern void __wt_checkpoint_reconcile_free(
   WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE *entry);
 extern void __wt_checkpoint_reconcile_pop_done(
   WT_SESSION_IMPL *session, WT_CHECKPOINT_PAGE_TO_RECONCILE **entryp);
-extern void __wt_checkpoint_reconcile_workers_wait(WT_SESSION_IMPL *session);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
 extern void __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta);
 extern void __wt_cond_auto_wait(

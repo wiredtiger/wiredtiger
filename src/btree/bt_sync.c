@@ -137,7 +137,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
-    WT_CHECKPOINT_PAGE_TO_RECONCILE *entry;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -257,6 +256,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
+        // XXX
+        __wt_session_gen_enter(session, WT_GEN_SPLIT);
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(
@@ -356,18 +358,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR_ERROR_OK(
                   __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
                 WT_ERR(__wt_page_release(session, walk, flags));
-            } else if (!is_internal) {
-                WT_ERR(__wt_checkpoint_reconcile_push_page(session, walk, rec_flags));
-            } else {
-                __wt_checkpoint_reconcile_workers_wait(session);
-                for (;;) {
-                    __wt_checkpoint_reconcile_pop_done(session, &entry);
-                    if (entry == NULL)
-                        break;
-                    WT_ASSERT(session, entry->ret == 0);
-                    WT_ERR(__wt_page_release(session, entry->ref, flags));
-                    __wt_checkpoint_reconcile_free(session, entry);
-                }
+            } else if (!is_internal)
+                WT_ERR(__wt_checkpoint_reconcile_push_page(session, walk, rec_flags, flags));
+            else {
+                WT_ERR(__wt_checkpoint_reconcile_finish(session));
                 /* It's not an error if we make no progress. */
                 WT_ERR_ERROR_OK(
                   __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
@@ -388,17 +382,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         }
 
         /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
-        if (WT_SESSION_IS_CHECKPOINT(session)) {
-            __wt_checkpoint_reconcile_workers_wait(session);
-            for (;;) {
-                __wt_checkpoint_reconcile_pop_done(session, &entry);
-                if (entry == NULL)
-                    break;
-                WT_ASSERT(session, entry->ret == 0);
-                WT_ERR(__wt_page_release(session, entry->ref, flags));
-                __wt_checkpoint_reconcile_free(session, entry);
-            }
-        }
+        if (WT_SESSION_IS_CHECKPOINT(session))
+            WT_ERR(__wt_checkpoint_reconcile_finish(session));
+
+        // XXX
+        __wt_session_gen_leave(session, WT_GEN_SPLIT);
 
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are
