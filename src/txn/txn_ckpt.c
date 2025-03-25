@@ -3135,6 +3135,10 @@ __wt_checkpoint_reconcile_thread_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
     ckpt_threads = conn->ckpt_reconcile_threads;
 
+    /* Check whether we have initialized the threads to begin with. */
+    if (ckpt_threads == NULL)
+        return (0);
+
     /* Wait for any checkpoint thread group changes to stabilize. */
     __wt_writelock(session, &ckpt_threads->thread_group.lock);
 
