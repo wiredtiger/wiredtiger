@@ -48,12 +48,11 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
             continue;
 
         /*
-         * When MongoDB opens cursors on table URIs, WiredTiger opens and releases table dhandles,
-         * particularly for simple tables. This repetitive dhandle creation and release, handled by
-         * the sweep server, leads to schema lock contention. To prevent this, the below algorithm
-         * modifies the sweep server's behavior. The algorithm now checks if any file dhandles are
-         * associated with the table before marking a table dhandle for sweeping, thus preventing
-         * unnecessary closures.
+         * The sweep server's algorithm is altered to prevent unnecessary table dhandle closures.
+         * This is done by checking for associated file dhandles before marking table dhandles for
+         * sweeping. It resolves schema lock contention caused by repetitive table dhandle
+         * operations during MongoDB cursor activity on simple tables, and ensures table dhandles
+         * are retained for active file dhandles, which is required for file dhandle access.
          */
         if (dhandle->type == WT_DHANDLE_TYPE_TABLE) {
             table = (WT_TABLE *)dhandle;

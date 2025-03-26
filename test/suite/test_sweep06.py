@@ -32,6 +32,7 @@
 
 from suite_subprocess import suite_subprocess
 import wttest, threading
+from wiredtiger import stat
 
 class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
     dhandles = 1000
@@ -69,3 +70,11 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
             for thread in threads:
                 thread.join()
 
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        close1 = stat_cursor[stat.conn.dh_sweep_dead_close][2]
+        close2 = stat_cursor[stat.conn.dh_sweep_expired_close][2]
+        stat_cursor.close()
+
+        # The expectation is that no dhandles have been closed.
+        self.assertEqual(close1, 0)
+        self.assertEqual(close2, 0)
