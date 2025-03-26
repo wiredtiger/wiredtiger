@@ -2667,8 +2667,8 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
             if (live_restore_enabled)
                 /*
                  * Live restore was still under development when we branched off of develop, so this
-                 * implementation contains unfixed bugs. We won't be backporting live restore to
-                 * 8.1. We can just disable it and all live restore tests.
+                 * implementation contains unfixed bugs. We won't be releasing live restore on
+                 * 8.1 so we can disable it and all live restore tests.
                  */
                 WT_RET_MSG(session, ENOTSUP, "Live restore is not supported on 8.1");
             else
