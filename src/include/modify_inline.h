@@ -15,11 +15,11 @@
         size_t __i;                                                                               \
         for (__i = 0; __i < (nentries); ++__i) {                                                  \
             memcpy(&(mod).data.size, __p, sizeof(size_t));                                        \
-            p += sizeof(size_t);                                                                  \
+            __p += sizeof(size_t);                                                                \
             memcpy(&(mod).offset, __p, sizeof(size_t));                                           \
-            p += sizeof(size_t);                                                                  \
+            __p += sizeof(size_t);                                                                \
             memcpy(&(mod).size, __p, sizeof(size_t));                                             \
-            p += sizeof(size_t);                                                                  \
+            __p += sizeof(size_t);                                                                \
             (mod).data.data = __data;                                                             \
             __data += (mod).data.size;                                                            \
             if ((int)__i < (int)napplied)                                                         \
@@ -31,11 +31,11 @@
         const uint8_t *__data = (const uint8_t *)__p + datasz;              \
         size_t __i;                                                         \
         for (__i = (napplied); __i < (nentries); ++__i) {                   \
-            p -= sizeof(size_t);                                            \
+            __p -= sizeof(size_t);                                          \
             memcpy(&(mod).size, __p, sizeof(size_t));                       \
-            p -= sizeof(size_t);                                            \
+            __p -= sizeof(size_t);                                          \
             memcpy(&(mod).offset, __p, sizeof(size_t));                     \
-            p -= sizeof(size_t);                                            \
+            __p -= sizeof(size_t);                                          \
             memcpy(&(mod).data.size, __p, sizeof(size_t));                  \
             (mod).data.data = (__data -= (mod).data.size);
 
