@@ -247,6 +247,8 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
           (uint8_t *)buf2->mem + WT_BLOCK_COMPRESS_SKIP, dsk->mem_size - WT_BLOCK_COMPRESS_SKIP,
           &result_len2);
 
+        WT_ASSERT_ALWAYS(session, ret == ret2, "WT-13690 - Different ret: %d %d", ret, ret2);
+
         if (ret == 0 && ret2 == 0) {
             WT_ASSERT_ALWAYS(session, result_len == result_len2,
                 "WT-13690 - Differing result lengths! %lu %lu", result_len, result_len2);
@@ -282,9 +284,10 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
                         buf2_value = ((unsigned char*)(buf2->data))[j];
                         same_value = buf1_value == buf2_value;
 
-                        __wt_errx(session, "[%lu] %2x %2x,  %c %c, same? = %i", j, buf1_value, buf2_value, buf1_value, buf2_value, same_value);
-                        if (!same_value)
+                        if (!same_value) {
+                            __wt_errx(session, "[%lu] %2x %2x,  %c %c, same? = %i", j, buf1_value, buf2_value, buf1_value, buf2_value, same_value);
                             __wt_errx(session, "!!! Different value !!!");
+                        }
                     }
                     // Consider this a WT_ASSERT(false). This is just doesn't like asserting false
                     WT_ASSERT_ALWAYS(session, i == 1235123123412312, " ");

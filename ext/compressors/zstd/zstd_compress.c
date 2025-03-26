@@ -248,17 +248,9 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, si
     ZSTD_CONTEXT *context = NULL;
     size_t zstd_ret;
     uint64_t zstd_len;
-    static time_t last_print_time = 0;
-    time_t now = time(NULL);
 
     wt_api = ((ZSTD_COMPRESSOR *)compressor)->wt_api;
     zcompressor = (ZSTD_COMPRESSOR *)compressor;
-
-    /* printf("last_print_time = %ld, now = %ld\n", last_print_time, now); */
-    if (last_print_time < now) {
-        printf("ZSTD_versionNumber(): %u\n", ZSTD_versionNumber());
-        last_print_time = now;
-    }
 
     /*
      * Retrieve the saved length, handling little- to big-endian conversion as necessary.
@@ -510,6 +502,9 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
       zstd_compressor, CONTEXT_TYPE_COMPRESS, CONTEXT_POOL_SIZE, &(zstd_compressor->cctx_pool));
     zstd_init_context_pool(
       zstd_compressor, CONTEXT_TYPE_DECOMPRESS, CONTEXT_POOL_SIZE, &(zstd_compressor->dctx_pool));
+
+    printf("ZSTD_versionNumber(): %u\n", ZSTD_versionNumber());
+    (void)zstd_compressor->wt_api->err_printf(zstd_compressor->wt_api, NULL, "ZSTD_versionNumber(): %u\n", ZSTD_versionNumber());
 
     /* Load the compressor */
     if ((ret = connection->add_compressor(
