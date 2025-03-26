@@ -8,29 +8,33 @@
 
 #pragma once
 
-#define WT_MODIFY_FOREACH_BEGIN(mod, p, nentries, napplied)                    \
+#define WT_MODIFY_FOREACH_BEGIN(mod, p, nentries)                              \
     do {                                                                       \
-        const size_t *__p = p;                                                 \
+        const uint8_t *__p = p;                                                \
         const uint8_t *__data = (const uint8_t *)(__p + (size_t)(nentries)*3); \
-        int __i;                                                               \
+        size_t __i;                                                            \
         for (__i = 0; __i < (nentries); ++__i) {                               \
-            memcpy(&(mod).data.size, __p++, sizeof(size_t));                   \
-            memcpy(&(mod).offset, __p++, sizeof(size_t));                      \
-            memcpy(&(mod).size, __p++, sizeof(size_t));                        \
+            memcpy(&(mod).data.size, __p, sizeof(size_t));                     \
+            p += sizeof(size_t);                                               \
+            memcpy(&(mod).offset, __p, sizeof(size_t));                        \
+            p += sizeof(size_t);                                               \
+            memcpy(&(mod).size, __p, sizeof(size_t));                          \
+            p += sizeof(size_t);                                               \
             (mod).data.data = __data;                                          \
-            __data += (mod).data.size;                                         \
-            if (__i < (napplied))                                              \
-                continue;
+            __data += (mod).data.size;
 
-#define WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, napplied, datasz) \
-    do {                                                              \
-        const size_t *__p = (p) + (size_t)(nentries)*3;               \
-        const uint8_t *__data = (const uint8_t *)__p + datasz;        \
-        int __i;                                                      \
-        for (__i = (napplied); __i < (nentries); ++__i) {             \
-            memcpy(&(mod).size, --__p, sizeof(size_t));               \
-            memcpy(&(mod).offset, --__p, sizeof(size_t));             \
-            memcpy(&(mod).data.size, --__p, sizeof(size_t));          \
+#define WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, napplied, datasz)          \
+    do {                                                                       \
+        const uint8_t *__p = (p) + (size_t)(nentries)*3;                       \
+        const uint8_t *__data = (const uint8_t *)__p + datasz;                 \
+        size_t __i;                                                            \
+        for (__i = (napplied); __i < (nentries); ++__i) {                      \
+            p -= sizeof(size_t);                                               \
+            memcpy(&(mod).size, __p, sizeof(size_t));                          \
+            p -= sizeof(size_t);                                               \
+            memcpy(&(mod).offset, __p, sizeof(size_t));                        \
+            p -= sizeof(size_t);                                               \
+            memcpy(&(mod).data.size, __p, sizeof(size_t));                     \
             (mod).data.data = (__data -= (mod).data.size);
 
 #define WT_MODIFY_FOREACH_END \
@@ -46,18 +50,16 @@ static WT_INLINE void
 __wt_modify_max_memsize(const void *modify, size_t base_value_size, size_t *max_memsize)
 {
     WT_MODIFY mod;
-    size_t tmp;
-    const size_t *p;
-    int nentries;
-
+    size_t nentries;
+    const uint8_t *p;
     *max_memsize = base_value_size;
 
     /* Get the number of modify entries. */
-    p = (const size_t *)modify;
-    memcpy(&tmp, p++, sizeof(size_t));
-    nentries = (int)tmp;
+    p = (const uint8_t *)modify;
+    memcpy(&nentries, p, sizeof(size_t));
+    p += sizeof(size_t);
 
-    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries) {
         *max_memsize = WT_MAX(*max_memsize, mod.offset) + mod.data.size;
     }
     WT_MODIFY_FOREACH_END;
@@ -109,7 +111,6 @@ __wt_modifies_max_memsize(
 {
     WT_UPDATE *upd;
     int i;
-
     *max_memsize = base_value_size;
 
     for (i = (int)modifies->size - 1; i >= 0; --i) {

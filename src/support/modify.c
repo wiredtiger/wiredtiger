@@ -16,16 +16,15 @@ bool
 __wt_modify_idempotent(const void *modify)
 {
     WT_MODIFY mod;
-    size_t tmp;
-    const size_t *p;
-    int nentries;
+    size_t nentries;
+    const uint8_t *p;
 
     /* Get the number of modify entries. */
     p = modify;
-    memcpy(&tmp, p++, sizeof(size_t));
-    nentries = (int)tmp;
+    memcpy(&nentries, p, sizeof(size_t));
+    p += sizeof(size_t);
 
-    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries) {
         /*
          * If the number of bytes being replaced doesn't match the number of bytes being written,
          * we're resizing and the operation isn't idempotent.
@@ -192,7 +191,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
  *     remaining ones are sorted and non-overlapping.
  */
 static void
-__modify_fast_path(WT_ITEM *value, const size_t *p, int nentries, int *nappliedp, bool *overlapp,
+__modify_fast_path(WT_ITEM *value, const uint8_t *p, size_t nentries, size_t *nappliedp, bool *overlapp,
   size_t *dataszp, size_t *destszp)
 {
     WT_MODIFY current, prev;
@@ -215,7 +214,7 @@ __modify_fast_path(WT_ITEM *value, const size_t *p, int nentries, int *nappliedp
      */
     fastpath = first = true;
     *nappliedp = 0;
-    WT_MODIFY_FOREACH_BEGIN (current, p, nentries, 0) {
+    WT_MODIFY_FOREACH_BEGIN (current, p, nentries) {
         datasz += current.data.size;
 
         if (fastpath && current.data.size == current.size &&
@@ -275,8 +274,8 @@ __modify_fast_path(WT_ITEM *value, const size_t *p, int nentries, int *nappliedp
  *     and none of the changes overlap.
  */
 static void
-__modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t *p, int nentries,
-  int napplied, size_t datasz, size_t destsz)
+__modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const uint8_t *p,
+  size_t nentries, size_t napplied, size_t datasz, size_t destsz)
 {
     WT_MODIFY current;
     size_t sz;
@@ -316,18 +315,17 @@ __wt_modify_apply_item(
   WT_SESSION_IMPL *session, const char *value_format, WT_ITEM *value, const void *modify)
 {
     WT_MODIFY mod;
-    size_t datasz, destsz, tmp;
+    size_t datasz, destsz, napplied, nentries;
     size_t item_offset;
-    const size_t *p;
-    int napplied, nentries;
+    const uint8_t *p;
     bool overlap, sformat;
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
      */
     p = modify;
-    memcpy(&tmp, p++, sizeof(size_t));
-    nentries = (int)tmp;
+    memcpy(&nentries, p, sizeof(size_t));
+    p += sizeof(size_t);
 
     /*
      * Modifies can only be applied on a single value field. Make sure we are not applying modifies
@@ -360,7 +358,7 @@ __wt_modify_apply_item(
         goto done;
     }
 
-    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, napplied) {
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries) {
         WT_RET(__modify_apply_one(session, value, &mod, sformat));
     }
     WT_MODIFY_FOREACH_END;
