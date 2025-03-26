@@ -2041,18 +2041,6 @@ __checkpoint_lock_dirty_tree(
     }
 
     /*
-     * Force checkpoint for original files when using a live restore file system. Live restore needs
-     * to write metadata for each file being restored, but it doesn't dirty original btree's during
-     * background migration. By forcing checkpoints we ensure that all original btrees will have
-     * their metadata updated.
-     *
-     * Alternatively, we could perform a forced checkpoint on completion of migration for every file
-     * migrated. However, that would be an expensive operation.
-     */
-    if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS) && btree->original)
-        force = true;
-
-    /*
      * This is a complicated test to determine if we can avoid the expensive call of getting the
      * list of checkpoints for this file. We want to avoid that for clean files. But on clean files
      * we want to periodically check if we need to delete old checkpoints that may have been in use
