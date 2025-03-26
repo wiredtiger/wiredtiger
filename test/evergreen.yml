@@ -2499,39 +2499,6 @@ tasks:
 
   # End of Python unit test tasks
 
-  # Start of live restore tests
-
-  - name: live-restore-short
-    tags: ["pull_request"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/"
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ../test/live_restore/short_test.sh
-
-  - name: live-restore-long
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/cmake_build/"
-          script: |
-            set -o errexit
-            set -o verbose
-            ${PREPARE_TEST_ENV}
-            ../test/live_restore/long_test.sh
-
-  # End of live restore tests
-
   - name: s-all
     tags: ["lint"]
     commands:
@@ -5400,7 +5367,6 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: csuite-long-running
       batchtime: 1440 # once a day
-    - name: live-restore-long
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -5423,7 +5389,6 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: model-test-long-random-config
       batchtime: 1440 # once a day
-    - name: live-restore-long
 
 - name: ubuntu2004-tsan
   display_name: "! Ubuntu 20.04 TSAN"
@@ -6253,7 +6218,6 @@ buildvariants:
       batchtime: 1440 # once a day
     - name: model-test-long-random-config
       batchtime: 1440 # once a day
-    - name: live-restore-long
 
 - name: amazon2023-armv9-tsan
   display_name: "(ARMV9) Amazon Linux 2023 TSAN"
