@@ -21,8 +21,8 @@ __wt_modify_idempotent(const void *modify)
 
     /* Get the number of modify entries. */
     p = modify;
-    memcpy(&nentries, p, sizeof(size_t));
-    p += sizeof(size_t);
+    memcpy(&nentries, p, sizeof(nentries));
+    p += sizeof(nentries);
 
     WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
         /*
@@ -324,8 +324,8 @@ __wt_modify_apply_item(
      * Get the number of modify entries and set a second pointer to reference the replacement data.
      */
     p = modify;
-    memcpy(&nentries, p, sizeof(size_t));
-    p += sizeof(size_t);
+    memcpy(&nentries, p, sizeof(nentries));
+    p += sizeof(nentries);
 
     /*
      * Modifies can only be applied on a single value field. Make sure we are not applying modifies

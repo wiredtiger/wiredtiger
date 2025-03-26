@@ -58,8 +58,8 @@ __wt_modify_max_memsize(const void *modify, size_t base_value_size, size_t *max_
 
     /* Get the number of modify entries. */
     p = (const uint8_t *)modify;
-    memcpy(&nentries, p, sizeof(size_t));
-    p += sizeof(size_t);
+    memcpy(&nentries, p, sizeof(nentries));
+    p += sizeof(nentries);
 
     WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
         *max_memsize = WT_MAX(*max_memsize, mod.offset) + mod.data.size;
