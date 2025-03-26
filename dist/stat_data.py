@@ -1217,7 +1217,11 @@ conn_dsrc_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_average_internal_page_delta_chain_length', 'average length of delta chain on internal page with deltas'),
+    RecStat('rec_average_leaf_page_delta_chain_length', 'average length of delta chain on leaf page with deltas'),
     RecStat('rec_ingest_garbage_collection_keys', 'number of keys that are garbage collected in the ingest table for disaggregated storage'),
+    RecStat('rec_max_internal_page_deltas', 'max deltas seen on internal page during reconciliation'),
+    RecStat('rec_max_leaf_page_deltas', 'max deltas seen on leaf page during reconciliation'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),
@@ -1226,6 +1230,8 @@ conn_dsrc_stats = [
     RecStat('rec_page_delta_leaf', 'leaf page deltas written'),
     RecStat('rec_pages', 'page reconciliation calls'),
     RecStat('rec_pages_eviction', 'page reconciliation calls for eviction'),
+    RecStat('rec_pages_with_internal_deltas', 'pages written with at least one internal page delta'),
+    RecStat('rec_pages_with_leaf_deltas', 'pages written with at least one leaf page delta'),
     RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp '),
     RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp '),
     RecStat('rec_time_aggr_newest_stop_ts', 'pages written including an aggregated newest stop timestamp '),

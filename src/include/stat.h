@@ -1028,10 +1028,14 @@ struct __wt_connection_stats {
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
+    int64_t rec_average_internal_page_delta_chain_length;
+    int64_t rec_average_leaf_page_delta_chain_length;
     int64_t rec_page_delete_fast;
     int64_t rec_page_delta_internal;
     int64_t rec_page_delta_leaf;
     int64_t rec_overflow_key_leaf;
+    int64_t rec_max_internal_page_deltas;
+    int64_t rec_max_leaf_page_deltas;
     int64_t rec_maximum_milliseconds;
     int64_t rec_maximum_image_build_milliseconds;
     int64_t rec_maximum_hs_wrapup_milliseconds;
@@ -1057,6 +1061,8 @@ struct __wt_connection_stats {
     int64_t rec_time_window_pages_durable_stop_ts;
     int64_t rec_time_window_pages_stop_ts;
     int64_t rec_time_window_pages_stop_txn;
+    int64_t rec_pages_with_internal_deltas;
+    int64_t rec_pages_with_leaf_deltas;
     int64_t rec_time_window_prepared;
     int64_t rec_time_window_durable_start_ts;
     int64_t rec_time_window_start_ts;
@@ -1466,6 +1472,8 @@ struct __wt_dsrc_stats {
     int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
+    int64_t rec_average_internal_page_delta_chain_length;
+    int64_t rec_average_leaf_page_delta_chain_length;
     int64_t rec_dictionary;
     int64_t rec_page_delete_fast;
     int64_t rec_page_delta_internal;
@@ -1475,6 +1483,8 @@ struct __wt_dsrc_stats {
     int64_t rec_prefix_compression;
     int64_t rec_multiblock_leaf;
     int64_t rec_overflow_key_leaf;
+    int64_t rec_max_internal_page_deltas;
+    int64_t rec_max_leaf_page_deltas;
     int64_t rec_multiblock_max;
     int64_t rec_ingest_garbage_collection_keys;
     int64_t rec_overflow_value;
@@ -1495,6 +1505,8 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_pages_durable_stop_ts;
     int64_t rec_time_window_pages_stop_ts;
     int64_t rec_time_window_pages_stop_txn;
+    int64_t rec_pages_with_internal_deltas;
+    int64_t rec_pages_with_leaf_deltas;
     int64_t rec_time_window_prepared;
     int64_t rec_time_window_durable_start_ts;
     int64_t rec_time_window_start_ts;

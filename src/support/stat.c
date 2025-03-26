@@ -296,6 +296,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
+  "reconciliation: average length of delta chain on internal page with deltas",
+  "reconciliation: average length of delta chain on leaf page with deltas",
   "reconciliation: dictionary matches",
   "reconciliation: fast-path pages deleted",
   "reconciliation: internal page deltas written",
@@ -305,6 +307,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: leaf page key bytes discarded using prefix compression",
   "reconciliation: leaf page multi-block writes",
   "reconciliation: leaf-page overflow keys",
+  "reconciliation: max deltas seen on internal page during reconciliation",
+  "reconciliation: max deltas seen on leaf page during reconciliation",
   "reconciliation: maximum blocks required for a page",
   "reconciliation: number of keys that are garbage collected in the ingest table for disaggregated "
   "storage",
@@ -326,6 +330,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: pages written including at least one stop durable timestamp",
   "reconciliation: pages written including at least one stop timestamp",
   "reconciliation: pages written including at least one stop transaction ID",
+  "reconciliation: pages written with at least one internal page delta",
+  "reconciliation: pages written with at least one leaf page delta",
   "reconciliation: records written including a prepare state",
   "reconciliation: records written including a start durable timestamp",
   "reconciliation: records written including a start timestamp",
@@ -677,6 +683,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
+    stats->rec_average_internal_page_delta_chain_length = 0;
+    stats->rec_average_leaf_page_delta_chain_length = 0;
     stats->rec_dictionary = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_delta_internal = 0;
@@ -686,6 +694,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_prefix_compression = 0;
     stats->rec_multiblock_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
+    stats->rec_max_internal_page_deltas = 0;
+    stats->rec_max_leaf_page_deltas = 0;
     stats->rec_multiblock_max = 0;
     stats->rec_ingest_garbage_collection_keys = 0;
     stats->rec_overflow_value = 0;
@@ -706,6 +716,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_pages_durable_stop_ts = 0;
     stats->rec_time_window_pages_stop_ts = 0;
     stats->rec_time_window_pages_stop_txn = 0;
+    stats->rec_pages_with_internal_deltas = 0;
+    stats->rec_pages_with_leaf_deltas = 0;
     stats->rec_time_window_prepared = 0;
     stats->rec_time_window_durable_start_ts = 0;
     stats->rec_time_window_start_ts = 0;
@@ -1049,6 +1061,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
+    to->rec_average_internal_page_delta_chain_length +=
+      from->rec_average_internal_page_delta_chain_length;
+    to->rec_average_leaf_page_delta_chain_length += from->rec_average_leaf_page_delta_chain_length;
     to->rec_dictionary += from->rec_dictionary;
     to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_page_delta_internal += from->rec_page_delta_internal;
@@ -1058,6 +1073,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_prefix_compression += from->rec_prefix_compression;
     to->rec_multiblock_leaf += from->rec_multiblock_leaf;
     to->rec_overflow_key_leaf += from->rec_overflow_key_leaf;
+    to->rec_max_internal_page_deltas += from->rec_max_internal_page_deltas;
+    to->rec_max_leaf_page_deltas += from->rec_max_leaf_page_deltas;
     if (from->rec_multiblock_max > to->rec_multiblock_max)
         to->rec_multiblock_max = from->rec_multiblock_max;
     to->rec_ingest_garbage_collection_keys += from->rec_ingest_garbage_collection_keys;
@@ -1079,6 +1096,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_pages_durable_stop_ts += from->rec_time_window_pages_durable_stop_ts;
     to->rec_time_window_pages_stop_ts += from->rec_time_window_pages_stop_ts;
     to->rec_time_window_pages_stop_txn += from->rec_time_window_pages_stop_txn;
+    to->rec_pages_with_internal_deltas += from->rec_pages_with_internal_deltas;
+    to->rec_pages_with_leaf_deltas += from->rec_pages_with_leaf_deltas;
     to->rec_time_window_prepared += from->rec_time_window_prepared;
     to->rec_time_window_durable_start_ts += from->rec_time_window_durable_start_ts;
     to->rec_time_window_start_ts += from->rec_time_window_start_ts;
@@ -1445,6 +1464,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
+    to->rec_average_internal_page_delta_chain_length +=
+      WT_STAT_DSRC_READ(from, rec_average_internal_page_delta_chain_length);
+    to->rec_average_leaf_page_delta_chain_length +=
+      WT_STAT_DSRC_READ(from, rec_average_leaf_page_delta_chain_length);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
     to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
     to->rec_page_delta_internal += WT_STAT_DSRC_READ(from, rec_page_delta_internal);
@@ -1454,6 +1477,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_prefix_compression += WT_STAT_DSRC_READ(from, rec_prefix_compression);
     to->rec_multiblock_leaf += WT_STAT_DSRC_READ(from, rec_multiblock_leaf);
     to->rec_overflow_key_leaf += WT_STAT_DSRC_READ(from, rec_overflow_key_leaf);
+    to->rec_max_internal_page_deltas += WT_STAT_DSRC_READ(from, rec_max_internal_page_deltas);
+    to->rec_max_leaf_page_deltas += WT_STAT_DSRC_READ(from, rec_max_leaf_page_deltas);
     if ((v = WT_STAT_DSRC_READ(from, rec_multiblock_max)) > to->rec_multiblock_max)
         to->rec_multiblock_max = v;
     to->rec_ingest_garbage_collection_keys +=
@@ -1480,6 +1505,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, rec_time_window_pages_durable_stop_ts);
     to->rec_time_window_pages_stop_ts += WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_ts);
     to->rec_time_window_pages_stop_txn += WT_STAT_DSRC_READ(from, rec_time_window_pages_stop_txn);
+    to->rec_pages_with_internal_deltas += WT_STAT_DSRC_READ(from, rec_pages_with_internal_deltas);
+    to->rec_pages_with_leaf_deltas += WT_STAT_DSRC_READ(from, rec_pages_with_leaf_deltas);
     to->rec_time_window_prepared += WT_STAT_DSRC_READ(from, rec_time_window_prepared);
     to->rec_time_window_durable_start_ts +=
       WT_STAT_DSRC_READ(from, rec_time_window_durable_start_ts);
@@ -2152,10 +2179,14 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
+  "reconciliation: average length of delta chain on internal page with deltas",
+  "reconciliation: average length of delta chain on leaf page with deltas",
   "reconciliation: fast-path pages deleted",
   "reconciliation: internal page deltas written",
   "reconciliation: leaf page deltas written",
   "reconciliation: leaf-page overflow keys",
+  "reconciliation: max deltas seen on internal page during reconciliation",
+  "reconciliation: max deltas seen on leaf page during reconciliation",
   "reconciliation: maximum milliseconds spent in a reconciliation call",
   "reconciliation: maximum milliseconds spent in building a disk image in a reconciliation",
   "reconciliation: maximum milliseconds spent in moving updates to the history store in a "
@@ -2184,6 +2215,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: pages written including at least one stop durable timestamp",
   "reconciliation: pages written including at least one stop timestamp",
   "reconciliation: pages written including at least one stop transaction ID",
+  "reconciliation: pages written with at least one internal page delta",
+  "reconciliation: pages written with at least one leaf page delta",
   "reconciliation: records written including a prepare state",
   "reconciliation: records written including a start durable timestamp",
   "reconciliation: records written including a start timestamp",
@@ -2970,10 +3003,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
+    stats->rec_average_internal_page_delta_chain_length = 0;
+    stats->rec_average_leaf_page_delta_chain_length = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_delta_internal = 0;
     stats->rec_page_delta_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
+    stats->rec_max_internal_page_deltas = 0;
+    stats->rec_max_leaf_page_deltas = 0;
     /* not clearing rec_maximum_milliseconds */
     /* not clearing rec_maximum_image_build_milliseconds */
     /* not clearing rec_maximum_hs_wrapup_milliseconds */
@@ -2999,6 +3036,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_pages_durable_stop_ts = 0;
     stats->rec_time_window_pages_stop_ts = 0;
     stats->rec_time_window_pages_stop_txn = 0;
+    stats->rec_pages_with_internal_deltas = 0;
+    stats->rec_pages_with_leaf_deltas = 0;
     stats->rec_time_window_prepared = 0;
     stats->rec_time_window_durable_start_ts = 0;
     stats->rec_time_window_start_ts = 0;
@@ -3878,10 +3917,16 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_vlcs_emptied_pages += WT_STAT_CONN_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_CONN_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_CONN_READ(from, rec_time_window_bytes_txn);
+    to->rec_average_internal_page_delta_chain_length +=
+      WT_STAT_CONN_READ(from, rec_average_internal_page_delta_chain_length);
+    to->rec_average_leaf_page_delta_chain_length +=
+      WT_STAT_CONN_READ(from, rec_average_leaf_page_delta_chain_length);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_page_delta_internal += WT_STAT_CONN_READ(from, rec_page_delta_internal);
     to->rec_page_delta_leaf += WT_STAT_CONN_READ(from, rec_page_delta_leaf);
     to->rec_overflow_key_leaf += WT_STAT_CONN_READ(from, rec_overflow_key_leaf);
+    to->rec_max_internal_page_deltas += WT_STAT_CONN_READ(from, rec_max_internal_page_deltas);
+    to->rec_max_leaf_page_deltas += WT_STAT_CONN_READ(from, rec_max_leaf_page_deltas);
     to->rec_maximum_milliseconds += WT_STAT_CONN_READ(from, rec_maximum_milliseconds);
     to->rec_maximum_image_build_milliseconds +=
       WT_STAT_CONN_READ(from, rec_maximum_image_build_milliseconds);
@@ -3914,6 +3959,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, rec_time_window_pages_durable_stop_ts);
     to->rec_time_window_pages_stop_ts += WT_STAT_CONN_READ(from, rec_time_window_pages_stop_ts);
     to->rec_time_window_pages_stop_txn += WT_STAT_CONN_READ(from, rec_time_window_pages_stop_txn);
+    to->rec_pages_with_internal_deltas += WT_STAT_CONN_READ(from, rec_pages_with_internal_deltas);
+    to->rec_pages_with_leaf_deltas += WT_STAT_CONN_READ(from, rec_pages_with_leaf_deltas);
     to->rec_time_window_prepared += WT_STAT_CONN_READ(from, rec_time_window_prepared);
     to->rec_time_window_durable_start_ts +=
       WT_STAT_CONN_READ(from, rec_time_window_durable_start_ts);
