@@ -2670,7 +2670,7 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
                  * implementation contains unfixed bugs. We won't be releasing live restore on
                  * 8.1 so we can disable it and all live restore tests.
                  */
-                WT_RET_MSG(session, ENOTSUP, "Live restore is not supported on 8.1");
+                WT_RET_MSG(session, ENOTSUP, "Live restore is not supported on MongoDB 8.1");
             else
                 WT_RET(__wt_os_posix(session, &conn->file_system));
 #endif
