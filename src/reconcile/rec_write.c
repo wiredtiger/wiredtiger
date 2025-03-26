@@ -2533,17 +2533,20 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         compressed_size = 0;
 
         if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
-            WT_STAT_CONN_DSRC_INCRV(
-              session, rec_page_delta_internal, multi->block_meta.delta_count);
-            WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_internal_deltas);
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
+            /* Increase this count only when we write the first delta. */
+            if (multi->block_meta.delta_count == 1)
+                WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_internal_deltas);
 
             if (multi->block_meta.delta_count >
               __wt_atomic_load64(&conn->disaggregated_storage.max_internal_delta_count))
                 __wt_atomic_store64(&conn->disaggregated_storage.max_internal_delta_count,
                   multi->block_meta.delta_count);
         } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
-            WT_STAT_CONN_DSRC_INCRV(session, rec_page_delta_leaf, multi->block_meta.delta_count);
-            WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_leaf_deltas);
+            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
+            /* Increase this count only when we write the first delta. */
+            if (multi->block_meta.delta_count == 1)
+                WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_leaf_deltas);
 
             if (multi->block_meta.delta_count >
               __wt_atomic_load64(&conn->disaggregated_storage.max_leaf_delta_count))
