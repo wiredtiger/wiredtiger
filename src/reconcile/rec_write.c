@@ -551,7 +551,9 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
      * Fake up a reference structure, and write the next root page.
      */
     __wt_root_ref_init(session, &fake_ref, next, page->type == WT_PAGE_COL_INT);
-    return (__wt_reconcile(session, &fake_ref, NULL, flags));
+    ret = __wt_reconcile(session, &fake_ref, NULL, flags);
+    WT_ASSERT(session, ret != WT_REC_NO_PROGRESS);
+    return (ret);
 
 err:
     __wt_page_out(session, &next);
@@ -2346,6 +2348,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
+    WT_DELTA_HEADER *header;
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
@@ -2495,6 +2498,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     /* Write the disk image and get an address. */
     if (build_delta) {
+        header = (WT_DELTA_HEADER *)r->delta.data;
+        /* Avoid writing an empty delta. */
+        if (header->u.entries == 0)
+            return (WT_REC_NO_PROGRESS);
+
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
         WT_ASSERT(session, block_meta->checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);

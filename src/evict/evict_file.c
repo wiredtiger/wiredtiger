@@ -74,7 +74,11 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             rec_flags = WT_REC_EVICT | WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBLE_ALL_TXNID;
             if (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(dhandle))
                 rec_flags |= WT_REC_HS;
-            WT_ERR(__wt_reconcile(session, ref, NULL, rec_flags));
+            ret = __wt_reconcile(session, ref, NULL, rec_flags);
+            /* Turns the internal no progress error to EBUSY. */
+            if (ret == WT_REC_NO_PROGRESS)
+                ret = EBUSY;
+            WT_ERR(ret);
         }
 
         /*

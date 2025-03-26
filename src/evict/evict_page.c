@@ -903,6 +903,10 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     else
         ret = __wt_reconcile(session, ref, NULL, flags);
 
+    /* Turns the internal no progress error to EBUSY. */
+    if (ret == WT_REC_NO_PROGRESS)
+        ret = EBUSY;
+
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
