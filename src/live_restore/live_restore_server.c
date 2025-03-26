@@ -105,7 +105,7 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     server->threads_working--;
 
     if (server->threads_working == 0) {
-        if (!F_ISSET(S2C(session), WT_CONN_CLOSING)) {
+        if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING)) {
             /*
              * If all the threads are stopped and the queue is empty, background migration is done.
              */
@@ -331,7 +331,7 @@ __live_restore_init_work_queue(WT_SESSION_IMPL *session)
      * restoring from a backup we don't need to queue it. Otherwise we need to ensure we transfer it
      * over.
      */
-    if (!F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
         WT_ERR(__insert_queue_item(session, (char *)("file:" WT_METAFILE), &work_count));
 
     WT_STAT_CONN_SET(session, live_restore_work_remaining, work_count);
@@ -358,7 +358,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Check that we have a live restore file system before starting the threads or allocating the
      * the server.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
     WT_CONNECTION_IMPL *conn = S2C(session);
@@ -421,7 +421,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
      * happens when an error is encountered after the file system initialization but before the
      * server is created.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS) || server == NULL)
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_LIVE_RESTORE_FS) || server == NULL)
         return (0);
 
     /*
