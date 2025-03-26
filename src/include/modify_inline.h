@@ -23,18 +23,18 @@
             (mod).data.data = __data;                                          \
             __data += (mod).data.size;
 
-#define WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, napplied, datasz)          \
-    do {                                                                       \
-        const uint8_t *__p = (p) + (size_t)(nentries)*3;                       \
-        const uint8_t *__data = (const uint8_t *)__p + datasz;                 \
-        size_t __i;                                                            \
-        for (__i = (napplied); __i < (nentries); ++__i) {                      \
-            p -= sizeof(size_t);                                               \
-            memcpy(&(mod).size, __p, sizeof(size_t));                          \
-            p -= sizeof(size_t);                                               \
-            memcpy(&(mod).offset, __p, sizeof(size_t));                        \
-            p -= sizeof(size_t);                                               \
-            memcpy(&(mod).data.size, __p, sizeof(size_t));                     \
+#define WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, napplied, datasz) \
+    do {                                                              \
+        const uint8_t *__p = (p) + (size_t)(nentries)*3;              \
+        const uint8_t *__data = (const uint8_t *)__p + datasz;        \
+        size_t __i;                                                   \
+        for (__i = (napplied); __i < (nentries); ++__i) {             \
+            p -= sizeof(size_t);                                      \
+            memcpy(&(mod).size, __p, sizeof(size_t));                 \
+            p -= sizeof(size_t);                                      \
+            memcpy(&(mod).offset, __p, sizeof(size_t));               \
+            p -= sizeof(size_t);                                      \
+            memcpy(&(mod).data.size, __p, sizeof(size_t));            \
             (mod).data.data = (__data -= (mod).data.size);
 
 #define WT_MODIFY_FOREACH_END \
@@ -111,6 +111,7 @@ __wt_modifies_max_memsize(
 {
     WT_UPDATE *upd;
     int i;
+
     *max_memsize = base_value_size;
 
     for (i = (int)modifies->size - 1; i >= 0; --i) {

@@ -191,8 +191,8 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
  *     remaining ones are sorted and non-overlapping.
  */
 static void
-__modify_fast_path(WT_ITEM *value, const uint8_t *p, size_t nentries, size_t *nappliedp, bool *overlapp,
-  size_t *dataszp, size_t *destszp)
+__modify_fast_path(WT_ITEM *value, const uint8_t *p, size_t nentries, size_t *nappliedp,
+  bool *overlapp, size_t *dataszp, size_t *destszp)
 {
     WT_MODIFY current, prev;
     size_t datasz, destoff;
