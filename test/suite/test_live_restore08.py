@@ -29,8 +29,6 @@
 import os, glob, time, wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
-from helper import copy_wiredtiger_home
 from wtbackup import backup_base
 
 
@@ -61,15 +59,6 @@ class test_live_restore08(backup_base):
             iteration_count += 1
         self.assertEqual(state, wiredtiger.WT_LIVE_RESTORE_COMPLETE)
 
-    def simulate_crash_restart(self):
-        olddir = "DEST"
-        newdir = "RESTART"
-
-        os.mkdir(newdir)
-        copy_wiredtiger_home(self, olddir, newdir)
-        self.close_conn()
-        self.open_conn("RESTART", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=512B)")
-
     def populate_backup(self):
         ds1 = SimpleDataSet(self, 'file:standard', self.nrows,
         key_format='i', value_format='S')
@@ -89,39 +78,6 @@ class test_live_restore08(backup_base):
             if not f == "SOURCE" and not f == "stderr.txt" and not f == "stdout.txt":
                 os.remove(f)
 
-    # Test bulk cursors on a partially restored database using live restore.
-    def test_live_restore_crash_restart_with_bulk(self):
-        # Live restore is not supported on Windows.
-        if os.name == 'nt':
-            return
-
-        self.populate_backup()
-
-        os.mkdir("DEST")
-
-        # Open live restore connection
-        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=512B)")
-
-        # Simulate a crash by copying the partially restored database to a new directory "RESTART".
-        self.simulate_crash_restart()
-
-        # Ensure bulk cursors can still be used on the restored file. Bulk cursors require exclusive
-        # access and could therefore return EBUSY while live restore background threads are running.
-        while (self.get_stat(stat.conn.cursor_bulk_count) < 1):
-            try:
-                cursor = self.session.open_cursor('file:bulk', None, "bulk")
-            except wiredtiger.WiredTigerError as e:
-                ebusy_str = "Device or resource busy"
-                if (ebusy_str not in str(e)):
-                    raise(e)
-
-        self.assertEqual(self.get_stat(stat.conn.cursor_bulk_count), 1)
-
-        for i in range(1, 10):
-            cursor[i] = "aaaa"
-
-        cursor.close()
-
     # Test bulk cursors on a fully restored database using live restore.
     def test_live_restore_complete_with_bulk(self):
         # Live restore is not supported on Windows.
@@ -132,16 +88,12 @@ class test_live_restore08(backup_base):
 
         os.mkdir("DEST")
 
-        # Open live restore connection
+        # Open live restore connection.
         self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=512B)")
 
         self.wait_for_live_restore_complete()
 
-        # Ensure bulk cursors can still be used on the restored file.
-        cursor = self.session.open_cursor('file:bulk', None, "bulk")
-        self.assertEqual(self.get_stat(stat.conn.cursor_bulk_count), 1)
-
-        for i in range(1, 10):
-            cursor[i] = "aaaa"
-
-        cursor.close()
+        # Bulk load should be disabled for files migrated by live restore.
+        msg = '/bulk-load is only supported on newly created objects/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.open_cursor("file:bulk", None, "bulk"), msg)
