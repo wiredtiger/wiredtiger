@@ -196,9 +196,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     __wt_txn_get_snapshot(session);
                 leaf_bytes += page->memory_footprint;
                 ++leaf_pages;
-                /* It's not an error if we make no progress. */
-                WT_ERR_ERROR_OK(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT),
-                  WT_REC_NO_PROGRESS, false);
+                WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
             }
         }
         break;
@@ -345,9 +343,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (FLD_ISSET(rec_flags, WT_REC_HS))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
-            /* It's not an error if we make no progress. */
-            WT_ERR_ERROR_OK(
-              __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
+            WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /*
              * Update checkpoint IO tracking data if configured to log verbose progress messages.
