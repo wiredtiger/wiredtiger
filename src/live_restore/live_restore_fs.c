@@ -960,6 +960,19 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "%s: Restoring in the background", fh->name);
 
+    /*
+     * Disable bulk cursors on this btree. We need to dirty the tree to ensure the live restore
+     * metadata is written out by the next checkpoint. However, original btree's take "fake"
+     * checkpoints so setting original and modified together is an illegal state.
+     *
+     * It's possible to race with bulk cursors here. Bulk cursors require exclusive access to the
+     * dhandle, so if a background migration begins before the bulk cursor opens, the background
+     * migration will proceed and the cursor open will return EBUSY. Alternatively, if the bulk
+     * cursor is opened before background migration begins on the file, the bulk cursor operation
+     * should succeed.
+     */
+    __wt_btree_disable_bulk(session);
+
     char *buf = NULL;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     /*
@@ -991,11 +1004,9 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
             /*
              * Dirty the tree periodically to ensure the live restore metadata is written out by the
-             * next checkpoint. Avoid original files as they take "fake" checkpoints and setting
-             * both the original and modified flags at the same time is an illegal state.
+             * next checkpoint.
              */
-            if (!S2BT(session)->original)
-                __wt_tree_modify_set(session);
+            __wt_tree_modify_set(session);
         }
 
         /*
@@ -1014,11 +1025,9 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
         /*
          * Dirty the tree again to ensure the live restore metadata is written out by the next
-         * checkpoint. Avoid original files as they take "fake" checkpoints and setting both the
-         * original and modified flags at the same time is an illegal state.
+         * checkpoint.
          */
-        if (!S2BT(session)->original)
-            __wt_tree_modify_set(session);
+        __wt_tree_modify_set(session);
     }
 err:
     __wt_free(session, buf);
