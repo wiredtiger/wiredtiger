@@ -205,7 +205,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * Get exclusive access to the page if our caller doesn't have the tree locked down.
      */
     if (!closing) {
-        WT_ERR(__evict_exclusive(session, ref));
+        WT_ERR_FUNC("evict_exclusive", __evict_exclusive(session, ref));
 
         /*
          * Now the page is locked, remove it from its bucket. We have to do this before freeing the
@@ -223,20 +223,20 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * example, we find a page with active children), quit. Make this check for clean pages, too:
      * while unlikely eviction would choose an internal page with children, it's not disallowed.
      */
-    WT_ERR(__evict_review(session, ref, flags, &inmem_split));
+    WT_ERR_FUNC("evict_review", __evict_review(session, ref, flags, &inmem_split));
 
     /*
      * If we decide to do an in-memory split. Do it now. If an in-memory split completes, the page
      * stays in memory and the tree is left in the desired state: avoid the usual cleanup.
      */
     if (inmem_split) {
-        WT_ERR(__wt_split_insert(session, ref));
+        WT_ERR_FUNC("wt_split_insert", __wt_split_insert(session, ref));
         goto done;
     }
 
     /* No need to reconcile the page if it is from a dead tree or it is clean. */
     if (!tree_dead && __wt_page_is_modified(page))
-        WT_ERR(__evict_reconcile(session, ref, flags));
+        WT_ERR_FUNC("evict_reconcile", __evict_reconcile(session, ref, flags));
 
     /* After this spot, the only recoverable failure is EBUSY. */
     ebusy_only = true;
@@ -274,9 +274,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
         /*
          * Pages that belong to dead trees never write back to disk and can't support page splits.
          */
-        WT_ERR(__evict_page_clean_update(session, ref, flags));
+        WT_ERR_FUNC("evict_page_clean_update", __evict_page_clean_update(session, ref, flags));
     else
-        WT_ERR(__evict_page_dirty_update(session, ref, flags));
+        WT_ERR_FUNC("evict_page_dirty_update", __evict_page_dirty_update(session, ref, flags));
 
     /*
      * We have loaded the new disk image and updated the tree structure. We can no longer fail after

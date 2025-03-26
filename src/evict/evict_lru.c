@@ -1691,6 +1691,7 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
 
     if (must_unlock_ref)
         WT_REF_UNLOCK(ref, previous_state);
+
 }
 
 /*
@@ -1918,6 +1919,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
 		return;
 
+	printf("PAGE %p STATE is %d in __wt_evict_enqueue_page\n", (void*)page, WT_REF_GET_STATE(ref));
+
 	/* Evict handle has the bucket sets for this data handle */
     evict_data = &((WT_BTREE*)dhandle->handle)->evict_data;
     WT_ASSERT(session, evict_data->initialized);
@@ -2030,19 +2033,21 @@ retry:
 		fflush(stdout);
 		while(1);
 	}
-	my_printf(
-		"page (%s) %p type %d read_gen %" PRId64 ": enqueued by session %d in bucket %" PRId64
-		" (%p) of bucketset %d (%p) ur: %" PRId64 "",
-		__wt_page_type_string(page->type), (void *)page, page->type, session->id,
-		page->evict_data.read_gen, dst_bucket, (void *)bucket, bucketset_level, (void *)bucketset,
-		bucketset->lowest_bucket_upper_range);
+	printf(
+		"page (%s) %p type %d STATE %d read_gen %" PRId64 ": enqueued by session %d in bucket %" PRId64
+		" (%p) of bucketset %d (%p) ur: %" PRId64 "\n",
+		__wt_page_type_string(page->type), (void *)page, page->type, WT_REF_GET_STATE(page->ref),
+		page->evict_data.read_gen, (int)session->id, dst_bucket, (void *)bucket, bucketset_level,
+		(void *)bucketset, bucketset->lowest_bucket_upper_range);
+
+#if defined(HAVE_DIAGNOSTIC)
+	__evict_page_consistency_check(session,  page->evict_data.dhandle, page, is_new, true);
+#endif
 
 done:
 	if (must_unlock_ref)
 		WT_REF_UNLOCK(ref, previous_state);
-#if defined(HAVE_DIAGNOSTIC)
-	__evict_page_consistency_check(session,  page->evict_data.dhandle, page, is_new, true);
-#endif
+
 }
 
 /*
@@ -2280,6 +2285,7 @@ __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 void
 __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+	WT_REF_STATE state;
     /*
      * In the event we dirty a page which is flagged as wont need, we update its read generation to
      * avoid evicting a dirty page prematurely.
@@ -2291,8 +2297,15 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
 						   __wt_page_type_string(page->type), (void*)page));
 
 	/* Move the page to the right bucketset */
-	if (page->ref != NULL && page->evict_data.dhandle != NULL)
+	if (page->ref != NULL && page->evict_data.dhandle != NULL) {
+		if ((state = WT_REF_GET_STATE(page->ref)) != WT_REF_MEM)
+			printf("in __wt_evict_page_first_dirty page NOT IN MEMORY, state %d for page %p\n",
+				   (int)state, (void*)page);
+		else
+			printf("in __wt_evict_page_first_dirty page STATE IS %d for page %p\n", (int)state, (void*)page);
+		fflush(stdout);
 		__wt_evict_enqueue_page(session, page->evict_data.dhandle, page->ref, false);
+	}
 }
 
 

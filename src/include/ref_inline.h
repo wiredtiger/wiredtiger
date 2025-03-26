@@ -159,6 +159,6 @@ __ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE *previous_statep)
 
 #define WT_REF_LOCK(session, ref, previous_statep) __ref_lock((session), (ref), (previous_statep))
 
-#define WT_REF_UNLOCK(ref, state) __wt_atomic_store64(&ref->owner, 0); WT_REF_SET_STATE(ref, state)
+#define WT_REF_UNLOCK(ref, state) do {__wt_atomic_store64(&ref->owner, 0); WT_REF_SET_STATE(ref, state);}  while(0)
 
 #define WT_REF_OWNER(session, ref) __wt_atomic_load64(&ref->owner) == (uint64_t)session

@@ -42,11 +42,21 @@
     __wt_set_return_func(session, __PRETTY_FUNCTION__, __LINE__, error, #error)
 
 /* Set "ret" and branch-to-err-label tests. */
-#define WT_ERR(a)             \
-    do {                      \
-        if ((ret = (a)) != 0) \
-            goto err;         \
+#define WT_ERR(a)											\
+    do {													\
+		if ((ret = (a)) != 0)								\
+			goto err;										\
     } while (0)
+
+#define WT_ERR_FUNC(func, a)					\
+	do {										\
+	if ((ret = (a)) != 0)	{								\
+	printf("GOT ERROR at FUNC %s\n", func);					\
+	fflush(stdout);											\
+	goto err;												\
+	}}														\
+	while(0)
+
 #define WT_ERR_MSG(session, v, ...)          \
     do {                                     \
         ret = (v);                           \
