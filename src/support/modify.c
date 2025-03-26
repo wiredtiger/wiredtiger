@@ -24,7 +24,7 @@ __wt_modify_idempotent(const void *modify)
     memcpy(&nentries, p, sizeof(size_t));
     p += sizeof(size_t);
 
-    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries) {
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
         /*
          * If the number of bytes being replaced doesn't match the number of bytes being written,
          * we're resizing and the operation isn't idempotent.
@@ -214,7 +214,7 @@ __modify_fast_path(WT_ITEM *value, const uint8_t *p, size_t nentries, size_t *na
      */
     fastpath = first = true;
     *nappliedp = 0;
-    WT_MODIFY_FOREACH_BEGIN (current, p, nentries) {
+    WT_MODIFY_FOREACH_BEGIN (current, p, nentries, 0) {
         datasz += current.data.size;
 
         if (fastpath && current.data.size == current.size &&
@@ -358,7 +358,7 @@ __wt_modify_apply_item(
         goto done;
     }
 
-    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries) {
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, napplied) {
         WT_RET(__modify_apply_one(session, value, &mod, sformat));
     }
     WT_MODIFY_FOREACH_END;
