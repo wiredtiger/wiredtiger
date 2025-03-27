@@ -63,8 +63,13 @@
       (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
+/*
+ * FIXME-WT-14327 This ISSET access should be an F_ISSET_ATOMIC_32, but doing so makes
+ * clang-analyzer unhappy with how we declare our VERBOSE_MULTI_CATEGORY structs. This needs to be
+ * investigated and fixed.
+ */
 #define WT_VERB_RECOVERY_RTS(session)                                                              \
-    (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) ?                                         \
+    (FLD_ISSET(S2C(session)->flags_atomic, WT_CONN_RECOVERING) ?                                   \
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})) : \
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS})))
 
