@@ -528,8 +528,8 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
         WT_ASSERT_ALWAYS(
           session, mod->mod_multi[i].disk_image == NULL, "Applying unnecessary error handling");
 
-        WT_ERR(__wt_multi_to_ref(
-          session, NULL, next, &mod->mod_multi[i], &pindex->index[i], NULL, false, false));
+        WT_ERR(__wt_multi_to_ref(session, NULL, next, &mod->mod_multi[i], mod->mod_multi_entries,
+          &pindex->index[i], NULL, false, false));
         pindex->index[i]->home = next;
     }
 
@@ -2350,6 +2350,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_MODIFY *mod;
     size_t addr_size, compressed_size;
     uint64_t checkpoint_id;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
@@ -2361,6 +2362,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     conn = S2C(session);
     btree = S2BT(session);
     page = r->page;
+    mod = page->modify;
     build_delta = false;
     block_meta = &r->ref->page->block_meta;
 #ifdef HAVE_DIAGNOSTIC
@@ -2498,8 +2500,43 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (build_delta) {
         header = (WT_DELTA_HEADER *)r->delta.data;
         /* Avoid writing an empty delta. */
-        if (header->u.entries == 0)
+        if (header->u.entries == 0) {
+            /* Copy the previous written page's address if we skip writing. */
+            switch (mod->rec_result) {
+            case 0:
+                WT_ASSERT(session, r->ref->addr != NULL);
+                break;
+            case WT_PM_REC_EMPTY: /* Page deleted */
+                WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");
+                break;
+            case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
+                multi->block_meta = page->block_meta;
+                if (mod->mod_replace.block_cookie != NULL) {
+                    WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
+                    WT_RET(__wt_memdup(session, mod->mod_replace.block_cookie,
+                      mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
+                    multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
+                    multi->addr.type = mod->mod_replace.type;
+                } else
+                    WT_ASSERT(session, r->ref->addr != NULL);
+                break;
+            case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
+                WT_ASSERT(session, mod->mod_multi_entries == 1);
+                multi->block_meta = mod->mod_multi->block_meta;
+                if (mod->mod_multi->addr.block_cookie != NULL) {
+                    WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_multi->addr.ta);
+                    WT_RET(__wt_memdup(session, mod->mod_multi->addr.block_cookie,
+                      mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
+                    multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
+                    multi->addr.type = mod->mod_multi->addr.type;
+                } else
+                    WT_ASSERT(session, r->ref->addr != NULL);
+                break;
+            default:
+                return (__wt_illegal_value(session, mod->rec_result));
+            }
             goto copy_image;
+        }
 
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
@@ -2948,14 +2985,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                              * The exception is root pages are never tracked or free'd, they are
                              * checkpoints, and must be explicitly dropped.
                              */
-        /*
-         * We skipped writing a replacement page because we cannot make progress. Retain the old
-         * replacement page in this case. Otherwise, we will lose the old disk address.
-         */
-        if (r->multi_next == 1 && !F_ISSET(r, WT_REC_IN_MEMORY) && !r->multi->supd_restore &&
-          r->wrapup_checkpoint == NULL && r->multi->addr.block_cookie == NULL)
-            break;
-
         if (!__wt_ref_is_root(ref))
             WT_RET(__wt_btree_block_free(
               session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
@@ -3052,8 +3081,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 r->ref->page->block_meta = r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
-                WT_ASSERT(
-                  session, mod->mod_replace.block_cookie != NULL && r->multi->disk_image == NULL);
+                WT_ASSERT(session, r->ref->addr != NULL && r->multi->disk_image == NULL);
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
             WT_RET(
