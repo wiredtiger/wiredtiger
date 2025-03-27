@@ -33,6 +33,7 @@
 from suite_subprocess import suite_subprocess
 import wttest, threading
 from wiredtiger import stat
+from wtscenario import make_scenarios
 
 class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
     dhandles = 1000
@@ -42,10 +43,18 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'file_manager=(close_handle_minimum=0,' + \
                   'close_idle_time=60,close_scan_interval=30),'
 
+    cursor_caching = [
+        ('cursor_caching_disabled', dict(cursor_caching=False)),
+        ('cursor_caching_enabled', dict(cursor_caching=True)),
+    ]
+
+    scenarios = make_scenarios(cursor_caching)
+
     def insert(self, i, start, rows):
         session = self.conn.open_session()
         uri = self.uri + str(i)
         cursor = session.open_cursor(uri)
+
         session.begin_transaction()
         for i in range(start, rows):
             cursor.set_key(i)
@@ -59,6 +68,8 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
         for i in range(1,self.dhandles):
             uri = self.uri + str(i)
             self.session.create(uri, self.format)
+            if self.cursor_caching:
+                self.session.reconfigure('cache_cursors=true')
 
         for i in range(1,100):
             threads = []

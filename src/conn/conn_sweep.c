@@ -14,6 +14,41 @@
       __wt_atomic_load32(&(dhandle)->references) == 0)
 
 /*
+ * __sweep_check_file_handle_exists --
+ *     Check if the file dhandle exists for the table dhandle.
+ */
+static int
+__sweep_check_file_handle_exists(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+{
+    WT_DECL_RET;
+    WT_TABLE *table;
+
+    /*
+     * The sweep server's algorithm is altered to prevent unnecessary table dhandle closures. This
+     * is done by checking for associated file dhandles before marking table dhandles for sweeping.
+     * It resolves schema lock contention caused by repetitive table dhandle operations during
+     * MongoDB cursor activity on simple tables, and ensures table dhandles are retained for active
+     * file dhandles, which is required for file dhandle access.
+     */
+    table = (WT_TABLE *)dhandle;
+    if (table->is_simple && table->cg_complete) {
+        ret = __wt_conn_dhandle_find(session, table->cgroups[0]->source, NULL);
+
+        /*
+         * Reset the time of death if the file dhandle exists for the associated table dhandle.
+         */
+        if (ret == 0) {
+            dhandle->timeofdeath = 0;
+            return (1);
+        }
+        WT_ASSERT_ALWAYS(
+          session, ret == WT_NOTFOUND, "Connection dhandle find has returned an error.");
+    }
+
+    return (ret);
+}
+
+/*
  * __sweep_mark --
  *     Mark idle handles with a time of death, and note if we see dead handles.
  */
@@ -23,7 +58,6 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    WT_TABLE *table;
 
     conn = S2C(session);
 
@@ -47,30 +81,18 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
           __wt_atomic_loadi32(&dhandle->session_inuse) > 0 || dhandle->timeofdeath != 0)
             continue;
 
-        /*
-         * The sweep server's algorithm is altered to prevent unnecessary table dhandle closures.
-         * This is done by checking for associated file dhandles before marking table dhandles for
-         * sweeping. It resolves schema lock contention caused by repetitive table dhandle
-         * operations during MongoDB cursor activity on simple tables, and ensures table dhandles
-         * are retained for active file dhandles, which is required for file dhandle access.
-         */
+        /* For table dhandles, skip expiration if associated file dhandles exist. */
         if (dhandle->type == WT_DHANDLE_TYPE_TABLE) {
-            table = (WT_TABLE *)dhandle;
-            if (table->is_simple && table->cgroups != NULL) {
-                const char *uri = table->cgroups[0]->source;
-                WT_WITHOUT_DHANDLE(session,
-                  WT_WITH_HANDLE_LIST_READ_LOCK(
-                    session, (ret = __wt_conn_dhandle_find(session, uri, NULL))));
-
-                /* Continue if the file dhandle exists for the associated table dhandle. */
-                if (ret == 0) {
-                    dhandle->timeofdeath = 0;
-                    continue;
-                }
-                WT_ASSERT_ALWAYS(
-                  session, ret == WT_NOTFOUND, "Connection dhandle find has returned an error.");
-            }
+            WT_WITHOUT_DHANDLE(session,
+              WT_WITH_HANDLE_LIST_READ_LOCK(
+                session, (ret = __sweep_check_file_handle_exists(session, dhandle))));
         }
+
+        /* Continue if the file dhandle exists for the associated table dhandle. */
+        if (ret == 1) {
+            continue;
+        }
+
         /*
          * Never close out the history store handle via sweep. It can cause a deadlock if eviction
          * needs to re-open a handle to the history store while a checkpoint is getting started.
