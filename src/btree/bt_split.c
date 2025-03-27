@@ -1820,6 +1820,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT_ALWAYS(session, __wt_leaf_page_can_split(session, page),
       "Attempted to split a page that cannot be split");
     WT_ASSERT_ALWAYS(session, __wt_page_is_modified(page), "Attempted to split a clean page");
+    /* WT_ASSERT_ALWAYS(session, !__wt_conn_is_disagg(session), "YAY disagg split"); */
 
     F_SET_ATOMIC_16(page, WT_PAGE_SPLIT_INSERT); /* Only split in-memory once. */
 

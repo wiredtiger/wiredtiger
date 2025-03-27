@@ -37,13 +37,13 @@ from wtscenario import make_scenarios
 # Test a secondary can perform reads and writes to the ingest component
 # of a layered table, without the stable component.
 class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_base_config = 'transaction_sync=(enabled,method=fsync),' \
+    conn_base_config = 'cache_size=10MB,transaction_sync=(enabled,method=fsync),' \
                      + 'disaggregated=(page_log=palm),'
 
     disagg_storages = gen_disagg_storages('test_layered22', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    nitems = 10000
+    nitems = 100000
     uri = 'layered:test_layered22'
 
     def __init__(self, *args, **kwargs):
@@ -142,12 +142,18 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     def test_largest_key_without_stable(self):
         self.session.create(self.uri, self.session_create_config())
+        self.session.checkpoint()
+        page_log = self.conn.get_page_log('palm')
+        (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
+        self.assertEquals(ret, 0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
+            if i % 10000 == 0:
+                self.conn.reconfigure()
         cursor.close()
 
         cursor = self.session.open_cursor(self.uri, None, None)

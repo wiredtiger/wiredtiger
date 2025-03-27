@@ -81,7 +81,8 @@ class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
         (ret, checkpoint1_last_lsn) = page_log.pl_get_last_lsn(self.session)
-        self.assertEquals(ret, 0)
+        print(f"{checkpoint1_last_lsn=}")
+        self.assertEqual(ret, 0)
 
         # Add more data and create another checkpoint
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -90,7 +91,8 @@ class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
         (ret, checkpoint2_last_lsn) = page_log.pl_get_last_lsn(self.session)
-        self.assertEquals(ret, 0)
+        self.assertEqual(ret, 0)
+        print(f"{checkpoint2_last_lsn=}")
 
         page_log.pl_set_last_materialized_lsn(self.session, checkpoint1_last_lsn)
         self.conn.reconfigure(f'disaggregated=(last_materialized_lsn={checkpoint1_last_lsn})')
