@@ -2949,7 +2949,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                              * checkpoints, and must be explicitly dropped.
                              */
         /*
-         * We skipped writing an replacement page because we cannot make progress. Retain the old
+         * We skipped writing a replacement page because we cannot make progress. Retain the old
          * replacement page in this case. Otherwise, we will lose the old disk address.
          */
         if (r->multi_next == 1 && !F_ISSET(r, WT_REC_IN_MEMORY) && !r->multi->supd_restore &&
