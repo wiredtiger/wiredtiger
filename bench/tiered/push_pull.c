@@ -64,7 +64,7 @@ static void compute_wt_file_size(const char *, const char *, uint64_t *);
 static void compute_tiered_file_size(const char *, const char *, uint64_t *);
 static void fill_random_data(void);
 static void get_file_size(const char *, uint64_t *);
-static void populate(WT_SESSION *, uint32_t, uint32_t);
+static void populate(WT_SESSION *, uint32_t);
 static void recover_validate(const char *, uint32_t, uint64_t, uint32_t);
 static void run_test_clean(const char *, uint32_t);
 static void run_test(const char *, uint32_t, uint32_t);
@@ -285,7 +285,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     char buf[1024], pwd[1024];
     double diff_sec;
     size_t val_1_size, val_2_size;
-    uint64_t key, i, v;
+    uint64_t key, i;
 
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
@@ -315,12 +315,11 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     testutil_wiredtiger_open(opts, home, buf, NULL, &conn, true, true);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Seed the random number generator */
-    v = (uint32_t)getpid() + num_records + (2 * counter);
-    __wt_random_init_custom_seed(&rnd, v);
-
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
     val_1_size = MAX_VALUE_SIZE;
+
+    /* Seed the random number generator */
+    __wt_random_init((WT_SESSION_IMPL *)session, &rnd);
 
     gettimeofday(&start, 0);
 
@@ -378,7 +377,7 @@ run_test(const char *home, uint32_t num_records, uint32_t counter)
 
     gettimeofday(&start, 0);
 
-    populate(session, num_records, counter);
+    populate(session, num_records);
     testutil_check(session->checkpoint(session, buf));
 
     gettimeofday(&end, 0);
@@ -406,15 +405,14 @@ run_test(const char *home, uint32_t num_records, uint32_t counter)
  *     Populate the table.
  */
 static void
-populate(WT_SESSION *session, uint32_t num_records, uint32_t counter)
+populate(WT_SESSION *session, uint32_t num_records)
 {
     WT_CURSOR *cursor;
     WT_ITEM item;
-    uint64_t v, i;
+    uint64_t i;
 
     /* Seed the random number generator */
-    v = (uint32_t)getpid() + num_records + (2 * counter);
-    __wt_random_init_custom_seed(&rnd, v);
+    __wt_random_init((WT_SESSION_IMPL *)session, &rnd);
 
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
     for (i = 0; i < num_records; i++) {
