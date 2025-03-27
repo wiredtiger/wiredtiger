@@ -537,12 +537,12 @@ typedef uint64_t wt_timestamp_t;
 #include "optrack.h"
 #include "os.h"
 #include "../reconcile/reconcile.h"
+#include "verbose.h" /* required by rollback_to_stable.h */
 #include "rollback_to_stable.h"
 #include "schema.h"
 #include "tiered.h"
 #include "truncate.h"
 #include "txn.h"
-#include "verbose.h"
 
 #include "session.h" /* required by connection.h */
 #include "version.h" /* required by connection.h */
