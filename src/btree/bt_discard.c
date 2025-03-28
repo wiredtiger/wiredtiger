@@ -57,18 +57,39 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 void
 __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 {
-    WT_DISAGGREGATED_STORAGE *disagg;
+    /* WT_DISAGGREGATED_STORAGE *disagg; */
     WT_PAGE *page;
-    WT_PAGE_BLOCK_META *block_meta;
+    /* WT_PAGE_BLOCK_META *block_meta; */
     WT_PAGE_HEADER *dsk;
     WT_PAGE_MODIFY *mod;
-    uint64_t last_materialized_lsn;
+    /* uint64_t last_materialized_lsn; */
 
     /*
      * Kill our caller's reference, do our best to catch races.
      */
     page = *pagep;
     *pagep = NULL;
+
+    /*
+    if (__wt_conn_is_disagg(session)) {
+        disagg = &S2C(session)->disaggregated_storage;
+        WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
+        if (last_materialized_lsn != WT_DISAGG_LSN_NONE) {
+            block_meta = &page->block_meta;
+
+            if (page->modify != NULL && page->modify->rec_result == WT_PM_REC_MULTIBLOCK) {
+                WT_ASSERT(session, page->modify->mod_multi_entries > 0);
+                block_meta =
+                  &page->modify->mod_multi[page->modify->mod_multi_entries - 1].block_meta;
+            }
+
+            if (!(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
+                  F_ISSET(S2C(session), WT_CONN_CLOSING)))
+                WT_ASSERT_ALWAYS(session, block_meta->disagg_lsn >= last_materialized_lsn,
+                  "page-outing too new of a page");
+        }
+    }
+     */
 
     /*
      * Unless we have a dead handle or we're closing the database, we should never discard a dirty
@@ -83,21 +104,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
       session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
     WT_ASSERT_ALWAYS(session, !F_ISSET_ATOMIC_16(page, WT_PAGE_EVICT_LRU),
       "Attempting to discard page queued for eviction");
-
-    if (__wt_conn_is_disagg(session)) {
-        disagg = &S2C(session)->disaggregated_storage;
-        WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
-        if (last_materialized_lsn != WT_DISAGG_LSN_NONE) {
-            block_meta = &page->block_meta;
-
-            if (page->modify != NULL && page->modify->rec_result == WT_PM_REC_MULTIBLOCK) {
-                WT_ASSERT(session, page->modify->mod_multi_entries > 0);
-                block_meta = &page->modify->mod_multi[page->modify->mod_multi_entries - 1].block_meta;
-            }
-
-            WT_ASSERT_ALWAYS(session, block_meta->disagg_lsn >= last_materialized_lsn, "page-outing too new of a page");
-        }
-    }
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,

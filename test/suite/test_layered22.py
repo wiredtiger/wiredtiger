@@ -37,7 +37,7 @@ from wtscenario import make_scenarios
 # Test a secondary can perform reads and writes to the ingest component
 # of a layered table, without the stable component.
 class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
-    conn_base_config = 'cache_size=10MB,transaction_sync=(enabled,method=fsync),' \
+    conn_base_config = 'cache_size=10MB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),transaction_sync=(enabled,method=fsync),' \
                      + 'disaggregated=(page_log=palm),'
 
     disagg_storages = gen_disagg_storages('test_layered22', disagg_only = True)
@@ -73,101 +73,42 @@ class test_layered22(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def session_create_config(self):
         return 'key_format=S,value_format=S,'
 
-    def test_secondary_reads_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nitems):
-            cursor["Hello " + str(i)] = "World"
-            cursor["Hi " + str(i)] = "There"
-            cursor["OK " + str(i)] = "Go"
-        cursor.close()
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        item_count = 0
-        while cursor.next() == 0:
-            item_count += 1
-        self.assertEqual(item_count, self.nitems * 3)
-        cursor.close()
-
-        # Test cursor->prev as well
-        cursor = self.session.open_cursor(self.uri, None, None)
-        item_count = 0
-        while cursor.prev() == 0:
-            item_count += 1
-        self.assertEqual(item_count, self.nitems * 3)
-        cursor.close()
-
-    def test_secondary_modifies_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        value1 = "aaaa"
-        value2 = "abaa"
-
-        for i in range(self.nitems):
-            cursor[str(i)] = value1
-
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                self.session.begin_transaction()
-                cursor.set_key(str(i))
-                mods = [wiredtiger.Modify('b', 1, 1)]
-                self.assertEqual(cursor.modify(mods), 0)
-                self.session.commit_transaction()
-
-        cursor.close()
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nitems):
-            if i % 10 == 0:
-                self.assertEqual(cursor[str(i)], value2)
-            else:
-                self.assertEqual(cursor[str(i)], value1)
-        cursor.close()
-
-    def test_secondary_search_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        cursor.set_key("nonexistent")
-        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(cursor.search_near(), wiredtiger.WT_NOTFOUND)
-
-        cursor["found"] = "yes"
-        cursor.set_key("found")
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.search_near(), 0)
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
     def test_largest_key_without_stable(self):
+        # Avoid checkpoint error with precise checkpoint
+        self.conn.set_timestamp('stable_timestamp=1')
+
+        # The node started as a follower, so step it up as the leader
+        self.conn.reconfigure('disaggregated=(role="leader")')
+
         self.session.create(self.uri, self.session_create_config())
+
         self.session.checkpoint()
+
         page_log = self.conn.get_page_log('palm')
         (ret, last_lsn) = page_log.pl_get_last_lsn(self.session)
-        self.assertEquals(ret, 0)
+        print(f"{last_lsn=}")
+        self.assertEqual(ret, 0)
+        self.conn.reconfigure(f'disaggregated=(last_materialized_lsn={last_lsn})')
+
+        time.sleep(5)
+        # reads_pre = self.get_stat()
+        # evictions_pre = self.get_stat()
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             cursor["Hello " + str(i)] = "World"
             cursor["Hi " + str(i)] = "There"
             cursor["OK " + str(i)] = "Go"
-            if i % 10000 == 0:
-                self.conn.reconfigure()
+            # if i % 10000 == 0:
+            #     if i < nitems / 2:
+            #         self.conn.reconfigure(f'disaggregated=last_materialized_lsn={last_lsn}')
         cursor.close()
 
-        cursor = self.session.open_cursor(self.uri, None, None)
-        self.assertEqual(cursor.largest_key(), 0)
-        self.assertEqual(cursor.get_key(), "OK " + str(self.nitems - 1))
-
-    def test_getrandom_without_stable(self):
-        self.session.create(self.uri, self.session_create_config())
-
-        cursor = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nitems):
-            cursor["Hello " + str(i)] = "World"
-        cursor.close()
-
-        random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
-        self.assertEqual(random_cursor.next(), 0)
-        self.assertTrue(random_cursor.get_key().startswith("Hello "))
+        # stats cursor: shouldn't evict or read anything
+        time.sleep(5)

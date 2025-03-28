@@ -178,6 +178,42 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
 }
 
 /*
+ * __wt_materialization_check --
+ *     Check whether a ref is ahead of the materialization frontier, and hence unable to be evicted.
+ */
+int
+__wt_materialization_check(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    WT_PAGE *page;
+    WT_PAGE_BLOCK_META *block_meta;
+    uint64_t last_materialized_lsn;
+
+    if (!__wt_conn_is_disagg(session))
+        return (true);
+
+    disagg = &S2C(session)->disaggregated_storage;
+    page = ref->page;
+    WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
+
+    if (last_materialized_lsn != WT_DISAGG_LSN_NONE) {
+        block_meta = &page->block_meta;
+
+        if (page->modify != NULL && page->modify->rec_result == WT_PM_REC_MULTIBLOCK) {
+            WT_ASSERT(session, page->modify->mod_multi_entries > 0);
+            block_meta = &page->modify->mod_multi[page->modify->mod_multi_entries - 1].block_meta;
+        }
+
+        if (block_meta->disagg_lsn > last_materialized_lsn)
+            fprintf(stderr, "__wt_materialization_check returning false\n");
+
+        return (last_materialized_lsn >= block_meta->disagg_lsn);
+    }
+
+    return (true);
+}
+
+/*
  * __wt_evict --
  *     Evict a page.
  */
@@ -305,7 +341,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
     else if ((clean_page && !F_ISSET(conn, WT_CONN_IN_MEMORY) &&
-               !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) ||
+               !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+               __wt_materialization_check(session, ref)) ||
       tree_dead)
         /*
          * Pages that belong to dead trees never write back to disk and can't support page splits.
