@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, os.path, shutil, time, wiredtiger, wttest
+import os, os.path, shutil, time, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
-    conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_config = 'log=(enabled=true),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(page_log=palm,role="follower"),'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -93,6 +93,8 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             metadata[cursor.get_key()] = cursor.get_value()
         for uri in expect_contains:
             self.assertTrue(uri in metadata)
+            if uri.endswith("wt_ingest"):
+                self.assertTrue(metadata[uri].contains("log=(enabled=false)"))
         for uri in expect_missing:
             self.assertFalse(uri in metadata)
         cursor.close()
