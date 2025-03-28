@@ -412,6 +412,11 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     mod->rec_max_txn = r->max_txn;
     mod->rec_max_timestamp = r->max_ts;
+    if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
+        page->rec_lsn_max = r->multi->block_meta.disagg_lsn;
+    else
+        /* TODO: This should really come from the replace page image, not the original page image */
+        page->rec_lsn_max = r->page->block_meta.disagg_lsn;
 
     /*
      * Track the tree's maximum transaction ID (used to decide if it's safe to discard the tree) and
