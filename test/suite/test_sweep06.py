@@ -65,11 +65,11 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
         session.close()
 
     def test_dhandles(self):
+        if self.cursor_caching:
+            self.session.reconfigure('cache_cursors=true')
         for i in range(1,self.dhandles):
             uri = self.uri + str(i)
             self.session.create(uri, self.format)
-            if self.cursor_caching:
-                self.session.reconfigure('cache_cursors=true')
 
         for i in range(1,100):
             threads = []

@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include "wiredtiger.h"
 #include "wt_internal.h"
 
 #define WT_DHANDLE_CAN_DISCARD(dhandle)                           \
@@ -23,6 +24,7 @@ __sweep_check_file_handle_exists(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhand
     WT_DECL_RET;
     WT_TABLE *table;
 
+    ret = WT_NOTFOUND;
     /*
      * The sweep server's algorithm is altered to prevent unnecessary table dhandle closures. This
      * is done by checking for associated file dhandles before marking table dhandles for sweeping.
@@ -39,10 +41,8 @@ __sweep_check_file_handle_exists(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhand
          */
         if (ret == 0) {
             dhandle->timeofdeath = 0;
-            return (1);
+            return (ret);
         }
-        WT_ASSERT_ALWAYS(
-          session, ret == WT_NOTFOUND, "Connection dhandle find has returned an error.");
     }
 
     return (ret);
@@ -86,11 +86,14 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
             WT_WITHOUT_DHANDLE(session,
               WT_WITH_HANDLE_LIST_READ_LOCK(
                 session, (ret = __sweep_check_file_handle_exists(session, dhandle))));
-        }
 
-        /* Continue if the file dhandle exists for the associated table dhandle. */
-        if (ret == 1) {
-            continue;
+            /* Continue if the file dhandle exists for the associated table dhandle. */
+            if (ret == 0) {
+                continue;
+            }
+
+            WT_ASSERT_ALWAYS(
+              session, ret == WT_NOTFOUND, "Connection dhandle find has returned an error.");
         }
 
         /*
