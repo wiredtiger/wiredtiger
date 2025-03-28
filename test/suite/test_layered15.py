@@ -45,6 +45,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     file_uris = ["file:test_layered15c"]
     table_uris = ["table:test_layered15d"]
     all_uris = layered_uris + file_uris + table_uris
+    with_ingest_uris = all_uris + ["file:test_layered15a.wt_ingest", "file:test_layered15b.wt_ingest"]
 
     update_uris = [table_uris[0]] + ([layered_uris[0]] if len(layered_uris) > 0 else [])
     same_uris = list(set(all_uris) - set(update_uris))
@@ -94,7 +95,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         for uri in expect_contains:
             self.assertTrue(uri in metadata)
             if uri.endswith("wt_ingest"):
-                self.assertTrue(metadata[uri].contains("log=(enabled=false)"))
+                self.assertTrue("log=(enabled=false)" in metadata[uri])
         for uri in expect_missing:
             self.assertFalse(uri in metadata)
         cursor.close()
@@ -152,7 +153,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.restart_without_local_files()
 
         # There should be no shared URIs in the metadata table at this point
-        self.check_metadata_cursor([], self.all_uris)
+        self.check_metadata_cursor([], self.with_ingest_uris)
 
         # Pick up the checkpoint
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
@@ -161,7 +162,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.all_uris)
+        self.check_metadata_cursor(self.with_ingest_uris)
 
         # Check tables after the restart, but before we step up as a leader
         # FIXME-SLS-760: Opening a layered table here would cause a failure in __assert_ckpt_matches
@@ -239,7 +240,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.all_uris)
+        self.check_metadata_cursor(self.with_ingest_uris)
 
         #
         # ------------------------------ Restart 2 ------------------------------
@@ -260,7 +261,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.all_uris)
+        self.check_metadata_cursor(self.with_ingest_uris)
 
         # Check tables after the restart
         for uri in self.update_uris:
