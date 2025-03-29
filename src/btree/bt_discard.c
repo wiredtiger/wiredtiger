@@ -68,6 +68,14 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     *pagep = NULL;
 
     /*
+     * Ensure that we are not evicting a page ahead of the materialization frontier, unless we are
+     * simply discarding the page due to the dhandle being dead or the connection close.
+     */
+    if (!(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING)))
+        WT_ASSERT_ALWAYS(session, __wt_page_materialization_check(session, page),
+          "Page-outing a page ahead of the materialization frontier");
+
+    /*
      * Unless we have a dead handle or we're closing the database, we should never discard a dirty
      * page. We do ordinary eviction from dead trees until sweep gets to them, so we may not in the
      * WT_SYNC_DISCARD loop.

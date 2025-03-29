@@ -1103,6 +1103,7 @@ conn_dsrc_stats = [
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_reverse_splits', 'reverse splits performed'),
     CacheStat('cache_reverse_splits_skipped_vlcs', 'reverse splits skipped because of VLCS namespace gap restrictions'),
+    CacheStat('cache_scrub_restore', 'reconciled pages scrubbed and added back to the cache clean'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),

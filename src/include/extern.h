@@ -2300,6 +2300,8 @@ static WT_INLINE bool __wt_page_is_modified(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_page_is_reconciling(WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wt_page_materialization_check(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_readgen_evict_soon(uint64_t *readgen)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wt_rec_need_split(WT_RECONCILE *r, size_t len)
@@ -2663,6 +2665,8 @@ static WT_INLINE uint64_t __wt_cell_rle(WT_CELL_UNPACK_KV *unpack)
 static WT_INLINE uint64_t __wt_clock(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_clock_to_nsec(uint64_t end, uint64_t begin)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE uint64_t __wt_page_get_disagg_lsn(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_rdtsc(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_safe_sub(uint64_t v1, uint64_t v2)

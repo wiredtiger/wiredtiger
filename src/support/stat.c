@@ -144,6 +144,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
   "cache: recent modification of a page blocked its eviction",
+  "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
   "cache: the number of times full update inserted to history store",
@@ -535,6 +536,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
+    stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
     stats->cache_hs_insert_full_update = 0;
@@ -910,6 +912,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_write += from->cache_write;
     to->cache_write_restore += from->cache_write_restore;
     to->cache_eviction_blocked_recently_modified += from->cache_eviction_blocked_recently_modified;
+    to->cache_scrub_restore += from->cache_scrub_restore;
     to->cache_reverse_splits += from->cache_reverse_splits;
     to->cache_reverse_splits_skipped_vlcs += from->cache_reverse_splits_skipped_vlcs;
     to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
@@ -1301,6 +1304,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_write_restore += WT_STAT_DSRC_READ(from, cache_write_restore);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_recently_modified);
+    to->cache_scrub_restore += WT_STAT_DSRC_READ(from, cache_scrub_restore);
     to->cache_reverse_splits += WT_STAT_DSRC_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_DSRC_READ(from, cache_reverse_splits_skipped_vlcs);
@@ -1803,6 +1807,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages written requiring in-memory restoration",
   "cache: percentage overhead",
   "cache: recent modification of a page blocked its eviction",
+  "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
   "cache: the number of times full update inserted to history store",
@@ -2629,6 +2634,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_restore = 0;
     /* not clearing cache_overhead */
     stats->cache_eviction_blocked_recently_modified = 0;
+    stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
     stats->cache_hs_insert_full_update = 0;
@@ -3484,6 +3490,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_overhead += WT_STAT_CONN_READ(from, cache_overhead);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_recently_modified);
+    to->cache_scrub_restore += WT_STAT_CONN_READ(from, cache_scrub_restore);
     to->cache_reverse_splits += WT_STAT_CONN_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_CONN_READ(from, cache_reverse_splits_skipped_vlcs);
