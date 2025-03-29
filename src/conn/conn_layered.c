@@ -271,8 +271,8 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
 
     /*
-     * Throw away any references to the old disaggreaged metadata table. This ensures that we are on
-     * the most recent checkpoint from now on.
+     * Throw away any references to the old disaggregated metadata table. This ensures that we are
+     * on the most recent checkpoint from now on.
      */
     __disagg_data_handle_outdated(session, WT_DISAGG_METADATA_URI);
 
