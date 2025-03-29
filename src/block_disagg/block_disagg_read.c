@@ -257,7 +257,7 @@ corrupt:
     }
 err:
     time_stop = __wt_clock(session);
-    __wt_stat_msecs_hist_incr_bmread(session, WT_CLOCKDIFF_MS(time_stop, time_start));
+    __wt_stat_usecs_hist_incr_disaggbmread(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     return (ret);
 }
