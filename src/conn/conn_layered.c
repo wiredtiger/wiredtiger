@@ -133,36 +133,6 @@ err:
 }
 
 /*
- * __disagg_data_handle_outdated --
- *     Mark any data handle matching a URI to be outdated, as the metadata for that URI has changed.
- *     Once it is marked, the data handle caches will know to ignore it, and it will eventually age
- *     out. Races are benign for readonly activity, as cursors in the midst of an open may get an
- *     older btree, and that will continue to work. For layered tables, having references to an
- *     older stable btree dhandle just means some data in the ingest table will be pinned for a
- *     longer time.
- */
-static void
-__disagg_data_handle_outdated(WT_SESSION_IMPL *session, const char *uri)
-{
-    WT_DECL_RET;
-
-    /*
-     * If there is a matching data handle, it is out of date, as the metadata has changed. Mark it
-     * so, the data handle caches will know to ignore it, and it will eventually age out. Races are
-     * benign, cursors in the midst of an open may get an older btree, and that will continue to
-     * work. Having references to the older dhandle just means some data in the ingest table will be
-     * pinned for a longer time.
-     */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session,
-      if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
-        WT_DHANDLE_ACQUIRE(session->dhandle));
-    if (ret == 0) {
-        F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
-        WT_DHANDLE_RELEASE(session->dhandle);
-    }
-}
-
-/*
  * __disagg_pick_up_checkpoint --
  *     Pick up a new checkpoint.
  */
@@ -274,7 +244,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
      * on the most recent checkpoint from now on.
      */
-    __disagg_data_handle_outdated(session, WT_DISAGG_METADATA_URI);
+    __wt_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI);
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
@@ -317,7 +287,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
              * Mark any matching data handles to be out of date. Any new opens will get the new
              * metadata.
              */
-            __disagg_data_handle_outdated(session, metadata_key);
+            __wt_conn_dhandle_outdated(session, metadata_key);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */

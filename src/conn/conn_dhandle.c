@@ -306,6 +306,31 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
 }
 
 /*
+ * __wt_conn_dhandle_outdated --
+ *     Mark any data handle matching a URI to be outdated, as the metadata for that URI has changed.
+ */
+void
+__wt_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_RET;
+
+    /*
+     * If there is a matching data handle, mark it as outdated. The data handle and cursor caches
+     * will know to ignore it, and it will eventually age out when references are released. Races
+     * are for readonly btrees are benign, cursors in the midst of an open may get an older btree,
+     * and they will continue to work. For layered tables, Having references to an older dhandle for
+     * a stable tree just means some data in the ingest table will be pinned for a longer time.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session,
+      if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
+        WT_DHANDLE_ACQUIRE(session->dhandle));
+    if (ret == 0) {
+        F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+        WT_DHANDLE_RELEASE(session->dhandle);
+    }
+}
+
+/*
  * __wt_conn_dhandle_close --
  *     Sync and close the underlying btree handle.
  */

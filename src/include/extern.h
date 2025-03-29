@@ -2018,6 +2018,7 @@ extern void __wt_config_initn(
   WT_SESSION_IMPL *session, WT_CONFIG *conf, const char *str, size_t len);
 extern void __wt_config_subinit(WT_SESSION_IMPL *session, WT_CONFIG *conf, WT_CONFIG_ITEM *item);
 extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);
+extern void __wt_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri);
 extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern void __wt_cursor_close(WT_CURSOR *cursor);
