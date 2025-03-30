@@ -377,7 +377,6 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_ERR(__wt_calloc_one(session, &conn->live_restore_server));
 
     /* Read the threads_max config, zero threads is valid in which case we don't do anything. */
     WT_CONFIG_ITEM cval;
@@ -385,6 +384,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (cval.val == 0)
         return (0);
 
+    WT_ERR(__wt_calloc_one(session, &conn->live_restore_server));
     WT_ERR(__wt_spin_init(
       session, &conn->live_restore_server->queue_lock, "live restore migration work queue"));
 
