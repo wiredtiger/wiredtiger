@@ -88,9 +88,8 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
                 session, (ret = __sweep_check_file_handle_exists(session, dhandle))));
 
             /* Continue if the file dhandle exists for the associated table dhandle. */
-            if (ret == 0) {
+            if (ret == 0)
                 continue;
-            }
 
             WT_ASSERT_ALWAYS(
               session, ret == WT_NOTFOUND, "Connection dhandle find has returned an error.");
