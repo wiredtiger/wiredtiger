@@ -105,7 +105,11 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     server->threads_working--;
 
     if (server->threads_working == 0) {
-        if (!F_ISSET(S2C(session), WT_CONN_CLOSING)) {
+        /*
+         * If the migration running flag isn't set it's because we're closing the connection. We
+         * expect to find work remaining the work queue.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING)) {
             /*
              * If all the threads are stopped and the queue is empty, background migration is done.
              */
@@ -192,6 +196,17 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_DECL_RET;
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
     uint64_t time_diff_ms;
+
+    if (!F_ISSET(S2C(session), WT_CONN_READY)) {
+        /*
+         * Wait until the connection has finished opening to begin migration. Otherwise we could
+         * start up, see an empty queue, and immediately call the live restore clean up logic. This
+         * in turn triggers a checkpoint which sets connection flags and the flag setting logic can
+         * produce read-modify-write races with other threads setting up the connection flags.
+         */
+        __wt_sleep(0, 100 * WT_THOUSAND);
+        return (0);
+    }
 
     __wt_spin_lock(session, &server->queue_lock);
     if (TAILQ_EMPTY(&server->work_queue)) {
@@ -395,6 +410,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
       "Starting %" PRId64 " threads to restore %" PRIu64 " files", cval.val,
       conn->live_restore_server->work_count);
+    F_SET(conn, WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING);
     WT_ERR(__wt_thread_group_create(session, &conn->live_restore_server->threads,
       "live_restore_workers", (uint32_t)cval.val, (uint32_t)cval.val, 0,
       __live_restore_worker_check, __live_restore_worker_run, __live_restore_worker_stop));
@@ -416,13 +432,14 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     /*
-     * If we didn't create a live restore file system or the server there is nothing to do, it is
-     * rare, but possible, to arrive here with the flag set and a NULL server. This situation
-     * happens when an error is encountered after the file system initialization but before the
-     * server is created.
+     * If we didn't create the background migration server there is nothing to do. It is rare, but
+     * possible, to arrive here with the flag set and a NULL server. This situation happens when an
+     * error is encountered during the server set up.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS) || server == NULL)
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING) || server == NULL)
         return (0);
+
+    F_CLR(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING);
 
     /*
      * It is possible to get here without ever starting the thread group. Ensure that it has been
