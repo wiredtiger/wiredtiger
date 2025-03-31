@@ -111,7 +111,7 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * files. If the flag isn't set it's because we're closing the connection. We can't assume
          * the migration queue is empty so skip these checks.
          */
-        if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING)) {
+        if (F_ISSET(S2C(session), WT_CONN_READY)) {
             /*
              * If all the threads are stopped and the queue is empty, background migration is done.
              */
@@ -412,7 +412,6 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
       "Starting %" PRId64 " threads to restore %" PRIu64 " files", cval.val,
       conn->live_restore_server->work_count);
-    F_SET(conn, WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING);
     WT_ERR(__wt_thread_group_create(session, &conn->live_restore_server->threads,
       "live_restore_workers", (uint32_t)cval.val, (uint32_t)cval.val, 0,
       __live_restore_worker_check, __live_restore_worker_run, __live_restore_worker_stop));
@@ -440,8 +439,6 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
      */
     if (server == NULL)
         return (0);
-
-    F_CLR(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING);
 
     /*
      * It is possible to get here without ever starting the thread group. Ensure that it has been
