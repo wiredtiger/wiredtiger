@@ -223,16 +223,17 @@ struct __wt_verbose_multi_category {
  *     Display a verbose message, given a set of multiple verbose categories. A verbose message will
  *     be displayed if at least one category in the set satisfies the required verbosity level.
  */
-#define __wt_verbose_level_multi(session, multi_category, level, fmt, ...)                    \
-    do {                                                                                      \
-        uint32_t __v_idx;                                                                     \
-        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {                          \
-            if (WT_VERBOSE_LEVEL_ISSET(session, multi_category.categories[__v_idx], level)) { \
-                __wt_verbose_worker(                                                          \
-                  session, multi_category.categories[__v_idx], level, fmt, __VA_ARGS__);      \
-                break;                                                                        \
-            }                                                                                 \
-        }                                                                                     \
+#define __wt_verbose_level_multi(session, multi_category, level, fmt, ...)                      \
+    do {                                                                                        \
+        uint32_t __v_idx;                                                                       \
+        WT_VERBOSE_MULTI_CATEGORY __multi_category = multi_category;                            \
+        for (__v_idx = 0; __v_idx < __multi_category.cnt; __v_idx++) {                          \
+            if (WT_VERBOSE_LEVEL_ISSET(session, __multi_category.categories[__v_idx], level)) { \
+                __wt_verbose_worker(                                                            \
+                  session, __multi_category.categories[__v_idx], level, fmt, __VA_ARGS__);      \
+                break;                                                                          \
+            }                                                                                   \
+        }                                                                                       \
     } while (0)
 
 /*
@@ -240,14 +241,15 @@ struct __wt_verbose_multi_category {
  *     Display a verbose message, given a set of multiple verbose categories using the default
  *     verbosity level.
  */
-#define __wt_verbose_multi(session, multi_category, fmt, ...)                    \
-    do {                                                                         \
-        uint32_t __v_idx;                                                        \
-        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {             \
-            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) { \
-                __wt_verbose_worker(session, multi_category.categories[__v_idx], \
-                  WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);                   \
-                break;                                                           \
-            }                                                                    \
-        }                                                                        \
+#define __wt_verbose_multi(session, multi_category, fmt, ...)                      \
+    do {                                                                           \
+        uint32_t __v_idx;                                                          \
+        WT_VERBOSE_MULTI_CATEGORY __multi_category = multi_category;               \
+        for (__v_idx = 0; __v_idx < __multi_category.cnt; __v_idx++) {             \
+            if (WT_VERBOSE_ISSET(session, __multi_category.categories[__v_idx])) { \
+                __wt_verbose_worker(session, __multi_category.categories[__v_idx], \
+                  WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);                     \
+                break;                                                             \
+            }                                                                      \
+        }                                                                          \
     } while (0)
