@@ -128,7 +128,7 @@ extern char *__wt_optarg;
 #define ENV_CONFIG_BASE                                       \
     "cache_size=%" PRIu32                                     \
     "M,create,"                                               \
-    "debug_mode=(table_logging=true,checkpoint_retention=5)," \
+    "debug_mode=(checkpoint_retention=5),"                    \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(enabled,file_max=10M,remove=%s),session_max=%d,"    \
     "statistics=(all),statistics_log=(wait=%d,json,on_close)"
