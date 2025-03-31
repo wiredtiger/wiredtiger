@@ -199,8 +199,7 @@ pwrite_out = r'pwrite'
 env_known_issues = {
     'Darwin' : {
         "dtrace: system integrity protection is on, some features will not be available" :
-            "Impossible to trace system calls since MacOS SIP is enabled. Consider weakening SIP " +
-            "to enable system calls testing"
+            "Test skipped due to the inability to trace system calls since macOS SIP is enabled."
     }
 }
 
