@@ -90,7 +90,6 @@ struct __wt_data_handle {
     const char **cfg;           /* Configuration information */
     const char *meta_base;      /* Base metadata configuration */
     uint64_t meta_hash;         /* Base metadata hash */
-    uint64_t unaltered_hash;    /* Hash of original metadata table configuration */
     struct timespec base_upd;   /* Time of last metadata update with meta base */
     const char *orig_meta_base; /* Copy of the base metadata configuration */
     uint64_t orig_meta_hash;    /* Copy of base metadata hash */
