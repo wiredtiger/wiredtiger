@@ -106,8 +106,10 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     if (server->threads_working == 0) {
         /*
-         * If the migration running flag isn't set it's because we're closing the connection. We
-         * expect to find work remaining the work queue.
+         * If the migration running flag is set we're in this function due to the natural completion
+         * of background migration. The queue must be empty and we should clean up live restore
+         * files. If the flag isn't set it's because we're closing the connection. We can't assume
+         * the migration queue is empty so skip these checks.
          */
         if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING)) {
             /*
@@ -433,7 +435,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
 
     /*
      * If we didn't create the background migration server there is nothing to do. It is rare, but
-     * possible, to arrive here with the flag set and a NULL server. This situation happens when an
+     * possible, to arrive here with the flag set and a NULL server. This situation arises when an
      * error is encountered during the server set up.
      */
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING) || server == NULL)
