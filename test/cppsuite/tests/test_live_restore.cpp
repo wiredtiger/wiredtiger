@@ -340,6 +340,42 @@ configure_database(scoped_session &session)
     }
 }
 
+// Take a backup of the provided database and then delete the original db. This backup will be used
+// in the next loop as a source directory.
+static void
+take_backup_and_delete_original(const std::string &home, const std::string &backup_dir)
+{
+    testutil_recreate_dir(backup_dir.c_str());
+    const std::string conn_config = "log=(enabled=true,path=journal)";
+    connection_manager::instance().reopen(conn_config, home);
+
+    {
+        scoped_session backup_session = connection_manager::instance().create_session();
+        scoped_cursor backup_cursor = backup_session.open_scoped_cursor("backup:", "");
+
+        while (backup_cursor->next(backup_cursor.get()) == 0) {
+            char *file_c_str = nullptr;
+            testutil_check(backup_cursor->get_key(backup_cursor.get(), &file_c_str));
+            std::string file = std::string(file_c_str);
+
+            // If the file is a log file prepend the hard-coded journal folder path
+            if (strncmp(file.c_str(), "WiredTigerLog", 13) == 0) {
+                if (!testutil_exists(backup_dir.c_str(), "journal")) {
+                    testutil_mkdir((backup_dir + "/" + std::string("journal")).c_str());
+                }
+                file = "journal/" + file;
+            }
+
+            std::string dest_file = home + "/" + file;
+            std::string source_file = backup_dir + "/" + file;
+            testutil_copy(dest_file.c_str(), source_file.c_str());
+        }
+    }
+
+    connection_manager::instance().close();
+    testutil_remove(home.c_str());
+}
+
 static void
 run_restore(const std::string &home, const std::string &source, const int64_t thread_count,
   const int64_t collection_count, const int64_t op_count, const int64_t verbose_level,
@@ -364,7 +400,9 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
         configure_database(crud_session);
-    do_random_crud(crud_session, collection_count, op_count, false, conn_config, home);
+    // Run 90% of random crud here and do the rest when live restore completes.
+    do_random_crud(
+      crud_session, collection_count, (int64_t)(op_count * 0.9), false, conn_config, home);
     if (die)
         raise(SIGKILL);
 
@@ -387,9 +425,10 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
      */
     testutil_remove(SOURCE_PATH);
     logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
-    // We've deleted the source folder, so reopening the connection will fail. Disable reopens in
-    // our crud operations.
-    do_random_crud(crud_session, collection_count, op_count, false, conn_config, home, false);
+    // We've deleted the source folder, so reopening the connection will fail. Disable reopens and
+    // do the remaining 10% of random crud operations.
+    do_random_crud(
+      crud_session, collection_count, (int64_t)(op_count * 0.1), false, conn_config, home, false);
 
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
@@ -529,7 +568,7 @@ main(int argc, char *argv[])
 
         // We need to create a database to restore from initially.
         create_db(home_path, thread_count, coll_count, op_count, verbose_level);
-        testutil_move(home_path.c_str(), SOURCE_PATH);
+        take_backup_and_delete_original(home_path, std::string(SOURCE_PATH));
     }
 
     /* When setting up the database we don't want to wait for the background threads to complete. */
@@ -542,8 +581,7 @@ main(int argc, char *argv[])
         logger::log_msg(LOG_INFO, "!!!! Beginning iteration: " + std::to_string(i) + " !!!!");
         run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count, verbose_level,
           i == death_it, recovery);
-        testutil_remove(SOURCE_PATH);
-        testutil_move(home_path.c_str(), SOURCE_PATH);
+        take_backup_and_delete_original(home_path, std::string(SOURCE_PATH));
     }
 
     return (0);
