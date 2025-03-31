@@ -438,7 +438,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
      * possible, to arrive here with the flag set and a NULL server. This situation arises when an
      * error is encountered during the server set up.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING) || server == NULL)
+    if (server == NULL)
         return (0);
 
     F_CLR(S2C(session), WT_CONN_LIVE_RESTORE_MIGRATION_RUNNING);
@@ -460,6 +460,6 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
         __live_restore_work_queue_drain(session);
         __wt_spin_destroy(session, &server->queue_lock);
     }
-    __wt_free(session, server);
+    __wt_free(session, S2C(session)->live_restore_server);
     return (0);
 }
