@@ -61,6 +61,11 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     }
 
     /*
+     * Before any alterations to the metadata, save its hash.
+     */
+    dhandle->unaltered_hash = __wt_hash_city64(metaconf, strlen(metaconf));
+
+    /*
      * The defaults are included because persistent configuration information is stored in the
      * metadata file and it may be from an earlier version of WiredTiger. If defaults are included
      * in the configuration, we can add new configuration strings without upgrading the metadata
@@ -307,27 +312,40 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
 
 /*
  * __wt_conn_dhandle_outdated --
- *     Mark any data handle matching a URI to be outdated, as the metadata for that URI has changed.
+ *     Mark any data handle that does not have up to date configuration to be outdated, as the
+ *     metadata for the URI has changed.
  */
-void
-__wt_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
+int
+__wt_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri, const char *current_config)
 {
     WT_DECL_RET;
+    uint64_t current_hash;
 
     /*
-     * If there is a matching data handle, mark it as outdated. The data handle and cursor caches
-     * will know to ignore it, and it will eventually age out when references are released. Races
-     * are for readonly btrees are benign, cursors in the midst of an open may get an older btree,
-     * and they will continue to work. For layered tables, Having references to an older dhandle for
+     * Get the hash for the metadata configuration, that's what we'll use for comparisons.
+     */
+    current_hash = __wt_hash_city64(current_config, strlen(current_config));
+
+    /*
+     * If there is a data handle for this uri, check to see if it is based on an old metadata
+     * configuration, if so, mark it as outdated. The data handle and cursor caches will know to
+     * ignore an outdated data handle, and it will eventually age out when references are released.
+     * Races for readonly btrees are benign, cursors in the midst of an open may get an older btree,
+     * and they will continue to work. For layered tables, having references to an older dhandle for
      * a stable tree just means some data in the ingest table will be pinned for a longer time.
      */
     WT_WITH_HANDLE_LIST_READ_LOCK(session,
       if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
+
     if (ret == 0) {
-        F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+        if (session->dhandle->unaltered_hash != current_hash)
+            F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
         WT_DHANDLE_RELEASE(session->dhandle);
     }
+    WT_ERR_NOTFOUND_OK(ret, false);
+err:
+    return (ret);
 }
 
 /*

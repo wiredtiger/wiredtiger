@@ -241,10 +241,10 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
 
     /*
-     * Throw away any references to the old disaggregated metadata table. This ensures that we are
-     * on the most recent checkpoint from now on.
+     * Mark any dhandles referencing old metadata table information as outdated. This ensures that
+     * we are on the most recent checkpoint from now on.
      */
-    __wt_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI);
+    WT_ERR(__wt_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI, cfg_ret));
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
@@ -281,13 +281,13 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR(md_cursor->insert(md_cursor));
-            __wt_free(session, cfg_ret);
 
             /*
-             * Mark any matching data handles to be out of date. Any new opens will get the new
+             * Mark any existing data handles to be out of date. Any new opens will get the new
              * metadata.
              */
-            __wt_conn_dhandle_outdated(session, metadata_key);
+            WT_ERR(__wt_conn_dhandle_outdated(session, metadata_key, cfg_ret));
+            __wt_free(session, cfg_ret);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */
