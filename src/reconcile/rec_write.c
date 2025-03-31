@@ -3085,7 +3085,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 r->ref->page->block_meta = r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
-                WT_ASSERT(session, r->ref->addr != NULL && r->multi->disk_image == NULL);
+                WT_ASSERT(session, r->ref->addr != NULL);
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
             WT_RET(
