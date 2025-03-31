@@ -41,7 +41,7 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
     tablebase = 'test_sweep06'
     uri = 'table:' + tablebase
     conn_config = 'file_manager=(close_handle_minimum=0,' + \
-                  'close_idle_time=60,close_scan_interval=30),'
+                  'close_idle_time=60,close_scan_interval=30),session_max=512'
 
     cursor_caching = [
         ('cursor_caching_disabled', dict(cursor_caching=False)),
