@@ -497,8 +497,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
         /*
          * 1-for-1 page swap: Update the parent to reference the replacement page.
          *
-         * It's possible to see an empty disk address if the previous reconciliation writes an empty
-         * delta.
+         * It's possible to see an empty disk address if the previous reconciliation skipped writing
+         * an empty delta.
          */
         if (mod->mod_replace.block_cookie != NULL) {
             WT_RET(__wt_calloc_one(session, &addr));
