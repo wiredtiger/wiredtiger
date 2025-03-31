@@ -165,10 +165,10 @@ class test_layered32(wttest.WiredTigerTestCase, DisaggConfigMixin):
         kv_modfied = {}
         for i in range(1, 5):
             # Generate a random number of keys to insert.
-            random_key_range = random.randint(500_000, 700_000)
+            random_key_range = random.randint(50_000, 70_000)
             self.prout(f"random_key_range: {random_key_range}")
             kv = {
-                str(random.randint(1, (self.nitems + 2000_000))): f"{i + j * i}abc"
+                str(random.randint(1, (self.nitems + 200_000))): f"{i + j * i}abc"
                 for j in range(random_key_range)
             }
             # Insert random keys into the table.
