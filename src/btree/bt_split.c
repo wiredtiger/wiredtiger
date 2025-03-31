@@ -1763,6 +1763,9 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      * Copy the address: we could simply take the buffer, but that would complicate error handling,
      * freeing the reference array would have to avoid freeing the memory, and it's not worth the
      * confusion.
+     *
+     * If it is a one to one page rewrite and we skipped writing the empty delta, copy the previous
+     * address from the old ref to the new ref. Otherwise, we will lose the disk address.
      */
     if (multi->addr.block_cookie != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));

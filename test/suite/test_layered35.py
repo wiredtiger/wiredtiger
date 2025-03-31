@@ -47,8 +47,8 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     uris = [
-        ('layered', dict(uri='layered:test_layered09')),
-        ('btree', dict(uri='file:test_layered09')),
+        ('layered', dict(uri='layered:test_layered35')),
+        ('btree', dict(uri='file:test_layered35')),
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \

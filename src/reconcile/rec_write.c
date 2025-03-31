@@ -2535,6 +2535,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             default:
                 return (__wt_illegal_value(session, mod->rec_result));
             }
+            WT_STAT_CONN_DSRC_INCR(session, rec_skip_empty_deltas);
             goto copy_image;
         }
 

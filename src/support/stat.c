@@ -299,6 +299,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: average length of delta chain on internal page with deltas",
   "reconciliation: average length of delta chain on leaf page with deltas",
   "reconciliation: dictionary matches",
+  "reconciliation: empty deltas skipped in disaggregated storage",
   "reconciliation: fast-path pages deleted",
   "reconciliation: internal page deltas written",
   "reconciliation: internal page key bytes discarded using suffix compression",
@@ -686,6 +687,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_average_internal_page_delta_chain_length = 0;
     stats->rec_average_leaf_page_delta_chain_length = 0;
     stats->rec_dictionary = 0;
+    stats->rec_skip_empty_deltas = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_delta_internal = 0;
     stats->rec_suffix_compression = 0;
@@ -1065,6 +1067,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->rec_average_internal_page_delta_chain_length;
     to->rec_average_leaf_page_delta_chain_length += from->rec_average_leaf_page_delta_chain_length;
     to->rec_dictionary += from->rec_dictionary;
+    to->rec_skip_empty_deltas += from->rec_skip_empty_deltas;
     to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_page_delta_internal += from->rec_page_delta_internal;
     to->rec_suffix_compression += from->rec_suffix_compression;
@@ -1469,6 +1472,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_average_leaf_page_delta_chain_length +=
       WT_STAT_DSRC_READ(from, rec_average_leaf_page_delta_chain_length);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
+    to->rec_skip_empty_deltas += WT_STAT_DSRC_READ(from, rec_skip_empty_deltas);
     to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
     to->rec_page_delta_internal += WT_STAT_DSRC_READ(from, rec_page_delta_internal);
     to->rec_suffix_compression += WT_STAT_DSRC_READ(from, rec_suffix_compression);
@@ -2195,6 +2199,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: average length of delta chain on internal page with deltas",
   "reconciliation: average length of delta chain on leaf page with deltas",
+  "reconciliation: empty deltas skipped in disaggregated storage",
   "reconciliation: fast-path pages deleted",
   "reconciliation: internal page deltas written",
   "reconciliation: leaf page deltas written",
@@ -3033,6 +3038,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_average_internal_page_delta_chain_length = 0;
     stats->rec_average_leaf_page_delta_chain_length = 0;
+    stats->rec_skip_empty_deltas = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_delta_internal = 0;
     stats->rec_page_delta_leaf = 0;
@@ -3977,6 +3983,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, rec_average_internal_page_delta_chain_length);
     to->rec_average_leaf_page_delta_chain_length +=
       WT_STAT_CONN_READ(from, rec_average_leaf_page_delta_chain_length);
+    to->rec_skip_empty_deltas += WT_STAT_CONN_READ(from, rec_skip_empty_deltas);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_page_delta_internal += WT_STAT_CONN_READ(from, rec_page_delta_internal);
     to->rec_page_delta_leaf += WT_STAT_CONN_READ(from, rec_page_delta_leaf);
