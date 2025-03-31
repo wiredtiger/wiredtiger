@@ -49,7 +49,6 @@ class test_live_restore09(backup_base):
 
         # Close the default connection and back it up.
         os.mkdir("SOURCE")
-        self.session.checkpoint()
         self.take_full_backup("SOURCE")
         self.close_conn()
 
