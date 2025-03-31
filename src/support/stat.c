@@ -1839,6 +1839,7 @@ static const char *const __stats_connection_desc[] = {
   "log: log sync_dir operations",
   "log: log sync_dir time duration (usecs)",
   "log: log write operations",
+  "log: log writes hit retry when closing Jie",
   "log: logging bytes consolidated",
   "log: maximum log file size",
   "log: number of pre-allocated log files to create",
@@ -2615,6 +2616,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->log_sync_dir = 0;
     /* not clearing log_sync_dir_duration */
     stats->log_writes = 0;
+    stats->log_writes_time4 = 0;
     stats->log_slot_consolidated = 0;
     /* not clearing log_max_filesize */
     /* not clearing log_prealloc_max */
@@ -3447,6 +3449,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->log_sync_dir += WT_STAT_CONN_READ(from, log_sync_dir);
     to->log_sync_dir_duration += WT_STAT_CONN_READ(from, log_sync_dir_duration);
     to->log_writes += WT_STAT_CONN_READ(from, log_writes);
+    to->log_writes_time4 += WT_STAT_CONN_READ(from, log_writes_time4);
     to->log_slot_consolidated += WT_STAT_CONN_READ(from, log_slot_consolidated);
     to->log_max_filesize += WT_STAT_CONN_READ(from, log_max_filesize);
     to->log_prealloc_max += WT_STAT_CONN_READ(from, log_prealloc_max);

@@ -628,6 +628,7 @@ conn_stats = [
     LogStat('log_write_lsn', 'log server thread advances write LSN'),
     LogStat('log_write_lsn_skip', 'log server thread write LSN walk skipped'),
     LogStat('log_writes', 'log write operations'),
+    LogStat('log_writes_time4', 'log writes hit retry when closing Jie'),
     LogStat('log_zero_fills', 'log files manually zero-filled'),
 
     ##########################################

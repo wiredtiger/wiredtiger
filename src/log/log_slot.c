@@ -112,8 +112,10 @@ retry:
      * If this close is coming from a forced close and a thread is in the middle of using the slot,
      * return EBUSY. The caller can decide if retrying is necessary or not.
      */
-    if (forced && WTI_LOG_SLOT_INPROGRESS(old_state))
+    if (forced && WTI_LOG_SLOT_INPROGRESS(old_state)) {
+        WT_STAT_CONN_INCR(session, log_writes_time4);
         return (__wt_set_return(session, EBUSY));
+    }
     /*
      * If someone else is switching out this slot we lost. Nothing to do but return. Return
      * WT_NOTFOUND anytime the given slot was processed by another closing thread. Only return 0

@@ -919,6 +919,7 @@ struct __wt_connection_stats {
     int64_t log_sync_dir;
     int64_t log_sync_dir_duration;
     int64_t log_writes;
+    int64_t log_writes_time4;
     int64_t log_slot_consolidated;
     int64_t log_max_filesize;
     int64_t log_prealloc_max;
