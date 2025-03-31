@@ -106,10 +106,10 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     if (server->threads_working == 0) {
         /*
-         * If the migration running flag is set we're in this function due to the natural completion
-         * of background migration. The queue must be empty and we should clean up live restore
-         * files. If the flag isn't set it's because we're closing the connection. We can't assume
-         * the migration queue is empty so skip these checks.
+         * If the connection ready flag is set we're in this function due to the completion of
+         * background migration during normal operation. The queue must be empty and we should clean
+         * up live restore files. If the flag isn't set it's because we're closing the connection.
+         * We can't assume the migration queue is empty so skip these checks.
          */
         if (F_ISSET(S2C(session), WT_CONN_READY)) {
             /*
@@ -457,6 +457,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
         __live_restore_work_queue_drain(session);
         __wt_spin_destroy(session, &server->queue_lock);
     }
-    __wt_free(session, S2C(session)->live_restore_server);
+    __wt_free(session, server);
+    S2C(session)->live_restore_server = NULL;
     return (0);
 }
