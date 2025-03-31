@@ -43,32 +43,32 @@ class test_live_restore09(backup_base):
         uri = "file:live_restore"
         self.session.create(uri, 'key_format=i,value_format=S')
         cursor = self.session.open_cursor(uri)
-        # Insert around a lot of data to leave us with several very big log files.
+        # Insert a lot of data to leave us with several very big log files.
         for i in range (0, 700000):
             cursor[i] = "a" * 1000
 
         # Close the default connection and back it up.
         os.mkdir("SOURCE")
+        self.session.checkpoint()
         self.take_full_backup("SOURCE")
-        self.session.breakpoint()
         self.close_conn()
 
         # Make a directory to restore to.
         os.mkdir("DEST")
 
-        # Start a thread to perform the restore, we need to do this in a separate thread at the
-        # call to open_conn will return after the temporary log files have been renamed. We want to
-        # catch the copy, prior to rename.
+        # Start a thread to perform the restore, we need to do this in a separate thread as the
+        # call to open_conn will return after live restore has atomically migrated the log files
+        # into the destination. We want to catch the copy, prior to rename.
         thread = threading.Thread(target=self.restore)
         thread.start()
         time.sleep(0.5)
         # Copy over the WiredTiger home simulating a crash. We can't call simulate_crash_restart
-        # here as we need the thread to finish it's open prior to restarting.
+        # here as we need the thread to finish its open prior to restarting.
         copy_wiredtiger_home(self, "DEST", "RESTART")
         # Wait for the open to finish.
         thread.join()
-        # Close the newly opened connection and startup on then restart directory. This used to
-        # throw an error while trying to extract the log number from a temporary file.
+        # Close the newly opened connection and startup on the restart directory. This used to throw
+        # an error while trying to extract the log number from a temporary file.
         self.close_conn()
         self.open_conn("RESTART", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1)")
         self.ignoreStdoutPatternIfExists('recreating metadata from backup')
