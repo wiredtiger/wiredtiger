@@ -106,6 +106,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     /* Do this separately for now because the behavior below is confusing if it triggers. */
     WT_ASSERT(session, ret != WT_NOTFOUND);
     WT_ERR(ret);
+
     /*
      * After positioning our cursor, we're stepping backwards to find the correct update. Since the
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
