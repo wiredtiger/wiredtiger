@@ -140,12 +140,6 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(timestamp2, checkpoint_timestamp)
 
         # Pick up the new checkpoint
-        if not self.uri.startswith('layered'):
-            # FIXME-SLS-915: This should not require reopening the connection.
-            session_follow.close()
-            conn_follow.close()
-            conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
-            session_follow = conn_follow.open_session('')
         self.disagg_advance_checkpoint(conn_follow)
 
         # Check the table in the follower
@@ -185,12 +179,6 @@ class test_layered17(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(stable_timestamp3, checkpoint_timestamp)
 
         # Pick up the new checkpoint
-        if not self.uri.startswith('layered'):
-            # FIXME-SLS-915: This should not require reopening the connection.
-            session_follow.close()
-            conn_follow.close()
-            conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
-            session_follow = conn_follow.open_session('')
         self.disagg_advance_checkpoint(conn_follow)
 
         # Check the table in the follower (should not see the latest changes)
