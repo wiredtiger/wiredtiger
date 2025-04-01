@@ -1947,7 +1947,7 @@ __wt_page_materialization_check(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t last_materialized_lsn;
 
-    if (!__wt_conn_is_disagg(session))
+    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         return (true);
 
     disagg = &S2C(session)->disaggregated_storage;
