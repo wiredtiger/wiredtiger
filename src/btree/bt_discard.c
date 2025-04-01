@@ -72,7 +72,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * simply discarding the page due to the dhandle being dead or the connection close.
      */
     if (!(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING)))
-        WT_ASSERT(session, __wt_page_materialization_check(session, page));
+        if (!__wt_page_materialization_check(session, page))
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_ahead_of_last_materialized_lsn);
 
     /*
      * Unless we have a dead handle or we're closing the database, we should never discard a dirty

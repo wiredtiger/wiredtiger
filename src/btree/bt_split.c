@@ -1430,9 +1430,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (!__wt_readgen_evict_soon(&orig_read_gen))
         __wt_atomic_store64(&page->read_gen, orig_read_gen);
 
-    /*
-     * Preserve the relevant metadata.
-     */
+    /* Preserve the relevant metadata. */
     if (!instantiate_upd) {
         page->block_meta = multi->block_meta;
         page->rec_lsn_max = orig->rec_lsn_max;

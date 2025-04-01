@@ -82,3 +82,5 @@ class test_layered39(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.close()
 
         self.pr(f'cache_scrub_restore = {self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)}')
+        self.assertEqual(
+            self.get_stat(wiredtiger.stat.conn.cache_eviction_ahead_of_last_materialized_lsn), 0)
