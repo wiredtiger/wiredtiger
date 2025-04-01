@@ -2754,6 +2754,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
     __wt_free(session, mod->mod_multi);
     mod->mod_multi_entries = 0;
+    mod->rec_result = 0;
 
     /*
      * This routine would be trivial, and only walk a single page freeing any blocks written to
