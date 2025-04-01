@@ -114,7 +114,7 @@ retry_single:;
                     /* To eliminate flakiness, give it another go. */
                     goto retry_multi;
                 fprintf(
-                  stderr, "Random numbers repeated for %d cycles in consequent sessions\n", cycle);
+                  stderr, "Random numbers repeated for %d cycles in subsequent sessions\n", cycle);
                 random_numbers_repeated = true;
             }
             prev_number = number;
