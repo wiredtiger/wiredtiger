@@ -390,8 +390,6 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_spin_init(
       session, &conn->live_restore_server->queue_lock, "live restore migration work queue"));
 
-    conn->live_restore_server->shutting_down = false;
-
     /*
      * Even if we start from an empty database the history store file will exist before we get here
      * which means there will always be at least one item in the queue.
