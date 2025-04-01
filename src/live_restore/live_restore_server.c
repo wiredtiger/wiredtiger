@@ -111,7 +111,7 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * background migration, so we should clean up any live restore files and make sure
          * everything is fully migrated.
          */
-        if (!__wt_atomic_loadbool(&server->shutting_down)) {
+        if (!server->shutting_down) {
             /*
              * If all the threads are stopped and the queue is empty, background migration is done.
              */
@@ -390,7 +390,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_spin_init(
       session, &conn->live_restore_server->queue_lock, "live restore migration work queue"));
 
-    __wt_atomic_storebool(&conn->live_restore_server->shutting_down, false);
+    conn->live_restore_server->shutting_down = false;
 
     /*
      * Even if we start from an empty database the history store file will exist before we get here
@@ -442,7 +442,7 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
     if (server == NULL)
         return (0);
 
-    __wt_atomic_storebool(&server->shutting_down, true);
+    WTI_WITH_LIVE_RESTORE_QUEUE_LOCK(session, server->shutting_down = true);
 
     /*
      * It is possible to get here without ever starting the thread group. Ensure that it has been
