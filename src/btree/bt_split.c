@@ -1683,9 +1683,9 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
  */
 int
 __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_MULTI *multi,
-  WT_REF **refp, size_t *incrp, bool first, bool closing)
+  size_t multi_entries, WT_REF **refp, size_t *incrp, bool first, bool closing)
 {
-    WT_ADDR *addr;
+    WT_ADDR *addr, *old_addr;
     WT_IKEY *ikey;
     WT_REF *ref;
     size_t key_size;
@@ -1763,6 +1763,9 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      * Copy the address: we could simply take the buffer, but that would complicate error handling,
      * freeing the reference array would have to avoid freeing the memory, and it's not worth the
      * confusion.
+     *
+     * If it is a one to one page rewrite and we skipped writing the empty delta, copy the previous
+     * address from the old ref to the new ref. Otherwise, we will lose the disk address.
      */
     if (multi->addr.block_cookie != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
@@ -1774,6 +1777,19 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
+    } else if (multi_entries == 1 && old_ref->addr != NULL) {
+        old_addr = (WT_ADDR *)old_ref->addr;
+        if (!__wt_off_page(old_ref->home, old_addr))
+            ref->addr = old_addr;
+        else {
+            WT_RET(__wt_calloc_one(session, &addr));
+            ref->addr = addr;
+            WT_TIME_AGGREGATE_COPY(&addr->ta, &old_addr->ta);
+            WT_RET(__wt_memdup(
+              session, old_addr->block_cookie, old_addr->block_cookie_size, &addr->block_cookie));
+            addr->block_cookie_size = old_addr->block_cookie_size;
+            addr->type = old_addr->type;
+        }
     }
 
     /*
@@ -2150,8 +2166,8 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      */
     WT_RET(__wt_calloc_def(session, new_entries, &ref_new));
     for (i = 0; i < new_entries; ++i)
-        WT_ERR(__wt_multi_to_ref(
-          session, ref, page, &mod->mod_multi[i], &ref_new[i], &parent_incr, i == 0, closing));
+        WT_ERR(__wt_multi_to_ref(session, ref, page, &mod->mod_multi[i], new_entries, &ref_new[i],
+          &parent_incr, i == 0, closing));
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
