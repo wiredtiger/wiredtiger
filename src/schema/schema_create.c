@@ -1137,10 +1137,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
-    /*
-     * Create a pair of constituent tables. Disable logging on the ingest table so we have
-     * timestamps.
-     */
+    /* Disable logging on the ingest table so we have timestamps. */
     WT_ERR(__wt_buf_fmt(session, tmp,
       "in_memory=true,log=(enabled=false),"
       "disaggregated=(page_log=none)"));
@@ -1157,6 +1154,10 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
 
     if (conn->layered_table_manager.leader) {
         stable_cfg[1] = disagg_config->data;
+
+        /* Disable logging on the stable table so we have timestamps. */
+        WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
+        stable_cfg[3] = tmp->data;
         WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
         __wt_free(session, constituent_cfg);

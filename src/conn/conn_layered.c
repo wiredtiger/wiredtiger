@@ -49,26 +49,24 @@ err:
  * __layered_create_missing_stable_table --
  *     Create a missing ingest table from an existing layered table configuration.
  */
-static int
+WT_INLINE static int
 __layered_create_missing_stable_table(
   WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
 {
-    WT_CONFIG_ITEM key_format, value_format;
-    WT_DECL_ITEM(stable_config);
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), layered_cfg, NULL, NULL};
 
-    WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
-    WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
+    WT_RET(__wt_scr_alloc(session, 20, &tmp));
 
-    /* TODO Refactor this with __create_layered? */
-    WT_ERR(__wt_scr_alloc(session, 0, &stable_config));
-    WT_ERR(__wt_buf_fmt(session, stable_config, "key_format=\"%.*s\",value_format=\"%.*s\",",
-      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
+    /* Disable logging on the stable table so we have timestamps. */
+    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
+    stable_cfg[2] = tmp->data;
 
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, stable_config->data));
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, layered_cfg));
 
 err:
-    __wt_scr_free(session, &stable_config);
+    __wt_scr_free(session, &tmp);
     return (ret);
 }
 

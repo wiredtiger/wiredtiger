@@ -43,6 +43,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     layered_uris = ["table:test_layered15a", "layered:test_layered15b"]
     file_uris = ["file:test_layered15c"]
+    stable_uris = ["file:test_layered15c", "file:test_layered15a.wt_stable", "file:test_layered15b.wt_stable"]
     table_uris = ["table:test_layered15d"]
     all_uris = layered_uris + file_uris + table_uris
     with_ingest_uris = all_uris + ["file:test_layered15a.wt_ingest", "file:test_layered15b.wt_ingest"]
@@ -94,7 +95,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             metadata[cursor.get_key()] = cursor.get_value()
         for uri in expect_contains:
             self.assertTrue(uri in metadata)
-            if uri.endswith("wt_ingest"):
+            if uri.endswith("wt_ingest") or uri in self.stable_uris:
                 self.assertTrue("log=(enabled=false)" in metadata[uri])
         for uri in expect_missing:
             self.assertFalse(uri in metadata)
