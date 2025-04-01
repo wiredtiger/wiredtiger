@@ -106,12 +106,12 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
 
     if (server->threads_working == 0) {
         /*
-         * If the connection ready flag is set we're in this function due to the completion of
-         * background migration during normal operation. The queue must be empty and we should clean
-         * up live restore files. If the flag isn't set it's because we're closing the connection.
-         * We can't assume the migration queue is empty so skip these checks.
+         * If the shut down flag is set we're here due to the connection closing and we can expect
+         * the work queue to still contain items. Otherwise we're here due to the completion of
+         * background migration, so we should clean up any live restore files and make sure
+         * everything is fully migrated.
          */
-        if (F_ISSET(S2C(session), WT_CONN_READY)) {
+        if (!__wt_atomic_loadbool(&server->shutting_down)) {
             /*
              * If all the threads are stopped and the queue is empty, background migration is done.
              */
@@ -390,6 +390,8 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_spin_init(
       session, &conn->live_restore_server->queue_lock, "live restore migration work queue"));
 
+    __wt_atomic_storebool(&conn->live_restore_server->shutting_down, false);
+
     /*
      * Even if we start from an empty database the history store file will exist before we get here
      * which means there will always be at least one item in the queue.
@@ -439,6 +441,8 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
      */
     if (server == NULL)
         return (0);
+
+    __wt_atomic_storebool(&server->shutting_down, true);
 
     /*
      * It is possible to get here without ever starting the thread group. Ensure that it has been

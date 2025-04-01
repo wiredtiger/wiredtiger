@@ -156,6 +156,7 @@ struct __wti_live_restore_server {
     uint64_t msg_count;
     uint64_t work_count;
     uint64_t work_items_remaining;
+    wt_shared bool shutting_down; /* Set when connection close terminates the server. */
 
     TAILQ_HEAD(__wti_live_restore_work_queue, __wti_live_restore_work_item) work_queue;
 };
