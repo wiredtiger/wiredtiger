@@ -1944,25 +1944,9 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 static WT_INLINE uint64_t
 __wt_page_get_disagg_lsn(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_PAGE_BLOCK_META *block_meta;
-    WT_PAGE_MODIFY *mod;
+    WT_UNUSED(session);
 
-    block_meta = &page->block_meta;
-
-    /* Check if there is a newer block metadata struct in the page's modify struct. */
-    mod = page->modify;
-    if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
-        WT_ASSERT(session, mod->mod_multi_entries > 0 && mod->mod_multi != NULL);
-        block_meta = &mod->mod_multi[mod->mod_multi_entries - 1].block_meta;
-    }
-
-    /* If the page was replaced 1-1, the original page struct would contain the latest info. */
-
-    /* Ignore the LSN if the page has never been written, or if the page has been discarded. */
-    if (block_meta->page_id == WT_BLOCK_INVALID_PAGE_ID)
-        return (WT_DISAGG_LSN_NONE);
-
-    return (block_meta->disagg_lsn);
+    return (page->rec_lsn_max);
 }
 
 /*
