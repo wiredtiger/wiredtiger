@@ -188,12 +188,16 @@ class Oplog(object):
 
     # Apply the oplog entries starting at the position to the session
     def apply(self, testcase, session, pos, count):
-        # A faster implementation might keep cursors open in an array indexed by table id
+        # Keep a cache of open cursors
+        cursors = [None] * len(self._entries)
         while count > 0:
             (table, k, v) = self._entries[pos]
             ts = pos + 1
-            uri = self._uris[table - 1][0]
-            cursor = session.open_cursor(uri)
+            cursor = cursors[table - 1]
+            if not cursor:
+                uri = self._uris[table - 1][0]
+                cursor = session.open_cursor(uri)
+                cursors[table - 1] = cursor
             session.begin_transaction()
             if v == self._tombstone_value:
                 cursor.set_key(self.gen_key(k))
@@ -204,20 +208,26 @@ class Oplog(object):
                 session.commit_transaction(f'commit_timestamp={testcase.timestamp_str(ts)}')
             else:
                 session.commit_transaction()
-            cursor.close()
             pos += 1
             count -= 1
+        for cursor in cursors:
+            if cursor:
+                cursor.close()
 
     def check(self, testcase, session, pos, count):
-        # A faster implementation might keep cursors open in an array indexed by table id
+        # Keep a cache of open cursors
+        cursors = [None] * len(self._entries)
 
         pos_limit = pos + count
         # Walk through oplog entries doing point-reads at timestamps
         while count > 0:
             (table, k, v) = self._entries[pos]
             ts = pos + 1
-            uri = self._uris[table - 1][0]
-            cursor = session.open_cursor(uri)
+            cursor = cursors[table - 1]
+            if not cursor:
+                uri = self._uris[table - 1][0]
+                cursor = session.open_cursor(uri)
+                cursors[table - 1] = cursor
             if self._use_timestamps:
                 expected_value_int = v
                 session.begin_transaction(f'read_timestamp={testcase.timestamp_str(ts)}')
@@ -235,9 +245,11 @@ class Oplog(object):
                     testcase.pr(f'point-read of {actual_key} at ts={ts} gives {result_value}, expected {expected_value}')
                     testcase.assertEqual(result_value, expected_value)
             session.rollback_transaction()
-            cursor.close()
             pos += 1
             count -= 1
+        for cursor in cursors:
+            if cursor:
+                cursor.close()
 
         # Do a cursor scan, compare against most recent.
         for uri, entlist in self._uris:
