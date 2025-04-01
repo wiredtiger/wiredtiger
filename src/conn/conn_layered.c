@@ -241,12 +241,13 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
       conn, "checkpoint-pick-up-shared", false, 0, 0, &shared_metadata_session));
 
     /*
-     * Scan the metadata table. Reopen the table to ensure that we are on the most recent
-     * checkpoint.
+     * Throw away any references to the old disaggregated metadata table. This ensures that we are
+     * on the most recent checkpoint from now on.
      */
+    WT_ERR(__wt_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
+
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-    cfg[1] = "checkpoint_use_history=false,force=true";
-    cfg[2] = NULL;
+    cfg[1] = NULL;
     WT_ERR(__wt_open_cursor(shared_metadata_session, WT_DISAGG_METADATA_URI, NULL, cfg, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
@@ -280,23 +281,13 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
             WT_ERR(md_cursor->insert(md_cursor));
-            __wt_free(session, cfg_ret);
 
             /*
-             * If there is a matching data handle, it is out of date, as the metadata has changed.
-             * Mark it so, the data handle caches will know to ignore it, and it will eventually age
-             * out. Races are benign, cursors in the midst of an open may get an older btree, and
-             * that will continue to work. Having references to the older dhandle just means some
-             * data in the ingest table will be pinned for a longer time.
+             * Mark any matching data handles to be out of date. Any new opens will get the new
+             * metadata.
              */
-            WT_WITH_HANDLE_LIST_READ_LOCK(session,
-              if ((ret = __wt_conn_dhandle_find(session, metadata_key, NULL)) == 0)
-                WT_DHANDLE_ACQUIRE(session->dhandle));
-            if (ret == 0) {
-                F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
-                WT_DHANDLE_RELEASE(session->dhandle);
-            }
-
+            WT_ERR(__wt_conn_dhandle_outdated(session, metadata_key));
+            __wt_free(session, cfg_ret);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
             /* TODO: Verify that there is no btree ID conflict. */
@@ -610,8 +601,6 @@ __layered_table_get_constituent_cursor(
         return (0);
 
     WT_ACQUIRE_READ(global_ckpt_id, conn->disaggregated_storage.global_checkpoint_id);
-    if (global_ckpt_id > entry->read_checkpoint)
-        cfg[2] = "force=true";
 
     /* Open the cursor and keep a reference in the manager entry and our caller */
     WT_RET(__wt_open_cursor(session, entry->stable_uri, NULL, cfg, &stable_cursor));

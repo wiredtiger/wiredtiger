@@ -467,8 +467,6 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     mod = ref->page->modify;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
-    WT_ASSERT(session, ref->addr == NULL);
-
     switch (mod->rec_result) {
     case WT_PM_REC_EMPTY:
         /*
@@ -503,13 +501,20 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
     case WT_PM_REC_REPLACE:
-        /* 1-for-1 page swap: Update the parent to reference the replacement page. */
-        WT_ASSERT(session, mod->mod_replace.block_cookie != NULL);
-        WT_RET(__wt_calloc_one(session, &addr));
-        *addr = mod->mod_replace;
-        mod->mod_replace.block_cookie = NULL;
-        mod->mod_replace.block_cookie_size = 0;
-        ref->addr = addr;
+        /*
+         * 1-for-1 page swap: Update the parent to reference the replacement page.
+         *
+         * It's possible to see an empty disk address if the previous reconciliation skipped writing
+         * an empty delta.
+         */
+        if (mod->mod_replace.block_cookie != NULL) {
+            WT_RET(__wt_calloc_one(session, &addr));
+            *addr = mod->mod_replace;
+            mod->mod_replace.block_cookie = NULL;
+            mod->mod_replace.block_cookie_size = 0;
+            ref->addr = addr;
+        } else
+            WT_ASSERT(session, ref->addr != NULL);
 
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
