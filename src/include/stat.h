@@ -629,6 +629,7 @@ struct __wt_connection_stats {
     int64_t cache_write_hs;
     int64_t cache_eviction_consider_prefetch;
     int64_t cache_pages_inuse;
+    int64_t cache_eviction_ahead_of_last_materialized_lsn;
     int64_t cache_eviction_app;
     int64_t cache_eviction_pages_in_parallel_with_checkpoint;
     int64_t cache_eviction_pages_queued;
@@ -654,6 +655,7 @@ struct __wt_connection_stats {
     int64_t cache_write_restore;
     int64_t cache_overhead;
     int64_t cache_eviction_blocked_recently_modified;
+    int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
@@ -1329,6 +1331,7 @@ struct __wt_dsrc_stats {
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
+    int64_t cache_eviction_ahead_of_last_materialized_lsn;
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
@@ -1339,6 +1342,7 @@ struct __wt_dsrc_stats {
     int64_t cache_write;
     int64_t cache_write_restore;
     int64_t cache_eviction_blocked_recently_modified;
+    int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
