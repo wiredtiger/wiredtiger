@@ -90,31 +90,22 @@ __live_restore_create_stop_file_path(WT_SESSION_IMPL *session, const char *name,
 }
 
 /*
- * __live_restore_fs_create_stop_file --
- *     Create a stop file for the given file.
+ * __live_restore_fs_create_stop_file_locked --
+ *     Create a stop file for the given file. The live restore state lock must be held.
  */
 static int
-__live_restore_fs_create_stop_file(
-  WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
+__live_restore_fs_create_stop_file_locked(
+  WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE *fh;
-    WTI_LIVE_RESTORE_FS *lr_fs;
     uint32_t open_flags;
     char *path, *path_marker;
-
-    lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
     path = path_marker = NULL;
 
-    bool reentrant = __wt_spin_owned(session, &lr_fs->state_lock);
-    if (!reentrant)
-        __wt_spin_lock(session, &lr_fs->state_lock);
-
-    if (__wti_live_restore_migration_complete(session)) {
-        if (!reentrant)
-            __wt_spin_unlock(session, &lr_fs->state_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &lr_fs->state_lock);
+    if (__wti_live_restore_migration_complete(session))
         return (0);
-    }
 
     WT_ERR(__live_restore_fs_backing_filename(
       session, lr_fs, WTI_LIVE_RESTORE_FS_LAYER_DESTINATION, name, &path));
@@ -133,10 +124,21 @@ __live_restore_fs_create_stop_file(
 err:
     __wt_free(session, path);
     __wt_free(session, path_marker);
+    return (ret);
+}
 
-    if (!reentrant)
-        __wt_spin_unlock(session, &lr_fs->state_lock);
-
+/*
+ * __live_restore_fs_create_stop_file --
+ *     Create a stop file for the given file.
+ */
+static int
+__live_restore_fs_create_stop_file(
+  WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const char *name, uint32_t flags)
+{
+    WT_DECL_RET;
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
+    WTI_WITH_LIVE_RESTORE_STATE_LOCK(
+      session, lr_fs, ret = __live_restore_fs_create_stop_file_locked(lr_fs, session, name, flags));
     return (ret);
 }
 
