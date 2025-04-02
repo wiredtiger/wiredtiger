@@ -567,12 +567,14 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
   void *reconcilep)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
     WT_TXN_GLOBAL *txn_global;
     uint64_t btree_ckpt_gen, ckpt_gen, ckpt_txn;
 
+    conn = S2C(session);
     btree = S2BT(session);
     page = ref->page;
 
@@ -602,13 +604,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* Remember the configuration. */
     r->ref = ref;
     r->page = page;
-
-    /*
-     * Save the transaction generations before reading the page. These are all acquire reads, but we
-     * only need one.
-     */
-    btree_ckpt_gen = btree->checkpoint_gen;
-    ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
     WT_ASSERT_ALWAYS(
       session, page->modify->flags == 0, "Illegal page state when initializing reconcile");
@@ -641,9 +636,15 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     __wt_txn_pinned_timestamp(session, &r->rec_start_pinned_ts);
     r->rec_start_oldest_id = __wt_txn_oldest_id(session);
 
-    __wt_txn_pinned_stable_timestamp(session, &r->rec_start_pinned_stable_ts);
+    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        __wt_txn_pinned_stable_timestamp(session, &r->rec_start_pinned_stable_ts);
+    else
+        r->rec_start_pinned_stable_ts = WT_TS_NONE;
 
-    WT_ACQUIRE_READ(r->rec_prune_timestamp, btree->prune_timestamp);
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+        WT_ACQUIRE_READ(r->rec_prune_timestamp, btree->prune_timestamp);
+    else
+        r->rec_prune_timestamp = WT_TS_NONE;
 
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
@@ -654,11 +655,28 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * If precise checkpoint is enabled, all the trees haven't been visited by the checkpoint should
      * also consider the checkpoint transaction.
      */
-    if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
-      (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && btree_ckpt_gen < ckpt_gen)) {
+    if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
+    } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && LF_ISSET(WT_REC_EVICT)) {
+        /*
+         * If we race with checkpoint start and read an obsolete global checkpoint gen, we will
+         * wrongly not pin the checkpoint transaction. Ensure the read order here.
+         */
+        WT_ACQUIRE_READ(btree_ckpt_gen, btree->checkpoint_gen);
+        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+        if (btree_ckpt_gen < ckpt_gen) {
+            /*
+             * If we race with checkpoint start, checkpoint may have bumped the checkpoint
+             * generation but haven't acquired the snapshot. It is OK in this case, as eviction has
+             * exclusive access and checkpoint should acquire a transaction id that is larger then
+             * the last_running.
+             */
+            WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
+            if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
+                r->last_running = ckpt_txn;
+        }
     }
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT_ALWAYS(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS),
