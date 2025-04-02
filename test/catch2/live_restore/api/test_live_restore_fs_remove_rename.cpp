@@ -82,7 +82,7 @@ TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_remove_rename]
     WT_FILE_SYSTEM *fs = &lr_fs->iface;
     WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env.session);
 
-    // Rename a file that only exists in the destination.
+    // Rename a file that only exists in the destination. We create stop files for both the old and the new file names.
     std::string dest_filename = env.dest_file_path("file");
     std::string dest_rename = env.dest_file_path("file_rename");
     create_file(dest_filename);
