@@ -41,7 +41,7 @@ TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove_rename]
     REQUIRE(fs->fs_remove(fs, wt_session, dest_filename.c_str(), 0) == 0);
     REQUIRE(check_stop(dest_filename));
 
-    // Removing a file that doesn't exist fails, we check the underlying file system behavio`r here
+    // Removing a file that doesn't exist fails, we check the underlying file system behavior here
     // too, ensuring they match.
     REQUIRE(lr_fs->os_file_system->fs_remove(
               lr_fs->os_file_system, wt_session, dest_filename.c_str(), 0) == ENOENT);
