@@ -72,7 +72,7 @@ main(int argc, char *argv[])
 
     /* Test one session. */
 
-    for (int retry = 1; (++retry) <= N_RETRIES;) {
+    for (int retry = 1; retry <= N_RETRIES; ++retry) {
         /* Reset the thread's timeslice to raise the probability quicker execution. */
         __wt_sleep(0, 10);
 
@@ -96,7 +96,7 @@ retry_single:;
 
     /* Test multiple sessions. */
 
-    for (int retry = 1; (++retry) <= N_RETRIES;) {
+    for (int retry = 1; retry <= N_RETRIES; ++retry) {
         /* Reset the thread's timeslice to raise the probability quicker execution. */
         __wt_sleep(0, 10);
 
