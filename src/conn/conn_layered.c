@@ -49,7 +49,7 @@ err:
  * __layered_create_missing_stable_table --
  *     Create a missing ingest table from an existing layered table configuration.
  */
-WT_INLINE static int
+static int
 __layered_create_missing_stable_table(
   WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
 {
