@@ -1859,7 +1859,7 @@ __live_restore_fs_remove(
 
     WT_RET(__live_restore_fs_find_layer(fs, session, name, &layer));
     if (layer == WTI_LIVE_RESTORE_FS_LAYER_NONE)
-        return (0);
+        return (ENOENT);
 
     /*
      * It's possible to call remove on a file that hasn't yet been created in the destination. In
