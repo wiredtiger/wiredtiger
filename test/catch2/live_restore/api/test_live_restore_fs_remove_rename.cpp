@@ -32,7 +32,6 @@ TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove_rename]
 
     WTI_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
     WT_FILE_SYSTEM *fs = &lr_fs->iface;
-    // WT_FILE_HANDLE *fh = nullptr;
     WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env.session);
 
     // Remove a file that only exists in the destination.
