@@ -112,8 +112,9 @@ __wt_session_rng_init_once(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((visi
      */
     __wt_random_init_default(&session->rnd_skiplist);
 
+    uint64_t t = __wt_clock(session);
     __wt_random_init_seed(&session->rnd_random,
-      ((uint64_t)session->id + 1) * __wt_clock(session) / WT_BILLION + (uint64_t)getpid());
+      ((uint64_t)session->id + 1) * t / WT_BILLION + (t % WT_BILLION) + (uint64_t)getpid());
 }
 
 /*

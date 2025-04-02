@@ -72,7 +72,7 @@ main(int argc, char *argv[])
 
     /* Test one session. */
 
-    for (int cycle = 0; (++cycle) <= N_RETRIES;) {
+    for (int retry = 0; (++retry) <= N_RETRIES;) {
         /* Reset the thread's timeslice to raise the probability quicker execution. */
         __wt_sleep(0, 10);
 
@@ -81,21 +81,22 @@ main(int argc, char *argv[])
             testutil_check(conn->open_session(conn, NULL, NULL, &session));
             number = __wt_random(&((WT_SESSION_IMPL *)session)->rnd_random);
             testutil_check(session->close(session, NULL));
-            if (cycle > 1 && prev_number == number) {
-                if (cycle < N_RETRIES)
+            if (retry > 1 && prev_number == number) {
+                if (retry < N_RETRIES)
                     /* To eliminate flakiness, give it another go. */
                     goto retry_single;
-                fprintf(stderr, "Random numbers repeated for %d cycles in single session\n", cycle);
+                fprintf(stderr, "Random numbers repeated for %d cycles in single session\n", retry);
                 random_numbers_repeated = true;
             }
             prev_number = number;
         }
+        break;
 retry_single:;
     }
 
     /* Test multiple sessions. */
 
-    for (int cycle = 0; (++cycle) <= N_RETRIES;) {
+    for (int retry = 0; (++retry) <= N_RETRIES;) {
         /* Reset the thread's timeslice to raise the probability quicker execution. */
         __wt_sleep(0, 10);
 
@@ -110,25 +111,25 @@ retry_single:;
         for (int i = 0; i < N_SESSIONS; i++) {
             numbers[i] = number = __wt_random(&sessions[i]->rnd_random);
             if (i > 0 && prev_number == number) {
-                if (cycle < N_RETRIES)
+                if (retry < N_RETRIES)
                     /* To eliminate flakiness, give it another go. */
                     goto retry_multi;
                 fprintf(
-                  stderr, "Random numbers repeated for %d cycles in subsequent sessions\n", cycle);
+                  stderr, "Random numbers repeated for %d cycles in subsequent sessions\n", retry);
                 random_numbers_repeated = true;
             }
             prev_number = number;
         }
 
-        /* Check is any random numbers repeat. */
+        /* Check if any random numbers repeat. */
         __wt_qsort(numbers, N_SESSIONS, sizeof(uint64_t), compare_uint64_t);
         for (int i = 1; i < N_SESSIONS; i++) {
             if (numbers[i] == numbers[i - 1]) {
-                if (cycle < N_RETRIES)
+                if (retry < N_RETRIES)
                     /* To eliminate flakiness, give it another go. */
                     goto retry_multi;
                 fprintf(
-                  stderr, "Random numbers repeated for %d cycles in multiple sessions\n", cycle);
+                  stderr, "Random numbers repeated for %d cycles in multiple sessions\n", retry);
                 random_numbers_repeated = true;
             }
         }
