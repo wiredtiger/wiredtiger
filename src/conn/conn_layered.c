@@ -55,7 +55,10 @@ __layered_create_missing_stable_table(
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    const char *constituent_cfg;
     const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), layered_cfg, NULL, NULL};
+
+    constituent_cfg = NULL;
 
     WT_RET(__wt_scr_alloc(session, 20, &tmp));
 
@@ -63,10 +66,12 @@ __layered_create_missing_stable_table(
     WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
     stable_cfg[2] = tmp->data;
 
+    WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
     WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, layered_cfg));
 
 err:
     __wt_scr_free(session, &tmp);
+    __wt_free(session, constituent_cfg);
     return (ret);
 }
 
