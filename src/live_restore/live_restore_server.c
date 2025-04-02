@@ -381,7 +381,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     WT_SESSION_IMPL *checkpoint_session = NULL;
 
     /*
-     * If background migration has already complete we don't need to start the background threads.
+     * If background migration has already completed we don't need to start the background threads.
      * Run the clean up logic regardless in case we've previously closed the connection at the exact
      * time we finish migration, but before we call clean up.
      */
