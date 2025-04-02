@@ -626,7 +626,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * transaction could abort while reconciliation is examining its updates. This way, any
      * transaction running when reconciliation starts is considered uncommitted.
      */
-    txn_global = &S2C(session)->txn_global;
+    txn_global = &conn->txn_global;
     WT_ACQUIRE_READ_WITH_BARRIER(r->last_running, txn_global->last_running);
 
     /*
@@ -786,7 +786,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * they shouldn't open new dhandles. In those cases we won't ever need to blow away history
      * store content, so we can skip this.
      */
-    r->hs_clear_on_tombstone = F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+    r->hs_clear_on_tombstone = F_ISSET(conn, WT_CONN_HS_OPEN) &&
       !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
       !WT_IS_METADATA(btree->dhandle);
 
