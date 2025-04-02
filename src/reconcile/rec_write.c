@@ -571,7 +571,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     WT_PAGE *page;
     WT_RECONCILE *r;
     WT_TXN_GLOBAL *txn_global;
-    uint64_t ckpt_generation, ckpt_txn;
+    uint64_t btree_ckpt_gen, ckpt_gen, ckpt_txn;
 
     btree = S2BT(session);
     page = ref->page;
@@ -607,8 +607,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * Save the transaction generations before reading the page. These are all acquire reads, but we
      * only need one.
      */
-    r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
-    r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+    btree_ckpt_gen = btree->checkpoint_gen;
+    ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
     WT_ASSERT_ALWAYS(
       session, page->modify->flags == 0, "Illegal page state when initializing reconcile");
@@ -655,8 +655,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * also consider the checkpoint transaction.
      */
     if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle) ||
-      (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
-        r->orig_btree_checkpoint_gen < r->orig_txn_checkpoint_gen)) {
+      (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && btree_ckpt_gen < ckpt_gen)) {
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;

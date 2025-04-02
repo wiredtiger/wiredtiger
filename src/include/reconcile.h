@@ -90,12 +90,6 @@ struct __wt_reconcile {
     WT_PAGE *page;
     uint32_t flags; /* Caller's configuration */
 
-    /*
-     * Track start/stop checkpoint generations to decide if history store table records are correct.
-     */
-    uint64_t orig_btree_checkpoint_gen;
-    uint64_t orig_txn_checkpoint_gen;
-
     /* Track the oldest running transaction. */
     uint64_t last_running;
 
