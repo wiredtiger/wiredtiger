@@ -53,24 +53,19 @@ static int
 __layered_create_missing_stable_table(
   WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
 {
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *constituent_cfg;
     const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), layered_cfg, NULL, NULL};
 
     constituent_cfg = NULL;
 
-    WT_RET(__wt_scr_alloc(session, 20, &tmp));
-
     /* Disable logging on the stable table so we have timestamps. */
-    WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
-    stable_cfg[2] = tmp->data;
+    stable_cfg[2] = "log=(enabled=false)";
 
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
     WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, constituent_cfg));
 
 err:
-    __wt_scr_free(session, &tmp);
     __wt_free(session, constituent_cfg);
     return (ret);
 }

@@ -1138,10 +1138,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
     WT_ERR(__wt_metadata_insert(session, uri, tablecfg));
 
     /* Disable logging on the ingest table so we have timestamps. */
-    WT_ERR(__wt_buf_fmt(session, tmp,
-      "in_memory=true,log=(enabled=false),"
-      "disaggregated=(page_log=none)"));
-    ingest_cfg[2] = tmp->data;
+    ingest_cfg[2] = "in_memory=true,log=(enabled=false),disaggregated=(page_log=none)";
 
     /*
      * Since layered table constituents use table URIs, pass the full merged configuration string
@@ -1156,8 +1153,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
         stable_cfg[1] = disagg_config->data;
 
         /* Disable logging on the stable table so we have timestamps. */
-        WT_ERR(__wt_buf_fmt(session, tmp, "log=(enabled=false)"));
-        stable_cfg[3] = tmp->data;
+        stable_cfg[3] = "log=(enabled=false)";
         WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
         WT_ERR(__wt_schema_create(session, stable_uri, constituent_cfg));
         __wt_free(session, constituent_cfg);
