@@ -2492,8 +2492,18 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
       block_meta->delta_count < btree->max_consecutive_delta) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
-        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct)
+        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct) {
             build_delta = false;
+        } else {
+            /* 
+             * If we decide to write the delta we packed, track the number of bytes saved by
+             * avoiding writing the full page image.
+             */
+            if (r->page->type == WT_PAGE_COL_INT || r->page->type == WT_PAGE_ROW_INT)
+                WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_intl, chunk->image.size);
+            else
+                WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_leaf, chunk->image.size);
+        }
     }
 
     /* Write the disk image and get an address. */

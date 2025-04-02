@@ -286,6 +286,8 @@ conn_stats = [
     BlockStat('block_byte_write_leaf', 'bytes written for leaf pages before compression and encryption', 'size'),
     BlockStat('block_byte_write_leaf_disk', 'bytes written for leaf pages after compression and encryption', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
+    BlockStat('block_byte_write_saved_delta_leaf', 'bytes saved from being written when using leaf page deltas', 'size'),
+    BlockStat('block_byte_write_saved_delta_intl', 'bytes saved from being written when using internal page deltas', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),

@@ -1616,6 +1616,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes read for leaf pages before decompression and decryption",
   "block-manager: bytes read via memory map API",
   "block-manager: bytes read via system call API",
+  "block-manager: bytes saved from being written when using internal page deltas",
+  "block-manager: bytes saved from being written when using leaf page deltas",
   "block-manager: bytes written",
   "block-manager: bytes written by compaction",
   "block-manager: bytes written for checkpoint",
@@ -2476,6 +2478,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_read_leaf_disk = 0;
     stats->block_byte_read_mmap = 0;
     stats->block_byte_read_syscall = 0;
+    stats->block_byte_write_saved_delta_intl = 0;
+    stats->block_byte_write_saved_delta_leaf = 0;
     stats->block_byte_write = 0;
     stats->block_byte_write_compact = 0;
     stats->block_byte_write_checkpoint = 0;
@@ -3288,6 +3292,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_read_leaf_disk += WT_STAT_CONN_READ(from, block_byte_read_leaf_disk);
     to->block_byte_read_mmap += WT_STAT_CONN_READ(from, block_byte_read_mmap);
     to->block_byte_read_syscall += WT_STAT_CONN_READ(from, block_byte_read_syscall);
+    to->block_byte_write_saved_delta_intl +=
+      WT_STAT_CONN_READ(from, block_byte_write_saved_delta_intl);
+    to->block_byte_write_saved_delta_leaf +=
+      WT_STAT_CONN_READ(from, block_byte_write_saved_delta_leaf);
     to->block_byte_write += WT_STAT_CONN_READ(from, block_byte_write);
     to->block_byte_write_compact += WT_STAT_CONN_READ(from, block_byte_write_compact);
     to->block_byte_write_checkpoint += WT_STAT_CONN_READ(from, block_byte_write_checkpoint);

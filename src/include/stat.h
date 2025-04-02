@@ -482,6 +482,8 @@ struct __wt_connection_stats {
     int64_t block_byte_read_leaf_disk;
     int64_t block_byte_read_mmap;
     int64_t block_byte_read_syscall;
+    int64_t block_byte_write_saved_delta_intl;
+    int64_t block_byte_write_saved_delta_leaf;
     int64_t block_byte_write;
     int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
