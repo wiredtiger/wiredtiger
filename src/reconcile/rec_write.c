@@ -2513,8 +2513,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
                     WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt60);
                 else if (delta_pct <= 80)
                     WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt80);
-                else
+                else if (delta_pct <= 100)
                     WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt100);
+                else
+                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
             } else {
                 WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_leaf, chunk->image.size);
 
@@ -2526,8 +2528,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
                     WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt60);
                 else if (delta_pct <= 80)
                     WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt80);
-                else
+                else if (delta_pct <= 100)
                     WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt100);
+                else
+                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
             }
         }
     }
