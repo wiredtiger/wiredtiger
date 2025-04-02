@@ -5689,8 +5689,6 @@ buildvariants:
       - ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
-    # FIXME-WT-10822
-    # - name: format-tiered-test
     - name: schema-abort-predictable-test
     - name: checkpoint-filetypes-predictable-test
 
