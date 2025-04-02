@@ -16,18 +16,13 @@
 using namespace utils;
 
 bool
-check_stop(std::string file_name)
+stop_file_exists(std::string file_name)
 {
     return (testutil_exists(nullptr, (file_name + WTI_LIVE_RESTORE_STOP_FILE_SUFFIX).c_str()));
 }
 
 TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove_rename]")
 {
-    /*
-     * Note: this code runs once per SECTION so we're creating a brand new WT database for each
-     * section. If this gets slow we can make it static and manually clear the destination and
-     * source for each section.
-     */
     live_restore_test_env env;
 
     WTI_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
@@ -38,7 +33,7 @@ TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove_rename]
     std::string dest_filename = env.dest_file_path("file");
     create_file(dest_filename);
     REQUIRE(fs->fs_remove(fs, wt_session, dest_filename.c_str(), 0) == 0);
-    REQUIRE(check_stop(dest_filename));
+    REQUIRE(stop_file_exists(dest_filename));
 
     // Removing a file that doesn't exist fails, we check the underlying file system behavior here
     // too, ensuring they match.
@@ -59,23 +54,31 @@ TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove_rename]
     REQUIRE(fs->fs_remove(fs, wt_session, dest_filename2.c_str(), 0) == 0);
     // Ensure we didn't remove the source file.
     REQUIRE(testutil_exists(nullptr, source_filename2.c_str()));
-    REQUIRE(check_stop(dest_filename2));
+    REQUIRE(stop_file_exists(dest_filename2));
     // Ensure we didn't create a stop file in the source.
-    REQUIRE(!check_stop(source_filename2));
+    REQUIRE(!stop_file_exists(source_filename2));
 
     // We can recreate a file with the same name as the one we removed earlier and remove it again.
     create_file(dest_filename2);
     REQUIRE(fs->fs_remove(fs, wt_session, dest_filename2.c_str(), 0) == 0);
-    REQUIRE(check_stop(dest_filename2));
+    REQUIRE(stop_file_exists(dest_filename2));
+
+    // Removing a file once the live restore state is complete won't generate a tombstone.
+    lr_fs->state = WTI_LIVE_RESTORE_STATE_COMPLETE;
+    std::string dest_filename3 = env.dest_file_path("file3");
+    create_file(dest_filename3);
+    REQUIRE(fs->fs_remove(fs, wt_session, dest_filename3.c_str(), 0) == 0);
+    REQUIRE(!testutil_exists(nullptr, dest_filename3.c_str()));
+    REQUIRE(!stop_file_exists(dest_filename3));
+
+    // Removing a file that exists only in source once the live restore completes will fail.
+    std::string source_filename3 = env.source_file_path("file3");
+    create_file(source_filename3);
+    REQUIRE(fs->fs_remove(fs, wt_session, dest_filename3.c_str(), 0) == ENOENT);
 }
 
 TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_remove_rename]")
 {
-    /*
-     * Note: this code runs once per SECTION so we're creating a brand new WT database for each
-     * section. If this gets slow we can make it static and manually clear the destination and
-     * source for each section.
-     */
     live_restore_test_env env;
 
     WTI_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
@@ -87,8 +90,8 @@ TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_remove_rename]
     std::string dest_rename = env.dest_file_path("file_rename");
     create_file(dest_filename);
     REQUIRE(fs->fs_rename(fs, wt_session, dest_filename.c_str(), dest_rename.c_str(), 0) == 0);
-    REQUIRE(check_stop(dest_filename));
-    REQUIRE(check_stop(dest_rename));
+    REQUIRE(stop_file_exists(dest_filename));
+    REQUIRE(stop_file_exists(dest_rename));
     REQUIRE(!testutil_exists(nullptr, dest_filename.c_str()));
     REQUIRE(testutil_exists(nullptr, dest_rename.c_str()));
 
@@ -113,4 +116,15 @@ TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_remove_rename]
     REQUIRE(fs->fs_rename(fs, wt_session, dest_filename2.c_str(), dest_rename.c_str(), 0) == 0);
     REQUIRE(!testutil_exists(nullptr, dest_filename.c_str()));
     REQUIRE(testutil_exists(nullptr, dest_rename.c_str()));
+
+    // Renaming a file once the live restore has completed won't generate tombstones.
+    lr_fs->state = WTI_LIVE_RESTORE_STATE_COMPLETE;
+    std::string dest_filename3 = env.dest_file_path("file3");
+    std::string dest_rename3 = env.dest_file_path("file3_rename");
+    create_file(dest_filename3);
+    REQUIRE(fs->fs_rename(fs, wt_session, dest_filename3.c_str(), dest_rename3.c_str(), 0) == 0);
+    REQUIRE(!testutil_exists(nullptr, dest_filename3.c_str()));
+    REQUIRE(testutil_exists(nullptr, dest_rename3.c_str()));
+    REQUIRE(!stop_file_exists(dest_filename3));
+    REQUIRE(!stop_file_exists(dest_rename3));
 }
