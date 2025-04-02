@@ -15,7 +15,9 @@
 
 using namespace utils;
 
-bool check_stop(std::string file_name) {
+bool
+check_stop(std::string file_name)
+{
     return (testutil_exists(nullptr, (file_name + WTI_LIVE_RESTORE_STOP_FILE_SUFFIX).c_str()));
 }
 
@@ -39,9 +41,10 @@ TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove_rename]
     REQUIRE(fs->fs_remove(fs, wt_session, dest_filename.c_str(), 0) == 0);
     REQUIRE(check_stop(dest_filename));
 
-    // Removing a file that doesn't exist fails, we check the underlying file system behaviour here
+    // Removing a file that doesn't exist fails, we check the underlying file system behavio`r here
     // too, ensuring they match.
-    REQUIRE(lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, dest_filename.c_str(), 0) == ENOENT);
+    REQUIRE(lr_fs->os_file_system->fs_remove(
+              lr_fs->os_file_system, wt_session, dest_filename.c_str(), 0) == ENOENT);
     REQUIRE(fs->fs_remove(fs, wt_session, dest_filename.c_str(), 0) == ENOENT);
 
     // Removing a file that exists in the source but has a stop file in the destination fails.
@@ -91,7 +94,8 @@ TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_remove_rename]
     REQUIRE(testutil_exists(nullptr, dest_rename.c_str()));
 
     // Renaming a file that doesn't exist fails.
-    REQUIRE(lr_fs->os_file_system->fs_rename(lr_fs->os_file_system, wt_session, dest_filename.c_str(), dest_rename.c_str(), 0) == ENOENT);
+    REQUIRE(lr_fs->os_file_system->fs_rename(lr_fs->os_file_system, wt_session,
+              dest_filename.c_str(), dest_rename.c_str(), 0) == ENOENT);
     REQUIRE(fs->fs_rename(fs, wt_session, dest_filename.c_str(), dest_rename.c_str(), 0) == ENOENT);
 
     // Renaming a file that only exists in the source fails as we require that the file exists in
@@ -101,7 +105,8 @@ TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_remove_rename]
     create_file(source_filename);
     // Note: We need to pass dest filename here as WiredTiger would only refer to files as existing
     // in the home directory.
-    REQUIRE(fs->fs_rename(fs, wt_session, dest_filename2.c_str(), dest_rename.c_str(), 0) == EINVAL);
+    REQUIRE(
+      fs->fs_rename(fs, wt_session, dest_filename2.c_str(), dest_rename.c_str(), 0) == EINVAL);
 
     // Renaming over the top of an existing file succeeds.
     REQUIRE(testutil_exists(nullptr, dest_rename.c_str()));
