@@ -67,7 +67,7 @@ __layered_create_missing_stable_table(
     stable_cfg[2] = tmp->data;
 
     WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, layered_cfg));
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, constituent_cfg));
 
 err:
     __wt_scr_free(session, &tmp);
