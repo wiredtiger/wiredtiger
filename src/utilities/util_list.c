@@ -21,8 +21,10 @@ usage(void)
 {
     static const char *options[] = {"-c",
       "display checkpoints in human-readable format (by default checkpoints are not displayed)",
-      "-f output", "redirect output to the specified file (the default is stdout)"
-      "-v", "display the complete schema table (by default only a subset is displayed)", "-?",
+      "-f output",
+      "redirect output to the specified file (the default is stdout)"
+      "-v",
+      "display the complete schema table (by default only a subset is displayed)", "-?",
       "show this message", NULL, NULL};
 
     util_usage("list [-cv] [-f output-file] [uri]", "options:", options);
@@ -79,7 +81,7 @@ util_list(WT_SESSION *session, int argc, char *argv[])
     /* Open an optional output file. */
     fp = util_open_output_file(ofile);
     if (fp == NULL)
-        return util_err(session, errno, "%s: open", ofile);
+        return (util_err(session, errno, "%s: open", ofile));
 
     ret = list_print(session, uri, cflag, vflag);
 

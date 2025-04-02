@@ -221,9 +221,10 @@ util_strdup(const char *s)
 FILE *
 util_open_output_file(const char *ofile)
 {
-    if (ofile == NULL) return stdout;
+    if (ofile == NULL)
+        return (stdout);
 
-    return fopen(ofile, "w");
+    return (fopen(ofile, "w"));
 }
 
 /*
@@ -231,8 +232,10 @@ util_open_output_file(const char *ofile)
  *     Close custom output file if one was provided.
  */
 int
-util_close_output_file(FILE *fp) {
-    if (fp != stdout) return fclose(fp);
+util_close_output_file(FILE *fp)
+{
+    if (fp != stdout)
+        return (fclose(fp));
 
-    return 0;
+    return (0);
 }

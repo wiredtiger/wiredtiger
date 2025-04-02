@@ -206,7 +206,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     /* Open an optional output file. */
     fp = util_open_output_file(ofile);
     if (fp == NULL)
-        return util_err(session, errno, "%s: open", ofile);
+        return (util_err(session, errno, "%s: open", ofile));
 
     if (!explore && json &&
       (dump_json_begin(session) != 0 || dump_prefix(session, pretty, hex, json) != 0))
