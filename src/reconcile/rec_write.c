@@ -573,12 +573,14 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
   void *reconcilep)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
     WT_TXN_GLOBAL *txn_global;
-    uint64_t ckpt_txn;
+    uint64_t btree_ckpt_gen, ckpt_gen, ckpt_txn;
 
+    conn = S2C(session);
     btree = S2BT(session);
     page = ref->page;
 
@@ -609,13 +611,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->ref = ref;
     r->page = page;
 
-    /*
-     * Save the transaction generations before reading the page. These are all acquire reads, but we
-     * only need one.
-     */
-    r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
-    r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-
     WT_ASSERT_ALWAYS(
       session, page->modify->flags == 0, "Illegal page state when initializing reconcile");
 
@@ -637,7 +632,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * transaction could abort while reconciliation is examining its updates. This way, any
      * transaction running when reconciliation starts is considered uncommitted.
      */
-    txn_global = &S2C(session)->txn_global;
+    txn_global = &conn->txn_global;
     WT_ACQUIRE_READ_WITH_BARRIER(r->last_running, txn_global->last_running);
 
     /*
@@ -647,20 +642,47 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     __wt_txn_pinned_timestamp(session, &r->rec_start_pinned_ts);
     r->rec_start_oldest_id = __wt_txn_oldest_id(session);
 
-    __wt_txn_pinned_stable_timestamp(session, &r->rec_start_pinned_stable_ts);
+    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT))
+        __wt_txn_pinned_stable_timestamp(session, &r->rec_start_pinned_stable_ts);
+    else
+        r->rec_start_pinned_stable_ts = WT_TS_NONE;
 
-    WT_ACQUIRE_READ(r->rec_prune_timestamp, btree->prune_timestamp);
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+        WT_ACQUIRE_READ(r->rec_prune_timestamp, btree->prune_timestamp);
+    else
+        r->rec_prune_timestamp = WT_TS_NONE;
 
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
      * can move beyond the checkpoint transaction id. When reconciling the metadata or disaggregated
      * shared metadata, we have to take checkpoints into account. Otherwise, eviction may evict the
      * uncommitted checkpoint updates.
+     *
+     * If precise checkpoint is enabled, all the trees haven't been visited by the checkpoint should
+     * also consider the checkpoint transaction.
      */
     if (WT_IS_METADATA(session->dhandle) || WT_IS_DISAGG_META(session->dhandle)) {
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
+    } else if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && LF_ISSET(WT_REC_EVICT)) {
+        /*
+         * If we race with checkpoint start and read an obsolete global checkpoint gen, we will
+         * wrongly not pin the checkpoint transaction. Ensure the read order here.
+         */
+        WT_ACQUIRE_READ(btree_ckpt_gen, btree->checkpoint_gen);
+        ckpt_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+        if (btree_ckpt_gen < ckpt_gen) {
+            /*
+             * If we race with checkpoint start, checkpoint may have bumped the checkpoint
+             * generation but haven't acquired the snapshot. It is OK in this case, as eviction has
+             * exclusive access and checkpoint should acquire a transaction id that is larger then
+             * the last_running.
+             */
+            WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
+            if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
+                r->last_running = ckpt_txn;
+        }
     }
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT_ALWAYS(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS),
@@ -770,7 +792,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * they shouldn't open new dhandles. In those cases we won't ever need to blow away history
      * store content, so we can skip this.
      */
-    r->hs_clear_on_tombstone = F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+    r->hs_clear_on_tombstone = F_ISSET(conn, WT_CONN_HS_OPEN) &&
       !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
       !WT_IS_METADATA(btree->dhandle);
 
