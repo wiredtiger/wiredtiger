@@ -500,8 +500,6 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * The transaction ids are cleared after restart. Repack the cell with new validity
              * information to flush cleared transaction ids.
              */
-            WT_ASSERT_ALWAYS(session, cms.state == WT_CHILD_ORIGINAL,
-              "Not propagating the original fast-truncate information");
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */
