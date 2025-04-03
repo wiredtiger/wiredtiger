@@ -263,13 +263,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
 
     __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
       "DIRECTORY LIST %s (single ? %s) : ", directory, single ? "YES" : "NO");
-
-    /*
-     * We could fail to list a file if the live restore state changes between us walking the
-     * destination and walking the source. Lock around the entire function to keep things simple and
-     * avoid this scenario.
-     */
-    __wt_spin_lock(session, &lr_fs->state_lock);
+    WT_ASSERT_SPINLOCK_OWNED(session, &lr_fs->state_lock);
 
     /* Get files from destination. */
     WT_ERR(__live_restore_fs_backing_filename(
@@ -362,8 +356,6 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
 
 done:
 err:
-    __wt_spin_unlock(session, &lr_fs->state_lock);
-
     __wt_free(session, path_dest);
     __wt_free(session, path_src);
     __wt_scr_free(session, &filename);
@@ -389,8 +381,17 @@ static int
 __live_restore_fs_directory_list(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *directory,
   const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    return (__live_restore_fs_directory_list_worker(
-      fs, wt_session, directory, prefix, dirlistp, countp, false));
+    WT_DECL_RET;
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
+    /*
+     * We could fail to list a file if the live restore state changes between us walking the
+     * destination and walking the source. Lock around the entire function to keep things simple and
+     * avoid this scenario.
+     */
+    WTI_WITH_LIVE_RESTORE_STATE_LOCK((WT_SESSION_IMPL *)wt_session, lr_fs,
+      ret = __live_restore_fs_directory_list_worker(
+        fs, wt_session, directory, prefix, dirlistp, countp, false));
+    return (ret);
 }
 
 /*
@@ -401,8 +402,12 @@ static int
 __live_restore_fs_directory_list_single(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session,
   const char *directory, const char *prefix, char ***dirlistp, uint32_t *countp)
 {
-    return (__live_restore_fs_directory_list_worker(
-      fs, wt_session, directory, prefix, dirlistp, countp, true));
+    WT_DECL_RET;
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)fs;
+    WTI_WITH_LIVE_RESTORE_STATE_LOCK((WT_SESSION_IMPL *)wt_session, lr_fs,
+      ret = __live_restore_fs_directory_list_worker(
+        fs, wt_session, directory, prefix, dirlistp, countp, true));
+    return (ret);
 }
 
 /*
