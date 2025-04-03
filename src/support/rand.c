@@ -100,6 +100,10 @@ __wt_random_init_seed(WT_RAND_STATE *rnd_state, uint64_t v)
  *
  * This function requires session->id to be already set!
  *
+ * session->id is used to seed the RNG. Since session objects have infinite lifetime, each session's
+ *     RNG is seeded with a different value. This is mixed with the current time and the process ID
+ *     to ensure that the RNG is different across runs.
+ *
  */
 void
 __wt_session_rng_init_once(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))

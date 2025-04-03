@@ -70,7 +70,12 @@ main(int argc, char *argv[])
 
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
 
-    /* Test one session. */
+    /*
+     * Test one session.
+     *
+     * The test generates a random number in N sessions sequentially, with only one session open at
+     * a time.
+     */
 
     for (int retry = 1; retry <= N_RETRIES; ++retry) {
         /* Reset the thread's timeslice to raise the probability quicker execution. */
@@ -94,7 +99,11 @@ main(int argc, char *argv[])
 retry_single:;
     }
 
-    /* Test multiple sessions. */
+    /*
+     * Test multiple sessions.
+     *
+     * The test generates random numbers with N sessions open simultaneously.
+     */
 
     for (int retry = 1; retry <= N_RETRIES; ++retry) {
         /* Reset the thread's timeslice to raise the probability quicker execution. */
