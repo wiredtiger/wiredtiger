@@ -21,7 +21,7 @@ stop_file_exists(std::string file_name)
     return (testutil_exists(nullptr, (file_name + WTI_LIVE_RESTORE_STOP_FILE_SUFFIX).c_str()));
 }
 
-TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove_rename]")
+TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove]")
 {
     live_restore_test_env env;
 
@@ -75,9 +75,20 @@ TEST_CASE("Live Restore fs_remove", "[live_restore],[live_restore_remove_rename]
     std::string source_filename3 = env.source_file_path("file3");
     create_file(source_filename3);
     REQUIRE(fs->fs_remove(fs, wt_session, dest_filename3.c_str(), 0) == ENOENT);
+
+    // Renaming a file that exists in both the source and the destination doesn't remove the source
+    // file.
+    lr_fs->state = WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION;
+    std::string source_filename4 = env.source_file_path("file4");
+    std::string dest_filename4 = env.dest_file_path("file4");
+    create_file(source_filename4);
+    create_file(dest_filename4);
+    REQUIRE(fs->fs_remove(fs, wt_session, dest_filename4.c_str(), 0) == 0);
+    REQUIRE(stop_file_exists(dest_filename4));
+    REQUIRE(testutil_exists(nullptr, source_filename4.c_str()));
 }
 
-TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_remove_rename]")
+TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_rename]")
 {
     live_restore_test_env env;
 
@@ -85,7 +96,8 @@ TEST_CASE("Live Restore fs_rename", "[live_restore],[live_restore_remove_rename]
     WT_FILE_SYSTEM *fs = &lr_fs->iface;
     WT_SESSION *wt_session = reinterpret_cast<WT_SESSION *>(env.session);
 
-    // Rename a file that only exists in the destination. We create stop files for both the old and the new file names.
+    // Rename a file that only exists in the destination. We create stop files for both the old and
+    // the new file names.
     std::string dest_filename = env.dest_file_path("file");
     std::string dest_rename = env.dest_file_path("file_rename");
     create_file(dest_filename);
