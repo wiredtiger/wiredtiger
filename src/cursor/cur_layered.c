@@ -141,7 +141,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
             (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))))
             break;
 
-        WT_WITH_SCHEMA_LOCK(session, ret = __clayered_open_cursors(clayered, update));
+        WT_WITH_SCHEMA_LOCK(session, ret = __clayered_open_cursors(session, clayered, update));
 
         /*
          * We only check the external state once. There will always be a race where the state
@@ -493,19 +493,17 @@ __clayered_adjust_state(
  *     Open cursors for the current set of files.
  */
 static int
-__clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
+__clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, bool update)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
     WT_DECL_ITEM(random_config);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
-    WT_SESSION_IMPL *session;
     const char *ckpt_cfg[3] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL};
     bool leader;
 
     c = &clayered->iface;
-    session = CUR2S(clayered);
     conn = S2C(session);
     layered = (WT_LAYERED_TABLE *)session->dhandle;
 
