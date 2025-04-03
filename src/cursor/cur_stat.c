@@ -465,8 +465,13 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
 done:
 err:
     __wt_scr_free(session, &stable_uri_buf);
+    /* The constituent table dhandles have been released. Release the layered dhandle. */
     if (session->dhandle == NULL)
         session->dhandle = dhandle;
+    /*
+     * The constituent table dhandle hasn't been released. Release it first then release the layered
+     * dhandle.
+     */
     else if (dhandle != session->dhandle) {
         WT_TRET(__wt_session_release_dhandle(session));
         session->dhandle = dhandle;

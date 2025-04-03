@@ -267,7 +267,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         checkpoint_name = NULL;
         WT_ERR_NOTFOUND_OK(
-          __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), false);
+          __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), true);
 
         if (ret == WT_NOTFOUND) {
             /*
@@ -302,6 +302,8 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
         ret = 0;
     } else if (ret == WT_NOTFOUND)
         WT_ERR_PANIC(session, WT_PANIC, "Layered table could not access stable table on leader");
+    else
+        WT_ERR(ret);
 
     if (clayered->stable_cursor != NULL) {
         F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
