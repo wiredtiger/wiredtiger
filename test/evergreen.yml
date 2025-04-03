@@ -48,7 +48,7 @@ functions:
               export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
               export PYTHONPATH="($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)"
             else
-              export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+              export PATH=/opt/mongodbtoolchain/v5/bin:$PATH
               export LD_LIBRARY_PATH=$WT_BUILDDIR
             fi
 
@@ -76,7 +76,7 @@ functions:
             if [ "$OS" = "Windows_NT" ]; then
               export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
             else
-              export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+              export PATH=/opt/mongodbtoolchain/v5/bin:$PATH
             fi
   # Since Bazel (currently used in SCons) uses EngFlow's remote execution system instead of icecream,
   # additional credentials need to be setup to maintain efficient compilation speed.
@@ -232,7 +232,7 @@ functions:
         echo "startup --output_user_root=${workdir}/bazel-output-root" >> ~/.bazelrc
         echo "BAZELISK_HOME=${workdir}/bazelisk_home" >> ~/.bazeliskrc
 
-        bazel build --mongo_toolchain_version=v4 --config=opt --build_enterprise=False install-mongod
+        bazel build --mongo_toolchain_version=v5 --config=opt --build_enterprise=False install-mongod
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
@@ -2936,7 +2936,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            env CC=/opt/mongodbtoolchain/v4/bin/gcc CXX=/opt/mongodbtoolchain/v4/bin/g++ PATH=/opt/mongodbtoolchain/v4/bin:/opt/java/jdk11/bin:$PATH bash s_release `date +%Y%m%d`
+            env CC=/opt/mongodbtoolchain/v5/bin/gcc CXX=/opt/mongodbtoolchain/v5/bin/g++ PATH=/opt/mongodbtoolchain/v5/bin:/opt/java/jdk11/bin:$PATH bash s_release `date +%Y%m%d`
 
   # Note that the project settings use this task name to compile the documentation during PR
   # testing, keep this in mind if you decide to change it.
