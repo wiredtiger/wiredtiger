@@ -317,7 +317,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
     size_t size;
     uint16_t prev_ref_changes;
-    bool build_delta;
+    bool build_delta, retain_onpage;
     const void *p;
 
     btree = S2BT(session);
@@ -365,6 +365,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         }
 
         WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
+        retain_onpage = false;
 
         /*
          * There are different paths if the key is an overflow item vs. a straight-forward on-page
@@ -496,6 +497,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
             source_ta = &vpack->ta;
         } else {
+            retain_onpage = true;
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
              * information to flush cleared transaction ids.
@@ -552,7 +554,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Update compression state. */
         __rec_key_state_update(r, false);
 
-        if (build_delta && prev_ref_changes > 0)
+        if (build_delta && prev_ref_changes > 0 && !retain_onpage)
             WT_ERR(__wti_rec_pack_delta_internal(session, r, key, val));
 
         /*
