@@ -497,10 +497,11 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c;
+    WT_DECL_ITEM(random_config);
+    WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
-    char random_config[1024];
-    const char *ckpt_cfg[3] = {NULL, NULL, NULL};
+    const char *ckpt_cfg[3] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "", NULL};
     bool leader;
 
     c = &clayered->iface;
@@ -538,13 +539,13 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
     /* Always open both the ingest and stable cursors */
     if (clayered->ingest_cursor == NULL) {
-        ckpt_cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
-
+        WT_RET(__wt_scr_alloc(session, 0, &random_config));
         /* Get the configuration for random cursors, if any. */
-        WT_RET(__clayered_configure_random(clayered, random_config, sizeof(random_config)));
-        ckpt_cfg[1] = random_config;
+        WT_ERR(__clayered_configure_random(session, clayered, random_config));
+        if (random_config->size > 0)
+            ckpt_cfg[1] = random_config->data;
 
-        WT_RET(__wt_open_cursor(
+        WT_ERR(__wt_open_cursor(
           session, layered->ingest_uri, &clayered->iface, ckpt_cfg, &clayered->ingest_cursor));
         F_SET(clayered->ingest_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
@@ -554,7 +555,7 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
 
     if (clayered->stable_cursor == NULL) {
         leader = conn->layered_table_manager.leader;
-        WT_RET(__clayered_open_stable(clayered, leader));
+        WT_ERR(__clayered_open_stable(clayered, leader));
     }
 
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM)) {
@@ -581,9 +582,11 @@ __clayered_open_cursors(WT_CURSOR_LAYERED *clayered, bool update)
     /*
      * Set any boundaries for any newly opened cursors.
      */
-    WT_RET(__clayered_copy_bounds(clayered));
+    WT_ERR(__clayered_copy_bounds(clayered));
 
-    return (0);
+err:
+    __wt_scr_free(session, &random_config);
+    return (ret);
 }
 
 /*
