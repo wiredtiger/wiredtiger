@@ -215,10 +215,11 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, buf->size);
     time_stop = __wt_clock(session);
-    __wt_stat_msecs_hist_incr_bmwrite(session, WT_CLOCKDIFF_MS(time_stop, time_start));
+    __wt_stat_usecs_hist_incr_disaggbmwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
-    __wt_verbose(session, WT_VERB_WRITE, "off %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIu32,
-      (uintmax_t)page_id, (uintmax_t)buf->size, checksum);
+    __wt_verbose(session, WT_VERB_WRITE,
+      "page_id %" PRIuMAX ", size %" PRIuMAX ", checksum %" PRIx32 ", lsn %" PRIu64,
+      (uintmax_t)page_id, (uintmax_t)buf->size, checksum, put_args.lsn);
 
     /* Some extra data is set by the put interface, and must be returned up the chain. */
     block_meta->disagg_lsn = put_args.lsn;

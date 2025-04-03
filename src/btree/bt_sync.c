@@ -196,9 +196,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     __wt_txn_get_snapshot(session);
                 leaf_bytes += page->memory_footprint;
                 ++leaf_pages;
-                /* It's not an error if we make no progress. */
-                WT_ERR_ERROR_OK(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT),
-                  WT_REC_NO_PROGRESS, false);
+                WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
             }
         }
         break;
@@ -364,8 +362,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR(__wt_checkpoint_reconcile_push_page(session, walk, rec_flags, flags));
             else {
                 /* It's not an error if we make no progress. */
-                WT_ERR_ERROR_OK(
-                  __wt_reconcile(session, walk, NULL, rec_flags), WT_REC_NO_PROGRESS, false);
+                WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
                 WT_ERR(__wt_page_release(session, walk, flags));
             }
 

@@ -107,9 +107,9 @@ reread:
          * delta.
          */
         __wt_verbose_notice(session, WT_VERB_READ,
-          "retry #%" PRIu32 " for page_id %" PRIu64 ", checkpoint_id %" PRIu64
+          "retry #%" PRIu32 " for page_id %" PRIu64 ", lsn %" PRIu64 ", checkpoint_id %" PRIu64
           ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
-          retry, page_id, checkpoint_id, reconciliation_id, size, checksum);
+          retry, page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
         __wt_sleep(0, 10000 + retry * 5000);
 
         for (i = 0; i < *results_count; i++)
@@ -257,7 +257,7 @@ corrupt:
     }
 err:
     time_stop = __wt_clock(session);
-    __wt_stat_msecs_hist_incr_bmread(session, WT_CLOCKDIFF_MS(time_stop, time_start));
+    __wt_stat_usecs_hist_incr_disaggbmread(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     return (ret);
 }

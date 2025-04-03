@@ -88,13 +88,11 @@ class test_layered36(wttest.WiredTigerTestCase, DisaggConfigMixin):
         config = self.create_session_config + ',' + self.table_config
         self.session.create(uri_filled, config)
 
-        # FIXME-SLS-760: This test triggers SLS-760.
-        if False:
-            self.session.begin_transaction() # Draining requires timestamps
-            cursor = self.session.open_cursor(uri_filled, None, None)
-            cursor['a'] = 'b'
-            cursor.close()
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        self.session.begin_transaction() # Draining requires timestamps
+        cursor = self.session.open_cursor(uri_filled, None, None)
+        cursor['a'] = 'b'
+        cursor.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
         # Step up and checkpoint.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
@@ -115,7 +113,8 @@ class test_layered36(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.assertEqual(item_count, 0)
 
         cursor = self.session.open_cursor(uri_filled, None, None)
-        # FIXME-SLS-760: This test triggers SLS-760.
+        # FIXME-SLS-1824: This test triggers a KeyError,
+        #  i.e. search for cursor['a'] returns WT_NOTFOUND?
         if False:
             self.assertEqual(cursor['a'], 'b')
         cursor.close()

@@ -277,6 +277,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     /* After this spot, the only recoverable failure is EBUSY. */
     ebusy_only = true;
 
+    /*
+     * Re-check whether we can evict the page due to the page materialization frontier in
+     * disaggregated storage, as the reconciliation above could have changed the LSN on the page.
+     */
+    if (!__wt_page_materialization_check(session, page))
+        WT_ERR(EBUSY);
+
     /* Check we are not evicting an accessible internal page with an active split generation. */
     WT_ASSERT(session,
       closing || !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
@@ -460,8 +467,6 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     mod = ref->page->modify;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
-    WT_ASSERT(session, ref->addr == NULL);
-
     switch (mod->rec_result) {
     case WT_PM_REC_EMPTY:
         /*
@@ -496,13 +501,20 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
     case WT_PM_REC_REPLACE:
-        /* 1-for-1 page swap: Update the parent to reference the replacement page. */
-        WT_ASSERT(session, mod->mod_replace.block_cookie != NULL);
-        WT_RET(__wt_calloc_one(session, &addr));
-        *addr = mod->mod_replace;
-        mod->mod_replace.block_cookie = NULL;
-        mod->mod_replace.block_cookie_size = 0;
-        ref->addr = addr;
+        /*
+         * 1-for-1 page swap: Update the parent to reference the replacement page.
+         *
+         * It's possible to see an empty disk address if the previous reconciliation skipped writing
+         * an empty delta.
+         */
+        if (mod->mod_replace.block_cookie != NULL) {
+            WT_RET(__wt_calloc_one(session, &addr));
+            *addr = mod->mod_replace;
+            mod->mod_replace.block_cookie = NULL;
+            mod->mod_replace.block_cookie_size = 0;
+            ref->addr = addr;
+        } else
+            WT_ASSERT(session, ref->addr != NULL);
 
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
@@ -902,10 +914,6 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
           session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
     else
         ret = __wt_reconcile(session, ref, NULL, flags);
-
-    /* Turns the internal no progress error to EBUSY. */
-    if (ret == WT_REC_NO_PROGRESS)
-        ret = EBUSY;
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);

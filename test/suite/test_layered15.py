@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, os.path, shutil, time, wiredtiger, wttest
+import os, os.path, shutil, time, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 500
 
-    conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
+    conn_config = 'log=(enabled=true),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
                 + 'disaggregated=(page_log=palm,role="follower"),'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -45,6 +45,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
     file_uris = ["file:test_layered15c"]
     table_uris = ["table:test_layered15d"]
     all_uris = layered_uris + file_uris + table_uris
+    with_ingest_uris = all_uris + ["file:test_layered15a.wt_ingest", "file:test_layered15b.wt_ingest"]
 
     update_uris = [table_uris[0]] + ([layered_uris[0]] if len(layered_uris) > 0 else [])
     same_uris = list(set(all_uris) - set(update_uris))
@@ -93,6 +94,8 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             metadata[cursor.get_key()] = cursor.get_value()
         for uri in expect_contains:
             self.assertTrue(uri in metadata)
+            if uri.endswith("wt_ingest"):
+                self.assertTrue("log=(enabled=false)" in metadata[uri])
         for uri in expect_missing:
             self.assertFalse(uri in metadata)
         cursor.close()
@@ -150,7 +153,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.restart_without_local_files()
 
         # There should be no shared URIs in the metadata table at this point
-        self.check_metadata_cursor([], self.all_uris)
+        self.check_metadata_cursor([], self.with_ingest_uris)
 
         # Pick up the checkpoint
         self.conn.reconfigure(f'disaggregated=(checkpoint_meta="{checkpoint_meta}")')
@@ -159,13 +162,10 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.all_uris)
+        self.check_metadata_cursor(self.with_ingest_uris)
 
         # Check tables after the restart, but before we step up as a leader
-        # FIXME-SLS-760: Opening a layered table here would cause a failure in __assert_ckpt_matches
-        #    As of SLS-1449, opening even a non-layered, but disagg table here has the same failure.
-        # for uri in self.all_uris:
-        for uri in []:
+        for uri in self.all_uris:
             cursor = self.session.open_cursor(uri, None, None)
             for i in range(self.nitems):
                 self.assertEqual(cursor[str(i)], value_prefix + str(i))
@@ -237,7 +237,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.all_uris)
+        self.check_metadata_cursor(self.with_ingest_uris)
 
         #
         # ------------------------------ Restart 2 ------------------------------
@@ -258,7 +258,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.check_shared_metadata(self.all_uris)
 
         # Ensure that the metadata cursor has all the expected URIs
-        self.check_metadata_cursor(self.all_uris)
+        self.check_metadata_cursor(self.with_ingest_uris)
 
         # Check tables after the restart
         for uri in self.update_uris:
