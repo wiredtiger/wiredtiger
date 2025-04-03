@@ -326,35 +326,3 @@ __wt_tret_error_ok(int *pret, int a, int e)
 /* Internal errors start from -100000 */
 /* Internal error indicating reconciliation makes no progress. */
 #define WT_REC_NO_PROGRESS (-100000)
-
-
-/* Add backtraces to WT_ERR and WT_RET. */
-
-#if 0
-#undef WT_ERR
-#undef WT_RET
-
-#define WT_SIMPLIFY_PATH(path) (strstr(path, "/src/") == NULL ? (path) : strstr(path, "/src/") + 1)
-#define WT_ERR_IGNORE(s) (strstr(s, "__config_next(") != NULL || strstr(s, "->search(") != NULL)
-
-#define WT_ERR(a)                                                                                 \
-    do {                                                                                          \
-        if ((ret = (a)) != 0) {                                                                   \
-            if (!WT_ERR_IGNORE(#a))                                                               \
-                fprintf(stderr, "%s:%d WT_ERR(%s) -> %d\n", WT_SIMPLIFY_PATH(__FILE__), __LINE__, \
-                  #a, ret);                                                                       \
-            goto err;                                                                             \
-        }                                                                                         \
-    } while (0)
-
-#define WT_RET(a)                                                                                 \
-    do {                                                                                          \
-        int __ret;                                                                                \
-        if ((__ret = (a)) != 0) {                                                                 \
-            if (!WT_ERR_IGNORE(#a))                                                               \
-                fprintf(stderr, "%s:%d WT_RET(%s) -> %d\n", WT_SIMPLIFY_PATH(__FILE__), __LINE__, \
-                  #a, __ret);                                                                     \
-            return (__ret);                                                                       \
-        }                                                                                         \
-    } while (0)
-#endif
