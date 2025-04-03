@@ -1568,17 +1568,16 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                 prune_timestamp = ds->ckpt_track[track].timestamp;
 
                 /*
-                 * Set the prune timestamp in the btree if it is open, typically it is. When we open
-                 * the layered data handle, we also set the ingest dhandle to be in use. That
-                 * indicates that the btree will never be closed once it is opened. However, it's
-                 * possible that it hasn't been opened yet. In that case, we need to skip updating
-                 * its timestamp for pruning, and we'll get another chance to update the prune
-                 * timestamp at the next checkpoint.
+                 * Set the prune timestamp in the btree if it is open, typically it is. However,
+                 * it's possible that it hasn't been opened yet. In that case, we need to skip
+                 * updating its timestamp for pruning, and we'll get another chance to update the
+                 * prune timestamp at the next checkpoint.
                  */
-                WT_ERR(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
-                btree = (WT_BTREE *)session->dhandle->handle;
-                WT_ERR(__wt_session_release_dhandle(session));
-                if (btree != NULL) {
+                WT_ERR_NOTFOUND_OK(
+                  __wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0),
+                  true);
+                if (ret != WT_NOTFOUND) {
+                    btree = (WT_BTREE *)session->dhandle->handle;
                     WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
                     WT_RELEASE_WRITE(btree->prune_timestamp, prune_timestamp);
 
@@ -1586,7 +1585,9 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                       "GC %s: update pruning timestamp to %" PRIu64 "\n", layered_table->iface.name,
                       prune_timestamp);
                     layered_table->last_ckpt_inuse = ckpt_inuse;
-                }
+                    WT_ERR(__wt_session_release_dhandle(session));
+                } else
+                    ret = 0;
             }
             min_ckpt_inuse = WT_MIN(layered_table->last_ckpt_inuse, min_ckpt_inuse);
         }
