@@ -39,9 +39,6 @@ function(get_gnu_base_flags flags)
     list(APPEND gnu_flags "-Winit-self")
     list(APPEND gnu_flags "-Wmissing-declarations")
     list(APPEND gnu_flags "-Wmissing-field-initializers")
-    # FIXME-WT-11788: Remove the following flag once the violation of the standard C11 7.1.3 has
-    # been addressed.
-    list(APPEND gnu_flags "-Wno-reserved-identifier")
     list(APPEND gnu_flags "-Wno-switch-default")
     list(APPEND gnu_flags "-Wpacked")
     list(APPEND gnu_flags "-Wpointer-arith")
