@@ -160,7 +160,7 @@ __live_restore_report_state_to_application(WT_SESSION_IMPL *session, WTI_LIVE_RE
 
 /*
  * __live_restore_set_state_int --
- *     Internal function for setting the live restore state, expects the state lock to be held.
+ *     Internal function for setting the live restore state. The caller must hold the state lock.
  */
 static int
 __live_restore_set_state_int(
