@@ -451,9 +451,9 @@ __curstat_layered_init(
          * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
          * stable checkpoint, but without it being a traditional checkpoint cursor.
          */
-        WT_ERR(__wt_snprintf(
-          stable_uri_buf, sizeof(stable_uri_buf), "%s/%s", layered->stable_uri, checkpoint_name));
-        stable_uri = stable_uri_buf;
+        WT_ERR(
+          __wt_buf_fmt(session, stable_uri_buf, "%s/%s", layered->stable_uri, checkpoint_name));
+        stable_uri = stable_uri_buf->data;
     } else
         stable_uri = layered->stable_uri;
 
