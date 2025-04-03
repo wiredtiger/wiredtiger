@@ -704,7 +704,6 @@ __schema_open_layered(WT_SESSION_IMPL *session)
 int
 __wt_schema_open_layered(WT_SESSION_IMPL *session)
 {
-    WT_BTREE *ingest_btree;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
 
