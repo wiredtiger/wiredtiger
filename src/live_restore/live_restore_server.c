@@ -382,8 +382,8 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * If background migration has already completed we don't need to start the background threads.
-     * Run the clean up logic regardless in case we've previously closed the connection at the exact
-     * time we finish migration, but before we call clean up.
+     * Run the clean up logic regardless in case we've previously closed the connection after we
+     * finish migration, but before we call clean up.
      */
     if (__wti_live_restore_migration_complete(session)) {
         WT_RET(__wt_open_internal_session(
