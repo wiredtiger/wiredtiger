@@ -707,7 +707,6 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_BTREE *ingest_btree;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
-    uint32_t ingest_id, stable_id;
 
     if (!__wt_conn_is_disagg(session)) {
         __wt_err(session, EINVAL, "layered table is only supported for disaggregated storage");
@@ -733,12 +732,7 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     /* Start the layered table manager thread if it isn't running. */
     WT_RET(__wt_layered_table_manager_start(session));
 
-    /*
-     * Add the ingest table file identifier into the layered table managers list of tracked tables
-     */
-    ingest_id = ingest_btree->id;
-
-    WT_RET(__wt_layered_table_manager_add_table(session, ingest_id));
+    WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
 
     return (0);
 }
