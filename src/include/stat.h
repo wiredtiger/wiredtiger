@@ -482,6 +482,8 @@ struct __wt_connection_stats {
     int64_t block_byte_read_leaf_disk;
     int64_t block_byte_read_mmap;
     int64_t block_byte_read_syscall;
+    int64_t block_byte_write_saved_delta_intl;
+    int64_t block_byte_write_saved_delta_leaf;
     int64_t block_byte_write;
     int64_t block_byte_write_compact;
     int64_t block_byte_write_checkpoint;
@@ -493,6 +495,18 @@ struct __wt_connection_stats {
     int64_t block_byte_write_syscall;
     int64_t block_map_read;
     int64_t block_byte_map_read;
+    int64_t block_byte_write_intl_delta_lt20;
+    int64_t block_byte_write_intl_delta_lt40;
+    int64_t block_byte_write_intl_delta_lt60;
+    int64_t block_byte_write_intl_delta_lt80;
+    int64_t block_byte_write_intl_delta_lt100;
+    int64_t block_byte_write_intl_delta_gt100;
+    int64_t block_byte_write_leaf_delta_lt20;
+    int64_t block_byte_write_leaf_delta_lt40;
+    int64_t block_byte_write_leaf_delta_lt60;
+    int64_t block_byte_write_leaf_delta_lt80;
+    int64_t block_byte_write_leaf_delta_lt100;
+    int64_t block_byte_write_leaf_delta_gt100;
     int64_t block_remap_file_resize;
     int64_t block_remap_file_write;
     int64_t cache_eviction_app_time;
