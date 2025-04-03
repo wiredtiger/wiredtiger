@@ -466,7 +466,7 @@ __curstat_layered_init(
 done:
 err:
     __wt_scr_free(session, &stable_uri_buf);
-    if (layered != session->dhandle) {
+    if (dhandle != session->dhandle) {
         WT_TRET(__wt_session_release_dhandle(session));
         session->dhandle = layered;
     }
