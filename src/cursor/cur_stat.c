@@ -468,7 +468,7 @@ err:
     __wt_scr_free(session, &stable_uri_buf);
     if (dhandle != session->dhandle) {
         WT_TRET(__wt_session_release_dhandle(session));
-        session->dhandle = layered;
+        session->dhandle = dhandle;
     }
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
