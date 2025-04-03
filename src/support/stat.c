@@ -134,6 +134,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
   "cache: page written requiring history store records",
+  "cache: pages evicted ahead of the page materialization frontier",
   "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
@@ -144,6 +145,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
   "cache: recent modification of a page blocked its eviction",
+  "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
   "cache: the number of times full update inserted to history store",
@@ -526,6 +528,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
     stats->cache_write_hs = 0;
+    stats->cache_eviction_ahead_of_last_materialized_lsn = 0;
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
@@ -536,6 +539,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
+    stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
     stats->cache_hs_insert_full_update = 0;
@@ -902,6 +906,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_deepen += from->cache_eviction_deepen;
     to->cache_write_hs += from->cache_write_hs;
+    to->cache_eviction_ahead_of_last_materialized_lsn +=
+      from->cache_eviction_ahead_of_last_materialized_lsn;
     to->cache_read += from->cache_read;
     to->cache_read_deleted += from->cache_read_deleted;
     to->cache_read_deleted_prepared += from->cache_read_deleted_prepared;
@@ -912,6 +918,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_write += from->cache_write;
     to->cache_write_restore += from->cache_write_restore;
     to->cache_eviction_blocked_recently_modified += from->cache_eviction_blocked_recently_modified;
+    to->cache_scrub_restore += from->cache_scrub_restore;
     to->cache_reverse_splits += from->cache_reverse_splits;
     to->cache_reverse_splits_skipped_vlcs += from->cache_reverse_splits_skipped_vlcs;
     to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
@@ -1293,6 +1300,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
     to->cache_eviction_deepen += WT_STAT_DSRC_READ(from, cache_eviction_deepen);
     to->cache_write_hs += WT_STAT_DSRC_READ(from, cache_write_hs);
+    to->cache_eviction_ahead_of_last_materialized_lsn +=
+      WT_STAT_DSRC_READ(from, cache_eviction_ahead_of_last_materialized_lsn);
     to->cache_read += WT_STAT_DSRC_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_DSRC_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_DSRC_READ(from, cache_read_deleted_prepared);
@@ -1304,6 +1313,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_write_restore += WT_STAT_DSRC_READ(from, cache_write_restore);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_recently_modified);
+    to->cache_scrub_restore += WT_STAT_DSRC_READ(from, cache_scrub_restore);
     to->cache_reverse_splits += WT_STAT_DSRC_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_DSRC_READ(from, cache_reverse_splits_skipped_vlcs);
@@ -1616,6 +1626,8 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes read for leaf pages before decompression and decryption",
   "block-manager: bytes read via memory map API",
   "block-manager: bytes read via system call API",
+  "block-manager: bytes saved from being written when using internal page deltas",
+  "block-manager: bytes saved from being written when using leaf page deltas",
   "block-manager: bytes written",
   "block-manager: bytes written by compaction",
   "block-manager: bytes written for checkpoint",
@@ -1627,6 +1639,30 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written via system call API",
   "block-manager: mapped blocks read",
   "block-manager: mapped bytes read",
+  "block-manager: number of internal page deltas written that were between 0-20 percent the size "
+  "of the full image",
+  "block-manager: number of internal page deltas written that were between 20-40 percent the size "
+  "of the full image",
+  "block-manager: number of internal page deltas written that were between 40-60 percent the size "
+  "of the full image",
+  "block-manager: number of internal page deltas written that were between 60-80 percent the size "
+  "of the full image",
+  "block-manager: number of internal page deltas written that were between 80-100 percent the size "
+  "of the full image",
+  "block-manager: number of internal page deltas written that were greater than the size of the "
+  "full image",
+  "block-manager: number of leaf page deltas written that were between 0-20 percent the size of "
+  "the full image",
+  "block-manager: number of leaf page deltas written that were between 20-40 percent the size of "
+  "the full image",
+  "block-manager: number of leaf page deltas written that were between 40-60 percent the size of "
+  "the full image",
+  "block-manager: number of leaf page deltas written that were between 60-80 percent the size of "
+  "the full image",
+  "block-manager: number of leaf page deltas written that were between 80-100 percent the size of "
+  "the full image",
+  "block-manager: number of leaf page deltas written that were greater than the size of the full "
+  "image",
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
@@ -1780,6 +1816,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: page written requiring history store records",
   "cache: pages considered for eviction that were brought in by pre-fetch",
   "cache: pages currently held in the cache",
+  "cache: pages evicted ahead of the page materialization frontier",
   "cache: pages evicted by application threads",
   "cache: pages evicted in parallel with checkpoint",
   "cache: pages queued for eviction",
@@ -1807,6 +1844,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages written requiring in-memory restoration",
   "cache: percentage overhead",
   "cache: recent modification of a page blocked its eviction",
+  "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
   "cache: the number of times full update inserted to history store",
@@ -2476,6 +2514,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_read_leaf_disk = 0;
     stats->block_byte_read_mmap = 0;
     stats->block_byte_read_syscall = 0;
+    stats->block_byte_write_saved_delta_intl = 0;
+    stats->block_byte_write_saved_delta_leaf = 0;
     stats->block_byte_write = 0;
     stats->block_byte_write_compact = 0;
     stats->block_byte_write_checkpoint = 0;
@@ -2487,6 +2527,18 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
+    stats->block_byte_write_intl_delta_lt20 = 0;
+    stats->block_byte_write_intl_delta_lt40 = 0;
+    stats->block_byte_write_intl_delta_lt60 = 0;
+    stats->block_byte_write_intl_delta_lt80 = 0;
+    stats->block_byte_write_intl_delta_lt100 = 0;
+    stats->block_byte_write_intl_delta_gt100 = 0;
+    stats->block_byte_write_leaf_delta_lt20 = 0;
+    stats->block_byte_write_leaf_delta_lt40 = 0;
+    stats->block_byte_write_leaf_delta_lt60 = 0;
+    stats->block_byte_write_leaf_delta_lt80 = 0;
+    stats->block_byte_write_leaf_delta_lt100 = 0;
+    stats->block_byte_write_leaf_delta_gt100 = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
     stats->cache_eviction_app_time = 0;
@@ -2623,6 +2675,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_hs = 0;
     /* not clearing cache_eviction_consider_prefetch */
     /* not clearing cache_pages_inuse */
+    stats->cache_eviction_ahead_of_last_materialized_lsn = 0;
     stats->cache_eviction_app = 0;
     stats->cache_eviction_pages_in_parallel_with_checkpoint = 0;
     stats->cache_eviction_pages_queued = 0;
@@ -2648,6 +2701,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_restore = 0;
     /* not clearing cache_overhead */
     stats->cache_eviction_blocked_recently_modified = 0;
+    stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
     stats->cache_hs_insert_full_update = 0;
@@ -3288,6 +3342,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_read_leaf_disk += WT_STAT_CONN_READ(from, block_byte_read_leaf_disk);
     to->block_byte_read_mmap += WT_STAT_CONN_READ(from, block_byte_read_mmap);
     to->block_byte_read_syscall += WT_STAT_CONN_READ(from, block_byte_read_syscall);
+    to->block_byte_write_saved_delta_intl +=
+      WT_STAT_CONN_READ(from, block_byte_write_saved_delta_intl);
+    to->block_byte_write_saved_delta_leaf +=
+      WT_STAT_CONN_READ(from, block_byte_write_saved_delta_leaf);
     to->block_byte_write += WT_STAT_CONN_READ(from, block_byte_write);
     to->block_byte_write_compact += WT_STAT_CONN_READ(from, block_byte_write_compact);
     to->block_byte_write_checkpoint += WT_STAT_CONN_READ(from, block_byte_write_checkpoint);
@@ -3299,6 +3357,30 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_syscall += WT_STAT_CONN_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_CONN_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_CONN_READ(from, block_byte_map_read);
+    to->block_byte_write_intl_delta_lt20 +=
+      WT_STAT_CONN_READ(from, block_byte_write_intl_delta_lt20);
+    to->block_byte_write_intl_delta_lt40 +=
+      WT_STAT_CONN_READ(from, block_byte_write_intl_delta_lt40);
+    to->block_byte_write_intl_delta_lt60 +=
+      WT_STAT_CONN_READ(from, block_byte_write_intl_delta_lt60);
+    to->block_byte_write_intl_delta_lt80 +=
+      WT_STAT_CONN_READ(from, block_byte_write_intl_delta_lt80);
+    to->block_byte_write_intl_delta_lt100 +=
+      WT_STAT_CONN_READ(from, block_byte_write_intl_delta_lt100);
+    to->block_byte_write_intl_delta_gt100 +=
+      WT_STAT_CONN_READ(from, block_byte_write_intl_delta_gt100);
+    to->block_byte_write_leaf_delta_lt20 +=
+      WT_STAT_CONN_READ(from, block_byte_write_leaf_delta_lt20);
+    to->block_byte_write_leaf_delta_lt40 +=
+      WT_STAT_CONN_READ(from, block_byte_write_leaf_delta_lt40);
+    to->block_byte_write_leaf_delta_lt60 +=
+      WT_STAT_CONN_READ(from, block_byte_write_leaf_delta_lt60);
+    to->block_byte_write_leaf_delta_lt80 +=
+      WT_STAT_CONN_READ(from, block_byte_write_leaf_delta_lt80);
+    to->block_byte_write_leaf_delta_lt100 +=
+      WT_STAT_CONN_READ(from, block_byte_write_leaf_delta_lt100);
+    to->block_byte_write_leaf_delta_gt100 +=
+      WT_STAT_CONN_READ(from, block_byte_write_leaf_delta_gt100);
     to->block_remap_file_resize += WT_STAT_CONN_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
     to->cache_eviction_app_time += WT_STAT_CONN_READ(from, cache_eviction_app_time);
@@ -3483,6 +3565,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_consider_prefetch +=
       WT_STAT_CONN_READ(from, cache_eviction_consider_prefetch);
     to->cache_pages_inuse += WT_STAT_CONN_READ(from, cache_pages_inuse);
+    to->cache_eviction_ahead_of_last_materialized_lsn +=
+      WT_STAT_CONN_READ(from, cache_eviction_ahead_of_last_materialized_lsn);
     to->cache_eviction_app += WT_STAT_CONN_READ(from, cache_eviction_app);
     to->cache_eviction_pages_in_parallel_with_checkpoint +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_in_parallel_with_checkpoint);
@@ -3518,6 +3602,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_overhead += WT_STAT_CONN_READ(from, cache_overhead);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_recently_modified);
+    to->cache_scrub_restore += WT_STAT_CONN_READ(from, cache_scrub_restore);
     to->cache_reverse_splits += WT_STAT_CONN_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_CONN_READ(from, cache_reverse_splits_skipped_vlcs);

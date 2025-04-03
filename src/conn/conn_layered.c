@@ -53,22 +53,20 @@ static int
 __layered_create_missing_stable_table(
   WT_SESSION_IMPL *session, const char *uri, const char *layered_cfg)
 {
-    WT_CONFIG_ITEM key_format, value_format;
-    WT_DECL_ITEM(stable_config);
     WT_DECL_RET;
+    const char *constituent_cfg;
+    const char *stable_cfg[4] = {WT_CONFIG_BASE(session, table_meta), layered_cfg, NULL, NULL};
 
-    WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
-    WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
+    constituent_cfg = NULL;
 
-    /* TODO Refactor this with __create_layered? */
-    WT_ERR(__wt_scr_alloc(session, 0, &stable_config));
-    WT_ERR(__wt_buf_fmt(session, stable_config, "key_format=\"%.*s\",value_format=\"%.*s\",",
-      (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
+    /* Disable logging on the stable table so we have timestamps. */
+    stable_cfg[2] = "log=(enabled=false)";
 
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, stable_config->data));
+    WT_ERR(__wt_config_merge(session, stable_cfg, NULL, &constituent_cfg));
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_create(session, uri, constituent_cfg));
 
 err:
-    __wt_scr_free(session, &stable_config);
+    __wt_free(session, constituent_cfg);
     return (ret);
 }
 
