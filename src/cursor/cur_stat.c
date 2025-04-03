@@ -409,8 +409,7 @@ __init_layered_constituent_stats(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
  *     Initialize the statistics for a layered table.
  */
 static int
-__curstat_layered_init(
-  WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
+__curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
 {
     WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(stable_uri_buf);
@@ -690,7 +689,7 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *curjoin,
     else if (WT_PREFIX_MATCH(dsrc_uri, "index:"))
         WT_RET(__wt_curstat_index_init(session, dsrc_uri, cfg, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "layered:"))
-        WT_RET(__curstat_layered_init(session, dsrc_uri, cfg, cst));
+        WT_RET(__curstat_layered_init(session, dsrc_uri, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "lsm:"))
         WT_RET(__wt_curstat_lsm_init(session, dsrc_uri, cst));
     else if (WT_PREFIX_MATCH(dsrc_uri, "table:"))
