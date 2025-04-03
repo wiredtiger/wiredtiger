@@ -270,7 +270,6 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
           __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), false);
 
         if (ret == WT_NOTFOUND) {
-            ret = 0;
             /*
              * We've never picked up a checkpoint, open a regular btree on the stable URI. If we're
              * a follower and we never picked up a checkpoint, then no checkpoint has ever occurred
