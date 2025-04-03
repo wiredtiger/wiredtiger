@@ -74,19 +74,12 @@ struct __wt_table {
 
 /*
  * WT_LAYERED_TABLE --
- *	Handle for a layered table. A layered table consists of a pair of
- *	btree handles, one for ingest the other for "stable" data. There is a
- *	background process that copies content from the ingest table via
- *	monitoring and application of write ahead log entries. Once that content is included
- *	in a checkpoint of the stable table it can be garbage collected from the
- *	ingest table.
+ *	Handle for a layered table.
  */
 struct __wt_layered_table {
     WT_DATA_HANDLE iface;
 
-    WT_DATA_HANDLE *ingest;
     uint32_t ingest_btree_id;
-    WT_DATA_HANDLE *stable;
 
     WT_COLLATOR *collator; /* Custom collator */
     int collator_owned;

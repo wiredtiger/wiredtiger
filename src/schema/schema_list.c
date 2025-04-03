@@ -240,7 +240,7 @@ __wt_schema_close_table(WT_SESSION_IMPL *session, WT_TABLE *table)
  *     Close a layered handle.
  */
 void
-__wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, bool final)
+__wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered)
 {
     /* Free copies of copied configuration items. */
     __wt_free(session, layered->key_format);
@@ -250,15 +250,4 @@ __wt_schema_close_layered(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, b
 
     /* Remove the ingest handle from layered table manager list */
     __wt_layered_table_manager_remove_table(session, layered->ingest_btree_id);
-
-    /* Release our reference to the member handles so they can be cleaned up */
-    if (!final) {
-        /* Dropped tables no longer reference ingest constituents */
-        if (layered->ingest != NULL)
-            (void)__wt_atomic_subi32(&layered->ingest->session_inuse, 1);
-
-        /* The stable handle may not be open yet. */
-        if (layered->stable != NULL)
-            (void)__wt_atomic_subi32(&layered->stable->session_inuse, 1);
-    }
 }

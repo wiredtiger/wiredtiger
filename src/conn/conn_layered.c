@@ -460,8 +460,7 @@ __wt_layered_table_manager_thread_chk(WT_SESSION_IMPL *session)
  *     Add a table to the layered table manager when it's opened
  */
 int
-__wt_layered_table_manager_add_table(
-  WT_SESSION_IMPL *session, uint32_t ingest_id, uint32_t stable_id)
+__wt_layered_table_manager_add_table(WT_SESSION_IMPL *session, uint32_t ingest_id)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -494,7 +493,6 @@ __wt_layered_table_manager_add_table(
           "Internal server error: opening the same layered table multiple times"));
     WT_ERR(__wt_calloc_one(session, &entry));
     entry->ingest_id = ingest_id;
-    entry->stable_id = stable_id;
     entry->layered_table = (WT_LAYERED_TABLE *)session->dhandle;
 
     /*
@@ -512,8 +510,8 @@ __wt_layered_table_manager_add_table(
     entry->ingest_uri = layered->ingest_uri;
     WT_STAT_CONN_INCR(session, layered_table_manager_tables);
     __wt_verbose_level(session, WT_VERB_LAYERED, WT_VERBOSE_DEBUG_5,
-      "__wt_layered_table_manager_add_table uri=%s ingest=%" PRIu32 " stable=%" PRIu32 " name=%s",
-      entry->stable_uri, ingest_id, stable_id, session->dhandle->name);
+      "__wt_layered_table_manager_add_table uri=%s ingest=%" PRIu32 " name=%s", entry->stable_uri,
+      ingest_id, session->dhandle->name);
     manager->entries[ingest_id] = entry;
 
 err:
@@ -1579,7 +1577,9 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
                  * its timestamp for pruning, and we'll get another chance to update the prune
                  * timestamp at the next checkpoint.
                  */
-                btree = (WT_BTREE *)layered_table->ingest->handle;
+                WT_ERR(__wt_session_get_dhandle(session, layered_table->ingest_uri, NULL, NULL, 0));
+                btree = (WT_BTREE *)session->dhandle->handle;
+                WT_ERR(__wt_session_release_dhandle(session));
                 if (btree != NULL) {
                     WT_ASSERT(session, prune_timestamp >= btree->prune_timestamp);
                     WT_RELEASE_WRITE(btree->prune_timestamp, prune_timestamp);

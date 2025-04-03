@@ -215,21 +215,17 @@ __clayered_close_cursors(WT_CURSOR_LAYERED *clayered)
  */
 static int
 __clayered_configure_random(
-  WT_CURSOR_LAYERED *clayered, char *random_config, size_t random_config_len)
+  WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *random_config)
 {
     /*
      * If the layered cursor is configured with next_random, we'll need to open any constituent
      * cursors with the same configuration that is relevant for random cursors.
      */
     if (F_ISSET(clayered, WT_CLAYERED_RANDOM))
-        WT_RET(__wt_snprintf(random_config, random_config_len,
+        WT_RET(__wt_buf_fmt(session, random_config,
           "next_random=true,next_random_seed=%" PRId64 ",next_random_sample_size=%" PRIu64,
           clayered->next_random_seed, (uint64_t)clayered->next_random_sample_size));
-    else {
-        /* no random configuration */
-        WT_ASSERT(CUR2S(clayered), random_config_len > 0);
-        random_config[0] = '\0';
-    }
+
     return (0);
 }
 
@@ -240,22 +236,24 @@ __clayered_configure_random(
 static int
 __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 {
+    WT_DECL_ITEM(random_config);
+    WT_DECL_ITEM(stable_uri_buf);
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
     WT_SESSION_IMPL *session;
-    const char *cfg[4] = {
-      WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), NULL, NULL, NULL};
-    char random_config[1024];
-    char stable_uri_buf[256];
+    const char *cfg[4] = {WT_CONFIG_BASE(CUR2S(clayered), WT_SESSION_open_cursor), "", NULL, NULL};
     const char *checkpoint_name, *stable_uri;
 
     session = CUR2S(clayered);
     layered = (WT_LAYERED_TABLE *)clayered->dhandle;
     stable_uri = layered->stable_uri;
 
+    WT_RET(__wt_scr_alloc(session, 0, &random_config));
     /* Get the configuration for random cursors, if any. */
-    WT_RET(__clayered_configure_random(clayered, random_config, sizeof(random_config)));
-    cfg[1] = random_config;
+    WT_ERR(__clayered_configure_random(session, clayered, random_config));
+
+    if (random_config->size > 0)
+        cfg[1] = random_config->data;
 
     if (!leader) {
         /*
@@ -268,10 +266,11 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
 
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
         checkpoint_name = NULL;
-        WT_RET_NOTFOUND_OK(
-          __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL));
+        WT_ERR_NOTFOUND_OK(
+          __wt_meta_checkpoint_last_name(session, stable_uri, &checkpoint_name, NULL, NULL), false);
 
-        if (checkpoint_name == NULL) {
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
             /*
              * We've never picked up a checkpoint, open a regular btree on the stable URI. If we're
              * a follower and we never picked up a checkpoint, then no checkpoint has ever occurred
@@ -283,13 +282,14 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
             cfg[2] = "readonly,checkpoint_use_history=false";
             F_SET(clayered, WT_CLAYERED_STABLE_NO_CKPT);
         } else {
+            WT_ERR(__wt_scr_alloc(session, 0, &stable_uri_buf));
             /*
              * Use a URI with a "/<checkpoint name> suffix. This is interpreted as reading from the
              * stable checkpoint, but without it being a traditional checkpoint cursor.
              */
-            WT_RET(__wt_snprintf(stable_uri_buf, sizeof(stable_uri_buf), "%s/%s",
-              layered->stable_uri, checkpoint_name));
-            stable_uri = stable_uri_buf;
+            WT_ERR(
+              __wt_buf_fmt(session, stable_uri_buf, "%s/%s", layered->stable_uri, checkpoint_name));
+            stable_uri = stable_uri_buf->data;
             cfg[2] = "readonly";
         }
     }
@@ -302,8 +302,7 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
          */
         ret = 0;
     } else if (ret == WT_NOTFOUND)
-        WT_RET(
-          __wt_panic(session, WT_PANIC, "Layered table could not access stable table on leader"));
+        WT_ERR_PANIC(session, WT_PANIC, "Layered table could not access stable table on leader");
 
     if (clayered->stable_cursor != NULL) {
         F_SET(clayered->stable_cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
@@ -311,6 +310,10 @@ __clayered_open_stable(WT_CURSOR_LAYERED *clayered, bool leader)
         /* Layered cursor is not compatible with cursor_copy config. */
         F_CLR(clayered->stable_cursor, WT_CURSTD_DEBUG_COPY_KEY | WT_CURSTD_DEBUG_COPY_VALUE);
     }
+
+err:
+    __wt_scr_free(session, &random_config);
+    __wt_scr_free(session, &stable_uri_buf);
 
     return (ret);
 }
