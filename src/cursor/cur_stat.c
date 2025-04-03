@@ -432,6 +432,7 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
     WT_ERR(__init_layered_constituent_stats(session, cst));
     WT_ERR(__wt_session_release_dhandle(session));
 
+    stable_uri = layered->stable_uri;
     /* Now do the stable table. */
     if (!S2C(session)->layered_table_manager.leader) {
         /* Look up the most recent data store checkpoint. This fetches the exact name to use. */
@@ -453,8 +454,7 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
         WT_ERR(
           __wt_buf_fmt(session, stable_uri_buf, "%s/%s", layered->stable_uri, checkpoint_name));
         stable_uri = stable_uri_buf->data;
-    } else
-        stable_uri = layered->stable_uri;
+    }
 
     WT_ERR(__wt_session_get_dhandle(session, stable_uri, NULL, NULL, 0));
     WT_ERR(__init_layered_constituent_stats(session, cst));
