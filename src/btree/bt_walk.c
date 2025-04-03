@@ -48,7 +48,7 @@ __ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp,
             goto found;
         for (start = &pindex->index[0], stop = &pindex->index[entries - 1],
             p = t = &pindex->index[slot];
-          p > start || t < stop;) {
+             p > start || t < stop;) {
             if (p > start && *--p == ref) {
                 slot = (uint32_t)(p - start);
                 goto found;

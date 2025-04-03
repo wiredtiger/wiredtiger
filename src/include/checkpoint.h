@@ -50,7 +50,7 @@ struct __wt_checkpoint_page_to_reconcile {
     TAILQ_ENTRY(__wt_checkpoint_page_to_reconcile) q; /* Worker unit queue */
 
     WT_DATA_HANDLE *dhandle;
-    //WT_TXN_ISOLATION isolation;
+    // WT_TXN_ISOLATION isolation;
     WT_TXN_SNAPSHOT *snapshot;
 
     WT_REF *ref;

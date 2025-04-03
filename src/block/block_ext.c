@@ -669,7 +669,7 @@ __wti_block_off_free(
     /* If a sync is running, no other sessions can free blocks. */
     // XXX CKPT
     WT_ASSERT(session,
-        WT_SESSION_IS_CHECKPOINT(session) || WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
+      WT_SESSION_IS_CHECKPOINT(session) || WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
 
     /* We can't reuse free space in an object. */
     if (objectid != block->objectid)
