@@ -3042,7 +3042,7 @@ __checkpoint_reconcile_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         /* It's not an error if we make no progress. */
         WT_WITH_DHANDLE(session, entry->dhandle,
           ret = __wt_reconcile(session, entry->ref, NULL, entry->reconcile_flags));
-        WT_ERR_ERROR_OK(ret, WT_REC_NO_PROGRESS, false);
+        WT_ERR(ret);
 
         entry->ret = ret;
         __checkpoint_reconcile_push_done(session, entry);
