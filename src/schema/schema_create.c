@@ -1134,7 +1134,7 @@ __create_layered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, cons
      * Disable logging for layered table so we have timestamps.
      */
     WT_ERR(__wt_buf_fmt(
-      session, tmp, "ingest=\"%s\",stable=\"%s\",log_enabled=(false)", ingest_uri, stable_uri));
+      session, tmp, "ingest=\"%s\",stable=\"%s\",log=(enabled=false)", ingest_uri, stable_uri));
     layered_cfg[3] = tmp->data;
 
     WT_ERR(__wt_config_collapse(session, layered_cfg, &tablecfg));
