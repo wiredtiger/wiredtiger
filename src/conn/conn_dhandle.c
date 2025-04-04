@@ -959,6 +959,7 @@ restart:
           WT_TRET(__wti_conn_dhandle_discard_single(session, true, F_ISSET(conn, WT_CONN_PANIC))));
     }
     WT_TAILQ_SAFE_REMOVE_END
+
     return (ret);
 }
 
