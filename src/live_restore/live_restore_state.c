@@ -10,16 +10,32 @@
 #include "live_restore_private.h"
 
 /*
- * __wt_live_restore_migration_complete --
+ * __wti_live_restore_migration_complete --
  *     Return if live restore is past the background migration stage.
  */
 bool
-__wt_live_restore_migration_complete(WT_SESSION_IMPL *session)
+__wti_live_restore_migration_complete(WT_SESSION_IMPL *session)
 {
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
     WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
 
     return (state == WTI_LIVE_RESTORE_STATE_CLEAN_UP || state == WTI_LIVE_RESTORE_STATE_COMPLETE);
+}
+
+/*
+ * __wt_live_restore_migration_in_progress --
+ *     Return if live restore is in progress stage.
+ */
+bool
+__wt_live_restore_migration_in_progress(WT_SESSION_IMPL *session)
+{
+    /* If live restore is not enabled then no need to check its state. */
+    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+        return (false);
+    WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
+    WTI_LIVE_RESTORE_STATE state = __wti_live_restore_get_state(session, lr_fs);
+
+    return (state == WTI_LIVE_RESTORE_STATE_BACKGROUND_MIGRATION);
 }
 
 /*

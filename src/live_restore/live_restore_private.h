@@ -171,6 +171,8 @@ struct __wti_live_restore_server {
 
 extern WTI_LIVE_RESTORE_STATE __wti_live_restore_get_state(WT_SESSION_IMPL *session,
   WTI_LIVE_RESTORE_FS *lr_fs) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wti_live_restore_migration_complete(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)

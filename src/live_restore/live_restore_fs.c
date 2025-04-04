@@ -110,7 +110,7 @@ __live_restore_fs_create_stop_file(
     if (!reentrant)
         __wt_spin_lock(session, &lr_fs->state_lock);
 
-    if (__wt_live_restore_migration_complete(session)) {
+    if (__wti_live_restore_migration_complete(session)) {
         if (!reentrant)
             __wt_spin_unlock(session, &lr_fs->state_lock);
         return (0);
@@ -224,7 +224,7 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
      * moved by the user. We can't depend on stop files here as post-migration clean up may have
      * deleted the stop file already.
      */
-    if (__wt_live_restore_migration_complete(session))
+    if (__wti_live_restore_migration_complete(session))
         return (0);
 
     WT_RET(__live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &exists));
@@ -295,7 +295,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
      * Once we're past the background migration stage we never need to access the source directory
      * again.
      */
-    if (__wt_live_restore_migration_complete(session))
+    if (__wti_live_restore_migration_complete(session))
         goto done;
 
     /* Get files from source. */
@@ -1321,7 +1321,7 @@ __wt_live_restore_metadata_to_fh(
         return (0);
     } else if (lr_fh_meta->nbits > 0) {
         /* We shouldn't be reconstructing a bitmap if the live restore has finished. */
-        WT_ASSERT(session, !__wt_live_restore_migration_complete(session));
+        WT_ASSERT(session, !__wti_live_restore_migration_complete(session));
         __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
           "Reconstructing bitmap for %s, bitmap_sz %" PRId64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
@@ -1394,9 +1394,7 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
     WT_CONFIG_ITEM v;
     WT_DECL_RET;
 
-    WT_ASSERT_ALWAYS(session,
-      !F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS) ||
-        __wt_live_restore_migration_complete(session),
+    WT_ASSERT_ALWAYS(session, !__wt_live_restore_migration_in_progress(session),
       "Cleaning the metadata string should only be called for non-live restore file systems");
 
     ret = __wt_config_getones(session, value, "live_restore", &v);
@@ -1548,7 +1546,7 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
     char *buf = NULL, *source_path = NULL, *dest_path = NULL, *tmp_dest_path = NULL;
     bool dest_closed = false;
 
-    WT_ASSERT_ALWAYS(session, !__wt_live_restore_migration_complete(session),
+    WT_ASSERT_ALWAYS(session, !__wti_live_restore_migration_complete(session),
       "Attempting to atomically copy a file outside of the migration phase!");
 
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
@@ -1750,7 +1748,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
      */
 
     bool dest_exist = false, have_stop = false,
-         check_source = !__wt_live_restore_migration_complete(session);
+         check_source = !__wti_live_restore_migration_complete(session);
 
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));

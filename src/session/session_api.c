@@ -693,8 +693,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
         break;
     case 'b':
         if (WT_PREFIX_MATCH(uri, "backup:")) {
-            if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS) &&
-              !__wt_live_restore_migration_complete(session))
+            if (__wt_live_restore_migration_in_progress(session))
                 WT_RET_SUB(session, EINVAL, WT_CONFLICT_LIVE_RESTORE,
                   "backup cannot be taken when live restore is enabled");
             WT_RET(__wt_curbackup_open(session, uri, other, cfg, cursorp));
