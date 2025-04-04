@@ -97,9 +97,6 @@ class test_compact12(wttest.WiredTigerTestCase):
         if self.runningHook('tiered'):
             self.skipTest("this test does not yet work with tiered storage")
 
-        # FIXME-SLS-1890
-        self.skipTest("This test seems to trigger memory corruption")
-
         self.conn.set_timestamp(f'oldest_timestamp={self.timestamp_str(1)}')
 
         # Create and populate a table.
