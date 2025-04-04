@@ -64,5 +64,5 @@ class test_layered40(wttest.WiredTigerTestCase, DisaggConfigMixin):
             if not uri.startswith('layered'):
                 cfg += ',block_manager=disagg,type=layered'
             self.session.create(uri, cfg)
-        
+
         self.check_metadata_cursor()
