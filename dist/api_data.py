@@ -554,7 +554,7 @@ layered_config = [
         type='string', undoc=True),
 ]
 
-layered_meta = format_meta + layered_config + connection_disaggregated_config
+layered_meta = format_meta + layered_config + file_config + connection_disaggregated_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
