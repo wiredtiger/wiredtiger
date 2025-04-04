@@ -780,7 +780,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     /*
      * If precise checkpoints are enabled, and this page was already reconciled at a time that
-     * services the checkpoint, don't try again.
+     * services the checkpoint, don't try again. Reconciling the page again without the timestamp
+     * moving would result in the same page being written out as last time.
      */
     WT_ACQUIRE_READ(checkpoint_timestamp, conn->txn_global.checkpoint_timestamp);
     if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
