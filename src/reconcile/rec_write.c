@@ -2520,48 +2520,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
       block_meta->delta_count < btree->max_consecutive_delta) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
-        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct) {
+        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct)
             build_delta = false;
-        } else {
-            /*
-             * If we decide to write the delta we packed, track the number of bytes saved by
-             * avoiding writing the full page image.
-             *
-             * Also track how large the delta is compared to the full page image.
-             */
-            delta_pct = (r->delta.size * 100) / chunk->image.size;
-            if (r->page->type == WT_PAGE_COL_INT || r->page->type == WT_PAGE_ROW_INT) {
-                WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_intl, chunk->image.size);
-
-                if (delta_pct <= 20)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt20);
-                else if (delta_pct <= 40)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt40);
-                else if (delta_pct <= 60)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt60);
-                else if (delta_pct <= 80)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt80);
-                else if (delta_pct <= 100)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt100);
-                else
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
-            } else {
-                WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_leaf, chunk->image.size);
-
-                if (delta_pct <= 20)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
-                else if (delta_pct <= 40)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt40);
-                else if (delta_pct <= 60)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt60);
-                else if (delta_pct <= 80)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt80);
-                else if (delta_pct <= 100)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt100);
-                else
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
-            }
-        }
     }
 
     /* Write the disk image and get an address. */
@@ -2636,8 +2596,29 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* Turn off compression adjustment for delta. */
         compressed_size = 0;
 
+        delta_pct = (r->delta.size * 100) / chunk->image.size;
         if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
+            /*
+             * If we decide to write the delta we packed, track the number of bytes saved by
+             * avoiding writing the full page image.
+             *
+             * Also track how large the delta is compared to the full page image.
+             */
+            WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_intl, chunk->image.size);
+            if (delta_pct <= 20)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt20);
+            else if (delta_pct <= 40)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt40);
+            else if (delta_pct <= 60)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt60);
+            else if (delta_pct <= 80)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt80);
+            else if (delta_pct <= 100)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt100);
+            else
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
+
             /* Increase this count only when we write the first delta. */
             if (multi->block_meta.delta_count == 1)
                 WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_internal_deltas);
@@ -2648,6 +2629,20 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
                   multi->block_meta.delta_count);
         } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
+            WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_leaf, chunk->image.size);
+            if (delta_pct <= 20)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
+            else if (delta_pct <= 40)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt40);
+            else if (delta_pct <= 60)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt60);
+            else if (delta_pct <= 80)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt80);
+            else if (delta_pct <= 100)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt100);
+            else
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
+
             /* Increase this count only when we write the first delta. */
             if (multi->block_meta.delta_count == 1)
                 WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_leaf_deltas);
