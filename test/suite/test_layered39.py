@@ -44,7 +44,7 @@ class test_layered39(wttest.WiredTigerTestCase, DisaggConfigMixin):
     disagg_storages = gen_disagg_storages('test_layered39', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    nitems = 100_000
+    nitems = 200_000
     uri = 'layered:test_layered39'
 
     def session_create_config(self):
@@ -84,5 +84,10 @@ class test_layered39(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.pr(f'cache_scrub_restore = {self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)}')
         self.pr(f'cache_eviction_blocked_checkpoint_precise = {self.get_stat(wiredtiger.stat.conn.cache_eviction_blocked_checkpoint_precise)}')
         self.pr(f'checkpoint_pages_reconciled_bytes = {self.get_stat(wiredtiger.stat.conn.checkpoint_pages_reconciled_bytes)}')
+
+        self.assertGreater(
+            self.get_stat(wiredtiger.stat.conn.cache_scrub_restore), 0)
+        self.assertGreater(
+            self.get_stat(wiredtiger.stat.conn.checkpoint_pages_reconciled_bytes), self.nitems * 3 * 10)
         self.assertEqual(
             self.get_stat(wiredtiger.stat.conn.cache_eviction_ahead_of_last_materialized_lsn), 0)
