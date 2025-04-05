@@ -591,9 +591,6 @@ struct __wt_page_modify {
 #define WT_PAGE_MODIFY_RECONCILING 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
-
-    /* FIXME-SLS-1890 Need to add at least four more fields to avoid misc. test failures. */
-    uint64_t unused[4];
 };
 
 /*
