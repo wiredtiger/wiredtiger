@@ -30,19 +30,60 @@
 #include <stdlib.h>
 
 #define N_SESSIONS 10
-#define N_RETRIES 10
+#define N_SEQUENTIAL_DIFFS 100
 
 /* Constants and variables declaration. */
 static const char conn_config[] = "create,cache_size=1MB,statistics=(all)";
 
 /*
- * compare_uint64_t --
- *     Compare uint64_t.
+ * test_rng_seq --
+ *     Test5 that 2 sequences are different.
  */
-static int
-compare_uint64_t(const void *a, const void *b)
+static void
+test_rng_seq(void)
 {
-    return (*(uint64_t *)a > *(uint64_t *)b) - (*(uint64_t *)a < *(uint64_t *)b);
+    int diffs = 0, diffs2048 = 0;
+    WT_RAND_STATE rng1, rng2;
+
+    __wt_random_init_seed(&rng1, 1);
+    __wt_random_init_seed(&rng2, 2);
+
+    for (int i = 0; i < N_SEQUENTIAL_DIFFS; i++) {
+        uint32_t n1 = __wt_random(&rng1);
+        uint32_t n2 = __wt_random(&rng2);
+        if (n1 != n2)
+            diffs++;
+        if ((n1 % 2048) != (n2 % 2048))
+            diffs2048++;
+    }
+    testutil_assert(diffs > N_SEQUENTIAL_DIFFS / 2);
+    testutil_assert(diffs2048 > N_SEQUENTIAL_DIFFS / 2);
+}
+
+/*
+ * test_rng_init --
+ *     Test5 that initialization with different seeds yields different starting points.
+ */
+static void
+test_rng_init(void)
+{
+    int diffs = 0, diffs2048 = 0;
+    uint32_t last_number = 0;
+    WT_RAND_STATE rng;
+
+    for (uint32_t i = 0; i < N_SEQUENTIAL_DIFFS; i++) {
+        __wt_random_init_seed(&rng, i);
+        uint32_t n = __wt_random(&rng);
+        if (i > 0) {
+            if (n != last_number)
+                diffs++;
+            if ((n % 2048) != (last_number % 2048))
+                diffs2048++;
+        }
+        last_number = n;
+    }
+    testutil_assert(diffs > N_SEQUENTIAL_DIFFS / 2);
+    testutil_assert(diffs2048 > N_SEQUENTIAL_DIFFS / 2);
 }
 
 /*
@@ -56,12 +97,16 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_SESSION_IMPL *(sessions[N_SESSIONS]);
     uint64_t numbers[N_SESSIONS], number = 0, prev_number = 0;
+    int diffs, diffs2048;
     char home[1024];
     bool random_numbers_repeated = false;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
+
+    test_rng_seq();
+    test_rng_init();
 
     /* Initialize database. */
 
@@ -77,27 +122,25 @@ main(int argc, char *argv[])
      * a time.
      */
 
-    for (int retry = 1; retry <= N_RETRIES; ++retry) {
-        /* Reset the thread's timeslice to raise the probability quicker execution. */
-        __wt_sleep(0, 10);
+    /* Reset the thread's timeslice to raise the probability quicker execution. */
+    __wt_sleep(0, 10);
 
-        for (int i = 0; i < N_SESSIONS; i++) {
-            WT_SESSION *session;
-            testutil_check(conn->open_session(conn, NULL, NULL, &session));
-            number = __wt_random(&((WT_SESSION_IMPL *)session)->rnd_random);
-            testutil_check(session->close(session, NULL));
-            if (retry > 1 && prev_number == number) {
-                if (retry < N_RETRIES)
-                    /* To eliminate flakiness, give it another go. */
-                    goto retry_single;
-                fprintf(stderr, "Random numbers repeated for %d cycles in single session\n", retry);
-                random_numbers_repeated = true;
-            }
-            prev_number = number;
+    diffs = diffs2048 = 0;
+    for (int i = 0; i < N_SESSIONS; i++) {
+        WT_SESSION *session;
+        testutil_check(conn->open_session(conn, NULL, NULL, &session));
+        number = __wt_random(&((WT_SESSION_IMPL *)session)->rnd_random);
+        testutil_check(session->close(session, NULL));
+        if (i > 0) {
+            if (number != prev_number)
+                diffs++;
+            if ((number % 2048) != (prev_number % 2048))
+                diffs2048++;
         }
-        break;
-retry_single:;
+        prev_number = number;
     }
+    testutil_assert(diffs > N_SESSIONS / 2);
+    testutil_assert(diffs2048 > N_SESSIONS / 2);
 
     /*
      * Test multiple sessions.
@@ -105,50 +148,51 @@ retry_single:;
      * The test generates random numbers with N sessions open simultaneously.
      */
 
-    for (int retry = 1; retry <= N_RETRIES; ++retry) {
-        /* Reset the thread's timeslice to raise the probability quicker execution. */
-        __wt_sleep(0, 10);
+    /* Reset the thread's timeslice to raise the probability quicker execution. */
+    __wt_sleep(0, 10);
 
-        /* Open sessions as quickly as possible. */
-        for (int i = 0; i < N_SESSIONS; i++) {
-            WT_SESSION *session;
-            testutil_check(conn->open_session(conn, NULL, NULL, &session));
-            sessions[i] = (WT_SESSION_IMPL *)session;
-        }
-
-        /* Generate a random number. */
-        for (int i = 0; i < N_SESSIONS; i++) {
-            numbers[i] = number = __wt_random(&sessions[i]->rnd_random);
-            if (i > 0 && prev_number == number) {
-                if (retry < N_RETRIES)
-                    /* To eliminate flakiness, give it another go. */
-                    goto retry_multi;
-                fprintf(
-                  stderr, "Random numbers repeated for %d cycles in subsequent sessions\n", retry);
-                random_numbers_repeated = true;
-            }
-            prev_number = number;
-        }
-
-        /* Check if any random numbers repeat. */
-        __wt_qsort(numbers, N_SESSIONS, sizeof(uint64_t), compare_uint64_t);
-        for (int i = 1; i < N_SESSIONS; i++) {
-            if (numbers[i] == numbers[i - 1]) {
-                if (retry < N_RETRIES)
-                    /* To eliminate flakiness, give it another go. */
-                    goto retry_multi;
-                fprintf(
-                  stderr, "Random numbers repeated for %d cycles in multiple sessions\n", retry);
-                random_numbers_repeated = true;
-            }
-        }
-        break;
-
-retry_multi:
-        /* Close sessions. */
-        for (int i = 0; i < N_SESSIONS; i++)
-            testutil_check(sessions[i]->iface.close(&sessions[i]->iface, NULL));
+    /* Open sessions as quickly as possible. */
+    for (int i = 0; i < N_SESSIONS; i++) {
+        WT_SESSION *session;
+        testutil_check(conn->open_session(conn, NULL, NULL, &session));
+        sessions[i] = (WT_SESSION_IMPL *)session;
     }
+
+    for (int cycle = 0; cycle < N_SEQUENTIAL_DIFFS; ++cycle) {
+        /* Generate a random number. */
+        for (int i = 0; i < N_SESSIONS; i++)
+            numbers[i] = number = __wt_random(&sessions[i]->rnd_random);
+
+        /* The very first session is special because it's reused after the 'single' test above. */
+        diffs = diffs2048 = 0;
+        for (int i = 1; i < N_SESSIONS; i++) {
+            if (numbers[i] != numbers[0])
+                diffs++;
+            if ((numbers[i] % 2048) != (numbers[0] % 2048))
+                diffs2048++;
+        }
+        testutil_assert(diffs > N_SESSIONS / 2);
+        testutil_assert(diffs2048 > N_SESSIONS / 2);
+
+        /* Check the number of same number across other sessions. */
+        for (int i = 1; i < N_SESSIONS; i++) {
+            diffs = diffs2048 = 0;
+            for (int j = 1; j < N_SESSIONS; j++) {
+                if (i == j)
+                    continue;
+                if (numbers[i] != numbers[j])
+                    diffs++;
+                if ((numbers[i] % 2048) != (numbers[j] % 2048))
+                    diffs2048++;
+            }
+            testutil_assert(diffs > N_SESSIONS / 2);
+            testutil_assert(diffs2048 > N_SESSIONS / 2);
+        }
+    }
+
+    /* Close sessions. */
+    for (int i = 0; i < N_SESSIONS; i++)
+        testutil_check(sessions[i]->iface.close(&sessions[i]->iface, NULL));
 
     /* Finish the test and clean up. */
 

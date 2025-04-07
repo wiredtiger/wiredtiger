@@ -43,11 +43,11 @@
  * we would like to preserve its current behavior.
  */
 #undef M_V
-#define M_V(r) r.v
+#define M_V(r) r->v
 #undef M_W
-#define M_W(r) r.x.w
+#define M_W(r) r->x.w
 #undef M_Z
-#define M_Z(r) r.x.z
+#define M_Z(r) r->x.z
 
 #ifdef ENABLE_ANTITHESIS
 #include "instrumentation.h"
@@ -56,6 +56,14 @@
 #define DEFAULT_SEED_W 521288629
 #define DEFAULT_SEED_Z 362436069
 
+/* Circular shift is converted by compilers to a "rol"-like CPU instruction. */
+#define WT_LEFT_CIRCULAR_SHIFT32(x, nbits) (((x) << (nbits)) | ((x) >> (32 - (nbits))))
+
+/* Make a seed from session id, time (in nanoseconds) and pid. */
+#define MAKE_SEED(id, t, pid)                                                           \
+    (((uint64_t)WT_LEFT_CIRCULAR_SHIFT32((uint64_t)(id) + 1, 3)) ^ ((t) / WT_BILLION) ^ \
+      ((t) % WT_BILLION) ^ (uint64_t)(pid))
+
 /*
  * __wt_random_init_default --
  *     Initialize a 32-bit pseudo-random number with a default seed.
@@ -63,12 +71,8 @@
 void
 __wt_random_init_default(WT_RAND_STATE *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    WT_RAND_STATE rnd;
-
-    M_W(rnd) = DEFAULT_SEED_W;
-    M_Z(rnd) = DEFAULT_SEED_Z;
-
-    *rnd_state = rnd;
+    M_W(rnd_state) = DEFAULT_SEED_W;
+    M_Z(rnd_state) = DEFAULT_SEED_Z;
 }
 
 /*
@@ -79,19 +83,19 @@ void
 __wt_random_init_seed(WT_RAND_STATE *rnd_state, uint64_t v)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    WT_RAND_STATE rnd;
-
     /*
      * XOR the provided seed with the initial seed. With high probability, this would provide a
      * random-looking seed which has about 50% of the bits turned on. We don't need to check whether
      * W or Z becomes 0, because we would handle it the first time we use this state to generate a
      * random number.
      */
-    M_V(rnd) = v;
-    M_W(rnd) ^= DEFAULT_SEED_W;
-    M_Z(rnd) ^= DEFAULT_SEED_Z;
-
-    *rnd_state = rnd;
+    M_V(rnd_state) = v;
+    /*
+     * These circular shift operations guarantee that the bits of the seed are mixed into the
+     * initial state. It guarantees good randomness even if the seeds are very close to each other.
+     */
+    M_W(rnd_state) ^= (uint32_t)(WT_LEFT_CIRCULAR_SHIFT32(v, 29) ^ DEFAULT_SEED_W);
+    M_Z(rnd_state) ^= (uint32_t)(WT_LEFT_CIRCULAR_SHIFT32(v, 27) ^ DEFAULT_SEED_Z);
 }
 
 /*
@@ -117,8 +121,8 @@ __wt_session_rng_init_once(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((visi
     __wt_random_init_default(&session->rnd_skiplist);
 
     uint64_t t = __wt_clock(session);
-    __wt_random_init_seed(&session->rnd_random,
-      ((uint64_t)session->id + 1) * t / WT_BILLION + (t % WT_BILLION) + (uint64_t)getpid());
+    uint64_t seed = MAKE_SEED(session->id, t, getpid());
+    __wt_random_init_seed(&session->rnd_random, seed);
 }
 
 /*
@@ -131,18 +135,10 @@ __wt_random(WT_RAND_STATE *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default
 #ifdef ENABLE_ANTITHESIS
     return (uint32_t)(fuzz_get_random());
 #else
-    WT_RAND_STATE rnd;
     uint32_t w, z;
 
-    /*
-     * Generally, every thread should have their own RNG state, but it's not guaranteed. Take a copy
-     * of the random state so we can ensure that the calculation operates on the state consistently
-     * regardless of concurrent calls with the same random state.
-     */
-    rnd = *rnd_state;
-    WT_ACQUIRE_BARRIER();
-    w = M_W(rnd);
-    z = M_Z(rnd);
+    w = M_W(rnd_state);
+    z = M_Z(rnd_state);
 
     /*
      * Check if either of the two values goes to 0 (from which we won't recover), and reset it to
@@ -162,9 +158,8 @@ __wt_random(WT_RAND_STATE *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default
     if (z == 0)
         z = DEFAULT_SEED_Z;
 
-    M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
-    M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
-    *rnd_state = rnd;
+    M_W(rnd_state) = w = 18000 * (w & 65535) + (w >> 16);
+    M_Z(rnd_state) = z = 36969 * (z & 65535) + (z >> 16);
 
     return ((z << 16) + (w & 65535));
 #endif
@@ -182,6 +177,7 @@ __wt_random_init(WT_SESSION_IMPL *session, WT_RAND_STATE *rnd_state)
         __wt_random_init_seed(rnd_state, __wt_random(&session->rnd_random));
     else {
         uint64_t t = __wt_clock(session);
-        __wt_random_init_seed(rnd_state, t / WT_BILLION + (t % WT_BILLION) + (uint64_t)getpid());
+        uint64_t seed = MAKE_SEED(0, t, getpid());
+        __wt_random_init_seed(rnd_state, seed);
     }
 }
