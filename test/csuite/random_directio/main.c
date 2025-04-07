@@ -885,9 +885,9 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
         large_arr[th] = dcalloc(LARGE_WRITE_SIZE, 1);
         large_buf(large_arr[th], LARGE_WRITE_SIZE, th, true);
     }
-    testutil_snprintf(checkdir, sizeof(checkdir), "../%s.CHECK", opts->home);
-    testutil_snprintf(dbgdir, sizeof(savedir), "../%s.DEBUG", opts->home);
-    testutil_snprintf(savedir, sizeof(savedir), "../%s.SAVE", opts->home);
+    testutil_snprintf(checkdir, sizeof(checkdir), "%s.CHECK", opts->home);
+    testutil_snprintf(dbgdir, sizeof(dbgdir), "%s.DEBUG", opts->home);
+    testutil_snprintf(savedir, sizeof(savedir), "%s.SAVE", opts->home);
 
     /*
      * We make a copy of the directory (possibly using direct I/O) for recovery and checking, and an
@@ -1362,8 +1362,11 @@ main(int argc, char *argv[])
     printf("SUCCESS\n");
 
     if (!preserve) {
-        testutil_clean_test_artifacts(opts->home);
-        testutil_remove(opts->home);
+        if (chdir(opts->home) != 0)
+            testutil_die(errno, "Child chdir: %s", opts->home);
+        testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
+        testutil_clean_test_artifacts(buf);
+        testutil_remove(buf);
     }
 
     return (EXIT_SUCCESS);

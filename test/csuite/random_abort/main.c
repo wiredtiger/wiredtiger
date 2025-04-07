@@ -704,6 +704,7 @@ main(int argc, char *argv[])
     if (argc != 0)
         usage();
 
+    /* Home will be the WT_TEST dir that contains the WT_HOME database directory */
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
 
     /*
@@ -808,11 +809,16 @@ main(int argc, char *argv[])
      * !!! If we wanted to take a copy of the directory before recovery,
      * this is the place to do it.
      */
+
+    /*
+     * Go inside the home directory (typically WT_TEST). 
+     */
     if (chdir(home) != 0)
         testutil_die(errno, "parent chdir: %s", home);
 
-    /* Copy the data to a separate folder for debugging purpose. */
-    testutil_copy_data(home);
+    /* Copy the data to the home directory for debugging purposes given its absolute path */
+    testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
+    testutil_copy_data(buf);
 
     /*
      * Clear the cache, if we are using LazyFS. Do this after we save the data for debugging
@@ -832,8 +838,11 @@ main(int argc, char *argv[])
      */
 
     /* Clean up the test directory. */
-    if (ret == EXIT_SUCCESS && !preserve)
-        testutil_clean_test_artifacts(home);
+    if (ret == EXIT_SUCCESS && !preserve) {
+        /* Current working directory is home (aka WT_TEST) */
+        testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
+        testutil_clean_test_artifacts(buf);
+    }
 
     /* At this point, we are inside `home`, which we intend to delete. cd to the parent dir. */
     if (chdir(cwd_start) != 0)

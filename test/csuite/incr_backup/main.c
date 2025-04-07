@@ -682,7 +682,6 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     printf("Success.\n");
     if (!preserve) {
         testutil_delete_old_backups(0);
-        testutil_clean_test_artifacts(home);
         testutil_remove(home);
     }
 }

@@ -224,7 +224,7 @@ testutil_cleanup(TEST_OPTS *opts)
 /*
  * testutil_copy_data --
  *     Copy the data to a backup folder. Usually, the data copy is cleaned up by a call to
- *     testutil_clean_test_artifacts.
+ *     testutil_clean_test_artifacts. Expects dir to be an absolute path.
  */
 void
 testutil_copy_data(const char *dir)
@@ -235,7 +235,7 @@ testutil_copy_data(const char *dir)
     memset(&opts, 0, sizeof(opts));
     opts.preserve = true;
 
-    testutil_snprintf(save_dir, sizeof(save_dir), ".." DIR_DELIM_STR "%s.SAVE", dir);
+    testutil_snprintf(save_dir, sizeof(save_dir), "%s.SAVE", dir);
     testutil_remove(save_dir);
     testutil_copy_ext(".", save_dir, &opts);
 }
@@ -244,6 +244,7 @@ testutil_copy_data(const char *dir)
  * testutil_copy_data_opt --
  *     Copy the data to a backup folder. Directories and files with the specified "readonly prefix"
  *     will be hard-linked instead of copied for efficiency on supported platforms.
+ *     Expects dir to be an absolute path.
  */
 void
 testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
@@ -256,7 +257,7 @@ testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
     opts.link_if_prefix = readonly_prefix;
     opts.preserve = true;
 
-    testutil_snprintf(save_dir, sizeof(save_dir), ".." DIR_DELIM_STR "%s.SAVE", dir);
+    testutil_snprintf(save_dir, sizeof(save_dir), "%s.SAVE", dir);
     testutil_remove(save_dir);
     testutil_copy_ext(".", save_dir, &opts);
 }
@@ -264,22 +265,23 @@ testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
 /*
  * testutil_clean_test_artifacts --
  *     Clean any temporary files and folders created during test execution
+ *     Expects dir to be an absolute path.
  */
 void
 testutil_clean_test_artifacts(const char *dir)
 {
     char buf[512];
 
-    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.SAVE", dir);
+    testutil_snprintf(buf, sizeof(buf), "%s.SAVE", dir);
     testutil_remove(buf);
 
-    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.CHECK", dir);
+    testutil_snprintf(buf, sizeof(buf), "%s.CHECK", dir);
     testutil_remove(buf);
 
-    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.DEBUG", dir);
+    testutil_snprintf(buf, sizeof(buf), "%s.DEBUG", dir);
     testutil_remove(buf);
 
-    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.BACKUP", dir);
+    testutil_snprintf(buf, sizeof(buf), "%s.BACKUP", dir);
     testutil_remove(buf);
 }
 

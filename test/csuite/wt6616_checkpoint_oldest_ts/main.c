@@ -269,6 +269,7 @@ main(int argc, char *argv[])
     uint32_t timeout;
     int ch, status;
     char kname[64], tscfg[64];
+    char buf[1024];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     const char *working_dir;
     bool fatal, preserve, rand_time;
@@ -355,7 +356,8 @@ main(int argc, char *argv[])
         testutil_die(errno, "parent chdir: %s", home);
 
     /* Copy the data to a separate folder for debugging purpose. */
-    testutil_copy_data(home);
+    testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
+    testutil_copy_data(buf);
 
     printf("Open database and run recovery\n");
 
@@ -399,11 +401,9 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     printf("Verification successful\n");
     if (!preserve) {
-        testutil_clean_test_artifacts(home);
-        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
-        if (chdir("../") != 0)
-            testutil_die(errno, "root chdir: %s", home);
-        testutil_remove(home);
+        testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
+        testutil_clean_test_artifacts(buf);
+        testutil_remove(buf);
     }
     return (EXIT_SUCCESS);
 }
