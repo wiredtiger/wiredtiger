@@ -464,7 +464,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
         WT_TRET(__wt_call_log_print_return(conn, session, ret, ""));
 #endif
 #ifdef HAVE_DIAGNOSTIC
-    WT_CONN_CLOSE_ABORT(session, ret);
+    WT_CONN_CLOSE_ABORT(&conn->dummy_session, ret);
 #endif
     return (ret);
 }
