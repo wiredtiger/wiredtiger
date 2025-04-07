@@ -1395,6 +1395,18 @@ variables:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           format_test_script_args: -R -t 360
 
+  - &race-condition-stress-sanitizer-test-repro
+    exec_timeout_secs: 25200
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_address_sanitizer_mongodb_stable_clang_with_builtins
+      - func: "format test script"
+        vars:
+          additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
+          format_test_script_args: -R -t 360 -c ../../../CONFIG.fail
+
   - &recovery-stress-test
     exec_timeout_secs: 25200
     commands:
@@ -3975,6 +3987,50 @@ tasks:
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-4
     tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-1
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-2
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-3
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-4
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-5
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-6
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-7
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-8
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-9
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-10
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-11
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-12
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-13
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-14
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-15
+    tags: ["stress-test-sanitizer"]
+  - <<: *race-condition-stress-sanitizer-test-repro
+    name: race-condition-stress-sanitizer-test-repro-16
   - <<: *recovery-stress-test
     name: recovery-stress-test-1
     tags: ["stress-test-1", "stress-test-zseries-1"]

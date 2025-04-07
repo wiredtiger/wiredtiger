@@ -37,6 +37,7 @@ __wt_update_vector_push(WT_UPDATE_VECTOR *updates, WT_UPDATE *upd)
         if (updates->allocated_bytes == 0 && updates->size == WT_UPDATE_VECTOR_STACK_SIZE) {
             migrate_from_stack = true;
             updates->listp = NULL;
+            __wt_verbose_warning(NULL, WT_VERB_RECOVERY_PROGRESS, "we have reached here %lu", updates->allocated_bytes);
         }
         WT_ERR(__wt_realloc_def(
           updates->session, &updates->allocated_bytes, updates->size + 1, &updates->listp));

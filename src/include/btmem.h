@@ -1573,7 +1573,7 @@ struct __wt_update_value {
  */
 #define WT_MODIFY_UPDATE_MIN 10  /* Update count before we bother checking anything else */
 #define WT_MODIFY_UPDATE_MAX 200 /* Update count hard limit */
-#define WT_UPDATE_VECTOR_STACK_SIZE (WT_MODIFY_UPDATE_MIN + 10)
+#define WT_UPDATE_VECTOR_STACK_SIZE (5)
 
 /*
  * WT_UPDATE_VECTOR --
