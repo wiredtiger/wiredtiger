@@ -467,23 +467,19 @@ __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
   size_t *sizep)
 {
     /*
-     * We need to restore the existing tombstones on the page. Otherwise, we may lose track of them
-     * when building deltas.
+     * If we find an existing stop time point we don't need to append a tombstone. We have restored
+     * it already when we read the disk page into memory.
      */
-    if (WT_TIME_WINDOW_HAS_STOP(tw)) {
-        WT_RET(__wt_upd_alloc_tombstone(session, updp, sizep));
-        F_SET(*updp, WT_UPDATE_RESTORED_FROM_DS);
-        (*updp)->txnid = tw->stop_txn;
-        (*updp)->durable_ts = tw->durable_stop_ts;
-        (*updp)->start_ts = tw->stop_ts;
-        (*updp)->prepare_state = tw->prepare;
-    } else
+    if (WT_TIME_WINDOW_HAS_STOP(tw))
+        *updp = NULL;
+    else {
         WT_RET(__tombstone_update_alloc(session, page_del, updp, sizep));
 
-    if (update_list != NULL)
-        update_list[(*countp)++] = *updp;
+        if (update_list != NULL)
+            update_list[(*countp)++] = *updp;
 
-    WT_STAT_CONN_DSRC_INCRV(session, cache_read_restored_tombstone_bytes, *sizep);
+        WT_STAT_CONN_DSRC_INCRV(session, cache_read_restored_tombstone_bytes, *sizep);
+    }
 
     return (0);
 }
