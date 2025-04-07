@@ -847,5 +847,5 @@ struct __wt_sweep_cookie {
  * came from. This is strictly to be used for debugging purposes.
  */
 #define WT_CONN_CLOSE_ABORT(s, ret)                     \
-    if (F_ISSET(S2C(s), WT_CONN_CLOSING) && (ret != 0)) \
+    if (F_ISSET(S2C(s), WT_CONN_CLOSING) && (ret != 0) && (ret != WT_PANIC)) \
         __wt_abort(s);
