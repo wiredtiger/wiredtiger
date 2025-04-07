@@ -222,6 +222,9 @@ __wt_spin_unlock_name(WT_SESSION_IMPL *session, WT_SPINLOCK *t, char *func)
 {
     WT_DECL_RET;
 
+	if (session != NULL && t->session_id != session->id)
+		 WT_IGNORE_RET(__wt_panic(session, -1, "mutex %s released from function %s by session  %" PRIu32 ","
+			   " but held by session  %" PRIu32 "\n",  t->name, func, session->id, t->session_id));
     __wt_atomic_store32(&t->session_id, WT_SESSION_ID_INVALID);
     if ((ret = pthread_mutex_unlock(&t->lock)) != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "pthread_mutex_unlock: %s", t->name));

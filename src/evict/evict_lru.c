@@ -1087,7 +1087,8 @@ done:
     (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
 
 #if defined(HAVE_DIAGNOSTIC)
-	__evict_page_consistency_check(session,  ref->page->evict_data.dhandle, ref->page, false, true);
+	if (ref != NULL)
+		__evict_page_consistency_check(session,  ref->page->evict_data.dhandle, ref->page, false, true);
 #endif
 
 err:
