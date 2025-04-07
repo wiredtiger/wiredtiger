@@ -2608,18 +2608,18 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
              */
             WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_intl, chunk->image.size);
 
-                if (delta_pct <= 20)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt20);
-                else if (delta_pct <= 40)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt40);
-                else if (delta_pct <= 60)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt60);
-                else if (delta_pct <= 80)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt80);
-                else if (delta_pct <= 100)
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt100);
-                else
-                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
+            if (delta_pct <= 20)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt20);
+            else if (delta_pct <= 40)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt40);
+            else if (delta_pct <= 60)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt60);
+            else if (delta_pct <= 80)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt80);
+            else if (delta_pct <= 100)
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt100);
+            else
+                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
 
             /* Increase this count only when we write the first delta. */
             if (multi->block_meta.delta_count == 1)
@@ -2633,18 +2633,18 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
             WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_leaf, chunk->image.size);
 
-                if (delta_pct <= 20)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
-                else if (delta_pct <= 40)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt40);
-                else if (delta_pct <= 60)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt60);
-                else if (delta_pct <= 80)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt80);
-                else if (delta_pct <= 100)
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt100);
-                else
-                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
+            if (delta_pct <= 20)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
+            else if (delta_pct <= 40)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt40);
+            else if (delta_pct <= 60)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt60);
+            else if (delta_pct <= 80)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt80);
+            else if (delta_pct <= 100)
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt100);
+            else
+                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
 
             /* Increase this count only when we write the first delta. */
             if (multi->block_meta.delta_count == 1)
@@ -2685,6 +2685,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
                 ++multi->block_meta.reconciliation_id;
         } else
             __wt_page_block_meta_assign(session, &multi->block_meta);
+
+        if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
+            WT_STAT_CONN_INCR(session, rec_page_full_image_internal);
+        else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))
+            WT_STAT_CONN_INCR(session, rec_page_full_image_leaf);
+
         WT_RET(__rec_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
           &multi->block_meta, addr, &addr_size, &compressed_size, false,
           F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
