@@ -243,8 +243,8 @@ testutil_copy_data(const char *dir)
 /*
  * testutil_copy_data_opt --
  *     Copy the data to a backup folder. Directories and files with the specified "readonly prefix"
- *     will be hard-linked instead of copied for efficiency on supported platforms.
- *     Expects dir to be an absolute path.
+ *     will be hard-linked instead of copied for efficiency on supported platforms. Expects dir to
+ *     be an absolute path.
  */
 void
 testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
@@ -264,8 +264,8 @@ testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
 
 /*
  * testutil_clean_test_artifacts --
- *     Clean any temporary files and folders created during test execution
- *     Expects dir to be an absolute path.
+ *     Clean any temporary files and folders created during test execution Expects dir to be an
+ *     absolute path.
  */
 void
 testutil_clean_test_artifacts(const char *dir)

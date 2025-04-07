@@ -268,8 +268,8 @@ main(int argc, char *argv[])
     uint64_t oldest_ts, stable_ts, ts;
     uint32_t timeout;
     int ch, status;
-    char kname[64], tscfg[64];
     char buf[1024];
+    char kname[64], tscfg[64];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     const char *working_dir;
     bool fatal, preserve, rand_time;

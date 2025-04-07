@@ -811,7 +811,7 @@ main(int argc, char *argv[])
      */
 
     /*
-     * Go inside the home directory (typically WT_TEST). 
+     * Go inside the home directory (typically WT_TEST).
      */
     if (chdir(home) != 0)
         testutil_die(errno, "parent chdir: %s", home);
