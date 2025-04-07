@@ -144,6 +144,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages seen by eviction walk",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
+  "cache: precise checkpoint caused an eviction to be skipped because any dirty content needs to "
+  "remain in cache",
   "cache: recent modification of a page blocked its eviction",
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
@@ -540,6 +542,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_pages_seen = 0;
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
+    stats->cache_eviction_blocked_checkpoint_precise = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
@@ -921,6 +924,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
     to->cache_write += from->cache_write;
     to->cache_write_restore += from->cache_write_restore;
+    to->cache_eviction_blocked_checkpoint_precise +=
+      from->cache_eviction_blocked_checkpoint_precise;
     to->cache_eviction_blocked_recently_modified += from->cache_eviction_blocked_recently_modified;
     to->cache_scrub_restore += from->cache_scrub_restore;
     to->cache_reverse_splits += from->cache_reverse_splits;
@@ -1317,6 +1322,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen);
     to->cache_write += WT_STAT_DSRC_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_DSRC_READ(from, cache_write_restore);
+    to->cache_eviction_blocked_checkpoint_precise +=
+      WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_precise);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_recently_modified);
     to->cache_scrub_restore += WT_STAT_DSRC_READ(from, cache_scrub_restore);
@@ -1851,6 +1858,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
   "cache: percentage overhead",
+  "cache: precise checkpoint caused an eviction to be skipped because any dirty content needs to "
+  "remain in cache",
   "cache: recent modification of a page blocked its eviction",
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
@@ -1901,6 +1910,7 @@ static const char *const __stats_connection_desc[] = {
   "checkpoint: most recent handles skipped",
   "checkpoint: most recent handles walked",
   "checkpoint: most recent time (msecs)",
+  "checkpoint: number of bytes caused to be reconciled",
   "checkpoint: number of checkpoints started by api",
   "checkpoint: number of checkpoints started by compaction",
   "checkpoint: number of files synced",
@@ -2710,6 +2720,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
     /* not clearing cache_overhead */
+    stats->cache_eviction_blocked_checkpoint_precise = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
@@ -2760,6 +2771,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->checkpoint_handle_skipped = 0;
     stats->checkpoint_handle_walked = 0;
     /* not clearing checkpoint_time_recent */
+    stats->checkpoint_pages_reconciled_bytes = 0;
     stats->checkpoints_api = 0;
     stats->checkpoints_compact = 0;
     stats->checkpoint_sync = 0;
@@ -3612,6 +3624,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_write += WT_STAT_CONN_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_CONN_READ(from, cache_write_restore);
     to->cache_overhead += WT_STAT_CONN_READ(from, cache_overhead);
+    to->cache_eviction_blocked_checkpoint_precise +=
+      WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_precise);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_recently_modified);
     to->cache_scrub_restore += WT_STAT_CONN_READ(from, cache_scrub_restore);
@@ -3668,6 +3682,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->checkpoint_handle_skipped += WT_STAT_CONN_READ(from, checkpoint_handle_skipped);
     to->checkpoint_handle_walked += WT_STAT_CONN_READ(from, checkpoint_handle_walked);
     to->checkpoint_time_recent += WT_STAT_CONN_READ(from, checkpoint_time_recent);
+    to->checkpoint_pages_reconciled_bytes +=
+      WT_STAT_CONN_READ(from, checkpoint_pages_reconciled_bytes);
     to->checkpoints_api += WT_STAT_CONN_READ(from, checkpoints_api);
     to->checkpoints_compact += WT_STAT_CONN_READ(from, checkpoints_compact);
     to->checkpoint_sync += WT_STAT_CONN_READ(from, checkpoint_sync);

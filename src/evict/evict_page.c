@@ -701,6 +701,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    wt_timestamp_t checkpoint_timestamp;
     bool closing, modified;
 
     *inmem_splitp = false;
@@ -776,6 +777,19 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_hs);
         return (__wt_set_return(session, EBUSY));
     }
+
+    /*
+     * If precise checkpoints are enabled, and this page was already reconciled at a time that
+     * services the checkpoint, don't try again. Reconciling the page again without the timestamp
+     * moving would result in the same page being written out as last time.
+     */
+    WT_ACQUIRE_READ(checkpoint_timestamp, conn->txn_global.checkpoint_timestamp);
+    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
+      page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
+        WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_precise);
+        return (__wt_set_return(session, EBUSY));
+    }
+
     /*
      * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
      * history store or reading a checkpoint), give up.

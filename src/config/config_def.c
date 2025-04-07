@@ -2097,6 +2097,9 @@ static const WT_CONFIG_CHECK confchk_layered_meta[] = {
     INT64_MAX, NULL},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_FORMAT,
     36, INT64_MIN, INT64_MAX, NULL},
+  {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1,
+    confchk_WT_SESSION_create_log_subconfigs_jump, WT_CONFIG_COMPILED_TYPE_CATEGORY, 42, INT64_MIN,
+    INT64_MAX, NULL},
   {"stable", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 101, INT64_MIN,
     INT64_MAX, NULL},
   {"value_format", "format", __wt_struct_confchk, NULL, NULL, 0, NULL,
@@ -2114,7 +2117,7 @@ static const uint8_t confchk_layered_meta_jump[WT_CONFIG_JUMP_TABLE_SIZE] = {0, 
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 4, 5, 5, 5, 5, 5, 6,
-  6, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 10, 11, 11, 11, 11, 11, 11, 11, 11};
+  6, 7, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 11, 12, 12, 12, 12, 12, 12, 12, 12};
 
 static const char *confchk_access_pattern_hint5_choices[] = {
   __WT_CONFIG_CHOICE_none, __WT_CONFIG_CHOICE_random, __WT_CONFIG_CHOICE_sequential, NULL};
@@ -4207,9 +4210,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "collator=,columns=,disaggregated=(checkpoint_id=-1,"
     "checkpoint_meta=,internal_page_delta=true,last_materialized_lsn="
     ",leaf_page_delta=true,next_checkpoint_id=-1,page_log=,role=),"
-    "ingest=,key_format=u,stable=,value_format=u,verbose=[],"
-    "write_timestamp_usage=none",
-    confchk_layered_meta, 11, confchk_layered_meta_jump, 49, WT_CONF_SIZING_NONE, false},
+    "ingest=,key_format=u,log=(enabled=true),stable=,value_format=u,"
+    "verbose=[],write_timestamp_usage=none",
+    confchk_layered_meta, 12, confchk_layered_meta_jump, 49, WT_CONF_SIZING_NONE, false},
   {"lsm.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
