@@ -150,6 +150,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
+  "cache: size of delta updates reconstructed on the base page",
+  "cache: size of tombstones restored when reading a page",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
   "cache: tracked dirty bytes in the cache",
@@ -547,6 +549,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
+    stats->cache_read_delta_updates = 0;
+    stats->cache_read_restored_tombstone_bytes = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_bytes_dirty */
@@ -930,6 +934,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_scrub_restore += from->cache_scrub_restore;
     to->cache_reverse_splits += from->cache_reverse_splits;
     to->cache_reverse_splits_skipped_vlcs += from->cache_reverse_splits_skipped_vlcs;
+    to->cache_read_delta_updates += from->cache_read_delta_updates;
+    to->cache_read_restored_tombstone_bytes += from->cache_read_restored_tombstone_bytes;
     to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
     to->cache_hs_insert_reverse_modify += from->cache_hs_insert_reverse_modify;
     to->cache_bytes_dirty += from->cache_bytes_dirty;
@@ -1330,6 +1336,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_reverse_splits += WT_STAT_DSRC_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_DSRC_READ(from, cache_reverse_splits_skipped_vlcs);
+    to->cache_read_delta_updates += WT_STAT_DSRC_READ(from, cache_read_delta_updates);
+    to->cache_read_restored_tombstone_bytes +=
+      WT_STAT_DSRC_READ(from, cache_read_restored_tombstone_bytes);
     to->cache_hs_insert_full_update += WT_STAT_DSRC_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_DSRC_READ(from, cache_hs_insert_reverse_modify);
     to->cache_bytes_dirty += WT_STAT_DSRC_READ(from, cache_bytes_dirty);
@@ -1864,6 +1873,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
   "cache: reverse splits skipped because of VLCS namespace gap restrictions",
+  "cache: size of delta updates reconstructed on the base page",
+  "cache: size of tombstones restored when reading a page",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
   "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
@@ -2725,6 +2736,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
     stats->cache_reverse_splits_skipped_vlcs = 0;
+    stats->cache_read_delta_updates = 0;
+    stats->cache_read_restored_tombstone_bytes = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_reentry_hs_eviction_milliseconds */
@@ -3632,6 +3645,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_reverse_splits += WT_STAT_CONN_READ(from, cache_reverse_splits);
     to->cache_reverse_splits_skipped_vlcs +=
       WT_STAT_CONN_READ(from, cache_reverse_splits_skipped_vlcs);
+    to->cache_read_delta_updates += WT_STAT_CONN_READ(from, cache_read_delta_updates);
+    to->cache_read_restored_tombstone_bytes +=
+      WT_STAT_CONN_READ(from, cache_read_restored_tombstone_bytes);
     to->cache_hs_insert_full_update += WT_STAT_CONN_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_CONN_READ(from, cache_hs_insert_reverse_modify);
     to->cache_reentry_hs_eviction_milliseconds +=

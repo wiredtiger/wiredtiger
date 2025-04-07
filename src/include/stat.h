@@ -673,6 +673,8 @@ struct __wt_connection_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_read_delta_updates;
+    int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_reentry_hs_eviction_milliseconds;
@@ -1364,6 +1366,8 @@ struct __wt_dsrc_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_read_delta_updates;
+    int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_dirty;

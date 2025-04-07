@@ -1132,6 +1132,8 @@ conn_dsrc_stats = [
     CacheStat('cache_read_internal_delta', 'number of internal pages read that had deltas attached'),
     CacheStat('cache_read_leaf_delta', 'number of leaf pages read that had deltas attached'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
+    CacheStat('cache_read_restored_tombstone_bytes', 'size of tombstones restored when reading a page'),
+    CacheStat('cache_read_delta_updates', 'size of delta updates reconstructed on the base page'),
     CacheStat('cache_reverse_splits', 'reverse splits performed'),
     CacheStat('cache_reverse_splits_skipped_vlcs', 'reverse splits skipped because of VLCS namespace gap restrictions'),
     CacheStat('cache_scrub_restore', 'reconciled pages scrubbed and added back to the cache clean'),

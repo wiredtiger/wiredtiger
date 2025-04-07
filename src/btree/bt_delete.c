@@ -467,20 +467,23 @@ __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
   size_t *sizep)
 {
     /*
-     * If we find an existing stop time point we don't need to append a tombstone. Such rows would
-     * not have been visible to the original truncate operation and were, logically, skipped over
-     * rather than re-deleted. (If the row _was_ visible to the truncate in spite of having been
-     * subsequently removed, the stop time not being visible would have forced its page to be slow-
-     * truncated rather than fast-truncated.)
+     * We need to restore the existing tombstones on the page. Otherwise, we may lose track of them
+     * when building deltas.
      */
-    if (WT_TIME_WINDOW_HAS_STOP(tw))
-        *updp = NULL;
-    else {
+    if (WT_TIME_WINDOW_HAS_STOP(tw)) {
+        WT_RET(__wt_upd_alloc_tombstone(session, updp, sizep));
+        F_SET(*updp, WT_UPDATE_RESTORED_FROM_DS);
+        (*updp)->txnid = tw->stop_txn;
+        (*updp)->durable_ts = tw->durable_stop_ts;
+        (*updp)->start_ts = tw->stop_ts;
+        (*updp)->prepare_state = tw->prepare;
+    } else
         WT_RET(__tombstone_update_alloc(session, page_del, updp, sizep));
 
-        if (update_list != NULL)
-            update_list[(*countp)++] = *updp;
-    }
+    if (update_list != NULL)
+        update_list[(*countp)++] = *updp;
+
+    WT_STAT_CONN_DSRC_INCRV(session, cache_read_restored_tombstone_bytes, *sizep);
 
     return (0);
 }
@@ -499,6 +502,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
     WT_DECL_RET;
     WT_PAGE *page;
     WT_UPDATE *upd;
+    size_t size;
     uint64_t j, recno, rle;
     uint32_t i;
 
@@ -534,7 +538,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
         /* Delete each key. */
         for (j = 0; j < rle; j++) {
             WT_ERR(__instantiate_tombstone(
-              session, page_del, update_list, countp, &unpack.tw, &upd, NULL));
+              session, page_del, update_list, countp, &unpack.tw, &upd, &size));
             if (upd != NULL) {
                 /* Position the cursor on the page. */
                 WT_ERR(__wt_col_search(&cbt, recno + j, ref, true /*leaf_safe*/, NULL));
