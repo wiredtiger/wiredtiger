@@ -141,8 +141,6 @@ struct __wt_file_handle_posix {
      */
     int fd; /* POSIX file handle */
 
-    bool direct_io; /* O_DIRECT configured */
-
     /* The memory buffer and variables if we use mmap for I/O */
     uint8_t *mmap_buf;
     bool mmap_file_mappable;
@@ -151,6 +149,12 @@ struct __wt_file_handle_posix {
     wt_shared volatile uint32_t mmap_resizing;
     wt_off_t mmap_size;
     wt_shared volatile uint32_t mmap_usecount;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_FH_POSIX_DIRECT_IO 0x1u /* O_DIRECT configured */
+#define WT_FH_POSIX_NO_SYNC 0x2u   /* Don't fsync data for this file handle */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 #endif
 
