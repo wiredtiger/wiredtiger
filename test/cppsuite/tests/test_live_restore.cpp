@@ -477,8 +477,8 @@ usage()
     std::cout << "\t-c The maximum number of collections to run the test with, if unset "
                  "collections are created at random."
               << std::endl;
-    std::cout << "\t-D Simulate mongodb directoryPerDB and directoryForIndexes configurations by "
-                 "creating a subdirectory for the table to populate."
+    std::cout << "\t-D Simulate MongoDB directory per db and directory for indexes configurations "
+                 "by creating a subdirectory for the table to populate."
               << std::endl;
     std::cout << "\t-d Die randomly while applying crud operation." << std::endl;
     std::cout << "\t-H Specifies the database home directory." << std::endl;
