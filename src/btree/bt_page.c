@@ -446,6 +446,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
      */
     __wt_page_modify_clear(session, page);
     __wt_cache_page_inmem_incr(session, page, total_size);
+    __wt_cache_page_inmem_incr_delta_updates(session, page, total_size);
     WT_STAT_CONN_DSRC_INCRV(session, cache_read_delta_updates, total_size);
 
     if (0) {

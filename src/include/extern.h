@@ -2633,6 +2633,8 @@ static WT_INLINE u_int __wt_skip_choose_depth(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint32_t __wt_lsn_offset(WT_LSN *lsn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE uint64_t __wt_btree_bytes_delta_updates(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_btree_bytes_evictable(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE uint64_t __wt_btree_bytes_inuse(WT_SESSION_IMPL *session)
@@ -2693,7 +2695,11 @@ static WT_INLINE void __wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PA
 static WT_INLINE void __wt_cache_page_image_incr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_cache_page_inmem_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
+static WT_INLINE void __wt_cache_page_inmem_decr_delta_updates(
+  WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static WT_INLINE void __wt_cache_page_inmem_incr(
+  WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
+static WT_INLINE void __wt_cache_page_inmem_incr_delta_updates(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static WT_INLINE void __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_cache_read_gen_incr(WT_SESSION_IMPL *session);
