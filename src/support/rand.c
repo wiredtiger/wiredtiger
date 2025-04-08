@@ -61,8 +61,8 @@
 
 /* Make a seed from session id, time (in nanoseconds) and pid. */
 #define MAKE_SEED(id, t, pid)                                                           \
-    (((uint64_t)WT_LEFT_CIRCULAR_SHIFT32((uint64_t)(id) + 1, 3)) ^ ((t) / WT_BILLION) ^ \
-      ((t) % WT_BILLION) ^ (uint64_t)(pid))
+    (((uint64_t)WT_LEFT_CIRCULAR_SHIFT32((uint64_t)(id) + 1, 3)) + ((t) / WT_BILLION) + \
+      ((t) % WT_BILLION) + (uint64_t)(pid))
 
 /*
  * __wt_random_init_default --

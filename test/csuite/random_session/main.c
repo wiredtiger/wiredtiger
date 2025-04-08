@@ -35,6 +35,8 @@
 /* Constants and variables declaration. */
 static const char conn_config[] = "create,cache_size=1MB,statistics=(all)";
 
+static TEST_OPTS opts;
+
 /*
  * test_rng_seq --
  *     Test5 that 2 sequences are different.
@@ -51,6 +53,8 @@ test_rng_seq(void)
     for (int i = 0; i < N_SEQUENTIAL_DIFFS; i++) {
         uint32_t n1 = __wt_random(&rng1);
         uint32_t n2 = __wt_random(&rng2);
+        if (opts.verbose)
+            printf("test_rng_seq: %5u %5u   %10u %10u\n", n1 % 2048, n2 % 2048, n1, n2);
         if (n1 != n2)
             diffs++;
         if ((n1 % 2048) != (n2 % 2048))
@@ -74,6 +78,8 @@ test_rng_init(void)
     for (uint32_t i = 0; i < N_SEQUENTIAL_DIFFS; i++) {
         __wt_random_init_seed(&rng, i);
         uint32_t n = __wt_random(&rng);
+        if (opts.verbose)
+            printf("test_rng_init: %5u %10u\n", n % 2048, n);
         if (i > 0) {
             if (n != last_number)
                 diffs++;
@@ -93,7 +99,6 @@ test_rng_init(void)
 int
 main(int argc, char *argv[])
 {
-    TEST_OPTS *opts, _opts;
     WT_CONNECTION *conn;
     WT_SESSION_IMPL *(sessions[N_SESSIONS]);
     uint64_t numbers[N_SESSIONS], number = 0, prev_number = 0;
@@ -101,9 +106,8 @@ main(int argc, char *argv[])
     char home[1024];
     bool random_numbers_repeated = false;
 
-    opts = &_opts;
-    memset(opts, 0, sizeof(*opts));
-    testutil_check(testutil_parse_opts(argc, argv, opts));
+    memset(&opts, 0, sizeof(opts));
+    testutil_check(testutil_parse_opts(argc, argv, &opts));
 
     test_rng_seq();
     test_rng_init();
@@ -131,6 +135,8 @@ main(int argc, char *argv[])
         testutil_check(conn->open_session(conn, NULL, NULL, &session));
         number = __wt_random(&((WT_SESSION_IMPL *)session)->rnd_random);
         testutil_check(session->close(session, NULL));
+        if (opts.verbose)
+            printf("single: %3d: %5u %10u\n", i, (unsigned)number % 2048, (unsigned)number);
         if (i > 0) {
             if (number != prev_number)
                 diffs++;
@@ -160,8 +166,11 @@ main(int argc, char *argv[])
 
     for (int cycle = 0; cycle < N_SEQUENTIAL_DIFFS; ++cycle) {
         /* Generate a random number. */
-        for (int i = 0; i < N_SESSIONS; i++)
+        for (int i = 0; i < N_SESSIONS; i++) {
             numbers[i] = number = __wt_random(&sessions[i]->rnd_random);
+            if (opts.verbose)
+                printf("multi: %3d:%3d: %5u %10u\n", cycle, i, (unsigned)number % 2048, (unsigned)number);
+        }
 
         /* The very first session is special because it's reused after the 'single' test above. */
         diffs = diffs2048 = 0;
@@ -198,9 +207,9 @@ main(int argc, char *argv[])
 
     testutil_check(conn->close(conn, NULL));
 
-    if (!opts->preserve)
+    if (!opts.preserve)
         testutil_remove(home);
-    testutil_cleanup(opts);
+    testutil_cleanup(&opts);
 
     testutil_assert(!random_numbers_repeated);
 
