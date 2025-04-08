@@ -102,6 +102,7 @@ __ref_get_state(WT_REF *ref)
 }
 
 #define WT_REF_GET_STATE(ref) __ref_get_state((ref))
+#define WT_REF_OWNER(session, ref) (__wt_atomic_load64(&ref->owner) == (uint64_t)session)
 
 /*
  * __ref_cas_state --
@@ -118,6 +119,10 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
     WT_UNUSED(func);
     WT_UNUSED(line);
 
+	/* If we have the reference locked and we are about to unlock it, reset the owner first */
+	if (old_state == WT_REF_LOCKED && new_state != WT_REF_LOCKED && WT_REF_OWNER(session, ref))
+		__wt_atomic_store64(&ref->owner, 0);
+
     cas_result = __wt_atomic_casv8(&ref->__state, old_state, new_state);
 
 #ifdef HAVE_REF_TRACK
@@ -130,9 +135,7 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
 #endif
 	if (cas_result && new_state == WT_REF_LOCKED)
 		__wt_atomic_store64(&ref->owner, (uint64_t)session);
-	else if (cas_result && old_state == WT_REF_LOCKED)
-		__wt_atomic_store64(&ref->owner, 0);
-	printf("Set state to %d with result %d\n", new_state, cas_result); fflush(stdout);
+
     return (cas_result);
 }
 
@@ -161,4 +164,3 @@ __ref_lock(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE *previous_statep)
 
 #define WT_REF_UNLOCK(ref, state) do {__wt_atomic_store64(&ref->owner, 0); WT_REF_SET_STATE(ref, state);}  while(0)
 
-#define WT_REF_OWNER(session, ref) __wt_atomic_load64(&ref->owner) == (uint64_t)session
