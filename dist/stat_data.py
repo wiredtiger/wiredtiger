@@ -1069,6 +1069,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_blocked_hazard', 'hazard pointer blocked page eviction'),
     CacheStat('cache_eviction_blocked_internal_page_split', 'internal page split blocked its eviction'),
+    CacheStat('cache_eviction_blocked_materialization', 'page eviction blocked due to materialization frontier'),
     CacheStat('cache_eviction_blocked_no_progress', 'eviction gave up due to no progress being made'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_1', 'eviction gave up due to detecting a disk value without a timestamp behind the last update on the chain'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_2', 'eviction gave up due to detecting a tombstone without a timestamp ahead of the selected on disk update'),

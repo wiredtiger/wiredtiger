@@ -2036,8 +2036,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * materialized yet. Evicting such page and then reading it back in would result in a
      * potentially significant stall.
      */
-    if (!__wt_page_materialization_check(session, page))
+    if (!__wt_page_materialization_check(session, page)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
         return (false);
+    }
 
     /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
     if (mod == NULL)

@@ -640,6 +640,7 @@ struct __wt_connection_stats {
     int64_t cache_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
+    int64_t cache_eviction_blocked_materialization;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
     int64_t cache_eviction_consider_prefetch;
@@ -1350,6 +1351,7 @@ struct __wt_dsrc_stats {
     int64_t cache_read_leaf_delta;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
+    int64_t cache_eviction_blocked_materialization;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
     int64_t cache_eviction_ahead_of_last_materialized_lsn;
