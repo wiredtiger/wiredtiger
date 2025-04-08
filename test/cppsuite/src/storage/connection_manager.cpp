@@ -59,7 +59,7 @@ connection_manager::close()
 
 void
 connection_manager::create(
-  const std::string &config, const std::string &home, bool create_log_directory)
+  const std::string &config, const std::string &home, bool create_log_directory, bool subdirectory)
 {
     if (_conn != nullptr) {
         logger::log_msg(LOG_ERROR, "Connection is not NULL, cannot be re-opened.");
@@ -73,6 +73,10 @@ connection_manager::create(
     testutil_mkdir(home.c_str());
     if (create_log_directory)
         testutil_mkdir((home + "/journal").c_str());
+
+    /* Create a subdirectory to simulate per directory db usage. */
+    if (subdirectory)
+        testutil_mkdir((home + DIR_DELIM + SUB_DIR).c_str());
 
     /* Open conn. */
     testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));
