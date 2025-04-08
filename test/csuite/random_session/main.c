@@ -136,7 +136,7 @@ main(int argc, char *argv[])
         number = __wt_random(&((WT_SESSION_IMPL *)session)->rnd_random);
         testutil_check(session->close(session, NULL));
         if (opts.verbose)
-            printf("single: %3d: %5u %10u\n", i, (unsigned)number % 2048, (unsigned)number);
+            printf("single: %3d: %5u %10u\n", i, (u_int)number % 2048, (unsigned)number);
         if (i > 0) {
             if (number != prev_number)
                 diffs++;
@@ -169,7 +169,8 @@ main(int argc, char *argv[])
         for (int i = 0; i < N_SESSIONS; i++) {
             numbers[i] = number = __wt_random(&sessions[i]->rnd_random);
             if (opts.verbose)
-                printf("multi: %3d:%3d: %5u %10u\n", cycle, i, (unsigned)number % 2048, (unsigned)number);
+                printf(
+                  "multi: %3d:%3d: %5u %10u\n", cycle, i, (u_int)number % 2048, (unsigned)number);
         }
 
         /* The very first session is special because it's reused after the 'single' test above. */
