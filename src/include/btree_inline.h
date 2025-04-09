@@ -2015,7 +2015,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
-    bool modified;
+    uint64_t checkpoint_gen;
+    bool checkpoint_running, modified;
 
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
@@ -2106,10 +2107,13 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * It is safe to evict when checkpoint is not running because we have opened a new checkpoint
      * before we set the checkpoint running flag to false.
      */
-    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_SESSION_BTREE_SYNC(session) &&
-      btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT) &&
-      __wt_atomic_loadvbool(&S2C(session)->txn_global.checkpoint_running))
-        return (false);
+    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_SESSION_BTREE_SYNC(session)) {
+        WT_ACQUIRE_READ(checkpoint_gen, &btree->checkpoint_gen);
+        if (checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
+            WT_ACQUIRE_READ(checkpoint_running, &S2C(session)->txn_global.checkpoint_running)
+            return (false);
+        }
+    }
 
     /*
      * Check we are not evicting an accessible internal page with an active split generation.

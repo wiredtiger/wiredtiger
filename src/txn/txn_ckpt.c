@@ -275,7 +275,7 @@ __checkpoint_update_generation(WT_SESSION_IMPL *session)
     if (WT_IS_METADATA(session->dhandle))
         return;
 
-    WT_RELEASE_WRITE_WITH_BARRIER(btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
+    WT_RELEASE_WRITE(btree->checkpoint_gen, __wt_gen(session, WT_GEN_CHECKPOINT));
     WT_STAT_DSRC_SET(session, btree_checkpoint_generation, btree->checkpoint_gen);
 }
 
@@ -1646,7 +1646,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
-    __wt_atomic_storevbool(&txn_global->checkpoint_running, true);
+    WT_RELEASE_WRITE(&txn_global->checkpoint_running, true);
 
     /*
      * FIXME-WT-11149: Some reading threads rely on the value of checkpoint running flag being
@@ -1657,7 +1657,7 @@ __txn_checkpoint_wrapper(WT_SESSION_IMPL *session, const char *cfg[])
 
     ret = __txn_checkpoint(session, cfg);
 
-    __wt_atomic_storevbool(&txn_global->checkpoint_running, false);
+    WT_RELEASE_WRITE(&txn_global->checkpoint_running, false);
 
     /*
      * Signal the tiered storage thread because it waits for the checkpoint to complete to process
