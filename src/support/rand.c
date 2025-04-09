@@ -56,13 +56,20 @@
 #define DEFAULT_SEED_W 521288629
 #define DEFAULT_SEED_Z 362436069
 
-/* Circular shift is converted by compilers to a "rol"-like CPU instruction. */
-#define WT_LEFT_CIRCULAR_SHIFT32(x, nbits) (((x) << (nbits)) | ((x) >> (32 - (nbits))))
+/*
+ * __left_circular_shift64 --
+ *     Circular shift left a 64-bit integer.
+ */
+static uint64_t
+__left_circular_shift64(uint64_t x, int nbits)
+{
+    /* Circular shift is converted by compilers to a "rol"-like CPU instruction. */
+    return (x << nbits) | (x >> (64 - nbits));
+}
 
 /* Make a seed from session id, time (in nanoseconds) and pid. */
-#define MAKE_SEED(id, t, pid)                                                           \
-    (((uint64_t)WT_LEFT_CIRCULAR_SHIFT32((uint64_t)(id) + 1, 3)) + ((t) / WT_BILLION) + \
-      ((t) % WT_BILLION) + (uint64_t)(pid))
+#define MAKE_SEED(id, t, pid) \
+    (((uint64_t)(id + 1) << 3) + ((t) / WT_BILLION) + ((t) % WT_BILLION) + (uint64_t)(pid))
 
 /*
  * __wt_random_init_default --
@@ -88,14 +95,17 @@ __wt_random_init_seed(WT_RAND_STATE *rnd_state, uint64_t v)
      * random-looking seed which has about 50% of the bits turned on. We don't need to check whether
      * W or Z becomes 0, because we would handle it the first time we use this state to generate a
      * random number.
-     */
-    M_V(rnd_state) = v;
-    /*
+     *
      * These circular shift operations guarantee that the bits of the seed are mixed into the
      * initial state. It guarantees good randomness even if the seeds are very close to each other.
      */
-    M_W(rnd_state) ^= (uint32_t)(WT_LEFT_CIRCULAR_SHIFT32(v, 29) ^ DEFAULT_SEED_W);
-    M_Z(rnd_state) ^= (uint32_t)(WT_LEFT_CIRCULAR_SHIFT32(v, 27) ^ DEFAULT_SEED_Z);
+    M_V(rnd_state) = v                 /* Original seed. */
+      ^ __left_circular_shift64(v, 13) /* Mix in from higher 48 bits. */
+      ^ __left_circular_shift64(v, 29) /* Mix in from higher 32 bits. */
+      ^ __left_circular_shift64(v, 49) /* Mix in from higher 16 bits. */
+      ;
+    M_W(rnd_state) ^= DEFAULT_SEED_W;
+    M_Z(rnd_state) ^= DEFAULT_SEED_Z;
 }
 
 /*

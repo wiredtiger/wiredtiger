@@ -39,7 +39,7 @@ static TEST_OPTS opts;
 
 /*
  * test_rng_seq --
- *     Test5 that 2 sequences are different.
+ *     Test that 2 sequences are different.
  */
 static void
 test_rng_seq(void)
@@ -66,7 +66,7 @@ test_rng_seq(void)
 
 /*
  * test_rng_init --
- *     Test5 that initialization with different seeds yields different starting points.
+ *     Test that initialization with different seeds yields different starting points.
  */
 static void
 test_rng_init(void)
