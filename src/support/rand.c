@@ -116,7 +116,8 @@ __wt_random_init_seed(WT_RAND_STATE *rnd_state, uint64_t v)
  *
  * session->id is used to seed the RNG. Since session objects have infinite lifetime, each session's
  *     RNG is seeded with a different value. This is mixed with the current time and the process ID
- *     to ensure that the RNG is different across runs.
+ *     to ensure that the RNG is different across runs. When the session is reset, the RNG is
+ *     preserved.
  *
  */
 void
