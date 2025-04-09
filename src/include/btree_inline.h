@@ -2111,7 +2111,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         WT_ACQUIRE_READ(checkpoint_gen, &btree->checkpoint_gen);
         if (checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
             WT_ACQUIRE_READ(checkpoint_running, &S2C(session)->txn_global.checkpoint_running)
-            return (false);
+            if (checkpoint_running)
+                return (false);
         }
     }
 
