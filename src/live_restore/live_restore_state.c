@@ -29,7 +29,7 @@ __wti_live_restore_migration_complete(WT_SESSION_IMPL *session)
 bool
 __wt_live_restore_migration_in_progress(WT_SESSION_IMPL *session)
 {
-    /* If live restore is not enabled then no need to check its state. */
+    /* If live restore is not enabled then background migration is by definition not in progress. */
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (false);
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;

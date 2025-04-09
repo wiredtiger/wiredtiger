@@ -99,7 +99,7 @@ class test_live_restore06(backup_base):
         meta_cursor.close()
 
         # Now take a backup of the destination.
-        # Test backups when live restore in the COMPLETE phase
+        # Test backups when live restore is in the COMPLETE phase
         self.do_backup_test("backup0","statistics=(all),live_restore=(enabled=true,path=\"SOURCE\")")
         # Test backups in non-live restore mode
         self.do_backup_test("backup1","statistics=(all),live_restore=(enabled=false)")
