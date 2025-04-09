@@ -46,11 +46,23 @@ from enum import Enum
 # location and the filename and the script will execute the required wt util command. When running
 # with -f the script must be executed in the same directory as the database.
 #
+# Note that this script can also output valid JSON if given the -j/--json flag. This will return properly
+# formatted JSON using the Canonical Extended JSON format.
+#
+# Particularly for the dump command this will change the output from:
+#     Key: <key>
+#     Value: <value>
+# To:
+#     { "key": <key>, "value": <value> }
+#
+# Other commands will have the BSON output replaced with JSON without any modifications to the structure.
+#
 # Some example usages are:
 #    - ./wt -r dump -x file:foo.wt | ./wt_to_mdb_bson -m dump
 #    - ./wt -r verify -d dump_pages file:bar.wt | ./wt_to_mdb_bson -m verify
 #    - ./wt_to_mdb_bson -m dump -f ./wt file:foo.wt
 #    - ./wt_to_mdb_bson -m printlog -f ./wt
+#    - ./wt_to_mdb_bson -m dump -j -f ./wt file:_mdb_catalog.wt | jq .value.md.ns  # Returns all namespaces on a MongoDB data directory
 
 # A basic enum to determine which mode we are operating in.
 class Mode(Enum):
