@@ -1474,8 +1474,10 @@ static int
 __clayered_copy_duplicate_key(WT_CURSOR *cursor)
 {
     WT_CURSOR_LAYERED *clayered;
+    WT_SESSION_IMPL *session;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
+    session = CUR2S(cursor);
 
     WT_ASSERT(session,
       F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
