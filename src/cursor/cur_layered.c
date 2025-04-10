@@ -1467,11 +1467,11 @@ __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, con
 }
 
 /*
- * __clayered_copy_duplicate_key --
- *     Copy the duplicate key from the constitute cursor.
+ * __clayered_copy_duplicate_kv --
+ *     Copy the duplicate key value from the constitute cursor.
  */
 static int
-__clayered_copy_duplicate_key(WT_CURSOR *cursor)
+__clayered_copy_duplicate_kv(WT_CURSOR *cursor)
 {
     WT_CURSOR_LAYERED *clayered;
     WT_SESSION_IMPL *session;
@@ -1522,7 +1522,7 @@ __clayered_insert(WT_CURSOR *cursor)
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       (ret = __clayered_lookup(clayered, &value)) != WT_NOTFOUND) {
         if (ret == 0) {
-            WT_ERR(__clayered_copy_duplicate_key(cursor));
+            WT_ERR(__clayered_copy_duplicate_kv(cursor));
             WT_ERR(WT_DUPLICATE_KEY);
         }
 
