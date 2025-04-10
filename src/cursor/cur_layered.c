@@ -1522,8 +1522,8 @@ __clayered_insert(WT_CURSOR *cursor)
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
 
+    if (0) {
 duplicate:
-    if (ret == WT_DUPLICATE_KEY) {
         WT_ASSERT(session,
           F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
             F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT));
