@@ -168,6 +168,9 @@ __posix_sync(WT_SESSION_IMPL *session, int fd, const char *name, const char *fun
 {
     WT_DECL_RET;
 
+    if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_NO_SYNC))
+        return (0);
+
 #if defined(F_FULLFSYNC)
     /*
      * OS X fsync documentation: "Note that while fsync() will flush all data from the host to the
@@ -632,9 +635,6 @@ __posix_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    if (F_ISSET(pfh, WT_FH_POSIX_NO_SYNC))
-        return (0);
-
     return (__posix_sync(session, pfh->fd, file_handle->name, "handle-sync"));
 }
 
@@ -652,6 +652,9 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_NO_SYNC))
+        return (0);
 
     /* See comment in __posix_sync(): sync cannot be retried or fail. */
     WT_SYSCALL(sync_file_range(pfh->fd, (off64_t)0, (off64_t)0, SYNC_FILE_RANGE_WRITE), ret);
@@ -900,14 +903,11 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
 #endif
 #ifdef O_DIRECT
     /* Direct I/O. */
-    if (LF_ISSET(WT_FS_OPEN_DIRECTIO)) {
+    if (F_ISSET(conn, WT_FS_OPEN_DIRECTIO)) {
         f |= O_DIRECT;
         F_SET(pfh, WT_FH_POSIX_DIRECT_IO);
     }
 #endif
-
-    if (__wt_conn_is_disagg(session))
-        F_SET(pfh, WT_FH_POSIX_NO_SYNC);
 
 #ifdef O_NOATIME
     /* Avoid updating metadata for read-only workloads. */

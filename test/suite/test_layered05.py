@@ -38,7 +38,7 @@ class test_layered05(wttest.WiredTigerTestCase):
     nitems = 100000
     uri_base = "test_layered05"
     base_conn_config = 'statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                + 'disaggregated=(page_log=palm),'
+                + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
     conn_config = base_conn_config + 'disaggregated=(role="leader"),'
 
     uri = "layered:" + uri_base

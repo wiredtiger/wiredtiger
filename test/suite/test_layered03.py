@@ -38,7 +38,7 @@ class test_layered03(wttest.WiredTigerTestCase):
 
     uri_base = "test_layered03"
     conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
-                + 'disaggregated=(page_log=palm),'
+                + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
 
     uri = "layered:" + uri_base
 

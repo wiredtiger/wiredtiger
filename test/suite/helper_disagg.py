@@ -39,7 +39,7 @@ def get_conn_config(disagg_storage):
     if disagg_storage.ds_name == 'palm' and not os.path.exists(disagg_storage.bucket):
             os.mkdir(disagg_storage.bucket)
     return \
-        f'statistics=(all),name={disagg_storage.ds_name},'
+        f'statistics=(all),name={disagg_storage.ds_name},lose_all_my_data=true'
 
 def gen_disagg_storages(test_name='', disagg_only = False):
     disagg_storages = [
@@ -178,7 +178,7 @@ class DisaggConfigMixin:
         (ret, n) = page_log.pl_get_complete_checkpoint(session)
         session.close()
 
-        self.assertEquals(ret, 0)
+        self.assertEqual(ret, 0)
         return n
 
     # Get the information about the last completed checkpoint: ID, LSN, and metadata
@@ -207,7 +207,7 @@ class DisaggConfigMixin:
         (ret, n) = page_log.pl_get_open_checkpoint(session)
         session.close()
 
-        self.assertEquals(ret, 0)
+        self.assertEqual(ret, 0)
         return n
 
     # Let the follower pick up the latest checkpoint

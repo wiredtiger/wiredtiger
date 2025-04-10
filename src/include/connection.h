@@ -211,8 +211,21 @@ struct __wt_disaggregated_storage {
     uint32_t ckpt_track_cnt; /* Number of entries in use for checkpoint track. */
     int64_t ckpt_min_inuse;  /* The minimum checkpoint order in use. */
 
-    bool internal_page_delta;
-    bool leaf_page_delta;
+    /*
+     * TODO: Ideally we'd have flags passed to the IO system, which could make it all the way to the
+     * callers of posix_sync. But that's not possible because (1) posix_directory_sync also has no
+     * way to change behaviour because it doesn't have a file handle, and (2) the flags for a file
+     * handle are all set up when we open the file, which can happen before disagg is set up and the
+     * relevant option is parsed. The other unfortunate part is that the flags are all per-file
+     * (really, per block-manager) so it's easy to accidentally miss a file when doing it that way,
+     * e.g. if the config parsing does anything even slightly off the beaten track.
+     */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_DISAGG_INTERNAL_PAGE_DELTA 0x1u
+#define WT_DISAGG_LEAF_PAGE_DELTA 0x2u
+#define WT_DISAGG_NO_SYNC 0x4u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 /*
