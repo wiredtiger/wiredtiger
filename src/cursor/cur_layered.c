@@ -1363,7 +1363,6 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
   const WT_ITEM *value, bool position, bool reserve)
 {
     WT_CURSOR *c;
-    WT_DECL_RET;
     int (*func)(WT_CURSOR *);
 
     /*
