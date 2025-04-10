@@ -909,7 +909,6 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     } else
         pfh->direct_io = false;
 #endif
-
 #ifdef O_NOATIME
     /* Avoid updating metadata for read-only workloads. */
     if (file_type == WT_FS_OPEN_FILE_TYPE_DATA)
@@ -998,7 +997,7 @@ directory_open:
     /*
      * Ignore fadvise when doing direct I/O, the kernel cache isn't interesting.
      */
-    if (pfh->direct_io)
+    if (!pfh->direct_io)
         file_handle->fh_advise = __posix_file_advise;
 #endif
     file_handle->fh_extend = __wti_posix_file_extend;
