@@ -1467,6 +1467,33 @@ __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, con
 }
 
 /*
+ * __clayered_copy_duplicate_key --
+ *     Copy the duplicate key from the constitute cursor.
+ */
+static int
+__clayered_copy_duplicate_key(WT_CURSOR *cursor)
+{
+    WT_CURSOR_LAYERED *clayered;
+
+    clayered = (WT_CURSOR_LAYERED *)cursor;
+
+    WT_ASSERT(session,
+      F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
+        F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT));
+    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    WT_RET(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+    F_SET(cursor, WT_CURSTD_KEY_INT);
+    WT_RET(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
+    F_SET(cursor, WT_CURSTD_VALUE_INT);
+    WT_RET(__wt_cursor_localkey(cursor));
+    WT_RET(__cursor_localvalue(cursor));
+    WT_RET(clayered->current_cursor->reset(clayered->current_cursor));
+    clayered->current_cursor = NULL;
+
+    return (0);
+}
+
+/*
  * __clayered_insert --
  *     WT_CURSOR->insert method for the layered cursor type.
  */
@@ -1493,19 +1520,8 @@ __clayered_insert(WT_CURSOR *cursor)
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       (ret = __clayered_lookup(clayered, &value)) != WT_NOTFOUND) {
         if (ret == 0) {
-            WT_ASSERT(session,
-              F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
-                F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT));
-            F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-            WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-            F_SET(cursor, WT_CURSTD_KEY_INT);
-            WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
-            F_SET(cursor, WT_CURSTD_VALUE_INT);
-            WT_ERR(__wt_cursor_localkey(cursor));
-            WT_ERR(__cursor_localvalue(cursor));
-            WT_ERR(clayered->current_cursor->reset(clayered->current_cursor));
-            clayered->current_cursor = NULL;
-            ret = WT_DUPLICATE_KEY;
+            WT_ERR(__clayered_copy_duplicate_key(cursor));
+            WT_ERR(WT_DUPLICATE_KEY);
         }
 
         goto err;
