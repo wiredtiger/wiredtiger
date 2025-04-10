@@ -51,7 +51,6 @@ static int __verify_page_content_leaf(
   WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
-static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 
 /*
@@ -632,16 +631,6 @@ __verify_tree(
     }
 
     /*
-     * Row-store leaf page key order check: it's a depth-first traversal, the first key on this page
-     * should be larger than any key previously seen.
-     */
-    switch (page->type) {
-    case WT_PAGE_ROW_LEAF:
-        WT_RET(__verify_row_leaf_key_order(session, ref, vs));
-        break;
-    }
-
-    /*
      * Check page content, additionally updating the column-store record count. If a tree is empty
      * (just created), it won't have a disk image; if there is no disk image, there is no page
      * content to check.
@@ -942,55 +931,38 @@ __verify_row_int_key_order(
 
 /*
  * __verify_row_leaf_key_order --
- *     Compare the first key on a leaf page to the largest key we've seen so far; update the largest
- *     key we've seen so far to the last key on the page.
+ *     Compare a given key from a leaf page to the largest key we've seen so far.
  */
 static int
-__verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
+__verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_ITEM *new_key, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
-    WT_PAGE *page;
     int cmp;
 
     btree = S2BT(session);
-    page = ref->page;
 
-    /*
-     * If a tree is empty (just created), it won't have keys; if there are no keys, we're done.
-     */
-    if (page->entries == 0)
+    /* Cope with the left-most key. */
+    if (vs->max_addr->size == 0)
         return (0);
 
     /*
-     * We visit our first leaf page before setting the maximum key (the 0th keys on the internal
-     * pages leading to the smallest leaf in the tree are all empty entries).
+     * Compare the key against the largest key we've seen so far.
+     *
+     * If we're comparing against a key taken from an internal page, we can compare equal (which is
+     * an expected path, the internal page key is often a copy of the leaf page's first key). But,
+     * in the case of the 0th slot on an internal page, the last key we've seen was a key from a
+     * previous leaf page, and it's not OK to compare equally in that case.
      */
-    if (vs->max_addr->size != 0) {
-        WT_RET(__wt_row_leaf_key_copy(session, page, page->pg_row, vs->tmp1));
-
-        /*
-         * Compare the key against the largest key we've seen so far.
-         *
-         * If we're comparing against a key taken from an internal page, we can compare equal (which
-         * is an expected path, the internal page key is often a copy of the leaf page's first key).
-         * But, in the case of the 0th slot on an internal page, the last key we've seen was a key
-         * from a previous leaf page, and it's not OK to compare equally in that case.
-         */
-        WT_RET(__wt_compare(session, btree->collator, vs->tmp1, (WT_ITEM *)vs->max_key, &cmp));
-        if (cmp < 0)
-            WT_RET_MSG(session, WT_ERROR,
-              "the first key on the page at %s sorts equal to or less than the last key appearing "
-              "on the page at %s, earlier in the tree: %s, %s",
-              __verify_addr_string(session, ref, vs->tmp2), (char *)vs->max_addr->data,
-              __wt_buf_set_printable_format(
-                session, vs->tmp1->data, vs->tmp1->size, btree->key_format, false, vs->tmp3),
-              __wt_buf_set_printable_format(
-                session, vs->max_key->data, vs->max_key->size, btree->key_format, false, vs->tmp4));
-    }
-
-    /* Update the largest key we've seen to the last key on this page. */
-    WT_RET(__wt_row_leaf_key_copy(session, page, page->pg_row + (page->entries - 1), vs->max_key));
-    WT_IGNORE_RET(__verify_addr_string(session, ref, vs->max_addr));
+    WT_RET(__wt_compare(session, btree->collator, new_key, (WT_ITEM *)vs->max_key, &cmp));
+    if (cmp < 0)
+        WT_RET_MSG(session, WT_ERROR,
+          "the first key on the page at %s sorts equal to or less than the last key appearing "
+          "on the page at %s, earlier in the tree: %s, %s",
+          (char *)new_key->data, (char *)vs->max_addr->data,
+          __wt_buf_set_printable_format(
+            session, vs->tmp1->data, vs->tmp1->size, btree->key_format, false, vs->tmp3),
+          __wt_buf_set_printable_format(
+            session, vs->max_key->data, vs->max_key->size, btree->key_format, false, vs->tmp4));
 
     return (0);
 }
@@ -1352,13 +1324,19 @@ __verify_page_content_leaf(
             break;
         }
 
-        /* Verify key-associated history-store entries. */
+        /* Verify keys and associated history store entries. */
         if (page->type == WT_PAGE_ROW_LEAF) {
             if (unpack.type != WT_CELL_VALUE && unpack.type != WT_CELL_VALUE_COPY &&
               unpack.type != WT_CELL_VALUE_OVFL && unpack.type != WT_CELL_VALUE_SHORT)
                 continue;
 
             WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
+
+            WT_RET(__verify_row_leaf_key_order(session, vs->tmp1, vs));
+            /* The order is OK, save this key as the maximum for next round. */
+            WT_RET(__wt_buf_set(session, vs->max_key, vs->tmp1->data, vs->tmp1->size));
+            WT_IGNORE_RET(__verify_addr_string(session, ref, vs->max_addr));
+
             WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
