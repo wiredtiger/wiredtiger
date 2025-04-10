@@ -1387,19 +1387,9 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
         func = reserve ? c->reserve : c->update;
     if (func != c->reserve)
         c->set_value(c, value);
-    ret = func(c);
-    if (ret == WT_DUPLICATE_KEY) {
-        /*
-         * Only insert can return duplicate key error. Layered cursor should never set no duplicate
-         * value flag on the underlying cursors and thus we expect the cursor to be positioned.
-         */
-        WT_ASSERT(session,
-          func == c->insert && !F_ISSET(c, WT_CURSTD_DUP_NO_VALUE) &&
-            F_ISSET(c, WT_CURSTD_KEY_INT));
-        clayered->current_cursor = c;
-    }
+    WT_RET(func(c));
 
-    return (ret);
+    return (0);
 }
 
 /*
