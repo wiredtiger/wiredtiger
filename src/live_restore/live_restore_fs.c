@@ -1806,7 +1806,9 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
                     }
                 }
             }
+            __wt_free(session, buf);
         }
+        __wt_free(session, path);
     }
 #endif
 
