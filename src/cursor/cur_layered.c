@@ -1489,7 +1489,6 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
-    int tret;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
