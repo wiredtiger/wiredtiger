@@ -1363,6 +1363,7 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
   const WT_ITEM *value, bool position, bool reserve)
 {
     WT_CURSOR *c;
+    WT_DECL_RET;
     int (*func)(WT_CURSOR *);
 
     /*
@@ -1386,9 +1387,19 @@ __clayered_put(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, const WT_I
         func = reserve ? c->reserve : c->update;
     if (func != c->reserve)
         c->set_value(c, value);
-    WT_RET(func(c));
+    ret = func(c);
+    if (ret == WT_DUPLICATE_KEY) {
+        /*
+         * Only insert can return duplicate key error. Layered cursor should never set no duplicate
+         * value flag on the underlying cursors and thus we expect the cursor to be positioned.
+         */
+        WT_ASSERT(session,
+          func == c->insert && !F_ISSET(c, WT_CURSTD_DUP_NO_VALUE) &&
+            F_ISSET(c, WT_CURSTD_KEY_INT));
+        clayered->current_cursor = c;
+    }
 
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1478,6 +1489,7 @@ __clayered_insert(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_ITEM value;
     WT_SESSION_IMPL *session;
+    int tret;
 
     clayered = (WT_CURSOR_LAYERED *)cursor;
 
@@ -1492,8 +1504,10 @@ __clayered_insert(WT_CURSOR *cursor)
      */
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       (ret = __clayered_lookup(clayered, &value)) != WT_NOTFOUND) {
-        if (ret == 0)
+        if (ret == 0) {
             ret = WT_DUPLICATE_KEY;
+            goto duplicate;
+        }
         goto err;
     }
 
@@ -1508,6 +1522,24 @@ __clayered_insert(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
+
+duplicate:
+    if (ret == WT_DUPLICATE_KEY) {
+        WT_ASSERT(session,
+          F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
+            F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT));
+        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+        WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+        F_SET(cursor, WT_CURSTD_KEY_INT);
+        WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
+        F_SET(cursor, WT_CURSTD_VALUE_INT);
+        WT_ERR(__wt_cursor_localkey(cursor));
+        WT_ERR(__cursor_localvalue(cursor));
+        WT_ERR(clayered->current_cursor->reset(clayered->current_cursor));
+        clayered->current_cursor = NULL;
+        ret = WT_DUPLICATE_KEY;
+    }
+
 err:
     __wt_scr_free(session, &buf);
     __clayered_leave(clayered);
