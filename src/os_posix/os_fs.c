@@ -543,7 +543,7 @@ __posix_file_read(
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(session,
-      !pfh->direct_io || S2C(session)->buffer_alignment == 0 ||
+      !F_ISSET(pfh, WT_FH_POSIX_DIRECT_IO) || S2C(session)->buffer_alignment == 0 ||
         (!((uintptr_t)buf & (uintptr_t)(S2C(session)->buffer_alignment - 1)) &&
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
@@ -632,6 +632,9 @@ __posix_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
+    if (F_ISSET(pfh, WT_FH_POSIX_NO_SYNC))
+        return (0);
+
     return (__posix_sync(session, pfh->fd, file_handle->name, "handle-sync"));
 }
 
@@ -716,7 +719,7 @@ __posix_file_write(
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(session,
-      !pfh->direct_io || S2C(session)->buffer_alignment == 0 ||
+      !F_ISSET(pfh, WT_FH_POSIX_DIRECT_IO) || S2C(session)->buffer_alignment == 0 ||
         (!((uintptr_t)buf & (uintptr_t)(S2C(session)->buffer_alignment - 1)) &&
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
@@ -899,10 +902,13 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     /* Direct I/O. */
     if (LF_ISSET(WT_FS_OPEN_DIRECTIO)) {
         f |= O_DIRECT;
-        pfh->direct_io = true;
-    } else
-        pfh->direct_io = false;
+        F_SET(pfh, WT_FH_POSIX_DIRECT_IO);
+    }
 #endif
+
+    if (__wt_conn_is_disagg(session))
+        F_SET(pfh, WT_FH_POSIX_NO_SYNC);
+
 #ifdef O_NOATIME
     /* Avoid updating metadata for read-only workloads. */
     if (file_type == WT_FS_OPEN_FILE_TYPE_DATA)
@@ -926,9 +932,10 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
         if (F_ISSET(session, WT_SESSION_QUIET_OPEN_FILE))
             WT_ERR(ret);
         WT_ERR_MSG(session, ret,
-          pfh->direct_io ? "%s: handle-open: open: failed with direct I/O configured, some "
-                           "filesystem types do not support direct I/O" :
-                           "%s: handle-open: open",
+          F_ISSET(pfh, WT_FH_POSIX_DIRECT_IO) ?
+            "%s: handle-open: open: failed with direct I/O configured, some "
+            "filesystem types do not support direct I/O" :
+            "%s: handle-open: open",
           name);
     }
 
@@ -950,7 +957,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
      * If the user set an access pattern hint, call fadvise now. Ignore fadvise when doing direct
      * I/O, the kernel cache isn't interesting.
      */
-    if (!pfh->direct_io && file_type == WT_FS_OPEN_FILE_TYPE_DATA &&
+    if (!F_ISSET(pfh, WT_FH_POSIX_DIRECT_IO) && file_type == WT_FS_OPEN_FILE_TYPE_DATA &&
       LF_ISSET(WT_FS_OPEN_ACCESS_RAND | WT_FS_OPEN_ACCESS_SEQ)) {
         advise_flag = 0;
         if (LF_ISSET(WT_FS_OPEN_ACCESS_RAND))
@@ -991,7 +998,7 @@ directory_open:
     /*
      * Ignore fadvise when doing direct I/O, the kernel cache isn't interesting.
      */
-    if (!pfh->direct_io)
+    if (!F_ISSET(pfh, WT_FH_POSIX_DIRECT_IO))
         file_handle->fh_advise = __posix_file_advise;
 #endif
     file_handle->fh_extend = __wti_posix_file_extend;
