@@ -1503,10 +1503,9 @@ __clayered_insert(WT_CURSOR *cursor)
      */
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       (ret = __clayered_lookup(clayered, &value)) != WT_NOTFOUND) {
-        if (ret == 0) {
-            ret = WT_DUPLICATE_KEY;
+        if (ret == 0)
             goto duplicate;
-        }
+
         goto err;
     }
 
