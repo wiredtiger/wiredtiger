@@ -30,17 +30,15 @@ __live_restore_fs_backing_filename(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
 {
     WT_DECL_RET;
     size_t len;
-    char *buf, *filename;
-
-    buf = filename = NULL;
+    char *buf = NULL;
+    const char *filename = name;
 
     /*
      * Name must start with the destination directory. If name is an absolute path like
      * "/home/dest_home/file.txt" then destination directory which is derived from conn->home will
      * be "/home/dest_home".
      */
-    filename = strstr(name, lr_fs->destination.home);
-    WT_ASSERT_ALWAYS(session, filename == name,
+    WT_ASSERT_ALWAYS(session, WT_PREFIX_MATCH(filename, lr_fs->destination.home),
       "Provided name '%s' does not start with the destination home folder path '%s'", name,
       lr_fs->destination.home);
 
@@ -1489,7 +1487,10 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
     WT_RET_NOTFOUND_OK(
       __live_restore_fs_has_file(lr_fs, &lr_fs->destination, session, name, &dest_exist));
 
-    /* WiredTiger never creates directories. The user must do this themselves. */
+    /*
+     * WiredTiger never creates directories(except when MongoDB enables directory per db usage). The
+     * user must do this themselves.
+     */
     if (!dest_exist)
         WT_RET_MSG(session, ENOENT, "Directory %s does not exist in the destination", name);
 
@@ -1720,6 +1721,8 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
   const char *name, WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags,
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh)
 {
+    WT_DECL_RET;
+    char *buf = NULL, *path = NULL;
     /*!!!
      * All non directory open file calls end up here, which means we need to handle:
      *  - WT_FS_OPEN_FILE_TYPE_CHECKPOINT
@@ -1773,13 +1776,50 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
     if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
 
+    /*
+     * MongoDB uses a nested directory structure for directory per db and directory for indexes
+     * configurations , live restore needs to detect this from the file path, if the directories do
+     * not exist then we need to create them manually. A file with nested directory is like:
+     * "home/home_dest/sub_dir1/.../sub_dirN/file.wt".
+     */
+    if (!dest_exist) {
+        WT_ERR(__live_restore_fs_backing_filename(
+          session, lr_fs, WTI_LIVE_RESTORE_FS_LAYER_DESTINATION, name, &path));
+        char *p = path + strlen(lr_fs->destination.home) + 1;
+        size_t len;
+        bool dir_exist = false;
+        for (; (p = strchr(p, '/')) != NULL; p++) {
+            len = (size_t)(p - path + 1);
+            /* +1 for the null terminator. */
+            WT_ERR(__wt_calloc(session, 1, len + 1, &buf));
+            WT_ERR(__wt_snprintf(buf, len + 1, "%.*s", (int)len, path));
+
+            lr_fs->os_file_system->fs_exist(
+              lr_fs->os_file_system, (WT_SESSION *)session, buf, &dir_exist);
+            if (!dir_exist) {
+                if (mkdir(buf, 0755) != 0) {
+                    struct stat stats;
+                    if (errno != EEXIST || stat(buf, &stats) != 0 || !S_ISDIR(stats.st_mode)) {
+                        goto err;
+                    }
+                }
+            }
+        }
+    }
+
     if (file_type == WT_FILE_TYPE_DATA)
-        WT_RET(__live_restore_setup_lr_fh_file_data(
+        WT_ERR(__live_restore_setup_lr_fh_file_data(
           session, lr_fs, name, flags, lr_fh, dest_exist, source_exist));
     else
-        WT_RET(__live_restore_setup_lr_fh_file_regular(
+        WT_ERR(__live_restore_setup_lr_fh_file_regular(
           session, lr_fs, name, flags, lr_fh, file_type, dest_exist, source_exist));
-    return (0);
+
+    if (0) {
+err:
+        __wt_free(session, path);
+        __wt_free(session, buf);
+    }
+    return (ret);
 }
 
 /*

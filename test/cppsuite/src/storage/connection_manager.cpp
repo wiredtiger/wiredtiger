@@ -74,9 +74,13 @@ connection_manager::create(
     if (create_log_directory)
         testutil_mkdir((home + "/journal").c_str());
 
-    /* Create a subdirectory to simulate per directory db usage. */
-    if (subdirectory)
-        testutil_mkdir((home + DIR_DELIM + SUB_DIR).c_str());
+    /* Create a nested subdirectory to simulate per directory db usage. */
+    if (subdirectory) {
+        auto path = home + std::string(DIR_DELIM_STR) + SUB_DIR;
+        testutil_mkdir(path.c_str());
+        path += std::string(DIR_DELIM_STR) + SUB_DIR;
+        testutil_mkdir(path.c_str());
+    }
 
     /* Open conn. */
     testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));

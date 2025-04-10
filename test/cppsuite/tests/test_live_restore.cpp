@@ -62,8 +62,8 @@ public:
     void
     add_new_collection(scoped_session &session, bool subdirectory)
     {
-        auto uri = subdirectory ? std::string("table:") + SUB_DIR + DIR_DELIM + "collection_" +
-            std::to_string(collection_count()) :
+        auto uri = subdirectory ? std::string("table:") + SUB_DIR + DIR_DELIM + SUB_DIR +
+            DIR_DELIM + "collection_" + std::to_string(collection_count()) :
                                   database::build_collection_name(collection_count());
         testutil_check(session->create(
           session.get(), uri.c_str(), (DEFAULT_FRAMEWORK_SCHEMA + file_config).c_str()));
@@ -367,10 +367,13 @@ take_backup_and_delete_original(const std::string &home, const std::string &back
                 file = "journal/" + file;
             }
 
-            // Create the subdirectory to simulate per directory db usage if it does not exist.
+            // Create a nested subdirectory to simulate directory per db usage if it does not exist.
             if (WT_PREFIX_MATCH(file_c_str, SUB_DIR)) {
                 if (!testutil_exists(backup_dir.c_str(), SUB_DIR)) {
-                    testutil_mkdir((backup_dir + "/" + std::string(SUB_DIR)).c_str());
+                    auto path = backup_dir + std::string(DIR_DELIM_STR) + SUB_DIR;
+                    testutil_mkdir(path.c_str());
+                    path += std::string(DIR_DELIM_STR) + SUB_DIR;
+                    testutil_mkdir(path.c_str());
                 }
             }
 
@@ -403,7 +406,11 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
     if (recovery)
         connection_manager::instance().reopen(conn_config, home);
     else
-        connection_manager::instance().create(conn_config, home, true, subdirectory);
+        /*
+         * We don't want connection_manager::create() to create the nested subdirectory structure,
+         * leave subdirectory as default false and let live restore handle this.
+         */
+        connection_manager::instance().create(conn_config, home, true);
 
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
