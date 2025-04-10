@@ -209,12 +209,13 @@ struct __wt_btree {
     (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
       __wt_atomic_load_pointer(&(btree)->sync_session) == (session))
 
-    wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
-    wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
-    wt_shared uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
-    wt_shared uint64_t bytes_inmem;       /* Cache bytes in memory. */
-    wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
-    wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
+    wt_shared uint64_t bytes_dirty_intl;    /* Bytes in dirty internal pages. */
+    wt_shared uint64_t bytes_dirty_leaf;    /* Bytes in dirty leaf pages. */
+    wt_shared uint64_t bytes_dirty_total;   /* Bytes ever dirtied in cache. */
+    wt_shared uint64_t bytes_inmem;         /* Cache bytes in memory. */
+    wt_shared uint64_t bytes_internal;      /* Bytes in internal pages. */
+    wt_shared uint64_t bytes_updates;       /* Bytes in updates. */
+    wt_shared uint64_t bytes_delta_updates; /* Bytes of updates reconstructed from deltas */
 
     uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 

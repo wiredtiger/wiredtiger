@@ -420,12 +420,20 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
+    /*
+     * Track the timestamp used for the most recent reconciliation. It's useful to avoid duplicating
+     * work when precise checkpoints are enabled, so we don't re-reconcile pages when no new content
+     * could be written.
+     */
+    wt_timestamp_t rec_pinned_stable_timestamp;
+
     /* The largest update transaction ID (approximate). */
     uint64_t update_txn;
 
     /* Dirty bytes added to the cache. */
     wt_shared size_t bytes_dirty;
     wt_shared size_t bytes_updates;
+    wt_shared size_t bytes_delta_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
