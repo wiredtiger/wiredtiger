@@ -1540,7 +1540,6 @@ __clayered_insert(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
-
 err:
     __wt_scr_free(session, &buf);
     __clayered_leave(clayered);
