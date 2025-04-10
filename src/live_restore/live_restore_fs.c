@@ -1776,12 +1776,14 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
     if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
         WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
 
+#if defined(__APPLE__) || defined(__linux__)
     /*
      * MongoDB uses a nested directory structure for directory per db and directory for indexes
      * configurations , live restore needs to detect this from the file path, if the directories do
      * not exist then we need to create them manually. A file with nested directory is like:
      * "home/home_dest/sub_dir1/.../sub_dirN/file.wt".
      */
+    /* FIXME-WT-14051 - Add live restore support to Windows. */
     if (!dest_exist) {
         WT_ERR(__live_restore_fs_backing_filename(
           session, lr_fs, WTI_LIVE_RESTORE_FS_LAYER_DESTINATION, name, &path));
@@ -1806,6 +1808,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
             }
         }
     }
+#endif
 
     if (file_type == WT_FILE_TYPE_DATA)
         WT_ERR(__live_restore_setup_lr_fh_file_data(
