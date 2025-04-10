@@ -1492,8 +1492,21 @@ __clayered_insert(WT_CURSOR *cursor)
      */
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
       (ret = __clayered_lookup(clayered, &value)) != WT_NOTFOUND) {
-        if (ret == 0)
-            goto duplicate;
+        if (ret == 0) {
+            WT_ASSERT(session,
+              F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
+                F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT));
+            F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+            WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
+            F_SET(cursor, WT_CURSTD_KEY_INT);
+            WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
+            F_SET(cursor, WT_CURSTD_VALUE_INT);
+            WT_ERR(__wt_cursor_localkey(cursor));
+            WT_ERR(__cursor_localvalue(cursor));
+            WT_ERR(clayered->current_cursor->reset(clayered->current_cursor));
+            clayered->current_cursor = NULL;
+            ret = WT_DUPLICATE_KEY;
+        }
 
         goto err;
     }
@@ -1509,23 +1522,6 @@ __clayered_insert(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_insert);
-
-    if (0) {
-duplicate:
-        WT_ASSERT(session,
-          F_ISSET(clayered->current_cursor, WT_CURSTD_KEY_INT) &&
-            F_ISSET(clayered->current_cursor, WT_CURSTD_VALUE_INT));
-        F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-        WT_ERR(clayered->current_cursor->get_key(clayered->current_cursor, &cursor->key));
-        F_SET(cursor, WT_CURSTD_KEY_INT);
-        WT_ERR(clayered->current_cursor->get_value(clayered->current_cursor, &cursor->value));
-        F_SET(cursor, WT_CURSTD_VALUE_INT);
-        WT_ERR(__wt_cursor_localkey(cursor));
-        WT_ERR(__cursor_localvalue(cursor));
-        WT_ERR(clayered->current_cursor->reset(clayered->current_cursor));
-        clayered->current_cursor = NULL;
-        ret = WT_DUPLICATE_KEY;
-    }
 
 err:
     __wt_scr_free(session, &buf);
