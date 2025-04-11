@@ -72,7 +72,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * simply discarding the page due to the dhandle being dead or the connection close.
      */
     if (!(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING)))
-        if (!__wt_page_materialization_check(session, page, true))
+        if (!__wt_page_materialization_check(session, page->old_rec_lsn_max))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_ahead_of_last_materialized_lsn);
 
     /*
