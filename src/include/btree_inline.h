@@ -1989,7 +1989,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Check if the page can be evicted given the current materialization frontier.
  */
 static WT_INLINE bool
-__wt_page_materialization_check(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_page_materialization_check(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_old_lsn)
 {
     WT_DISAGGREGATED_STORAGE *disagg;
     uint64_t last_materialized_lsn;
@@ -2002,7 +2002,8 @@ __wt_page_materialization_check(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (last_materialized_lsn == WT_DISAGG_LSN_NONE)
         return (true);
 
-    return (page->rec_lsn_max <= last_materialized_lsn);
+    return (check_old_lsn ? page->old_rec_lsn_max <= last_materialized_lsn :
+                            page->rec_lsn_max <= last_materialized_lsn);
 }
 
 /*
@@ -2037,7 +2038,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * materialized yet. Evicting such page and then reading it back in would result in a
      * potentially significant stall.
      */
-    if (!__wt_page_materialization_check(session, page)) {
+    if (!__wt_page_materialization_check(session, page, false)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
         return (false);
     }
