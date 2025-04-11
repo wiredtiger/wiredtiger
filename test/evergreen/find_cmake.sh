@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # CMake version we fallback to and download when cmake doesn't exist on the
 # host system.
