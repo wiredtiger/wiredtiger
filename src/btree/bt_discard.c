@@ -70,9 +70,15 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     /*
      * Ensure that we are not evicting a page ahead of the materialization frontier, unless we are
      * simply discarding the page due to the dhandle being dead or the connection close.
+     *
+     * Here we are using the old_rec_lsn_max. This is because if we have done a dirty eviction, the
+     * new value holds the max lsn that is reloaded to memory. If we have done a clean eviction of
+     * the page that is read from the disk, the old value is the same as the new value. The only
+     * exception is the clean eviction for a page that has been reconciled before. We should use the
+     * new value but we cannot detect this case here.
      */
     if (!(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING)))
-        if (!__wt_page_materialization_check(session, page))
+        if (!__wt_page_materialization_check(session, page->old_rec_lsn_max))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_ahead_of_last_materialized_lsn);
 
     /*
