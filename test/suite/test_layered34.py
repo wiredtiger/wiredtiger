@@ -36,7 +36,8 @@ from wtscenario import make_scenarios
 class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = 'statistics=(all),' \
                      + 'statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'checkpoint=(precise=true),disaggregated=(page_log=palm),'
+                     + 'checkpoint=(precise=true),disaggregated=(page_log=palm,' \
+                     + 'lose_all_my_data=true),'
     conn_config = conn_base_config + 'disaggregated=(role="follower")'
 
     create_session_config = 'key_format=S,value_format=S'
@@ -81,7 +82,7 @@ class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
         (ret, checkpoint1_last_lsn) = page_log.pl_get_last_lsn(self.session)
-        self.assertEquals(ret, 0)
+        self.assertEqual(ret, 0)
 
         # Add more data and create another checkpoint
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -90,7 +91,7 @@ class test_layered34(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.checkpoint()
 
         (ret, checkpoint2_last_lsn) = page_log.pl_get_last_lsn(self.session)
-        self.assertEquals(ret, 0)
+        self.assertEqual(ret, 0)
 
         page_log.pl_set_last_materialized_lsn(self.session, checkpoint1_last_lsn)
         self.conn.reconfigure(f'disaggregated=(last_materialized_lsn={checkpoint1_last_lsn})')

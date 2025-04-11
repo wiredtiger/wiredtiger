@@ -168,6 +168,9 @@ __posix_sync(WT_SESSION_IMPL *session, int fd, const char *name, const char *fun
 {
     WT_DECL_RET;
 
+    if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_NO_SYNC))
+        return (0);
+
 #if defined(F_FULLFSYNC)
     /*
      * OS X fsync documentation: "Note that while fsync() will flush all data from the host to the
@@ -649,6 +652,9 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_NO_SYNC))
+        return (0);
 
     /* See comment in __posix_sync(): sync cannot be retried or fail. */
     WT_SYSCALL(sync_file_range(pfh->fd, (off64_t)0, (off64_t)0, SYNC_FILE_RANGE_WRITE), ret);

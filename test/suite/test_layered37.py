@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered37(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                 + 'disaggregated=(page_log=palm),'
+                 + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
 
     disagg_storages = gen_disagg_storages('test_layered37', disagg_only = True)
 
