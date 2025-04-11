@@ -74,7 +74,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * Here we are using the old_rec_lsn_max. This is because if we have done a dirty eviction, the
      * new value holds the max lsn that is reloaded to memory. If we have done a clean eviction of
      * the page that is read from the disk, the old value is the same as the new value. The only
-     * execption is the clean eviction for a page that has been reconciled before. We should use the
+     * exception is the clean eviction for a page that has been reconciled before. We should use the
      * new value but we cannot detect this case here.
      */
     if (!(F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING)))
