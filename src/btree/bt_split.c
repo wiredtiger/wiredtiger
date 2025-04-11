@@ -1409,7 +1409,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
       session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &instantiate_upd));
     multi->disk_image = NULL;
 
-    ref->page->block_meta = multi->block_meta;
+    /* Preserve the relevant metadata. */
+    page->block_meta = multi->block_meta;
+    page->rec_lsn_max = multi->block_meta.disagg_lsn;
+    WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
 
     /*
      * In-memory databases restore non-obsolete updates directly in this function, don't call the
@@ -1430,20 +1433,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (!__wt_readgen_evict_soon(&orig_read_gen))
         __wt_atomic_store64(&page->read_gen, orig_read_gen);
 
-    /* Preserve the relevant metadata. */
-    if (!instantiate_upd) {
-        page->block_meta = multi->block_meta;
-        page->rec_lsn_max = orig->rec_lsn_max;
-        WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
-    }
-
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.
      */
     if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
-        WT_RET(__wt_page_modify_init(session, ref->page));
-        __wt_page_modify_set(session, ref->page);
+        WT_RET(__wt_page_modify_init(session, page));
+        __wt_page_modify_set(session, page);
     }
 
     /*
