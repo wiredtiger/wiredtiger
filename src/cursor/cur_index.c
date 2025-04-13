@@ -42,7 +42,7 @@ __curindex_set_valuev(WT_CURSOR *cursor, va_list ap)
     WT_UNUSED(ap);
 
     CURSOR_API_CALL(cursor, session, ret, set_value, NULL);
-    WT_ERR_MSG(session, ENOTSUP, "WT_CURSOR.set_value not supported for index cursors");
+    WT_ERR_MSG(session, WT_E(ENOTSUP), "WT_CURSOR.set_value not supported for index cursors");
 
 err:
     cursor->saved_err = ret;
@@ -80,7 +80,7 @@ __curindex_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 
     /* Check both cursors are "index:" type. */
     if (!WT_PREFIX_MATCH(a->uri, "index:") || strcmp(a->uri, b->uri) != 0)
-        WT_ERR_MSG(session, EINVAL, "Cursors must reference the same object");
+        WT_ERR_MSG(session, WT_E(EINVAL), "Cursors must reference the same object");
 
     WT_ERR(__cursor_checkkey(a));
     WT_ERR(__cursor_checkkey(b));
@@ -255,7 +255,7 @@ __curindex_search(WT_CURSOR *cursor)
      */
     found_key = child->key;
     if (found_key.size < cursor->key.size)
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
 
     /*
      * Custom collators expect to see complete keys, pass an item containing all the visible fields
@@ -269,7 +269,7 @@ __curindex_search(WT_CURSOR *cursor)
 
     WT_ERR(__wt_compare(session, cindex->index->collator, &cursor->key, &found_key, &cmp));
     if (cmp != 0) {
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
         goto err;
     }
 
@@ -451,7 +451,7 @@ __curindex_bound(WT_CURSOR *cursor, const char *config)
          */
         if (!__increment_bound_array(&child->lower_bound)) {
             WT_ERR(__wt_cursor_bounds_restore(session, child, &saved_bounds));
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_E(EINVAL),
               "Cannot set index cursors with the max possible key as the lower bound");
         }
     }
@@ -595,13 +595,13 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
 
     tablename = uri;
     if (!WT_PREFIX_SKIP(tablename, "index:") || (idxname = strchr(tablename, ':')) == NULL)
-        WT_RET_MSG(session, EINVAL, "Invalid cursor URI: '%s'", uri);
+        WT_RET_MSG(session, WT_E(EINVAL), "Invalid cursor URI: '%s'", uri);
     namesize = (size_t)(idxname - tablename);
     ++idxname;
 
     if ((ret = __wt_schema_get_table(session, tablename, namesize, false, 0, &table)) != 0) {
         if (ret == WT_NOTFOUND)
-            WT_RET_MSG(session, EINVAL, "Cannot open cursor '%s' on unknown table", uri);
+            WT_RET_MSG(session, WT_E(EINVAL), "Cannot open cursor '%s' on unknown table", uri);
         return (ret);
     }
 
@@ -636,7 +636,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
      * that for now.
      */
     if (WT_CURSOR_RECNO(cursor))
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           "Column store indexes based on a record number primary key are not supported");
 
     /* Handle projections. */

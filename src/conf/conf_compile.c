@@ -44,27 +44,27 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
         /* We must be doing an explicit compilation. */
         if (!bind_allowed)
             WT_RET_MSG(
-              session, EINVAL, "Value '%.*s' is not valid here", (int)value->len, value->str);
+              session, WT_E(EINVAL), "Value '%.*s' is not valid here", (int)value->len, value->str);
 
         if (value->len < 2)
-            WT_RET_MSG(session, EINVAL, "Percent binding format is incomplete");
+            WT_RET_MSG(session, WT_E(EINVAL), "Percent binding format is incomplete");
 
         if (value->str[1] == 'd') {
             if (check_type != WT_CONFIG_ITEM_NUM && check_type != WT_CONFIG_ITEM_BOOL)
-                WT_RET_MSG(session, EINVAL, "Value '%.*s' is not compatible with %s type",
+                WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' is not compatible with %s type",
                   (int)value->len, value->str, check->type);
         } else if (value->str[1] == 's') {
             if (check_type != WT_CONFIG_ITEM_STRING && check_type != WT_CONFIG_ITEM_STRUCT)
-                WT_RET_MSG(session, EINVAL, "Value '%.*s' is not compatible with %s type",
+                WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' is not compatible with %s type",
                   (int)value->len, value->str, check->type);
         } else
-            WT_RET_MSG(session, EINVAL, "Value '%.*s' does not match %s for binding",
+            WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' does not match %s for binding",
               (int)value->len, value->str, "%d or %s");
 
         bind_offset = top_conf->binding_count++;
 
         if (conf_value->type == CONF_VALUE_BIND_DESC)
-            WT_RET_MSG(session, EINVAL, "Value '%.*s' cannot be used on the same key twice",
+            WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' cannot be used on the same key twice",
               (int)value->len, value->str);
 
         conf_value->type = CONF_VALUE_BIND_DESC;
@@ -78,13 +78,13 @@ __conf_compile_value(WT_SESSION_IMPL *session, WT_CONF *top_conf, WT_CONFIG_ITEM
         switch (check_type) {
         case WT_CONFIG_ITEM_NUM:
             if (value->type != WT_CONFIG_ITEM_NUM)
-                WT_RET_MSG(session, EINVAL, "Value '%.*s' expected to be an integer",
+                WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' expected to be an integer",
                   (int)value->len, value->str);
             break;
         case WT_CONFIG_ITEM_BOOL:
             if (value->type != WT_CONFIG_ITEM_BOOL &&
               (value->type != WT_CONFIG_ITEM_NUM || (value->val != 0 && value->val != 1)))
-                WT_RET_MSG(session, EINVAL, "Value '%.*s' expected to be a boolean",
+                WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' expected to be a boolean",
                   (int)value->len, value->str);
 
             /*
@@ -177,7 +177,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
         check = (const WT_CONFIG_CHECK *)bsearch(
           &key, &checks[i], check_count - i, sizeof(WT_CONFIG_CHECK), __conf_check_compare);
         if (check == NULL)
-            WT_ERR_MSG(session, EINVAL, "Error compiling '%s', unknown key '%.*s' for method '%s'",
+            WT_ERR_MSG(session, WT_E(EINVAL), "Error compiling '%s', unknown key '%.*s' for method '%s'",
               format, (int)key.len, key.str, api);
 
         /* The key id is an offset into the value_map table. */
@@ -208,7 +208,7 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
         if (check_type == WT_CONFIG_ITEM_STRUCT && check->choices != NULL &&
           value.type == WT_CONFIG_ITEM_STRING) {
             if (!__wt_config_get_choice(check->choices, &value))
-                WT_ERR_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",
+                WT_ERR_MSG(session, WT_E(EINVAL), "Value '%.*s' not a permitted choice for key '%.*s'",
                   (int)value.len, value.str, (int)key.len, key.str);
             conf_value->type = is_default ? CONF_VALUE_DEFAULT_ITEM : CONF_VALUE_NONDEFAULT_ITEM;
             conf_value->u.item = value;
@@ -220,19 +220,19 @@ __conf_compile(WT_SESSION_IMPL *session, const char *api, WT_CONF *top_conf, WT_
                  * of things. Check for matching pairs of parentheses, etc. and strip them.
                  */
                 if (value.type != WT_CONFIG_ITEM_STRUCT)
-                    WT_ERR_MSG(session, EINVAL, "Value '%.*s' expected to be a category",
+                    WT_ERR_MSG(session, WT_E(EINVAL), "Value '%.*s' expected to be a category",
                       (int)value.len, value.str);
                 if (value.str[0] == '[') {
                     if (value.str[value.len - 1] != ']')
-                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching []", (int)value.len,
+                        WT_ERR_MSG(session, WT_E(EINVAL), "Value '%.*s' non-matching []", (int)value.len,
                           value.str);
                 } else if (value.str[0] == '(') {
                     if (value.str[value.len - 1] != ')')
-                        WT_ERR_MSG(session, EINVAL, "Value '%.*s' non-matching ()", (int)value.len,
+                        WT_ERR_MSG(session, WT_E(EINVAL), "Value '%.*s' non-matching ()", (int)value.len,
                           value.str);
                 } else
                     WT_ERR_MSG(
-                      session, EINVAL, "Value '%.*s' expected () or []", (int)value.len, value.str);
+                      session, WT_E(EINVAL), "Value '%.*s' expected () or []", (int)value.len, value.str);
 
                 /* Remove the first and last char, they were just checked */
                 ++value.str;
@@ -319,7 +319,7 @@ __wt_conf_compile(
     void *buf;
 
     if (format == NULL || api == NULL)
-        WT_RET_MSG(session, EINVAL, "Missing format or method string");
+        WT_RET_MSG(session, WT_E(EINVAL), "Missing format or method string");
 
     conn = S2C(session);
     conf = NULL;
@@ -328,10 +328,10 @@ __wt_conf_compile(
 
     centry = __wt_conn_config_match(api);
     if (centry == NULL)
-        WT_RET_MSG(session, EINVAL, "Error compiling configuration, unknown method '%s'", api);
+        WT_RET_MSG(session, WT_E(EINVAL), "Error compiling configuration, unknown method '%s'", api);
 
     if (!centry->compilable)
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           "Error compiling, method '%s' does not support compiled configurations", centry->method);
 
     /*
@@ -355,7 +355,7 @@ __wt_conf_compile(
      */
     compiled_entry = __wt_atomic_fetch_addv32(&conn->conf_size, 1);
     if (compiled_entry >= conn->conf_max)
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "Error compiling '%s', overflowed maximum compile slots of %" PRIu32, format,
           conn->conf_max);
     conn->conf_array[compiled_entry] = conf;
@@ -390,7 +390,7 @@ __wt_conf_compile_api_call(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *cent
     const char *cfg[3];
 
     if (!centry->compilable)
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           "Error compiling, method '%s' does not support compiled configurations", centry->method);
 
     /* Fast path: if there is no configuration, return with the default config for this API. */

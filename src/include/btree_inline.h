@@ -2115,9 +2115,9 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
      * to handle.
      */
     if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
     if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
-        return (WT_RESTART);
+        return (WT_E(WT_RESTART));
 
     /* Discard the original held page on either success or error. */
     acquired = ret == 0;
@@ -2140,9 +2140,9 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
      * case.
      */
     if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
-        WT_RET_MSG(session, EINVAL, "page-release WT_NOTFOUND error mapped to EINVAL");
+        WT_RET_MSG(session, WT_E(EINVAL), "page-release WT_NOTFOUND error mapped to EINVAL");
     if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
-        WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
+        WT_RET_MSG(session, WT_E(EINVAL), "page-release WT_RESTART error mapped to EINVAL");
 
     return (ret);
 }
@@ -2169,7 +2169,7 @@ __wt_btcur_bounds_early_exit(
       session, &cbt->iface, &cbt->iface.key, cbt->recno, next, key_out_of_boundsp));
 
     if (*key_out_of_boundsp)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     return (0);
 }

@@ -342,7 +342,7 @@ __schema_open_index(
     }
     WT_ERR_NOTFOUND_OK(ret, false);
     if (idxname != NULL && !match)
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
 
     /* If we did a full pass, we won't need to do it again. */
     if (idxname == NULL) {
@@ -441,7 +441,7 @@ __schema_open_table(WT_SESSION_IMPL *session)
     WT_RET_NOTFOUND_OK(ret);
 
     if (table->ncolgroups > 0 && table->is_simple)
-        WT_RET_MSG(session, EINVAL, "%s requires a table with named columns", tablename);
+        WT_RET_MSG(session, WT_E(EINVAL), "%s requires a table with named columns", tablename);
 
     if ((ret = __wt_config_gets(session, table_cfg, "shared", &cval)) == 0)
         table->is_tiered_shared = true;
@@ -494,8 +494,8 @@ __wt_schema_get_colgroup(
 
     WT_RET(__wt_schema_release_table(session, &table));
     if (quiet)
-        WT_RET(ENOENT);
-    WT_RET_MSG(session, ENOENT, "%s not found in table", uri);
+        WT_RET(WT_E(ENOENT));
+    WT_RET_MSG(session, WT_E(ENOENT), "%s not found in table", uri);
 }
 
 /*
@@ -545,8 +545,8 @@ err:
         return (0);
 
     if (quiet)
-        WT_RET(ENOENT);
-    WT_RET_MSG(session, ENOENT, "%s not found in table", uri);
+        WT_RET(WT_E(ENOENT));
+    WT_RET_MSG(session, WT_E(ENOENT), "%s not found in table", uri);
 }
 
 /*

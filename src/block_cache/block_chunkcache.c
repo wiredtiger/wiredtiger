@@ -664,11 +664,11 @@ __config_get_sorted_pinned_objects(WT_SESSION_IMPL *session, const char *cfg[],
         __wt_config_subinit(session, &targetconf, &cval);
         for (cnt = 0; (ret = __wt_config_next(&targetconf, &k, &v)) == 0; ++cnt) {
             if (!WT_PREFIX_MATCH(k.str, "table:"))
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "chunk cache pinned configuration only supports objects of type \"table\"");
 
             if (v.len != 0)
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "invalid chunk cache pinned config %.*s: URIs may require quoting", (int)cval.len,
                   (char *)cval.str);
 
@@ -844,7 +844,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     *cache_hit = false;
 
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
-        return (ENOTSUP);
+        return (WT_E(ENOTSUP));
 
     /* Only cache read-only tiered objects. */
     if (!block->readonly)
@@ -961,7 +961,7 @@ __wt_chunkcache_free_external(
     object_name = NULL;
 
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
-        return (ENOTSUP);
+        return (WT_E(ENOTSUP));
 
     /* Only cache read-only tiered objects. */
     if (!block->readonly)
@@ -1081,7 +1081,7 @@ __wt_chunkcache_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 
     if (!F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
         WT_RET_MSG(
-          session, EINVAL, "chunk cache reconfigure requested, but cache has not been configured");
+          session, WT_E(EINVAL), "chunk cache reconfigure requested, but cache has not been configured");
 
     WT_RET(__config_get_sorted_pinned_objects(session, cfg, &pinned_objects, &cnt));
 
@@ -1201,7 +1201,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
     pinned_objects = NULL;
 
     if (F_ISSET(chunkcache, WT_CHUNKCACHE_CONFIGURED))
-        WT_RET_MSG(session, EINVAL, "chunk cache setup requested, but cache is already configured");
+        WT_RET_MSG(session, WT_E(EINVAL), "chunk cache setup requested, but cache is already configured");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.enabled", &cval));
     if (cval.val == 0)
@@ -1209,11 +1209,11 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.capacity", &cval));
     if ((chunkcache->capacity = (uint64_t)cval.val) <= 0)
-        WT_RET_MSG(session, EINVAL, "chunk cache capacity must be greater than zero");
+        WT_RET_MSG(session, WT_E(EINVAL), "chunk cache capacity must be greater than zero");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.chunk_cache_evict_trigger", &cval));
     if (((chunkcache->evict_trigger = (u_int)cval.val) == 0) || (chunkcache->evict_trigger > 100))
-        WT_RET_MSG(session, EINVAL, "evict trigger must be between 0 and 100");
+        WT_RET_MSG(session, WT_E(EINVAL), "evict trigger must be between 0 and 100");
 
     WT_RET(__wt_config_gets(session, cfg, "chunk_cache.chunk_size", &cval));
     if ((chunkcache->chunk_size = (uint64_t)cval.val) <= 0)
@@ -1224,7 +1224,7 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
         chunkcache->hashtable_size = WT_CHUNKCACHE_DEFAULT_HASHSIZE;
     else if (chunkcache->hashtable_size < WT_CHUNKCACHE_MINHASHSIZE ||
       chunkcache->hashtable_size > WT_CHUNKCACHE_MAXHASHSIZE)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "chunk cache hashtable size must be between %d and %d entries and we have %u",
           WT_CHUNKCACHE_MINHASHSIZE, WT_CHUNKCACHE_MAXHASHSIZE, chunkcache->hashtable_size);
 
@@ -1235,11 +1235,11 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
         chunkcache->type = WT_CHUNKCACHE_FILE;
         WT_RET(__wt_config_gets(session, cfg, "chunk_cache.storage_path", &cval));
         if (cval.len == 0)
-            WT_RET_MSG(session, EINVAL, "chunk cache storage path not provided in the config.");
+            WT_RET_MSG(session, WT_E(EINVAL), "chunk cache storage path not provided in the config.");
 
         if (F_ISSET(S2C(session), WT_CONN_READONLY))
             WT_RET_MSG(
-              session, EINVAL, "on-disk chunk cache incompatible with read-only connection");
+              session, WT_E(EINVAL), "on-disk chunk cache incompatible with read-only connection");
 
         WT_RET(__wt_strndup(session, cval.str, cval.len, &chunkcache->storage_path));
         WT_RET(__wt_open(session, chunkcache->storage_path, WT_FS_OPEN_FILE_TYPE_DATA,
@@ -1249,12 +1249,12 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
 
         if (chunkcache->fh->handle->fh_map == NULL) {
             WT_IGNORE_RET(__wt_close(session, &chunkcache->fh));
-            WT_RET_MSG(session, EINVAL, "Not on a supported platform for memory-mapping files");
+            WT_RET_MSG(session, WT_E(EINVAL), "Not on a supported platform for memory-mapping files");
         }
         WT_RET(chunkcache->fh->handle->fh_map(chunkcache->fh->handle, &session->iface,
           (void **)&chunkcache->memory, &mapped_size, NULL));
         if (mapped_size != chunkcache->capacity)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "Storage size mapping %lu does not equal capacity of chunk cache %" PRIu64,
               mapped_size, chunkcache->capacity);
 

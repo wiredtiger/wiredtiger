@@ -299,7 +299,7 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
         ds->f = __dmsg_event;
     } else {
         if ((ds->fp = fopen(ofile, "w")) == NULL)
-            WT_ERR(__wt_set_return(session, EIO));
+            WT_ERR(__wt_set_return(session, WT_E(EIO)));
         __wt_stream_set_line_buffer(ds->fp);
         ds->f = __dmsg_file;
     }

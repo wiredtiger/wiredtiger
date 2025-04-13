@@ -52,7 +52,7 @@ __fstream_flush(WT_SESSION_IMPL *session, WT_FSTREAM *fstr)
 static int
 __fstream_flush_notsup(WT_SESSION_IMPL *session, WT_FSTREAM *fstr)
 {
-    WT_RET_MSG(session, ENOTSUP, "%s: flush", fstr->name);
+    WT_RET_MSG(session, WT_E(ENOTSUP), "%s: flush", fstr->name);
 }
 
 /*
@@ -113,7 +113,7 @@ static int
 __fstream_getline_notsup(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
 {
     WT_UNUSED(buf);
-    WT_RET_MSG(session, ENOTSUP, "%s: getline", fstr->name);
+    WT_RET_MSG(session, WT_E(ENOTSUP), "%s: getline", fstr->name);
 }
 
 /*
@@ -161,7 +161,7 @@ __fstream_printf_notsup(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *
 {
     WT_UNUSED(fmt);
     WT_UNUSED(ap);
-    WT_RET_MSG(session, ENOTSUP, "%s: printf", fstr->name);
+    WT_RET_MSG(session, WT_E(ENOTSUP), "%s: printf", fstr->name);
 }
 
 /*

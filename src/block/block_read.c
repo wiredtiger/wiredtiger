@@ -186,7 +186,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
      * test.
      */
     if (size < block->allocsize)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "%s: impossibly small block size of %" PRIu32 "B, less than allocation size of %" PRIu32,
           block->name, size, block->allocsize);
 
@@ -280,6 +280,6 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     /* Panic if a checksum fails during an ordinary read. */
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
     if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-        return (WT_ERROR);
-    WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
+        return (WT_E(WT_ERROR));
+    WT_RET_PANIC(session, WT_E(WT_ERROR), "%s: fatal read error", block->name);
 }

@@ -426,7 +426,7 @@ __posix_file_advise(
      */
     if (ret == EINVAL) {
         file_handle->fh_advise = NULL;
-        return (__wt_set_return(session, ENOTSUP));
+        return (__wt_set_return(session, WT_E(ENOTSUP)));
     }
 
     WT_RET_MSG(session, ret, "%s: handle-advise: posix_fadvise", file_handle->name);
@@ -530,7 +530,7 @@ __posix_file_read(
          */
         WT_SYSCALL_RETRY((nr = pread(pfh->fd, addr, chunk, offset)) <= 0 ? -1 : 0, ret);
         if (ret != 0)
-            WT_RET_MSG(session, nr == 0 ? WT_ERROR : ret,
+            WT_RET_MSG(session, nr == 0 ? WT_E(WT_ERROR) : ret,
               "%s: handle-read: pread: failed to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
     }
@@ -690,7 +690,7 @@ __posix_file_write(
     for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
         chunk = WT_MIN(len, WT_GIGABYTE);
         if ((nw = pwrite(pfh->fd, addr, chunk, offset)) < 0)
-            WT_RET_MSG(session, __wt_errno(),
+            WT_RET_MSG(session, WT_E(__wt_errno()),
               "%s: handle-write: pwrite: failed to write %" WT_SIZET_FMT
               " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
@@ -786,7 +786,7 @@ __posix_open_file_cloexec(WT_SESSION_IMPL *session, int fd, const char *name)
      * the flag to open if available.
      */
     if ((f = fcntl(fd, F_GETFD)) == -1 || fcntl(fd, F_SETFD, f | FD_CLOEXEC) == -1)
-        WT_RET_MSG(session, __wt_errno(), "%s: handle-open: fcntl(FD_CLOEXEC)", name);
+        WT_RET_MSG(session, WT_E(__wt_errno()), "%s: handle-open: fcntl(FD_CLOEXEC)", name);
     return (0);
 #else
     WT_UNUSED(session);
@@ -875,7 +875,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
 #elif defined(O_SYNC)
         f |= O_SYNC;
 #else
-        WT_ERR_MSG(session, ENOTSUP, "unsupported log sync mode configured");
+        WT_ERR_MSG(session, WT_E(ENOTSUP), "unsupported log sync mode configured");
 #endif
     }
 

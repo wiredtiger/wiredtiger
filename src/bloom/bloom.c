@@ -59,10 +59,10 @@ err:
  *     open.
  */
 static int
-__bloom_setup(WT_BLOOM *bloom, uint64_t n, uint64_t m, uint32_t factor, uint32_t k)
+__bloom_setup(WT_SESSION_IMPL *session, WT_BLOOM *bloom, uint64_t n, uint64_t m, uint32_t factor, uint32_t k)
 {
     if (k < 2)
-        WT_RET_MSG(bloom->session, EINVAL,
+        WT_RET_MSG(bloom->session, WT_E(EINVAL),
           "bloom filter hash values to be set/tested must be greater than 2");
 
     bloom->k = k;
@@ -92,7 +92,7 @@ __wt_bloom_create(WT_SESSION_IMPL *session, const char *uri, const char *config,
     WT_DECL_RET;
 
     WT_RET(__bloom_init(session, uri, config, &bloom));
-    WT_ERR(__bloom_setup(bloom, count, 0, factor, k));
+    WT_ERR(__bloom_setup(session, bloom, count, 0, factor, k));
 
     WT_ERR(__bit_alloc(session, bloom->m, &bloom->bitstring));
 
@@ -159,7 +159,7 @@ __wt_bloom_open(WT_SESSION_IMPL *session, const char *uri, uint32_t factor, uint
     WT_ERR(c->get_key(c, &size));
     WT_ERR(c->reset(c));
 
-    WT_ERR(__bloom_setup(bloom, 0, size, factor, k));
+    WT_ERR(__bloom_setup(session, bloom, 0, size, factor, k));
 
     *bloomp = bloom;
     return (0);

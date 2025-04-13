@@ -189,7 +189,7 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
     if (btree->type == BTREE_COL_FIX) {
         /* Fixed-size column-stores take a single byte. */
         if (kv->size != 1)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "item size of %" WT_SIZET_FMT
               " does not match fixed-length file requirement of 1 byte",
               kv->size);
@@ -202,7 +202,7 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 
     /* Check what we are willing to store in the tree. */
     if (kv->size > WT_BTREE_MAX_OBJECT_SIZE)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "item size of %" WT_SIZET_FMT
           " exceeds the maximum supported WiredTiger size of %" PRIu32,
           kv->size, WT_BTREE_MAX_OBJECT_SIZE);
@@ -804,7 +804,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
       session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
     if (key_out_of_bounds) {
         WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_search_early_exit);
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
     }
 
     /*
@@ -849,7 +849,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     } else
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
 
     /*
      * The format test program does repeatable reads testing, and wants to dump the cursor page on
@@ -1136,7 +1136,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_ERR(__btcur_bounds_contains_key(
       session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
     if (key_out_of_bounds)
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
 
     /*
      * If inserting with overwrite configured, and positioned to an on-page key, the update doesn't
@@ -1253,11 +1253,11 @@ err:
     if (0) {
 duplicate:
         if (F_ISSET(cursor, WT_CURSTD_DUP_NO_VALUE))
-            ret = WT_DUPLICATE_KEY;
+            ret = WT_E(WT_DUPLICATE_KEY);
         else {
             __wt_value_return(cbt, cbt->upd_value);
             if ((ret = __cursor_localvalue(cursor)) == 0)
-                ret = WT_DUPLICATE_KEY;
+                ret = WT_E(WT_DUPLICATE_KEY);
         }
     }
 
@@ -1440,11 +1440,11 @@ retry:
             WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, true));
             WT_ERR(ret);
             if (!valid)
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
 
             ret = __cursor_row_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else
-            WT_ERR(WT_NOTFOUND);
+            WT_ERR(WT_E(WT_NOTFOUND));
     } else {
         WT_ERR(__cursor_col_search(cbt, NULL, NULL));
         if (cbt->compare == 0) {
@@ -1457,7 +1457,7 @@ retry:
             WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, true));
             WT_ERR(ret);
             if (!valid && btree->type != BTREE_COL_FIX)
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
             else if (!valid)
                 /*
                  * To preserve the illusion that deleted values are 0 and that we can therefore
@@ -1487,7 +1487,7 @@ retry:
              */
             cbt->recno = cursor->recno;
         } else
-            WT_ERR(WT_NOTFOUND);
+            WT_ERR(WT_E(WT_NOTFOUND));
     }
 
 err:
@@ -1574,7 +1574,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     WT_ERR(__btcur_bounds_contains_key(
       session, cursor, &cursor->key, cursor->recno, &key_out_of_bounds, NULL));
     if (key_out_of_bounds)
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
 
     /*
      * If update positioned to an on-page key, the update doesn't require another search. We don't
@@ -1634,9 +1634,9 @@ retry:
                 WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, false));
                 WT_ERR(ret);
                 if (!valid)
-                    WT_ERR(WT_NOTFOUND);
+                    WT_ERR(WT_E(WT_NOTFOUND));
             } else
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
         }
         ret = __cursor_row_modify(cbt, value, modify_type);
     } else {
@@ -1659,10 +1659,10 @@ retry:
                     WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, false));
                     WT_ERR(ret);
                     if (!valid)
-                        WT_ERR(WT_NOTFOUND);
+                        WT_ERR(WT_E(WT_NOTFOUND));
                 }
             } else if (!__cursor_fix_implicit(btree, cbt))
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
         }
         ret = __cursor_col_modify(cbt, value, modify_type);
     }
@@ -1827,9 +1827,9 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
      */
     if (session->txn->isolation != WT_ISO_SNAPSHOT)
         WT_ERR_MSG(
-          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
+          session, WT_E(ENOTSUP), "not supported in read-committed or read-uncommitted transactions");
     if (F_ISSET(session->txn, WT_TXN_AUTOCOMMIT))
-        WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
+        WT_ERR_MSG(session, WT_E(ENOTSUP), "not supported in implicit transactions");
 
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
         WT_ERR(__wt_btcur_search(cbt));
@@ -1949,7 +1949,7 @@ __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp)
 
     /* Confirm both cursors reference the same object. */
     if (CUR2BT(a_arg) != CUR2BT(b_arg))
-        WT_RET_MSG(session, EINVAL, "cursors must reference the same object");
+        WT_RET_MSG(session, WT_E(EINVAL), "cursors must reference the same object");
 
     switch (btree->type) {
     case BTREE_COL_FIX:
@@ -2022,7 +2022,7 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
 
     /* Confirm both cursors reference the same object. */
     if (CUR2BT(a_arg) != CUR2BT(b_arg))
-        WT_RET_MSG(session, EINVAL, "cursors must reference the same object");
+        WT_RET_MSG(session, WT_E(EINVAL), "cursors must reference the same object");
 
     /*
      * The reason for an equals method is because we can avoid doing a full key comparison in some
@@ -2096,7 +2096,7 @@ err:
         __cursor_restart(session, &yield_count, &sleep_usecs);
         goto retry;
     }
-    return (ret == WT_NOTFOUND ? WT_ROLLBACK : ret);
+    return (ret == WT_NOTFOUND ? WT_E(WT_ROLLBACK) : ret);
 }
 
 /*
@@ -2158,7 +2158,7 @@ err:
         __cursor_restart(session, &yield_count, &sleep_usecs);
         goto retry;
     }
-    return (ret == WT_NOTFOUND ? WT_ROLLBACK : ret);
+    return (ret == WT_NOTFOUND ? WT_E(WT_ROLLBACK) : ret);
 }
 
 /*

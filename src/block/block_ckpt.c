@@ -97,7 +97,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         live_open = block->live_open;
         block->live_open = true;
         __wt_spin_unlock(session, &block->live_lock);
-        WT_ERR_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, live_open == false, EBUSY,
+        WT_ERR_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, live_open == false, WT_E(EBUSY),
           "%s: attempt to re-open live file", block->name);
 
         ci = &block->live;
@@ -246,7 +246,7 @@ __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     case WT_CKPT_INPROGRESS:
     case WT_CKPT_PANIC_ON_FAILURE:
     case WT_CKPT_SALVAGE:
-        ret = __wt_panic(session, EINVAL,
+        ret = __wt_panic(session, WT_E(EINVAL),
           "%s: an unexpected checkpoint start: the checkpoint has already started or was "
           "configured for salvage",
           block->name);
@@ -619,7 +619,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         break;
     case WT_CKPT_NONE:
     case WT_CKPT_PANIC_ON_FAILURE:
-        ret = __wt_panic(session, EINVAL,
+        ret = __wt_panic(session, WT_E(EINVAL),
           "%s: an unexpected checkpoint attempt: the checkpoint was never started or has already "
           "completed",
           block->name);
@@ -684,7 +684,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          */
         if (next_ckpt->bpriv == NULL && !F_ISSET(next_ckpt, WT_CKPT_ADD)) {
             WT_ERR(__ckpt_extlist_read(session, block, next_ckpt, &local));
-            WT_ERR_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, local == true, WT_PANIC,
+            WT_ERR_ASSERT(session, WT_DIAGNOSTIC_CHECKPOINT_VALIDATE, local == true, WT_E(WT_PANIC),
               "tiered storage checkpoint follows local checkpoint");
         }
     }
@@ -887,7 +887,7 @@ live_update:
         a = &block->live;
     if (a->discard.entries != 0)
         WT_ERR_MSG(
-          session, WT_ERROR, "first checkpoint incorrectly has blocks on the discard list");
+          session, WT_E(WT_ERROR), "first checkpoint incorrectly has blocks on the discard list");
 #endif
 
 err:
@@ -1047,7 +1047,7 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
         goto done;
     case WT_CKPT_NONE:
     case WT_CKPT_SALVAGE:
-        ret = __wt_panic(session, EINVAL,
+        ret = __wt_panic(session, WT_E(EINVAL),
           "%s: an unexpected checkpoint resolution: the checkpoint was never started or completed, "
           "or configured for salvage",
           block->name);
@@ -1057,7 +1057,7 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
         if (!failed)
             break;
         ret = __wt_panic(
-          session, EINVAL, "%s: the checkpoint failed, the system must restart", block->name);
+          session, WT_E(EINVAL), "%s: the checkpoint failed, the system must restart", block->name);
         __wt_bm_set_readonly(session);
         break;
     }

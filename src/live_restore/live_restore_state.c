@@ -78,7 +78,7 @@ __live_restore_state_from_string(
     else if (WT_STRING_LIT_MATCH("WTI_LIVE_RESTORE_STATE_COMPLETE", state_str, str_len))
         *statep = WTI_LIVE_RESTORE_STATE_COMPLETE;
     else
-        WT_RET_MSG(session, EINVAL, "Invalid state string: '%s' ", state_str);
+        WT_RET_MSG(session, WT_E(EINVAL), "Invalid state string: '%s' ", state_str);
 
     return (0);
 }
@@ -372,11 +372,11 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
       lr_fs->source.home, "", &dirlist_source, &num_source_files));
 
     if (num_source_files == 0)
-        WT_ERR_MSG(session, EINVAL, "Source directory is empty. Nothing to restore!");
+        WT_ERR_MSG(session, WT_E(EINVAL), "Source directory is empty. Nothing to restore!");
 
     for (uint32_t i = 0; i < num_source_files; ++i) {
         if (WT_SUFFIX_MATCH(dirlist_source[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX))
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_E(EINVAL),
               "Source directory contains live restore stop file: %s. This implies it is a "
               "destination directory that hasn't finished restoration",
               dirlist_source[i]);
@@ -391,7 +391,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
      * in the destination, and never copy across the file causing data loss.
      */
     if (!contain_backup_file)
-        WT_ERR_MSG(session, EINVAL, "Source directory is not a valid backup directory");
+        WT_ERR_MSG(session, WT_E(EINVAL), "Source directory is not a valid backup directory");
 
     /* Now check the destination folder */
 
@@ -411,7 +411,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
         for (uint32_t i = 0; i < num_dest_files; ++i) {
             if (WT_PREFIX_MATCH(dirlist_dest[i], WT_WIREDTIGER) ||
               WT_SUFFIX_MATCH(dirlist_dest[i], ".wt"))
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "Attempting to begin a live restore on a directory that already contains "
                   "WiredTiger files '%s'! It's possible this file will be overwritten.",
                   dirlist_dest[i]);
@@ -424,7 +424,7 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
     case WTI_LIVE_RESTORE_STATE_COMPLETE:
         for (uint32_t i = 0; i < num_dest_files; ++i) {
             if (WT_SUFFIX_MATCH(dirlist_dest[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX))
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "Live restore is complete but live restore stop file '%s' still exists!",
                   dirlist_dest[i]);
         }
@@ -452,7 +452,7 @@ __wt_live_restore_validate_non_lr_system(WT_SESSION_IMPL *session)
     WTI_LIVE_RESTORE_STATE state;
     WT_RET(__live_restore_get_state_from_file(session, S2C(session)->file_system, &state));
     if (state != WTI_LIVE_RESTORE_STATE_NONE && state != WTI_LIVE_RESTORE_STATE_COMPLETE)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "Cannot start in non-live restore mode while a live restore is in progress!");
 
     return (0);

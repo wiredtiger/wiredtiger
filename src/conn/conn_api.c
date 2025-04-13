@@ -80,7 +80,7 @@ __collator_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_COLLATOR 
             *collatorp = ncoll->collator;
             return (0);
         }
-    WT_RET_MSG(session, EINVAL, "unknown collator '%.*s'", (int)cname->len, cname->str);
+    WT_RET_MSG(session, WT_E(EINVAL), "unknown collator '%.*s'", (int)cname->len, cname->str);
 }
 
 /*
@@ -131,7 +131,7 @@ __conn_add_collator(
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
-        WT_ERR_MSG(session, EINVAL, "invalid name for a collator: %s", name);
+        WT_ERR_MSG(session, WT_E(EINVAL), "invalid name for a collator: %s", name);
 
     WT_ERR(__wt_calloc_one(session, &ncoll));
     WT_ERR(__wt_strdup(session, name, &ncoll->name));
@@ -199,7 +199,7 @@ __compressor_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_COMPRESS
             *compressorp = ncomp->compressor;
             return (0);
         }
-    WT_RET_MSG(session, EINVAL, "unknown compressor '%.*s'", (int)cval->len, cval->str);
+    WT_RET_MSG(session, WT_E_S(conn->default_session, EINVAL), "unknown compressor '%.*s'", (int)cval->len, cval->str);
 }
 
 /*
@@ -232,7 +232,7 @@ __conn_add_compressor(
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
-        WT_ERR_MSG(session, EINVAL, "invalid name for a compressor: %s", name);
+        WT_ERR_MSG(session, WT_E(EINVAL), "invalid name for a compressor: %s", name);
 
     WT_ERR(__wt_calloc_one(session, &ncomp));
     WT_ERR(__wt_strdup(session, name, &ncomp->name));
@@ -369,7 +369,7 @@ __encryptor_confchk(
             return (0);
         }
 
-    WT_RET_MSG(session, EINVAL, "unknown encryptor '%.*s'", (int)cval->len, cval->str);
+    WT_RET_MSG(session, WT_E_S(conn->default_session, EINVAL), "unknown encryptor '%.*s'", (int)cval->len, cval->str);
 }
 
 /*
@@ -397,7 +397,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     WT_ERR(__encryptor_confchk(session, cval, &nenc));
     if (nenc == NULL) {
         if (keyid->len != 0)
-            WT_ERR_MSG(session, EINVAL, "encryption.keyid requires encryption.name to be set");
+            WT_ERR_MSG(session, WT_E_S(conn->default_session, EINVAL), "encryption.keyid requires encryption.name to be set");
         goto out;
     }
 
@@ -406,7 +406,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
      * needs to be configured on the database as well.
      */
     if (conn->kencryptor == NULL && kencryptorp != &conn->kencryptor)
-        WT_ERR_MSG(session, EINVAL, "table encryption requires connection encryption to be set");
+        WT_ERR_MSG(session, WT_E(EINVAL), "table encryption requires connection encryption to be set");
     hash = __wt_hash_city64(keyid->str, keyid->len);
     bucket = hash & (conn->hash_size - 1);
     TAILQ_FOREACH (kenc, &nenc->keyedhashqh[bucket], q)
@@ -464,10 +464,10 @@ __conn_add_encryptor(
     WT_UNUSED(cfg);
 
     if (strcmp(name, "none") == 0)
-        WT_ERR_MSG(session, EINVAL, "invalid name for an encryptor: %s", name);
+        WT_ERR_MSG(session, WT_E(EINVAL), "invalid name for an encryptor: %s", name);
 
     if (encryptor->encrypt == NULL || encryptor->decrypt == NULL || encryptor->sizing == NULL)
-        WT_ERR_MSG(session, EINVAL, "encryptor: %s: required callbacks not set", name);
+        WT_ERR_MSG(session, WT_E(EINVAL), "encryptor: %s: required callbacks not set", name);
 
     /*
      * Verify that terminate is set if customize is set. We could relax this restriction and give an
@@ -475,7 +475,7 @@ __conn_add_encryptor(
      * mistakes.
      */
     if (encryptor->customize != NULL && encryptor->terminate == NULL)
-        WT_ERR_MSG(session, EINVAL, "encryptor: %s: has customize but no terminate", name);
+        WT_ERR_MSG(session, WT_E(EINVAL), "encryptor: %s: has customize but no terminate", name);
 
     WT_ERR(__wt_calloc_one(session, &nenc));
     WT_ERR(__wt_strdup(session, name, &nenc->name));
@@ -595,7 +595,7 @@ __conn_get_storage_source(
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     *storage_sourcep = NULL;
 
-    ret = EINVAL;
+    ret = WT_E_S(conn->default_session, EINVAL);
     TAILQ_FOREACH (nstorage_source, &conn->storagesrcqh, q)
         if (WT_STREQ(nstorage_source->name, name)) {
             storage_source = nstorage_source->storage_source;
@@ -669,7 +669,7 @@ __conn_ext_file_system_get(
 
     fs = ((WT_CONNECTION_IMPL *)wt_api->conn)->file_system;
     if (fs == NULL)
-        return (WT_NOTFOUND);
+        return (WT_E_S((WT_SESSION_IMPL*)session, WT_NOTFOUND));
     *file_system = fs;
     return (0);
 }
@@ -1401,7 +1401,7 @@ __conn_config_check_version(WT_SESSION_IMPL *session, const char *config)
 
     if (vmajor.val > WIREDTIGER_VERSION_MAJOR ||
       (vmajor.val == WIREDTIGER_VERSION_MAJOR && vminor.val > WIREDTIGER_VERSION_MINOR))
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           "WiredTiger configuration is from an incompatible release of the WiredTiger engine, "
           "configuration major, minor of (%" PRId64 ", %" PRId64 "), with build (%d, %d)",
           vmajor.val, vminor.val, WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR);
@@ -1444,7 +1444,7 @@ __conn_config_file(
      * of time.)
      */
     if (size > 100 * 1024)
-        WT_ERR_MSG(session, EFBIG, "Configuration file too big: %s", filename);
+        WT_ERR_MSG(session, WT_E(EFBIG), "Configuration file too big: %s", filename);
     len = (size_t)size;
 
     /*
@@ -1543,7 +1543,7 @@ err:
      */
     if (!is_user && ret == EINVAL) {
         F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-        return (WT_ERROR);
+        return (WT_E(WT_ERROR));
     }
 
     return (ret);
@@ -1583,7 +1583,7 @@ __conn_env_var(WT_SESSION_IMPL *session, const char *cfg[], const char *name, co
 
     WT_ERR(__wt_config_gets(session, cfg, "use_environment_priv", &cval));
     if (cval.val == 0)
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           "privileged process has %s environment variable set, without having "
           "\"use_environment_priv\" configured",
           name);
@@ -1641,12 +1641,12 @@ __conn_hash_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     WT_RET(__wt_config_gets(session, cfg, "hash.buckets", &cval));
     if (!__wt_ispo2((uint32_t)cval.val))
-        WT_RET_MSG(session, EINVAL, "Hash bucket size %" PRIu64 " invalid. Must be power of 2",
+        WT_RET_MSG(session, WT_E(EINVAL), "Hash bucket size %" PRIu64 " invalid. Must be power of 2",
           (uint64_t)cval.val);
     conn->hash_size = (uint64_t)cval.val;
     WT_RET(__wt_config_gets(session, cfg, "hash.dhandle_buckets", &cval));
     if (!__wt_ispo2((uint32_t)cval.val))
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "Data handle hash bucket size %" PRIu64 " invalid. Must be power of 2",
           (uint64_t)cval.val);
     conn->dh_hash_size = (uint64_t)cval.val;
@@ -1733,7 +1733,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
     if (match)
-        WT_ERR_MSG(session, EBUSY,
+        WT_ERR_MSG(session, WT_E(EBUSY),
           "WiredTiger database is already being managed by another thread in this process");
 
     /*
@@ -1794,7 +1794,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
         if (!exist) {
             F_SET(conn, WT_CONN_DATA_CORRUPTION);
-            WT_ERR(WT_ERROR);
+            WT_ERR(WT_E(WT_ERROR));
         }
     }
 
@@ -1807,7 +1807,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
          */
         if (__wt_file_lock(session, conn->lock_fh, true) != 0)
             WT_ERR_MSG(
-              session, EBUSY, "WiredTiger database is already being managed by another process");
+              session, WT_E(EBUSY), "WiredTiger database is already being managed by another process");
 
 /*
  * If the size of the lock file is non-zero, we created it (or won a locking race with the thread
@@ -1845,7 +1845,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
         if (!exist) {
             F_SET(conn, WT_CONN_DATA_CORRUPTION);
-            WT_ERR_MSG(session, WT_TRY_SALVAGE, "WiredTiger version file cannot be found");
+            WT_ERR_MSG(session, WT_E(WT_TRY_SALVAGE), "WiredTiger version file cannot be found");
         }
     }
 
@@ -1865,7 +1865,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
     } else {
         if (ret == ENOENT) {
             F_SET(conn, WT_CONN_DATA_CORRUPTION);
-            WT_ERR(WT_ERROR);
+            WT_ERR(WT_E(WT_ERROR));
         }
         WT_ERR(ret);
         /*
@@ -1874,7 +1874,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
          */
         if (__wt_file_lock(session, fh, true) != 0) {
             WT_ERR_MSG(
-              session, EBUSY, "WiredTiger database is already being managed by another process");
+              session, WT_E(EBUSY), "WiredTiger database is already being managed by another process");
         }
         WT_ERR(__wt_file_lock(session, fh, false));
     }
@@ -1897,7 +1897,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (conn->is_new || (is_salvage && empty)) {
         if (F_ISSET(conn, WT_CONN_READONLY))
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_E(EINVAL),
               "The database directory is empty or needs recovery, cannot continue with a read only "
               "connection");
         WT_ERR(__wt_snprintf_len_set(
@@ -1912,7 +1912,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
          */
         WT_ERR(__wt_config_gets(session, cfg, "exclusive", &cval));
         if (cval.val != 0)
-            WT_ERR_MSG(session, EEXIST,
+            WT_ERR_MSG(session, WT_E(EEXIST),
               "WiredTiger database already exists and exclusive option configured");
     }
 
@@ -1957,7 +1957,7 @@ __wti_extra_diagnostics_config(WT_SESSION_IMPL *session, const char *cfg[])
     flags = WT_DIAGNOSTIC_ALL;
     for (ft = extra_diagnostics_types; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "WiredTiger has been compiled with HAVE_DIAGNOSTIC=1 and all assertions are always "
               "enabled. This cannot be configured.");
         WT_RET_NOTFOUND_OK(ret);
@@ -2000,7 +2000,7 @@ __debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (cval.val != 0) {
         if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
-            WT_ERR_MSG(session, EINVAL, "Cannot change value for checkpoint retention");
+            WT_ERR_MSG(session, WT_E(EINVAL), "Cannot change value for checkpoint retention");
         WT_ERR(
           __wt_realloc_def(session, &conn->debug_ckpt_alloc, (size_t)cval.val, &conn->debug_ckpt));
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN);
@@ -2279,7 +2279,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       sval.val <= WT_VERBOSE_DEBUG_5)
         verbosity_all = (WT_VERBOSE_LEVEL)sval.val;
     else
-        WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s' with value '%" PRId64 "'",
+        WT_RET_MSG(session, WT_E(EINVAL), "Failed to parse verbose option '%s' with value '%" PRId64 "'",
           ft->name, sval.val);
 
     for (ft = verbtypes; ft->name != NULL; ft++) {
@@ -2314,7 +2314,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
              * [checkpoint,rts]). Return error for all other unsupported verbosity values e.g
              * negative numbers and strings.
              */
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "Failed to parse verbose option '%s' with value '%" PRId64 "'", ft->name, sval.val);
     }
 
@@ -2542,7 +2542,7 @@ __conn_set_file_system(WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *file_system, cons
      * system.
      */
     if (conn->file_system != NULL)
-        WT_ERR_MSG(session, EPERM,
+        WT_ERR_MSG(session, WT_E(EPERM),
           "filesystem already configured; custom filesystems should enable \"early_load\" "
           "configuration");
 
@@ -2601,7 +2601,7 @@ __conn_chk_file_system(WT_SESSION_IMPL *session, bool readonly)
 
 #define WT_CONN_SET_FILE_SYSTEM_REQ(name) \
     if (conn->file_system->name == NULL)  \
-    WT_RET_MSG(session, EINVAL, "a WT_FILE_SYSTEM.%s method must be configured", #name)
+    WT_RET_MSG(session, WT_E(EINVAL), "a WT_FILE_SYSTEM.%s method must be configured", #name)
 
     WT_CONN_SET_FILE_SYSTEM_REQ(fs_directory_list);
     WT_CONN_SET_FILE_SYSTEM_REQ(fs_directory_list_free);
@@ -2648,13 +2648,13 @@ __conn_config_file_system(WT_SESSION_IMPL *session, const char *cfg[])
     if (live_restore_enabled) {
         /* Live restore compatibility checks. */
         if (conn->file_system != NULL)
-            WT_RET_MSG(session, EINVAL, "Live restore is not compatible with custom file systems");
+            WT_RET_MSG(session, WT_E(EINVAL), "Live restore is not compatible with custom file systems");
         if (F_ISSET(conn, WT_CONN_IN_MEMORY))
             WT_RET_MSG(
-              session, EINVAL, "Live restore is not compatible with an in-memory connections");
+              session, WT_E(EINVAL), "Live restore is not compatible with an in-memory connections");
 #ifdef _MSC_VER
         /* FIXME-WT-14051 Add support for Windows */
-        WT_RET_MSG(session, EINVAL, "Live restore is not supported on Windows");
+        WT_RET_MSG(session, WT_E(EINVAL), "Live restore is not supported on Windows");
 #endif
     }
 
@@ -3031,7 +3031,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
                   (sval.val >= WT_LOG_FILE_MIN && sval.val <= WT_LOG_FILE_MAX))
                     conn->log_mgr.extend_len = sval.val;
                 else
-                    WT_ERR_MSG(session, EINVAL, "invalid log extend length: %" PRId64, sval.val);
+                    WT_ERR_MSG(session, WT_E(EINVAL), "invalid log extend length: %" PRId64, sval.val);
                 break;
             }
         } else
@@ -3050,19 +3050,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->prefetch_available = cval.val != 0;
     if (F_ISSET(conn, WT_CONN_IN_MEMORY) && conn->prefetch_available)
         WT_ERR_MSG(
-          session, EINVAL, "prefetch configuration is incompatible with in-memory configuration");
+          session, WT_E(EINVAL), "prefetch configuration is incompatible with in-memory configuration");
     WT_ERR(__wt_config_gets(session, cfg, "prefetch.default", &cval));
     conn->prefetch_auto_on = cval.val != 0;
     if (conn->prefetch_auto_on && !conn->prefetch_available)
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
         if (F_ISSET(conn, WT_CONN_READONLY))
-            WT_ERR_MSG(session, EINVAL, "Readonly configuration incompatible with salvage");
+            WT_ERR_MSG(session, WT_E(EINVAL), "Readonly configuration incompatible with salvage");
         if (F_ISSET(conn, WT_CONN_LIVE_RESTORE_FS))
-            WT_ERR_MSG(session, EINVAL, "Live restore is not compatible with salvage");
+            WT_ERR_MSG(session, WT_E(EINVAL), "Live restore is not compatible with salvage");
         F_SET(conn, WT_CONN_SALVAGE);
     }
 
@@ -3292,7 +3292,7 @@ err:
          * detected the corruption above, set it here after closing.
          */
         if (try_salvage)
-            ret = WT_TRY_SALVAGE;
+            ret = WT_E(WT_TRY_SALVAGE);
     }
 
     return (ret);

@@ -103,7 +103,7 @@ __config_validate(WT_SESSION *wt_session, WT_EVENT_HANDLER *event_handler, const
      * It's a logic error to specify both a session and an event handler.
      */
     if (session != NULL && event_handler != NULL)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "wiredtiger_config_validate event handler ignored when a session also specified");
 
     /*
@@ -123,9 +123,9 @@ __config_validate(WT_SESSION *wt_session, WT_EVENT_HANDLER *event_handler, const
         conn = S2C(session);
 
     if (name == NULL)
-        WT_RET_MSG(session, EINVAL, "no name specified");
+        WT_RET_MSG(session, WT_E(EINVAL), "no name specified");
     if (config == NULL)
-        WT_RET_MSG(session, EINVAL, "no configuration specified");
+        WT_RET_MSG(session, WT_E(EINVAL), "no configuration specified");
 
     /*
      * If we don't have a real connection, look for a matching name in the static list, otherwise
@@ -143,7 +143,7 @@ __config_validate(WT_SESSION *wt_session, WT_EVENT_HANDLER *event_handler, const
             }
     }
     if (ep == NULL)
-        WT_RET_MSG(session, EINVAL, "unknown or unsupported configuration API: %s", name);
+        WT_RET_MSG(session, WT_E(EINVAL), "unknown or unsupported configuration API: %s", name);
 
     return (__wt_config_check(session, ep, config, 0));
 }
@@ -223,14 +223,14 @@ __config_add_checks(WT_SESSION_IMPL *session, WT_CONFIG_ENTRY *entry, WT_CONFIG_
             if (WT_CONFIG_LIT_MATCH("min", ck)) {
                 cp->min_value = strtoll(cv.str, &endnum, 10);
                 if (endnum != &cv.str[cv.len])
-                    WT_RET_MSG(session, EINVAL, "min value invalid for key '%s'", cp->name);
+                    WT_RET_MSG(session, WT_E(EINVAL), "min value invalid for key '%s'", cp->name);
             } else if (WT_CONFIG_LIT_MATCH("max", ck)) {
                 cp->max_value = strtoll(cv.str, &endnum, 10);
                 if (endnum != &cv.str[cv.len])
-                    WT_RET_MSG(session, EINVAL, "max value invalid for key '%s'", cp->name);
+                    WT_RET_MSG(session, WT_E(EINVAL), "max value invalid for key '%s'", cp->name);
             } else if (WT_CONFIG_LIT_MATCH("choices", ck)) {
                 if (cv.len == 0)
-                    WT_RET_MSG(session, EINVAL, "Key '%s' requires a value", cp->name);
+                    WT_RET_MSG(session, WT_E(EINVAL), "Key '%s' requires a value", cp->name);
                 if (cv.type == WT_CONFIG_ITEM_STRUCT) {
                     /*
                      * Handle the 'verbose' case of a list containing restricted choices. This
@@ -306,9 +306,9 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
 
     /* Argument checking; we only support a limited number of types. */
     if (config == NULL)
-        WT_RET_MSG(session, EINVAL, "no configuration specified");
+        WT_RET_MSG(session, WT_E(EINVAL), "no configuration specified");
     if (type == NULL)
-        WT_RET_MSG(session, EINVAL, "no configuration type specified");
+        WT_RET_MSG(session, WT_E(EINVAL), "no configuration type specified");
 
     /* Determine the compiled type. */
     WT_NOT_READ(compiled_type, 0);
@@ -322,7 +322,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         compiled_type = WT_CONFIG_COMPILED_TYPE_STRING;
     else
         WT_RET_MSG(
-          session, EINVAL, "type must be one of \"boolean\", \"int\", \"list\" or \"string\"");
+          session, WT_E(EINVAL), "type must be one of \"boolean\", \"int\", \"list\" or \"string\"");
 
     /*
      * Translate the method name to our configuration names, then find a match.
@@ -331,7 +331,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         if (strcmp((*epp)->method, method) == 0)
             break;
     if (*epp == NULL || (*epp)->method == NULL)
-        WT_RET_MSG(session, WT_NOTFOUND, "no method matching %s found", method);
+        WT_RET_MSG(session, WT_E(WT_NOTFOUND), "no method matching %s found", method);
 
     /*
      * Technically possible for threads to race, lock the connection while adding the new

@@ -25,10 +25,10 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     if (newpage) {
         if ((cbt->ins = WT_SKIP_FIRST(cbt->ins_head)) == NULL)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
     } else if (cbt->recno >= WT_INSERT_RECNO(cbt->ins) &&
       (cbt->ins = WT_SKIP_NEXT(cbt->ins)) == NULL)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     /*
      * This code looks different from the cursor-previous code. The append list may be preceded by
@@ -95,14 +95,14 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->slot = UINT32_MAX;
         cbt->last_standard_recno = __col_fix_last_recno(cbt->ref);
         if (cbt->last_standard_recno == 0)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         __cursor_set_recno(cbt, cbt->ref->ref_recno);
         goto new_page;
     }
 
     /* Move to the next entry and return the item. */
     if (cbt->recno >= cbt->last_standard_recno)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
     __cursor_set_recno(cbt, cbt->recno + 1);
 
 new_page:
@@ -171,7 +171,7 @@ __cursor_var_append_next(
         cbt->ins = WT_SKIP_NEXT(cbt->ins);
 new_page:
         if (cbt->ins == NULL)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 
 restart_read:
@@ -237,7 +237,7 @@ __cursor_var_next(
         cbt->slot = UINT32_MAX;
         cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
         if (cbt->last_standard_recno == 0)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         __cursor_set_recno(cbt, cbt->ref->ref_recno);
         cbt->cip_saved = NULL;
         F_CLR(cbt, WT_CBT_CACHEABLE_RLE_CELL);
@@ -247,7 +247,7 @@ __cursor_var_next(
     /* Move to the next entry and return the item. */
     for (;;) {
         if (cbt->recno >= cbt->last_standard_recno)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         __cursor_set_recno(cbt, cbt->recno + 1);
 
 new_page:
@@ -473,7 +473,7 @@ restart_read_insert:
 
         /* Check for the end of the page. */
         if (cbt->row_iteration_slot >= page->entries * 2 + 1)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         ++cbt->row_iteration_slot;
 
         /*
@@ -563,7 +563,7 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
-    WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
+    WT_ERR_PANIC(session, WT_E(EINVAL), "found key out-of-order returns");
 
 err:
     return (ret);
@@ -608,7 +608,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
       __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b));
     WT_ERR(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
-    WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
+    WT_ERR_PANIC(session, WT_E(EINVAL), "found key out-of-order returns");
 
 err:
     __wt_scr_free(session, &a);
@@ -918,7 +918,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
               session, &cbt->ref, __wt_btcur_skip_page, &walk_skip_stats, flags));
         else
             WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
-        WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
+        WT_ERR_TEST(cbt->ref == NULL, WT_E(WT_NOTFOUND), false);
     }
 
 done:

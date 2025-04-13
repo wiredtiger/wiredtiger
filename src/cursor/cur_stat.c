@@ -213,7 +213,7 @@ __curstat_next(WT_CURSOR *cursor)
     else if (cst->next_set != NULL)
         WT_ERR((*cst->next_set)(session, cst, true, false));
     else
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -256,7 +256,7 @@ __curstat_prev(WT_CURSOR *cursor)
     else if (cst->next_set != NULL)
         WT_ERR((*cst->next_set)(session, cst, false, false));
     else
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -317,7 +317,7 @@ __curstat_search(WT_CURSOR *cursor)
     }
 
     if (cst->key < WT_STAT_KEY_MIN(cst) || cst->key > WT_STAT_KEY_MAX(cst))
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
 
     cst->v = (uint64_t)cst->stats[WT_STAT_KEY_OFFSET(cst)];
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -582,7 +582,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
         WT_ERR_NOTFOUND_OK(ret, false);
         if ((ret = __wt_config_subgets(session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
             if (F_ISSET(cst, WT_STAT_TYPE_ALL))
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "Only one of all, fast, none configuration values should be specified");
             F_SET(cst, WT_STAT_TYPE_FAST);
         }
@@ -609,14 +609,14 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
 
         if ((ret = __wt_config_subgets(session, &cval, "size", &sval)) == 0 && sval.val != 0) {
             if (F_ISSET(cst, WT_STAT_TYPE_FAST | WT_STAT_TYPE_ALL))
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "Only one of all, fast, none configuration values should be specified");
             F_SET(cst, WT_STAT_TYPE_SIZE);
         }
         WT_ERR_NOTFOUND_OK(ret, false);
         if ((ret = __wt_config_subgets(session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
             if (F_ISSET(cst, WT_STAT_TYPE_SIZE))
-                WT_ERR_MSG(session, EINVAL, "clear is incompatible with size statistics");
+                WT_ERR_MSG(session, WT_E(EINVAL), "clear is incompatible with size statistics");
             F_SET(cst, WT_STAT_CLEAR);
         }
         WT_ERR_NOTFOUND_OK(ret, false);
@@ -670,7 +670,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], 
 
     if (0) {
 config_err:
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "cursor's statistics configuration doesn't match the database statistics configuration");
     }
 

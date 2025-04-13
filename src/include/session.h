@@ -73,6 +73,12 @@ struct __wt_error_info {
 #define WT_ERROR_INFO_EMPTY ""
 #define WT_ERROR_INFO_SUCCESS "last API call was successful"
 
+typedef struct __wt_location_info {
+    const char *func; /* Function name */
+    const char *file; /* File name */
+    int line;         /* Line number */
+} WT_LOCATION_INFO;
+
 /* Get the connection implementation for a session */
 #define S2C(session) ((WT_CONNECTION_IMPL *)((WT_SESSION_IMPL *)(session))->iface.connection)
 
@@ -220,6 +226,13 @@ struct __wt_session_impl {
 
     WT_ITEM err; /* Error buffer */
     WT_ERROR_INFO err_info;
+
+    /* Last error origin info. */
+    struct {
+        int code;                  /* Error code. */
+        const char *code_str;            /* Error code string literal. */
+        WT_LOCATION_INFO location; /* Location. */
+    } last_err;
 
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */

@@ -150,7 +150,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     if (newpage) {
         if ((cbt->ins = WT_SKIP_LAST(cbt->ins_head)) == NULL)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
     } else {
         /* Move to the previous record in the append list, if any. */
         if (cbt->ins != NULL && cbt->recno <= WT_INSERT_RECNO(cbt->ins))
@@ -188,7 +188,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
          */
         if (cbt->ins == NULL &&
           (cbt->recno == cbt->ref->ref_recno || __col_fix_last_recno(cbt->ref) != 0))
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
     }
 
     /*
@@ -256,14 +256,14 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->slot = UINT32_MAX;
         cbt->last_standard_recno = __col_fix_last_recno(cbt->ref);
         if (cbt->last_standard_recno == 0)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         __cursor_set_recno(cbt, cbt->last_standard_recno);
         goto new_page;
     }
 
     /* Move to the previous entry and return the item. */
     if (cbt->recno == cbt->ref->ref_recno)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
     __cursor_set_recno(cbt, cbt->recno - 1);
 
 new_page:
@@ -336,7 +336,7 @@ __cursor_var_append_prev(
         WT_RET(__cursor_skip_prev(cbt));
 new_page:
         if (cbt->ins == NULL)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 
@@ -405,7 +405,7 @@ __cursor_var_prev(
         cbt->slot = UINT32_MAX;
         cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
         if (cbt->last_standard_recno == 0)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         __cursor_set_recno(cbt, cbt->last_standard_recno);
         cbt->cip_saved = NULL;
         F_CLR(cbt, WT_CBT_CACHEABLE_RLE_CELL);
@@ -418,7 +418,7 @@ __cursor_var_prev(
 
 new_page:
         if (cbt->recno < cbt->ref->ref_recno)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
 
 restart_read:
         /*
@@ -436,7 +436,7 @@ restart_read:
 
         /* Find the matching WT_COL slot. */
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         cbt->slot = WT_COL_SLOT(page, cip);
 
         /* Check any insert list for a matching record. */
@@ -657,7 +657,7 @@ restart_read_insert:
 
         /* Check for the beginning of the page. */
         if (cbt->row_iteration_slot == 1)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         --cbt->row_iteration_slot;
 
         /*
@@ -888,7 +888,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
               session, &cbt->ref, __wt_btcur_skip_page, &walk_skip_stats, flags));
         else
             WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
-        WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
+        WT_ERR_TEST(cbt->ref == NULL, WT_E(WT_NOTFOUND), false);
     }
 
 done:

@@ -149,7 +149,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     if (!blkcache_found || blkcache->type != WT_BLKCACHE_DRAM) {
         if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
             if (encryptor == NULL || encryptor->decrypt == NULL)
-                WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+                WT_ERR(__blkcache_read_corrupt(session, WT_E(WT_ERROR), addr, addr_size,
                   "encrypted block for which no decryptor configured"));
 
             /*
@@ -163,7 +163,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
 
             ip = etmp;
         } else if (btree->kencryptor != NULL)
-            WT_ERR(__blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+            WT_ERR(__blkcache_read_corrupt(session, WT_E(WT_ERROR), addr, addr_size,
               "unencrypted block for which encryption configured"));
     }
 
@@ -174,10 +174,10 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
     dsk = ip->data;
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
         if (compressor == NULL || compressor->decompress == NULL) {
-            ret = __blkcache_read_corrupt(session, WT_ERROR, addr, addr_size,
+            ret = __blkcache_read_corrupt(session, WT_E(WT_ERROR), addr, addr_size,
               "compressed block for which no compression configured");
             /* Odd error handling structure to avoid static analyzer complaints. */
-            WT_ERR(ret == 0 ? WT_ERROR : ret);
+            WT_ERR(ret == 0 ? WT_E(WT_ERROR) : ret);
         }
 
         /* Size the buffer based on the in-memory bytes we're expecting from decompression. */
@@ -197,7 +197,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
           (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP, dsk->mem_size - WT_BLOCK_COMPRESS_SKIP,
           &result_len);
         if (result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP)
-            WT_TRET(WT_ERROR);
+            WT_TRET(WT_E(WT_ERROR)); /* Update? */
 
         /*
          * If checksums were turned off because we're depending on decompression to fail on any

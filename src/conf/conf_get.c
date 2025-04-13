@@ -36,7 +36,7 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
 
         conf_value_index = conf->value_map[partkey];
         if (conf_value_index == 0)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
 
         /* The value in value_map is one-based, account for that here. */
         --conf_value_index;
@@ -57,20 +57,20 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
         /* FALLTHROUGH */
         case CONF_VALUE_NONDEFAULT_ITEM:
             if (keys != 0)
-                return (WT_NOTFOUND);
+                return (WT_E(WT_NOTFOUND));
             *value = conf_value->u.item;
             return (0);
 
         case CONF_VALUE_BIND_DESC:
             if (keys != 0)
-                return (WT_NOTFOUND);
+                return (WT_E(WT_NOTFOUND));
             bind_desc = &conf_value->u.bind_desc;
             values_off = bind_desc->offset;
             WT_ASSERT(session,
               bind_desc->offset < orig_conf->binding_count &&
                 values_off <= WT_CONF_BIND_VALUES_LEN);
             if (session->conf_bindings.values[values_off].desc != bind_desc)
-                WT_RET_MSG(session, EINVAL,
+                WT_RET_MSG(session, WT_E(EINVAL),
                   "configuration value(s) have not been bound with bind_configuration");
             *value = session->conf_bindings.values[values_off].item;
             return (0);
@@ -87,5 +87,5 @@ __wt_conf_gets_func(WT_SESSION_IMPL *session, const WT_CONF *orig_conf, uint64_t
             break;
         }
     }
-    return (WT_NOTFOUND);
+    return (WT_E(WT_NOTFOUND));
 }

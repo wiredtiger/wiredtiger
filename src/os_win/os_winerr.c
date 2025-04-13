@@ -100,7 +100,7 @@ __wt_map_windows_error(DWORD windows_error)
             return (list[i].posix_error);
 
     /* Untranslatable error, go generic. */
-    return (WT_ERROR);
+    return (WT_E(WT_ERROR));
 }
 
 /*

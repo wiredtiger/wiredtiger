@@ -56,7 +56,7 @@ static int
 __bm_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_RET_MSG(
-      session, ENOTSUP, "%s: write operation on read-only checkpoint handle", bm->block->name);
+      session, WT_E(ENOTSUP), "%s: write operation on read-only checkpoint handle", bm->block->name);
 }
 
 /*

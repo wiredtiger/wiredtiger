@@ -155,7 +155,7 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
         return (0);
 
     if (new_min > new_max)
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "Illegal thread group resize: %s, from min: %" PRIu32 " -> %" PRIu32 " from max: %" PRIu32
           " -> %" PRIu32,
           group->name, group->min, new_min, group->max, new_max);

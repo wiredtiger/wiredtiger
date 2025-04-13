@@ -16,7 +16,7 @@ static int __backup_start(
 static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
 
 #define WT_CURSOR_BACKUP_CHECK_STOP(cursor) \
-    WT_ERR(F_ISSET(((WT_CURSOR_BACKUP *)(cursor)), WT_CURBACKUP_FORCE_STOP) ? EINVAL : 0);
+    WT_ERR(F_ISSET(((WT_CURSOR_BACKUP *)(cursor)), WT_CURBACKUP_FORCE_STOP) ? WT_E(EINVAL) : 0);
 
 /*
  * __wt_verbose_dump_backup --
@@ -175,7 +175,7 @@ __curbackup_next(WT_CURSOR *cursor)
 
     if (cb->list == NULL || cb->list[cb->next] == NULL) {
         F_CLR(cursor, WT_CURSTD_KEY_SET);
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
     }
 
     cb->iface.key.data = cb->list[cb->next];
@@ -371,7 +371,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         /* Top level cursor code does not allow a URI and cursor. We don't need to check here. */
         WT_ASSERT(session, othercb == NULL);
         if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
-            WT_ERR_MSG(session, EINVAL, "Incremental backup is not configured");
+            WT_ERR_MSG(session, WT_E(EINVAL), "Incremental backup is not configured");
         F_SET(cb, WT_CURBACKUP_QUERYID);
     } else if (WT_STRING_LIT_MATCH("backup:export", uri, uri_len))
         /* Special backup cursor for export operation. */
@@ -382,7 +382,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
      * use on the connection and it isn't an export cursor.
      */
     if (WT_CONN_TIERED_STORAGE_ENABLED(S2C(session)) && !F_ISSET(cb, WT_CURBACKUP_EXPORT))
-        WT_ERR(ENOTSUP);
+        WT_ERR(WT_E(ENOTSUP));
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
@@ -440,7 +440,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
      * We didn't find an entry. This should not happen.
      */
     if (i == WT_BLKINCR_MAX)
-        WT_RET_PANIC(session, WT_NOTFOUND, "Could not find an incremental backup slot to use");
+        WT_RET_PANIC(session, WT_E(WT_NOTFOUND), "Could not find an incremental backup slot to use");
 
     /* Use the slot. */
     if (blk->id_str != NULL)
@@ -495,7 +495,7 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
             continue;
         if (WT_CONFIG_MATCH(blk->id_str, *cval)) {
             if (F_ISSET(blk, WT_BLKINCR_INUSE))
-                WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
+                WT_RET_MSG(session, WT_E(EINVAL), "Incremental backup structure already in use");
             if (incrp != NULL)
                 *incrp = blk;
             __wt_verbose_debug2(
@@ -505,7 +505,7 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
     }
     __wt_verbose_debug2(
       session, WT_VERB_BACKUP, "Search %.*s not found", (int)cval->len, cval->str);
-    return (WT_NOTFOUND);
+    return (WT_E(WT_NOTFOUND));
 }
 
 /*
@@ -576,7 +576,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         if (!F_ISSET(conn, WT_CONN_INCR_BACKUP)) {
             WT_RET(__wt_config_gets(session, cfg, "incremental.granularity", &cval));
             if (conn->incr_granularity != 0)
-                WT_RET_MSG(session, EINVAL, "Cannot change the incremental backup granularity");
+                WT_RET_MSG(session, WT_E(EINVAL), "Cannot change the incremental backup granularity");
             conn->incr_granularity = (uint64_t)cval.val;
             __wt_verbose(session, WT_VERB_BACKUP, "Backup config set granularity value %" PRIu64,
               conn->incr_granularity);
@@ -592,7 +592,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     consolidate = F_MASK(cb, WT_CURBACKUP_CONSOLIDATE);
     if (cval.val) {
         if (is_dup)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "Incremental consolidation can only be specified on a primary backup cursor");
         F_SET(cb, WT_CURBACKUP_CONSOLIDATE);
         incremental_config = true;
@@ -604,7 +604,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     WT_RET(__wt_config_gets(session, cfg, "incremental.file", &cval));
     if (cval.len != 0) {
         if (!is_dup)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "Incremental file name can only be specified on a duplicate backup cursor");
         WT_RET(__wt_strndup(session, cval.str, cval.len, &cb->incr_file));
         incremental_config = true;
@@ -618,7 +618,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     WT_RET(__wt_config_gets(session, cfg, "incremental.src_id", &cval));
     if (cval.len != 0) {
         if (is_dup)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "Incremental source identifier can only be specified on a primary backup cursor");
         WT_RET(__backup_find_id(session, &cval, &cb->incr_src));
         F_SET(cb->incr_src, WT_BLKINCR_INUSE);
@@ -634,11 +634,11 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     WT_ERR(__wt_config_gets(session, cfg, "incremental.this_id", &cval));
     if (cval.len != 0) {
         if (is_dup)
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_E(EINVAL),
               "Incremental identifier can only be specified on a primary backup cursor");
         WT_ERR_NOTFOUND_OK(__backup_find_id(session, &cval, NULL), true);
         if (ret == 0)
-            WT_ERR_MSG(session, EINVAL, "Incremental identifier already exists");
+            WT_ERR_MSG(session, WT_E(EINVAL), "Incremental identifier already exists");
 
         WT_ERR(__backup_add_id(session, &cval));
         incremental_config = true;
@@ -661,7 +661,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)k.len, k.str));
         uri = tmp->data;
         if (v.len != 0)
-            WT_ERR_MSG(session, EINVAL, "%s: invalid backup target: URIs may need quoting", uri);
+            WT_ERR_MSG(session, WT_E(EINVAL), "%s: invalid backup target: URIs may need quoting", uri);
 
         /*
          * Handle log targets. We do not need to go through the schema worker, just call the
@@ -672,7 +672,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             WT_ERR(__backup_log_append(session, session->bkp_cursor, false));
         } else if (is_dup)
             WT_ERR_MSG(
-              session, EINVAL, "duplicate backup cursor cannot be used for non-log target");
+              session, WT_E(EINVAL), "duplicate backup cursor cannot be used for non-log target");
         else {
             /*
              * If backing up individual tables, we have to include indexes, which may involve
@@ -692,22 +692,22 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      * targets don't make sense with block-based incremental backup.
      */
     if (!is_dup && log_config && F_ISSET(&conn->log_mgr, WT_LOG_REMOVE))
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "incremental log file backup not possible when automatic log removal configured");
     if (is_dup && (!incremental_config && !log_config))
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "duplicate backup cursor must be for block-based incremental or logging backup");
     if (incremental_config && (log_config || target_list))
         WT_ERR_MSG(
-          session, EINVAL, "block-based incremental backup incompatible with a list of targets");
+          session, WT_E(EINVAL), "block-based incremental backup incompatible with a list of targets");
 
     if (incremental_config) {
         if (is_dup && !F_ISSET(othercb, WT_CURBACKUP_INCR))
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_E(EINVAL),
               "Incremental duplicate cursor must have an incremental primary backup cursor");
         if (is_dup && othercb->incr_src == NULL)
             WT_ERR_MSG(
-              session, EINVAL, "Incremental primary cursor must have a known source identifier");
+              session, WT_E(EINVAL), "Incremental primary cursor must have a known source identifier");
         F_SET(cb, WT_CURBACKUP_INCR);
     }
 
@@ -779,10 +779,10 @@ __backup_start(
      * other attempts to start a hot backup.
      */
     if (__wt_atomic_load64(&conn->hot_backup_start) != 0 && !is_dup)
-        WT_RET_MSG(session, EINVAL, "there is already a backup cursor open");
+        WT_RET_MSG(session, WT_E(EINVAL), "there is already a backup cursor open");
 
     if (F_ISSET(session, WT_SESSION_BACKUP_DUP) && is_dup)
-        WT_RET_MSG(session, EINVAL, "there is already a duplicate backup cursor open");
+        WT_RET_MSG(session, WT_E(EINVAL), "there is already a duplicate backup cursor open");
 
     /*
      * We want to check for forced stopping early before we do anything else. If it is set, we just
@@ -796,7 +796,7 @@ __backup_start(
          * for this cursor.
          */
         if (is_dup)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "Incremental force stop can only be specified on a primary backup cursor");
         F_SET(cb, WT_CURBACKUP_FORCE_STOP);
         return (0);
@@ -977,7 +977,7 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
       !WT_PREFIX_MATCH(name, "index:") && !WT_PREFIX_MATCH(name, "object:") &&
       !WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX) && !WT_PREFIX_MATCH(name, "table:") &&
       !WT_PREFIX_MATCH(name, "tier:") && !WT_PREFIX_MATCH(name, "tiered:"))
-        WT_RET_MSG(session, ENOTSUP, "hot backup is not supported for objects of type %s", name);
+        WT_RET_MSG(session, WT_E(ENOTSUP), "hot backup is not supported for objects of type %s", name);
 
     /* Add the metadata entry to the backup file. */
     WT_RET(__wt_metadata_search(session, name, &value));

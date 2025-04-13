@@ -15,7 +15,7 @@
 static int
 __stdio_close(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 {
-    WT_RET_MSG(session, ENOTSUP, "%s: close", fs->name);
+    WT_RET_MSG(session, WT_E(ENOTSUP), "%s: close", fs->name);
 }
 
 /*
@@ -27,7 +27,7 @@ __stdio_flush(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 {
     if (fflush(fs->fp) == 0)
         return (0);
-    WT_RET_MSG(session, __wt_errno(), "%s: flush", fs->name);
+    WT_RET_MSG(session, WT_E(__wt_errno()), "%s: flush", fs->name);
 }
 
 /*
@@ -38,7 +38,7 @@ static int
 __stdio_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fs, WT_ITEM *buf)
 {
     WT_UNUSED(buf);
-    WT_RET_MSG(session, ENOTSUP, "%s: getline", fs->name);
+    WT_RET_MSG(session, WT_E(ENOTSUP), "%s: getline", fs->name);
 }
 
 /*
@@ -52,7 +52,7 @@ __stdio_printf(WT_SESSION_IMPL *session, WT_FSTREAM *fs, const char *fmt, va_lis
 
     if (vfprintf(fs->fp, fmt, ap) >= 0)
         return (0);
-    return (EIO);
+    return (WT_E(EIO));
 }
 
 /*

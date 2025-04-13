@@ -82,7 +82,7 @@ __wt_spin_trylock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
         t->session_id = WT_SPIN_SESSION_ID_SAFE(session);
         return (0);
     } else
-        return (EBUSY);
+        return (WT_E(EBUSY));
 }
 
 /*
@@ -257,7 +257,7 @@ __wt_spin_trylock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 
     BOOL b = TryEnterCriticalSection(&t->lock);
     if (b == 0)
-        return (EBUSY);
+        return (WT_E(EBUSY));
     t->session_id = WT_SPIN_SESSION_ID_SAFE(session);
     return (0);
 }

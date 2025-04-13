@@ -30,7 +30,7 @@ __tiered_confchk(
             *nstoragep = nstorage;
             return (0);
         }
-    WT_RET_MSG(session, EINVAL, "unknown storage source '%.*s'", (int)name->len, name->str);
+    WT_RET_MSG(session, WT_E(EINVAL), "unknown storage source '%.*s'", (int)name->len, name->str);
 }
 
 /*
@@ -82,7 +82,7 @@ __wti_tiered_bucket_config(
         WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
         if (bucket.len != 0)
             WT_ERR_MSG(
-              session, EINVAL, "tiered_storage.bucket requires tiered_storage.name to be set");
+              session, WT_E(EINVAL), "tiered_storage.bucket requires tiered_storage.name to be set");
         goto done;
     }
     /*
@@ -91,15 +91,15 @@ __wti_tiered_bucket_config(
      */
     if (!WT_CONN_TIERED_STORAGE_ENABLED(conn) && bstoragep != &conn->bstorage)
         WT_ERR_MSG(
-          session, EINVAL, "table tiered storage requires connection tiered storage to be set");
+          session, WT_E(EINVAL), "table tiered storage requires connection tiered storage to be set");
     /* A bucket and bucket_prefix are required, cache_directory and auth_token are not. */
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &auth));
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
     if (bucket.len == 0)
-        WT_ERR_MSG(session, EINVAL, "table tiered storage requires bucket to be set");
+        WT_ERR_MSG(session, WT_E(EINVAL), "table tiered storage requires bucket to be set");
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &prefix));
     if (prefix.len == 0)
-        WT_ERR_MSG(session, EINVAL, "table tiered storage requires bucket_prefix to be set");
+        WT_ERR_MSG(session, WT_E(EINVAL), "table tiered storage requires bucket_prefix to be set");
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.cache_directory", &cachedir));
     WT_ERR_NOTFOUND_OK(__wt_config_gets(session, cfg, "tiered_storage.shared", &shared), false);
 
@@ -109,7 +109,7 @@ __wti_tiered_bucket_config(
      */
     if (WT_CONN_TIERED_STORAGE_ENABLED(conn) && conn->bstorage->tiered_shared == false &&
       shared.val)
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "table tiered storage shared requires connection tiered storage shared to be set");
 
     hash = __wt_hash_city64(bucket.str, bucket.len);
@@ -187,7 +187,7 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
 
     /* Check for incompatible configuration options. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY))
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "the \"in_memory\" connection configuration is not compatible with tiered storage");
 
     /* Set up the rest of the tiered storage configuration. c*/

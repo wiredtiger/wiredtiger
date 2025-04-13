@@ -171,7 +171,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
         for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
             /* Only allow "file:" for now, it works because it's been converted to data handles. */
             if (!WT_PREFIX_MATCH(k.str, "file:"))
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "statistics_log sources configuration only supports objects of type \"file\"");
             WT_ERR(__wt_strndup(session, k.str, k.len, &sources[cnt]));
         }
@@ -422,7 +422,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 
     /* Create the logging path name for this time of day. */
     if (strftime(tmp->mem, tmp->memsize, conn->stat_path, &localt) == 0)
-        WT_RET_MSG(session, ENOMEM, "strftime path conversion");
+        WT_RET_MSG(session, WT_E(ENOMEM), "strftime path conversion");
 
     /* If the path has changed, cycle the log file. */
     if (conn->stat_fs == NULL || path == NULL || strcmp(tmp->mem, path->mem) != 0) {
@@ -436,7 +436,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 
     /* Create the entry prefix for this time of day. */
     if (strftime(tmp->mem, tmp->memsize, conn->stat_format, &localt) == 0)
-        WT_RET_MSG(session, ENOMEM, "strftime timestamp conversion");
+        WT_RET_MSG(session, WT_E(ENOMEM), "strftime timestamp conversion");
     conn->stat_stamp = tmp->mem;
     WT_RET(__statlog_print_header(session));
 
@@ -474,7 +474,7 @@ __statlog_on_close(WT_SESSION_IMPL *session)
         return (0);
 
     if (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_STATISTICS))
-        WT_RET_MSG(session, EINVAL, "Attempt to log statistics while a server is running");
+        WT_RET_MSG(session, WT_E(EINVAL), "Attempt to log statistics while a server is running");
 
     WT_RET(__wt_scr_alloc(session, strlen(conn->stat_path) + 128, &tmp));
     WT_ERR(__wt_buf_setstr(session, tmp, ""));

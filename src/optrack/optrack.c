@@ -60,7 +60,7 @@ __optrack_open_file(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     if (!F_ISSET(conn, WT_CONN_OPTRACK))
-        WT_RET_MSG(session, WT_ERROR, "WT_CONN_OPTRACK not set");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "WT_CONN_OPTRACK not set");
 
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_filename_construct(

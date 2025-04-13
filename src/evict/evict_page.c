@@ -42,7 +42,7 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_hazard);
-    return (__wt_set_return(session, EBUSY));
+    return (__wt_set_return(session, WT_E(EBUSY)));
 }
 
 #define WT_EVICT_STATS_CLEAN 0x01
@@ -538,7 +538,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_INTL_FOREACH_END;
 
     if (busy)
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
 
     WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
         switch (WT_REF_GET_STATE(child)) {
@@ -546,7 +546,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
         case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
         }
     }
     WT_INTL_FOREACH_END;
@@ -582,7 +582,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
                               * give up on evicting the parent.
                               */
             if (!WT_REF_CAS_STATE(session, child, WT_REF_DELETED, WT_REF_LOCKED))
-                return (__wt_set_return(session, EBUSY));
+                return (__wt_set_return(session, WT_E(EBUSY)));
             /*
              * Insert a read/acquire barrier so we're guaranteed the page_del state we read below
              * comes after the locking operation on the ref state and therefore after the previous
@@ -627,10 +627,10 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             /* FIXME-WT-9780: is there a reason this doesn't use WT_REF_UNLOCK? */
             WT_REF_SET_STATE(child, WT_REF_DELETED);
             if (!visible)
-                return (__wt_set_return(session, EBUSY));
+                return (__wt_set_return(session, WT_E(EBUSY)));
             break;
         default:
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
         }
     }
     WT_INTL_FOREACH_END;
@@ -808,7 +808,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * add clean pages to the queue.
      */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY) && !modified && !closing)
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
 
     /* Check if the page can be evicted. */
     if (!closing) {
@@ -819,7 +819,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
         if (!__wt_page_can_evict(session, ref, inmem_splitp))
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
 
         /* Check for an append-only workload needing an in-memory split. */
         if (*inmem_splitp)
@@ -842,14 +842,14 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (conn->txn_global.checkpoint_running_hs && !WT_IS_HS(btree->dhandle) &&
       __wti_evict_hs_dirty(session) && __wt_cache_full(session)) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_hs);
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
     }
     /*
      * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
      * history store or reading a checkpoint), give up.
      */
     if (F_ISSET(session, WT_SESSION_NO_RECONCILE))
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
 
     return (0);
 }

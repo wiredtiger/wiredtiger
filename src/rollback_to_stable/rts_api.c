@@ -65,9 +65,9 @@ __rts_check(WT_SESSION_IMPL *session)
      * callers should be aware of this limitation.
      */
     if (cookie.ret_cursor_active)
-        WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
+        WT_RET_MSG(session, WT_E(EBUSY), "rollback_to_stable illegal with active file cursors");
     if (cookie.ret_txn_active) {
-        ret = EBUSY;
+        ret = WT_E(EBUSY);
         WT_TRET(__wt_verbose_dump_txn(session));
         WT_RET_MSG(session, ret, "rollback_to_stable illegal with active transactions");
     }

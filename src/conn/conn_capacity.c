@@ -39,7 +39,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
     if (cval.val != 0) {
         if (cval.val < WT_THROTTLE_MIN)
-            WT_RET_MSG(session, EINVAL, "total I/O capacity value %" PRId64 " below minimum %d",
+            WT_RET_MSG(session, WT_E(EINVAL), "total I/O capacity value %" PRId64 " below minimum %d",
               cval.val, WT_THROTTLE_MIN);
         total = (uint64_t)cval.val;
     }
@@ -48,14 +48,14 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     if (cval.val != 0) {
         chunkcache = (uint64_t)cval.val;
         if (chunkcache < WT_THROTTLE_MIN)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "chunk cache I/O capacity value %" PRIu64 " below minimum %d", chunkcache,
               WT_THROTTLE_MIN);
         if (total < chunkcache)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "chunk cache I/O capacity value %" PRIu64 " below total %" PRIu64, chunkcache, total);
         if ((total - chunkcache) < WT_THROTTLE_MIN)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "chunk cache I/O capacity value %" PRIu64
               " leaves insufficient capacity for other subsystems (total %" PRIu64
               ", remaining %" PRIu64 ")",

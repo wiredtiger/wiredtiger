@@ -38,8 +38,8 @@ __wt_futex_wait(
     }
 
     windows_error = __wt_getlasterror();
-    errno = __wt_map_windows_error(windows_error);
-    return (-1);
+    errno = WT_E(__wt_map_windows_error(windows_error));
+    return (WT_EMAP(-1));
 }
 
 /*

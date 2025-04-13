@@ -33,7 +33,7 @@ __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
         WT_STAT_CONN_INCR(session, memory_allocation);
 
     if ((p = calloc(number, size)) == NULL)
-        WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
+        WT_RET_MSG(session, WT_E(__wt_errno()), "memory allocation of %" WT_SIZET_FMT " bytes failed",
           size * number);
 
     *(void **)retp = p;
@@ -64,7 +64,7 @@ __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
         WT_STAT_CONN_INCR(session, memory_allocation);
 
     if ((p = malloc(bytes_to_allocate)) == NULL)
-        WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
+        WT_RET_MSG(session, WT_E(__wt_errno()), "memory allocation of %" WT_SIZET_FMT " bytes failed",
           bytes_to_allocate);
 
     *(void **)retp = p;
@@ -116,7 +116,7 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
     if (session != NULL && FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_MALLOC) &&
       (bytes_allocated_ret != NULL)) {
         if ((p = malloc(bytes_to_allocate)) == NULL)
-            WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
+            WT_RET_MSG(session, WT_E(__wt_errno()), "memory allocation of %" WT_SIZET_FMT " bytes failed",
               bytes_to_allocate);
         if (tmpp != NULL) {
             memcpy(p, tmpp, *bytes_allocated_ret);
@@ -125,7 +125,7 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
         }
     } else {
         if ((p = realloc(p, bytes_to_allocate)) == NULL)
-            WT_RET_MSG(session, __wt_errno(), "memory allocation of %" WT_SIZET_FMT " bytes failed",
+            WT_RET_MSG(session, WT_E(__wt_errno()), "memory allocation of %" WT_SIZET_FMT " bytes failed",
               bytes_to_allocate);
     }
 

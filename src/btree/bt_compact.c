@@ -257,7 +257,7 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
         WT_RET(__wt_session_compact_check_interrupted(session));
 
         if (__wt_evict_cache_stuck(session))
-            WT_RET(EBUSY);
+            WT_RET(WT_E(EBUSY));
 
         __wt_sleep(1, 0);
     }
@@ -374,7 +374,7 @@ __wt_compact(WT_SESSION_IMPL *session)
             WT_ERR(__wt_session_compact_check_interrupted(session));
 
             if (__wt_evict_cache_stuck(session))
-                WT_ERR(EBUSY);
+                WT_ERR(WT_E(EBUSY));
 
             first = false;
             i = 0;

@@ -17,7 +17,7 @@ static int __session_rollback_transaction(WT_SESSION *, const char *);
 int
 __wti_session_notsup(WT_SESSION_IMPL *session)
 {
-    WT_RET_MSG(session, ENOTSUP, "Unsupported session method");
+    WT_RET_MSG(session, WT_E(ENOTSUP), "Unsupported session method");
 }
 
 /*
@@ -491,7 +491,7 @@ __session_config_prefetch(WT_SESSION_IMPL *session, const char **cfg)
         if (cval.val) {
             if (!S2C(session)->prefetch_available) {
                 F_CLR(session, WT_SESSION_PREFETCH_ENABLED);
-                WT_RET_MSG(session, EINVAL,
+                WT_RET_MSG(session, WT_E(EINVAL),
                   "pre-fetching cannot be enabled for the session if pre-fetching is configured as "
                   "unavailable");
             } else
@@ -688,7 +688,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
             if ((ret = __wt_config_gets_def(session, cfg, "debug.dump_version", 0, &cval)) == 0 &&
               cval.val) {
                 if (WT_STREQ(uri, WT_HS_URI))
-                    WT_RET_MSG(session, EINVAL, "cannot open version cursor on the history store");
+                    WT_RET_MSG(session, WT_E(EINVAL), "cannot open version cursor on the history store");
                 WT_RET(__wt_curversion_open(session, uri, owner, cfg, cursorp));
             } else
                 WT_RET(__wt_curfile_open(session, uri, owner, cfg, cursorp));
@@ -701,7 +701,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     case 'b':
         if (WT_PREFIX_MATCH(uri, "backup:")) {
             if (__wt_live_restore_migration_in_progress(session))
-                WT_RET_SUB(session, EINVAL, WT_CONFLICT_LIVE_RESTORE,
+                WT_RET_SUB(session, WT_E(EINVAL), WT_CONFLICT_LIVE_RESTORE,
                   "backup cannot be taken when live restore is enabled");
             WT_RET(__wt_curbackup_open(session, uri, other, cfg, cursorp));
         }
@@ -819,11 +819,11 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     if (!F_ISSET(S2C(session), WT_CONN_READY) && !F_ISSET(session, WT_SESSION_INTERNAL) &&
       (!F_ISSET(S2C(session), WT_CONN_MINIMAL) || strcmp(uri, "statistics:") != 0))
         WT_ERR_MSG(
-          session, EINVAL, "cannot open a non-statistics cursor before connection is opened");
+          session, WT_E(EINVAL), "cannot open a non-statistics cursor before connection is opened");
 
     if ((to_dup == NULL && uri == NULL) || (to_dup != NULL && uri != NULL))
         WT_ERR_MSG(
-          session, EINVAL, "should be passed either a URI or a cursor to duplicate, but not both");
+          session, WT_E(EINVAL), "should be passed either a URI or a cursor to duplicate, but not both");
 
     __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
     if ((ret = __wt_cursor_cache_get(session, uri, hash_value, to_dup, cfg, &cursor)) == 0)
@@ -957,7 +957,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
      * the command after performing a system wide checkpoint. Only retry once to avoid potentially
      * waiting forever.
      */
-    WT_ERR_ERROR_OK(__session_alter_internal(session, uri, cfg), EBUSY, true);
+    WT_ERR_ERROR_OK(__session_alter_internal(session, uri, cfg), WT_E(EBUSY), true);
     if (ret == EBUSY) {
         WT_ERR(__session_blocking_checkpoint(session));
         WT_STAT_CONN_INCR(session, session_table_alter_trigger_checkpoint);
@@ -1060,7 +1060,7 @@ __session_create(WT_SESSION *wt_session, const char *uri, const char *config)
         if ((ret = __wt_config_getones(session, config, "type", &cval)) == 0 &&
           !WT_CONFIG_LIT_MATCH("file", cval) &&
           (strncmp(uri, cval.str, cval.len) != 0 || uri[cval.len] != ':'))
-            WT_ERR_MSG(session, EINVAL, "%s: unsupported type configuration", uri);
+            WT_ERR_MSG(session, WT_E(EINVAL), "%s: unsupported type configuration", uri);
         WT_ERR_NOTFOUND_OK(ret, false);
     }
 
@@ -1126,7 +1126,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
      * If logging is not enabled there is nothing to do.
      */
     if (!F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
-        WT_ERR_MSG(session, EINVAL, "logging not enabled");
+        WT_ERR_MSG(session, WT_E(EINVAL), "logging not enabled");
 
     WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
     if (WT_CONFIG_LIT_MATCH("off", cval))
@@ -1487,7 +1487,7 @@ __wt_session_range_truncate(
         WT_ERR(start->compare(start, stop, &cmp));
         if (cmp > 0)
             WT_ERR_MSG(
-              session, EINVAL, "the start cursor position is after the stop cursor position");
+              session, WT_E(EINVAL), "the start cursor position is after the stop cursor position");
     }
 
     /*
@@ -1639,7 +1639,7 @@ __session_truncate(
 
     if ((start != NULL && start->session != wt_session) ||
       (stop != NULL && stop->session != wt_session))
-        WT_ERR_MSG(session, EINVAL, "bounding cursors must be owned by the truncating session");
+        WT_ERR_MSG(session, WT_E(EINVAL), "bounding cursors must be owned by the truncating session");
 
     /*
      * If the URI is specified, we don't need a start/stop, if start/stop is specified, we don't
@@ -1652,7 +1652,7 @@ __session_truncate(
      */
     if ((uri == NULL && start == NULL && stop == NULL) ||
       (uri != NULL && !WT_PREFIX_MATCH(uri, "log:") && (start != NULL || stop != NULL)))
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "the truncate method should be passed either a URI or start/stop cursors, but not both");
 
     if (uri != NULL) {
@@ -1664,7 +1664,7 @@ __session_truncate(
              * Verify the user only gave the URI prefix and not a specific target name after that.
              */
             if (strcmp(uri, "log:") != 0)
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "the truncate method should not specify any target after the log: URI prefix");
             WT_ERR(__wt_log_truncate_files(session, start, false));
         } else if (WT_BTREE_PREFIX(uri))
@@ -1679,7 +1679,7 @@ __session_truncate(
 err:
     /* Map prepare-conflict to rollback. */
     if (ret == WT_PREPARE_CONFLICT)
-        ret = WT_ROLLBACK;
+        ret = WT_E(WT_ROLLBACK);
 
     TXN_API_END(session, ret, false);
 
@@ -1690,7 +1690,7 @@ err:
 
     /* Map WT_NOTFOUND to ENOENT if a URI was specified. */
     if (ret == WT_NOTFOUND && uri != NULL)
-        ret = ENOENT;
+        ret = WT_E(ENOENT);
     return (ret);
 }
 
@@ -1839,7 +1839,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 
     /* Permit the commit if the transaction failed, but was read-only. */
     if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
-        WT_ERR_MSG(session, EINVAL, "failed %s transaction requires rollback",
+        WT_ERR_MSG(session, WT_E(EINVAL), "failed %s transaction requires rollback",
           F_ISSET(txn, WT_TXN_PREPARE) ? "prepared " : "");
 
 err:
@@ -2145,11 +2145,11 @@ __session_reset_snapshot(WT_SESSION *wt_session)
     /* Return error if the isolation mode is not snapshot. */
     if (txn->isolation != WT_ISO_SNAPSHOT)
         WT_RET_MSG(
-          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
+          session, WT_E(ENOTSUP), "not supported in read-committed or read-uncommitted transactions");
 
     /* Return error if the session has performed any write operations. */
     if (txn->mod_count != 0)
-        WT_RET_MSG(session, ENOTSUP, "only supported before a transaction makes modifications");
+        WT_RET_MSG(session, WT_E(ENOTSUP), "only supported before a transaction makes modifications");
 
     __wt_txn_release_snapshot(session);
     __wt_txn_get_snapshot(session);
@@ -2391,7 +2391,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         if (!session_ret->active)
             break;
     if (i == conn->session_array.size)
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           "out of sessions, configured for %" PRIu32 " (including internal sessions)",
           conn->session_array.size);
 

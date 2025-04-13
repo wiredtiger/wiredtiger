@@ -62,7 +62,7 @@ cgcols:
     }
 
     if (foundcg == UINT_MAX)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     *cgnump = foundcg;
     if (foundcol < table->nkey_columns) {
@@ -107,7 +107,7 @@ __wti_schema_colcheck(WT_SESSION_IMPL *session, const char *key_format, const ch
     WT_RET_NOTFOUND_OK(ret);
 
     if (ncols != 0 && ncols != kcols + vcols)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "Number of columns in '%.*s' does not match key format '%s' plus value format '%s'",
           (int)colconf->len, colconf->str, key_format, value_format);
 
@@ -145,7 +145,7 @@ __wti_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
     coltype = '\0';
     while ((ret = __wt_config_next(&conf, &k, &v)) == 0) {
         if (__find_next_col(session, table, &k, &cg, &col, &coltype) != 0)
-            WT_RET_MSG(session, EINVAL, "Column '%.*s' in '%s' does not appear in a column group",
+            WT_RET_MSG(session, WT_E(EINVAL), "Column '%.*s' in '%s' does not appear in a column group",
               (int)k.len, k.str, table->iface.name);
         /*
          * Column groups can't store key columns in their value:
@@ -270,7 +270,7 @@ __find_column_format(WT_SESSION_IMPL *session, WT_TABLE *table, WT_CONFIG_ITEM *
 
         if (k.len == colname->len && strncmp(colname->str, k.str, k.len) == 0) {
             if (value_only && inkey)
-                return (__wt_set_return(session, EINVAL));
+                return (__wt_set_return(session, WT_E(EINVAL)));
             return (0);
         }
     }
@@ -324,9 +324,9 @@ __wt_struct_reformat(WT_SESSION_IMPL *session, WT_TABLE *table, const char *colu
 
         if ((ret = __find_column_format(session, table, &k, value_only, &pv)) != 0) {
             if (value_only && ret == EINVAL)
-                WT_RET_MSG(session, EINVAL,
+                WT_RET_MSG(session, WT_E(EINVAL),
                   "A column group cannot store key column '%.*s' in its value", (int)k.len, k.str);
-            WT_RET_MSG(session, EINVAL, "Column '%.*s' not found", (int)k.len, k.str);
+            WT_RET_MSG(session, WT_E(EINVAL), "Column '%.*s' not found", (int)k.len, k.str);
         }
 
         /*

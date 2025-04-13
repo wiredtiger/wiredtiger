@@ -147,7 +147,7 @@ __compact_uri_analyze(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     if (WT_PREFIX_MATCH(uri, "file:"))
         session->compact->file_count++;
     if (WT_PREFIX_MATCH(uri, "tiered:"))
-        WT_RET(ENOTSUP);
+        WT_RET(WT_E(ENOTSUP));
 
     return (0);
 }
@@ -197,7 +197,7 @@ __session_compact_check_timeout(WT_SESSION_IMPL *session)
     __wt_epoch(session, &end);
 
     ret =
-      session->compact->max_time > WT_TIMEDIFF_SEC(end, session->compact->begin) ? 0 : ETIMEDOUT;
+      session->compact->max_time > WT_TIMEDIFF_SEC(end, session->compact->begin) ? 0 : WT_E(ETIMEDOUT);
     if (ret != 0) {
         WT_STAT_CONN_INCR(session, session_table_compact_timeout);
 
@@ -230,13 +230,13 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
         background_compaction = true;
         __wt_spin_lock(session, &conn->background_compact.lock);
         if (!__wt_atomic_loadbool(&conn->background_compact.running))
-            ret = WT_ERROR;
+            ret = WT_E(WT_ERROR);
         __wt_spin_unlock(session, &conn->background_compact.lock);
     } else if (session->event_handler->handle_general != NULL) {
         ret = session->event_handler->handle_general(
           session->event_handler, &conn->iface, &session->iface, WT_EVENT_COMPACT_CHECK, NULL);
         if (ret != 0)
-            ret = WT_ERROR;
+            ret = WT_E(WT_ERROR);
     }
 
     if (ret != 0) {
@@ -341,7 +341,7 @@ __compact_worker(WT_SESSION_IMPL *session)
             /* Compact will return EBUSY if eviction is a problem. */
             if (ret == EBUSY) {
                 WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
-                WT_ERR_MSG(session, EBUSY,
+                WT_ERR_MSG(session, WT_E(EBUSY),
                   "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
                   session->op_handle[i]->name);
             }
@@ -408,7 +408,7 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
     /* Trigger the background server. */
     if ((ret = __wt_config_getones(session, config, "background", &cval) == 0)) {
         if (uri != NULL)
-            WT_ERR_MSG(session, EINVAL, "Background compaction does not work on specific URIs.");
+            WT_ERR_MSG(session, WT_E(EINVAL), "Background compaction does not work on specific URIs.");
 
         /*
          * We shouldn't provide any other configurations when explicitly disabling the background
@@ -418,22 +418,22 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
             WT_ERR_NOTFOUND_OK(
               __wt_config_getones(session, config, "free_space_target", &cval), true);
             if (ret == 0)
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "free_space_target configuration cannot be set when disabling the background "
                   "compaction server.");
             WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "exclude", &cval), true);
             if (ret == 0)
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "exclude configuration cannot be set when disabling the background compaction "
                   "server.");
             WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "run_once", &cval), true);
             if (ret == 0)
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "run_once configuration cannot be set when disabling the background compaction "
                   "server.");
             WT_ERR_NOTFOUND_OK(__wt_config_getones(session, config, "timeout", &cval), true);
             if (ret == 0)
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "timeout configuration cannot be set when disabling the background compaction "
                   "server.");
         }
@@ -445,7 +445,7 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
         WT_ERR_NOTFOUND_OK(ret, false);
 
     if (uri == NULL)
-        WT_ERR_MSG(session, EINVAL, "Compaction requires a URI");
+        WT_ERR_MSG(session, WT_E(EINVAL), "Compaction requires a URI");
 
     WT_STAT_CONN_SET(session, session_table_compact_running, 1);
 
@@ -540,7 +540,7 @@ err:
 
     /* Map prepare-conflict to rollback. */
     if (ret == WT_PREPARE_CONFLICT)
-        ret = WT_ROLLBACK;
+        ret = WT_E(WT_ROLLBACK);
 
 done:
     API_END_RET_NOTFOUND_MAP(session, ret);

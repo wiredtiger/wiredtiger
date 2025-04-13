@@ -57,7 +57,7 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);
 
-    return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
+    return (__wt_set_return((WT_SESSION_IMPL *)wt_session, WT_E_S((WT_SESSION_IMPL*)wt_session, ENOTSUP)));
 #endif
 }
 
@@ -74,7 +74,7 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);
 
-    return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
+    return (__wt_set_return((WT_SESSION_IMPL *)wt_session, WT_E_S((WT_SESSION_IMPL*)wt_session, ENOTSUP)));
 #endif
 }
 
@@ -91,7 +91,7 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);
 
-    return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
+    return (__wt_set_return((WT_SESSION_IMPL *)wt_session, WT_E_S((WT_SESSION_IMPL*)wt_session, ENOTSUP)));
 #endif
 }
 
@@ -148,5 +148,5 @@ __wti_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
 
     file_handle->fh_extend = NULL;
     WT_RELEASE_BARRIER();
-    return (ENOTSUP);
+    return (WT_E_S((WT_SESSION_IMPL*)wt_session, ENOTSUP));
 }

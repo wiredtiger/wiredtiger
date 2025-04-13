@@ -201,7 +201,7 @@ __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *valu
       __metadata_turtle(key) ? "" : "not ");
 
     if (__metadata_turtle(key))
-        WT_RET_MSG(session, EINVAL, "%s: insert not supported on the turtle file", key);
+        WT_RET_MSG(session, WT_E(EINVAL), "%s: insert not supported on the turtle file", key);
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, key);
@@ -269,7 +269,7 @@ __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
       key, WT_META_TRACKING(session) ? "true" : "false", __metadata_turtle(key) ? "" : "not ");
 
     if (__metadata_turtle(key))
-        WT_RET_MSG(session, EINVAL, "%s: remove not supported on the turtle file", key);
+        WT_RET_MSG(session, WT_E(EINVAL), "%s: remove not supported on the turtle file", key);
 
     /*
      * Take, release, and reacquire the metadata cursor. It's complicated, but that way the

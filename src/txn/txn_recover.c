@@ -729,7 +729,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     }
 
     if (r->files[fileid].uri != NULL)
-        WT_RET_PANIC(r->session, WT_PANIC,
+        WT_RET_PANIC(r->session, WT_E_S(r->session, WT_PANIC),
           "metadata corruption: files %s and %s have the same file ID %u", uri,
           r->files[fileid].uri, fileid);
     WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
@@ -743,7 +743,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     else if (sscanf(cval.str, "(%" SCNu32 ",%" SCNu32 ")", &lsnfile, &lsnoffset) == 2)
         WT_SET_LSN(&lsn, lsnfile, lsnoffset);
     else
-        WT_RET_MSG(r->session, EINVAL,
+        WT_RET_MSG(r->session, WT_E_S(r->session, EINVAL),
           "Failed recovery setup for %s: cannot parse checkpoint LSN '%.*s'", uri, (int)cval.len,
           cval.str);
     WT_ASSIGN_LSN(&r->files[fileid].ckpt_lsn, &lsn);
@@ -908,7 +908,7 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
                 metac->remove(metac);
             } else
                 /* The history store file has likely been deleted, we cannot recover from this. */
-                WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s file is corrupted or missing", WT_HS_FILE);
+                WT_ERR_MSG(session, WT_E(WT_TRY_SALVAGE), "%s file is corrupted or missing", WT_HS_FILE);
         }
     }
 err:
@@ -1023,7 +1023,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(conn, WT_CONN_READONLY)) {
         WT_ERR(__wt_log_needs_recovery(session, &metafile->ckpt_lsn, &needs_rec));
         if (needs_rec)
-            WT_ERR_MSG(session, WT_RUN_RECOVERY, "Read-only database needs recovery");
+            WT_ERR_MSG(session, WT_E(WT_RUN_RECOVERY), "Read-only database needs recovery");
     }
     if (WT_IS_INIT_LSN(&metafile->ckpt_lsn))
         ret = __wt_log_scan(session, NULL, NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r);
@@ -1046,7 +1046,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (ret == ENOENT) {
         F_SET(conn, WT_CONN_DATA_CORRUPTION);
-        ret = WT_ERROR;
+        ret = WT_E(WT_ERROR);
     }
 
     r.backup_only = false;
@@ -1095,8 +1095,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     if (needs_rec &&
       (F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_ERR) || F_ISSET(conn, WT_CONN_READONLY))) {
         if (F_ISSET(conn, WT_CONN_READONLY))
-            WT_ERR_MSG(session, WT_RUN_RECOVERY, "Read-only database needs recovery");
-        WT_ERR_MSG(session, WT_RUN_RECOVERY, "Database needs recovery");
+            WT_ERR_MSG(session, WT_E(WT_RUN_RECOVERY), "Read-only database needs recovery");
+        WT_ERR_MSG(session, WT_E(WT_RUN_RECOVERY), "Database needs recovery");
     }
 
     if (F_ISSET(conn, WT_CONN_READONLY)) {
@@ -1146,7 +1146,7 @@ done:
      * shutdown of 10.0.0. Earlier releases are not affected by the upgrade issue.
      */
     if (conn->unclean_shutdown && __wt_version_eq(conn->recovery_version, (WT_VERSION){10, 0, 0}))
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
           "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
 #endif

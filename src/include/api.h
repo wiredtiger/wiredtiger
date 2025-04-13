@@ -235,7 +235,7 @@
 
 #define API_END_RET_NOTFOUND_MAP(s, ret) \
     API_END(s, ret);                     \
-    return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+    return ((ret) == WT_NOTFOUND ? WT_EMAP(ENOENT) : (ret))
 
 /*
  * Used in cases where transaction error should not be set, but the error is returned from the API.
@@ -244,7 +244,7 @@
  */
 #define API_END_RET_NO_TXN_ERROR(s, ret) \
     API_END(s, 0);                       \
-    return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
+    return ((ret) == WT_NOTFOUND ? WT_EMAP(ENOENT) : (ret))
 
 #define API_USER_ENTRY(s) (s)->api_call_counter == 1
 
@@ -345,7 +345,7 @@
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);                                  \
     if (F_ISSET(S2C(s), WT_CONN_IN_MEMORY) && !F_ISSET(CUR2BT(cur), WT_BTREE_IGNORE_CACHE) && \
       __wt_cache_full(s))                                                                     \
-        WT_ERR(WT_CACHE_FULL);
+        WT_ERR(WT_E(WT_CACHE_FULL));
 
 #define CURSOR_UPDATE_API_CALL(cur, s, ret, func_name)  \
     (s) = CUR2S(cur);                                   \
@@ -354,14 +354,14 @@
 
 #define CURSOR_UPDATE_API_END_RETRY(s, ret, retry) \
     if ((ret) == WT_PREPARE_CONFLICT)              \
-        (ret) = WT_ROLLBACK;                       \
+        (ret) = WT_E(WT_ROLLBACK);                       \
     TXN_API_END(s, ret, retry)
 
 #define CURSOR_UPDATE_API_END(s, ret) CURSOR_UPDATE_API_END_RETRY(s, ret, true)
 
 #define CURSOR_UPDATE_API_END_RETRY_STAT(s, ret, retry, api) \
     if ((ret) == WT_PREPARE_CONFLICT)                        \
-        (ret) = WT_ROLLBACK;                                 \
+        (ret) = WT_E(WT_ROLLBACK);                                 \
     API_END_STAT(s, ret, api);                               \
     TXN_API_END(s, ret, retry)
 

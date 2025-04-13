@@ -115,7 +115,7 @@ __wt_schema_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[
         ret = __wt_bad_object_type(session, uri);
 
     /* If we didn't find a metadata entry, map that error to ENOENT. */
-    return (ret == WT_NOTFOUND ? ENOENT : ret);
+    return (ret == WT_NOTFOUND ? WT_E(ENOENT) : ret);
 }
 
 /*

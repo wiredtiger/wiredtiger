@@ -179,7 +179,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
      * are close to hitting the eviction clean trigger.
      */
     if (__wt_evict_clean_pressure(session))
-        return (EBUSY);
+        return (WT_E(EBUSY));
 
     WT_RET(__wt_calloc_one(session, &pe));
     pe->ref = ref;
@@ -190,7 +190,7 @@ __wt_conn_prefetch_queue_push(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Don't queue pages for trees that have eviction disabled. */
     if (S2BT(session)->evict_disabled > 0) {
         __wt_spin_unlock(session, &conn->prefetch_lock);
-        WT_ERR(EBUSY);
+        WT_ERR(WT_E(EBUSY));
     }
 
     /* We should never add a ref that is already in the prefetch queue. */

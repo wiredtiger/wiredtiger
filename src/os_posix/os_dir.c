@@ -53,7 +53,7 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
     WT_SYSCALL_RETRY(((dirp = opendir(directory)) == NULL ? -1 : 0), ret);
     if (dirp == NULL || ret != 0) {
         if (ret == 0)
-            ret = EINVAL;
+            ret = WT_E(EINVAL);
         WT_ERR_MSG(session, ret, "%s: directory-list: opendir", directory);
     }
     /*
@@ -95,7 +95,7 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
      * special message if readdir failed.
      */
     if (errno != 0) {
-        ret = errno;
+        ret = WT_E(errno);
         __wt_epoch(session, &ts);
         WT_ERR(__wt_buf_fmt(session, readerrmsg,
           "[%" PRIuMAX ":%" PRIuMAX "] readdir failed errno %d (%s) dir fd %d",

@@ -35,11 +35,11 @@ __evict_config_abs_to_pct(
          * percentage setting and do not allow an absolute size setting.
          */
         if (shared)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "Shared cache configuration requires a percentage value for %s", param_name);
         /* An absolute value can't exceed the cache size. */
         if (input > cache_size)
-            WT_RET_MSG(session, EINVAL, "%s should not exceed cache size", param_name);
+            WT_RET_MSG(session, WT_E(EINVAL), "%s should not exceed cache size", param_name);
 
         *param = (input * 100.0) / cache_size;
     }
@@ -162,12 +162,12 @@ __evict_validate_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* The target size must be lower than the trigger size or we will never get any work done. */
     if (evict->eviction_target >= evict->eviction_trigger)
-        WT_RET_MSG(session, EINVAL, "eviction target must be lower than the eviction trigger");
+        WT_RET_MSG(session, WT_E(EINVAL), "eviction target must be lower than the eviction trigger");
     if (evict->eviction_dirty_target >= evict->eviction_dirty_trigger)
         WT_RET_MSG(
-          session, EINVAL, "eviction dirty target must be lower than the eviction dirty trigger");
+          session, WT_E(EINVAL), "eviction dirty target must be lower than the eviction dirty trigger");
     if (evict->eviction_updates_target >= evict->eviction_updates_trigger)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "eviction updates target must be lower than the eviction updates trigger");
 
     return (0);
@@ -212,7 +212,7 @@ __wt_evict_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     if (evict_threads_min > evict_threads_max)
         WT_RET_MSG(
-          session, EINVAL, "eviction=(threads_min) cannot be greater than eviction=(threads_max)");
+          session, WT_E(EINVAL), "eviction=(threads_min) cannot be greater than eviction=(threads_max)");
     conn->evict_threads_max = evict_threads_max;
     conn->evict_threads_min = evict_threads_min;
 

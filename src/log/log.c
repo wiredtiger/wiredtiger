@@ -566,11 +566,11 @@ __wti_log_extract_lognum(WT_SESSION_IMPL *session, const char *name, uint32_t *i
     const char *p;
 
     if (id == NULL || name == NULL)
-        WT_RET_MSG(session, EINVAL, "unexpected usage: no id or no name");
+        WT_RET_MSG(session, WT_E(EINVAL), "unexpected usage: no id or no name");
     if ((p = strrchr(name, '.')) == NULL ||
       /* NOLINTNEXTLINE(cert-err34-c) */
       sscanf(++p, "%" SCNu32, id) != 1)
-        WT_RET_MSG(session, WT_ERROR, "Bad log file name '%s'", name);
+        WT_RET_MSG(session, WT_E(WT_ERROR), "Bad log file name '%s'", name);
     return (0);
 }
 
@@ -692,7 +692,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
     skip = WT_LOG_COMPRESS_SKIP;
     compressor = conn->log_mgr.compressor;
     if (compressor == NULL || compressor->decompress == NULL)
-        WT_RET_MSG(session, WT_ERROR, "Compressed record with no configured compressor");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "Compressed record with no configured compressor");
     uncompressed_size = logrec->mem_len;
     WT_RET(__wt_buf_initsize(session, out, uncompressed_size));
     memcpy(out->mem, in->mem, skip);
@@ -705,7 +705,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
      * OK, otherwise it's really, really bad.
      */
     if (result_len != uncompressed_size - WT_LOG_COMPRESS_SKIP)
-        WT_RET_MSG(session, WT_ERROR, "decompression failed with incorrect size");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "decompression failed with incorrect size");
 
     return (0);
 }
@@ -725,7 +725,7 @@ __log_decrypt(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
     kencryptor = conn->kencryptor;
     if (kencryptor == NULL || (encryptor = kencryptor->encryptor) == NULL ||
       encryptor->decrypt == NULL)
-        WT_RET_MSG(session, WT_ERROR, "Encrypted record with no configured decrypt method");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "Encrypted record with no configured decrypt method");
 
     return (__wt_decrypt(session, encryptor, WT_LOG_ENCRYPT_SKIP, in, out));
 }
@@ -923,17 +923,17 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
     __wti_log_desc_byteswap(desc);
     if (desc->log_magic != WTI_LOG_MAGIC) {
         if (salvage_mode)
-            WT_ERR_MSG(session, WT_ERROR, "log file %s corrupted: Bad magic number %" PRIu32,
+            WT_ERR_MSG(session, WT_E(WT_ERROR), "log file %s corrupted: Bad magic number %" PRIu32,
               fh->name, desc->log_magic);
         else
-            WT_ERR_MSG(session, WT_TRY_SALVAGE, "log file %s corrupted: Bad magic number %" PRIu32,
+            WT_ERR_MSG(session, WT_E(WT_TRY_SALVAGE), "log file %s corrupted: Bad magic number %" PRIu32,
               fh->name, desc->log_magic);
     }
     /*
      * We cannot read future log file formats.
      */
     if (desc->version > WTI_LOG_VERSION)
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           "unsupported WiredTiger file version: this build only supports versions up to %d, and "
           "the file is version %" PRIu16,
           WTI_LOG_VERSION, desc->version);
@@ -943,14 +943,14 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
      * maximum.
      */
     if (__wt_version_defined(conn->compat_req_max) && desc->version > log_mgr->req_max)
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           WT_COMPAT_MSG_PREFIX
           "unsupported WiredTiger file version: this build requires a maximum version of %" PRIu16
           ", and the file is version %" PRIu16,
           log_mgr->req_max, desc->version);
 
     if (__wt_version_defined(conn->compat_req_min) && desc->version < log_mgr->req_min)
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           WT_COMPAT_MSG_PREFIX
           "unsupported WiredTiger file version: this build requires a minimum version of %" PRIu16
           ", and the file is version %" PRIu16,
@@ -983,7 +983,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
     }
 
     if (!__log_checksum_match(buf, allocsize))
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           "%s: System log record checksum mismatch: calculated block checksum of %#" PRIx32
           " doesn't match expected checksum of %#" PRIx32,
           fh->name, __wt_checksum(buf, allocsize), logrec->checksum);
@@ -992,7 +992,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
     end = (const uint8_t *)buf->data + allocsize;
     WT_ERR(__wt_logrec_read(session, &p, end, &rectype));
     if (rectype != WT_LOGREC_SYSTEM)
-        WT_ERR_MSG(session, WT_ERROR, "System log record missing");
+        WT_ERR_MSG(session, WT_E(WT_ERROR), "System log record missing");
     WT_ERR(__wti_log_recover_prevlsn(session, &p, end, lsnp));
 
 err:
@@ -1092,7 +1092,7 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
      */
     WT_RET(__log_get_files_single(session, WTI_LOG_PREPNAME, &logfiles, &logcount));
     if (logcount == 0)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     /* We have a file to use. */
     WT_ERR(__wti_log_extract_lognum(session, logfiles[0], &from_num));
@@ -1158,7 +1158,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
             __wt_spin_lock(session, &log->log_slot_lock);
         }
         if (++yield_cnt > WT_THOUSAND * 10)
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
         __wt_yield();
     }
     /*
@@ -2034,7 +2034,7 @@ __log_salvage_message(
     __wt_verbose_notice(session, WT_VERB_LOG, "log file %s corrupted%s at position %" PRIuMAX "%s.",
       log_name, extra_msg, (uintmax_t)offset, log != NULL ? ", truncated" : "");
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-    return (WT_ERROR);
+    return (WT_E(WT_ERROR));
 }
 
 /*
@@ -2081,7 +2081,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
         return (0);
 
     if (start_lsnp != NULL && LF_ISSET(WT_LOGSCAN_FIRST | WT_LOGSCAN_FROM_CKP))
-        WT_RET_MSG(session, WT_ERROR, "choose either a start LSN or a start flag");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "choose either a start LSN or a start flag");
     /*
      * Set up the allocation size, starting and ending LSNs. The values for those depend on whether
      * logging is currently enabled or not.
@@ -2095,7 +2095,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
             if (LF_ISSET(WT_LOGSCAN_FROM_CKP))
                 WT_ASSIGN_LSN(&start_lsn, &log->ckpt_lsn);
             else if (!LF_ISSET(WT_LOGSCAN_FIRST))
-                WT_RET_MSG(session, WT_ERROR, "WT_LOGSCAN_FIRST not set");
+                WT_RET_MSG(session, WT_E(WT_ERROR), "WT_LOGSCAN_FIRST not set");
         }
         lastlog = log->fileid;
     } else {
@@ -2110,7 +2110,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
         firstlog = UINT32_MAX;
         WT_RET(__log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
         if (logcount == 0)
-            WT_RET_MSG(session, ENOTSUP, "no log files found");
+            WT_RET_MSG(session, WT_E(ENOTSUP), "no log files found");
         for (i = 0; i < logcount; i++) {
             WT_ERR(__wti_log_extract_lognum(session, logfiles[i], &lognum));
             lastlog = WT_MAX(lastlog, lognum);
@@ -2129,10 +2129,10 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
          */
         if (__wt_lsn_offset(start_lsnp) % allocsize != 0) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
-                WT_ERR_MSG(session, WT_NOTFOUND, "__wt_log_scan unaligned LSN %" PRIu32 "/%" PRIu32,
+                WT_ERR_MSG(session, WT_E(WT_NOTFOUND), "__wt_log_scan unaligned LSN %" PRIu32 "/%" PRIu32,
                   start_lsnp->l.file, __wt_lsn_offset(start_lsnp));
             else
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
         }
         /*
          * If the file is in the future it doesn't exist. An invalid LSN from a user should just
@@ -2141,11 +2141,11 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
          */
         if (start_lsnp->l.file > lastlog) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
-                WT_ERR_MSG(session, WT_NOTFOUND,
+                WT_ERR_MSG(session, WT_E(WT_NOTFOUND),
                   "__wt_log_scan LSN %" PRIu32 "/%" PRIu32 " larger than biggest log file %" PRIu32,
                   start_lsnp->l.file, __wt_lsn_offset(start_lsnp), lastlog);
             else
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
         }
         /*
          * Log cursors may not know the starting LSN. If an LSN is passed in that it is equal to the
@@ -2156,7 +2156,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
     }
     WT_ERR(__log_open_verify(session, start_lsn.l.file, &log_fh, &prev_lsn, NULL, &need_salvage));
     if (need_salvage)
-        WT_ERR_MSG(session, WT_ERROR, "log file requires salvage");
+        WT_ERR_MSG(session, WT_E(WT_ERROR), "log file requires salvage");
     WT_ERR(__wt_filesize(session, log_fh, &log_size));
     WT_ASSIGN_LSN(&rd_lsn, &start_lsn);
     if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
@@ -2216,7 +2216,7 @@ advance:
             WT_ERR(__log_open_verify(
               session, rd_lsn.l.file, &log_fh, &prev_lsn, &version, &need_salvage));
             if (need_salvage)
-                WT_ERR_MSG(session, WT_ERROR, "log file requires salvage");
+                WT_ERR_MSG(session, WT_E(WT_ERROR), "log file requires salvage");
             /*
              * Opening the log file reads with verify sets up the previous LSN from the first
              * record. This detects a "hole" at the end of the previous log file.
@@ -2316,7 +2316,7 @@ advance:
              * If the user asked for a specific LSN and it is not a valid LSN, return WT_NOTFOUND.
              */
             if (LF_ISSET(WT_LOGSCAN_ONE))
-                ret = WT_NOTFOUND;
+                ret = WT_E(WT_NOTFOUND);
 
             /*
              * When we have a checksum mismatch, we would like
@@ -2451,7 +2451,7 @@ err:
      * If the caller wants one record and it is at the end of log, return WT_NOTFOUND.
      */
     if (LF_ISSET(WT_LOGSCAN_ONE) && eol && ret == 0)
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
     WT_TRET(__wt_close(session, &log_fh));
     return (ret);
 }
@@ -2611,7 +2611,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
     log_mgr = &conn->log_mgr;
     log = log_mgr->log;
     if (record->size > UINT32_MAX)
-        WT_RET_MSG(session, EFBIG,
+        WT_RET_MSG(session, WT_E(EFBIG),
           "Log record size of %" WT_SIZET_FMT " exceeds the maximum supported size of %" PRIu32,
           record->size, UINT32_MAX);
     WT_INIT_LSN(&lsn);

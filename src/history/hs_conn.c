@@ -70,7 +70,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
 
     WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval));
     if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
-        WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val,
+        WT_ERR_MSG(session, WT_E(EINVAL), "max history store size %" PRId64 " below minimum %d", cval.val,
           WT_HS_FILE_MIN);
 
     /* The history store is not available for in-memory configurations. */

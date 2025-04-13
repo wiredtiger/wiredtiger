@@ -45,7 +45,7 @@ __wti_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_region
 #endif
              pfh->mmap_flags,
            pfh->fd, (wt_off_t)0)) == MAP_FAILED)
-        WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", fh->name);
+        WT_RET_MSG(session, WT_E(__wt_errno()), "%s: memory-map: mmap", fh->name);
 
     *mapped_regionp = map;
     *lenp = len;
@@ -156,5 +156,5 @@ __wti_posix_unmap(
     if (munmap(mapped_region, len) == 0)
         return (0);
 
-    WT_RET_MSG(session, __wt_errno(), "%s: memory-unmap: munmap", fh->name);
+    WT_RET_MSG(session, WT_E(__wt_errno()), "%s: memory-unmap: munmap", fh->name);
 }

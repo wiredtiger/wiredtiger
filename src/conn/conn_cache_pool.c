@@ -69,12 +69,12 @@ __cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
              * pool.
              */
             if (__wt_config_gets(session, &cfg[1], "shared_cache.size", &cval) != WT_NOTFOUND)
-                WT_RET_MSG(session, EINVAL, "Shared cache configuration requires a pool name");
+                WT_RET_MSG(session, WT_E(EINVAL), "Shared cache configuration requires a pool name");
             return (0);
         }
 
         if (__wt_config_gets(session, &cfg[1], "cache_size", &cval_cache_size) != WT_NOTFOUND)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "Only one of cache_size and shared_cache can be in the configuration");
 
         /*
@@ -102,7 +102,7 @@ __cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
     } else if (!updating && strcmp(__wt_process.cache_pool->name, pool_name) != 0)
         /* Only a single cache pool is supported. */
         WT_ERR_MSG(
-          session, WT_ERROR, "Attempting to join a cache pool that does not exist: %s", pool_name);
+          session, WT_E(WT_ERROR), "Attempting to join a cache pool that does not exist: %s", pool_name);
 
     /*
      * At this point we have a cache pool to use. We need to take its lock. We need to drop the
@@ -183,7 +183,7 @@ __cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
     if (updating)
         used_cache -= conn->cache->cp_reserved;
     if (used_cache + reserve > size)
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "Shared cache unable to accommodate this configuration. Shared cache size: %" PRIu64
           ", requested min: %" PRIu64,
           size, used_cache + reserve);

@@ -165,7 +165,7 @@ __wt_block_addr_invalid(
 
     /* Check if the address is past the end of the file. */
     if (objectid == block->objectid && offset + size > block->size)
-        WT_RET_MSG(session, EINVAL, "address is past the end of the file");
+        WT_RET_MSG(session, WT_E(EINVAL), "address is past the end of the file");
     return (0);
 }
 
@@ -209,7 +209,7 @@ __block_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *ck
 
     ci->version = ckpt[0];
     if (ci->version != WT_BM_CHECKPOINT_VERSION)
-        WT_RET_MSG(session, WT_ERROR, "unsupported checkpoint version");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "unsupported checkpoint version");
 
     /*
      * See the comment above about address cookies and sizes for an explanation.
@@ -289,7 +289,7 @@ __wti_block_ckpt_pack(
     uint64_t a;
 
     if (ci->version != WT_BM_CHECKPOINT_VERSION)
-        WT_RET_MSG(session, WT_ERROR, "unsupported checkpoint version");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "unsupported checkpoint version");
 
     (*pp)[0] = ci->version;
     (*pp)++;

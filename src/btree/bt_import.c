@@ -54,7 +54,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_ERR(__wt_config_getones(session, metadata, "block_metadata_encrypted", &v));
     WT_ERR(__wt_btree_config_encryptor(session, cfg, &kencryptor));
     if ((kencryptor == NULL && v.val != 0) || (kencryptor != NULL && v.val == 0))
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "%s: loaded object's encryption configuration doesn't match the database's encryption "
           "configuration",
           uri);
@@ -127,7 +127,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
         if (ckpt->name == NULL || (ckpt + 1)->name == NULL)
             break;
     if (ckpt->name == NULL)
-        WT_ERR_MSG(session, EINVAL, "no checkpoint information available to import");
+        WT_ERR_MSG(session, WT_E(EINVAL), "no checkpoint information available to import");
     F_SET(ckpt, WT_CKPT_UPDATE);
     WT_ERR(__wt_buf_set(session, &ckpt->raw, checkpoint->data, checkpoint->size));
     WT_ERR(__wt_meta_ckptlist_update_config(session, ckptbase, config_tmp, &config));

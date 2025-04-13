@@ -68,7 +68,7 @@ __wt_conf_check_choice(
         if (len == 0)
             *result = __WT_CONFIG_CHOICE_NULL;
         else
-            WT_RET_MSG(session, EINVAL, "Value '%.*s' is not a valid choice", (int)len, str);
+            WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' is not a valid choice", (int)len, str);
     }
     return (0);
 }
@@ -97,11 +97,11 @@ __wt_conf_check_one(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *check, WT_C
           __wt_conf_check_choice(session, check->choices, value->str, value->len, &value->str));
 
         if (value->val < check->min_value)
-            WT_RET_MSG(session, EINVAL, "Value '%.*s' too small, the minimum is %" PRIi64,
+            WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' too small, the minimum is %" PRIi64,
               (int)value->len, value->str, check->min_value);
 
         if (value->val > check->max_value)
-            WT_RET_MSG(session, EINVAL, "Value '%.*s' too large, the maximum is %" PRIi64,
+            WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' too large, the maximum is %" PRIi64,
               (int)value->len, value->str, check->max_value);
     }
     return (0);

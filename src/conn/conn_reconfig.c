@@ -26,11 +26,11 @@ __conn_compat_parse(
     if (sscanf(cvalp->str, "%" SCNu16 ".%" SCNu16, majorp, minorp) != 2 &&
       /* NOLINTNEXTLINE(cert-err34-c) */
       sscanf(cvalp->str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16, majorp, minorp, &unused_patch) != 3)
-        WT_RET_MSG(session, EINVAL, "illegal compatibility release");
+        WT_RET_MSG(session, WT_E(EINVAL), "illegal compatibility release");
     if (*majorp > WIREDTIGER_VERSION_MAJOR)
-        WT_RET_MSG(session, ENOTSUP, WT_COMPAT_MSG_PREFIX "unsupported major version");
+        WT_RET_MSG(session, WT_E(ENOTSUP), WT_COMPAT_MSG_PREFIX "unsupported major version");
     if (*majorp == WIREDTIGER_VERSION_MAJOR && *minorp > WIREDTIGER_VERSION_MINOR)
-        WT_RET_MSG(session, ENOTSUP, WT_COMPAT_MSG_PREFIX "unsupported minor version");
+        WT_RET_MSG(session, WT_E(ENOTSUP), WT_COMPAT_MSG_PREFIX "unsupported minor version");
     return (0);
 }
 
@@ -73,7 +73,7 @@ __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
              */
             WT_RET(__wt_txn_activity_check(session, &txn_active));
             if (txn_active)
-                WT_RET_MSG(session, ENOTSUP, "system must be quiescent for upgrade or downgrade");
+                WT_RET_MSG(session, WT_E(ENOTSUP), "system must be quiescent for upgrade or downgrade");
         }
         F_SET(conn, WT_CONN_COMPATIBILITY);
     }
@@ -102,7 +102,7 @@ __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
      * what was saved on a restart later.
      */
     if (!reconfig && __wt_version_defined(max_compat) && __wt_version_lt(max_compat, new_compat))
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                "cannot be smaller than compatibility release %" PRIu16 ".%" PRIu16,
           max_compat.major, max_compat.minor, new_compat.major, new_compat.minor);
@@ -113,7 +113,7 @@ __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
      * was saved on a restart later.
      */
     if (!reconfig && __wt_version_defined(min_compat) && __wt_version_gt(min_compat, new_compat))
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
                                "cannot be larger than compatibility release %" PRIu16 ".%" PRIu16,
           min_compat.major, min_compat.minor, new_compat.major, new_compat.minor);
@@ -124,7 +124,7 @@ __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
      */
     if (reconfig && __wt_version_defined(conn->compat_req_max) &&
       __wt_version_lt(conn->compat_req_max, new_compat))
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                "cannot be smaller than requested compatibility release %" PRIu16
                                ".%" PRIu16,
@@ -137,7 +137,7 @@ __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
      */
     if (reconfig && __wt_version_defined(conn->compat_req_min) &&
       __wt_version_gt(conn->compat_req_min, new_compat))
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
                                "cannot be larger than requested compatibility release %" PRIu16
                                ".%" PRIu16,
@@ -179,12 +179,12 @@ __wti_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_getones(session, value, "minor", &cval));
         new_compat.minor = (uint16_t)cval.val;
         if (__wt_version_defined(max_compat) && __wt_version_lt(max_compat, new_compat))
-            WT_ERR_MSG(session, ENOTSUP,
+            WT_ERR_MSG(session, WT_E(ENOTSUP),
               WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
                                    "cannot be larger than saved release %" PRIu16 ".%" PRIu16,
               max_compat.major, max_compat.minor, new_compat.major, new_compat.minor);
         if (__wt_version_defined(min_compat) && __wt_version_gt(min_compat, new_compat))
-            WT_ERR_MSG(session, ENOTSUP,
+            WT_ERR_MSG(session, WT_E(ENOTSUP),
               WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
                                    "cannot be larger than saved release %" PRIu16 ".%" PRIu16,
               min_compat.major, min_compat.minor, new_compat.major, new_compat.minor);
@@ -231,7 +231,7 @@ __wti_conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[], bool recon
     if (F_ISSET(conn, WT_CONN_READONLY))
         /* Operation tracking isn't supported in read-only mode */
         WT_RET_MSG(
-          session, EINVAL, "Operation tracking is incompatible with read only configuration");
+          session, WT_E(EINVAL), "Operation tracking is incompatible with read only configuration");
     if (F_ISSET(conn, WT_CONN_OPTRACK))
         /* Already enabled, nothing else to do */
         return (0);
@@ -317,7 +317,7 @@ __wti_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
              * Live restore uses statistics to inform the user when migration has completed. They
              * must be enabled.
              */
-            WT_RET_MSG(session, EINVAL, "Statistics must be enabled when live restore is active.");
+            WT_RET_MSG(session, WT_E(EINVAL), "Statistics must be enabled when live restore is active.");
         flags = 0;
         ++set;
     }
@@ -338,7 +338,7 @@ __wti_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (set > 1)
         WT_RET_MSG(
-          session, EINVAL, "Only one of all, fast, none configuration values should be specified");
+          session, WT_E(EINVAL), "Only one of all, fast, none configuration values should be specified");
 
     /*
      * Now that we've parsed general statistics categories, process sub-categories.
@@ -362,7 +362,7 @@ __wti_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
     if ((ret = __wt_config_subgets(session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
         if (!LF_ISSET(WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK | WT_STAT_TYPE_FAST |
               WT_STAT_TYPE_TREE_WALK))
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "the value \"clear\" can only be specified if statistics are enabled");
         LF_SET(WT_STAT_CLEAR);
     }

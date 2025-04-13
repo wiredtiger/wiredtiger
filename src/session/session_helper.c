@@ -146,6 +146,7 @@ err:
 void
 __wt_session_reset_last_error(WT_SESSION_IMPL *session)
 {
+    __wt_ret_origin_clear(session);
     if (session == NULL || !F_ISSET(session, WT_SESSION_SAVE_ERRORS))
         return;
 

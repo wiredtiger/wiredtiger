@@ -111,7 +111,7 @@ __config_check_search(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u
             return (0);
     }
 
-    WT_RET_MSG(session, EINVAL, "unknown configuration key '%.*s'", (int)item->len, item->str);
+    WT_RET_MSG(session, WT_E(EINVAL), "unknown configuration key '%.*s'", (int)item->len, item->str);
 }
 
 /*
@@ -160,7 +160,7 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
     while ((ret = __wt_config_next(&parser, &k, &v)) == 0) {
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
             WT_RET_MSG(
-              session, EINVAL, "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
+              session, WT_E(EINVAL), "Invalid configuration key found: '%.*s'", (int)k.len, k.str);
 
         /* Search for a matching entry. */
         WT_RET(__config_check_search(session, checks, checks_entries, &k, check_jump, &check));
@@ -188,10 +188,10 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
         case WT_CONFIG_COMPILED_TYPE_STRING:
             break;
         default:
-            WT_RET_MSG(session, EINVAL, "unknown configuration type: '%s'", check->type);
+            WT_RET_MSG(session, WT_E(EINVAL), "unknown configuration type: '%s'", check->type);
         }
         if (badtype)
-            WT_RET_MSG(session, EINVAL, "Invalid value for key '%.*s': expected a %s", (int)k.len,
+            WT_RET_MSG(session, WT_E(EINVAL), "Invalid value for key '%.*s': expected a %s", (int)k.len,
               k.str, check->type);
 
         if (check->checkf != NULL)
@@ -203,16 +203,16 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
 
         /* The checks string itself is not needed for checking. */
         if (v.val < check->min_value)
-            WT_RET_MSG(session, EINVAL, "Value too small for key '%.*s' the minimum is %" PRIi64,
+            WT_RET_MSG(session, WT_E(EINVAL), "Value too small for key '%.*s' the minimum is %" PRIi64,
               (int)k.len, k.str, check->min_value);
 
         if (v.val > check->max_value)
-            WT_RET_MSG(session, EINVAL, "Value too large for key '%.*s' the maximum is %" PRIi64,
+            WT_RET_MSG(session, WT_E(EINVAL), "Value too large for key '%.*s' the maximum is %" PRIi64,
               (int)k.len, k.str, check->max_value);
 
         if ((choices = check->choices) != NULL) {
             if (v.len == 0)
-                WT_RET_MSG(session, EINVAL, "Key '%.*s' requires a value", (int)k.len, k.str);
+                WT_RET_MSG(session, WT_E(EINVAL), "Key '%.*s' requires a value", (int)k.len, k.str);
             if (v.type == WT_CONFIG_ITEM_STRUCT) {
                 /* Handle the 'verbose' case of a list containing restricted choices. */
                 __wt_config_subinit(session, &sparser, &v);
@@ -224,7 +224,7 @@ __config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int ch
                 found = __wt_config_get_choice(choices, &v);
 
             if (!found)
-                WT_RET_MSG(session, EINVAL, "Value '%.*s' not a permitted choice for key '%.*s'",
+                WT_RET_MSG(session, WT_E(EINVAL), "Value '%.*s' not a permitted choice for key '%.*s'",
                   (int)v.len, v.str, (int)k.len, k.str);
         }
     }

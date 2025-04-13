@@ -19,7 +19,7 @@ __wt_backup_load_incr(
     if (blkcfg->len != 0)
         WT_RET(__wt_nhex_to_raw(session, blkcfg->str, blkcfg->len, bitstring));
     if (bitstring->size != (nbits >> 3))
-        WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "corrupted modified block list");
     return (0);
 }
 
@@ -190,7 +190,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                     __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
                     goto done;
                 }
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
             }
         }
         /* We have initialized incremental information. */
@@ -235,7 +235,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
 
         /* We either have this object's incremental information or we're done. */
         if (!found)
-            WT_ERR(WT_NOTFOUND);
+            WT_ERR(WT_E(WT_NOTFOUND));
         WT_ASSERT(session, cb->granularity != 0);
         WT_ASSERT(session, total_len != 0);
         __wt_verbose_debug2(session, WT_VERB_BACKUP,

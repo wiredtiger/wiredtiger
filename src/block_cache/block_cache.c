@@ -53,7 +53,7 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
 #ifdef ENABLE_MEMKIND
         *retp = memkind_malloc(blkcache->pmem_kind, size);
 #else
-        WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind");
+        WT_RET_MSG(session, WT_E(EINVAL), "NVRAM block cache type requires libmemkind");
 #endif
     }
     return (0);
@@ -582,7 +582,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, u_int hash_size, u_
         __wt_free(session, nvram_device_path);
 #else
         (void)nvram_device_path;
-        WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind");
+        WT_RET_MSG(session, WT_E(EINVAL), "NVRAM block cache type requires libmemkind");
 #endif
     }
 
@@ -713,7 +713,7 @@ __blkcache_reconfig(WT_SESSION_IMPL *session, bool reconfig, size_t cache_size, 
       (nvram_device_path != NULL &&
         strncmp(nvram_device_path, blkcache->nvram_device_path, strlen(nvram_device_path)) != 0)) {
         __wt_err(session, EINVAL, "block cache reconfiguration not supported");
-        return (WT_ERROR);
+        return (WT_E(WT_ERROR));
     }
     return (0);
 }
@@ -784,7 +784,7 @@ __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
     nvram_device_path = (char *)"";
 
     if (blkcache->type != WT_BLKCACHE_UNCONFIGURED && !reconfig)
-        WT_RET_MSG(session, EINVAL, "block cache setup requested for a configured cache");
+        WT_RET_MSG(session, WT_E(EINVAL), "block cache setup requested for a configured cache");
 
     /* When reconfiguring, check if there are any modifications that we care about. */
     if (blkcache->type != WT_BLKCACHE_UNCONFIGURED && reconfig) {
@@ -799,13 +799,13 @@ __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.size", &cval));
     if ((cache_size = (uint64_t)cval.val) <= 0)
-        WT_RET_MSG(session, EINVAL, "block cache size must be greater than zero");
+        WT_RET_MSG(session, WT_E(EINVAL), "block cache size must be greater than zero");
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.hashsize", &cval));
     if ((hash_size = (u_int)cval.val) == 0)
         hash_size = WT_BLKCACHE_HASHSIZE_DEFAULT;
     else if (hash_size < WT_BLKCACHE_HASHSIZE_MIN || hash_size > WT_BLKCACHE_HASHSIZE_MAX)
-        WT_RET_MSG(session, EINVAL, "block cache hash size must be between %d and %d entries",
+        WT_RET_MSG(session, WT_E(EINVAL), "block cache hash size must be between %d and %d entries",
           WT_BLKCACHE_HASHSIZE_MIN, WT_BLKCACHE_HASHSIZE_MAX);
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.type", &cval));
@@ -817,12 +817,12 @@ __wt_blkcache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
         WT_RET(__wt_config_gets(session, cfg, "block_cache.nvram_path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &nvram_device_path));
         if (!__wt_absolute_path(nvram_device_path))
-            WT_RET_MSG(session, EINVAL, "NVRAM device path must be an absolute path");
+            WT_RET_MSG(session, WT_E(EINVAL), "NVRAM device path must be an absolute path");
 #else
-        WT_RET_MSG(session, EINVAL, "NVRAM block cache requires libmemkind");
+        WT_RET_MSG(session, WT_E(EINVAL), "NVRAM block cache requires libmemkind");
 #endif
     } else
-        WT_RET_MSG(session, EINVAL, "Invalid block cache type");
+        WT_RET_MSG(session, WT_E(EINVAL), "Invalid block cache type");
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.system_ram", &cval));
     system_ram = (uint64_t)cval.val;

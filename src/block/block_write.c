@@ -182,7 +182,7 @@ __wt_block_write_size(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t *sizep)
      */
     *sizep = (size_t)WT_ALIGN(*sizep + WT_BLOCK_HEADER_BYTE_SIZE, block->allocsize);
     if (*sizep > UINT32_MAX - 1024)
-        WT_RET_MSG(session, EINVAL, "requested block size is too large");
+        WT_RET_MSG(session, WT_E(EINVAL), "requested block size is too large");
     return (0);
 }
 
@@ -247,11 +247,11 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     align_size = WT_ALIGN(buf->size, block->allocsize);
     if (align_size > buf->memsize) {
         WT_ASSERT(session, align_size <= buf->memsize);
-        WT_RET_MSG(session, EINVAL, "buffer size check: write buffer incorrectly allocated");
+        WT_RET_MSG(session, WT_E(EINVAL), "buffer size check: write buffer incorrectly allocated");
     }
     if (align_size > UINT32_MAX) {
         WT_ASSERT(session, align_size <= UINT32_MAX);
-        WT_RET_MSG(session, EINVAL, "buffer size check: write buffer too large to write");
+        WT_RET_MSG(session, WT_E(EINVAL), "buffer size check: write buffer too large to write");
     }
 
     /* Pre-allocate some number of extension structures. */

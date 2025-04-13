@@ -80,7 +80,7 @@ __wt_fextend(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
         return (handle->fh_extend_nolock(handle, (WT_SESSION *)session, offset));
     if (handle->fh_extend != NULL)
         return (handle->fh_extend(handle, (WT_SESSION *)session, offset));
-    return (__wt_set_return(session, ENOTSUP));
+    return (__wt_set_return(session, WT_E(ENOTSUP)));
 }
 
 /*
@@ -172,7 +172,7 @@ __wt_ftruncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
 #endif
     if (handle->fh_truncate != NULL)
         return (handle->fh_truncate(handle, (WT_SESSION *)session, offset));
-    return (__wt_set_return(session, ENOTSUP));
+    return (__wt_set_return(session, WT_E(ENOTSUP)));
 }
 
 /*

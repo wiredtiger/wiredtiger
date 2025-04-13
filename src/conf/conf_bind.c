@@ -26,7 +26,7 @@ __wt_conf_bind(WT_SESSION_IMPL *session, const char *compiled_str, va_list ap)
 
     conn = S2C(session);
     if (!__wt_conf_get_compiled(conn, compiled_str, &conf))
-        return (EINVAL);
+        return (WT_E(EINVAL));
 
     bound = &session->conf_bindings;
     WT_CLEAR(*bound);

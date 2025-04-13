@@ -353,7 +353,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     }
 
     if (!dest_folder_exists && !source_folder_exists)
-        WT_ERR_MSG(session, ENOENT,
+        WT_ERR_MSG(session, WT_E(ENOENT),
           "Cannot report contents of '%s'. Folder does not exist in the source or destination.",
           directory);
 
@@ -1365,7 +1365,7 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
 {
     WT_DECL_RET;
     if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
 
@@ -1500,7 +1500,7 @@ __live_restore_setup_lr_fh_directory(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_
 
     /* WiredTiger never creates directories. The user must do this themselves. */
     if (!dest_exist)
-        WT_RET_MSG(session, ENOENT, "Directory %s does not exist in the destination", name);
+        WT_RET_MSG(session, WT_E(ENOENT), "Directory %s does not exist in the destination", name);
 
     WT_FILE_HANDLE *fh;
     WT_RET(lr_fs->os_file_system->fs_open_file(
@@ -1776,11 +1776,11 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
     bool create = LF_ISSET(WT_FS_OPEN_CREATE);
     if ((dest_exist || source_exist) && create && LF_ISSET(WT_FS_OPEN_EXCLUSIVE))
         WT_RET_MSG(
-          session, EEXIST, "File %s already exist, cannot be created due to exclusive flag", name);
+          session, WT_E(EEXIST), "File %s already exist, cannot be created due to exclusive flag", name);
     if (!dest_exist && !source_exist && !create)
-        WT_RET_MSG(session, ENOENT, "File %s doesn't exist but create flag not specified", name);
+        WT_RET_MSG(session, WT_E(ENOENT), "File %s doesn't exist but create flag not specified", name);
     if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
-        WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
+        WT_RET_MSG(session, WT_E(ENOENT), "File %s has been deleted in the destination", name);
 
     if (file_type == WT_FILE_TYPE_DATA)
         WT_RET(__live_restore_setup_lr_fh_file_data(
@@ -1868,7 +1868,7 @@ __live_restore_fs_remove(
 
     WT_RET(__live_restore_fs_find_layer(fs, session, name, &layer));
     if (layer == WTI_LIVE_RESTORE_FS_LAYER_NONE)
-        return (ENOENT);
+        return (WT_E(ENOENT));
 
     /*
      * It's possible to call remove on a file that hasn't yet been created in the destination. In
@@ -1921,7 +1921,7 @@ __live_restore_fs_rename(
 
     WT_RET(__live_restore_fs_find_layer(fs, session, from, &which));
     if (which == WTI_LIVE_RESTORE_FS_LAYER_NONE)
-        WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", from);
+        WT_RET_MSG(session, WT_E(ENOENT), "Live restore cannot find: %s", from);
 
     /*
      * A call to rename must succeed from the perspective of WiredTiger, it knows that the file that
@@ -1939,7 +1939,7 @@ __live_restore_fs_rename(
      * handles.
      */
     if (which != WTI_LIVE_RESTORE_FS_LAYER_DESTINATION)
-        WT_RET_MSG(session, EINVAL, "Rename failed as file does not exist in destination");
+        WT_RET_MSG(session, WT_E(EINVAL), "Rename failed as file does not exist in destination");
 
     WT_ERR(__live_restore_fs_backing_filename(
       session, lr_fs, WTI_LIVE_RESTORE_FS_LAYER_DESTINATION, from, &path_from));
@@ -1979,7 +1979,7 @@ __live_restore_fs_size(
 
     WT_RET(__live_restore_fs_find_layer(fs, session, name, &which));
     if (which == WTI_LIVE_RESTORE_FS_LAYER_NONE)
-        WT_RET_MSG(session, ENOENT, "Live restore cannot find: %s", name);
+        WT_RET_MSG(session, WT_E(ENOENT), "Live restore cannot find: %s", name);
 
     /* Get the file size from the destination if possible, otherwise fallback to the source. */
     WT_RET(__live_restore_fs_backing_filename(session, lr_fs, which, name, &path));
@@ -2039,7 +2039,7 @@ __wt_os_live_restore_fs(
 
     /* FIXME-WT-14223: Remove this once readonly database connections are supported. */
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
-        WT_RET_MSG(session, EINVAL, "live restore is incompatible with readonly mode");
+        WT_RET_MSG(session, WT_E(EINVAL), "live restore is incompatible with readonly mode");
 
     WT_RET(__wt_calloc_one(session, &lr_fs));
 #if defined(__APPLE__) || defined(__linux__)
@@ -2078,7 +2078,7 @@ __wt_os_live_restore_fs(
     WT_ERR(__wt_config_gets(session, cfg, "live_restore.read_size", &cval));
     lr_fs->read_size = (uint64_t)cval.val;
     if (!__wt_ispo2((uint32_t)lr_fs->read_size))
-        WT_ERR_MSG(session, EINVAL, "the live restore read size must be a power of two");
+        WT_ERR_MSG(session, WT_E(EINVAL), "the live restore read size must be a power of two");
 
     WT_ERR(__wt_spin_init(session, &lr_fs->state_lock, "live restore state lock"));
 

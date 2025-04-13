@@ -9,6 +9,54 @@
 #pragma once
 
 /*
+ * __wt_ret_origin_func --
+ *     Set error origin helper function.
+ */
+static WT_INLINE int
+__wt_ret_origin_func(WT_SESSION_IMPL *session, int err, const char *err_str,
+    const char *func, const char *file, int line)
+{
+    if (session != NULL) {
+        session->last_err.code = err;
+        session->last_err.code_str = err_str;
+        session->last_err.location.func = func;
+        session->last_err.location.file = file;
+        session->last_err.location.line = line;
+    }
+    return (err);
+}
+
+/*
+ * __wt_ret_origin_mod_func --
+ *     Alter the error code but leave the origin information alone.
+ */
+static WT_INLINE int
+__wt_ret_origin_mod_func(WT_SESSION_IMPL *session, int err)
+{
+    if (session != NULL) {
+        if (session->last_err.code == 0) {
+            session->last_err.code_str = NULL;
+            session->last_err.location.func = NULL;
+            session->last_err.location.file = NULL;
+            session->last_err.location.line = 0;
+        }
+        session->last_err.code = err;
+    }
+    return (err);
+}
+
+/*
+ * __wt_ret_origin_func --
+ *     Set error origin helper function.
+ */
+static WT_INLINE void
+__wt_ret_origin_clear(WT_SESSION_IMPL *session)
+{
+    if (session != NULL)
+        session->last_err.code = 0;
+}
+
+/*
  * __wt_cond_wait --
  *     Wait on a mutex, optionally timing out.
  */
@@ -107,6 +155,7 @@ __wt_snprintf(char *buf, size_t size, const char *fmt, ...)
     WT_RET(ret);
 
     /* It's an error if the buffer couldn't hold everything. */
+    // return (len >= size ? WT_E(ERANGE) : 0); // TODO::
     return (len >= size ? ERANGE : 0);
 }
 
@@ -124,6 +173,7 @@ __wt_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
     WT_RET(__wt_vsnprintf_len_incr(buf, size, &len, fmt, ap));
 
     /* It's an error if the buffer couldn't hold everything. */
+    // return (len >= size ? WT_E(ERANGE) : 0); // TODO::
     return (len >= size ? ERANGE : 0);
 }
 

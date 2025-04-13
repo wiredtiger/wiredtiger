@@ -453,7 +453,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          */
         if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) &&
           !F_ISSET(std_cursor, WT_CURSTD_HS_READ_ACROSS_BTREE) && btree_id != hs_cursor->btree_id) {
-            ret = WT_NOTFOUND;
+            ret = WT_E(WT_NOTFOUND);
             goto err;
         }
 
@@ -464,7 +464,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
             WT_ERR(__wt_compare(session, NULL, datastore_key, hs_cursor->datastore_key, &cmp));
             if (cmp != 0) {
-                ret = WT_NOTFOUND;
+                ret = WT_E(WT_NOTFOUND);
                 goto err;
             }
         }
@@ -505,7 +505,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
              * for this entire key.
              */
             if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
-                ret = WT_NOTFOUND;
+                ret = WT_E(WT_NOTFOUND);
                 goto err;
             } else
                 continue;
@@ -556,7 +556,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          */
         if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) &&
           !F_ISSET(std_cursor, WT_CURSTD_HS_READ_ACROSS_BTREE) && btree_id != hs_cursor->btree_id) {
-            ret = WT_NOTFOUND;
+            ret = WT_E(WT_NOTFOUND);
             goto err;
         }
 
@@ -567,7 +567,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
             WT_ERR(__wt_compare(session, NULL, datastore_key, hs_cursor->datastore_key, &cmp));
             if (cmp != 0) {
-                ret = WT_NOTFOUND;
+                ret = WT_E(WT_NOTFOUND);
                 goto err;
             }
         }
@@ -769,7 +769,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                      */
                     WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
                     if (cmp < 0) {
-                        ret = WT_NOTFOUND;
+                        ret = WT_E(WT_NOTFOUND);
                         goto err;
                     }
                 }
@@ -779,7 +779,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                  * in the specified btree range.
                  */
                 if (btree_id < hs_cursor->btree_id) {
-                    ret = WT_NOTFOUND;
+                    ret = WT_E(WT_NOTFOUND);
                     goto err;
                 }
             }
@@ -848,7 +848,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                      */
                     WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
                     if (cmp > 0) {
-                        ret = WT_NOTFOUND;
+                        ret = WT_E(WT_NOTFOUND);
                         goto err;
                     }
                 }
@@ -858,7 +858,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                  * in the specified btree range.
                  */
                 if (btree_id > hs_cursor->btree_id) {
-                    ret = WT_NOTFOUND;
+                    ret = WT_E(WT_NOTFOUND);
                     goto err;
                 }
             }

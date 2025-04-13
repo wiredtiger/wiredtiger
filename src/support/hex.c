@@ -249,7 +249,7 @@ __wti_hex2byte(const u_char *from, u_char *to)
 static int
 __hex_fmterr(WT_SESSION_IMPL *session)
 {
-    WT_RET_MSG(session, EINVAL, "Invalid format in hexadecimal string");
+    WT_RET_MSG(session, WT_E(EINVAL), "Invalid format in hexadecimal string");
 }
 
 /*

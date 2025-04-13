@@ -298,8 +298,10 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
         if (ext_off != WT_BLOCK_EXTLIST_MAGIC || ext_size != 0)
             continue;
         for (;;) {
-            if ((ret = __wt_extlist_read_pair(&p, &ext_off, &ext_size)) != 0)
+            if ((ret = __wt_extlist_read_pair(&p, &ext_off, &ext_size)) != 0) {
+                WT_E(ret);
                 break;
+            }
             if (ext_off == WT_BLOCK_INVALID_OFFSET)
                 break;
         }
@@ -361,10 +363,10 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
     }
 
     if (!found)
-        WT_ERR_MSG(session, WT_NOTFOUND, "%s: no final checkpoint found in file scan", block->name);
+        WT_ERR_MSG(session, WT_E(WT_NOTFOUND), "%s: no final checkpoint found in file scan", block->name);
 
     /* Correct the checkpoint. */
-    WT_ERR(__block_checkpoint_update(session, block, best));
+    WT_ERR(WT_E(__block_checkpoint_update(session, block, best))); /* No inner checks. */
 
     /*
      * Copy the information out to our caller. Do the WT_ITEM first, it's the only thing left that

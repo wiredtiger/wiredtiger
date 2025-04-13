@@ -19,7 +19,7 @@
         __wt_err(session, __ret, __VA_ARGS__);                                      \
         return ((block)->verify ?                                                   \
             __ret :                                                                 \
-            __wt_panic(session, WT_PANIC, "block manager extension list failure")); \
+            __wt_panic(session, WT_E(WT_PANIC), "block manager extension list failure")); \
     } while (0)
 
 static int __block_append(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
@@ -325,7 +325,7 @@ __wti_block_misplaced(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *lis
         name = "discard";
     __wt_spin_unlock(session, &block->live_lock);
     if (name != NULL)
-        return (__wt_panic(session, WT_PANIC,
+        return (__wt_panic(session, WT_E(WT_PANIC),
           "%s failed: %" PRIuMAX "/%" PRIu32 " is on the %s list (%s, %d)", list, (uintmax_t)offset,
           size, name, func, line));
     return (0);
@@ -360,7 +360,7 @@ __block_off_remove(
         __block_size_srch(el->sz, ext->size, sstack);
         szp = *sstack[0];
         if (szp == NULL || szp->size != ext->size)
-            WT_RET_PANIC(session, EINVAL, "extent not found in by-size list during remove");
+            WT_RET_PANIC(session, WT_E(EINVAL), "extent not found in by-size list during remove");
         __block_off_srch(szp->off, off, astack, true);
         ext = *astack[0];
         if (ext == NULL || ext->off != off)
@@ -402,7 +402,7 @@ __block_off_remove(
 
 corrupt:
     WT_BLOCK_RET(
-      session, block, EINVAL, "attempt to remove non-existent offset from an extent list");
+      session, block, WT_E(EINVAL), "attempt to remove non-existent offset from an extent list");
 }
 
 /*
@@ -467,7 +467,7 @@ __wti_block_off_remove_overlap(
               (intmax_t)(b_off + b_size));
 
     } else
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     /*
      * If there are overlaps, insert the item; re-use the extent structure and save the allocation
@@ -509,7 +509,7 @@ __block_extend(
      * We should never be allocating from an empty file.
      */
     if (block->size < block->allocsize)
-        WT_RET_MSG(session, EINVAL, "file has no description information");
+        WT_RET_MSG(session, WT_E(EINVAL), "file has no description information");
 
     /*
      * Make sure we don't allocate past the maximum file size.  There's no
@@ -518,7 +518,7 @@ __block_extend(
      * don't think we're likely to see anything bigger for awhile.
      */
     if (block->size > (wt_off_t)INT64_MAX - size)
-        WT_RET_MSG(session, WT_ERROR, "block allocation failed, file cannot grow further");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "block allocation failed, file cannot grow further");
 
     *offp = block->size;
     block->size += size;
@@ -552,7 +552,7 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
 
     WT_STAT_DSRC_INCR(session, block_alloc);
     if (size % block->allocsize != 0)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "cannot allocate a block size %" PRIdMAX
           " that is not a multiple of the allocation size %" PRIu32,
           (intmax_t)size, block->allocsize);
@@ -724,7 +724,7 @@ __wti_block_extlist_check(WT_SESSION_IMPL *session, WT_EXTLIST *al, WT_EXTLIST *
             b = b->next[0];
             continue;
         }
-        WT_RET_PANIC(session, EINVAL, "checkpoint merge check: %s list overlaps the %s list",
+        WT_RET_PANIC(session, WT_E(EINVAL), "checkpoint merge check: %s list overlaps the %s list",
           al->name, bl->name);
     }
     return (0);
@@ -1075,7 +1075,7 @@ __block_merge(
     __block_off_srch_pair(el, off, &before, &after);
     if (before != NULL) {
         if (before->off + before->size > off)
-            WT_BLOCK_RET(session, block, EINVAL,
+            WT_BLOCK_RET(session, block, WT_E(EINVAL),
               "%s: existing range %" PRIdMAX "-%" PRIdMAX " overlaps with merge range %" PRIdMAX
               "-%" PRIdMAX,
               el->name, (intmax_t)before->off, (intmax_t)(before->off + before->size),
@@ -1085,7 +1085,7 @@ __block_merge(
     }
     if (after != NULL) {
         if (off + size > after->off) {
-            WT_BLOCK_RET(session, block, EINVAL,
+            WT_BLOCK_RET(session, block, WT_E(EINVAL),
               "%s: merge range %" PRIdMAX "-%" PRIdMAX " overlaps with existing range %" PRIdMAX
               "-%" PRIdMAX,
               el->name, (intmax_t)off, (intmax_t)(off + size), (intmax_t)after->off,
@@ -1227,7 +1227,7 @@ __wti_block_extlist_read(
           off + size > ckpt_size) {
 corrupted:
             __wt_scr_free(session, &tmp);
-            WT_BLOCK_RET(session, block, WT_ERROR,
+            WT_BLOCK_RET(session, block, WT_E(WT_ERROR),
               "file contains a corrupted %s extent list, range %" PRIdMAX "-%" PRIdMAX
               " past end-of-file",
               el->name, (intmax_t)off, (intmax_t)(off + size));

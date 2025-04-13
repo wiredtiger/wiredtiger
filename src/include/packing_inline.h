@@ -63,7 +63,7 @@ static WT_INLINE int
 __pack_initn(WT_SESSION_IMPL *session, WT_PACK *pack, const char *fmt, size_t len)
 {
     if (*fmt == '@' || *fmt == '<' || *fmt == '>')
-        return (EINVAL);
+        return (WT_E(EINVAL));
     if (*fmt == '.') {
         ++fmt;
         if (len > 0)
@@ -341,7 +341,7 @@ __pack_size(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, size_t *vp)
         return (0);
     }
 
-    WT_RET_MSG(session, EINVAL, "unknown pack-value type: %c", (int)pv->type);
+    WT_RET_MSG(session, WT_E(EINVAL), "unknown pack-value type: %c", (int)pv->type);
 }
 
 /*
@@ -481,7 +481,7 @@ __pack_write(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, uint8_t **pp, size_t m
         *pp += sizeof(uint64_t);
         break;
     default:
-        WT_RET_MSG(session, EINVAL, "unknown pack-value type: %c", (int)pv->type);
+        WT_RET_MSG(session, WT_E(EINVAL), "unknown pack-value type: %c", (int)pv->type);
     }
 
     return (0);
@@ -572,7 +572,7 @@ __unpack_read(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, const uint8_t **pp, s
         *pp += sizeof(uint64_t);
         break;
     default:
-        WT_RET_MSG(session, EINVAL, "unknown pack-value type: %c", (int)pv->type);
+        WT_RET_MSG(session, WT_E(EINVAL), "unknown pack-value type: %c", (int)pv->type);
     }
 
     return (0);

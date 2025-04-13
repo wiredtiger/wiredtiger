@@ -88,7 +88,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * (e.g., the page could have split).
      */
     if (LF_ISSET(WT_REC_EVICT) && !__wt_page_can_evict(session, ref, NULL))
-        WT_ERR(__wt_set_return(session, EBUSY));
+        WT_ERR(__wt_set_return(session, WT_E(EBUSY)));
 
     /*
      * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
@@ -304,7 +304,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
             F_SET(session->txn, WT_TXN_REFRESH_SNAPSHOT);
 
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_progress);
-        ret = __wt_set_return(session, EBUSY);
+        ret = __wt_set_return(session, WT_E(EBUSY));
     }
     addr = ref->addr;
 
@@ -578,7 +578,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     r = *(WTI_RECONCILE **)reconcilep;
     if (r != NULL && r->ref != NULL)
-        WT_RET_MSG(session, WT_ERROR, "reconciliation re-entered");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "reconciliation re-entered");
 
     if (r == NULL) {
         WT_RET(__wt_calloc_one(session, &r));
@@ -1463,7 +1463,7 @@ __wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
      * page.
      */
     if (r->salvage != NULL)
-        WT_RET_PANIC(session, WT_PANIC, "%s page too large, attempted split during salvage",
+        WT_RET_PANIC(session, WT_E(WT_PANIC), "%s page too large, attempted split during salvage",
           __wt_page_type_string(r->page->type));
 
     /*
@@ -2073,7 +2073,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     if (!last_block && __wt_btree_syncing_by_other_session(session)) {
         WT_STAT_CONN_DSRC_INCR(
           session, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
     }
 
     /* Make sure there's enough room for another write. */
@@ -2147,7 +2147,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
          * to allocate a zero-length array.
          */
         if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
 
         /* If we need to restore the page to memory, copy the disk image. */
         if (multi->supd_restore)
@@ -2219,7 +2219,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
      * code for a discussion.
      */
     if (!btree->original)
-        WT_RET_MSG(session, EINVAL, "bulk-load is only possible for newly created trees");
+        WT_RET_MSG(session, WT_E(EINVAL), "bulk-load is only possible for newly created trees");
 
     /*
      * Get a reference to the empty leaf page; we have exclusive access so we can take a copy of the
@@ -2820,7 +2820,7 @@ __wti_rec_hs_clear_on_tombstone(
     /* Fail 0.01% of the time. */
     if (F_ISSET(r, WT_REC_EVICT) &&
       __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS, 1))
-        return (EBUSY);
+        return (WT_E(EBUSY));
 
     WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
     WT_STAT_DSRC_INCR(session, cache_hs_key_truncate_onpage_removal);

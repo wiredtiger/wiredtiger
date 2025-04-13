@@ -100,7 +100,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
     is_tiered = WT_PREFIX_MATCH(uri, "object:") || WT_PREFIX_MATCH(uri, "tier:") ||
       WT_PREFIX_MATCH(uri, "tiered:");
     if (is_tiered && (file_func == __wt_salvage || file_func == __wt_verify))
-        WT_ERR(ENOTSUP);
+        WT_ERR(WT_E(ENOTSUP));
 
     /* Get the btree handle(s) and call the underlying function. */
     if (WT_PREFIX_MATCH(uri, "file:")) {
@@ -133,7 +133,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
             /* Verify is not implemented for tiered tables. */
             if ((file_func == __wt_salvage || file_func == __wt_verify) &&
               WT_PREFIX_MATCH(colgroup->source, "tiered:"))
-                WT_ERR(ENOTSUP);
+                WT_ERR(WT_E(ENOTSUP));
 
             skip = false;
             if (name_func != NULL)

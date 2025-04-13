@@ -18,7 +18,7 @@ __fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle, bool
 {
 #define WT_HANDLE_METHOD_REQ(name) \
     if (handle->name == NULL)      \
-    WT_RET_MSG(session, EINVAL, "a WT_FILE_HANDLE.%s method must be configured", #name)
+    WT_RET_MSG(session, WT_E(EINVAL), "a WT_FILE_HANDLE.%s method must be configured", #name)
 
     WT_HANDLE_METHOD_REQ(close);
     /* not required: fh_advise */

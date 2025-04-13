@@ -21,7 +21,7 @@ __bulk_col_keycmp_err(WT_CURSOR_BULK *cbulk)
     cursor = &cbulk->cbt.iface;
     session = CUR2S(cbulk);
 
-    WT_RET_MSG(session, EINVAL,
+    WT_RET_MSG(session, WT_E(EINVAL),
       "bulk-load presented with out-of-order keys: %" PRIu64
       " is less than or equal to the previously inserted key %" PRIu64,
       cursor->recno, cbulk->recno);
@@ -200,7 +200,7 @@ __bulk_row_keycmp_err(WT_CURSOR_BULK *cbulk)
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
 
-    WT_ERR_MSG(session, EINVAL,
+    WT_ERR_MSG(session, WT_E(EINVAL),
       "bulk-load presented with out-of-order keys: %s is less than or equal to the previously "
       "inserted "
       "key %s",

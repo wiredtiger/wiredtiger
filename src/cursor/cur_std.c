@@ -32,7 +32,7 @@ __wt_cursor_cached(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cursor);
-    WT_RET_MSG(session, ENOTSUP, "Cursor has been closed");
+    WT_RET_MSG(session, WT_E(ENOTSUP), "Cursor has been closed");
 }
 
 /*
@@ -45,7 +45,7 @@ __wt_cursor_notsup(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cursor);
-    WT_RET_MSG(session, ENOTSUP, "Unsupported cursor operation");
+    WT_RET_MSG(session, WT_E(ENOTSUP), "Unsupported cursor operation");
 }
 
 /*
@@ -158,7 +158,7 @@ __wti_cursor_modify_value_format_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, i
     if (cursor->value_format != NULL && strlen(cursor->value_format) != 0) {
         session = CUR2S(cursor);
         WT_RET_MSG(
-          session, ENOTSUP, "WT_CURSOR.modify only supported for 'S' and 'u' value formats");
+          session, WT_E(ENOTSUP), "WT_CURSOR.modify only supported for 'S' and 'u' value formats");
     }
     return (__wt_cursor_notsup(cursor));
 }
@@ -237,7 +237,7 @@ __wt_cursor_kv_not_set(WT_CURSOR *cursor, bool key) WT_GCC_FUNC_ATTRIBUTE((cold)
 
     session = CUR2S(cursor);
 
-    WT_RET_MSG(session, cursor->saved_err == 0 ? EINVAL : cursor->saved_err, "requires %s be set",
+    WT_RET_MSG(session, cursor->saved_err == 0 ? WT_E(EINVAL) : cursor->saved_err, "requires %s be set",
       key ? "key" : "value");
 }
 
@@ -464,7 +464,7 @@ __wti_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
         } else
             cursor->recno = va_arg(ap, uint64_t);
         if (cursor->recno == WT_RECNO_OOB)
-            WT_ERR_MSG(session, EINVAL, "%d is an invalid record number", WT_RECNO_OOB);
+            WT_ERR_MSG(session, WT_E(EINVAL), "%d is an invalid record number", WT_RECNO_OOB);
         buf->data = &cursor->recno;
         sz = sizeof(cursor->recno);
     } else {
@@ -492,9 +492,9 @@ __wti_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
         }
     }
     if (sz == 0)
-        WT_ERR_MSG(session, EINVAL, "Empty keys not permitted");
+        WT_ERR_MSG(session, WT_E(EINVAL), "Empty keys not permitted");
     else if ((uint32_t)sz != sz)
-        WT_ERR_MSG(session, EINVAL, "Key size (%" PRIu64 ") out of range", (uint64_t)sz);
+        WT_ERR_MSG(session, WT_E(EINVAL), "Key size (%" PRIu64 ") out of range", (uint64_t)sz);
     cursor->saved_err = 0;
     buf->size = sz;
     F_SET(cursor, WT_CURSTD_KEY_EXT);
@@ -1032,7 +1032,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
 
     /* cacheable */
     if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     /* If original config string is NULL or "", don't check it. */
     have_config =
@@ -1058,7 +1058,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
     if (have_config) {
         WT_RET(__cursors_can_be_cached(session, cfg, &cacheable));
         if (!cacheable)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
     }
 
     if (to_dup != NULL)
@@ -1119,7 +1119,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
             return (0);
         }
     }
-    return (WT_NOTFOUND);
+    return (WT_E(WT_NOTFOUND));
 }
 
 /*
@@ -1184,7 +1184,7 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     /* Check for a rational modify vector count. */
     if (nentries <= 0)
-        WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
+        WT_ERR_MSG(session, WT_E(EINVAL), "Illegal modify vector with %d entries", nentries);
 
     /*
      * The underlying btree code cannot support WT_CURSOR.modify within a read-committed or
@@ -1193,9 +1193,9 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      */
     if (session->txn->isolation != WT_ISO_SNAPSHOT)
         WT_ERR_MSG(
-          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
+          session, WT_E(ENOTSUP), "not supported in read-committed or read-uncommitted transactions");
     if (F_ISSET(session->txn, WT_TXN_AUTOCOMMIT))
-        WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
+        WT_ERR_MSG(session, WT_E(ENOTSUP), "not supported in implicit transactions");
 
     WT_ERR(__cursor_checkkey(cursor));
 
@@ -1302,7 +1302,7 @@ __wti_cursor_largest_key(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, largest_key, CUR2BT(cbt));
 
     if (WT_CURSOR_BOUNDS_SET(cursor))
-        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with cursor largest key");
+        WT_ERR_MSG(session, WT_E(EINVAL), "setting bounds is not compatible with cursor largest key");
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
 
@@ -1356,13 +1356,13 @@ __wti_cursor_bound(WT_CURSOR *cursor, const char *config)
       WT_CONFIG_ENTRY_WT_CURSOR_bound, config, &_conf, sizeof(_conf), &conf));
 
     if (CUR2BT(cursor)->type == BTREE_COL_FIX)
-        WT_ERR_MSG(session, EINVAL, "setting bounds is not compatible with fixed column store");
+        WT_ERR_MSG(session, WT_E(EINVAL), "setting bounds is not compatible with fixed column store");
 
     /* Action is default to "set". */
     WT_ERR(__wt_conf_gets(session, conf, action, &cval));
     if (WT_CONF_STRING_MATCH(set, cval)) {
         if (WT_CURSOR_IS_POSITIONED(cbt))
-            WT_ERR_MSG(session, EINVAL, "setting bounds on a positioned cursor is not allowed");
+            WT_ERR_MSG(session, WT_E(EINVAL), "setting bounds on a positioned cursor is not allowed");
 
         /* The cursor must have a key set to place the lower or upper bound. */
         WT_ERR(__cursor_checkkey(cursor));
@@ -1382,14 +1382,14 @@ __wti_cursor_bound(WT_CURSOR *cursor, const char *config)
                 WT_ERR(__wt_compare(
                   session, CUR2BT(cursor)->collator, &key, &cursor->lower_bound, &exact));
                 if (exact < 0)
-                    WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
+                    WT_ERR_MSG(session, WT_E(EINVAL), "The provided cursor bounds are overlapping");
                 /*
                  * If the lower bound and upper bound are equal, both inclusive flags must be
                  * specified.
                  */
                 if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE) || !inclusive))
                     WT_ERR_MSG(
-                      session, EINVAL, "The provided cursor bounds are equal but not inclusive");
+                      session, WT_E(EINVAL), "The provided cursor bounds are equal but not inclusive");
             }
             /* Copy the key over to the upper bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_UPPER);
@@ -1408,14 +1408,14 @@ __wti_cursor_bound(WT_CURSOR *cursor, const char *config)
                 WT_ERR(__wt_compare(
                   session, CUR2BT(cursor)->collator, &key, &cursor->upper_bound, &exact));
                 if (exact > 0)
-                    WT_ERR_MSG(session, EINVAL, "The provided cursor bounds are overlapping");
+                    WT_ERR_MSG(session, WT_E(EINVAL), "The provided cursor bounds are overlapping");
                 /*
                  * If the lower bound and upper bound are equal, both inclusive flags must be
                  * specified.
                  */
                 if (exact == 0 && (!F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE) || !inclusive))
                     WT_ERR_MSG(
-                      session, EINVAL, "The provided cursor bounds are equal but not inclusive");
+                      session, WT_E(EINVAL), "The provided cursor bounds are equal but not inclusive");
             }
             /* Copy the key over to the lower bound item and set upper bound and inclusive flags. */
             F_SET(cursor, WT_CURSTD_BOUND_LOWER);
@@ -1425,7 +1425,7 @@ __wti_cursor_bound(WT_CURSOR *cursor, const char *config)
                 F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             WT_ERR(__wt_buf_set(session, &cursor->lower_bound, key.data, key.size));
         } else
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_E(EINVAL),
               "a bound must be specified when setting bounds, either \"lower\" or \"upper\"");
     } else {
         /*

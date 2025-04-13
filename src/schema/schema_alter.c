@@ -53,7 +53,7 @@ err:
      * entry.
      */
     if (ret == WT_NOTFOUND)
-        ret = __wt_set_return(session, ENOENT);
+        ret = __wt_set_return(session, WT_E(ENOENT));
 
     return (ret);
 }
@@ -302,7 +302,7 @@ __alter_tree(WT_SESSION_IMPL *session, const char *name, const char *newcfg[])
 
     /* Get the data source URI, converting not-found errors to EINVAL for the application. */
     if ((ret = __wt_config_getones(session, value, "source", &cval)) != 0)
-        WT_ERR_MSG(session, ret == WT_NOTFOUND ? EINVAL : ret,
+        WT_ERR_MSG(session, ret == WT_NOTFOUND ? WT_EMAP(EINVAL) : ret,
           "index or column group has no data source: %s", value);
 
     WT_ERR(__wt_scr_alloc(session, 0, &data_source));
@@ -405,7 +405,7 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
     exclusive_refreshed = (bool)cv.val;
 
     if (!exclusive_refreshed && !WT_PREFIX_MATCH(uri, "table:"))
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "option \"exclusive_refreshed\" "
           "is applicable only on simple tables");
 

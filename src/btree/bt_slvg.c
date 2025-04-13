@@ -512,7 +512,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
             if (ss->page_type == WT_PAGE_INVALID)
                 ss->page_type = dsk->type;
             if (ss->page_type != dsk->type)
-                WT_ERR_MSG(session, WT_ERROR,
+                WT_ERR_MSG(session, WT_E(WT_ERROR),
                   "file contains multiple file formats (both %s and %s), and cannot be salvaged",
                   __wt_page_type_string(ss->page_type), __wt_page_type_string(dsk->type));
 
@@ -971,7 +971,7 @@ __slvg_col_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
      */
     /* Case #2/8, #10, #11 */
     if (a_trk->col_start > b_trk->col_start)
-        WT_RET_PANIC(session, EINVAL, "unexpected merge array sort order");
+        WT_RET_PANIC(session, WT_E(EINVAL), "unexpected merge array sort order");
 
     if (a_trk->col_start == b_trk->col_start) { /* Case #1, #4 and #9 */
                                                 /*
@@ -1391,7 +1391,7 @@ __slvg_col_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK_K
             return (__slvg_ovfl_ref(session, ovfl, false));
     }
 
-    WT_RET_PANIC(session, EINVAL, "overflow record at column-store page merge not found");
+    WT_RET_PANIC(session, WT_E(EINVAL), "overflow record at column-store page merge not found");
 }
 
 /*
@@ -1564,7 +1564,7 @@ __slvg_row_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
     WT_RET(__wt_compare(session, btree->collator, A_TRK_STOP, B_TRK_STOP, &stop_cmp));
 
     if (start_cmp > 0) /* Case #2/8, #10, #11 */
-        WT_RET_PANIC(session, EINVAL, "unexpected merge array sort order");
+        WT_RET_PANIC(session, WT_E(EINVAL), "unexpected merge array sort order");
 
     if (start_cmp == 0) { /* Case #1, #4, #9 */
                           /*
@@ -1771,7 +1771,7 @@ __slvg_row_trk_update_start(WT_SESSION_IMPL *session, WT_ITEM *stop, uint32_t sl
      * Therefore, this test is safe. (But, it never hurts to check.)
      */
     if (!found)
-        WT_ERR_MSG(session, WT_ERROR, "expected on-page key not found");
+        WT_ERR_MSG(session, WT_E(WT_ERROR), "expected on-page key not found");
     WT_ERR(__slvg_key_copy(session, &trk->row_start, key));
 
     /*
@@ -2051,7 +2051,7 @@ __slvg_row_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK_K
             return (__slvg_ovfl_ref(session, ovfl, true));
     }
 
-    WT_RET_PANIC(session, EINVAL, "overflow record at row-store page merge not found");
+    WT_RET_PANIC(session, WT_E(EINVAL), "overflow record at row-store page merge not found");
 }
 
 /*
@@ -2110,7 +2110,7 @@ __slvg_reconcile_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, 
         }
     }
 
-    WT_RET_PANIC(session, EINVAL, "overflow record discarded during page reconciliation not %s",
+    WT_RET_PANIC(session, WT_E(EINVAL), "overflow record discarded during page reconciliation not %s",
       i == trk->trk_ovfl_cnt ? "referenced" : "found");
 }
 
@@ -2363,8 +2363,8 @@ __slvg_ovfl_ref(WT_SESSION_IMPL *session, WT_TRACK *trk, bool multi_panic)
 {
     if (F_ISSET(trk, WT_TRACK_OVFL_REFD)) {
         if (!multi_panic)
-            return (__wt_set_return(session, EBUSY));
-        WT_RET_PANIC(session, EINVAL,
+            return (__wt_set_return(session, WT_E(EBUSY)));
+        WT_RET_PANIC(session, WT_E(EINVAL),
           "overflow record unexpectedly referenced multiple times during leaf page merge");
     }
 

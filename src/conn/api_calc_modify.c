@@ -35,7 +35,7 @@ typedef struct {
  *     bytes of difference is exceeded.
  */
 static int
-__cm_add_modify(WT_CM_STATE *cms, const uint8_t *p2, const uint8_t *m1, const uint8_t *m2,
+__cm_add_modify(WT_SESSION_IMPL *session, WT_CM_STATE *cms, const uint8_t *p2, const uint8_t *m1, const uint8_t *m2,
   WT_MODIFY *entries, int *nentriesp)
 {
     WT_MODIFY *mod;
@@ -47,7 +47,7 @@ __cm_add_modify(WT_CM_STATE *cms, const uint8_t *p2, const uint8_t *m1, const ui
     len2 = (size_t)(m2 - cms->used2);
 
     if (*nentriesp >= cms->maxentries || len2 > cms->maxdiff)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     mod = entries + (*nentriesp)++;
     mod->offset = (size_t)(p2 - cms->s2);
@@ -120,7 +120,7 @@ __wt_calc_modify(WT_SESSION_IMPL *wt_session, const WT_ITEM *oldv, const WT_ITEM
     bool start;
 
     if (oldv->size < WT_CM_MINMATCH || newv->size < WT_CM_MINMATCH)
-        return (WT_NOTFOUND);
+        return (WT_E_S(wt_session, WT_NOTFOUND));
 
     cms.session = (WT_SESSION_IMPL *)wt_session;
 
@@ -162,7 +162,7 @@ __wt_calc_modify(WT_SESSION_IMPL *wt_session, const WT_ITEM *oldv, const WT_ITEM
             if (p1 + gap + WT_CM_BLOCKSIZE >= cms.e1)
                 break;
             if (gap > maxdiff)
-                return (WT_NOTFOUND);
+                return (WT_E_S(wt_session, WT_NOTFOUND));
             hstart = start ? __cm_fingerprint(p1) : hend;
             hend = __cm_fingerprint(p1 + gap);
             start = false;
@@ -178,7 +178,7 @@ __wt_calc_modify(WT_SESSION_IMPL *wt_session, const WT_ITEM *oldv, const WT_ITEM
         if (match.len < WT_CM_MINMATCH)
             continue;
 
-        WT_RET(__cm_add_modify(&cms, cms.used2, match.m1, match.m2, entries, nentriesp));
+        WT_RET(__cm_add_modify(wt_session, &cms, cms.used2, match.m1, match.m2, entries, nentriesp));
         cms.used1 = p1 = match.m1 + match.len;
         cms.used2 = p2 = match.m2 + match.len;
         start = true;
@@ -186,7 +186,7 @@ __wt_calc_modify(WT_SESSION_IMPL *wt_session, const WT_ITEM *oldv, const WT_ITEM
 
 end:
     if (cms.used1 < cms.e1 || cms.used2 < cms.e2)
-        WT_RET(__cm_add_modify(&cms, cms.used2, cms.e1, cms.e2, entries, nentriesp));
+        WT_RET(__cm_add_modify(wt_session, &cms, cms.used2, cms.e1, cms.e2, entries, nentriesp));
 
     return (0);
 }

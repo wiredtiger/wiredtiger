@@ -24,7 +24,7 @@ __sweep_check_file_handle_exists(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhand
     WT_DECL_RET;
     WT_TABLE *table;
 
-    ret = WT_NOTFOUND;
+    ret = WT_E(WT_NOTFOUND);
     /*
      * The sweep server's algorithm is altered to prevent unnecessary table dhandle closures. This
      * is done by checking for associated file dhandles before marking table dhandles for sweeping.
@@ -263,7 +263,7 @@ __sweep_remove_one(WT_SESSION_IMPL *session)
      * If there are no longer any references to the handle in any sessions, attempt to discard it.
      */
     if (!WT_DHANDLE_CAN_DISCARD(session->dhandle))
-        WT_ERR(EBUSY);
+        WT_ERR(WT_E(EBUSY));
 
     ret = __wti_conn_dhandle_discard_single(session, false, true);
 

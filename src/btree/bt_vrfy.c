@@ -101,18 +101,18 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
     if (cval.val != 0) {
         if (!txn_global->has_stable_timestamp)
-            WT_RET_MSG(session, ENOTSUP,
+            WT_RET_MSG(session, WT_E(ENOTSUP),
               "cannot verify against the stable timestamp if it has not been set");
         vs->stable_timestamp = txn_global->stable_timestamp;
     }
     if (vs->dump_all_data && vs->dump_key_data)
-        WT_RET_MSG(session, ENOTSUP, "%s",
+        WT_RET_MSG(session, WT_E(ENOTSUP), "%s",
           "dump_all_data, which unredacts all data, should not be set to true "
           "simultaneously with dump_key_data, which unredacts only the keys");
 
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages)
-        WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
+        WT_RET_MSG(session, WT_E(ENOTSUP), "the WiredTiger library was not built in diagnostic mode");
 #endif
 
     return (0);
@@ -149,9 +149,9 @@ __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
         *quitp = true;
         /* NOLINTNEXTLINE(cert-err34-c) */
         if (v.len != 0 || sscanf(k.str, "%" SCNu64, &offset) != 1)
-            WT_RET_MSG(session, EINVAL, "unexpected dump offset format");
+            WT_RET_MSG(session, WT_E(EINVAL), "unexpected dump offset format");
 #if !defined(HAVE_DIAGNOSTIC)
-        WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
+        WT_RET_MSG(session, WT_E(ENOTSUP), "the WiredTiger library was not built in diagnostic mode");
 #else
         WT_TRET(__wti_debug_offset_blind(
           session, (wt_off_t)offset, NULL, vs->dump_all_data, vs->dump_key_data));
@@ -590,19 +590,19 @@ __verify_tree(
     switch (btree->type) {
     case BTREE_COL_FIX:
         if (page->type != WT_PAGE_COL_INT && page->type != WT_PAGE_COL_FIX)
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "page at %s is a %s, which does not belong in a fixed-length column-store tree",
               __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
         break;
     case BTREE_COL_VAR:
         if (page->type != WT_PAGE_COL_INT && page->type != WT_PAGE_COL_VAR)
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "page at %s is a %s, which does not belong in a variable-length column-store tree",
               __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
         break;
     case BTREE_ROW:
         if (page->type != WT_PAGE_ROW_INT && page->type != WT_PAGE_ROW_LEAF)
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "page at %s is a %s, which does not belong in a row-store tree",
               __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
         break;
@@ -619,12 +619,12 @@ __verify_tree(
          * in the namespace *are* allowed. Use the tree type to pick the check logic.
          */
         if (btree->type == BTREE_COL_FIX && ref->ref_recno != vs->records_so_far + 1)
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "page at %s has a starting record of %" PRIu64
               " when the expected starting record is %" PRIu64,
               __verify_addr_string(session, ref, vs->tmp1), ref->ref_recno, vs->records_so_far + 1);
         else if (btree->type == BTREE_COL_VAR && ref->ref_recno < vs->records_so_far + 1)
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "page at %s has a starting record of %" PRIu64
               " when the expected starting record is at least %" PRIu64,
               __verify_addr_string(session, ref, vs->tmp1), ref->ref_recno, vs->records_so_far + 1);
@@ -654,7 +654,7 @@ __verify_tree(
          * children.
          */
         if (!__wt_ref_is_root(ref) && page->dsk->write_gen >= ref->home->dsk->write_gen)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "child write generation number %" PRIu64
               " is greater/equal to the parent page write generation number %" PRIu64,
               page->dsk->write_gen, ref->home->dsk->write_gen);
@@ -722,7 +722,7 @@ __verify_tree(
     case WT_PAGE_ROW_INT:
         if (addr_unpack->raw != WT_CELL_ADDR_INT)
 celltype_err:
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "page at %s, of type %s, is referenced in its parent by a cell of type %s",
               __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
               __wti_cell_type_string(addr_unpack->raw));
@@ -750,7 +750,7 @@ celltype_err:
              * permitted.
              */
             if (btree->type == BTREE_COL_FIX && child_ref->ref_recno != vs->records_so_far + 1) {
-                WT_RET_MSG(session, WT_ERROR,
+                WT_RET_MSG(session, WT_E(WT_ERROR),
                   "the starting record number in entry %" PRIu32
                   " of the column internal page at %s is %" PRIu64
                   " and the expected starting record number is %" PRIu64,
@@ -758,7 +758,7 @@ celltype_err:
                   vs->records_so_far + 1);
             } else if (btree->type == BTREE_COL_VAR &&
               child_ref->ref_recno < vs->records_so_far + 1) {
-                WT_RET_MSG(session, WT_ERROR,
+                WT_RET_MSG(session, WT_E(WT_ERROR),
                   "the starting record number in entry %" PRIu32
                   " of the column internal page at %s is %" PRIu64
                   " and the expected starting record number is at least %" PRIu64,
@@ -775,7 +775,7 @@ celltype_err:
                 /* The entry number has already been incremented above, so 1 is the first. */
                 if (entry == 1)
                     continue;
-                WT_RET_MSG(session, WT_ERROR,
+                WT_RET_MSG(session, WT_E(WT_ERROR),
                   "found a page with no address in entry %" PRIu32
                   " of the column internal page at %s",
                   entry, __verify_addr_string(session, child_ref, vs->tmp1));
@@ -921,7 +921,7 @@ __verify_row_int_key_order(
         /* Compare the key against the largest key we've seen so far. */
         WT_RET(__wt_compare(session, btree->collator, &item, vs->max_key, &cmp));
         if (cmp <= 0)
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "the internal key in entry %" PRIu32
               " on the page at %s sorts before the last key appearing on page %s, earlier in the "
               "tree: "
@@ -978,7 +978,7 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
          */
         WT_RET(__wt_compare(session, btree->collator, vs->tmp1, (WT_ITEM *)vs->max_key, &cmp));
         if (cmp < 0)
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "the first key on the page at %s sorts equal to or less than the last key appearing "
               "on the page at %s, earlier in the tree: %s, %s",
               __verify_addr_string(session, ref, vs->tmp2), (char *)vs->max_addr->data,
@@ -1016,7 +1016,7 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
      */
     dsk = vs->tmp1->data;
     if (dsk->type != WT_PAGE_OVFL)
-        WT_RET_MSG(session, WT_ERROR, "overflow referenced page at %s is not an overflow page",
+        WT_RET_MSG(session, WT_E(WT_ERROR), "overflow referenced page at %s is not an overflow page",
           __wt_addr_string(session, addr, addr_size, vs->tmp1));
 
     WT_RET(bm->verify_addr(bm, session, addr, addr_size));
@@ -1059,7 +1059,7 @@ msg:
         WT_RET(__wt_buf_fmt(session, vs->tmp1, "Value in history store for key {%s}",
           __wt_key_string(session, key->data, key->size, btree->key_format, vs->tmp2)));
 
-    WT_RET_MSG(session, WT_ERROR,
+    WT_RET_MSG(session, WT_E(WT_ERROR),
       "%s has failed verification with a %s timestamp of %s greater than the stable_timestamp of "
       "%s",
       (char *)vs->tmp1->data, start ? "start" : "stop",
@@ -1109,7 +1109,7 @@ __verify_key_hs(
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
         /* Verify the newer record's start is later than the older record's stop. */
         if (newer_start_ts < older_stop_ts) {
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_ERR_MSG(session, WT_E(WT_ERROR),
               "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
               __wt_buf_set_printable_format(
@@ -1165,7 +1165,7 @@ __verify_page_content_int(
         ++cell_num;
 
         if (!__wti_cell_type_check(unpack.type, dsk->type))
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "illegal cell and page type combination: cell %" PRIu32
               " on page at %s is a %s cell on a %s page",
               cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
@@ -1239,7 +1239,7 @@ __verify_page_content_fix(
 
             /* We are supposed to see only values (not keys) and only plain values belong. */
             if (unpack.type != WT_CELL_VALUE)
-                WT_RET_MSG(session, EINVAL,
+                WT_RET_MSG(session, WT_E(EINVAL),
                   "cell %" PRIu32 " for key %" PRIu64 " on page at %s has wrong type %s", cell_num,
                   ref->ref_recno + page->pg_fix_tws[tw].recno_offset,
                   __verify_addr_string(session, ref, vs->tmp1),
@@ -1247,7 +1247,7 @@ __verify_page_content_fix(
 
             /* The value cell should contain only a time window. */
             if (unpack.size != 0)
-                WT_RET_MSG(session, EINVAL,
+                WT_RET_MSG(session, WT_E(EINVAL),
                   "cell %" PRIu32 " for key %" PRIu64 " on page at %s has nonempty value", cell_num,
                   ref->ref_recno + page->pg_fix_tws[tw].recno_offset,
                   __verify_addr_string(session, ref, vs->tmp1));
@@ -1316,7 +1316,7 @@ __verify_page_content_leaf(
         ++cell_num;
 
         if (!__wti_cell_type_check(unpack.type, dsk->type))
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "illegal cell and page type combination: cell %" PRIu32
               " on page at %s is a %s cell on a %s page",
               cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
@@ -1379,7 +1379,7 @@ __verify_page_content_leaf(
      * guarantee every leaf page without overflow items will be a leaf-no-overflow type.
      */
     if (found_ovfl && parent->raw == WT_CELL_ADDR_LEAF_NO)
-        WT_RET_MSG(session, WT_ERROR,
+        WT_RET_MSG(session, WT_E(WT_ERROR),
           "page at %s, of type %s and referenced in its parent by a cell of type %s, contains "
           "overflow items",
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),

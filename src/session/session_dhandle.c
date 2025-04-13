@@ -177,7 +177,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
         if (!LF_ISSET(WT_DHANDLE_LOCK_ONLY) &&
           (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
             (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))))
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
         ++dhandle->excl_ref;
         return (0);
     }
@@ -201,7 +201,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
          * If the handle is already open for a special operation, give up.
          */
         if (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
 
         /*
          * If the handle is open, get a read lock and recheck.
@@ -409,7 +409,7 @@ __session_open_hs_ckpt(WT_SESSION_IMPL *session, const char *checkpoint, const c
     if (session->dhandle->checkpoint_order != order_expected) {
         /* Not what we were expecting; treat as EBUSY and let the caller retry. */
         WT_RET(__wt_session_release_dhandle(session));
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
     }
 
     /* The handle is left in the session; return it explicitly for caller's convenience. */
@@ -574,7 +574,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     is_reserved_name = cval.len > strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
     if (is_reserved_name)
         WT_RET_MSG(
-          session, EINVAL, "the prefix \"%s\" for checkpoint cursors is reserved", WT_CHECKPOINT);
+          session, WT_E(EINVAL), "the prefix \"%s\" for checkpoint cursors is reserved", WT_CHECKPOINT);
 
     /*
      * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true in a
@@ -668,14 +668,14 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
                  * use the checkpoint generation number to detect the race.
                  */
                 if (ckpt_running || ckpt_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
-                    ret = __wt_set_return(session, EBUSY);
+                    ret = __wt_set_return(session, WT_E(EBUSY));
                 else {
                     __wt_verbose_warning(session, WT_VERB_DEFAULT,
                       "Session (@: 0x%p name: %s) could not open the checkpoint '%s' (config: %s) "
                       "on the file '%s'.",
                       (void *)session, session->name == NULL ? "EMPTY" : session->name, checkpoint,
                       cval.str, uri);
-                    ret = __wt_set_return(session, WT_NOTFOUND);
+                    ret = __wt_set_return(session, WT_E(WT_NOTFOUND));
                     goto err;
                 }
             }
@@ -698,7 +698,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
              */
             else if (first_snapshot_time != snapshot_time || ds_time > snapshot_time ||
               hs_time > snapshot_time || stable_time > snapshot_time || oldest_time > snapshot_time)
-                ret = __wt_set_return(session, EBUSY);
+                ret = __wt_set_return(session, WT_E(EBUSY));
             else {
                 /* Crosscheck that we didn't somehow get an older timestamp. */
                 WT_ASSERT(session, stable_time == snapshot_time || stable_time == 0);
@@ -724,7 +724,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
             if (ret == 0 && session->dhandle->checkpoint_order != ds_order) {
                 /* The tree we opened is newer than the one we expected; need to retry. */
                 WT_TRET(__wt_session_release_dhandle(session));
-                WT_TRET(__wt_set_return(session, EBUSY));
+                WT_TRET(__wt_set_return(session, WT_E(EBUSY))); /* Update? */
             }
         }
 

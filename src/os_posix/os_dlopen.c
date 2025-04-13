@@ -22,7 +22,7 @@ __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
     WT_ERR(__wt_strdup(session, path == NULL ? "local" : path, &dlh->name));
 
     if ((dlh->handle = dlopen(path, RTLD_LAZY)) == NULL)
-        WT_ERR_MSG(session, __wt_errno(), "dlopen(%s): %s", path, dlerror());
+        WT_ERR_MSG(session, WT_E(__wt_errno()), "dlopen(%s): %s", path, dlerror());
 
     *dlhp = dlh;
     if (0) {
@@ -45,7 +45,7 @@ __wt_dlsym(WT_SESSION_IMPL *session, WT_DLH *dlh, const char *name, bool fail, v
     *(void **)sym_ret = NULL;
     if ((sym = dlsym(dlh->handle, name)) == NULL) {
         if (fail)
-            WT_RET_MSG(session, __wt_errno(), "dlsym(%s in %s): %s", name, dlh->name, dlerror());
+            WT_RET_MSG(session, WT_E(__wt_errno()), "dlsym(%s in %s): %s", name, dlh->name, dlerror());
         return (0);
     }
 
@@ -70,7 +70,7 @@ __wt_dlclose(WT_SESSION_IMPL *session, WT_DLH *dlh)
  */
 #ifndef __FreeBSD__
     if (dlclose(dlh->handle) != 0) {
-        ret = __wt_errno();
+        ret = WT_E(__wt_errno());
         __wt_err(session, ret, "dlclose: %s", dlerror());
     }
 #endif

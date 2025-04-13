@@ -184,7 +184,7 @@ __curversion_next_int(WT_CURSOR *cursor)
 
     /* The cursor should be positioned, otherwise the next call will fail. */
     if (!F_ISSET(file_cursor, WT_CURSTD_KEY_INT))
-        WT_ERR_SUB(session, WT_ROLLBACK, WT_NONE,
+        WT_ERR_SUB(session, WT_E(WT_ROLLBACK), WT_NONE,
           "rolling back version_cursor->next due to no initial position");
 
     if (!F_ISSET(version_cursor, WT_CURVERSION_UPDATE_EXHAUSTED)) {
@@ -283,7 +283,7 @@ __curversion_next_int(WT_CURSOR *cursor)
             if (cbt->ins != NULL) {
                 F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
                 F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
             }
             break;
         case WT_PAGE_COL_FIX:
@@ -294,7 +294,7 @@ __curversion_next_int(WT_CURSOR *cursor)
             if (cbt->recno >= cbt->ref->ref_recno + page->entries) {
                 F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
                 F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
             }
             break;
         case WT_PAGE_COL_VAR:
@@ -302,7 +302,7 @@ __curversion_next_int(WT_CURSOR *cursor)
             if (page->entries == 0) {
                 F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
                 F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-                WT_ERR(WT_NOTFOUND);
+                WT_ERR(WT_E(WT_NOTFOUND));
             }
             break;
         default:
@@ -406,7 +406,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     }
 
     if (!upd_found)
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
     else {
         cbt->upd_value->type = WT_UPDATE_STANDARD;
         __wt_value_return(cbt, cbt->upd_value);
@@ -505,13 +505,13 @@ __curversion_search(WT_CURSOR *cursor)
      * We need to run with snapshot isolation to ensure that the globally visibility does not move.
      */
     if (txn->isolation != WT_ISO_SNAPSHOT)
-        WT_ERR_SUB(session, WT_ROLLBACK, WT_NONE,
+        WT_ERR_SUB(session, WT_E(WT_ROLLBACK), WT_NONE,
           "version cursor can only be called with snapshot isolation");
 
     WT_ERR(__cursor_checkkey(file_cursor));
     if (F_ISSET(file_cursor, WT_CURSTD_KEY_INT))
         WT_ERR_SUB(
-          session, WT_ROLLBACK, WT_NONE, "version cursor cannot be called when it is positioned");
+          session, WT_E(WT_ROLLBACK), WT_NONE, "version cursor cannot be called when it is positioned");
 
     /* Do a search and position on the key if it is found */
     F_SET(file_cursor, WT_CURSTD_KEY_ONLY);

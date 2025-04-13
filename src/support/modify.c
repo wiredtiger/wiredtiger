@@ -431,7 +431,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
      * user with a rollback error.
      */
     if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
-        WT_RET_MSG(session, WT_ROLLBACK,
+        WT_RET_MSG(session, WT_E(WT_ROLLBACK),
           "Read-uncommitted readers do not support reconstructing a record with modifies.");
 retry:
     /* Construct full update */

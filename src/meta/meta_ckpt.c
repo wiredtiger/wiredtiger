@@ -206,12 +206,12 @@ __ckpt_parse_time(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *config_value, uint64
     *timep = 0;
 
     if (config_value->len == 0 || config_value->len > sizeof(timebuf) - 1)
-        return (WT_ERROR);
+        return (WT_E(WT_ERROR));
     memcpy(timebuf, config_value->str, config_value->len);
     timebuf[config_value->len] = '\0';
     /* NOLINTNEXTLINE(cert-err34-c) */
     if (sscanf(timebuf, "%" SCNu64, timep) != 1)
-        return (WT_ERROR);
+        return (WT_E(WT_ERROR));
 
     return (0);
 }
@@ -316,7 +316,7 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
         base_hash = __wt_hash_city64(meta_base, strlen(meta_base));
         __wt_epoch(session, &ts);
         if (dhandle->meta_hash != base_hash)
-            WT_ERR_PANIC(session, WT_PANIC,
+            WT_ERR_PANIC(session, WT_E(WT_PANIC),
               "Corrupted metadata. The original metadata inserted was %s and the current "
               "metadata is now %s.",
               dhandle->orig_meta_base, meta_base);
@@ -369,7 +369,7 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
         if (WT_CONFIG_MATCH(checkpoint, k))
             return (__ckpt_load(session, &k, &v, ckpt));
 
-    return (WT_NOTFOUND);
+    return (WT_E(WT_NOTFOUND));
 }
 
 /*
@@ -397,7 +397,7 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
         WT_RET(__ckpt_load(session, &k, &v, ckpt));
     }
 
-    return (found ? 0 : WT_NOTFOUND);
+    return (found ? 0 : WT_E(WT_NOTFOUND));
 }
 
 /*
@@ -438,7 +438,7 @@ __ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **name
         WT_ERR(__wt_strndup(session, k.str, k.len, namep));
     }
     if (!found)
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
     else {
         if (orderp != NULL)
             *orderp = found;
@@ -904,7 +904,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
     }
     WT_ERR_NOTFOUND_OK(ret, false);
     if (!update && slot == 0)
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
 
     /* Sort in creation-order. */
     __wt_qsort(ckptbase, slot, sizeof(WT_CKPT), __ckpt_compare_order);
@@ -951,13 +951,13 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
     WT_RET(__wt_config_subgets(session, v, "order", &a));
     if (a.len == 0)
-        WT_RET_MSG(session, WT_ERROR, "corrupted order value in checkpoint config");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "corrupted order value in checkpoint config");
     ckpt->order = a.val;
 
     WT_RET(__wt_config_subgets(session, v, "time", &a));
     ret = __ckpt_parse_time(session, &a, &ckpt->sec);
     if (ret != 0)
-        WT_RET_MSG(session, WT_ERROR, "corrupted time value in checkpoint config");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "corrupted time value in checkpoint config");
 
     WT_RET(__wt_config_subgets(session, v, "size", &a));
     ckpt->size = (uint64_t)a.val;
@@ -1024,7 +1024,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)
-        WT_RET_MSG(session, WT_ERROR, "corrupted write_gen in checkpoint config");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "corrupted write_gen in checkpoint config");
     ckpt->write_gen = (uint64_t)a.val;
 
     /*
@@ -1801,7 +1801,7 @@ __ckpt_version_chk(WT_SESSION_IMPL *session, const char *fname, const char *conf
 
     if (__wt_version_gt(version, WT_BTREE_VERSION_MAX) ||
       __wt_version_lt(version, WT_BTREE_VERSION_MIN))
-        WT_RET_MSG(session, EACCES,
+        WT_RET_MSG(session, WT_E(EACCES),
           "%s is an unsupported WiredTiger source file version %" PRIu16 ".%" PRIu16
           "; this WiredTiger build only supports versions from %" PRIu16 ".%" PRIu16 " to %" PRIu16
           ".%" PRIu16,

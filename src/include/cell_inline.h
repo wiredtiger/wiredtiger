@@ -20,7 +20,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
 
     if ((ret = __wt_time_value_validate(session, tw, NULL, false)) != 0)
         return (expected_error ?
-            WT_ERROR :
+            WT_E(WT_ERROR) :
             __wt_panic(session, ret, "value timestamp window failed validation"));
 #else
     WT_UNUSED(session);
@@ -106,7 +106,7 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, bool e
 
     if ((ret = __wt_time_aggregate_validate(session, ta, NULL, false)) != 0)
         return (expected_error ?
-            WT_ERROR :
+            WT_E(WT_ERROR) :
             __wt_panic(session, ret, "address timestamp window failed validation"));
 #else
     WT_UNUSED(session);
@@ -690,7 +690,7 @@ __wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
         if ((end) != NULL &&                                    \
           ((uint8_t *)(start) < (uint8_t *)(dsk) ||             \
             (((uint8_t *)(start)) + (len)) > (uint8_t *)(end))) \
-            return (WT_ERROR);                                  \
+            return (WT_E(WT_ERROR));                                  \
     } while (0)
 
 /*
@@ -800,7 +800,7 @@ copy_cell_restart:
     case WT_CELL_ADDR_LEAF_NO:
         /* Return an error if we're not unpacking a cell of this type. */
         if (unpack_addr == NULL)
-            return (WT_ERROR);
+            return (WT_E(WT_ERROR));
 
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
@@ -844,7 +844,7 @@ copy_cell_restart:
     case WT_CELL_VALUE_OVFL_RM:
         /* Return an error if we're not unpacking a cell of this type. */
         if (unpack_value == NULL)
-            return (WT_ERROR);
+            return (WT_E(WT_ERROR));
 
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
@@ -913,7 +913,7 @@ copy_cell_restart:
     case WT_CELL_VALUE_COPY:
         /* Return an error if we're not unpacking a cell of this type. */
         if (unpack_value == NULL)
-            return (WT_ERROR);
+            return (WT_E(WT_ERROR));
 
         copy_cell = true;
 
@@ -970,7 +970,7 @@ copy_cell_restart:
         unpack->__len = WT_PTRDIFF32(p, cell);
         break;
     default:
-        return (WT_ERROR); /* Unknown cell type. */
+        return (WT_E(WT_ERROR)); /* Unknown cell type. */
     }
 
 done:

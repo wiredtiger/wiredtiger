@@ -84,7 +84,7 @@ wiredtiger_pack_item(WT_PACK_STREAM *ps, WT_ITEM *item)
 
     /* Lower-level packing routines treat a length of zero as unchecked. */
     if (ps->p >= ps->end)
-        return (ENOMEM);
+        return (WT_E(ENOMEM));
 
     WT_RET(__pack_next(&ps->pack, &pv));
     switch (pv.type) {
@@ -115,7 +115,7 @@ wiredtiger_pack_int(WT_PACK_STREAM *ps, int64_t i)
 
     /* Lower-level packing routines treat a length of zero as unchecked. */
     if (ps->p >= ps->end)
-        return (ENOMEM);
+        return (WT_E(ENOMEM));
 
     WT_RET(__pack_next(&ps->pack, &pv));
     switch (pv.type) {
@@ -148,7 +148,7 @@ wiredtiger_pack_str(WT_PACK_STREAM *ps, const char *s)
 
     /* Lower-level packing routines treat a length of zero as unchecked. */
     if (ps->p >= ps->end)
-        return (ENOMEM);
+        return (WT_E(ENOMEM));
 
     WT_RET(__pack_next(&ps->pack, &pv));
     switch (pv.type) {
@@ -178,7 +178,7 @@ wiredtiger_pack_uint(WT_PACK_STREAM *ps, uint64_t u)
 
     /* Lower-level packing routines treat a length of zero as unchecked. */
     if (ps->p >= ps->end)
-        return (ENOMEM);
+        return (WT_E(ENOMEM));
 
     WT_RET(__pack_next(&ps->pack, &pv));
     switch (pv.type) {
@@ -214,7 +214,7 @@ wiredtiger_unpack_item(WT_PACK_STREAM *ps, WT_ITEM *item)
 
     /* Lower-level packing routines treat a length of zero as unchecked. */
     if (ps->p >= ps->end)
-        return (ENOMEM);
+        return (WT_E(ENOMEM));
 
     WT_RET(__pack_next(&ps->pack, &pv));
     switch (pv.type) {
@@ -245,7 +245,7 @@ wiredtiger_unpack_int(WT_PACK_STREAM *ps, int64_t *ip)
 
     /* Lower-level packing routines treat a length of zero as unchecked. */
     if (ps->p >= ps->end)
-        return (ENOMEM);
+        return (WT_E(ENOMEM));
 
     WT_RET(__pack_next(&ps->pack, &pv));
     switch (pv.type) {
@@ -277,7 +277,7 @@ wiredtiger_unpack_str(WT_PACK_STREAM *ps, const char **sp)
 
     /* Lower-level packing routines treat a length of zero as unchecked. */
     if (ps->p >= ps->end)
-        return (ENOMEM);
+        return (WT_E(ENOMEM));
 
     WT_RET(__pack_next(&ps->pack, &pv));
     switch (pv.type) {
@@ -306,7 +306,7 @@ wiredtiger_unpack_uint(WT_PACK_STREAM *ps, uint64_t *up)
 
     /* Lower-level packing routines treat a length of zero as unchecked. */
     if (ps->p >= ps->end)
-        return (ENOMEM);
+        return (WT_E(ENOMEM));
 
     WT_RET(__pack_next(&ps->pack, &pv));
     switch (pv.type) {

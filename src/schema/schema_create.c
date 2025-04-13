@@ -36,13 +36,13 @@ __check_imported_ts(
     WT_ERR_NOTFOUND_OK(
       __wt_meta_ckptlist_get_from_config(session, false, &ckptbase, NULL, config), true);
     if (ret == WT_NOTFOUND)
-        WT_ERR_MSG(session, EINVAL,
+        WT_ERR_MSG(session, WT_E(EINVAL),
           "%s: import could not find any checkpoint information in supplied metadata", uri);
 
     /* Now iterate over each checkpoint and compare the aggregate timestamps with our oldest. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (ckpt->ta.newest_start_durable_ts > ts)
-            WT_ERR_MSG(session, WT_ROLLBACK,
+            WT_ERR_MSG(session, WT_E(WT_ROLLBACK),
               "%s: import found aggregated newest start durable timestamp newer than the current "
               "%s timestamp, newest_start_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
               uri, ts_name, ckpt->ta.newest_start_durable_ts, ts_name, ts);
@@ -55,7 +55,7 @@ __check_imported_ts(
          */
         if (ckpt->ta.newest_stop_durable_ts > ts) {
             WT_ASSERT(session, ckpt->ta.newest_stop_durable_ts != WT_TS_MAX);
-            WT_ERR_MSG(session, WT_ROLLBACK,
+            WT_ERR_MSG(session, WT_E(WT_ROLLBACK),
               "%s: import found aggregated newest stop durable timestamp newer than the current "
               "%s timestamp, newest_stop_durable_ts=%" PRIu64 ", %s_ts=%" PRIu64,
               uri, ts_name, ckpt->ta.newest_stop_durable_ts, ts_name, ts);
@@ -127,7 +127,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
          * existing URI rather than just silently returning.
          */
         if (exclusive || import)
-            WT_TRET(EEXIST);
+            WT_TRET(WT_E(EEXIST)); /* Update? */
         goto err;
     }
 
@@ -163,14 +163,14 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             if (session->import_list != NULL)
                 WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
             else
-                WT_ERR_MSG(session, ENOTSUP,
+                WT_ERR_MSG(session, WT_E(ENOTSUP),
                   "%s: import without metadata_file not supported on tiered files", uri);
         }
 
         /* First verify that the data to import exists on disk. */
         WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
         if (!exists)
-            WT_ERR_MSG(session, ENOENT, "%s", uri);
+            WT_ERR_MSG(session, WT_E(ENOENT), "%s", uri);
 
         import_repair =
           __wt_config_getones(session, config, "import.repair", &cval) == 0 && cval.val != 0;
@@ -202,7 +202,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                  */
                 if (__wt_config_getones(session, filemeta, "tiered_object", &cval) == 0 &&
                   cval.val != 0)
-                    WT_ERR_MSG(session, ENOTSUP, "%s: import not supported on tiered files", uri);
+                    WT_ERR_MSG(session, WT_E(ENOTSUP), "%s: import not supported on tiered files", uri);
                 filecfg[2] = filemeta;
                 /*
                  * If there is a file metadata provided, reconstruct the incremental backup
@@ -216,7 +216,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                  * To prevent mistakes with API usage, we should return an error here rather than
                  * inferring a repair.
                  */
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "%s: import requires that 'file_metadata' or 'metadata_file' is specified or the "
                   "'repair' option is provided",
                   uri);
@@ -393,7 +393,7 @@ __wt_find_import_metadata(WT_SESSION_IMPL *session, const char *uri, const char 
       sizeof(WT_IMPORT_ENTRY), __create_import_cmp_uri);
 
     if (result == NULL)
-        WT_RET_MSG(session, WT_NOTFOUND, "failed to find metadata for %s", uri);
+        WT_RET_MSG(session, WT_E(WT_NOTFOUND), "failed to find metadata for %s", uri);
 
     *config = result->config;
 
@@ -507,7 +507,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
     if ((ret = __wt_schema_get_table(
            session, tablename, tlen, true, WT_DHANDLE_EXCLUSIVE, &table)) != 0)
-        WT_RET_MSG(session, (ret == WT_NOTFOUND) ? ENOENT : ret,
+        WT_RET_MSG(session, (ret == WT_NOTFOUND) ? WT_EMAP(ENOENT) : ret,
           "Can't create '%s' for non-existent table '%.*s'", name, (int)tlen, tablename);
 
     if (WT_META_TRACKING(session)) {
@@ -521,7 +521,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
      * EINVAL for the application.
      */
     if (cgname != NULL && (ret = __wt_config_subgets(session, &table->cgconf, cgname, &cval)) != 0)
-        WT_ERR_MSG(session, ret == WT_NOTFOUND ? EINVAL : ret,
+        WT_ERR_MSG(session, ret == WT_NOTFOUND ? WT_EMAP(EINVAL) : ret,
           "Column group '%s' not found in table '%.*s'", cgname, (int)tlen, tablename);
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
@@ -541,7 +541,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         /* Check if the column group already exists. */
         if ((ret = __wt_metadata_search(session, name, &origconf)) == 0) {
             if (exclusive)
-                WT_ERR(EEXIST);
+                WT_ERR(WT_E(EEXIST));
             exists = true;
         }
         WT_ERR_NOTFOUND_OK(ret, false);
@@ -577,7 +577,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
                 WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format=%s", table->value_format));
             else {
                 if (__wt_config_getones(session, config, "columns", &cval) != 0)
-                    WT_ERR_MSG(session, EINVAL, "No 'columns' configuration for '%s'", name);
+                    WT_ERR_MSG(session, WT_E(EINVAL), "No 'columns' configuration for '%s'", name);
                 WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format="));
                 WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
             }
@@ -717,7 +717,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     idxname = strchr(tablename, ':');
     if (idxname == NULL)
         WT_RET_MSG(
-          session, EINVAL, "Invalid index name, should be <table name>:<index name>: %s", name);
+          session, WT_E(EINVAL), "Invalid index name, should be <table name>:<index name>: %s", name);
 
     /*
      * Note: it would be better to keep the table exclusive here, while changing its indexes. We
@@ -741,12 +741,12 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
           tablename);
 
     if (table->is_simple)
-        WT_ERR_MSG(session, EINVAL, "%s requires a table with named columns", name);
+        WT_ERR_MSG(session, WT_E(EINVAL), "%s requires a table with named columns", name);
 
     /* Check if the index already exists. */
     if ((ret = __wt_metadata_search(session, name, &origconf)) == 0) {
         if (exclusive)
-            WT_ERR(EEXIST);
+            WT_ERR(WT_E(EEXIST));
         exists = true;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -765,7 +765,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     /* Calculate the key/value formats. */
     WT_CLEAR(icols);
     if (__wt_config_getones(session, config, "columns", &icols) != 0)
-        WT_ERR_MSG(session, EINVAL, "%s: requires 'columns' configuration", name);
+        WT_ERR_MSG(session, WT_E(EINVAL), "%s: requires 'columns' configuration", name);
 
     /*
      * Count the public columns using the declared columns.
@@ -807,7 +807,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     WT_ERR(__wt_config_getones(session, fmt.data, "key_format", &cval));
     if (cval.len == 1 && cval.str[0] == 'r')
         WT_ERR_MSG(
-          session, EINVAL, "column-store index may not use the record number as its index key");
+          session, WT_E(EINVAL), "column-store index may not use the record number as its index key");
 
     WT_ERR(__wt_buf_catfmt(session, &fmt, ",index_key_columns=%u", npublic_cols));
 
@@ -881,7 +881,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
          * existing URI rather than just silently returning.
          */
         if (exclusive || import)
-            WT_TRET(EEXIST);
+            WT_TRET(WT_E(EEXIST)); /* Update? */
         goto err;
     }
 
@@ -899,7 +899,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
             for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)
                 ;
             if (nkeys == 1)
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "%s: import requires that the table configuration is specified or the "
                   "'repair' option is provided",
                   uri);
@@ -1043,7 +1043,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
         if (exclusive)
-            WT_TRET(EEXIST);
+            WT_TRET(WT_E(EEXIST)); /* Update? */
         goto err;
     }
     WT_RET_NOTFOUND_OK(ret);
@@ -1117,7 +1117,7 @@ __create_data_source(
      */
     if (__wt_config_getones_none(session, config, "collator", &cval) != WT_NOTFOUND &&
       cval.len != 0)
-        WT_RET_MSG(session, EINVAL, "WT_DATA_SOURCE objects do not support WT_COLLATOR ordering");
+        WT_RET_MSG(session, WT_E(EINVAL), "WT_DATA_SOURCE objects do not support WT_COLLATOR ordering");
 
     return (dsrc->create(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg));
 }
@@ -1274,7 +1274,7 @@ __schema_create_config_check(
 
     if (import && session->import_list == NULL && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "table:"))
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           "%s: import is only supported for 'file' and 'table' data sources", uri);
 
     /*
@@ -1288,7 +1288,7 @@ __schema_create_config_check(
 
     /* The import.file_metadata configuration is incompatible with tiered storage. */
     if (is_tiered && file_metadata)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "import for tiered storage is incompatible with the 'file_metadata' setting");
 
     /*
@@ -1297,7 +1297,7 @@ __schema_create_config_check(
      */
     if (is_tiered && __wt_config_getones(session, config, "type", &cval) == 0 &&
       !WT_CONFIG_LIT_MATCH("file", cval))
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           "unsupported type configuration: %.*s: type must be file for tiered storage",
           (int)cval.len, cval.str);
 

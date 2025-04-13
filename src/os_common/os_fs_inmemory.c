@@ -69,7 +69,7 @@ __im_handle_remove(
     if (im_fh->ref != 0) {
         __wt_err(session, EBUSY, "%s: file-remove", im_fh->iface.name);
         if (!force)
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
     }
 
     bucket = im_fh->name_hash & (S2C(session)->hash_size - 1);
@@ -208,7 +208,7 @@ __im_fs_remove(
 
     __wt_spin_lock(session, &im_fs->lock);
 
-    ret = ENOENT;
+    ret = WT_E(ENOENT);
     if ((im_fh = __im_handle_search(session, file_system, name)) != NULL)
         ret = __im_handle_remove(session, file_system, im_fh, false);
 
@@ -238,7 +238,7 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
 
     __wt_spin_lock(session, &im_fs->lock);
 
-    ret = ENOENT;
+    ret = WT_E(ENOENT);
     if ((im_fh = __im_handle_search(session, file_system, from)) != NULL) {
         WT_ERR(__wt_strdup(session, to, &copy));
         __wt_free(session, im_fh->iface.name);
@@ -275,7 +275,7 @@ __im_fs_size(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *na
 
     /* Search for the handle, then get its size. */
     if ((im_fh = __im_handle_search(session, file_system, name)) == NULL)
-        ret = __wt_set_return(session, ENOENT);
+        ret = __wt_set_return(session, WT_E(ENOENT));
     else
         *sizep = (wt_off_t)im_fh->buf.size;
 
@@ -346,12 +346,12 @@ __im_file_read(
         len = WT_MIN(len, im_fh->buf.size - off);
         memcpy(buf, (uint8_t *)im_fh->buf.mem + off, len);
     } else
-        ret = WT_ERROR;
+        ret = WT_E(WT_ERROR);
 
     __wt_spin_unlock(session, &im_fs->lock);
     if (ret == 0)
         return (0);
-    WT_RET_MSG(session, WT_ERROR,
+    WT_RET_MSG(session, WT_E(WT_ERROR),
       "%s: handle-read: failed to read %" WT_SIZET_FMT " bytes at offset %" WT_SIZET_FMT,
       file_handle->name, len, off);
 }
@@ -459,7 +459,7 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
     if (im_fh != NULL) {
 
         if (im_fh->ref != 0)
-            WT_ERR_MSG(session, EBUSY, "%s: file-open: already open", name);
+            WT_ERR_MSG(session, WT_E(EBUSY), "%s: file-open: already open", name);
 
         im_fh->ref = 1;
 

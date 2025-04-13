@@ -18,7 +18,7 @@ __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
     if (F_ISSET(session->txn, WT_TXN_PREPARE_IGNORE_API_CHECK))
         return (0);
     if (F_ISSET(session->txn, WT_TXN_PREPARE))
-        WT_RET_MSG(session, EINVAL, "not permitted in a prepared transaction");
+        WT_RET_MSG(session, WT_E(EINVAL), "not permitted in a prepared transaction");
     return (0);
 }
 
@@ -30,9 +30,9 @@ static WT_INLINE int
 __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 {
     if (requires_txn && !F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_RET_MSG(session, EINVAL, "only permitted in a running transaction");
+        WT_RET_MSG(session, WT_E(EINVAL), "only permitted in a running transaction");
     if (!requires_txn && F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_RET_MSG(session, EINVAL, "not permitted in a running transaction");
+        WT_RET_MSG(session, WT_E(EINVAL), "not permitted in a running transaction");
     return (0);
 }
 
@@ -571,7 +571,7 @@ __wt_txn_timestamp_usage_check(
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-        return (EINVAL);
+        return (WT_E(EINVAL));
     }
 
     /*
@@ -588,7 +588,7 @@ __wt_txn_timestamp_usage_check(
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-        return (EINVAL);
+        return (WT_E(EINVAL));
     }
 
     /* Ordered consistency requires all updates be in timestamp order. */
@@ -601,7 +601,7 @@ __wt_txn_timestamp_usage_check(
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-        return (EINVAL);
+        return (WT_E(EINVAL));
     }
 
     return (0);
@@ -684,8 +684,8 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     if (F_ISSET(txn, WT_TXN_READONLY)) {
         if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
             WT_RET_MSG(
-              session, ENOTSUP, "Transactions with ignore_prepare=true cannot perform updates");
-        WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
+              session, WT_E(ENOTSUP), "Transactions with ignore_prepare=true cannot perform updates");
+        WT_RET_MSG(session, WT_E(WT_ROLLBACK), "Attempt to update in a read-only transaction");
     }
 
     WT_RET(__txn_next_op(session, &op));
@@ -1426,7 +1426,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
                 continue;
             }
 
-            return (WT_PREPARE_CONFLICT);
+            return (WT_E(WT_PREPARE_CONFLICT));
         }
     }
 
@@ -1835,7 +1835,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
     if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle) &&
       (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED)) {
         WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
-        WT_RET_MSG(session, ENOTSUP,
+        WT_RET_MSG(session, WT_E(ENOTSUP),
           "write operations are not supported in read-committed or read-uncommitted transactions.");
     }
 
@@ -1848,7 +1848,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
      * If we have used 64-bits of transaction IDs, there is nothing more we can do.
      */
     if (txn->id == WT_TXN_ABORTED)
-        WT_RET_MSG(session, WT_ERROR, "out of transaction IDs");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "out of transaction IDs");
     F_SET(txn, WT_TXN_HAS_ID);
 
     return (0);
@@ -1884,7 +1884,7 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-        return (EINVAL);
+        return (WT_E(EINVAL));
     }
 
     if (LF_ISSET(WT_DHANDLE_TS_ASSERT_READ_NEVER) && F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
@@ -1893,7 +1893,7 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 #ifdef HAVE_DIAGNOSTIC
         __wt_abort(session);
 #endif
-        return (EINVAL);
+        return (WT_E(EINVAL));
     }
     return (0);
 }
@@ -1985,7 +1985,7 @@ __txn_modify_block(
         }
 
         WT_STAT_CONN_DSRC_INCR(session, txn_update_conflict);
-        ret = WT_ROLLBACK;
+        ret = WT_E(WT_ROLLBACK);
         __wt_session_set_last_error(
           session, ret, WT_WRITE_CONFLICT, WT_TXN_ROLLBACK_REASON_CONFLICT);
     }
@@ -2041,7 +2041,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
             upd = upd->next;
 
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE)
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
     }
 
     /* Everything is OK, optionally rollback for testing (skipping metadata operations). */
@@ -2049,7 +2049,7 @@ __wt_txn_modify_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         txn_global = &S2C(session)->txn_global;
         if (txn_global->debug_rollback != 0 &&
           ++txn_global->debug_ops % txn_global->debug_rollback == 0)
-            WT_RET_SUB(session, WT_ROLLBACK, WT_NONE, "debug mode simulated conflict");
+            WT_RET_SUB(session, WT_E(WT_ROLLBACK), WT_NONE, "debug mode simulated conflict");
     }
     return (0);
 }

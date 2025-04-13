@@ -246,7 +246,7 @@ __curmetadata_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     CURSOR_API_CALL(a, session, ret, compare, CUR2BT(a_file_cursor));
 
     if (b->compare != __curmetadata_compare)
-        WT_ERR_MSG(session, EINVAL, "Can only compare cursors of the same type");
+        WT_ERR_MSG(session, WT_E(EINVAL), "Can only compare cursors of the same type");
 
     WT_MD_CURSOR_NEEDKEY(a);
     WT_MD_CURSOR_NEEDKEY(b);
@@ -328,7 +328,7 @@ __curmetadata_prev(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, ret, prev, CUR2BT(file_cursor));
 
     if (F_ISSET(mdc, WT_MDC_ONMETADATA)) {
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
         goto err;
     }
 

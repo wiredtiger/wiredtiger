@@ -41,7 +41,7 @@ static int __verify_dsk_row_leaf(WT_VERIFY_INFO *);
             /* Easy way to set a breakpoint when tracking corruption */    \
             WT_IGNORE_RET(__wt_session_breakpoint((WT_SESSION *)session)); \
         }                                                                  \
-        return ((ret) == 0 ? WT_ERROR : ret);                              \
+        return ((ret) == 0 ? WT_E_S(session, WT_ERROR) : ret);                              \
     } while (0)
 
 #define WT_RET_VRFY(session, ...) WT_RET_VRFY_RETVAL(session, 0, __VA_ARGS__)
@@ -359,7 +359,7 @@ __verify_row_key_order_check(
     WT_ERR(__wt_scr_alloc(vi->session, 0, &tmp1));
     WT_ERR(__wt_scr_alloc(vi->session, 0, &tmp2));
 
-    ret = WT_ERROR;
+    ret = WT_E_S(vi->session, WT_ERROR);
     WT_ERR_VRFY(vi->session, vi->flags,
       "the %" PRIu32 " and %" PRIu32 " keys on page at %s are incorrectly sorted: %s, %s",
       last_cell_num, cell_num, vi->tag,
@@ -547,7 +547,7 @@ __verify_dsk_row_int(WT_VERIFY_INFO *vi)
     if (0) {
 err:
         if (ret == 0)
-            ret = WT_ERROR;
+            ret = WT_E_S(vi->session, WT_ERROR);
     }
     __wt_scr_free(vi->session, &current);
     __wt_scr_free(vi->session, &last);
@@ -749,7 +749,7 @@ key_compare:
     if (0) {
 err:
         if (ret == 0)
-            ret = WT_ERROR;
+            ret = WT_E_S(vi->session, WT_ERROR);
     }
     __wt_scr_free(vi->session, &current);
     __wt_scr_free(vi->session, &last_pfx);
@@ -792,7 +792,7 @@ __verify_dsk_col_int(WT_VERIFY_INFO *vi)
 
         /* Check if any referenced item is entirely in the file. */
         ret = bm->addr_invalid(bm, vi->session, unpack->data, unpack->size);
-        WT_RET_ERROR_OK(ret, EINVAL);
+        WT_RET_ERROR_OK(ret, WT_E_S(vi->session, EINVAL));
         if (ret == EINVAL)
             return (__err_cell_corrupt_or_eof(ret, vi));
     }
@@ -851,7 +851,7 @@ __verify_dsk_col_fix(WT_VERIFY_INFO *vi)
     /* Validate the offsets in the auxiliary header. */
     if (auxhdr.emptyoffset > auxhdr.dataoffset)
         /* The empty-space offset is the also end of the auxiliary header. */
-        WT_RET_VRFY_RETVAL(vi->session, EINVAL,
+        WT_RET_VRFY_RETVAL(vi->session, WT_E_S(vi->session, EINVAL),
           "%s page at %s auxiliary header overlaps data: header ends at offset %" PRIu32
           " and data begins at offset %" PRIu32,
           __wt_page_type_string(vi->dsk->type), vi->tag, auxhdr.emptyoffset, auxhdr.dataoffset);
@@ -1001,7 +1001,7 @@ __verify_dsk_col_var(WT_VERIFY_INFO *vi)
         /* Check if any referenced item is entirely in the file. */
         if (cell_type == WT_CELL_VALUE_OVFL) {
             ret = bm->addr_invalid(bm, vi->session, unpack->data, unpack->size);
-            WT_RET_ERROR_OK(ret, EINVAL);
+            WT_RET_ERROR_OK(ret, WT_E_S(vi->session, EINVAL));
             if (ret == EINVAL)
                 return (__err_cell_corrupt_or_eof(ret, vi));
         }

@@ -59,5 +59,5 @@ __wt_localtime(WT_SESSION_IMPL *session, const time_t *timep, struct tm *result)
     if (localtime_r(timep, result) != NULL)
         return (0);
 
-    WT_RET_MSG(session, __wt_errno(), "localtime_r");
+    WT_RET_MSG(session, WT_E(__wt_errno()), "localtime_r");
 }

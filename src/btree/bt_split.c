@@ -428,7 +428,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     children = pindex->entries / btree->split_deepen_per_child;
     if (children < WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES) {
         if (pindex->entries < WT_INTERNAL_SPLIT_MIN_KEYS)
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
         children = WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES;
     }
     chunk = pindex->entries / children;
@@ -889,7 +889,7 @@ err:
          * wrong.
          */
         if (empty_parent)
-            ret = __wt_set_return(session, EBUSY);
+            ret = __wt_set_return(session, WT_E(EBUSY));
         break;
     case WT_ERR_IGNORE:
         if (ret != WT_PANIC) {
@@ -954,7 +954,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     children = pindex->entries / btree->split_deepen_per_child;
     if (children < WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES) {
         if (pindex->entries < WT_INTERNAL_SPLIT_MIN_KEYS)
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
         children = WT_SPLIT_DEEPEN_MIN_CREATE_CHILD_PAGES;
     }
     chunk = pindex->entries / children;
@@ -1197,7 +1197,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
      * split the parent, give up to avoid that deadlock.
      */
     if (!trylock && __wt_btree_syncing_by_other_session(session))
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
 
     /*
      * Get a page-level lock on the parent to single-thread splits into the page because we need to
@@ -2180,7 +2180,7 @@ __split_multi_lock(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 
     /* Fail 1% of the time to simulate we fail to split the page. */
     if (!closing && __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT, 100))
-        return (EBUSY);
+        return (WT_E(EBUSY));
 
     /* Lock the parent page, then proceed with the split. */
     WT_RET(__split_internal_lock(session, ref, false, &parent));

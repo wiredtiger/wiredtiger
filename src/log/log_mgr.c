@@ -235,14 +235,14 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
       ((enabled && !F_ISSET(&conn->log_mgr, WT_LOG_ENABLED)) ||
         (!enabled && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))))
         WT_RET_MSG(
-          session, EINVAL, "log manager reconfigure: enabled mismatch with existing setting");
+          session, WT_E(EINVAL), "log manager reconfigure: enabled mismatch with existing setting");
 
     /* Logging is incompatible with in-memory */
     if (enabled) {
         WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
         if (cval.val != 0)
             WT_RET_MSG(
-              session, EINVAL, "In-memory configuration incompatible with log=(enabled=true)");
+              session, WT_E(EINVAL), "In-memory configuration incompatible with log=(enabled=true)");
     }
 
     if (enabled)
@@ -337,7 +337,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
     if (cval.val != 0) {
         if (F_ISSET(conn, WT_CONN_READONLY))
             WT_RET_MSG(
-              session, EINVAL, "Read-only configuration incompatible with zero-filling log files");
+              session, WT_E(EINVAL), "Read-only configuration incompatible with zero-filling log files");
         F_SET(&conn->log_mgr, WT_LOG_ZERO_FILL);
     }
 
@@ -587,7 +587,7 @@ __wt_log_truncate_files(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool force)
         return (0);
     if (!force && FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG) &&
       F_ISSET(&conn->log_mgr, WT_LOG_REMOVE))
-        WT_RET_MSG(session, EINVAL, "Attempt to remove manually while a server is running");
+        WT_RET_MSG(session, WT_E(EINVAL), "Attempt to remove manually while a server is running");
 
     log = conn->log_mgr.log;
 
@@ -670,7 +670,7 @@ __log_file_server(void *arg)
                     WT_WITH_HOTBACKUP_READ_LOCK(session,
                       ret = __wt_ftruncate(session, close_fh, __wt_lsn_offset(&close_end_lsn)),
                       NULL);
-                    WT_ERR_ERROR_OK(ret, ENOTSUP, false);
+                    WT_ERR_ERROR_OK(ret, WT_E(ENOTSUP), false);
                 }
                 WT_SET_LSN(&close_end_lsn, close_end_lsn.l.file + 1, 0);
                 __wt_spin_lock(session, &log->log_sync_lock);
@@ -938,7 +938,7 @@ __log_server(void *arg)
          */
         if (log_mgr->force_write_wait == 0 ||
           force_write_timediff >= log_mgr->force_write_wait * WT_THOUSAND) {
-            WT_ERR_ERROR_OK(__wti_log_force_write(session, false, &did_work), EBUSY, false);
+            WT_ERR_ERROR_OK(__wti_log_force_write(session, false, &did_work), WT_E(EBUSY), false);
             force_write_time_start = __wt_clock(session);
         }
         /*

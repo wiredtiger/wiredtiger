@@ -213,7 +213,7 @@ __curlog_next(WT_CURSOR *cursor)
         cl->txnid = 0;
         ret = __wt_log_scan(session, cl->next_lsn, NULL, WT_LOGSCAN_ONE, __curlog_logrec, cl);
         if (ret == ENOENT)
-            ret = WT_NOTFOUND;
+            ret = WT_E(WT_NOTFOUND);
         WT_ERR(ret);
     }
     WT_ASSERT(session, cl->logrec->data != NULL);
@@ -252,7 +252,7 @@ __curlog_search(WT_CURSOR *cursor)
     WT_SET_LSN(&key, key_file, key_offset);
     ret = __wt_log_scan(session, &key, NULL, WT_LOGSCAN_ONE, __curlog_logrec, cl);
     if (ret == ENOENT)
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
     WT_ERR(ret);
     WT_ERR(__curlog_kv(session, cursor));
     WT_STAT_CONN_DSRC_INCR(session, cursor_search);

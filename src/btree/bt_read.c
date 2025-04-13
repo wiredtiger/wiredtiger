@@ -110,7 +110,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
         if (locked)
             WT_REF_SET_STATE(ref, previous_state);
-        return (ret == 0 ? EBUSY : ret);
+        return (ret == 0 ? WT_E(EBUSY) : ret);
     }
 
     evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
@@ -350,15 +350,15 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         case WT_REF_DELETED:
             /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE | WT_READ_NO_WAIT))
-                return (WT_NOTFOUND);
+                return (WT_E(WT_NOTFOUND));
             if (LF_ISSET(WT_READ_SKIP_DELETED) &&
               __wti_delete_page_skip(session, ref, !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)))
-                return (WT_NOTFOUND);
+                return (WT_E(WT_NOTFOUND));
             goto read;
         case WT_REF_DISK:
             /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE))
-                return (WT_NOTFOUND);
+                return (WT_E(WT_NOTFOUND));
 read:
             /*
              * The page isn't in memory, read it. If this thread respects the cache size, check if
@@ -386,11 +386,11 @@ read:
             continue;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))
-                return (WT_NOTFOUND);
+                return (WT_E(WT_NOTFOUND));
 
             if (F_ISSET_ATOMIC_8(ref, WT_REF_FLAG_READING)) {
                 if (LF_ISSET(WT_READ_CACHE))
-                    return (WT_NOTFOUND);
+                    return (WT_E(WT_NOTFOUND));
 
                 /* Waiting on another thread's read, stall. */
                 WT_STAT_CONN_INCR(session, page_read_blocked);
@@ -401,7 +401,7 @@ read:
             stalled = true;
             break;
         case WT_REF_SPLIT:
-            return (WT_RESTART);
+            return (WT_E(WT_RESTART));
         case WT_REF_MEM:
             /*
              * The page is in memory.

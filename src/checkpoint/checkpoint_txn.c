@@ -54,7 +54,7 @@ __checkpoint_flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
         if (start != 0) {
             __wt_seconds(session, &now);
             if (now - start > timeout)
-                return (EBUSY);
+                return (WT_E(EBUSY));
         }
         if (++yield_count < WT_THOUSAND)
             __wt_yield();
@@ -141,7 +141,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
                 }
             }
             /* Only instantiate the handle if we need to flush. */
-            WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, key, NULL, NULL, 0), EBUSY, true);
+            WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, key, NULL, NULL, 0), WT_E(EBUSY), true);
 
             /*
              * If we get back EBUSY, this handle may be open with bulk or other special flags. We
@@ -202,11 +202,11 @@ __checkpoint_name_ok(WT_SESSION_IMPL *session, const char *name, size_t len, boo
      * and disallow any matching prefix, it makes things easier when checking in other places.
      */
     if (len >= strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(name, WT_CHECKPOINT))
-        WT_RET_MSG(session, EINVAL, "the checkpoint name \"%s\" is reserved", WT_CHECKPOINT);
+        WT_RET_MSG(session, WT_E(EINVAL), "the checkpoint name \"%s\" is reserved", WT_CHECKPOINT);
 
     /* The name "all" is also special. */
     if (!allow_all && WT_STRING_LIT_MATCH("all", name, len))
-        WT_RET_MSG(session, EINVAL, "the checkpoint name \"all\" is reserved");
+        WT_RET_MSG(session, WT_E(EINVAL), "the checkpoint name \"all\" is reserved");
 
     return (0);
 }
@@ -245,7 +245,7 @@ __checkpoint_name_check(WT_SESSION_IMPL *session)
     WT_ERR_NOTFOUND_OK(ret, false);
 
     if (fail != NULL)
-        WT_ERR_MSG(session, EINVAL, "%s object does not support named checkpoints", fail);
+        WT_ERR_MSG(session, WT_E(EINVAL), "%s object does not support named checkpoints", fail);
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
@@ -1312,7 +1312,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * part of the metadata file (performing recovery on backup folder where no checkpoint
      * occurred), this will return ENOENT which we ignore and continue.
      */
-    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT, false);
+    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), WT_E(ENOENT), false);
     hs_dhandle = session->dhandle;
 
     /*
@@ -1895,7 +1895,7 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
                 F_CLR(ckpt, WT_CKPT_DELETE);
                 continue;
             }
-            WT_RET_MSG(session, EBUSY,
+            WT_RET_MSG(session, WT_E(EBUSY),
               "checkpoint %s blocked by hot backup: it would delete an existing named checkpoint, "
               "and such checkpoints cannot be deleted during a hot backup",
               ckpt->name);
@@ -2106,7 +2106,7 @@ __checkpoint_lock_dirty_tree(
                 else if (WT_CONFIG_LIT_MATCH("to", k))
                     WT_ERR(__checkpoint_drop_to(session, drop_list, ckptbase, v.str, v.len));
                 else
-                    WT_ERR_MSG(session, EINVAL, "unexpected value for checkpoint key: %.*s",
+                    WT_ERR_MSG(session, WT_E(EINVAL), "unexpected value for checkpoint key: %.*s",
                       (int)k.len, k.str);
             }
             WT_ERR_NOTFOUND_OK(ret, false);
@@ -2723,7 +2723,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * can lead to files that are inconsistent on disk after a crash.
      */
     if (btree->modified && !bulk && !metadata) {
-        ret = __wt_set_return(session, EBUSY);
+        ret = __wt_set_return(session, WT_E(EBUSY));
         WT_RET_SUB(
           session, ret, WT_DIRTY_DATA, "the table has dirty data and can not be dropped yet");
     }

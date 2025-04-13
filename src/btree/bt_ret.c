@@ -203,7 +203,7 @@ __read_page_cell_data_ref_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UN
     WT_RET(__wt_page_cell_data_ref_kv(session, page, unpack, buf));
     if (unpack->cell != NULL && __wt_cell_type_raw(unpack->cell) == WT_CELL_VALUE_OVFL_RM) {
         WT_STAT_CONN_DSRC_INCR(session, txn_read_overflow_remove);
-        return (WT_RESTART);
+        return (WT_E(WT_RESTART));
     }
     return (0);
 }

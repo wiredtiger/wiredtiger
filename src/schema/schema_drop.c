@@ -142,7 +142,7 @@ __drop_table(
     if (force && !table->is_simple) {
         __wt_verbose_warning(session, WT_VERB_HANDLEOPS,
           "ENOTSUP: drop table with force=true is not supported for complex tables. uri=%s", uri);
-        WT_ERR(ENOTSUP);
+        WT_ERR(WT_E(ENOTSUP));
     }
 
     /* Drop the column groups. */
@@ -215,7 +215,7 @@ __drop_tiered(
     remove_shared = cval.val != 0;
 
     if (!remove_files && remove_shared)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "drop for tiered storage object must configure removal of underlying files "
           "if forced removal of shared objects is enabled");
 
@@ -389,7 +389,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
      * entry. Map ENOENT to zero if force is set.
      */
     if (ret == WT_NOTFOUND || ret == ENOENT)
-        ret = force ? 0 : ENOENT;
+        ret = force ? 0 : WT_E(ENOENT);
 
     if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE))
         WT_TRET(__wt_meta_track_off(session, false, ret != 0));

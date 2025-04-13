@@ -128,14 +128,14 @@ __wt_struct_repack(WT_SESSION_IMPL *session, const char *infmt, const char *outf
     /* Outfmt should complete before infmt */
     while ((ret = __pack_next(&packout, &pvout)) == 0) {
         if (p >= end)
-            WT_RET(EINVAL);
+            WT_RET(WT_E(EINVAL));
         if (pvout.type == 'x' && pvout.size == 0 && pvout.havesize)
             continue;
         WT_RET(__pack_next(&packin, &pvin));
         before = p;
         WT_RET(__unpack_read(session, &pvin, &p, (size_t)(end - p)));
         if (pvout.type != pvin.type)
-            WT_RET(ENOTSUP);
+            WT_RET(WT_E(ENOTSUP));
         if (start == NULL)
             start = before;
     }

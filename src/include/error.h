@@ -169,15 +169,15 @@ __wt_tret_error_ok(int *pret, int a, int e)
     } while (0)
 #endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
 
-#define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
-#define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)
+#define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, WT_E(EBUSY))
+#define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_E(WT_NOTFOUND))
 
 /* Return WT_PANIC regardless of earlier return codes. */
 #define WT_RET_PANIC(session, v, ...) return (__wt_panic(session, v, __VA_ARGS__))
 
 /* Called on unexpected code path: locate the failure. */
 #define __wt_illegal_value(session, v)             \
-    __wt_panic(session, EINVAL, "%s: 0x%" PRIxMAX, \
+    __wt_panic(session, WT_E(EINVAL), "%s: 0x%" PRIxMAX, \
       "encountered an illegal file format or internal value", (uintmax_t)(v))
 
 /*
@@ -341,3 +341,8 @@ __wt_tret_error_ok(int *pret, int a, int e)
             WT_STAT_CONN_INCR(session, stat);  \
         WT_ASSERT(session, exp);               \
     } while (0)
+
+#define WT_E(err) __wt_ret_origin_func(session, err, #err, __func__, __FILE__, __LINE__)
+#define WT_EMAP(err) __wt_ret_origin_mod_func(session, err)
+#define WT_E_S(session, err) __wt_ret_origin_func(session, err, #err, __func__, __FILE__, __LINE__)
+#define WT_EMAP_S(session, err) __wt_ret_origin_mod_func(session, err)

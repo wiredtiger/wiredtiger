@@ -375,9 +375,9 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      */
     if (block->size < allocsize) {
         if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
-            ret = ENOENT;
+            ret = WT_E(ENOENT);
         else {
-            ret = WT_ERROR;
+            ret = WT_E(WT_ERROR);
             F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
         }
         WT_RET_MSG(session, ret,
@@ -415,7 +415,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      */
     if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched) {
         if (__file_is_wt_internal(block->name))
-            WT_ERR_MSG(session, WT_TRY_SALVAGE,
+            WT_ERR_MSG(session, WT_E(WT_TRY_SALVAGE),
               "%s is corrupted: calculated block checksum of %#" PRIx32
               " doesn't match expected checksum of %#" PRIx32,
               block->name, __wt_checksum(desc, allocsize), checksum_tmp);
@@ -428,15 +428,15 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
             goto err;
 
         if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
-            ret = ENOENT;
+            ret = WT_E(ENOENT);
         else
             WT_ERR_MSG(
-              session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
+              session, WT_E(WT_ERROR), "%s does not appear to be a WiredTiger file", block->name);
     }
 
     if (desc->majorv > WT_BLOCK_MAJOR_VERSION ||
       (desc->majorv == WT_BLOCK_MAJOR_VERSION && desc->minorv > WT_BLOCK_MINOR_VERSION))
-        WT_ERR_MSG(session, WT_ERROR,
+        WT_ERR_MSG(session, WT_E(WT_ERROR),
           "unsupported WiredTiger file version: this build only supports major/minor versions up "
           "to %d/%d, and the file is version %" PRIu16 "/%" PRIu16,
           WT_BLOCK_MAJOR_VERSION, WT_BLOCK_MINOR_VERSION, desc->majorv, desc->minorv);

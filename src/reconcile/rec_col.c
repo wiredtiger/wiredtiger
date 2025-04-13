@@ -98,7 +98,7 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     cursor = &cbulk->cbt.iface;
 
     if (((r->recno - 1) * btree->bitcnt) & 0x7)
-        WT_RET_MSG(session, EINVAL, "Bulk bitmap load not aligned on a byte boundary");
+        WT_RET_MSG(session, WT_E(EINVAL), "Bulk bitmap load not aligned on a byte boundary");
     for (data = cursor->value.data, entries = (uint32_t)cursor->value.size; entries > 0;
          entries -= page_entries, data += page_size) {
         WT_RET(__rec_col_fix_bulk_insert_split_check(cbulk));
@@ -602,7 +602,7 @@ __wti_rec_col_fix(
         auxspace *= 2;
 
         if (rawbitmapsize + auxspace > UINT32_MAX || salvage->take + salvage->missing > UINT32_MAX)
-            WT_RET_PANIC(session, WT_PANIC,
+            WT_RET_PANIC(session, WT_E(WT_PANIC),
               "%s page too large (%" PRIu64 "); cannot split it during salvage",
               __wt_page_type_string(page->type), rawbitmapsize + auxspace);
 

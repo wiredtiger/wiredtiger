@@ -101,7 +101,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     creation = ckpt.raw.size == 0;
     if (!creation && F_ISSET(btree, WT_BTREE_BULK))
-        WT_ERR_MSG(session, EINVAL, "bulk-load is only supported on newly created objects");
+        WT_ERR_MSG(session, WT_E(EINVAL), "bulk-load is only supported on newly created objects");
 
     /* Handle salvage configuration. */
     forced_salvage = false;
@@ -363,7 +363,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         WT_RET(__wt_struct_check(session, cval.str, cval.len, &fixed, &bitcnt));
         if (fixed) {
             if (bitcnt == 0 || bitcnt > 8)
-                WT_RET_MSG(session, EINVAL,
+                WT_RET_MSG(session, WT_E(EINVAL),
                   "fixed-width field sizes must be greater than 0 and less than or equal to 8");
             btree->bitcnt = (uint8_t)bitcnt;
             btree->type = BTREE_COL_FIX;
@@ -382,7 +382,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     WT_RET(__wt_config_gets(session, cfg, "ignore_in_memory_cache_size", &cval));
     if (cval.val) {
         if (!F_ISSET(conn, WT_CONN_IN_MEMORY))
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "ignore_in_memory_cache_size setting is only valid with databases configured to run "
               "in-memory");
         F_SET(btree, WT_BTREE_IGNORE_CACHE);
@@ -458,7 +458,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
 
     ret = __wt_config_gets(session, cfg, "huffman_value", &cval);
     if (ret == 0 && cval.len != 0)
-        WT_RET_MSG(session, ENOTSUP, "Huffman encoding for values is no longer supported.");
+        WT_RET_MSG(session, WT_E(ENOTSUP), "Huffman encoding for values is no longer supported.");
 
     /*
      * Reconciliation configuration:
@@ -885,7 +885,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
     next_walk = NULL;
     WT_RET(__wt_tree_walk(session, &next_walk, flags));
     if (next_walk == NULL)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     page = next_walk->page;
     last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
@@ -933,7 +933,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     btree->allocsize = (uint32_t)cval.val;
 
     if (!__wt_ispo2(btree->allocsize))
-        WT_RET_MSG(session, EINVAL, "the allocation size must be a power of two");
+        WT_RET_MSG(session, WT_E(EINVAL), "the allocation size must be a power of two");
 
     /*
      * Get the internal/leaf page sizes. All page sizes must be in units of the allocation size.
@@ -945,7 +945,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 
     if (btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0 ||
       btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
           btree->allocsize);
 
@@ -961,7 +961,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * set the limit to 128KB.
      */
     if (btree->type == BTREE_COL_FIX && btree->maxleafpage > 128 * WT_KILOBYTE)
-        WT_RET_MSG(session, EINVAL, "page size for fixed-length column store is limited to 128KB");
+        WT_RET_MSG(session, WT_E(EINVAL), "page size for fixed-length column store is limited to 128KB");
 
     /*
      * Default in-memory page image size for compression is 4x the maximum internal or leaf page
@@ -973,7 +973,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     if (btree->maxmempage_image == 0)
         btree->maxmempage_image = 4 * max;
     else if (btree->maxmempage_image < max)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "in-memory page image size must be larger than the maximum page size (%" PRIu32
           "B < %" PRIu32 "B)",
           btree->maxmempage_image, max);

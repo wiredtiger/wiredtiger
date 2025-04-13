@@ -99,7 +99,7 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
      * store checkpoint inconsistent.
      */
     if (error_on_ts_ordering) {
-        ret = EBUSY;
+        ret = WT_E(EBUSY);
         __wt_verbose_info(
           session, WT_VERB_HS, "%s", "out-of-order timestamp update detected, aborting eviction");
         WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
@@ -773,7 +773,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                  * make the history store checkpoint inconsistent.
                  */
                 if (error_on_ts_ordering) {
-                    ret = EBUSY;
+                    ret = WT_E(EBUSY);
                     __wt_verbose_info(session, WT_VERB_HS, "%s",
                       "out-of-order timestamp update detected, aborting eviction");
                     WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
@@ -976,7 +976,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             /* Skip updates that are already in the history store. */
             if (F_ISSET(upd, WT_UPDATE_HS)) {
                 if (hs_inserted)
-                    WT_ERR_PANIC(session, WT_PANIC,
+                    WT_ERR_PANIC(session, WT_E(WT_PANIC),
                       "Reinserting updates to the history store may corrupt the data as it may "
                       "clear the history store data newer than it.");
                 continue;
@@ -1055,7 +1055,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     if (max_hs_size != 0) {
         WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
         if ((uint64_t)hs_size > max_hs_size)
-            WT_ERR_PANIC(session, WT_PANIC,
+            WT_ERR_PANIC(session, WT_E(WT_PANIC),
               "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64,
               (uint64_t)hs_size, max_hs_size);
     }

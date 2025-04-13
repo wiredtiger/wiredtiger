@@ -408,7 +408,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
     /* Cannot delete the update from history store when checkpoint is running. */
     if (r->delete_hs_upd_next > 0) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_remove_hs_race_with_checkpoint);
-        return (EBUSY);
+        return (WT_E(EBUSY));
     }
 
     /*
@@ -420,7 +420,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
         WT_ASSERT_ALWAYS(
           session, select_tw->stop_ts == WT_TS_NONE, "No stop timestamp found for selected update");
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_2);
-        return (EBUSY);
+        return (WT_E(EBUSY));
     }
 
     /*
@@ -452,7 +452,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
             WT_ASSERT_ALWAYS(
               session, prev_upd->start_ts == WT_TS_NONE, "Previous update missing start timestamp");
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_4);
-            return (EBUSY);
+            return (WT_E(EBUSY));
         }
 
         /*
@@ -499,7 +499,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *
             if (vpack->tw.start_ts != WT_TS_NONE ||
               (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && vpack->tw.stop_ts != WT_TS_NONE)) {
                 WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
-                return (EBUSY);
+                return (WT_E(EBUSY));
             }
         } else
             /*
@@ -570,7 +570,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
 
         /* Give up if the update is from this transaction and on the metadata file.*/
         if (WT_IS_METADATA(session->dhandle) && txnid == session_txnid)
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
 
         /*
          * Track the first update in the chain that is not aborted and the maximum transaction ID.
@@ -611,7 +611,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             if (upd_select->upd != NULL) {
                 WT_ASSERT_ALWAYS(session, WT_IS_METADATA(session->dhandle),
                   "Uncommitted update followed by committed update in a non-metadata file");
-                return (__wt_set_return(session, EBUSY));
+                return (__wt_set_return(session, WT_E(EBUSY)));
             }
 
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
@@ -904,8 +904,8 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      */
     if (has_newer_updates && F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-            WT_RET_PANIC(session, EINVAL, "reconciliation error, update not visible");
-        return (__wt_set_return(session, EBUSY));
+            WT_RET_PANIC(session, WT_E(EINVAL), "reconciliation error, update not visible");
+        return (__wt_set_return(session, WT_E(EBUSY)));
     }
 
     /* If an update was selected, record that we're making progress. */
@@ -971,7 +971,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
         /* Catch this case in diagnostic builds. */
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_3);
         WT_ASSERT(session, false);
-        return (EBUSY);
+        return (WT_E(EBUSY));
     }
 
     /*

@@ -1080,7 +1080,7 @@ __txn_search_prepared_op(
     case WT_TXN_OP_REF_DELETE:
     case WT_TXN_OP_TRUNCATE_COL:
     case WT_TXN_OP_TRUNCATE_ROW:
-        WT_RET_PANIC_ASSERT(session, WT_DIAGNOSTIC_PREPARED, false, WT_PANIC,
+        WT_RET_PANIC_ASSERT(session, WT_DIAGNOSTIC_PREPARED, false, WT_E(WT_PANIC),
           "invalid prepared operation update type");
         break;
     }
@@ -1095,7 +1095,7 @@ __txn_search_prepared_op(
      * modifications on collated b-trees.
      */
     WT_RET_ASSERT(session, WT_DIAGNOSTIC_PREPARED, *updp != NULL || op->btree->collator != NULL,
-      WT_NOTFOUND, "unable to locate update associated with a prepared operation");
+      WT_E(WT_NOTFOUND), "unable to locate update associated with a prepared operation");
 
     return (0);
 }
@@ -1616,7 +1616,7 @@ __txn_check_if_stable_has_moved_ahead_commit_ts(WT_SESSION_IMPL *session)
 
     if (txn_global->has_stable_timestamp && txn->first_commit_timestamp != WT_TS_NONE &&
       txn_global->stable_timestamp >= txn->first_commit_timestamp)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "Rollback the transaction because the stable timestamp has moved ahead of the commit "
           "timestamp.");
 
@@ -1679,18 +1679,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-            WT_ERR_MSG(session, EINVAL, "commit_timestamp is required for a prepared transaction");
+            WT_ERR_MSG(session, WT_E(EINVAL), "commit_timestamp is required for a prepared transaction");
 
         if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-            WT_ERR_MSG(session, EINVAL, "durable_timestamp is required for a prepared transaction");
+            WT_ERR_MSG(session, WT_E(EINVAL), "durable_timestamp is required for a prepared transaction");
 
         WT_ASSERT(session, txn->prepare_timestamp <= txn->commit_timestamp);
     } else {
         if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
-            WT_ERR_MSG(session, EINVAL, "prepare timestamp is set for non-prepared transaction");
+            WT_ERR_MSG(session, WT_E(EINVAL), "prepare timestamp is set for non-prepared transaction");
 
         if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_E(EINVAL),
               "durable_timestamp should not be specified for non-prepared transaction");
     }
 
@@ -1743,7 +1743,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
              * sync on commit_transaction. Flag that as an error.
              */
             if (F_ISSET(txn, WT_TXN_SYNC_SET))
-                WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
+                WT_ERR_MSG(session, WT_E(EINVAL), "sync already set during begin_transaction");
             if (WT_CONFIG_LIT_MATCH("off", cval))
                 txn->txn_logsync = 0;
             /*
@@ -1962,7 +1962,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (prepare && txn->durable_timestamp <= txn_global->stable_timestamp) {
         WT_ERR(__wt_verbose_dump_sessions(session, true));
-        WT_ERR_PANIC(session, WT_PANIC,
+        WT_ERR_PANIC(session, WT_E(WT_PANIC),
           "stable timestamp is larger than or equal to the committing prepared transaction's "
           "durable timestamp");
     }
@@ -2034,17 +2034,17 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      * turned on.
      */
     if (txn->logrec != NULL && !FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
-        WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
+        WT_RET_MSG(session, WT_E(EINVAL), "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
     WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
-        WT_RET_MSG(session, EINVAL, "prepare timestamp is not set");
+        WT_RET_MSG(session, WT_E(EINVAL), "prepare timestamp is not set");
 
     if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         WT_RET_MSG(
-          session, EINVAL, "commit timestamp must not be set before transaction is prepared");
+          session, WT_E(EINVAL), "commit timestamp must not be set before transaction is prepared");
 
     /*
      * We are about to release the snapshot: copy values into any positioned cursors so they don't
@@ -2069,7 +2069,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
          * it is not possible to roll them back if the prepared transaction is rolled back.
          */
         if (F_ISSET(op->btree, WT_BTREE_LOGGED))
-            WT_RET_MSG(session, ENOTSUP,
+            WT_RET_MSG(session, WT_E(ENOTSUP),
               "%s: transaction prepare is not supported on logged tables or tables without "
               "timestamps",
               op->btree->dhandle->name);
@@ -2259,7 +2259,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ASSERT(session, ret2 != WT_ROLLBACK);
         WT_TRET(ret2);
 #else
-        WT_TRET_ERROR_OK(cursor->close(cursor), WT_ROLLBACK);
+        WT_TRET_ERROR_OK(cursor->close(cursor), WT_E(WT_ROLLBACK)); /* Update? */
 #endif
         cursor = NULL;
     }
@@ -2718,7 +2718,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (__wt_atomic_loadv64(&txn_shared->id) == global_oldest ||
       __wt_atomic_loadv64(&txn_shared->pinned_id) == global_oldest) {
         WT_RET_SUB(
-          session, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION, WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
+          session, WT_E(WT_ROLLBACK), WT_OLDEST_FOR_EVICTION, WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
     }
     return (0);
 }

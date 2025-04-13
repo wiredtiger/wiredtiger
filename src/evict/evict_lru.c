@@ -537,7 +537,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
             WT_RET(__wt_verbose_dump_txn(session));
             WT_RET(__wt_verbose_dump_cache(session));
-            return (__wt_set_return(session, ETIMEDOUT));
+            return (__wt_set_return(session, WT_E(ETIMEDOUT)));
 #else
             if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTION)) {
                 WT_RET(__wt_verbose_dump_txn(session));
@@ -1657,7 +1657,7 @@ retry:
          * give up.
          */
         if (__wt_atomic_loadv32(&evict->pass_intr) != 0)
-            WT_ERR(EBUSY);
+            WT_ERR(WT_E(EBUSY));
 
         /*
          * Lock the dhandle list to find the next handle and bump its reference count to keep it
@@ -1799,7 +1799,7 @@ err:
      * If we didn't find any entries on a walk when we weren't interrupted, let our caller know.
      */
     if (queue->evict_entries == slot && __wt_atomic_loadv32(&evict->pass_intr) == 0)
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
 
     queue->evict_entries = slot;
     WT_TRACK_OP_END(session);
@@ -2602,7 +2602,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
       __evict_queue_empty(evict->evict_other_queue, is_server) &&
       (!urgent_ok || __evict_queue_empty(urgent_queue, false))) {
         WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
     }
 
     /*
@@ -2618,7 +2618,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
       !__evict_queue_full(evict->evict_fill_queue) &&
       (evict->evict_empty_score > WT_EVICT_SCORE_CUTOFF ||
         __evict_queue_empty(evict->evict_fill_queue, false)))
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 
     __wt_spin_lock(session, &evict->evict_queue_lock);
 
@@ -2651,7 +2651,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
         /* Verify there are still pages available. */
         if (__evict_queue_empty(queue, is_server && queue != urgent_queue)) {
             WT_STAT_CONN_INCR(session, eviction_get_ref_empty2);
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         }
         if (!is_server)
             __wt_spin_lock(session, &queue->evict_lock);
@@ -2726,7 +2726,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
 
     __wt_spin_unlock(session, &queue->evict_lock);
 
-    return (*refp == NULL ? WT_NOTFOUND : 0);
+    return (*refp == NULL ? WT_E(WT_NOTFOUND) : 0);
 }
 
 /*
@@ -2952,7 +2952,7 @@ err:
          * takes precedence over asking for a rollback. We can not do both.
          */
         if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
-            ret = WT_ROLLBACK;
+            ret = WT_E(WT_ROLLBACK);
             __wt_session_set_last_error(
               session, ret, WT_CACHE_OVERFLOW, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
             __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);

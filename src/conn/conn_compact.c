@@ -106,7 +106,7 @@ __background_compact_exclude_list_process(WT_SESSION_IMPL *session, const char *
         __wt_config_subinit(session, &exclude_config, &cval);
         while ((ret = __wt_config_next(&exclude_config, &k, &v)) == 0) {
             if (!WT_PREFIX_MATCH(k.str, "table:"))
-                WT_RET_MSG(session, EINVAL,
+                WT_RET_MSG(session, WT_E(EINVAL),
                   "Background compaction can only exclude objects of type \"table\" formats in "
                   "the exclude uri list, found %.*s instead.",
                   (int)k.len, k.str);
@@ -482,7 +482,7 @@ __background_compact_find_next_uri(WT_SESSION_IMPL *session, WT_ITEM *uri, WT_IT
         WT_ERR(cursor->get_key(cursor, &key));
         /* Check we are still dealing with keys which have the right prefix. */
         if (!WT_PREFIX_MATCH(key, WT_BACKGROUND_COMPACT_URI_PREFIX)) {
-            ret = WT_NOTFOUND;
+            ret = WT_E(WT_NOTFOUND);
             break;
         }
 
@@ -801,13 +801,13 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
         __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
           "Background compact cannot be configured for in-memory or readonly databases.");
-        return (ENOTSUP);
+        return (WT_E(ENOTSUP));
     }
 
     /* Wait for any previous signal to be processed first. */
     __wt_spin_lock(session, &conn->background_compact.lock);
     if (conn->background_compact.signalled)
-        WT_ERR_MSG(session, EBUSY, "Background compact is busy processing a previous command");
+        WT_ERR_MSG(session, WT_E(EBUSY), "Background compact is busy processing a previous command");
 
     running = __wt_atomic_loadbool(&conn->background_compact.running);
 
@@ -819,7 +819,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
 
     /* The background compact configuration cannot be changed while it's already running. */
     if (enable && running && strcmp(stripped_config, conn->background_compact.config) != 0)
-        WT_ERR_SUB(session, EINVAL, WT_BACKGROUND_COMPACT_ALREADY_RUNNING,
+        WT_ERR_SUB(session, WT_E(EINVAL), WT_BACKGROUND_COMPACT_ALREADY_RUNNING,
           "Cannot reconfigure background compaction while it's already running.");
 
     /* If we haven't changed states, we're done. */

@@ -66,7 +66,7 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
              */
             __wt_verbose(
               session, WT_VERB_TIERED, "EEXIST %s already exists on shared storage", obj_files[i]);
-            WT_ERR(EEXIST);
+            WT_ERR(WT_E(EEXIST));
         }
     }
 
@@ -100,7 +100,7 @@ __tiered_dhandle_setup(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t i, 
             id = WT_TIERED_INDEX_SHARED;
         else
             WT_ERR_MSG(
-              session, EINVAL, "Unknown or unsupported tiered dhandle type %" PRIu32, type);
+              session, WT_E(EINVAL), "Unknown or unsupported tiered dhandle type %" PRIu32, type);
     } else {
         WT_ASSERT(session, i < WT_TIERED_MAX_TIERS);
         id = i;

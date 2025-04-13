@@ -122,7 +122,7 @@ __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
             break;
         WT_ERR(__wt_getline(session, fs, value));
         if (value->size == 0)
-            WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", file);
+            WT_ERR_PANIC(session, WT_E(EINVAL), "%s: zero-length value", file);
 
         WT_ERR(meta_entry_worker_func(session, key, value, state));
     }
@@ -352,7 +352,7 @@ __wt_turtle_validate_version(WT_SESSION_IMPL *session)
     ret = 0;
 
     if (__wt_version_lt(version, WT_MIN_STARTUP_VERSION))
-        WT_ERR_MSG(session, WT_ERROR, "WiredTiger version incompatible with current binary");
+        WT_ERR_MSG(session, WT_E(WT_ERROR), "WiredTiger version incompatible with current binary");
 
     S2C(session)->recovery_version = version;
 
@@ -447,7 +447,7 @@ __metadata_load_target_uri_list(
     WT_TRET(__wt_config_gets(session, cfg, "backup_restore_target", &cval));
     if (cval.len != 0) {
         if (!exist_backup)
-            WT_RET_MSG(session, EINVAL,
+            WT_RET_MSG(session, WT_E(EINVAL),
               "restoring a partial backup requires the WiredTiger metadata backup file.");
         F_SET(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE);
 
@@ -458,7 +458,7 @@ __metadata_load_target_uri_list(
         __wt_config_subinit(session, &backup_config, &cval);
         while ((ret = __wt_config_next(&backup_config, &k, &v)) == 0) {
             if (!WT_PREFIX_MATCH(k.str, "table:"))
-                WT_RET_MSG(session, EINVAL,
+                WT_RET_MSG(session, WT_E(EINVAL),
                   "partial backup restore only supports objects of type \"table\" formats in the "
                   "target uri list, found %.*s instead.",
                   (int)k.len, k.str);
@@ -567,7 +567,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
          */
         if (verify_meta && exist_backup)
             WT_ERR_MSG(
-              session, EINVAL, "restoring a backup is incompatible with metadata verification");
+              session, WT_E(EINVAL), "restoring a backup is incompatible with metadata verification");
         /* If partial backup target is non-empty, construct the target backup uri list. */
         WT_ERR(__metadata_load_target_uri_list(session, exist_backup, cfg, backuphash));
 
@@ -638,7 +638,7 @@ __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
     WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
     if (!exist)
         return (
-          strcmp(key, WT_METAFILE_URI) == 0 ? __metadata_config(session, valuep) : WT_NOTFOUND);
+          strcmp(key, WT_METAFILE_URI) == 0 ? __metadata_config(session, valuep) : WT_E(WT_NOTFOUND));
     WT_RET(__wt_fopen(session, WT_METADATA_TURTLE, 0, WT_STREAM_READ, &fs));
 
     strcpy(msg, "wt_scr_alloc");
@@ -650,7 +650,7 @@ __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
         WT_ERR(__wt_getline(session, fs, buf));
         if (buf->size == 0) {
             WT_ERR(__wt_snprintf(msg, sizeof(msg), "key %s reached EOF, not found", key));
-            WT_ERR(WT_NOTFOUND);
+            WT_ERR(WT_E(WT_NOTFOUND));
         }
     } while (strcmp(key, buf->data) != 0);
 
@@ -659,7 +659,7 @@ __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
     WT_ERR(__wt_getline(session, fs, buf));
     if (buf->size == 0) {
         WT_ERR(__wt_snprintf(msg, sizeof(msg), "key %s reached EOF, value not found", key));
-        WT_ERR(WT_NOTFOUND);
+        WT_ERR(WT_E(WT_NOTFOUND));
     }
 
     /* Copy the value for the caller. */
@@ -682,7 +682,7 @@ err:
       strcmp(key, WT_METADATA_LIVE_RESTORE) == 0 || F_ISSET(S2C(session), WT_CONN_SALVAGE))
         return (ret);
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-    WT_RET_PANIC(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error %d at %s",
+    WT_RET_PANIC(session, WT_E(WT_TRY_SALVAGE), "%s: fatal turtle file read error %d at %s",
       WT_METADATA_TURTLE, ret, msg);
 }
 

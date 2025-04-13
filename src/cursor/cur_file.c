@@ -123,7 +123,7 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
      * pointing to different objects.
      */
     if (!WT_BTREE_PREFIX(a->internal_uri) || !WT_BTREE_PREFIX(b->internal_uri))
-        WT_ERR_MSG(session, EINVAL, "Cursors must reference the same object");
+        WT_ERR_MSG(session, WT_E(EINVAL), "Cursors must reference the same object");
 
     WT_ERR(__cursor_checkkey(a));
     WT_ERR(__cursor_checkkey(b));
@@ -153,7 +153,7 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
      * pointing to different objects.
      */
     if (!WT_BTREE_PREFIX(a->internal_uri) || !WT_BTREE_PREFIX(b->internal_uri))
-        WT_ERR_MSG(session, EINVAL, "Cursors must reference the same object");
+        WT_ERR_MSG(session, WT_E(EINVAL), "Cursors must reference the same object");
 
     WT_ERR(__cursor_checkkey(a));
     WT_ERR(__cursor_checkkey(b));
@@ -458,7 +458,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     /* Check for a rational modify vector count. */
     if (nentries <= 0)
-        WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
+        WT_ERR_MSG(session, WT_E(EINVAL), "Illegal modify vector with %d entries", nentries);
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_modify(cbt, entries, nentries));
@@ -546,7 +546,7 @@ __curfile_remove(WT_CURSOR *cursor)
     if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
         __wt_verbose_notice(session, WT_VERB_ERROR_RETURNS, "%s",
           "WT_ROLLBACK: rolling back cursor remove as initial position was lost");
-        WT_ERR(WT_ROLLBACK);
+        WT_ERR(WT_E(WT_ROLLBACK));
     }
 
     /*
@@ -722,7 +722,7 @@ __curfile_reopen_int(WT_CURSOR *cursor)
     ret = __wt_session_lock_dhandle(session, 0, &is_dead);
     if (!is_dead && ret == 0 && !WT_DHANDLE_CAN_REOPEN(dhandle)) {
         WT_RET(__wt_session_release_dhandle(session));
-        ret = __wt_set_return(session, EBUSY);
+        ret = __wt_set_return(session, WT_E(EBUSY));
     }
 
     /*
@@ -731,7 +731,7 @@ __curfile_reopen_int(WT_CURSOR *cursor)
      */
     if (is_dead || ret == EBUSY) {
         F_SET(cursor, WT_CURSTD_DEAD);
-        ret = WT_NOTFOUND;
+        ret = WT_E(WT_NOTFOUND);
     }
     __wti_cursor_reopen(cursor, dhandle);
 
@@ -780,7 +780,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool sweep_check_only)
          * and it may thus be asking about the very cursor being closed.
          */
         can_sweep = !WT_DHANDLE_CAN_REOPEN(dhandle) && dhandle != session->dhandle;
-        return (can_sweep ? WT_NOTFOUND : 0);
+        return (can_sweep ? WT_E(WT_NOTFOUND) : 0);
     }
 
     /*
@@ -915,7 +915,7 @@ __curfile_setup_checkpoint(WT_CURSOR_BTREE *cbt, const char *cfg[], WT_DATA_HAND
              * checkpoint's oldest timestamp itself.
              */
             if (ckpt_snapshot->stable_ts < ckpt_snapshot->oldest_ts)
-                WT_ERR_MSG(session, EINVAL,
+                WT_ERR_MSG(session, WT_E(EINVAL),
                   "checkpoint_read_timestamp must not be before the checkpoint oldest timestamp");
         }
     }
@@ -1011,7 +1011,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
         /* Checkpoint cursor. */
         if (bulk)
             /* Fail now; otherwise we fail further down and then segfault trying to recover. */
-            WT_RET_MSG(session, EINVAL, "checkpoints are read-only and cannot be bulk-loaded");
+            WT_RET_MSG(session, WT_E(EINVAL), "checkpoints are read-only and cannot be bulk-loaded");
         WT_RET(__curfile_setup_checkpoint(cbt, cfg, hs_dhandle, ckpt_snapshot));
     } else {
         /* We should not have been given the bits used by checkpoint cursors. */
@@ -1042,7 +1042,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
 
         if (WT_CURSOR_RECNO(cursor))
             WT_ERR_MSG(
-              session, ENOTSUP, "next_random configuration not supported for column-store objects");
+              session, WT_E(ENOTSUP), "next_random configuration not supported for column-store objects");
 
         __wti_cursor_set_notsup(cursor);
         cursor->next = __curfile_next_random;
@@ -1137,11 +1137,11 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
          * to avoid some locking problems between LSM and index creation.
          */
         else if (!WT_CONFIG_LIT_MATCH("unordered", cval))
-            WT_RET_MSG(session, EINVAL, "Value for 'bulk' must be a boolean or 'bitmap'");
+            WT_RET_MSG(session, WT_E(EINVAL), "Value for 'bulk' must be a boolean or 'bitmap'");
 
         if (bulk) {
             if (F_ISSET(session->txn, WT_TXN_RUNNING))
-                WT_RET_MSG(session, EINVAL, "Bulk cursors can't be opened inside a transaction");
+                WT_RET_MSG(session, WT_E(EINVAL), "Bulk cursors can't be opened inside a transaction");
 
             WT_RET(__wt_config_gets(session, cfg, "checkpoint_wait", &cval));
             checkpoint_wait = cval.val != 0;

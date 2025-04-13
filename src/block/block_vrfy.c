@@ -68,7 +68,7 @@ __wt_block_verify_start(
 
     /* The file size should be a multiple of the allocation size. */
     if (size % block->allocsize != 0)
-        WT_RET_MSG(session, WT_ERROR, "the file size is not a multiple of the allocation size");
+        WT_RET_MSG(session, WT_E(WT_ERROR), "the file size is not a multiple of the allocation size");
 
     /*
      * Allocate a bit array, where each bit represents a single allocation
@@ -364,7 +364,7 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *typ
 
     /* Check each chunk against the total file size. */
     if (offset + size > block->size)
-        WT_RET_MSG(session, WT_ERROR,
+        WT_RET_MSG(session, WT_E(WT_ERROR),
           "fragment %" PRIuMAX "-%" PRIuMAX " references non-existent file blocks",
           (uintmax_t)offset, (uintmax_t)(offset + size));
 
@@ -375,7 +375,7 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *typ
     if (nodup)
         for (f = frag, i = 0; i < frags; ++f, ++i)
             if (__bit_test(block->fragfile, f))
-                WT_RET_MSG(session, WT_ERROR,
+                WT_RET_MSG(session, WT_E(WT_ERROR),
                   "file fragment at %" PRIuMAX " referenced multiple times", (uintmax_t)offset);
 
     /* Add fragments to the file's fragment list. */
@@ -436,7 +436,7 @@ __verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
         return (0);
 
     __wt_errx(session, "file ranges never verified: %" PRIu64, count);
-    return (block->verify_strict ? WT_ERROR : 0);
+    return (block->verify_strict ? WT_E(WT_ERROR) : 0);
 }
 
 /*
@@ -458,7 +458,7 @@ __verify_ckptfrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset
      * outside of the checkpoint's stored size.
      */
     if (offset + size > block->verify_size)
-        WT_RET_MSG(session, WT_ERROR,
+        WT_RET_MSG(session, WT_E(WT_ERROR),
           "fragment %" PRIuMAX "-%" PRIuMAX " references file blocks outside the checkpoint",
           (uintmax_t)offset, (uintmax_t)(offset + size));
 
@@ -468,7 +468,7 @@ __verify_ckptfrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset
     /* It is illegal to reference a particular chunk more than once. */
     for (f = frag, i = 0; i < frags; ++f, ++i)
         if (!__bit_test(block->fragckpt, f))
-            WT_RET_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_E(WT_ERROR),
               "fragment at %" PRIuMAX
               " referenced multiple times in a single checkpoint or found in the checkpoint but "
               "not listed in the checkpoint's allocation list",
@@ -522,5 +522,5 @@ __verify_ckptfrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
         return (0);
 
     __wt_errx(session, "checkpoint ranges never verified: %" PRIu64, count);
-    return (block->verify_strict ? WT_ERROR : 0);
+    return (block->verify_strict ? WT_E(WT_ERROR) : 0);
 }

@@ -37,7 +37,7 @@ __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_r
     __wt_config_init(session, &cparser, cfg[0]);
     while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
-            WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
+            WT_ERR_MSG(session, WT_E(EINVAL), "Invalid configuration key found: '%s'", k.str);
         WT_ERR(__wti_config_get(session, cfg, &k, &v));
         /* Include the quotes around string keys/values. */
         if (k.type == WT_CONFIG_ITEM_STRING)
@@ -115,7 +115,7 @@ __config_merge_scan(
     __wt_config_init(session, &cparser, value);
     while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
         if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
-            WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
+            WT_ERR_MSG(session, WT_E(EINVAL), "Invalid configuration key found: '%s'", k.str);
 
         /* Include the quotes around string keys/values. */
         if (k.type == WT_CONFIG_ITEM_STRING)
@@ -136,7 +136,7 @@ __config_merge_scan(
          */
         for (len = 0; len < k.len; ++len)
             if (k.str[len] == SEPC)
-                WT_ERR_MSG(session, EINVAL, "key %.*s contains a '%c' separator character",
+                WT_ERR_MSG(session, WT_E(EINVAL), "key %.*s contains a '%c' separator character",
                   (int)k.len, (char *)k.str, SEPC);
 
         /* Build the key/value strings. */

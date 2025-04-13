@@ -105,7 +105,7 @@ __log_slot_close(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot, bool *releasep, bo
     conn = S2C(session);
     log = conn->log_mgr.log;
     if (slot == NULL)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
 retry:
     old_state = __wt_atomic_loadiv64(&slot->slot_state);
     /*
@@ -113,7 +113,7 @@ retry:
      * return EBUSY. The caller can decide if retrying is necessary or not.
      */
     if (forced && WTI_LOG_SLOT_INPROGRESS(old_state))
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
     /*
      * If someone else is switching out this slot we lost. Nothing to do but return. Return
      * WT_NOTFOUND anytime the given slot was processed by another closing thread. Only return 0
@@ -121,7 +121,7 @@ retry:
      */
     if (WTI_LOG_SLOT_CLOSED(old_state)) {
         WT_STAT_CONN_INCR(session, log_slot_close_race);
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
     }
     /*
      * If someone completely processed this slot, we're done.
@@ -129,7 +129,7 @@ retry:
     if (FLD_LOG_SLOT_ISSET(
           (uint64_t)__wt_atomic_loadiv64(&slot->slot_state), WTI_LOG_SLOT_RESERVED)) {
         WT_STAT_CONN_INCR(session, log_slot_close_race);
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
     }
     new_state = (old_state | WTI_LOG_SLOT_CLOSE);
     /*

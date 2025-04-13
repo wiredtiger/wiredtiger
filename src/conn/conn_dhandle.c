@@ -50,7 +50,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
      */
     if ((ret = __wt_metadata_search(session, dhandle->name, &metaconf)) != 0) {
         if (ret == WT_NOTFOUND)
-            ret = __wt_set_return(session, ENOENT);
+            ret = __wt_set_return(session, WT_E(ENOENT));
         WT_RET(ret);
     }
 
@@ -203,7 +203,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         dhandle = (WT_DATA_HANDLE *)tiered;
         __wt_atomic_store_enum(&dhandle->type, WT_DHANDLE_TYPE_TIERED);
     } else
-        WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
+        WT_RET_PANIC(session, WT_E(EINVAL), "illegal handle allocation URI %s", uri);
 
     /* Btree handles keep their data separate from the interface. */
     if (WT_DHANDLE_BTREE(dhandle)) {
@@ -283,7 +283,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
             }
         }
 
-    return (WT_NOTFOUND);
+    return (WT_E(WT_NOTFOUND));
 }
 
 /*
@@ -324,7 +324,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead, bo
         WT_ASSERT_ALWAYS(session, btree->max_upd_txn != WT_TXN_ABORTED,
           "Assert failure: session: %s: btree->max_upd_txn == WT_TXN_ABORTED", session->name);
         if (check_visibility && !__wt_txn_visible_all(session, btree->max_upd_txn, WT_TS_NONE))
-            WT_RET_SUB(session, EBUSY, WT_UNCOMMITTED_DATA,
+            WT_RET_SUB(session, WT_E(EBUSY), WT_UNCOMMITTED_DATA,
               "the table has uncommitted data and cannot be dropped yet");
 
         /* Turn off eviction. */
@@ -622,7 +622,7 @@ err:
 
     if (ret == ENOENT && F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
         F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-        return (WT_ERROR);
+        return (WT_E(WT_ERROR));
     }
 
     return (ret);
@@ -842,7 +842,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
     if (!final &&
       (__wt_atomic_loadi32(&dhandle->session_inuse) != 0 ||
         __wt_atomic_load32(&dhandle->references) != 0))
-        return (__wt_set_return(session, EBUSY));
+        return (__wt_set_return(session, WT_E(EBUSY)));
 
     WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket);
     return (0);

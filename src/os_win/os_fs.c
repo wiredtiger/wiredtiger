@@ -366,7 +366,7 @@ __win_file_set_end(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t
     largeint.QuadPart = len;
 
     if (win_fh->filehandle_secondary == INVALID_HANDLE_VALUE)
-        WT_RET_MSG(session, EINVAL, "%s: handle-set-end: no secondary handle", file_handle->name);
+        WT_RET_MSG(session, WT_E(EINVAL), "%s: handle-set-end: no secondary handle", file_handle->name);
 
     if (SetFilePointerEx(win_fh->filehandle_secondary, largeint, NULL, FILE_BEGIN) == FALSE) {
         windows_error = __wt_getlasterror();
@@ -378,7 +378,7 @@ __win_file_set_end(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t
 
     if (SetEndOfFile(win_fh->filehandle_secondary) == FALSE) {
         if (GetLastError() == ERROR_USER_MAPPED_FILE)
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
         windows_error = __wt_getlasterror();
         ret = __wt_map_windows_error(windows_error);
         __wt_err(session, ret, "%s: handle-set-end: SetEndOfFile: %s", file_handle->name,

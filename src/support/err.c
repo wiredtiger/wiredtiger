@@ -540,7 +540,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
 
     /* If the connection has already panicked, just return the error. */
     if (conn != NULL && F_ISSET(conn, WT_CONN_PANIC))
-        return (WT_PANIC);
+        return (WT_EMAP(WT_PANIC));  /* Don't opverwrite the original error location. */
 
     /*
      * Call the error callback function before setting the connection's panic flag, so applications
@@ -586,7 +586,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * Reflect, repent, and reboot.
      * Order shall return.
      */
-    return (WT_PANIC);
+    return (WT_EMAP(WT_PANIC)); /* Don't opverwrite the original error location. */
 }
 
 /*
@@ -738,7 +738,7 @@ int
 __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-        WT_RET_MSG(session, ENOTSUP, "%s%snot supported for in-memory configurations",
+        WT_RET_MSG(session, WT_E(ENOTSUP), "%s%snot supported for in-memory configurations",
           tag == NULL ? "" : tag, tag == NULL ? "" : ": ");
     return (0);
 }
@@ -750,7 +750,7 @@ __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC
 int
 __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-    WT_RET_MSG(session, ENOTSUP, "unsupported object operation: %s", uri);
+    WT_RET_MSG(session, WT_E(ENOTSUP), "unsupported object operation: %s", uri);
 }
 
 /*
@@ -768,9 +768,9 @@ __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTR
         return (__wt_object_unsupported(session, uri));
 
     if (WT_PREFIX_MATCH(uri, "lsm:"))
-        WT_RET_MSG(session, ENOTSUP, "lsm object type no longer supported: %s", uri);
+        WT_RET_MSG(session, WT_E(ENOTSUP), "lsm object type no longer supported: %s", uri);
 
-    WT_RET_MSG(session, ENOTSUP, "unknown object type: %s", uri);
+    WT_RET_MSG(session, WT_E(ENOTSUP), "unknown object type: %s", uri);
 }
 
 /*
@@ -781,5 +781,5 @@ int
 __wt_unexpected_object_type(WT_SESSION_IMPL *session, const char *uri, const char *expect)
   WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-    WT_RET_MSG(session, EINVAL, "uri %s doesn't match expected \"%s\"", uri, expect);
+    WT_RET_MSG(session, WT_E(EINVAL), "uri %s doesn't match expected \"%s\"", uri, expect);
 }

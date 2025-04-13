@@ -122,8 +122,8 @@ __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *
 #define WT_TIME_VALIDATE_RET(session, ...)        \
     do {                                          \
         if (silent)                               \
-            return (EINVAL);                      \
-        WT_RET_MSG(session, EINVAL, __VA_ARGS__); \
+            return (WT_E(EINVAL));                      \
+        WT_RET_MSG(session, WT_E(EINVAL), __VA_ARGS__); \
     } while (0)
 
 /*

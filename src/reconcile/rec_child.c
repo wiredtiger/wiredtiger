@@ -87,7 +87,7 @@ __rec_child_deleted(
     if (!visible) {
         WT_ASSERT(session, !visible_all);
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-            WT_RET_PANIC(session, EINVAL, "reconciliation illegally skipped an update");
+            WT_RET_PANIC(session, WT_E(EINVAL), "reconciliation illegally skipped an update");
         /*
          * In addition to the WT_REC_CLEAN_AFTER_REC case, fail if we're trying to evict an internal
          * page and we can't see the update to it. There's not much point continuing; unlike with a
@@ -96,7 +96,7 @@ __rec_child_deleted(
          * internal pages shouldn't leave them dirty.
          */
         if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_EVICT))
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
         cmsp->state = WTI_CHILD_ORIGINAL;
         r->leave_dirty = true;
         return (0);
@@ -152,7 +152,7 @@ __rec_child_deleted(
              * should see the original page and which should see the deleted page).
              */
             if (F_ISSET(r, WT_REC_EVICT))
-                return (__wt_set_return(session, EBUSY));
+                return (__wt_set_return(session, WT_E(EBUSY)));
 
             /*
              * It is wrong to leave the page clean after checkpoint if we cannot write the deleted
@@ -243,7 +243,7 @@ __wti_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), WT_E(EBUSY),
               "unexpected WT_REF_LOCKED child state during eviction reconciliation");
 
             /* If the page is being read from disk, it's not modified by definition. */
@@ -266,7 +266,7 @@ __wti_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, !F_ISSET(r, WT_REC_EVICT), WT_E(EBUSY),
               "unexpected WT_REF_MEM child state during eviction reconciliation");
 
             /*
@@ -370,10 +370,10 @@ __wti_rec_child_modify(
              * checkpoint, all splits in process will have completed before we walk any pages for
              * checkpoint.
              */
-            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, false, EBUSY,
+            WT_RET_ASSERT(session, WT_DIAGNOSTIC_EVICTION_CHECK, false, WT_E(EBUSY),
               "unexpected WT_REF_SPLIT child state during reconciliation");
             /* NOTREACHED */
-            return (EBUSY);
+            return (WT_E(EBUSY));
 
         default:
             return (__wt_illegal_value(session, r->tested_ref_state));

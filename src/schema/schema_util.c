@@ -32,7 +32,7 @@ __schema_backup_check_int(WT_SESSION_IMPL *session, const char *name)
     }
     for (i = 0; backup_list[i] != NULL; ++i) {
         if (strcmp(backup_list[i], name) == 0)
-            return (__wt_set_return(session, EBUSY));
+            return (__wt_set_return(session, WT_E(EBUSY)));
     }
 
     return (0);
@@ -121,7 +121,7 @@ __str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
 {
 
     if (!skip_wt && WT_PREFIX_MATCH(name, "WiredTiger"))
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "%s: the \"WiredTiger\" name space may not be used by applications", name);
 
     /*
@@ -129,7 +129,7 @@ __str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
      * but there's no good reason to use them in names and we're not going to do the testing.
      */
     if (strpbrk(name, "{},:[]\\\"'") != NULL)
-        WT_RET_MSG(session, EINVAL,
+        WT_RET_MSG(session, WT_E(EINVAL),
           "%s: WiredTiger objects should not include grouping characters in their names", name);
     return (0);
 }

@@ -29,7 +29,7 @@ __wt_thread_create(
         return (0);
     }
 
-    WT_RET_MSG(session, __wt_errno(), "thread create: _beginthreadex");
+    WT_RET_MSG(session, WT_E(__wt_errno()), "thread create: _beginthreadex");
 }
 
 /*

@@ -144,7 +144,7 @@ __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable, bool lo
      * WiredTiger doesn't have the handle open.
      */
     if (__wt_handle_is_open(session, name, locked))
-        WT_RET_MSG(session, EINVAL, "%s: file-remove: file has open handles", name);
+        WT_RET_MSG(session, WT_E(EINVAL), "%s: file-remove: file has open handles", name);
 #else
     WT_UNUSED(locked);
 #endif
@@ -181,9 +181,9 @@ __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to, bool 
      * WiredTiger doesn't have the handle open.
      */
     if (__wt_handle_is_open(session, from, false))
-        WT_RET_MSG(session, EINVAL, "%s: file-rename: file has open handles", from);
+        WT_RET_MSG(session, WT_E(EINVAL), "%s: file-rename: file has open handles", from);
     if (__wt_handle_is_open(session, to, false))
-        WT_RET_MSG(session, EINVAL, "%s: file-rename: file has open handles", to);
+        WT_RET_MSG(session, WT_E(EINVAL), "%s: file-rename: file has open handles", to);
 #endif
 
     from_path = to_path = NULL;

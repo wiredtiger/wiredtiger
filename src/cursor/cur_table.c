@@ -242,7 +242,7 @@ __curtable_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
      * object's comparison routine.
      */
     if (strcmp(a->internal_uri, b->internal_uri) != 0)
-        WT_ERR_MSG(session, EINVAL, "comparison method cursors must reference the same object");
+        WT_ERR_MSG(session, WT_E(EINVAL), "comparison method cursors must reference the same object");
     WT_ERR(__cursor_checkkey(WT_CURSOR_PRIMARY(a)));
     WT_ERR(__cursor_checkkey(WT_CURSOR_PRIMARY(b)));
 
@@ -851,7 +851,7 @@ __curtable_complete(WT_SESSION_IMPL *session, WT_TABLE *table)
     /* If the table is incomplete, wait on the table lock and recheck. */
     WT_WITH_TABLE_READ_LOCK(session, complete = table->cg_complete);
     if (!complete)
-        WT_RET_MSG(session, EINVAL, "'%s' not available until all column groups are created",
+        WT_RET_MSG(session, WT_E(EINVAL), "'%s' not available until all column groups are created",
           table->iface.name);
     return (0);
 }
@@ -911,7 +911,7 @@ __curtable_open_indices(WT_CURSOR_TABLE *ctable)
     /* Check for bulk cursors. */
     primary = *ctable->cg_cursors;
     if (F_ISSET(primary, WT_CURSTD_BULK))
-        WT_RET_MSG(session, ENOTSUP, "Bulk load is not supported for tables with indices");
+        WT_RET_MSG(session, WT_E(ENOTSUP), "Bulk load is not supported for tables with indices");
 
     WT_RET(__wt_calloc_def(session, table->nindices, &ctable->idx_cursors));
     for (i = 0, cp = ctable->idx_cursors; i < table->nindices; i++, cp++)

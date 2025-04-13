@@ -680,7 +680,7 @@ __checkpoint_cleanup_get_uri(WT_SESSION_IMPL *session, WT_ITEM *uri)
 
         /* Check we are still dealing with keys that have the right prefix. */
         if (!WT_PREFIX_MATCH(key, WT_URI_FILE_PREFIX)) {
-            ret = WT_NOTFOUND;
+            ret = WT_E(WT_NOTFOUND);
             break;
         }
 

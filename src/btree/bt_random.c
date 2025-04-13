@@ -460,7 +460,7 @@ restart:
                 goto restart;
 
             WT_RET(__wt_page_release(session, current, flags));
-            return (WT_NOTFOUND);
+            return (WT_E(WT_NOTFOUND));
         }
 
         /*
@@ -528,7 +528,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
      * column-store, if there were any reason to do so.
      */
     if (btree->type != BTREE_ROW)
-        WT_RET_MSG(session, ENOTSUP, "WT_CURSOR.next_random only supported by row-store tables");
+        WT_RET_MSG(session, WT_E(ENOTSUP), "WT_CURSOR.next_random only supported by row-store tables");
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_next);
 

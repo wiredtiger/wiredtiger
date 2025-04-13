@@ -26,7 +26,7 @@ __wt_ext_config_get(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, WT_CONFIG_
         session = conn->default_session;
 
     if ((cfg = (const char **)cfg_arg) == NULL)
-        return (WT_NOTFOUND);
+        return (WT_E(WT_NOTFOUND));
     return (__wt_config_gets(session, cfg, key, cval));
 }
 

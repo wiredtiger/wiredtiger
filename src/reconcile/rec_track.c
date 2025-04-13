@@ -37,7 +37,7 @@ __ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, c
 
     /* Because we dereference the page pointer, it can't be NULL */
     if (page == NULL)
-        WT_RET(EINVAL);
+        WT_RET(WT_E(EINVAL));
 
     WT_RET(__wt_scr_alloc(session, 512, &tmp));
 
