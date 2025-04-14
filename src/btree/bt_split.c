@@ -1690,6 +1690,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
   size_t multi_entries, WT_REF **refp, size_t *incrp, bool first, bool closing)
 {
     WT_ADDR *addr, *old_addr;
+    WT_BTREE *btree;
     WT_IKEY *ikey;
     WT_REF *ref;
     size_t key_size;
@@ -1708,13 +1709,13 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     WT_ASSERT(session, multi->disk_image != NULL || !multi->supd_restore);
 
     /* Verify any disk image we have. */
-#if 1
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_DISK_VALIDATE,
       multi->disk_image == NULL ||
         __wt_verify_dsk_image(session, "[page instantiate]", multi->disk_image, 0, &multi->addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0,
       "Failed to verify a disk image");
-#endif
+
+    btree = S2BT(session);
 
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
@@ -1729,7 +1730,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     switch (page->type) {
     case WT_PAGE_ROW_INT:
     case WT_PAGE_ROW_LEAF:
-        if (first) {
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && first) {
             __wt_ref_key(old_ref->home, old_ref, &key, &key_size);
             WT_RET(__wti_row_ikey(session, 0, key, key_size, ref));
             if (incrp)
@@ -1742,10 +1743,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         }
         break;
     default:
-        if (first)
-            ref->ref_recno = old_ref->ref_recno;
-        else
-            ref->ref_recno = multi->key.recno;
+        ref->ref_recno = multi->key.recno;
         break;
     }
 
@@ -1781,7 +1779,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
-    } else if (multi_entries == 1 && old_ref->addr != NULL) {
+    } else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && multi_entries == 1 &&
+      old_ref->addr != NULL) {
         old_addr = (WT_ADDR *)old_ref->addr;
         if (!__wt_off_page(old_ref->home, old_addr))
             ref->addr = old_addr;
@@ -2348,6 +2347,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     /* If there's an address, copy it. */
     if (multi->addr.block_cookie != NULL) {
+        WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_ERR(__wt_memdup(
