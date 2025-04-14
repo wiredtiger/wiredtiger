@@ -2832,20 +2832,20 @@ __wti_evict_app_assist_worker(
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
 
     /*
-     * Before we enter the eviction generation, make sure this session has a cached history store
-     * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
-     * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
-     * inside eviction waiting on a handle list read lock to open a history store cursor.
-     */
-    WT_ERR(__wt_curhs_cache(session));
-
-    /*
      * It is not safe to proceed if the eviction server threads aren't setup yet. Also, if the
      * caller is holding shared resources, only evict if the cache is at any of its eviction
      * targets.
      */
     if (!__wt_atomic_loadbool(&conn->evict_server_running) || (busy && pct_full < 100.0))
         goto done;
+
+    /*
+     * Before we enter the eviction generation, make sure this session has a cached history store
+     * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
+     * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
+     * inside eviction waiting on a handle list read lock to open a history store cursor.
+     */
+    WT_ERR(__wt_curhs_cache(session));
 
     /* Wake the eviction server if we need to do work. */
     __wt_evict_server_wake(session);
