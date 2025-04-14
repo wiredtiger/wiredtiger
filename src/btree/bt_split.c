@@ -2347,7 +2347,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     /* If there's an address, copy it. */
     if (multi->addr.block_cookie != NULL) {
-        WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
+        WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_ERR(__wt_memdup(
