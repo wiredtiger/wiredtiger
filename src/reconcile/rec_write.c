@@ -2354,6 +2354,7 @@ __rec_build_delta(
     WT_DELTA_HEADER *header;
 
     *build_deltap = false;
+    header = NULL;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
@@ -2361,10 +2362,11 @@ __rec_build_delta(
         }
     } else if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
         /* The internal page delta would have already been built at this point if one exists. */
-        header = (WT_DELTA_HEADER *)r->delta.data;
-        header->write_gen = full_image->write_gen;
-        if (r->delta.size > 0)
+        if (r->delta.size > 0) {
             *build_deltap = true;
+            header = (WT_DELTA_HEADER *)r->delta.data;
+            header->write_gen = full_image->write_gen;
+        }
     }
 
     return (0);
