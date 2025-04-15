@@ -2371,7 +2371,6 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     /* Swap the new page into place. */
     __wt_atomic_addv16(&ref->ref_changes, 1);
-
     ref->page = new->page;
 
     WT_REF_SET_STATE(ref, WT_REF_MEM);
