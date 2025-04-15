@@ -2304,6 +2304,13 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
     __wt_ref_out(session, ref);
 
+    /*
+     * It is rare to rewrite an internal page. However, when that happens, we need to update the
+     * parent ref on the page as we used a dummy ref to instantiate the page.
+     */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        new->page->pg_intl_parent_ref = ref;
+
     /* Swap the new page into place. */
     ref->page = new->page;
 
