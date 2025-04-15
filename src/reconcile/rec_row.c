@@ -269,7 +269,7 @@ __rec_row_merge(
          * can change.
          */
         if (i == 0) {
-            if (*build_delta && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+            if (*build_delta) {
                 __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
                 WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
             } else
