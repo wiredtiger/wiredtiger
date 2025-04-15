@@ -1779,7 +1779,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
 #if defined(__APPLE__) || defined(__linux__)
     /*
      * MongoDB uses a nested directory structure for directory per db and directory for indexes
-     * configurations , live restore needs to detect this from the file path, if the directories do
+     * configurations, live restore needs to detect this from the file path, if the directories do
      * not exist then we need to create them manually. A file with nested directory is like:
      * "home/home_dest/sub_dir1/.../sub_dirN/file.wt".
      */
@@ -1790,8 +1790,8 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
         char *p = path + strlen(lr_fs->destination.home) + 1;
         size_t len;
         bool dir_exist = false;
-        for (; (p = strchr(p, '/')) != NULL; p++) {
-            len = (size_t)(p - path + 1);
+        for (; (p = strstr(p, __wt_path_separator())) != NULL; p++) {
+            len = (size_t)(p - path);
             /* +1 for the null terminator. */
             WT_ERR(__wt_calloc(session, 1, len + 1, &buf));
             WT_ERR(__wt_snprintf(buf, len + 1, "%.*s", (int)len, path));
@@ -1799,11 +1799,15 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
             lr_fs->os_file_system->fs_exist(
               lr_fs->os_file_system, (WT_SESSION *)session, buf, &dir_exist);
             if (!dir_exist) {
-                if (mkdir(buf, 0755) != 0) {
+                WT_SYSCALL(mkdir(buf, 0755), ret);
+                /* Handle mkdir() failure, allow EEXIST if another thread had created the dir. */
+                if (ret != 0) {
+                    WT_ERR_ERROR_OK(ret, EEXIST, true);
                     struct stat stats;
-                    if (errno != EEXIST || stat(buf, &stats) != 0 || !S_ISDIR(stats.st_mode)) {
-                        goto err;
-                    }
+                    WT_SYSCALL(stat(buf, &stats), ret);
+                    WT_ERR(ret);
+                    if (!S_ISDIR(stats.st_mode))
+                        WT_ERR(ENOTDIR);
                 }
             }
             __wt_free(session, buf);
