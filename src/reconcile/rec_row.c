@@ -239,7 +239,6 @@ __rec_row_merge(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, uint16_t ref_changes, bool *build_delta)
 {
     WT_ADDR *addr;
-    WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
@@ -248,7 +247,6 @@ __rec_row_merge(
     uint32_t i;
     void *old_key;
 
-    btree = S2BT(session);
     page = ref->page;
     mod = page->modify;
 
