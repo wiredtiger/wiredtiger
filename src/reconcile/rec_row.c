@@ -268,12 +268,13 @@ __rec_row_merge(
          * want to build a delta. Otherwise, it is difficult to build the delta for that key as it
          * can change.
          */
-        if (r->cell_zero) {
+        if (i == 0) {
             if (*build_delta && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
                 __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
                 WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
             } else
-                WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey), 1));
+                WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey),
+                  r->cell_zero ? 1 : multi->key.ikey->size));
         } else
             WT_RET(__rec_cell_build_int_key(
               session, r, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size));
@@ -508,6 +509,9 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * The transaction ids are cleared after restart. Repack the cell with new validity
              * information to flush cleared transaction ids.
              */
+            WT_ASSERT_ALWAYS(session,
+              cms.state == WT_CHILD_ORIGINAL || F_ISSET(btree, WT_BTREE_DISAGGREGATED),
+              "Not propagating the original fast-truncate information");
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */
