@@ -3055,10 +3055,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             break;
 
         /* We need to retain the block address if we skipped writing an empty delta. */
-        if (ref->addr != NULL && r->multi_next == 1 && r->multi->addr.block_cookie == NULL) {
-            WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ref->addr != NULL && r->multi_next == 1 &&
+          r->multi->addr.block_cookie == NULL)
             break;
-        }
 
         WT_RET(__wt_ref_block_free(session, ref));
         break;
