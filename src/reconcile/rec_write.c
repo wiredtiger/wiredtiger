@@ -2528,7 +2528,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
       block_meta->delta_count < btree->max_consecutive_delta) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
-        /* 
+        /*
          * Discard the delta if it is larger than the maximum allowable delta size, or it is larger
          * than one tenth of the size of the full image.
          */
