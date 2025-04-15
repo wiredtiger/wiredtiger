@@ -86,10 +86,10 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
     u_int i, skipdepth;
     bool added_to_txn, inserted_to_update_chain;
 
-    btree = S2BT(session);
     ins = NULL;
     page = cbt->ref->page;
     session = CUR2S(cbt);
+    btree = S2BT(session);
     last_upd = NULL;
     upd_arg = updp_arg == NULL ? NULL : *updp_arg;
     upd = upd_arg;
