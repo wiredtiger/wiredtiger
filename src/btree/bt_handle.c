@@ -505,6 +505,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         WT_RET(__wt_config_gets(session, cfg, "disaggregated.max_consecutive_delta", &cval));
         btree->max_consecutive_delta = (u_int)cval.val;
 
+        WT_RET(__wt_config_gets(session, cfg, "disaggregated.max_delta_size", &cval));
+        btree->max_delta_size = (u_int)cval.val;
+
         WT_RET(__btree_setup_page_log(session, btree));
 
         /* A page log service and a storage source cannot both be enabled. */
