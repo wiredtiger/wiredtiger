@@ -18,6 +18,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
 {
     WT_SAVE_UPD *supd;
 
+    WT_ASSERT_ALWAYS(session, onpage_upd != NULL || tombstone != NULL || supd_restore,
+      "If nothing is committed, the update chain must be restored");
     WT_ASSERT_ALWAYS(session,
       onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
         onpage_upd->type == WT_UPDATE_MODIFY,
@@ -94,7 +96,7 @@ __rec_append_orig_value(
                 continue;
         }
 
-        /* Done if the update was restored from the history store. */
+        /* Done if the update was restored from the history store or delta. */
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA))
             return (0);
 
