@@ -212,6 +212,15 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     ref->page->block_meta = block_meta;
     ref->page->old_rec_lsn_max = block_meta.disagg_lsn;
     ref->page->rec_lsn_max = block_meta.disagg_lsn;
+
+    /* Reconstruct deltas*/
+    if (count > 1) {
+        ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
+        for (i = 0; i < count - 1; ++i)
+            __wt_buf_free(session, &deltas[i]);
+        WT_ERR(ret);
+    }
+
     if (instantiate_upd && !WT_IS_HS(session->dhandle))
         WT_ERR(__wti_page_inmem_updates(session, ref));
 
@@ -231,14 +240,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     WT_ASSERT(
       session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
-
-    /* Reconstruct deltas*/
-    if (count > 1) {
-        ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
-        for (i = 0; i < count - 1; ++i)
-            __wt_buf_free(session, &deltas[i]);
-        WT_ERR(ret);
-    }
 
     __wt_free(session, tmp);
 

@@ -474,10 +474,8 @@ __wti_page_reconstruct_deltas(
     case WT_PAGE_ROW_LEAF:
 
         /*
-         * We apply the order in reverse order because we only care about the latest change of a
+         * We apply the deltas in reverse order because we only care about the latest change of a
          * key. The older changes are ignore.
-         *
-         * TODO: this is not the optimal algorithm. We can optimize this by using a min heap.
          */
         time_start = __wt_clock(session);
         for (i = (int)delta_size - 1; i >= 0; --i)
