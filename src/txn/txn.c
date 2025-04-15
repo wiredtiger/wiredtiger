@@ -767,7 +767,7 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
 
     if (ret == 0 && cval.len != 0) {
         session->isolation = txn->isolation = WT_CONFIG_LIT_MATCH("snapshot", cval) ?
-          WT_ISO_SNAPSHOT :
+                                                          WT_ISO_SNAPSHOT :
           WT_CONFIG_LIT_MATCH("read-uncommitted", cval) ? WT_ISO_READ_UNCOMMITTED :
                                                           WT_ISO_READ_COMMITTED;
     }
@@ -1247,9 +1247,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           __wt_txn_timestamp_usage_check(session, op, txn->commit_timestamp, upd->prev_durable_ts));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
-      (first_committed_upd->txnid == WT_TXN_ABORTED ||
-        first_committed_upd->prepare_state == WT_PREPARE_INPROGRESS);
-      first_committed_upd = first_committed_upd->next)
+         (first_committed_upd->txnid == WT_TXN_ABORTED ||
+           first_committed_upd->prepare_state == WT_PREPARE_INPROGRESS);
+         first_committed_upd = first_committed_upd->next)
         ;
 
     /*
@@ -1353,8 +1353,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         if (!commit) {
             if (first_committed_upd->type == WT_UPDATE_TOMBSTONE) {
                 for (upd_followed_tombstone = first_committed_upd->next;
-                  upd_followed_tombstone != NULL;
-                  upd_followed_tombstone = upd_followed_tombstone->next)
+                     upd_followed_tombstone != NULL;
+                     upd_followed_tombstone = upd_followed_tombstone->next)
                     if (upd_followed_tombstone->txnid != WT_TXN_ABORTED)
                         break;
                 /* We may not find a full update following the tombstone if it is obsolete. */
