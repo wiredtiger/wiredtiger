@@ -508,7 +508,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             ref->addr = addr;
         } else
             WT_ASSERT(
-              session, WT_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
+              session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
 
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
