@@ -150,6 +150,7 @@ struct __wt_btree {
     int split_pct;                /* Split page percent */
     u_int delta_pct;              /* Delta page percent (of full page size) */
     u_int max_consecutive_delta;  /* Max number of consecutive deltas */
+    u_int max_delta_size;         /* Max size of a delta */
 
     WT_COMPRESSOR *compressor;    /* Page compressor */
                                   /*

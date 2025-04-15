@@ -166,7 +166,9 @@ file_disaggregated_config = [
             Config('max_consecutive_delta', '32', r'''
                 the max consecutive deltas allowed for a single page. The maximum value is set
                 at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
-                as well.''', min='1', max='32')
+                as well.''', min='1', max='32'),
+            Config('max_delta_size', '6', r'''
+                the max size allowed for a single delta.''', min='1', max='1000'),
         ]
     ),
 ]
