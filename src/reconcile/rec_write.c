@@ -2962,11 +2962,14 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
  *     Set the updates durable. This must be called when the reconciliation can no longer fail.
  */
 static WT_INLINE void
-__rec_set_updates_durable(WT_RECONCILE *r)
+__rec_set_updates_durable(WT_BTREE *btree, WT_RECONCILE *r)
 {
     WT_MULTI *multi;
     WT_SAVE_UPD *supd;
     uint32_t i, j;
+
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return (0);
 
     /*
      * TODO: we should rethink where we should call this. Is this safe to call this right after we
@@ -3052,8 +3055,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             break;
 
         /* We need to retain the block address if we skipped writing an empty delta. */
-        if (ref->addr != NULL && r->multi_next == 1 && r->multi->addr.block_cookie == NULL)
+        if (ref->addr != NULL && r->multi_next == 1 && r->multi->addr.block_cookie == NULL) {
+            WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
             break;
+        }
 
         WT_RET(__wt_ref_block_free(session, ref));
         break;
@@ -3132,7 +3137,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * again.
          */
         mod->rec_result = WT_PM_REC_EMPTY;
-        __rec_set_updates_durable(r);
+        __rec_set_updates_durable(btree, r);
         break;
     case 1: /* 1-for-1 page swap */
         /*
@@ -3160,7 +3165,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          */
         if (r->wrapup_checkpoint == NULL) {
             if (r->multi->addr.block_cookie != NULL) {
-                __rec_set_updates_durable(r);
+                __rec_set_updates_durable(btree, r);
                 mod->mod_replace = r->multi->addr;
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
@@ -3168,7 +3173,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 r->ref->page->block_meta = r->multi->block_meta;
                 WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
             } else
-                WT_ASSERT(session, r->ref->addr != NULL);
+                WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED) && r->ref->addr != NULL);
         } else {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
             WT_RET(
@@ -3198,7 +3203,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
 split:
-        __rec_set_updates_durable(r);
+        __rec_set_updates_durable(btree, r);
 
         mod->mod_multi = r->multi;
         mod->mod_multi_entries = r->multi_next;
@@ -3315,8 +3320,15 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_ERR(__wt_hs_delete_updates(session, r));
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
-        if (multi->supd != NULL)
+        if (multi->supd != NULL) {
             WT_ERR(__wt_hs_insert_updates(session, r, multi));
+            /* TODO: build delta for split pages. */
+            if (!multi->supd_restore &&
+              (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || r->multi_next == 1)) {
+                __wt_free(session, multi->supd);
+                multi->supd_entries = 0;
+            }
+        }
     }
 
 err:
