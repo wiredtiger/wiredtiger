@@ -239,6 +239,7 @@ __rec_row_merge(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, uint16_t ref_changes, bool *build_delta)
 {
     WT_ADDR *addr;
+    WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
@@ -247,6 +248,7 @@ __rec_row_merge(
     uint32_t i;
     void *old_key;
 
+    btree = S2BT(session);
     page = ref->page;
     mod = page->modify;
 
@@ -262,12 +264,16 @@ __rec_row_merge(
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
         /*
-         * Build the key and value cells. We should inherit the old key for the first page.
-         * Otherwise, it is difficult to build the delta for that key as it can change.
+         * Build the key and value cells. We should inherit the old key for the first page if we
+         * want to build a delta. Otherwise, it is difficult to build the delta for that key as it
+         * can change.
          */
-        if (i == 0) {
-            __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
-            WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
+        if (r->cell_zero) {
+            if (*build_delta && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+                __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
+                WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
+            } else
+                WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey), 1));
         } else
             WT_RET(__rec_cell_build_int_key(
               session, r, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size));
