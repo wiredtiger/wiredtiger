@@ -344,7 +344,13 @@ functions:
 
             # Preload tcmalloc in the Evergreen environment: this will affect
             # ALL binaries.
-            export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
+            # FIXME-WT-14298 v5 toolchain clang Cmake configuration fails with tcmalloc preloading
+            # so it worth doing LD_PRELOAD right before running the tests (in PREPARE_TEST_ENV).
+            # Didn't move it there as part of this patch, since it is very likely that currently
+            # WT is tested without TCMalloc, because Evergreen resets the environment after
+            # execution of "configure wiredtiger" step which is another bug, but it should
+            # be handled in a separate PR.
+            # export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
           fi
 
           # Compiling with CMake.
