@@ -41,6 +41,17 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
       LF_ISSET(WT_REC_HS) ? ", history store" : "");
 
+    if (page->memory_footprint > 1 * WT_MEGABYTE) {
+        /* It's bad if pages grow over 100MB - crash and dump the cache to get some info. */
+        __wt_err(session, EINVAL,
+          "Reconciliation encountered a page %" PRIu64
+          "MB big. Dumping cache and crashing to allow investigation",
+          page->memory_footprint / WT_MEGABYTE);
+        WT_RET(__wt_verbose_dump_cache(session));
+        WT_RET(__wt_verbose_dump_metadata(session));
+        __wt_abort(session);
+    }
+
     /*
      * Sanity check flags.
      *
