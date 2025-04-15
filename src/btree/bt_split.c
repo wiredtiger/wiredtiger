@@ -2308,8 +2308,10 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
      * It is rare to rewrite an internal page. However, when that happens, we need to update the
      * parent ref on the page as we used a dummy ref to instantiate the page.
      */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         new->page->pg_intl_parent_ref = ref;
+        WT_STAT_CONN_INCR(session, cache_eviction_rewrite_internal_pages);
+    }
 
     /* Swap the new page into place. */
     ref->page = new->page;

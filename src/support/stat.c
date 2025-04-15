@@ -96,6 +96,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: in-memory page splits",
   "cache: internal page split blocked its eviction",
   "cache: internal pages evicted",
+  "cache: internal pages rewritten in memory by eviction",
   "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction",
   "cache: locate a random in-mem ref by examining all entries on the root page",
@@ -432,6 +433,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_inmem_split = 0;
     stats->cache_eviction_blocked_internal_page_split = 0;
     stats->cache_eviction_internal = 0;
+    stats->cache_eviction_rewrite_internal_pages = 0;
     stats->cache_eviction_split_internal = 0;
     stats->cache_eviction_split_leaf = 0;
     stats->cache_eviction_random_sample_inmem_root = 0;
@@ -750,6 +752,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_internal_page_split +=
       from->cache_eviction_blocked_internal_page_split;
     to->cache_eviction_internal += from->cache_eviction_internal;
+    to->cache_eviction_rewrite_internal_pages += from->cache_eviction_rewrite_internal_pages;
     to->cache_eviction_split_internal += from->cache_eviction_split_internal;
     to->cache_eviction_split_leaf += from->cache_eviction_split_leaf;
     to->cache_eviction_random_sample_inmem_root += from->cache_eviction_random_sample_inmem_root;
@@ -1080,6 +1083,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_internal_page_split +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_internal_page_split);
     to->cache_eviction_internal += WT_STAT_DSRC_READ(from, cache_eviction_internal);
+    to->cache_eviction_rewrite_internal_pages +=
+      WT_STAT_DSRC_READ(from, cache_eviction_rewrite_internal_pages);
     to->cache_eviction_split_internal += WT_STAT_DSRC_READ(from, cache_eviction_split_internal);
     to->cache_eviction_split_leaf += WT_STAT_DSRC_READ(from, cache_eviction_split_leaf);
     to->cache_eviction_random_sample_inmem_root +=
@@ -1514,6 +1519,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: internal page split blocked its eviction",
   "cache: internal pages evicted",
   "cache: internal pages queued for eviction",
+  "cache: internal pages rewritten in memory by eviction",
   "cache: internal pages seen by eviction walk",
   "cache: internal pages seen by eviction walk that are already queued",
   "cache: internal pages split during eviction",
@@ -2294,6 +2300,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_internal_page_split = 0;
     stats->cache_eviction_internal = 0;
     stats->eviction_internal_pages_queued = 0;
+    stats->cache_eviction_rewrite_internal_pages = 0;
     stats->eviction_internal_pages_seen = 0;
     stats->eviction_internal_pages_already_queued = 0;
     stats->cache_eviction_split_internal = 0;
@@ -3078,6 +3085,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_internal_page_split);
     to->cache_eviction_internal += WT_STAT_CONN_READ(from, cache_eviction_internal);
     to->eviction_internal_pages_queued += WT_STAT_CONN_READ(from, eviction_internal_pages_queued);
+    to->cache_eviction_rewrite_internal_pages +=
+      WT_STAT_CONN_READ(from, cache_eviction_rewrite_internal_pages);
     to->eviction_internal_pages_seen += WT_STAT_CONN_READ(from, eviction_internal_pages_seen);
     to->eviction_internal_pages_already_queued +=
       WT_STAT_CONN_READ(from, eviction_internal_pages_already_queued);

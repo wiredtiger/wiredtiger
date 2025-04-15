@@ -598,6 +598,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_internal_page_split;
     int64_t cache_eviction_internal;
     int64_t eviction_internal_pages_queued;
+    int64_t cache_eviction_rewrite_internal_pages;
     int64_t eviction_internal_pages_seen;
     int64_t eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
@@ -1234,6 +1235,7 @@ struct __wt_dsrc_stats {
     int64_t cache_inmem_split;
     int64_t cache_eviction_blocked_internal_page_split;
     int64_t cache_eviction_internal;
+    int64_t cache_eviction_rewrite_internal_pages;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_random_sample_inmem_root;
