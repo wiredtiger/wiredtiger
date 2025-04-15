@@ -2969,7 +2969,7 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_RECONCILE *r)
     uint32_t i, j;
 
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-        return (0);
+        return;
 
     /*
      * TODO: we should rethink where we should call this. Is this safe to call this right after we
