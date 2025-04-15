@@ -2360,17 +2360,17 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     __wt_ref_out(session, ref);
 
-    /* Swap the new page into place. */
-    __wt_atomic_addv16(&ref->ref_changes, 1);
-
     /*
      * It is possible for disaggregated storage to do a split write for the internal page. Update
      * the parent ref on the page as we used a dummy ref to instantiate the page.
      */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
         new->page->pg_intl_parent_ref = ref;
     }
+
+    /* Swap the new page into place. */
+    __wt_atomic_addv16(&ref->ref_changes, 1);
 
     ref->page = new->page;
 
