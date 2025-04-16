@@ -376,15 +376,11 @@ __wt_verbose_dump_metadata(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     const char *config, *uri;
-    bool md_open;
-
-    md_open = false;
 
     WT_RET(__wt_msg(session, "%s", WT_DIVIDER));
     WT_RET(__wt_msg(session, "metadata dump"));
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
-    md_open = true;
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
@@ -392,11 +388,8 @@ __wt_verbose_dump_metadata(WT_SESSION_IMPL *session)
         WT_ERR(__wt_msg(session, "uri: %s | config: %s", uri, config));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
-    WT_ERR(__wt_metadata_cursor_release(session, &cursor));
-    md_open = false;
 
 err:
-    if (md_open)
-        WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
