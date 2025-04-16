@@ -832,11 +832,10 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
     /*
-     * Don't set any other flags for internal pages: there are no update lists to be saved and
-     * restored, changes can't be written into the history store table, nor can we re-create
-     * internal pages in memory.
+     * Don't set any other flags for internal pages unless the btree is disaggregated: there are no update lists to be saved and
+     * restored, changes can't be written into the history store table.
      *
-     * Don't set any other flags for history store table as all the content is evictable.
+     * Don't set any visibility flags for history store table as all the content is evictable.
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
