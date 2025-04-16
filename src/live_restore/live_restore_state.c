@@ -411,6 +411,23 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
         for (uint32_t i = 0; i < num_dest_files; ++i) {
             if (WT_PREFIX_MATCH(dirlist_dest[i], WT_WIREDTIGER) ||
               WT_SUFFIX_MATCH(dirlist_dest[i], ".wt"))
+                /*
+                 * This error can occur in two scenarios:
+                 *
+                 * 1) A live restore is attempted on a destination that already contains data. This
+                 * can partially overwrite valid data files in the destination with content from the
+                 * source which corrupts them.
+                 *
+                 * 2) When live restore starts there is a brief period where the live restore state
+                 * is set in memory but not yet persisted to the turtle file. During this period
+                 * WiredTiger files such as WiredTiger.lock are created in the destination, so if we
+                 * crash and restart we'll see the live restore state is NONE, detect these files,
+                 * and assume we're trying to overwrite a valid destination. This crash window is
+                 * very short and difficult to recover from programmatically. Instead we expect the
+                 * user to delete these orphan files and restart the live restore. The crash happens
+                 * very early in startup so there's no chance that the user has written data that
+                 * could be lost.
+                 */
                 WT_ERR_MSG(session, EINVAL,
                   "Attempting to begin a live restore on a directory that already contains "
                   "WiredTiger files '%s'! It's possible this file will be overwritten.",
