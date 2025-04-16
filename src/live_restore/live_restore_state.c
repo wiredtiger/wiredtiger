@@ -412,11 +412,11 @@ __wti_live_restore_validate_directories(WT_SESSION_IMPL *session, WTI_LIVE_RESTO
             if (WT_PREFIX_MATCH(dirlist_dest[i], WT_WIREDTIGER) ||
               WT_SUFFIX_MATCH(dirlist_dest[i], ".wt"))
                 /*
-                 * This error can occur in two scenarios:
+                 * This error is thrown for two reasons:
                  *
-                 * 1) A live restore is attempted on a destination that already contains data. This
-                 * can partially overwrite valid data files in the destination with content from the
-                 * source which corrupts them.
+                 * 1) A live restore is attempted on a destination that already contains data. In
+                 * this scenario we prevent unintentionally corrupting whatever data is already
+                 * present in the destination.
                  *
                  * 2) When live restore starts there is a brief period where the live restore state
                  * is set in memory but not yet persisted to the turtle file. During this period
