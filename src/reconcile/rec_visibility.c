@@ -599,13 +599,14 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
          * There are several cases we should select the update irrespective of visibility. See the
-         * detailed scenarios in the definition of WT_UPDATE_SELECT_FOR_DS.
+         * detailed scenarios in the definition of WT_UPDATE_SELECT_FOR_DS and
+         * WT_UPDATE_RESTORED_FROM_DELTA.
          *
          * These scenarios can happen if the current reconciliation has a limited visibility of
          * updates compared to one of the previous reconciliations. This is important as it is never
          * ok to undo the work of the previous reconciliations.
          */
-        if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
+        if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS | WT_UPDATE_RESTORED_FROM_DELTA) && !is_hs_page &&
           (F_ISSET(r, WT_REC_VISIBLE_ALL_TXNID) ? WT_TXNID_LE(r->last_running, txnid) :
                                                   !__txn_visible_id(session, txnid))) {
             /*
@@ -655,11 +656,16 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
         /*
          * Don't write any update that is not stable if precise checkpoint is enabled.
          *
+         * If we are rewriting the page restored from deltas on the standby, we may see the pinged
+         * stable timestamp behind the shared checkpoint timestamp. Check the update flag to write
+         * it anyway.
+         *
          * TODO: currently we only support this mode from startup. If we want to enable this through
          * reconfiguration, we need to ensure we have run a rollback to stable before we run the
          * first checkpoint with the precise mode.
          */
         if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+          !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA) &&
           upd->durable_ts > r->rec_start_pinned_stable_ts) {
             WT_ASSERT(session, !is_hs_page);
             *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
