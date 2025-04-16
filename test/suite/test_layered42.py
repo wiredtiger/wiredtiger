@@ -52,7 +52,7 @@ class test_layered42(wttest.WiredTigerTestCase, DisaggConfigMixin):
             self.session.begin_transaction()
             c[i] = str(i)
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(1)}')
-        
+
         stat_cursor = self.session.open_cursor('statistics:')
         self.assertGreater(stat_cursor[stat.conn.cache_eviction_blocked_disagg_dirty_internal_page][2], 0)
         stat_cursor.close()
