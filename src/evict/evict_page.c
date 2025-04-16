@@ -861,7 +861,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     if (!closing && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
         /*
          * We should not evict dirty internal pages for disaggregated storage as they cannot be
-         * recreated in-memory and it doesn't reduce any memory usage.
+         * recreated in-memory and it doesn't effectively reduce cache usage.
          */
         WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
           "Evicting dirty internal pages for disaggregated storage is not allowed.");
