@@ -2102,6 +2102,13 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     }
 
     /*
+     * Don't evict dirty internal pages for disaggregated storage. They cannot be recreated
+     * in-memory and it will not reduce cache usage.
+     */
+    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return (false);
+
+    /*
      * Don't evict the disaggregated page that should belong to the next checkpoint.
      *
      * It is safe to evict when checkpoint is not running because we have opened a new checkpoint

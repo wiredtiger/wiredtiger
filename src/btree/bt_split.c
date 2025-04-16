@@ -2308,6 +2308,9 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
 
+    /* We can only rewrite leaf pages. */
+    WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF));
+
     /*
      * This isn't a split: a reconciliation failed because we couldn't write something, and in the
      * case of forced eviction, we need to stop this page from being such a problem. We have
@@ -2359,16 +2362,6 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     }
 
     __wt_ref_out(session, ref);
-
-    /*
-     * It is possible for disaggregated storage to do a split rewrite for the internal page. Update
-     * the parent ref on the page as we used a dummy ref to instantiate the page.
-     */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-        new->page->pg_intl_parent_ref = ref;
-        WT_STAT_CONN_INCR(session, cache_eviction_rewrite_internal_pages);
-    }
 
     /* Swap the new page into place. */
     __wt_atomic_addv16(&ref->ref_changes, 1);
