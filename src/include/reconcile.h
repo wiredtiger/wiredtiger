@@ -393,10 +393,11 @@ typedef struct {
         (r)->ref->page->modify->mod_multi_entries == 1))
 
 /* Called when writing the leaf disk image. */
-#define WT_BUILD_DELTA_LEAF(session, r)                                           \
-    F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&                             \
-      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA) && \
-      (r)->multi_next == 1 && !r->ovfl_items && WT_REC_RESULT_SINGLE_PAGE((session), (r))
+#define WT_BUILD_DELTA_LEAF(session, r)                                                          \
+    F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&                                            \
+      F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_LEAF_PAGE_DELTA)(r)->multi_next == \
+        1 &&                                                                                     \
+      !r->ovfl_items && WT_REC_RESULT_SINGLE_PAGE((session), (r))
 
 /* Called when building the internal page image to indicate should we start to build a delta for the
  * page. We are still building so multi_next should still be 0 instead of 1. */

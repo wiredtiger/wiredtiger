@@ -2499,8 +2499,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /*
      * If configured for an in-memory database, we can't actually write it. Instead, we will
      * re-instantiate the page using the disk image and any list of updates we skipped.
+     *
+     * If we are rewriting a page restored from delta, no need to write it but directly instantiate
+     * it into memory.
      */
-    if (F_ISSET(r, WT_REC_IN_MEMORY))
+    if (F_ISSET(r, WT_REC_IN_MEMORY | WT_REC_REWRITE_DELTA))
         goto copy_image;
 
     /* Check the eviction flag as checkpoint also saves updates. */

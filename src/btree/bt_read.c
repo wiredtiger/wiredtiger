@@ -221,8 +221,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ERR(ret);
     }
 
-    WT_ERR(__wt_reconcile(session, ref, NULL, ));
-
     if (instantiate_upd && !WT_IS_HS(session->dhandle))
         WT_ERR(__wti_page_inmem_updates(session, ref));
 
