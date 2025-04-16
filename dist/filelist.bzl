@@ -3,7 +3,8 @@
 
 # This file is only used by external projects building WiredTiger via Bazel.
 
-WT_FILELIST = ['src/block/block_addr.c',
+WT_FILELIST = ['ext/compressors/snappy/snappy_compress.c',
+ 'src/block/block_addr.c',
  'src/block/block_ckpt.c',
  'src/block/block_ckpt_scan.c',
  'src/block/block_compact.c',

@@ -190,7 +190,7 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
              * is really wrong.
              */
             if (!WT_IS_ZERO_LSN(&r->incomplete_ckpt_lsn))
-                WT_RET_PANIC(r->session, WT_PANIC,
+                WT_ERR_PANIC(r->session, WT_PANIC,
                   "metadata corruption: log file contains two incomplete checkpoint sequences, "
                   "second at %s",
                   lsn_str);
