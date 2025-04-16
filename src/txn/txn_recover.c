@@ -29,9 +29,11 @@ typedef struct {
     u_int max_fileid;  /* Maximum file ID seen. */
     u_int nfiles;      /* Number of files in the metadata. */
 
-    WT_LSN ckpt_lsn;     /* Start LSN for main recovery loop. */
-    WT_LSN max_ckpt_lsn; /* Maximum checkpoint LSN seen. */
-    WT_LSN max_rec_lsn;  /* Maximum recovery LSN seen. */
+    WT_LSN ckpt_lsn;            /* Start LSN for main recovery loop. */
+    WT_LSN turtle_lsn;          /* LSN of checkpoint seen in the turtle file. */
+    WT_LSN incomplete_ckpt_lsn; /* Start LSN for an incomplete system checkpoint. */
+    WT_LSN max_ckpt_lsn;        /* Maximum checkpoint LSN seen. */
+    WT_LSN max_rec_lsn;         /* Maximum recovery LSN seen. */
 
     bool backup_only;   /* Set to only recover backup. */
     bool missing;       /* Were there missing files? */
@@ -39,6 +41,12 @@ typedef struct {
                          * Set during the first recovery pass,
                          * when only the metadata is recovered.
                          */
+
+    /*
+     * If we have an incomplete checkpoint, we can easily identify metadata updates related to it.
+     * This string will contain what we need to match against. See "incomplete checkpoints" comment.
+     */
+    char incomplete_ckpt_match[WT_MAX_LSN_STRING + 30];
 } WT_RECOVERY;
 
 /*
@@ -158,11 +166,51 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
 
     WT_ERR(__wt_lsn_string(lsnp, sizeof(lsn_str), lsn_str));
 
-    /* Right now the only system record we care about is the backup id. Skip anything else. */
+    /*
+     * Right now the only system records we care about are the backup id and checkpoint_begin. Skip
+     * anything else.
+     */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
     end = *pp + opsize;
-    /* If it is not a backup id system operation type, we're done. */
+
     if (optype != WT_LOGOP_BACKUP_ID) {
+        /*
+         * If we see a checkpoint start marker, and it's past the checkpoint start referenced in the
+         * turtle file, then we know that it is the beginning of an incomplete checkpoint in the log
+         * file. That is, this checkpoint start has no matching checkpoint end. We can know this
+         * here because the turtle file for a new checkpoint (containing its checkpoint start) is
+         * moved into place and the directory synced before the checkpoint end record is written. So
+         * a completed checkpoint must the same as, or previous to, the turtle file's checkpoint
+         * LSN.
+         */
+        if (optype == WT_LOGOP_CHECKPOINT_START && r->metadata_only &&
+          __wt_log_cmp(lsnp, &r->turtle_lsn) > 0) {
+            /*
+             * It should be impossible to have multiple incomplete checkpoints. Probably something
+             * is really wrong.
+             */
+            if (!WT_IS_ZERO_LSN(&r->incomplete_ckpt_lsn))
+                WT_RET_PANIC(r->session, WT_PANIC,
+                  "metadata corruption: log file contains two incomplete checkpoint sequences, "
+                  "second at %s",
+                  lsn_str);
+
+            WT_ERR(__wt_msg(r->session,
+              "log file contains an incomplete checkpoint sequence at %s, recovery can continue",
+              lsn_str));
+
+            /* Take a note of where the incomplete checkpoint begins. */
+            WT_ASSIGN_LSN(&r->incomplete_ckpt_lsn, lsnp);
+
+            /*
+             * We know that we may have to exclude one or more records related to this checkpoint.
+             * Build a string that will match the records in question. See "incomplete checkpoints"
+             * comment.
+             */
+            WT_ERR(__wt_snprintf(r->incomplete_ckpt_match, sizeof(r->incomplete_ckpt_match),
+              "checkpoint_lsn=(%" PRIu32 ",%" PRIu32 ")", __wt_lsn_file(lsnp),
+              __wt_lsn_offset(lsnp)));
+        }
         *pp += opsize;
         goto done;
     }
@@ -228,6 +276,44 @@ __txn_system_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8
     WT_ERR(ret);                                                  \
     if (cursor == NULL)                                           \
     break
+
+/*
+ * __txn_op_apply_check --
+ *     Check if an operation should be applied during recovery.
+ */
+static int
+__txn_op_apply_check(WT_RECOVERY *r, const uint8_t **pp, const uint8_t *end, bool *check_can_apply)
+{
+    WT_ITEM key, value;
+    WT_SESSION_IMPL *session;
+    uint32_t fileid, opsize, optype;
+    const char *valuestr;
+
+    session = r->session;
+
+    *check_can_apply = true;
+
+    WT_RET(__wt_logop_read(session, pp, end, &optype, &opsize));
+    end = *pp + opsize;
+
+    if (optype == WT_LOGOP_ROW_PUT) {
+        WT_RET(__wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
+        /* Is it metadata? */
+        if (fileid == 0) {
+            valuestr = value.data;
+            WT_ASSERT_ALWAYS(session, value.size > 0 && valuestr[value.size - 1] == '\0',
+              "metadata put string not null terminated");
+
+            /*
+             * If this metadata string contains a reference to the elided checkpoint, we don't want
+             * to apply this.
+             */
+            if (strstr(valuestr, r->incomplete_ckpt_match) != NULL)
+                *check_can_apply = false;
+        }
+    }
+    return (0);
+}
 
 /*
  * __txn_op_apply --
@@ -470,6 +556,24 @@ err:
 static int
 __txn_commit_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
 {
+    const uint8_t *checkp;
+    bool check_can_apply;
+
+    if (!WT_IS_ZERO_LSN(&r->incomplete_ckpt_lsn)) {
+        /*
+         * We are past an incomplete checkpoint start, and we want to avoid committing any metadata
+         * records that are part of that checkpoint. If any operation is part of the checkpoint
+         * update, then they all are. Find out whether we want to apply the batch.
+         */
+        checkp = *pp;
+        check_can_apply = true;
+        while (checkp < end && *checkp) {
+            WT_RET(__txn_op_apply_check(r, &checkp, end, &check_can_apply));
+            if (!check_can_apply)
+                return (0);
+        }
+    }
+
     /* The logging subsystem zero-pads records. */
     while (*pp < end && **pp)
         WT_RET(__txn_op_apply(r, lsnp, pp, end));
@@ -516,8 +620,11 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
 
     switch (rectype) {
     case WT_LOGREC_CHECKPOINT:
-        if (r->metadata_only)
+        if (r->metadata_only) {
+            WT_ASSERT_ALWAYS(session, WT_IS_ZERO_LSN(&r->incomplete_ckpt_lsn),
+              "turtle file has checkpoint that is before another completed checkpoint");
             WT_RET(__wti_txn_checkpoint_logread(session, &p, end, &r->ckpt_lsn));
+        }
         break;
     case WT_LOGREC_COMMIT:
         if ((ret = __wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid_unused)) != 0)
@@ -1016,6 +1123,32 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         r.metadata_only = true;
         r.backup_only = false;
     }
+
+    /*
+     * Incomplete checkpoints:
+     *
+     * We use the term "incomplete checkpoint" to indicate that a checkpoint start record is found
+     * in the log, but there is no corresponding checkpoint end record. In a perfect world, this
+     * should be handled by recovery and we should be able to process records in the incomplete
+     * checkpoint. In practice, this has been difficult to achieve.
+     *
+     * The practical approach here is to recognize when we have incomplete checkpoints. Say we have
+     * one at LSN=(10,1000). The associated checkpoint records will include updates to metadata with
+     * values that include "checkpoint_lsn=(10,1000)". By not applying these records at all, we'll
+     * skip the knowledge that this checkpoint, along with the associated file checkpoints, happened
+     * at all.
+     *
+     * To accomplish this is slightly ugly, but effective. When we recognize an incomplete
+     * checkpoint, r.incomplete_ckpt_lsn will be set. We'll also set r.incomplete_ckpt_match to be
+     * the exact checkpoint_lsn=... string that can be used for matching. When we are about to
+     * commit a record, and we're processing after the beginning of an incomplete checkpoint, we'll
+     * scan the record looking for metadata updates with the matching string. If it hits, we won't
+     * apply the record, as it's associated with the checkpoint we're ignoring. Otherwise, we apply
+     * the record as usual.
+     */
+    r.turtle_lsn = metafile->ckpt_lsn;
+    WT_ZERO_LSN(&r.incomplete_ckpt_lsn);
+
     /*
      * If this is a read-only connection, check if the checkpoint LSN in the metadata file is up to
      * date, indicating a clean shutdown.
