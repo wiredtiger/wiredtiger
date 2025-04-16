@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-#define HAVE_BUILTIN_EXTENSION_SNAPPY
-
 /*
  * ext_collate --
  *     Call the collation function (external API version).
