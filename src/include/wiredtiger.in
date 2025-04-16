@@ -2179,6 +2179,7 @@ struct __wt_connection {
      * @config{cursors, print all open cursor information., a boolean flag; default \c false.}
      * @config{handles, print open handles information., a boolean flag; default \c false.}
      * @config{log, print log information., a boolean flag; default \c false.}
+     * @config{metadata, print metadata information., a boolean flag; default \c false.}
      * @config{sessions, print open session information., a boolean flag; default \c false.}
      * @config{txn, print global txn information., a boolean flag; default \c false.}
      * @configend
