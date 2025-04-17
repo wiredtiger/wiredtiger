@@ -1256,7 +1256,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
          * Calculate total checkpoint crash points. The total checkpoint points required are the
          * number of data handles that need to be checkpointed plus the additional crash points.
          */
-        ckpt_total_crash_points = session->ckpt.handle_next + 2;
+        ckpt_total_crash_points = session->ckpt.handle_next + CKPT_CRASH_ENUM_END;
         ckpt_relative_crash_point =
           ((u_int)ckpt_crash_point / (WT_THOUSAND / ckpt_total_crash_points));
 
@@ -1437,6 +1437,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
         WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
 
+    /* Crash before metadata sync if checkpoint crash point is configured. */
+    if (ckpt_crash_before_metadata_sync)
+        __wt_debug_crash(session);
+
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Either
      * checkpointing the metadata or syncing the log file works. Recovery relies on the checkpoint
@@ -1457,10 +1461,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
       WT_WITH_METADATA_LOCK(session, ret = __wt_checkpoint_file(session, cfg)));
     session->meta_track_next = saved_meta_next;
     WT_ERR(ret);
-
-    /* Crash before metadata sync if checkpoint crash point is configured. */
-    if (ckpt_crash_before_metadata_sync)
-        __wt_debug_crash(session);
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_META_SYNC);
     WT_WITH_DHANDLE(
