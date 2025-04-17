@@ -489,27 +489,30 @@ __wti_page_reconstruct_deltas(
          * TODO: this should go away when we use an algorithm to directly rewrite delta.
          */
         if (r == NULL || r->ref == NULL) {
-            WT_RET(__wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA));
-            mod = ref->page->modify;
-            WT_ASSERT(
-              session, mod->mod_disk_image != NULL && mod->mod_replace.block_cookie == NULL);
+            WT_ERR_ERROR_OK(__wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA), EBUSY, true);
+            if (ret == 0) {
+                mod = ref->page->modify;
+                WT_ASSERT(
+                  session, mod->mod_disk_image != NULL && mod->mod_replace.block_cookie == NULL);
 
-            /* The split code works with WT_MULTI structures, build one for the disk image. */
-            memset(&multi, 0, sizeof(multi));
-            multi.disk_image = mod->mod_disk_image;
-            multi.block_meta = ref->page->block_meta;
+                /* The split code works with WT_MULTI structures, build one for the disk image. */
+                memset(&multi, 0, sizeof(multi));
+                multi.disk_image = mod->mod_disk_image;
+                multi.block_meta = ref->page->block_meta;
 
-            /*
-             * Store the disk image to a temporary pointer in case we fail to rewrite the page and
-             * we need to link the new disk image back to the old disk image.
-             */
-            tmp = mod->mod_disk_image;
-            mod->mod_disk_image = NULL;
-            ret = __wt_split_rewrite(session, ref, &multi, false);
-            if (ret != 0) {
-                mod->mod_disk_image = tmp;
-                WT_RET(ret);
-            }
+                /*
+                 * Store the disk image to a temporary pointer in case we fail to rewrite the page
+                 * and we need to link the new disk image back to the old disk image.
+                 */
+                tmp = mod->mod_disk_image;
+                mod->mod_disk_image = NULL;
+                ret = __wt_split_rewrite(session, ref, &multi, false);
+                if (ret != 0) {
+                    mod->mod_disk_image = tmp;
+                    WT_RET(ret);
+                }
+            } else
+                (ret == EBUSY) ret = 0;
         }
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
