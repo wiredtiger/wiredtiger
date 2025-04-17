@@ -3188,9 +3188,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * leaving that work to us.)
          */
         if (r->wrapup_checkpoint == NULL) {
-            if (r->multi->addr.block_cookie != NULL || r->multi->disk_image != NULL) {
-                WT_ASSERT(
-                  session, r->multi->addr.block_cookie != NULL || F_ISSET(r, WT_REC_REWRITE_DELTA));
+            if (r->multi->addr.block_cookie != NULL || F_ISSET(r, WT_REC_REWRITE_DELTA)) {
                 __rec_set_updates_durable(btree, r);
                 mod->mod_replace = r->multi->addr;
                 r->multi->addr.block_cookie = NULL;
