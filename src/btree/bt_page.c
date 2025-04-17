@@ -489,7 +489,7 @@ __wti_page_reconstruct_deltas(
          * TODO: this should go away when we use an algorithm to directly rewrite delta.
          */
         if (r == NULL || r->ref == NULL) {
-            WT_ERR_ERROR_OK(__wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA), EBUSY, true);
+            ret = __wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA);
             if (ret == 0) {
                 mod = ref->page->modify;
                 WT_ASSERT(
@@ -511,8 +511,10 @@ __wti_page_reconstruct_deltas(
                     mod->mod_disk_image = tmp;
                     WT_RET(ret);
                 }
-            } else
+            } else if (ret == EBUSY)
                 ret = 0;
+            else
+                WTT_RET(ret);
         }
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
