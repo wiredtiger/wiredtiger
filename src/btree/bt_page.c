@@ -474,7 +474,7 @@ __wti_page_reconstruct_deltas(
 
         /*
          * We apply the deltas in reverse order because we only care about the latest change of a
-         * key. The older changes are ignore.
+         * key. The older changes are ignored.
          */
         time_start = __wt_clock(session);
         for (i = (int)delta_size - 1; i >= 0; --i)
