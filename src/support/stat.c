@@ -326,6 +326,10 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: overflow values written",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
+  "reconciliation: page reconciliation calls for pages between 1 and 10MB",
+  "reconciliation: page reconciliation calls for pages between 10 and 100MB",
+  "reconciliation: page reconciliation calls for pages between 100MB and 1GB",
+  "reconciliation: page reconciliation calls for pages over 1GB",
   "reconciliation: pages deleted",
   "reconciliation: pages written including an aggregated newest start durable timestamp ",
   "reconciliation: pages written including an aggregated newest stop durable timestamp ",
@@ -722,6 +726,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_overflow_value = 0;
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
+    stats->rec_pages_size_1MB_to_10MB = 0;
+    stats->rec_pages_size_10MB_to_100MB = 0;
+    stats->rec_pages_size_100MB_to_1GB = 0;
+    stats->rec_pages_size_1GB_plus = 0;
     stats->rec_page_delete = 0;
     stats->rec_time_aggr_newest_start_durable_ts = 0;
     stats->rec_time_aggr_newest_stop_durable_ts = 0;
@@ -1114,6 +1122,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_overflow_value += from->rec_overflow_value;
     to->rec_pages += from->rec_pages;
     to->rec_pages_eviction += from->rec_pages_eviction;
+    to->rec_pages_size_1MB_to_10MB += from->rec_pages_size_1MB_to_10MB;
+    to->rec_pages_size_10MB_to_100MB += from->rec_pages_size_10MB_to_100MB;
+    to->rec_pages_size_100MB_to_1GB += from->rec_pages_size_100MB_to_1GB;
+    to->rec_pages_size_1GB_plus += from->rec_pages_size_1GB_plus;
     to->rec_page_delete += from->rec_page_delete;
     to->rec_time_aggr_newest_start_durable_ts += from->rec_time_aggr_newest_start_durable_ts;
     to->rec_time_aggr_newest_stop_durable_ts += from->rec_time_aggr_newest_stop_durable_ts;
@@ -1533,6 +1545,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_overflow_value += WT_STAT_DSRC_READ(from, rec_overflow_value);
     to->rec_pages += WT_STAT_DSRC_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_DSRC_READ(from, rec_pages_eviction);
+    to->rec_pages_size_1MB_to_10MB += WT_STAT_DSRC_READ(from, rec_pages_size_1MB_to_10MB);
+    to->rec_pages_size_10MB_to_100MB += WT_STAT_DSRC_READ(from, rec_pages_size_10MB_to_100MB);
+    to->rec_pages_size_100MB_to_1GB += WT_STAT_DSRC_READ(from, rec_pages_size_100MB_to_1GB);
+    to->rec_pages_size_1GB_plus += WT_STAT_DSRC_READ(from, rec_pages_size_1GB_plus);
     to->rec_page_delete += WT_STAT_DSRC_READ(from, rec_page_delete);
     to->rec_time_aggr_newest_start_durable_ts +=
       WT_STAT_DSRC_READ(from, rec_time_aggr_newest_start_durable_ts);
@@ -2296,6 +2312,10 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: overflow values written",
   "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
+  "reconciliation: page reconciliation calls for pages between 1 and 10MB",
+  "reconciliation: page reconciliation calls for pages between 10 and 100MB",
+  "reconciliation: page reconciliation calls for pages between 100MB and 1GB",
+  "reconciliation: page reconciliation calls for pages over 1GB",
   "reconciliation: page reconciliation calls that resulted in values with prepared transaction "
   "metadata",
   "reconciliation: page reconciliation calls that resulted in values with timestamps",
@@ -3158,6 +3178,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_overflow_value = 0;
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
+    stats->rec_pages_size_1MB_to_10MB = 0;
+    stats->rec_pages_size_10MB_to_100MB = 0;
+    stats->rec_pages_size_100MB_to_1GB = 0;
+    stats->rec_pages_size_1GB_plus = 0;
     stats->rec_pages_with_prepare = 0;
     stats->rec_pages_with_ts = 0;
     stats->rec_pages_with_txn = 0;
@@ -4150,6 +4174,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_overflow_value += WT_STAT_CONN_READ(from, rec_overflow_value);
     to->rec_pages += WT_STAT_CONN_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_CONN_READ(from, rec_pages_eviction);
+    to->rec_pages_size_1MB_to_10MB += WT_STAT_CONN_READ(from, rec_pages_size_1MB_to_10MB);
+    to->rec_pages_size_10MB_to_100MB += WT_STAT_CONN_READ(from, rec_pages_size_10MB_to_100MB);
+    to->rec_pages_size_100MB_to_1GB += WT_STAT_CONN_READ(from, rec_pages_size_100MB_to_1GB);
+    to->rec_pages_size_1GB_plus += WT_STAT_CONN_READ(from, rec_pages_size_1GB_plus);
     to->rec_pages_with_prepare += WT_STAT_CONN_READ(from, rec_pages_with_prepare);
     to->rec_pages_with_ts += WT_STAT_CONN_READ(from, rec_pages_with_ts);
     to->rec_pages_with_txn += WT_STAT_CONN_READ(from, rec_pages_with_txn);

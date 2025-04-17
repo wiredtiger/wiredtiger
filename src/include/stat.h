@@ -1083,6 +1083,10 @@ struct __wt_connection_stats {
     int64_t rec_overflow_value;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
+    int64_t rec_pages_size_1MB_to_10MB;
+    int64_t rec_pages_size_10MB_to_100MB;
+    int64_t rec_pages_size_100MB_to_1GB;
+    int64_t rec_pages_size_1GB_plus;
     int64_t rec_pages_with_prepare;
     int64_t rec_pages_with_ts;
     int64_t rec_pages_with_txn;
@@ -1540,6 +1544,10 @@ struct __wt_dsrc_stats {
     int64_t rec_overflow_value;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
+    int64_t rec_pages_size_1MB_to_10MB;
+    int64_t rec_pages_size_10MB_to_100MB;
+    int64_t rec_pages_size_100MB_to_1GB;
+    int64_t rec_pages_size_1GB_plus;
     int64_t rec_page_delete;
     int64_t rec_time_aggr_newest_start_durable_ts;
     int64_t rec_time_aggr_newest_stop_durable_ts;
