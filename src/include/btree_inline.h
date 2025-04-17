@@ -2033,18 +2033,21 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
 
     /*
-     * In the case of disaggregated storage, we need to avoid evicting pages that have not been
-     * materialized yet. Evicting such page and then reading it back in would result in a
-     * potentially significant stall.
+     * Pages without modify structures can always be evicted as long as they were created via
+     * a read from the underlying storage. If they were created via a scrub eviction in
+     * disaggregated storage they need to be retained until they are available to be read back
+     * from the storage service.
+     * Note that dirty pages can be "evicted" in front of the materialization frontier - it is
+     * OK for their content to be written back to stable storage and other in-memory transitions
+     * to happen, as long as their equivalent content remains in cache until the materialization
+     * frontier is satisfied.
      */
-    if (!__wt_page_materialization_check(session, page->rec_lsn_max)) {
-        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
-        return (false);
+    if (mod == NULL) {
+        if (__wt_page_materialization_check(session, page->rec_lsn_max))
+            return (true);
+        else
+            return (false);
     }
-
-    /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
-    if (mod == NULL)
-        return (true);
 
     /*
      * Check the fast-truncate information. Pages with an uncommitted truncate cannot be evicted.
@@ -2092,12 +2095,30 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     modified = __wt_page_is_modified(page);
 
     /*
+     * Clean pages that are in front of the materialization check should not proceed to eviction.
+     * They would not go through reconciliation, but just be discarded which isn't OK.
+     */
+    if (!modified && !__wt_page_materialization_check(session, page->rec_lsn_max)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
+        return (false);
+    }
+
+    /*
      * If the file is being checkpointed, other threads can't evict dirty pages: if a page is
      * written and the previous version freed, that previous version might be referenced by an
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
      */
     if (modified && __wt_btree_syncing_by_other_session(session)) {
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_checkpoint);
+        return (false);
+    }
+
+    /*
+     * Don't evict dirty internal pages for disaggregated storage. They cannot be recreated
+     * in-memory and it will not reduce cache usage.
+     */
+    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_dirty_internal_page);
         return (false);
     }
 
