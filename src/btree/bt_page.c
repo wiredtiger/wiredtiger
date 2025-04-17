@@ -495,7 +495,7 @@ __wti_page_reconstruct_deltas(
          */
         tmp = mod->mod_disk_image;
         mod->mod_disk_image = NULL;
-        ret = __wt_split_rewrite(session, ref, &multi);
+        ret = __wt_split_rewrite(session, ref, &multi, false);
         if (ret != 0) {
             mod->mod_disk_image = tmp;
             WT_RET(ret);

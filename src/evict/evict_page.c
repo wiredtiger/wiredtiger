@@ -491,7 +491,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          */
         if (mod->mod_multi_entries == 1) {
             WT_ASSERT(session, closing == false);
-            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
+            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], true));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
@@ -531,7 +531,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              */
             tmp = mod->mod_disk_image;
             mod->mod_disk_image = NULL;
-            ret = __wt_split_rewrite(session, ref, &multi);
+            ret = __wt_split_rewrite(session, ref, &multi, true);
             if (ret != 0) {
                 mod->mod_disk_image = tmp;
                 return (ret);
