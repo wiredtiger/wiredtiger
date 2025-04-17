@@ -596,26 +596,26 @@ __live_restore_can_service_read(
       WTI_OFFSET_TO_BIT(WT_MIN(WTI_OFFSET_END(offset, len), WTI_BITMAP_END(lr_fh)));
     uint64_t read_start_bit = WTI_OFFSET_TO_BIT(offset);
 
-    /* The bitmap must follow the pattern 1*0* — zero or more 1s followed by zero or more 0s.*/
+    /* The bitmap must follow the pattern 1*0*, zero or more 1s followed by zero or more 0s.*/
     uint64_t current_bit = read_start_bit;
     /* Iterate through all set bits(1s) first. */
     while (current_bit < read_end_bit && __bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
     /* If we reach the end then the entire range is set, we can return early. */
     if (current_bit == read_end_bit)
-        return true;
+        return (true);
     /* Otherwise, some bits are unset(0s), iterate through those next. */
     while (current_bit < read_end_bit && !__bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
     /*
      * If we still not reach the end, then this is an invalid case where a set bit appears after an
-     * unset bit in the range — e.g. 11000011, 00001111, or 00110011.
+     * unset bit in the range, e.g. 11000011, 00001111, or 00110011.
      */
     if (current_bit < read_end_bit) {
         WT_IGNORE_RET(__live_restore_dump_bitmap(session, lr_fh));
         WT_ASSERT_ALWAYS(session, false,
-          "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT
-          ") find a set bit after a hole (offset: %" PRId64 ")",
+          "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT ") find a set bit (offset: %" PRId64
+          ") after a hole.",
           offset, len, WTI_BIT_TO_OFFSET(current_bit));
     }
     return (false);
@@ -748,18 +748,12 @@ __live_restore_fh_read(
         WT_RET(__live_restore_fh_read_destination(session, lr_fh->destination, offset, len, buf));
 
     __wt_readlock(session, &lr_fh->lock);
-    /*
-     * The partial read length variables need to be initialized inside the else case to avoid clang
-     * sanitizer complaining about dead stores. However if we use a switch case here _and_
-     * initialize the variables inside the PARTIAL case then gcc complains about the switch jumping
-     * over the variable declaration. Thus we use if/else and declare inside to keep both happy.
-     */
-    wt_off_t hole_begin_off;
-    if (__live_restore_can_service_read(lr_fh, session, offset, len, &hole_begin_off)) {
+    if (__live_restore_can_service_read(lr_fh, session, offset, len)) {
+        /* Read the full read from the destination. */
         WT_ERR(
           __live_restore_fh_read_destination(session, lr_fh->destination, offset, len, read_data));
     } else
-        /* Read the full read from the source. */
+        /* Otherwise from the source. */
         WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, offset, len, read_data));
 
 err:
