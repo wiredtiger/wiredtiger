@@ -351,7 +351,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * in service of a checkpoint, it's cleared the tree's dirty flag, and we don't want to set it
      * again as part of that walk.
      */
-    if (!F_ISSET(r, WT_REC_REWRITE_DELTA))
+    if (!LF_ISSET(WT_REC_REWRITE_DELTA))
         WT_ERR(__wt_page_parent_modify_set(session, ref, true));
 
     /*
