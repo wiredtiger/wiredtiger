@@ -147,6 +147,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages written requiring in-memory restoration",
   "cache: precise checkpoint caused an eviction to be skipped because any dirty content needs to "
   "remain in cache",
+  "cache: realizing in-memory split after reconciliation failed due to internal lock busy",
   "cache: recent modification of a page blocked its eviction",
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
@@ -547,6 +548,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
     stats->cache_eviction_blocked_checkpoint_precise = 0;
+    stats->cache_evict_split_failed_lock = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
@@ -933,6 +935,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_write_restore += from->cache_write_restore;
     to->cache_eviction_blocked_checkpoint_precise +=
       from->cache_eviction_blocked_checkpoint_precise;
+    to->cache_evict_split_failed_lock += from->cache_evict_split_failed_lock;
     to->cache_eviction_blocked_recently_modified += from->cache_eviction_blocked_recently_modified;
     to->cache_scrub_restore += from->cache_scrub_restore;
     to->cache_reverse_splits += from->cache_reverse_splits;
@@ -1335,6 +1338,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_write_restore += WT_STAT_DSRC_READ(from, cache_write_restore);
     to->cache_eviction_blocked_checkpoint_precise +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_checkpoint_precise);
+    to->cache_evict_split_failed_lock += WT_STAT_DSRC_READ(from, cache_evict_split_failed_lock);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_recently_modified);
     to->cache_scrub_restore += WT_STAT_DSRC_READ(from, cache_scrub_restore);
@@ -1876,6 +1880,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: percentage overhead",
   "cache: precise checkpoint caused an eviction to be skipped because any dirty content needs to "
   "remain in cache",
+  "cache: realizing in-memory split after reconciliation failed due to internal lock busy",
   "cache: recent modification of a page blocked its eviction",
   "cache: reconciled pages scrubbed and added back to the cache clean",
   "cache: reverse splits performed",
@@ -2741,6 +2746,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_restore = 0;
     /* not clearing cache_overhead */
     stats->cache_eviction_blocked_checkpoint_precise = 0;
+    stats->cache_evict_split_failed_lock = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_scrub_restore = 0;
     stats->cache_reverse_splits = 0;
@@ -3651,6 +3657,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_overhead += WT_STAT_CONN_READ(from, cache_overhead);
     to->cache_eviction_blocked_checkpoint_precise +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_precise);
+    to->cache_evict_split_failed_lock += WT_STAT_CONN_READ(from, cache_evict_split_failed_lock);
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_recently_modified);
     to->cache_scrub_restore += WT_STAT_CONN_READ(from, cache_scrub_restore);
