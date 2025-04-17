@@ -517,7 +517,7 @@ __wti_page_reconstruct_deltas(
     }
 
     /* The data is written to the disk so we can mark the page clean. */
-    __wt_page_modify_clear(session, page);
+    __wt_page_modify_clear(session, ref->page);
 
     return (0);
 }
