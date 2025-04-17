@@ -100,11 +100,12 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     size_t count, i;
     uint32_t page_flags;
     uint8_t previous_state;
-    bool instantiate_upd;
+    bool instantiate_upd, disk_image_freed;
 
     WT_CLEAR(block_meta);
     tmp = NULL;
     count = 0;
+    disk_image_freed = false;
 
     /* Lock the WT_REF. */
     switch (previous_state = WT_REF_GET_STATE(ref)) {
@@ -213,6 +214,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     ref->page->old_rec_lsn_max = block_meta.disagg_lsn;
     ref->page->rec_lsn_max = block_meta.disagg_lsn;
 
+    if (instantiate_upd && !WT_IS_HS(session->dhandle))
+        WT_ERR(__wti_page_inmem_updates(session, ref));
+
     /* Reconstruct deltas*/
     if (count > 1) {
         ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
@@ -220,9 +224,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
     }
-
-    if (instantiate_upd && !WT_IS_HS(session->dhandle))
-        WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the
@@ -263,17 +264,19 @@ err:
      * If the function building an in-memory version of the page failed, it discarded the page, but
      * not the disk image. Discard the page and separately discard the disk image in all cases.
      */
-    if (ref->page != NULL)
+    if (ref->page != NULL) {
+        disk_image_freed = ref->page->dsk != NULL;
         __wt_ref_out(session, ref);
-
-    F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
-    WT_REF_SET_STATE(ref, previous_state);
+    }
 
     if (tmp != NULL) {
-        for (i = 0; i < count; ++i)
+        for (i = disk_image_freed ? 1 : 0; i < count; ++i)
             __wt_buf_free(session, &tmp[i]);
         __wt_free(session, tmp);
     }
+
+    F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
+    WT_REF_SET_STATE(ref, previous_state);
 
     return (ret);
 }

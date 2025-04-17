@@ -524,6 +524,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             memset(&multi, 0, sizeof(multi));
             multi.disk_image = mod->mod_disk_image;
             multi.block_meta = ref->page->block_meta;
+            WT_ASSERT(session, mod->mod_replace.block_cookie == NULL);
             /*
              * Store the disk image to a temporary pointer in case we fail to rewrite the page and
              * we need to link the new disk image back to the old disk image.
