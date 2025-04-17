@@ -1188,8 +1188,8 @@ slow:
             WT_ERR(__rec_cell_build_leaf_key(session, r, lastkey->data, lastkey->size, &ovfl_key));
         }
 
-        /* Boundary: split or write the page. */
-        if (__wt_rec_need_split(r, key->len + val->len)) {
+        /* Boundary: split or write the page. We cannot a split a page restored from deltas. */
+        if (!F_ISSET(r, WT_REC_REWRITE_DELTA) && __wt_rec_need_split(r, key->len + val->len)) {
             /*
              * If we copied address blocks from the page rather than building the actual key, we
              * have to build the key now because we are about to promote it.
