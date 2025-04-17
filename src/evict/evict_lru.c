@@ -991,6 +991,7 @@ __evict_get_ref(
 			my_printf("Session %p acquiring %p\n", (void*)session, (void*)&bucket->evict_queue_lock);
             __wt_spin_lock_name(session, &bucket->evict_queue_lock, "__evict_get_ref");
 			my_printf("Session %p ACQUIRED %p\n", (void*)session, (void*)&bucket->evict_queue_lock);
+			fflush(stdout);
 
             /* Iterate over the pages in the bucket until we find one that's available. */
             TAILQ_FOREACH (page, &bucket->evict_queue, evict_data.evict_q) {
