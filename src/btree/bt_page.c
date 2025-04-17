@@ -512,7 +512,7 @@ __wti_page_reconstruct_deltas(
                     WT_RET(ret);
                 }
             } else
-                (ret == EBUSY) ret = 0;
+                ret = 0;
         }
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
