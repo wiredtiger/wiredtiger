@@ -41,7 +41,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
       LF_ISSET(WT_REC_HS) ? ", history store" : "");
 
-    if (page->memory_footprint > 1000 * WT_MEGABYTE)
+    if (page->memory_footprint > WT_GIGABYTE)
         WT_STAT_CONN_DSRC_INCR(session, rec_pages_size_1GB_plus);
     else if (page->memory_footprint > 100 * WT_MEGABYTE)
         WT_STAT_CONN_DSRC_INCR(session, rec_pages_size_100MB_to_1GB);

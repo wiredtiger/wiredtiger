@@ -2051,8 +2051,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (mod == NULL) {
         if (__wt_page_materialization_check(session, page->rec_lsn_max))
             return (true);
-        else
+        else {
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
             return (false);
+        }
     }
 
     /*
