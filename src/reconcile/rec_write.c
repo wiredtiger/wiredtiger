@@ -2738,10 +2738,11 @@ copy_image:
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0);
 #endif
     /*
-     * If re-instantiating this page in memory (either because eviction wants to, or because we
-     * skipped updates to build the disk image), save a copy of the disk image.
+     * If re-instantiating this page in memory (because eviction wants to, or because we want to
+     * rewrite the pages with deltas, or because we skipped updates to build the disk image), save a
+     * copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || multi->supd_restore)
+    if (F_ISSET(r, WT_REC_SCRUB | WT_REC_REWRITE_DELTA) || multi->supd_restore)
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
@@ -3159,6 +3160,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * splits can.
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
+            WT_ASSERT(session, !F_ISSET(r, WT_REC_REWRITE_DELTA));
             r->ref->page->block_meta = r->multi->block_meta;
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
@@ -3172,7 +3174,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * leaving that work to us.)
          */
         if (r->wrapup_checkpoint == NULL) {
-            if (r->multi->addr.block_cookie != NULL) {
+            if (r->multi->addr.block_cookie != NULL || r->multi->disk_image != NULL) {
+                WT_ASSERT(
+                  session, r->multi->addr.block_cookie != NULL || F_ISSET(r, WT_REC_REWRITE_DELTA));
                 __rec_set_updates_durable(btree, r);
                 mod->mod_replace = r->multi->addr;
                 r->multi->addr.block_cookie = NULL;
@@ -3271,6 +3275,11 @@ split:
         WT_TIME_AGGREGATE_COPY(stop_tap, &stop_ta);
         WT_RELEASE_WRITE_WITH_BARRIER(mod->stop_ta, stop_tap);
     }
+
+    WT_ASSERT(session,
+      !F_ISSET(r, WT_REC_REWRITE_DELTA) ||
+        (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_disk_image != NULL &&
+          mod->mod_replace.block_cookie == NULL));
 
     return (0);
 }
