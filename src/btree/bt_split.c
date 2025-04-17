@@ -2252,6 +2252,9 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
      * eviction, then proceed with the split.
      */
     WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
+
+    if (ret == EBUSY)
+        WT_STAT_CONN_DSRC_INCR(session, cache_evict_split_failed_lock);
     return (ret);
 }
 
@@ -2307,6 +2310,10 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
     addr = NULL;
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
+
+    /* We can only rewrite leaf pages. */
+    WT_ASSERT_ALWAYS(
+      session, F_ISSET(ref, WT_REF_FLAG_LEAF), "Rewriting internal pages is not allowed.");
 
     /*
      * This isn't a split: a reconciliation failed because we couldn't write something, and in the

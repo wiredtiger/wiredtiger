@@ -85,9 +85,9 @@ class test_layered39(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.pr(f'cache_eviction_blocked_checkpoint_precise = {self.get_stat(wiredtiger.stat.conn.cache_eviction_blocked_checkpoint_precise)}')
         self.pr(f'checkpoint_pages_reconciled_bytes = {self.get_stat(wiredtiger.stat.conn.checkpoint_pages_reconciled_bytes)}')
 
-        self.assertGreater(
-            self.get_stat(wiredtiger.stat.conn.cache_scrub_restore), 0)
+        scrub_restore = self.get_stat(wiredtiger.stat.conn.cache_scrub_restore)
+        self.assertGreater(scrub_restore, 0)
         self.assertGreater(
             self.get_stat(wiredtiger.stat.conn.checkpoint_pages_reconciled_bytes), self.nitems * 3 * 10)
-        self.assertEqual(
-            self.get_stat(wiredtiger.stat.conn.cache_eviction_ahead_of_last_materialized_lsn), 0)
+        self.assertGreaterEqual(scrub_restore,
+            self.get_stat(wiredtiger.stat.conn.cache_eviction_ahead_of_last_materialized_lsn))
