@@ -351,7 +351,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * in service of a checkpoint, it's cleared the tree's dirty flag, and we don't want to set it
      * again as part of that walk.
      */
-    WT_ERR(__wt_page_parent_modify_set(session, ref, true));
+    if (!F_ISSET(r, WT_REC_REWRITE_DELTA))
+        WT_ERR(__wt_page_parent_modify_set(session, ref, true));
 
     /*
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
@@ -2522,7 +2523,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
          * We need to write the disk image for disaggregated storage as a later reconciliation may
          * build a delta that is based on a page image that was never written to disk.
          */
-        if (multi->supd_restore && (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || chunk->entries == 0))
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+            if (chunk->entries == 0)
+                goto copy_image;
+        } else if (multi->supd_restore)
             goto copy_image;
 
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");

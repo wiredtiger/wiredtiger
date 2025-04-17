@@ -266,6 +266,7 @@ err:
      */
     if (ref->page != NULL) {
         disk_image_freed = ref->page->dsk != NULL;
+        __wt_page_modify_clear(session, ref->page);
         __wt_ref_out(session, ref);
     }
 

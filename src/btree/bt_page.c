@@ -463,6 +463,7 @@ __wti_page_reconstruct_deltas(
     WT_DECL_RET;
     WT_MULTI multi;
     WT_PAGE_MODIFY *mod;
+    WT_RECONCILE *r;
     uint64_t time_start, time_stop;
     int i;
     void *tmp;
@@ -480,25 +481,33 @@ __wti_page_reconstruct_deltas(
         for (i = (int)delta_size - 1; i >= 0; --i)
             WT_RET(__page_reconstruct_leaf_delta(session, ref, &deltas[i]));
 
-        WT_RET(__wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA));
-        mod = ref->page->modify;
-        WT_ASSERT(session, mod->mod_disk_image != NULL && mod->mod_replace.block_cookie == NULL);
-
-        /* The split code works with WT_MULTI structures, build one for the disk image. */
-        memset(&multi, 0, sizeof(multi));
-        multi.disk_image = mod->mod_disk_image;
-        multi.block_meta = ref->page->block_meta;
-
+        r = session->reconcile;
         /*
-         * Store the disk image to a temporary pointer in case we fail to rewrite the page and we
-         * need to link the new disk image back to the old disk image.
+         * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
+         * not reentrant.
          */
-        tmp = mod->mod_disk_image;
-        mod->mod_disk_image = NULL;
-        ret = __wt_split_rewrite(session, ref, &multi, false);
-        if (ret != 0) {
-            mod->mod_disk_image = tmp;
-            WT_RET(ret);
+        if (r == NULL || r->ref == NULL) {
+            WT_RET(__wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA));
+            mod = ref->page->modify;
+            WT_ASSERT(
+              session, mod->mod_disk_image != NULL && mod->mod_replace.block_cookie == NULL);
+
+            /* The split code works with WT_MULTI structures, build one for the disk image. */
+            memset(&multi, 0, sizeof(multi));
+            multi.disk_image = mod->mod_disk_image;
+            multi.block_meta = ref->page->block_meta;
+
+            /*
+             * Store the disk image to a temporary pointer in case we fail to rewrite the page and
+             * we need to link the new disk image back to the old disk image.
+             */
+            tmp = mod->mod_disk_image;
+            mod->mod_disk_image = NULL;
+            ret = __wt_split_rewrite(session, ref, &multi, false);
+            if (ret != 0) {
+                mod->mod_disk_image = tmp;
+                WT_RET(ret);
+            }
         }
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
