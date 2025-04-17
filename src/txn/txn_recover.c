@@ -311,6 +311,9 @@ __txn_op_apply_check(WT_RECOVERY *r, const uint8_t **pp, const uint8_t *end, boo
             if (strstr(valuestr, r->incomplete_ckpt_match) != NULL)
                 *check_can_apply = false;
         }
+    } else {
+        /* Ignore this record in checking. */
+        *pp += opsize;
     }
     return (0);
 }
