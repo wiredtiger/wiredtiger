@@ -440,11 +440,6 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     }
     WT_CELL_FOREACH_END;
 
-    /*
-     * The data is written to the disk so we can mark the page clean after re-instantiating prepared
-     * updates to avoid reconciling the page every time.
-     */
-    __wt_page_modify_clear(session, page);
     __wt_cache_page_inmem_incr_delta_updates(session, page, total_size);
     WT_STAT_CONN_DSRC_INCRV(session, cache_read_delta_updates, total_size);
 
@@ -520,6 +515,9 @@ __wti_page_reconstruct_deltas(
     default:
         WT_RET(__wt_illegal_value(session, ref->page->type));
     }
+
+    /* The data is written to the disk so we can mark the page clean. */
+    __wt_page_modify_clear(session, page);
 
     return (0);
 }
