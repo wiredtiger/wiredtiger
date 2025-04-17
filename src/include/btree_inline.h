@@ -1998,8 +1998,8 @@ __wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
         return (true);
 
     /*
-     * Pages that haven't been written back can be evicted. This will lead to them being
-     * reconciled and retained, not actually evicted.
+     * Pages that haven't been written back can be evicted. This will lead to them being reconciled
+     * and retained, not actually evicted.
      */
     if (rec_lsn_max == WT_DISAGG_LSN_NONE)
         return (true);
@@ -2040,12 +2040,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
 
     /*
-     * Pages without modify structures can always be evicted as long as they were created via
-     * a read from the underlying storage. If they were created via a scrub eviction in
-     * disaggregated storage they need to be retained until they are available to be read back
-     * from the storage service.
-     * Note that dirty pages can be "evicted" in front of the materialization frontier - it is
-     * OK for their content to be written back to stable storage and other in-memory transitions
+     * Pages without modify structures can always be evicted as long as they were created via a read
+     * from the underlying storage. If they were created via a scrub eviction in disaggregated
+     * storage they need to be retained until they are available to be read back from the storage
+     * service. Note that dirty pages can be "evicted" in front of the materialization frontier - it
+     * is OK for their content to be written back to stable storage and other in-memory transitions
      * to happen, as long as their equivalent content remains in cache until the materialization
      * frontier is satisfied.
      */
