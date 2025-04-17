@@ -1997,6 +1997,13 @@ __wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         return (true);
 
+    /*
+     * Pages that haven't been written back can be evicted. This will lead to them being
+     * reconciled and retained, not actually evicted.
+     */
+    if (rec_lsn_max == WT_DISAGG_LSN_NONE)
+        return (true);
+
     disagg = &S2C(session)->disaggregated_storage;
     WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
     if (last_materialized_lsn == WT_DISAGG_LSN_NONE)
