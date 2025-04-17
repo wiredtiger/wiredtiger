@@ -1191,7 +1191,7 @@ slow:
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len)) {
             /* We cannot split a page that is restored from deltas. */
-            if (!F_ISSET(r, WT_REC_REWRITE_DELTA))
+            if (F_ISSET(r, WT_REC_REWRITE_DELTA))
                 WT_ERR(EBUSY);
 
             /*
