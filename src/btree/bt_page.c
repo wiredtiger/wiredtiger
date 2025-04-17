@@ -485,6 +485,8 @@ __wti_page_reconstruct_deltas(
         /*
          * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
          * not reentrant.
+         *
+         * TODO: this should go away when we use an algorithm to directly rewrite delta.
          */
         if (r == NULL || r->ref == NULL) {
             WT_RET(__wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA));
