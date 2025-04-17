@@ -514,7 +514,7 @@ __wti_page_reconstruct_deltas(
             } else if (ret == EBUSY)
                 ret = 0;
             else
-                WTT_RET(ret);
+                WT_RET(ret);
         }
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
