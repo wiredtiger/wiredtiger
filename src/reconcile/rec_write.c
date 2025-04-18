@@ -3334,8 +3334,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         if (multi->supd != NULL) {
             WT_ERR(__wt_hs_insert_updates(session, r, multi));
             /* TODO: build delta for split pages. */
-            if (!multi->supd_restore &&
-              (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || r->multi_next == 1)) {
+            if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
             }
