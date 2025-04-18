@@ -28,6 +28,7 @@
 
 import wttest
 import wiredtiger
+from wiredtiger import stat
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
 
@@ -66,9 +67,9 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
     nitems = 100
 
     def session_create_config(self):
-        # The delta percentage of 200 is an arbitrary large value, intended to produce
+        # The delta percentage of 100 is an arbitrary large value, intended to produce
         # deltas a lot of the time.
-        cfg = 'disaggregated=(delta_pct=80),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
+        cfg = 'disaggregated=(delta_pct=100),key_format=S,value_format=S,block_compressor={}'.format(self.block_compress)
         if self.uri.startswith('file'):
             cfg += ',block_manager=disagg'
         return cfg
@@ -111,6 +112,11 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     self.session.commit_transaction()
 
         self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertGreater(stat_cursor[stat.conn.rec_page_delta_leaf][2], 0)
+        stat_cursor.close()
+
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
@@ -163,6 +169,11 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     self.session.commit_transaction()
 
         self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertGreater(stat_cursor[stat.conn.rec_page_delta_leaf][2], 0)
+        stat_cursor.close()
+
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
@@ -213,6 +224,12 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     self.session.commit_transaction()
 
         self.session.checkpoint()
+
+        if self.ts:
+            stat_cursor = self.session.open_cursor('statistics:')
+            self.assertGreater(stat_cursor[stat.conn.rec_page_delta_leaf][2], 0)
+            stat_cursor.close()
+
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
@@ -262,6 +279,11 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.session.commit_transaction()
 
         self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertGreater(stat_cursor[stat.conn.rec_page_delta_leaf][2], 0)
+        stat_cursor.close()
+
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
@@ -325,6 +347,11 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     self.session.commit_transaction()
 
         self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertGreater(stat_cursor[stat.conn.rec_page_delta_leaf][2], 0)
+        stat_cursor.close()
+
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
@@ -397,6 +424,11 @@ class test_layered09(wttest.WiredTigerTestCase, DisaggConfigMixin):
                     self.session.commit_transaction()
 
         self.session.checkpoint()
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertGreater(stat_cursor[stat.conn.rec_page_delta_leaf][2], 0)
+        stat_cursor.close()
+
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)

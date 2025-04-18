@@ -2983,7 +2983,7 @@ __wt_rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
     WT_SAVE_UPD *supd;
     uint32_t i;
 
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
         return;
 
     /*
