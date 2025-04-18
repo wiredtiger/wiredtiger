@@ -2977,7 +2977,7 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
  * __wt_rec_set_updates_durable --
  *     Set the updates durable. This must be called when the reconciliation can no longer fail.
  */
-static void
+void
 __wt_rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
