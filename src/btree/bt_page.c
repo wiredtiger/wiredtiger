@@ -511,9 +511,7 @@ __wti_page_reconstruct_deltas(
                     mod->mod_disk_image = tmp;
                     WT_RET(ret);
                 }
-            } else if (ret == EBUSY)
-                ret = 0;
-            else
+            } else if (ret != EBUSY)
                 WT_RET(ret);
         }
         time_stop = __wt_clock(session);
