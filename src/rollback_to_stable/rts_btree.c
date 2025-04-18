@@ -750,7 +750,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
                 upd->txnid = tw->start_txn;
             upd->durable_ts = tw->durable_start_ts;
             upd->start_ts = tw->start_ts;
-            F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
+            F_SET(upd, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_KEY_CLEAR_REMOVE
