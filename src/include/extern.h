@@ -2099,6 +2099,7 @@ extern void __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volati
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
+extern void __wt_rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi);
 extern void __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len);
 extern void __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref);

@@ -1588,7 +1588,7 @@ struct __wt_update {
  */
 #define WT_UPDATE_SELECT_FOR_DS                                                      \
     WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
-      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS
+      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA | WT_UPDATE_TO_DELETE_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.

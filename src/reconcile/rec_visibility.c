@@ -70,6 +70,7 @@ static int
 __rec_append_orig_value(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -77,6 +78,7 @@ __rec_append_orig_value(
     size_t size, total_size;
     bool tombstone_globally_visible;
 
+    btree = S2BT(session);
     conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
@@ -112,7 +114,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if ((F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) &&
+        if ((F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) &&
           unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
@@ -179,7 +181,9 @@ __rec_append_orig_value(
                 tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
-            F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
+            F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                F_SET(tombstone, WT_UPDATE_DURABLE);
         } else {
             /*
              * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
@@ -221,7 +225,9 @@ __rec_append_orig_value(
             append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
-        F_SET(append, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
+        F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            F_SET(append, WT_UPDATE_DURABLE);
     }
 
     if (tombstone != NULL) {
@@ -599,14 +605,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
          * There are several cases we should select the update irrespective of visibility. See the
-         * detailed scenarios in the definition of WT_UPDATE_SELECT_FOR_DS and
-         * WT_UPDATE_RESTORED_FROM_DELTA.
+         * detailed scenarios in the definition of WT_UPDATE_SELECT_FOR_DS.
          *
          * These scenarios can happen if the current reconciliation has a limited visibility of
          * updates compared to one of the previous reconciliations. This is important as it is never
          * ok to undo the work of the previous reconciliations.
          */
-        if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS | WT_UPDATE_RESTORED_FROM_DELTA) && !is_hs_page &&
+        if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
           (F_ISSET(r, WT_REC_VISIBLE_ALL_TXNID) ? WT_TXNID_LE(r->last_running, txnid) :
                                                   !__txn_visible_id(session, txnid))) {
             /*
