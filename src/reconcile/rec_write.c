@@ -2529,13 +2529,17 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
          * We need to write the disk image for disaggregated storage as a later reconciliation may
          * build a delta that is based on a page image that was never written to disk.
          */
-        if (multi->supd_restore && (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || chunk->entries == 0))
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+            if (chunk->entries == 0)
+                goto copy_image;
+        } else if (multi->supd_restore)
             goto copy_image;
 
         WT_ASSERT_ALWAYS(session, chunk->entries > 0, "Trying to write an empty chunk");
     }
 
-    if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
+    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && last_block && r->multi_next == 1 &&
+      block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID &&
       block_meta->delta_count < btree->max_consecutive_delta) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
