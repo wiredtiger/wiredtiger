@@ -70,6 +70,7 @@ static int
 __rec_append_orig_value(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -77,6 +78,7 @@ __rec_append_orig_value(
     size_t size, total_size;
     bool tombstone_globally_visible;
 
+    btree = S2BT(session);
     conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
@@ -112,7 +114,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if ((F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) &&
+        if ((F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) &&
           unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
@@ -179,7 +181,9 @@ __rec_append_orig_value(
                 tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
-            F_SET(tombstone, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
+            F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+                F_SET(tombstone, WT_UPDATE_DURABLE);
         } else {
             /*
              * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
@@ -221,7 +225,9 @@ __rec_append_orig_value(
             append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
-        F_SET(append, WT_UPDATE_DURABLE | WT_UPDATE_RESTORED_FROM_DS);
+        F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+            F_SET(append, WT_UPDATE_DURABLE);
     }
 
     if (tombstone != NULL) {

@@ -681,6 +681,8 @@ __page_inmem_tombstone(
     tombstone->start_ts = unpack->tw.stop_ts;
     tombstone->txnid = unpack->tw.stop_txn;
     F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
+    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        F_SET(tombstone, WT_UPDATE_DURABLE);
     *updp = tombstone;
     *sizep = total_size;
 
@@ -738,8 +740,11 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
             upd->durable_ts = WT_TS_NONE;
             upd->prepare_state = WT_PREPARE_INPROGRESS;
             F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-        } else
+        } else {
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
+            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+                F_SET(upd, WT_UPDATE_DURABLE);
+        }
 
         tombstone->next = upd;
         *updp = tombstone;
