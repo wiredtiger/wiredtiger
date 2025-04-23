@@ -114,4 +114,5 @@ struct __wt_evict_page_data {
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 	bool evict_skip;           /* Skip this page once for eviction */
+	bool destroying;           /* Sticky flag set once when the page is being destroyed */
 };

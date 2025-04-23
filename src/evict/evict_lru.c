@@ -1643,7 +1643,7 @@ __evict_bucket_range(WT_SESSION_IMPL *session, WT_EVICT_BUCKET *bucket,
  *     Remove the page from its evict bucket.
  */
 void
-__wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 {
     WT_PAGE *page;
     WT_REF_STATE previous_state;
@@ -1655,6 +1655,8 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_ASSERT(session, ref->page != NULL);
 	page = ref->page;
+	if (WT_EVICT_PAGE_CLEARED(page))
+		return;
 
     if (WT_REF_GET_STATE(ref) == WT_REF_LOCKED && WT_REF_OWNER(session, ref)) {
 		/* The ref is already locked by us */
@@ -1681,7 +1683,7 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
 
 		after = &page->evict_data.bucket->evict_queue_lock;
 		if (before != after) {
-			printf("Lock %p is not the same as %p: page %p %s (type %d), session %d \n",
+			printf("Lock %p is NOT THE SAME as %p: page %p %s (type %d), session %d \n",
 				   (void*)before, (void*)after, (void*)page, __wt_page_type_string(page->type),
 				   page->type, session->id);
 			fflush(stdout);
@@ -1689,6 +1691,8 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref)
 		}
 		__wt_spin_unlock_name(session, &page->evict_data.bucket->evict_queue_lock, "__wt_evict_remove");
 		page->evict_data.bucket = NULL;
+		if (destroying)
+			page->evict_data.destroying = true; /* sticky flag, once set can't unset */
 	}
 
     if (must_unlock_ref)
@@ -1915,6 +1919,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	previous_state = 0;
     retries = 0;
 
+	WT_ASSERT(session, page->evict_data.destroying == false);
+
     if (__wt_ref_is_root(ref))
         return;
 
@@ -1966,11 +1972,11 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 			&& read_gen <= max_range)
             goto done;
         else
-            __wt_evict_remove(session, ref);
+            __wt_evict_remove(session, ref, false);
     } else if (bucketset != NULL &&
 			   __evict_page_correct_bucketset(page, bucketset_level) == false) {
 		/* Page is in the wrong bucketset */
-		__wt_evict_remove(session, ref);
+		__wt_evict_remove(session, ref, false);
 	}
 	printf("page %p %s (type %d) was removed from its bucketset by session %d\n",
 		   (void*)page, __wt_page_type_string(page->type), page->type, session->id);

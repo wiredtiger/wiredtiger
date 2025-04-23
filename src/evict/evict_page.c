@@ -212,7 +212,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
          * page memory or otherwise touching the reference because eviction paths assume a non-NULL
          * reference here.
          */
-        __wt_evict_remove(session, ref);
+        __wt_evict_remove(session, ref, false);
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
