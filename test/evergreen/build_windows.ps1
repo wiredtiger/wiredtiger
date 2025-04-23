@@ -12,14 +12,15 @@ function Find-VcVars {
     }
 
     # 17 is the version of Visual Studio 2022.
-    $installPath = & $vswhere -version [17.0,) `
-                              -products * `
-                              -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-                              -property installationPath `
-                              -nologo
+    $installPath = & $vswhere `
+        -version "[17.0,)" `
+        -products * `
+        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+        -property installationPath `
+        -nologo
 
     if ($LASTEXITCODE -ne 0 -or -not $installPath) {
-        Write-Warning "vswhere did not find any suitable Visual Studio installations with C++ tools."
+        Write-Warning "vswhere did not find any Visual Studio 2022 or newer installation with C++ tools."
         return $null
     }
 
@@ -30,7 +31,7 @@ function Find-VcVars {
 if (-not $vcvars_bat) {
     $vcvars_bat = Find-VcVars
     if (-not $vcvars_bat) {
-        Write-Error "Could not find 'vcvars64.bat' for Visual Studio 2022 or newer. Please specify it using -vcvars_bat."
+        Write-Error "Could not find 'vcvars64.bat'. Please specify it using -vcvars_bat."
         exit 1
     }
 }
