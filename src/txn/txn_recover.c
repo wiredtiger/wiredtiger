@@ -1021,7 +1021,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * Start metadata recovery. Don't allow any Btree files to be opened, they depend on metadata
      * that might be modified during recovery.
      */
-    F_SET_ATOMIC_32(conn, WT_CONN_RECOVERING);
+    F_SET_ATOMIC_32(conn, WT_CONN_RECOVERING_METADATA);
 
     /*
      * If this is a read-only connection, check if the checkpoint LSN in the metadata file is up to
