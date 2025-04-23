@@ -20,12 +20,16 @@ function Find-VcVars {
         -nologo
 
     if ($LASTEXITCODE -ne 0 -or -not $installPath) {
-        Write-Warning "vswhere did not find any Visual Studio 2022 or newer installation with C++ tools."
+        Write-Warning "vswhere did not find any suitable Visual Studio installations."
         return $null
     }
 
     $candidate = Join-Path $installPath "VC\Auxiliary\Build\vcvars64.bat"
-    return (Test-Path $candidate) ? $candidate : $null
+    if (Test-Path $candidate) {
+        return $candidate
+    } else {
+        return $null
+    }
 }
 
 if (-not $vcvars_bat) {
