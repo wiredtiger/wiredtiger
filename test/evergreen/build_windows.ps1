@@ -1,8 +1,28 @@
 param (
     [bool]$configure = $false,
     [bool]$build = $false,
-    [string]$vcvars_bat = "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
+    [string]$vcvars_bat = $null
 )
+
+# If not provided, try to auto-detect
+if (-not $vcvars_bat) {
+    $vcvars_paths = @(
+        "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat",
+        "C:\Program Files\Microsoft Visual Studio\2022\VC\Auxiliary\Build\vcvars64.bat"
+    )
+
+    foreach ($path in $vcvars_paths) {
+        if (Test-Path $path) {
+            $vcvars_bat = $path
+            break
+        }
+    }
+
+    if (-not $vcvars_bat) {
+        Write-Error "Could not locate 'vcvars64.bat'. Please specify it using -vcvars_bat parameter."
+        exit 1
+    }
+}
 
 function Die-On-Failure {
     param (
