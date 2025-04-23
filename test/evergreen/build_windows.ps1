@@ -7,8 +7,7 @@ param (
 function Find-VcVars {
     $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     if (-not (Test-Path $vswhere)) {
-        Write-Warning "vswhere.exe not found at $vswhere"
-        return $null
+        throw "vswhere.exe not found at $vswhere"
     }
 
     # 17 is the version of Visual Studio 2022.
@@ -19,25 +18,20 @@ function Find-VcVars {
         -property installationPath `
         -nologo
 
-    if ($LASTEXITCODE -ne 0 -or -not $installPath) {
-        Write-Warning "vswhere did not find any suitable Visual Studio installations."
-        return $null
+    if ($LastExitCode -ne 0 -or -not $installPath) {
+        throw "vswhere did not find any suitable Visual Studio installations."
     }
 
     $candidate = Join-Path $installPath "VC\Auxiliary\Build\vcvars64.bat"
     if (Test-Path $candidate) {
         return $candidate
     } else {
-        return $null
+        throw "vcvars64.bat was not found at expected path: $candidate"
     }
 }
 
 if (-not $vcvars_bat) {
     $vcvars_bat = Find-VcVars
-    if (-not $vcvars_bat) {
-        Write-Error "Could not find 'vcvars64.bat'. Please specify it using -vcvars_bat."
-        exit 1
-    }
 }
 
 function Die-On-Failure {
