@@ -4,22 +4,33 @@ param (
     [string]$vcvars_bat = $null
 )
 
-# If not provided, try to auto-detect
-if (-not $vcvars_bat) {
-    $vcvars_paths = @(
-        "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat",
-        "C:\Program Files\Microsoft Visual Studio\2022\VC\Auxiliary\Build\vcvars64.bat"
-    )
-
-    foreach ($path in $vcvars_paths) {
-        if (Test-Path $path) {
-            $vcvars_bat = $path
-            break
-        }
+function Find-VcVars {
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) {
+        Write-Warning "vswhere.exe not found at $vswhere"
+        return $null
     }
 
+    # 17 is the version of Visual Studio 2022.
+    $installPath = & $vswhere -version [17.0,) `
+                              -products * `
+                              -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+                              -property installationPath `
+                              -nologo
+
+    if ($LASTEXITCODE -ne 0 -or -not $installPath) {
+        Write-Warning "vswhere did not find any suitable Visual Studio installations with C++ tools."
+        return $null
+    }
+
+    $candidate = Join-Path $installPath "VC\Auxiliary\Build\vcvars64.bat"
+    return (Test-Path $candidate) ? $candidate : $null
+}
+
+if (-not $vcvars_bat) {
+    $vcvars_bat = Find-VcVars
     if (-not $vcvars_bat) {
-        Write-Error "Could not locate 'vcvars64.bat'. Please specify it using -vcvars_bat parameter."
+        Write-Error "Could not find 'vcvars64.bat' for Visual Studio 2022 or newer. Please specify it using -vcvars_bat."
         exit 1
     }
 }
