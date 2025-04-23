@@ -40,7 +40,7 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
         !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
 
-    __wt_evict_remove(session, ref);
+    __wt_evict_remove(session, ref, true /* destroying the page */);
     __wt_page_out(session, &ref->page);
 }
 
@@ -74,6 +74,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
       session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
     WT_ASSERT_ALWAYS(session, WT_EVICT_PAGE_CLEARED(page),
       "Attempting to discard a page that is still in an eviction queue");
+	page->evict_data.destroying = true;
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,
