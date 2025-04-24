@@ -567,16 +567,17 @@ err:
  *     Return if a read can be serviced by the destination file. Callers must hold the file handle
  *     read lock at a minimum.
  *     There are three possible scenarios:
- *     - The read is entirely within a hole and we return false.
- *     - The read is entirely outside of all holes and we return true.
- *     - The read begins outside a hole and then ends inside and we return false.
- *       This scenario will only happen if background data migration occurs concurrently and has
- *       partially migrated the content we're reading. The background threads always copies data in
- *       order, so the partially filled hole can only start outside a hole and then continue into a
- *       hole. However, since reads/writes are always the size of one page, a partial read implies
- *       that no writes have occurred on the page yet. Otherwise, the entire page in bitmap would
- *       have been set to -1, and we will find that the read is entirely outside all holes, which
- *       makes it safe to return false and read from the source.
+ *     - Returns true if the read is entirely outside of all holes.
+ *     - Returns false if:
+ *         - The read is entirely within a hole.
+ *         - The read begins outside a hole and then ends inside.
+ *           This scenario will only happen if background data migration occurs concurrently and has
+ *           partially migrated the content we're reading. The background threads always copies data
+ *           in order, so the partially filled hole can only start outside a hole and then continue
+ *           into a hole. However, since reads/writes are always the size of one page, a partial
+ *           read implies that no writes have occurred on the page yet. Otherwise, the entire page
+ *           in bitmap would have been set to -1, and we will find that the read is entirely outside
+ *           all holes, which makes it safe to return false and read from the source.
  */
 static bool
 __live_restore_can_service_read(
@@ -601,9 +602,15 @@ __live_restore_can_service_read(
     /* Iterate through all set bits(1s) first. */
     while (current_bit < read_end_bit && __bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
-    /* If we reach the end then the entire range is set, we can return early. */
+    /*
+     * If we got here we either traversed the full hole list and didn't find a hole, or the read is
+     * prior to any holes.
+     */
+    __wt_verbose_debug3(
+      session, WT_VERB_LIVE_RESTORE, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
     if (current_bit == read_end_bit)
         return (true);
+
     /* Otherwise, some bits are unset(0s), iterate through those next. */
     while (current_bit < read_end_bit && !__bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
@@ -611,7 +618,7 @@ __live_restore_can_service_read(
      * If we still not reach the end, then this is an invalid case where a set bit appears after an
      * unset bit in the range, e.g. 11000011, 00001111, or 00110011.
      */
-    if (current_bit < read_end_bit) {
+    if (current_bit != read_end_bit) {
         WT_IGNORE_RET(__live_restore_dump_bitmap(session, lr_fh));
         WT_ASSERT_ALWAYS(session, false,
           "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT ") find a set bit (offset: %" PRId64
