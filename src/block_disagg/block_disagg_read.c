@@ -106,6 +106,7 @@ reread:
          * Retry a read again. This code may go away once we establish a way to ask for a particular
          * delta.
          */
+        WT_STAT_CONN_INCR(session, block_reread);
         __wt_verbose_notice(session, WT_VERB_READ,
           "retry #%" PRIu32 " for page_id %" PRIu64 ", lsn %" PRIu64 ", checkpoint_id %" PRIu64
           ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
