@@ -481,7 +481,7 @@ wt_build_dir_path()
 std::string
 wt_disagg_config_string()
 {
-    std::string extension = wt_extension_path("page_log/palm/libwiredtiger_page_log.so");
+    std::string extension = wt_extension_path("page_log/palm/libwiredtiger_palm.so");
 
     std::ostringstream config;
     config << "checkpoint=(precise=true),";
