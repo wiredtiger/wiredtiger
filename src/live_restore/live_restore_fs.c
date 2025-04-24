@@ -602,14 +602,16 @@ __live_restore_can_service_read(
     /* Iterate through all set bits(1s) first. */
     while (current_bit < read_end_bit && __bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
-    /*
-     * If we got here we either traversed the full hole list and didn't find a hole, or the read is
-     * prior to any holes.
-     */
-    __wt_verbose_debug3(
-      session, WT_VERB_LIVE_RESTORE, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
-    if (current_bit == read_end_bit)
+
+    if (current_bit == read_end_bit) {
+        /*
+         * If we got here we either traversed the full hole list and didn't find a hole, or the read
+         * is prior to any holes.
+         */
+        __wt_verbose_debug3(
+          session, WT_VERB_LIVE_RESTORE, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
         return (true);
+    }
 
     /* Otherwise, some bits are unset(0s), iterate through those next. */
     while (current_bit < read_end_bit && !__bit_test(lr_fh->bitmap, current_bit))
