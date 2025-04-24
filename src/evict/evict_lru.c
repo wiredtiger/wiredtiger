@@ -1012,8 +1012,6 @@ __evict_get_ref(
 				previous_state =  WT_REF_GET_STATE_STRICT(ref);
 				if (previous_state == WT_REF_LOCKED) {
 					WT_STAT_CONN_INCR(session, eviction_skip_pages_locked_or_evicted);
-                    __wt_verbose_notice(session, WT_VERB_EVICTION, "%s",
-                      "eviction skipped a page because it was locked or evicted");
 					printf("page %p was locked or evicted. Eviction skipping... session %d\n",
 						   (void*)page, (int)session->id);
 					fflush(stdout);
@@ -1022,8 +1020,6 @@ __evict_get_ref(
 				} else if (previous_state == WT_REF_MEM) {
 					if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
 						WT_STAT_CONN_INCR(session, eviction_skip_pages_locked_or_evicted);
-						__wt_verbose_notice(session, WT_VERB_EVICTION, "%s",
-											"eviction contended for page lock and skipped page");
 						printf("page %p could not be locked. Eviction skipping... session %d\n",
 							   (void*)page, (int)session->id);
 						fflush(stdout);
