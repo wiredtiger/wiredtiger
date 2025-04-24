@@ -1952,7 +1952,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     uint64_t min_range, max_range, dst_bucket, read_gen, retries;
 
     page = ref->page;
-    page->evict_data.dhandle = dhandle;
 	previous_state = WT_REF_GET_STATE_STRICT(ref);
     retries = 0;
 
@@ -1998,34 +1997,38 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 		must_unlock_ref = true;
 	}
 
+	page->evict_data.dhandle = dhandle;
+	bucket = page->evict_data.bucket;
 	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level);
+
 	if (is_new) {
-		WT_ASSERT(session, bucketset == NULL && page->evict_data.bucket == NULL);
+		WT_ASSERT(session, bucketset == NULL && bucket == NULL);
 		printf("page %p is new by session %d\n", (void*)page, (int)session->id);
 		fflush(stdout);
 		goto new;
 	}
-	bucket = page->evict_data.bucket;
+
 	/* If the page is already in a bucketset, is this the right one? */
-	if (bucketset != NULL && __evict_page_correct_bucketset(page, bucketset_level)) {
-		bucket = page->evict_data.bucket; /* won't be NULL if bucketset was set to a value */
-        /* Is the page already in the right bucket? */
-        __evict_bucket_range(session, bucket, &min_range, &max_range);
-        if ((read_gen = __wt_atomic_load64(&page->evict_data.read_gen)) >= min_range
-			&& read_gen <= max_range)
-            goto done;
-        else
-            __wt_evict_remove(session, ref, false);
-    } else if (bucketset != NULL &&
-			   __evict_page_correct_bucketset(page, bucketset_level) == false) {
-		/* Page is in the wrong bucketset */
-		__wt_evict_remove(session, ref, false);
+	if (bucketset != NULL) {
+		WT_ASSERT(session, bucket != NULL);
+		if (__evict_page_correct_bucketset(page, bucketset_level)) {
+			bucket = page->evict_data.bucket; /* won't be NULL if bucketset was set to a value */
+			/* Is the page already in the right bucket? */
+			__evict_bucket_range(session, bucket, &min_range, &max_range);
+			if ((read_gen = __wt_atomic_load64(&page->evict_data.read_gen)) >= min_range
+				&& read_gen <= max_range)
+				goto done;
+			else
+				__wt_evict_remove(session, ref, false);
+		} else /* wrong bucketset */
+			__wt_evict_remove(session, ref, false);
 	}
 	printf("page %p %s (type %d) was removed from bucket %p by session %d\n",
 		   (void*)page, __wt_page_type_string(page->type), page->type, (void*)bucket, session->id);
 	fflush(stdout);
 
   new:
+	WT_ASSERT(session, page->evict_data.bucket == NULL);
     /* Find the bucket set for the page depending on its type */
     if (WT_PAGE_IS_INTERNAL(page)) {
         if (__wt_page_is_modified(page))
