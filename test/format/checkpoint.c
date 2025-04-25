@@ -81,6 +81,9 @@ checkpoint(void *arg)
     /* FIXME-WT-10771 Named checkpoints are not yet allowed with tiered storage. */
     if (g.tiered_storage_config)
         named_checkpoints = false;
+    /* Named checkpoints are not allowed with disaggregated storage. */
+    if (g.disagg_storage_config)
+        named_checkpoints = false;
 
     for (secs = mmrand(&g.extra_rnd, 1, 10); !g.workers_finished;) {
         if (secs > 0) {
