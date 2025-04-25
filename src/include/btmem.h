@@ -420,12 +420,20 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
+    /*
+     * Track the timestamp used for the most recent reconciliation. It's useful to avoid duplicating
+     * work when precise checkpoints are enabled, so we don't re-reconcile pages when no new content
+     * could be written.
+     */
+    wt_timestamp_t rec_pinned_stable_timestamp;
+
     /* The largest update transaction ID (approximate). */
     uint64_t update_txn;
 
     /* Dirty bytes added to the cache. */
     wt_shared size_t bytes_dirty;
     wt_shared size_t bytes_updates;
+    wt_shared size_t bytes_delta_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
@@ -871,6 +879,9 @@ struct __wt_page {
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 
+    uint64_t old_rec_lsn_max; /* The LSN associated with the page's before the most recent
+                                 reconciliation */
+    uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
     WT_PAGE_BLOCK_META block_meta; /* Block metadata */
 
 #ifdef HAVE_DIAGNOSTIC
@@ -1576,7 +1587,7 @@ struct __wt_update {
  */
 #define WT_UPDATE_SELECT_FOR_DS                                                      \
     WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
-      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS
+      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA | WT_UPDATE_TO_DELETE_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.

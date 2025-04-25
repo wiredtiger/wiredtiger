@@ -262,12 +262,17 @@ __rec_row_merge(
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
         /*
-         * Build the key and value cells. We should inherit the old key for the first page.
-         * Otherwise, it is difficult to build the delta for that key as it can change.
+         * Build the key and value cells. We should inherit the old key for the first page if we
+         * want to build a delta. Otherwise, it is difficult to build the delta for that key as it
+         * can change.
          */
         if (i == 0) {
-            __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
-            WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
+            if (*build_delta) {
+                __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
+                WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
+            } else
+                WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey),
+                  r->cell_zero ? 1 : multi->key.ikey->size));
         } else
             WT_RET(__rec_cell_build_int_key(
               session, r, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size));
@@ -297,6 +302,26 @@ __rec_row_merge(
 }
 
 /*
+ * __rec_build_delta_int --
+ *     Build delta for Internal pages.
+ */
+static int
+__rec_build_delta_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool build_delta)
+{
+    WT_DELTA_HEADER *header;
+
+    if (!build_delta) {
+        r->delta.size = 0;
+        return (0);
+    }
+
+    WT_RET(__wti_rec_build_delta_init(session, r));
+    header = (WT_DELTA_HEADER *)r->delta.data;
+    header->type = r->ref->page->type;
+    return (0);
+}
+
+/*
  * __wti_rec_row_int --
  *     Reconcile a row-store internal page.
  */
@@ -317,7 +342,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_TIME_AGGREGATE ft_ta, *source_ta, ta;
     size_t size;
     uint16_t prev_ref_changes;
-    bool build_delta;
+    bool build_delta, retain_onpage;
     const void *p;
 
     btree = S2BT(session);
@@ -337,10 +362,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     build_delta = WT_BUILD_DELTA_INT(session, r);
 
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxintlpage_precomp, 0));
-    if (build_delta)
-        WT_RET(__wti_rec_build_delta_init(session, r));
-    else
-        r->delta.size = 0;
+    WT_RET(__rec_build_delta_int(session, r, build_delta));
 
     /*
      * Ideally, we'd never store the 0th key on row-store internal pages because it's never used
@@ -365,6 +387,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         }
 
         WT_ACQUIRE_READ(prev_ref_changes, ref->ref_changes);
+        retain_onpage = false;
 
         /*
          * There are different paths if the key is an overflow item vs. a straight-forward on-page
@@ -496,11 +519,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             __wt_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
             source_ta = &vpack->ta;
         } else {
+            retain_onpage = true;
             /*
              * The transaction ids are cleared after restart. Repack the cell with new validity
              * information to flush cleared transaction ids.
              */
-            WT_ASSERT_ALWAYS(session, cms.state == WT_CHILD_ORIGINAL,
+            WT_ASSERT_ALWAYS(session,
+              cms.state == WT_CHILD_ORIGINAL || F_ISSET(btree, WT_BTREE_DISAGGREGATED),
               "Not propagating the original fast-truncate information");
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
 
@@ -554,7 +579,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Update compression state. */
         __rec_key_state_update(r, false);
 
-        if (build_delta && prev_ref_changes > 0)
+        if (build_delta && prev_ref_changes > 0 && !retain_onpage)
             WT_ERR(__wti_rec_pack_delta_internal(session, r, key, val));
 
         /*

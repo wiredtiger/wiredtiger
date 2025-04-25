@@ -460,6 +460,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     mod = ref->page->modify;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
+    WT_ASSERT(session, ref->addr == NULL || F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
+
     switch (mod->rec_result) {
     case WT_PM_REC_EMPTY:
         /*
@@ -507,7 +509,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             mod->mod_replace.block_cookie_size = 0;
             ref->addr = addr;
         } else
-            WT_ASSERT(session, ref->addr != NULL);
+            WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
 
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
@@ -694,6 +696,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    wt_timestamp_t checkpoint_timestamp;
     bool closing, modified;
 
     *inmem_splitp = false;
@@ -769,6 +772,19 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_hs);
         return (__wt_set_return(session, EBUSY));
     }
+
+    /*
+     * If precise checkpoints are enabled, and this page was already reconciled at a time that
+     * services the checkpoint, don't try again. Reconciling the page again without the timestamp
+     * moving would result in the same page being written out as last time.
+     */
+    WT_ACQUIRE_READ(checkpoint_timestamp, conn->txn_global.checkpoint_timestamp);
+    if (F_ISSET(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
+      page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
+        WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_precise);
+        return (__wt_set_return(session, EBUSY));
+    }
+
     /*
      * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
      * history store or reading a checkpoint), give up.
@@ -820,7 +836,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * restored, changes can't be written into the history store table, nor can we re-create
      * internal pages in memory.
      *
-     * Don't set any other flags for history store table as all the content is evictable.
+     * Don't set any other visibility flags for history store table as all the content is evictable.
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
@@ -836,6 +852,20 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
           (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
             __wt_random(&session->rnd) % 3 == 0))
             LF_SET(WT_REC_SCRUB);
+    }
+
+    /*
+     * We must do scrub dirty eviction for disaggregated storage btrees as we cannot read back the
+     * evicted page until they are materialized.
+     */
+    if (!closing && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+        /*
+         * We should not evict dirty internal pages for disaggregated storage as they cannot be
+         * recreated in-memory and it doesn't effectively reduce cache usage.
+         */
+        WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
+          "Evicting dirty internal pages for disaggregated storage is not allowed.");
+        LF_SET(WT_REC_SCRUB);
     }
 
     /*

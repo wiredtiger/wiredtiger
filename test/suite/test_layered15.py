@@ -94,7 +94,7 @@ class test_layered15(wttest.WiredTigerTestCase, DisaggConfigMixin):
             metadata[cursor.get_key()] = cursor.get_value()
         for uri in expect_contains:
             self.assertTrue(uri in metadata)
-            if uri.endswith("wt_ingest"):
+            if uri.endswith("wt_ingest") or uri.endswith("wt_stable") or uri in self.file_uris:
                 self.assertTrue("log=(enabled=false)" in metadata[uri])
         for uri in expect_missing:
             self.assertFalse(uri in metadata)

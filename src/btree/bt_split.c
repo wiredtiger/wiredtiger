@@ -699,8 +699,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * which seems like asking for trouble.) Don't discard any ref has the prefetch flag,
              * the prefetch thread would crash if it sees a freed ref.
              */
-            if (next_ref->ref_changes == 0 && next_ref != ref &&
-              WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
+            if ((!F_ISSET(btree, WT_BTREE_DISAGGREGATED) || next_ref->ref_changes == 0) &&
+              next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
               __wti_delete_page_skip(session, next_ref, true) &&
@@ -1409,7 +1409,11 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
       session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &instantiate_upd));
     multi->disk_image = NULL;
 
-    ref->page->block_meta = multi->block_meta;
+    /* Preserve the relevant metadata. */
+    page->block_meta = multi->block_meta;
+    ref->page->old_rec_lsn_max = multi->block_meta.disagg_lsn;
+    page->rec_lsn_max = multi->block_meta.disagg_lsn;
+    WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
 
     /*
      * In-memory databases restore non-obsolete updates directly in this function, don't call the
@@ -1435,8 +1439,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * if we have content to clean up in the future.
      */
     if (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT)) {
-        WT_RET(__wt_page_modify_init(session, ref->page));
-        __wt_page_modify_set(session, ref->page);
+        WT_RET(__wt_page_modify_init(session, page));
+        __wt_page_modify_set(session, page);
     }
 
     /*
@@ -1686,6 +1690,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
   size_t multi_entries, WT_REF **refp, size_t *incrp, bool first, bool closing)
 {
     WT_ADDR *addr, *old_addr;
+    WT_BTREE *btree;
     WT_IKEY *ikey;
     WT_REF *ref;
     size_t key_size;
@@ -1704,13 +1709,13 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     WT_ASSERT(session, multi->disk_image != NULL || !multi->supd_restore);
 
     /* Verify any disk image we have. */
-#if 1
     WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_DISK_VALIDATE,
       multi->disk_image == NULL ||
         __wt_verify_dsk_image(session, "[page instantiate]", multi->disk_image, 0, &multi->addr,
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0,
       "Failed to verify a disk image");
-#endif
+
+    btree = S2BT(session);
 
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
@@ -1725,7 +1730,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     switch (page->type) {
     case WT_PAGE_ROW_INT:
     case WT_PAGE_ROW_LEAF:
-        if (first) {
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && first) {
             __wt_ref_key(old_ref->home, old_ref, &key, &key_size);
             WT_RET(__wti_row_ikey(session, 0, key, key_size, ref));
             if (incrp)
@@ -1738,10 +1743,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         }
         break;
     default:
-        if (first)
-            ref->ref_recno = old_ref->ref_recno;
-        else
-            ref->ref_recno = multi->key.recno;
+        ref->ref_recno = multi->key.recno;
         break;
     }
 
@@ -1777,7 +1779,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
-    } else if (multi_entries == 1 && old_ref->addr != NULL) {
+    } else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && multi_entries == 1 &&
+      old_ref->addr != NULL) {
         old_addr = (WT_ADDR *)old_ref->addr;
         if (!__wt_off_page(old_ref->home, old_addr))
             ref->addr = old_addr;
@@ -2249,6 +2252,9 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
      * eviction, then proceed with the split.
      */
     WT_WITH_PAGE_INDEX(session, ret = __split_multi_lock(session, ref, closing));
+
+    if (ret == EBUSY)
+        WT_STAT_CONN_DSRC_INCR(session, cache_evict_split_failed_lock);
     return (ret);
 }
 
@@ -2305,6 +2311,10 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
 
+    /* We can only rewrite leaf pages. */
+    WT_ASSERT_ALWAYS(
+      session, F_ISSET(ref, WT_REF_FLAG_LEAF), "Rewriting internal pages is not allowed.");
+
     /*
      * This isn't a split: a reconciliation failed because we couldn't write something, and in the
      * case of forced eviction, we need to stop this page from being such a problem. We have
@@ -2344,6 +2354,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     /* If there's an address, copy it. */
     if (multi->addr.block_cookie != NULL) {
+        WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
         WT_ERR(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_ERR(__wt_memdup(

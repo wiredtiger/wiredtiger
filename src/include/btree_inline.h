@@ -313,6 +313,49 @@ __wt_btree_shared_base_name(
 }
 
 /*
+ * __wt_cache_page_inmem_incr_delta_updates --
+ *     Increment a page's delta updates in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_incr_delta_updates(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    WT_ASSERT(session, size < WT_EXABYTE);
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    (void)__wt_atomic_add64(&cache->bytes_delta_updates, size);
+    (void)__wt_atomic_add64(&btree->bytes_delta_updates, size);
+    (void)__wt_atomic_addsize(&page->modify->bytes_delta_updates, size);
+}
+
+/*
+ * __wt_cache_page_inmem_decr_delta_updates --
+ *     Decrease a page's delta updates in the cache.
+ */
+static WT_INLINE void
+__wt_cache_page_inmem_decr_delta_updates(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+{
+    WT_BTREE *btree;
+    WT_CACHE *cache;
+
+    WT_ASSERT(session, size < WT_EXABYTE);
+    btree = S2BT(session);
+    cache = S2C(session)->cache;
+
+    if (__wt_atomic_load64(&page->modify->bytes_delta_updates) > 0) {
+        __wt_cache_decr_check_uint64(
+          session, &page->modify->bytes_delta_updates, size, "WT_PAGE_MODIFY.bytes_delta_updates");
+        __wt_cache_decr_check_uint64(
+          session, &btree->bytes_delta_updates, size, "WT_BTREE.bytes_delta_updates");
+        __wt_cache_decr_check_uint64(
+          session, &cache->bytes_delta_updates, size, "WT_CACHE.bytes_delta_updates");
+    }
+}
+
+/*
  * __wt_cache_page_inmem_incr --
  *     Increment a page's memory footprint in the cache.
  */
@@ -691,6 +734,10 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
           session, &btree->bytes_updates, modify->bytes_updates, "WT_BTREE.bytes_updates");
         __wt_cache_decr_check_uint64(
           session, &cache->bytes_updates, modify->bytes_updates, "WT_CACHE.bytes_updates");
+        __wt_cache_decr_check_uint64(session, &btree->bytes_delta_updates,
+          modify->bytes_delta_updates, "WT_BTREE.bytes_delta_updates");
+        __wt_cache_decr_check_uint64(session, &cache->bytes_delta_updates,
+          modify->bytes_delta_updates, "WT_CACHE.bytes_delta_updates");
     }
 
     /* Update bytes and pages evicted. */
@@ -1938,6 +1985,34 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __wt_page_materialization_check --
+ *     Check if the page can be evicted given the current materialization frontier.
+ */
+static WT_INLINE bool
+__wt_page_materialization_check(WT_SESSION_IMPL *session, uint64_t rec_lsn_max)
+{
+    WT_DISAGGREGATED_STORAGE *disagg;
+    uint64_t last_materialized_lsn;
+
+    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+        return (true);
+
+    /*
+     * Pages that haven't been written back can be evicted. This will lead to them being reconciled
+     * and retained, not actually evicted.
+     */
+    if (rec_lsn_max == WT_DISAGG_LSN_NONE)
+        return (true);
+
+    disagg = &S2C(session)->disaggregated_storage;
+    WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
+    if (last_materialized_lsn == WT_DISAGG_LSN_NONE)
+        return (true);
+
+    return (rec_lsn_max <= last_materialized_lsn);
+}
+
+/*
  * __wt_page_can_evict --
  *     Check whether a page can be evicted.
  */
@@ -1945,12 +2020,10 @@ static WT_INLINE bool
 __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 {
     WT_BTREE *btree;
-    WT_DISAGGREGATED_STORAGE *disagg;
     WT_PAGE *page;
-    WT_PAGE_BLOCK_META *block_meta;
     WT_PAGE_MODIFY *mod;
-    uint64_t last_materialized_lsn;
-    bool modified;
+    uint64_t checkpoint_gen;
+    bool checkpoint_running, modified;
 
     if (inmem_splitp != NULL)
         *inmem_splitp = false;
@@ -1967,30 +2040,22 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (false);
 
     /*
-     * In the case of disaggregated storage, we need to avoid evicting pages that have not been
-     * materialized yet. Evicting such page and then reading it back in would result in a
-     * potentially significant stall.
+     * Pages without modify structures can always be evicted as long as they were created via a read
+     * from the underlying storage. If they were created via a scrub eviction in disaggregated
+     * storage they need to be retained until they are available to be read back from the storage
+     * service. Note that dirty pages can be "evicted" in front of the materialization frontier - it
+     * is OK for their content to be written back to stable storage and other in-memory transitions
+     * to happen, as long as their equivalent content remains in cache until the materialization
+     * frontier is satisfied.
      */
-    if (__wt_conn_is_disagg(session)) {
-        disagg = &S2C(session)->disaggregated_storage;
-        WT_ACQUIRE_READ(last_materialized_lsn, disagg->last_materialized_lsn);
-        if (last_materialized_lsn != WT_DISAGG_LSN_NONE) {
-            block_meta = &ref->page->block_meta;
-
-            /* Check if there is a newer block metadata struct in the page's modify struct. */
-            if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
-                WT_ASSERT(session, mod->mod_multi_entries > 0);
-                block_meta = &mod->mod_multi[mod->mod_multi_entries - 1].block_meta;
-            }
-
-            if (block_meta->disagg_lsn > last_materialized_lsn)
-                return (false);
+    if (mod == NULL) {
+        if (__wt_page_materialization_check(session, page->rec_lsn_max))
+            return (true);
+        else {
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
+            return (false);
         }
     }
-
-    /* Pages without modify structures can always be evicted, it's just discarding a disk image. */
-    if (mod == NULL)
-        return (true);
 
     /*
      * Check the fast-truncate information. Pages with an uncommitted truncate cannot be evicted.
@@ -2038,6 +2103,15 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     modified = __wt_page_is_modified(page);
 
     /*
+     * Clean pages that are in front of the materialization check should not proceed to eviction.
+     * They would not go through reconciliation, but just be discarded which isn't OK.
+     */
+    if (!modified && !__wt_page_materialization_check(session, page->rec_lsn_max)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_materialization);
+        return (false);
+    }
+
+    /*
      * If the file is being checkpointed, other threads can't evict dirty pages: if a page is
      * written and the previous version freed, that previous version might be referenced by an
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
@@ -2048,15 +2122,28 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     }
 
     /*
+     * Don't evict dirty internal pages for disaggregated storage. They cannot be recreated
+     * in-memory and it will not reduce cache usage.
+     */
+    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_dirty_internal_page);
+        return (false);
+    }
+
+    /*
      * Don't evict the disaggregated page that should belong to the next checkpoint.
      *
      * It is safe to evict when checkpoint is not running because we have opened a new checkpoint
      * before we set the checkpoint running flag to false.
      */
-    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_SESSION_BTREE_SYNC(session) &&
-      btree->checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT) &&
-      __wt_atomic_loadvbool(&S2C(session)->txn_global.checkpoint_running))
-        return (false);
+    if (modified && F_ISSET(btree, WT_BTREE_DISAGGREGATED) && !WT_SESSION_BTREE_SYNC(session)) {
+        WT_ACQUIRE_READ(checkpoint_gen, btree->checkpoint_gen);
+        if (checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
+            WT_ACQUIRE_READ(checkpoint_running, S2C(session)->txn_global.checkpoint_running);
+            if (checkpoint_running)
+                return (false);
+        }
+    }
 
     /*
      * Check we are not evicting an accessible internal page with an active split generation.

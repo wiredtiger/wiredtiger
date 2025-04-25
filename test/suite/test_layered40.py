@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -26,36 +26,43 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
-from helper_disagg import disagg_test_class
+import os, os.path, shutil, time, wttest
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from wtscenario import make_scenarios
 
-# test_layered02.py
-#    Basic layered tree cursor creation
+# test_layered40.py
+#    Test layered table metadata has logging disabled.
 @disagg_test_class
-class test_layered02(wttest.WiredTigerTestCase):
+class test_layered40(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    conn_config = 'log=(enabled=true),disaggregated=(page_log=palm,role="leader"),'
 
-    uri_base = "test_layered02"
-    conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
-                + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
+    create_session_config = 'key_format=S,value_format=S'
 
-    uri = "layered:" + uri_base
+    layered_uris = ["table:test_layered40a", "layered:test_layered40b"]
+
+    disagg_storages = gen_disagg_storages('test_layered40', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
 
     # Load the page log extension, which has object storage support
     def conn_extensions(self, extlist):
         if os.name == 'nt':
             extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+        DisaggConfigMixin.conn_extensions(self, extlist)
 
-    # Test inserting a record into a layered tree
-    def test_layered02(self):
-        base_create = 'key_format=S,value_format=S'
+    # Ensure that the metadata cursor has all the expected URIs.
+    def check_metadata_cursor(self):
+        cursor = self.session.open_cursor('metadata:create', None, None)
+        for key in self.layered_uris:
+            cursor.set_key(key)
+            self.assertEqual(cursor.search(), 0)
+            self.assertTrue("log=(enabled=false)" in cursor.get_value())
 
-        self.pr("create layered tree")
-        self.session.create(self.uri, base_create)
+    def test_layered40(self):
+        # Create tables
+        for uri in self.layered_uris:
+            cfg = self.create_session_config
+            if not uri.startswith('layered'):
+                cfg += ',block_manager=disagg,type=layered'
+            self.session.create(uri, cfg)
 
-        self.pr('opening cursor')
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        self.pr('opening cursor')
-        cursor.close()
-
+        self.check_metadata_cursor()

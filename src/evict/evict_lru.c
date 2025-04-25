@@ -498,6 +498,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
             WT_RET(__wt_verbose_dump_txn(session));
             WT_RET(__wt_verbose_dump_cache(session));
+            WT_RET(__wt_verbose_dump_metadata(session));
             return (__wt_set_return(session, ETIMEDOUT));
 #else
             if (WT_VERBOSE_ISSET(session, WT_VERB_EVICT_STUCK)) {

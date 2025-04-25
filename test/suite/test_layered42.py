@@ -26,36 +26,33 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
-from helper_disagg import disagg_test_class
+import wttest
+from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
+from wiredtiger import stat
+from wtscenario import make_scenarios
 
-# test_layered02.py
-#    Basic layered tree cursor creation
+# test_layered42.py
+#    Test blocking dirty internal page eviction for disaggregated storage.
 @disagg_test_class
-class test_layered02(wttest.WiredTigerTestCase):
+class test_layered42(wttest.WiredTigerTestCase, DisaggConfigMixin):
+    conn_base_config = ',cache_size=50MB,disaggregated=(page_log=palm),disaggregated=(role="leader")'
 
-    uri_base = "test_layered02"
-    conn_config = 'verbose=[layered],disaggregated=(role="leader"),' \
-                + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
+    disagg_storages = gen_disagg_storages('test_layered41', disagg_only = True)
+    scenarios = make_scenarios(disagg_storages)
 
-    uri = "layered:" + uri_base
+    def conn_config(self):
+        return self.extensionsConfig() + self.conn_base_config
 
-    # Load the page log extension, which has object storage support
-    def conn_extensions(self, extlist):
-        if os.name == 'nt':
-            extlist.skip_if_missing = True
-        extlist.extension('page_log', 'palm')
+    def test_layered42(self):
+        uri = "layered:test_layered42"
+        self.session.create(uri, "key_format=i,value_format=S")
 
-    # Test inserting a record into a layered tree
-    def test_layered02(self):
-        base_create = 'key_format=S,value_format=S'
+        c = self.session.open_cursor(uri)
+        for i in range(0, 5000000):
+            self.session.begin_transaction()
+            c[i] = str(i)
+            self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(1)}')
 
-        self.pr("create layered tree")
-        self.session.create(self.uri, base_create)
-
-        self.pr('opening cursor')
-        cursor = self.session.open_cursor(self.uri, None, None)
-
-        self.pr('opening cursor')
-        cursor.close()
-
+        stat_cursor = self.session.open_cursor('statistics:')
+        self.assertGreater(stat_cursor[stat.conn.cache_eviction_blocked_disagg_dirty_internal_page][2], 0)
+        stat_cursor.close()
