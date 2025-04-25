@@ -269,6 +269,40 @@ configure_debug_mode(char **p, size_t max)
 }
 
 /*
+ * configure_disagg_storage --
+ *     Configure disaggregated storage settings for opening a connection.
+ */
+static void
+configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, size_t ext_cfg_size)
+{
+    TEST_OPTS opts;
+    char disagg_cfg[1024];
+
+    if (!g.disagg_storage_config) {
+        testutil_assert(ext_cfg_size > 0);
+        ext_cfg[0] = '\0';
+        return;
+    }
+
+    memset(&opts, 0, sizeof(opts));
+    opts.disagg_storage = true;
+
+    /*
+     * We need to cast these values. Normally, testutil allocates and fills these strings based on
+     * command line arguments and frees them when done. Format doesn't use the standard test command
+     * line parser and doesn't rely on testutil to free anything in this struct. We're only using
+     * the options struct on a temporary basis to help create the tiered storage configuration.
+     */
+    opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
+    opts.home = (char *)home;
+    opts.build_dir = (char *)BUILDDIR;
+
+    testutil_disagg_storage_configuration(
+      &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);
+    CONFIG_APPEND(*p, ",%s", disagg_cfg);
+}
+
+/*
  * configure_tiered_storage --
  *     Configure tiered storage settings for opening a connection.
  */
@@ -359,7 +393,7 @@ create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[8 * 1024], *p, tiered_ext_cfg[1024];
+    char config[8 * 1024], disagg_ext_cfg[1024], *p, tiered_ext_cfg[1024];
     const char *s, *sources;
 
     p = config;
@@ -451,6 +485,9 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Optional debug mode. */
     configure_debug_mode(&p, max);
 
+    /* Optional disaggregated storage. */
+    configure_disagg_storage(home, &p, max, disagg_ext_cfg, sizeof(disagg_ext_cfg));
+
     /* Optional tiered storage. */
     configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
 
@@ -465,7 +502,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Extensions. */
     CONFIG_APPEND(p,
       ",extensions=["
-      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s],",
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s, %s],",
       /* Collators. */
       REVERSE_PATH,
       /* Compressors. */
@@ -473,6 +510,8 @@ create_database(const char *home, WT_CONNECTION **connp)
       EXTENSION_PATH(ZSTD_PATH),
       /* Encryptors. */
       EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
+      /* Page log. */
+      disagg_ext_cfg,
       /* Storage source. */
       tiered_ext_cfg);
 
@@ -590,6 +629,16 @@ create_object(TABLE *table, void *arg)
         CONFIG_APPEND(p, "merge_max=%" PRIu32 ",", TV(LSM_MERGE_MAX));
         CONFIG_APPEND(p, ",)");
     }
+    /*
+     * Configure layered. Although disagg support is separated from layered support, we expect them
+     * to be used together, at least for now.
+     */
+    if (DATASOURCE(table, "layered") != TV(DISAGG_ENABLED))
+        testutil_die(ENOMEM, "disagg setting expected to match layered setting");
+    if (DATASOURCE(table, "layered"))
+        CONFIG_APPEND(p, ",type=layered");
+    if (TV(DISAGG_ENABLED))
+        CONFIG_APPEND(p, ",block_manager=disagg");
 
     if (max == 0)
         testutil_die(ENOMEM, "WT_SESSION.create configuration buffer too small");
