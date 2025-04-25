@@ -8,17 +8,17 @@ set(sources
   "../../../third_party/openldap_liblmdb/midl.c"
 )
 
-add_library(wiredtiger_page_log MODULE ${sources})
+add_library(wiredtiger_palm MODULE ${sources})
 
 target_include_directories(
-    wiredtiger_page_log
+    wiredtiger_palm
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_BINARY_DIR}/include
         ${CMAKE_BINARY_DIR}/config
 )
 target_compile_options(
-    wiredtiger_page_log
+    wiredtiger_palm
     PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )
 
