@@ -289,6 +289,7 @@ conn_stats = [
     ##########################################
     # Cache statistics
     ##########################################
+    CacheStat('cache_bytes_delta_updates', 'bytes allocated for delta updates', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_hs', 'bytes belonging to the history store table in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_image', 'bytes belonging to page images in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_internal', 'tracked bytes belonging to internal pages in the cache', 'no_clear,no_scale,size'),
@@ -1069,6 +1070,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_checkpoint_precise', 'precise checkpoint caused an eviction to be skipped because any dirty content needs to remain in cache'),
     CacheStat('cache_eviction_blocked_hazard', 'hazard pointer blocked page eviction'),
     CacheStat('cache_eviction_blocked_internal_page_split', 'internal page split blocked its eviction'),
+    CacheStat('cache_eviction_blocked_materialization', 'page eviction blocked due to materialization frontier'),
     CacheStat('cache_eviction_blocked_multi_block_reconciliation_during_checkpoint', 'multi-block reconciliation blocked whilst checkpoint is running'),
     CacheStat('cache_eviction_blocked_no_progress', 'eviction gave up due to no progress being made'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_1', 'eviction gave up due to detecting a disk value without a timestamp behind the last update on the chain'),
@@ -1121,9 +1123,11 @@ conn_dsrc_stats = [
     CacheStat('cache_read_checkpoint', 'pages read into cache by checkpoint'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
+    CacheStat('cache_read_delta_updates', 'size of delta updates reconstructed on the base page'),
     CacheStat('cache_read_internal_delta', 'number of internal pages read that had deltas attached'),
     CacheStat('cache_read_leaf_delta', 'number of leaf pages read that had deltas attached'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
+    CacheStat('cache_read_restored_tombstone_bytes', 'size of tombstones restored when reading a page'),
     CacheStat('cache_reverse_splits', 'reverse splits performed'),
     CacheStat('cache_reverse_splits_skipped_vlcs', 'reverse splits skipped because of VLCS namespace gap restrictions'),
     CacheStat('cache_scrub_restore', 'reconciled pages scrubbed and added back to the cache clean'),

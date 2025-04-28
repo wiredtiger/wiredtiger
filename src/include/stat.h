@@ -511,6 +511,7 @@ struct __wt_connection_stats {
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
     int64_t cache_write_app_time;
+    int64_t cache_bytes_delta_updates;
     int64_t cache_bytes_updates;
     int64_t cache_bytes_image;
     int64_t cache_bytes_hs;
@@ -638,6 +639,7 @@ struct __wt_connection_stats {
     int64_t cache_read_overflow;
     int64_t eviction_app_attempt;
     int64_t eviction_app_fail;
+    int64_t cache_eviction_blocked_materialization;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
     int64_t eviction_consider_prefetch;
@@ -672,6 +674,8 @@ struct __wt_connection_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_read_delta_updates;
+    int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t eviction_reentry_hs_eviction_milliseconds;
@@ -1356,6 +1360,7 @@ struct __wt_dsrc_stats {
     int64_t cache_read_leaf_delta;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
+    int64_t cache_eviction_blocked_materialization;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
     int64_t cache_eviction_dirty_obsolete_tw;
@@ -1374,6 +1379,8 @@ struct __wt_dsrc_stats {
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
     int64_t cache_reverse_splits_skipped_vlcs;
+    int64_t cache_read_delta_updates;
+    int64_t cache_read_restored_tombstone_bytes;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_dirty;

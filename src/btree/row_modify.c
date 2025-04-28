@@ -358,7 +358,7 @@ __wt_update_obsolete_check(
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     wt_timestamp_t prune_timestamp;
-    size_t size;
+    size_t delta_upd_size, size, upd_size;
     uint64_t oldest_id;
     u_int count;
 
@@ -437,10 +437,17 @@ __wt_update_obsolete_check(
          * checkpoints cleaning a page.
          */
         if (update_accounting) {
-            for (size = 0, upd = next; upd != NULL; upd = upd->next)
-                size += WT_UPDATE_MEMSIZE(upd);
-            if (size != 0)
+            for (delta_upd_size = 0, size = 0, upd = next; upd != NULL; upd = upd->next) {
+                upd_size = WT_UPDATE_MEMSIZE(upd);
+                size += upd_size;
+                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA))
+                    delta_upd_size += upd_size;
+            }
+            if (size != 0) {
                 __wt_cache_page_inmem_decr(session, page, size);
+                if (delta_upd_size != 0)
+                    __wt_cache_page_inmem_decr_delta_updates(session, page, delta_upd_size);
+            }
         }
     }
 
