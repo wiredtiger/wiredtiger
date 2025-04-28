@@ -1431,6 +1431,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
     /* Preserve the relevant metadata. */
     page->block_meta = multi->block_meta;
+    ref->page->old_rec_lsn_max = multi->block_meta.disagg_lsn;
     page->rec_lsn_max = multi->block_meta.disagg_lsn;
     WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
 
