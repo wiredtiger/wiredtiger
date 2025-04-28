@@ -209,9 +209,26 @@ __live_restore_fs_find_layer(WT_FILE_SYSTEM *fs, WT_SESSION_IMPL *session, const
         return (0);
     }
 
+    /*
+     * If the file is only in the source and there is a stop file in the destination then we've
+     * either moved or deleted the file in the destination, meaning it no longer exists for the
+     * user.
+     */
+    bool has_stop = false;
+    WT_RET(__dest_has_stop_file((WTI_LIVE_RESTORE_FS *)fs, name, session, &has_stop));
+    if (has_stop)
+        return (0);
+
+    /*
+     * If migration completes and the file isn't in the destination it must have been deleted or
+     * moved by the user. We can't depend on stop files here as post-migration clean up may have
+     * deleted the stop file already.
+     */
+    if (__wti_live_restore_migration_complete(session))
+        return (0);
+
     WT_RET(__live_restore_fs_has_file(lr_fs, &lr_fs->source, session, name, &exists));
     if (exists) {
-        /* The file exists in the source we don't need to look any further. */
         *whichp = WTI_LIVE_RESTORE_FS_LAYER_SOURCE;
     }
 
@@ -414,37 +431,7 @@ __live_restore_fs_exist(WT_FILE_SYSTEM *fs, WT_SESSION *wt_session, const char *
     WTI_LIVE_RESTORE_FS_LAYER_TYPE layer;
     WT_RET(__live_restore_fs_find_layer(fs, (WT_SESSION_IMPL *)wt_session, name, &layer));
 
-    switch (layer) {
-    case WTI_LIVE_RESTORE_FS_LAYER_NONE:
-        *existp = false;
-        break;
-
-    case WTI_LIVE_RESTORE_FS_LAYER_DESTINATION:
-        *existp = true;
-        break;
-
-    case WTI_LIVE_RESTORE_FS_LAYER_SOURCE:
-        *existp = true;
-
-        /*
-         * If the file is only in the source and there is a stop file in the destination then we've
-         * either moved or deleted the file in the destination, meaning it no longer exists for the
-         * user.
-         */
-        bool has_stop = false;
-        WT_RET(__dest_has_stop_file(
-          (WTI_LIVE_RESTORE_FS *)fs, name, (WT_SESSION_IMPL *)wt_session, &has_stop));
-        if (has_stop)
-            *existp = false;
-
-        /*
-         * If migration completes and the file isn't in the destination it must have been deleted or
-         * moved by the user. We can't depend on stop files here as post-migration clean up may have
-         * deleted the stop file already.
-         */
-        if (__wti_live_restore_migration_complete((WT_SESSION_IMPL *)wt_session))
-            *existp = false;
-    }
+    *existp = layer != WTI_LIVE_RESTORE_FS_LAYER_NONE;
 
     return (0);
 }
