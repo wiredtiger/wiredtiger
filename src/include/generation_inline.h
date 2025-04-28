@@ -44,7 +44,8 @@ __wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp)
 static WT_INLINE uint64_t
 __wt_session_gen(WT_SESSION_IMPL *session, int which)
 {
-    /* No need to consider memory ordering for this read as it is always accessed by the same
-     * thread. */
+    /*
+     * No need to consider memory ordering for this read as it is always read by the same thread.
+     */
     return (__wt_atomic_loadv64(&session->generations[which]));
 }
