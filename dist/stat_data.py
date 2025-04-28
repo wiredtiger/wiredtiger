@@ -284,6 +284,7 @@ conn_stats = [
     BlockStat('block_read', 'blocks read'),
     BlockStat('block_remap_file_resize', 'number of times the file was remapped because it changed size via fallocate or truncate'),
     BlockStat('block_remap_file_write', 'number of times the region was remapped via write'),
+    BlockStat('block_reread', 'blocks re-read because wrong version was returned'),
     BlockStat('block_write', 'blocks written'),
 
     ##########################################
@@ -1069,8 +1070,8 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
     CacheStat('cache_eviction_blocked_checkpoint_precise', 'precise checkpoint caused an eviction to be skipped because any dirty content needs to remain in cache'),
-    CacheStat('cache_eviction_blocked_hazard', 'hazard pointer blocked page eviction'),
     CacheStat('cache_eviction_blocked_disagg_dirty_internal_page', 'dirty internal page cannot be evicted in disaggregated storage'),
+    CacheStat('cache_eviction_blocked_hazard', 'hazard pointer blocked page eviction'),
     CacheStat('cache_eviction_blocked_internal_page_split', 'internal page split blocked its eviction'),
     CacheStat('cache_eviction_blocked_materialization', 'page eviction blocked due to materialization frontier'),
     CacheStat('cache_eviction_blocked_multi_block_reconciliation_during_checkpoint', 'multi-block reconciliation blocked whilst checkpoint is running'),

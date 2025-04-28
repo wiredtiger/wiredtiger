@@ -1603,6 +1603,7 @@ static const char *const __stats_connection_desc[] = {
   "block-disagg: Disaggregated block manager put ",
   "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-manager: blocks pre-loaded",
+  "block-manager: blocks re-read because wrong version was returned",
   "block-manager: blocks read",
   "block-manager: blocks written",
   "block-manager: bytes read",
@@ -2531,6 +2532,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->disagg_block_put = 0;
     stats->disagg_block_hs_put = 0;
     stats->block_preload = 0;
+    stats->block_reread = 0;
     stats->block_read = 0;
     stats->block_write = 0;
     stats->block_byte_read = 0;
@@ -3398,6 +3400,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->disagg_block_put += WT_STAT_CONN_READ(from, disagg_block_put);
     to->disagg_block_hs_put += WT_STAT_CONN_READ(from, disagg_block_hs_put);
     to->block_preload += WT_STAT_CONN_READ(from, block_preload);
+    to->block_reread += WT_STAT_CONN_READ(from, block_reread);
     to->block_read += WT_STAT_CONN_READ(from, block_read);
     to->block_write += WT_STAT_CONN_READ(from, block_write);
     to->block_byte_read += WT_STAT_CONN_READ(from, block_byte_read);
