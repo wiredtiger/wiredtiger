@@ -1,0 +1,250 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+/*
+ * Test the live restore __live_restore_fill_hole functionality.
+ * [live_restore_fill_hole].
+ */
+
+#include "../utils_live_restore.h"
+
+using namespace utils;
+
+struct fill_hole_test {
+    fill_hole_test(uint32_t allocsize, uint64_t nbits, wt_off_t read_size, uint64_t first_clear_bit,
+      uint64_t clear_len, uint64_t expect_filled_len, bool expect_finished)
+        : allocsize(allocsize), nbits(nbits), buf_size(WT_MAX(allocsize, read_size)),
+          first_clear_bit(first_clear_bit), clear_len(clear_len),
+          expect_filled_len(expect_filled_len), expect_finished(expect_finished)
+    {
+        // Initialize bitmap with bits in [first_clear_bit, first_clear_bit + clear_len - 1] are
+        // unset where the rest are set.
+        auto bitmap_len = (nbits + 7) >> 3;
+        bitmap = (uint8_t *)malloc(bitmap_len * sizeof(uint8_t));
+        memset(bitmap, 0xFF, bitmap_len * sizeof(uint8_t));
+        if (clear_len > 0)
+            __bit_nclr(bitmap, first_clear_bit, first_clear_bit + clear_len - 1);
+    }
+
+    uint32_t allocsize;
+    uint64_t nbits;
+    wt_off_t buf_size;
+    uint64_t first_clear_bit;
+    uint64_t clear_len;
+    uint8_t *bitmap;
+    uint64_t expect_filled_len;
+    bool expect_finished;
+};
+
+/*
+ * Verify live restore fill hole, we should have set bits from first_clear_bit with a length of
+ * expect_filled_len, where the rest(with length of clear_len - expect_filled_len) should remain as
+ * unset bits.
+ */
+static bool
+is_valid_fill(WT_SESSION_IMPL *session_impl, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
+  uint64_t first_clear_bit, uint64_t clear_len, uint64_t expect_filled_len, char dummy_char,
+  char src_char)
+{
+    char *buf = nullptr;
+    REQUIRE(__wt_calloc(session_impl, 1, lr_fh->allocsize * clear_len, &buf) == 0);
+    REQUIRE(lr_fh->destination->fh_read(lr_fh->destination, (WT_SESSION *)session_impl,
+              WTI_BIT_TO_OFFSET(first_clear_bit), WTI_BIT_TO_OFFSET(clear_len), buf) == 0);
+
+    __wt_readlock(session_impl, &lr_fh->lock);
+    // Verify set bits.
+    for (auto i = 0; i < expect_filled_len; i++) {
+        if (!__bit_test(lr_fh->bitmap, first_clear_bit + i))
+            return false;
+        for (auto j = 0; j < lr_fh->allocsize; j++)
+            if (buf[WTI_BIT_TO_OFFSET(i) + j] != src_char)
+                return false;
+    }
+    // Verify unset bits.
+    for (auto i = expect_filled_len; i < clear_len; i++) {
+        if (__bit_test(lr_fh->bitmap, first_clear_bit + i))
+            return false;
+        for (auto j = 0; j < lr_fh->allocsize; j++)
+            if (buf[WTI_BIT_TO_OFFSET(i) + j] != dummy_char)
+                return false;
+    }
+    __wt_readunlock(session_impl, &lr_fh->lock);
+    __wt_free(session_impl, buf);
+    return true;
+}
+
+static void
+generate_random_bitmap(
+  std::mt19937 &gen, double prob, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint8_t *bitmap_old)
+{
+    __bit_nclr(lr_fh->bitmap, 0, lr_fh->nbits - 1);
+    __bit_nclr(bitmap_old, 0, lr_fh->nbits - 1);
+    std::bernoulli_distribution dist(prob);
+    for (auto i = 0; i < lr_fh->nbits; i++) {
+        if (dist(gen)) {
+            __bit_set(lr_fh->bitmap, i);
+            __bit_set(bitmap_old, i);
+        }
+    }
+}
+
+// Verify if bitmap == -1 and all unset bits are migrated from src where set bits remain unchanged.
+static bool
+verify_fill_complete(WT_SESSION_IMPL *session_impl, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
+  uint8_t *bitmap_old, char dummy_char, char src_char)
+{
+    uint64_t first_clear_bit;
+    if (__bit_ffc(lr_fh->bitmap, lr_fh->nbits, &first_clear_bit) != -1)
+        return false;
+    char *buf = nullptr;
+    auto file_size = lr_fh->nbits * lr_fh->allocsize;
+    REQUIRE(__wt_calloc(session_impl, 1, file_size, &buf) == 0);
+    REQUIRE(lr_fh->iface.fh_read(
+              (WT_FILE_HANDLE *)lr_fh, (WT_SESSION *)session_impl, 0, file_size, buf) == 0);
+
+    __wt_readlock(session_impl, &lr_fh->lock);
+    // Check dest file, if bits are unset before migration they should be migrated and a src_char is
+    // expected, otherwise they should remain unchanged as dummy_char.
+    for (auto i = 0; i < lr_fh->nbits; i++) {
+        auto expected_char = __bit_test(bitmap_old, i) ? dummy_char : src_char;
+        for (auto j = 0; j < lr_fh->allocsize; j++)
+            if (buf[WTI_BIT_TO_OFFSET(i) + j] != expected_char)
+                return false;
+    }
+    __wt_readunlock(session_impl, &lr_fh->lock);
+    __wt_free(session_impl, buf);
+    return true;
+}
+
+TEST_CASE("Test various live restore fill hole", "[live_restore], [live_restore_fill_hole]")
+{
+    auto file_name = "test_table.wt";
+    uint32_t allocsize = 4;
+    uint64_t nbits = 16;
+    wt_off_t read_size = (wt_off_t)allocsize * 4;
+    wt_off_t file_size = (wt_off_t)nbits * allocsize;
+    auto dummy_char = '0';
+    auto src_char = '1';
+
+    live_restore_test_env env;
+    WT_SESSION *session = reinterpret_cast<WT_SESSION *>(env.session);
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
+    WTI_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = nullptr;
+
+    SECTION("Live restore fill hole single call")
+    {
+        // The first sequence of clear bits has length 1.
+        auto test1 = fill_hole_test(allocsize, nbits, read_size, 0, 1, 1, false);
+        // The first sequence has multiple clear bits.
+        auto test2 = fill_hole_test(allocsize, nbits, read_size, 0, 4, 4, false);
+        // The first sequence of clear bits is longer than the buf_size(the maximum we can read).
+        auto test3 = fill_hole_test(allocsize, nbits, read_size, 4, 8, 4, false);
+        // The first sequence has clear bits till the end of the bitmap.
+        auto test4 = fill_hole_test(allocsize, nbits, read_size, 4, nbits - 4, 4, false);
+        // Simulate "buf_size == allocsize" by making read_size smaller than allocsize.
+        auto test5 = fill_hole_test(allocsize, nbits, allocsize / 2, 4, 4, 1, false);
+        // The file has been fully migrated.
+        auto test6 = fill_hole_test(allocsize, nbits, read_size, 0, 0, 0, true);
+        std::vector<fill_hole_test> tests = {test1, test2, test3, test4, test5, test6};
+
+        bool finished;
+        char *buf = nullptr;
+        REQUIRE(__wt_calloc(session_impl, 1, read_size, &buf) == 0);
+        for (auto &test : tests) {
+            create_file(env.source_file_path(file_name), file_size, src_char);
+            create_file(env.dest_file_path(file_name), file_size, dummy_char);
+            lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session,
+              env.dest_file_path(file_name).c_str(), WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE,
+              (WT_FILE_HANDLE **)&lr_fh);
+
+            __wt_writelock(session_impl, &lr_fh->lock);
+            lr_fh->allocsize = test.allocsize;
+            lr_fh->bitmap = test.bitmap;
+            lr_fh->nbits = test.nbits;
+
+            wt_off_t read_offset = 0;
+            REQUIRE(__ut_live_restore_fill_hole(
+                      lr_fh, session, buf, test.buf_size, &read_offset, &finished) == 0);
+            REQUIRE(WTI_OFFSET_TO_BIT(read_offset) == test.first_clear_bit);
+            REQUIRE(finished == test.expect_finished);
+            __wt_writeunlock(session_impl, &lr_fh->lock);
+
+            /*
+             * Only verify hole filled when clear_len is greater than 0, as 0 means bitmap == -1,
+             * which represents a test for dest file being fully written before
+             * __live_restore_fill_hole is called, thus no hole will be filled.
+             */
+            if (test.clear_len > 0)
+                REQUIRE(is_valid_fill(session_impl, lr_fh, test.first_clear_bit, test.clear_len,
+                  test.expect_filled_len, dummy_char, src_char));
+            REQUIRE(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session) == 0);
+            testutil_remove(env.source_file_path(file_name).c_str());
+            testutil_remove(env.dest_file_path(file_name).c_str());
+        }
+        __wt_free(session_impl, buf);
+    }
+
+    // The background migration thread keeps calling _live_restore_fill_hole until all holes are
+    // filled, we
+    SECTION("Live restore fill hole multiple calls")
+    {
+        /*
+         * Try 50 runs of the fill hole function until migration is complete. The prob value
+         * controls the probability of a bit being set, e.g. 0.5 means 50% of a bit being set, 1
+         * means 100% of a bit being set.
+         * -- the first run simulates a common case where bitmap is 0 representing no data written
+         *    to the dest file before migration starts.
+         * -- the second run simulates bitmap is -1 representing all data has been written to the
+         *    dest file before migration starts.
+         * -- the rest runs generate random bitmaps with each bit having 50% of chance being set.
+         */
+        std::vector<double> probabilities(50, 0.5);
+        probabilities[0] = 0;
+        probabilities[1] = 1;
+        auto bitmap_len = (nbits + 7) >> 3;
+        uint8_t *bitmap_old = (uint8_t *)malloc(bitmap_len * sizeof(uint8_t));
+        char *buf = nullptr;
+        REQUIRE(__wt_calloc(session_impl, 1, read_size, &buf) == 0);
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        for (const auto prob : probabilities) {
+            uint8_t *bitmap = (uint8_t *)malloc(bitmap_len * sizeof(uint8_t));
+            create_file(env.source_file_path(file_name), file_size, src_char);
+            create_file(env.dest_file_path(file_name), file_size, dummy_char);
+            lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session,
+              env.dest_file_path(file_name).c_str(), WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE,
+              (WT_FILE_HANDLE **)&lr_fh);
+
+            __wt_writelock(session_impl, &lr_fh->lock);
+            lr_fh->allocsize = allocsize;
+            lr_fh->bitmap = bitmap;
+            lr_fh->nbits = nbits;
+            // Generate random bitmap for the run.
+            generate_random_bitmap(gen, prob, lr_fh, bitmap_old);
+
+            wt_off_t read_offset;
+            bool finished = false;
+            // Run fill hole until finished.
+            while (!finished)
+                REQUIRE(__ut_live_restore_fill_hole(
+                          lr_fh, session, buf, read_size, &read_offset, &finished) == 0);
+            __wt_writeunlock(session_impl, &lr_fh->lock);
+
+            // Verify if filling hole completes.
+            verify_fill_complete(session_impl, lr_fh, bitmap_old, dummy_char, src_char);
+
+            REQUIRE(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session) == 0);
+            testutil_remove(env.source_file_path(file_name).c_str());
+            testutil_remove(env.dest_file_path(file_name).c_str());
+        }
+
+        __wt_free(session_impl, bitmap_old);
+        __wt_free(session_impl, buf);
+    }
+}

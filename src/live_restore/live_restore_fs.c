@@ -887,15 +887,12 @@ __live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
     wt_off_t largest_possible_read = WT_MIN(file_size, read_start + buf_size);
     /* Subtract 1 as the read end is served from the nbits - 1th bit.*/
     uint64_t max_read_bit = WTI_OFFSET_TO_BIT(largest_possible_read) - 1;
-    uint64_t end_bit = first_clear_bit;
-    for (uint64_t current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++) {
-        if (current_bit >= lr_fh->nbits)
-            break;
+    uint64_t current_bit;
+    for (current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++)
         if (__bit_test(lr_fh->bitmap, current_bit))
             break;
-        end_bit = current_bit;
-    }
-    *end_bitp = end_bit;
+
+    *end_bitp = current_bit - 1;
     return (0);
 }
 
@@ -1009,19 +1006,22 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
             lr_fh, wt_session, buf, (wt_off_t)buf_size, &read_offset, &finished));
         WT_ERR(ret);
 
-        __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
-        if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
-            __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-              "Live restore running on %s for %" PRIu64
-              " seconds. Currently copying offset %" PRId64 " of file size %" PRId64,
-              lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_offset, WTI_BITMAP_END(lr_fh));
-            msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
+        if (!finished) {
+            __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
+            if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
+                __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+                  "Live restore running on %s for %" PRIu64
+                  " seconds. Currently copying offset %" PRId64 " of file size %" PRId64,
+                  lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_offset,
+                  WTI_BITMAP_END(lr_fh));
+                msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
 
-            /*
-             * Dirty the tree periodically to ensure the live restore metadata is written out by the
-             * next checkpoint.
-             */
-            __wt_tree_modify_set(session);
+                /*
+                 * Dirty the tree periodically to ensure the live restore metadata is written out by
+                 * the next checkpoint.
+                 */
+                __wt_tree_modify_set(session);
+            }
         }
 
         /*
@@ -2182,5 +2182,22 @@ __ut_live_restore_fh_fill_bit_range(
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
     __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
+}
+
+int
+__ut_live_restore_compute_read_end_bit(WT_SESSION_IMPL *session,
+  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t buf_size, uint64_t first_clear_bit,
+  uint64_t *end_bitp)
+{
+    return (
+      __live_restore_compute_read_end_bit(session, lr_fh, buf_size, first_clear_bit, end_bitp));
+    ;
+}
+
+int
+__ut_live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_session, char *buf,
+  wt_off_t buf_size, wt_off_t *read_offsetp, bool *finishedp)
+{
+    return (__live_restore_fill_hole(lr_fh, wt_session, buf, buf_size, read_offsetp, finishedp));
 }
 #endif

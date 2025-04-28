@@ -15,7 +15,7 @@
 namespace utils {
 
 // File op helpers
-void create_file(const std::string &filepath, int len = 1);
+void create_file(const std::string &filepath, int len = 1, char fill_char = 'A');
 int open_lr_fh(const live_restore_test_env &env, const std::string &dest_file,
   WTI_LIVE_RESTORE_FILE_HANDLE **lr_fhp, int flags = 0);
 
