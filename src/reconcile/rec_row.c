@@ -299,6 +299,26 @@ __rec_row_merge(
 }
 
 /*
+ * __rec_build_delta_int --
+ *     Build delta for Internal pages.
+ */
+static int
+__rec_build_delta_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool build_delta)
+{
+    WT_DELTA_HEADER *header;
+
+    if (!build_delta) {
+        r->delta.size = 0;
+        return (0);
+    }
+
+    WT_RET(__wti_rec_build_delta_init(session, r));
+    header = (WT_DELTA_HEADER *)r->delta.data;
+    header->type = r->ref->page->type;
+    return (0);
+}
+
+/*
  * __wti_rec_row_int --
  *     Reconcile a row-store internal page.
  */
@@ -339,10 +359,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     build_delta = WT_BUILD_DELTA_INT(session, r);
 
     WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxintlpage_precomp, 0));
-    if (build_delta)
-        WT_RET(__wti_rec_build_delta_init(session, r));
-    else
-        r->delta.size = 0;
+    WT_RET(__rec_build_delta_int(session, r, build_delta));
 
     /*
      * Ideally, we'd never store the 0th key on row-store internal pages because it's never used
