@@ -29,6 +29,10 @@ struct compute_read_end_bit_test {
         __bit_nclr(bitmap, first_clear_bit, first_clear_bit + clear_len - 1);
     }
 
+    ~compute_read_end_bit_test()
+    {
+        bitmap = nullptr;
+    }
     uint32_t allocsize;
     uint64_t nbits;
     wt_off_t buf_size;
