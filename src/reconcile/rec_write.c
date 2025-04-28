@@ -414,6 +414,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      */
     mod->rec_max_txn = r->max_txn;
     mod->rec_max_timestamp = r->max_ts;
+    mod->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
 
     /* Track the page's most recent LSN. */
     if (mod->rec_result == WT_PM_REC_MULTIBLOCK)

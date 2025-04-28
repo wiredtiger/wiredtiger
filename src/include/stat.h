@@ -667,6 +667,7 @@ struct __wt_connection_stats {
     int64_t cache_write;
     int64_t cache_write_restore;
     int64_t cache_overhead;
+    int64_t cache_eviction_blocked_checkpoint_precise;
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
@@ -721,6 +722,7 @@ struct __wt_connection_stats {
     int64_t checkpoint_handle_skipped;
     int64_t checkpoint_handle_walked;
     int64_t checkpoint_time_recent;
+    int64_t checkpoint_pages_reconciled_bytes;
     int64_t checkpoints_api;
     int64_t checkpoints_compact;
     int64_t checkpoint_sync;
@@ -1365,6 +1367,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore;
+    int64_t cache_eviction_blocked_checkpoint_precise;
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_scrub_restore;
     int64_t cache_reverse_splits;
