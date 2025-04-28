@@ -7053,33 +7053,33 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * doing work
  */
 #define	WT_STAT_CONN_LAYERED_TABLE_MANAGER_ACTIVE	1501
-/*! live-restore: live restore state */
-#define	WT_STAT_CONN_LIVE_RESTORE_STATE			1502
-/*! live-restore: number of reads from the source database */
-#define	WT_STAT_CONN_LIVE_RESTORE_SOURCE_READ_COUNT	1503
-/*! live-restore: source read latency histogram (bucket 1) - 0-10ms */
-#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT10	1504
-/*! live-restore: source read latency histogram (bucket 2) - 10-49ms */
-#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT50	1505
-/*! live-restore: source read latency histogram (bucket 3) - 50-99ms */
-#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT100	1506
-/*! live-restore: source read latency histogram (bucket 4) - 100-249ms */
-#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT250	1507
-/*! live-restore: source read latency histogram (bucket 5) - 250-499ms */
-#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT500	1508
-/*! live-restore: source read latency histogram (bucket 6) - 500-999ms */
-#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT1000	1509
-/*! live-restore: source read latency histogram (bucket 7) - 1000ms+ */
-#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_GT1000	1510
-/*! live-restore: source read latency histogram total (msecs) */
-#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_TOTAL_MSECS	1511
 /*!
- * live-restore: the number of bytes copied from the source to the
+ * live-restore: number of bytes copied from the source to the
  * destination
  */
-#define	WT_STAT_CONN_LIVE_RESTORE_BYTES_COPIED		1512
-/*! live-restore: the number of files remaining for migration completion */
-#define	WT_STAT_CONN_LIVE_RESTORE_WORK_REMAINING	1513
+#define	WT_STAT_CONN_LIVE_RESTORE_BYTES_COPIED		1502
+/*! live-restore: number of files remaining for migration completion */
+#define	WT_STAT_CONN_LIVE_RESTORE_WORK_REMAINING	1503
+/*! live-restore: number of reads from the source database */
+#define	WT_STAT_CONN_LIVE_RESTORE_SOURCE_READ_COUNT	1504
+/*! live-restore: source read latency histogram (bucket 1) - 0-10ms */
+#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT10	1505
+/*! live-restore: source read latency histogram (bucket 2) - 10-49ms */
+#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT50	1506
+/*! live-restore: source read latency histogram (bucket 3) - 50-99ms */
+#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT100	1507
+/*! live-restore: source read latency histogram (bucket 4) - 100-249ms */
+#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT250	1508
+/*! live-restore: source read latency histogram (bucket 5) - 250-499ms */
+#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT500	1509
+/*! live-restore: source read latency histogram (bucket 6) - 500-999ms */
+#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_LT1000	1510
+/*! live-restore: source read latency histogram (bucket 7) - 1000ms+ */
+#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_GT1000	1511
+/*! live-restore: source read latency histogram total (msecs) */
+#define	WT_STAT_CONN_LIVE_RESTORE_HIST_SOURCE_READ_LATENCY_TOTAL_MSECS	1512
+/*! live-restore: state */
+#define	WT_STAT_CONN_LIVE_RESTORE_STATE			1513
 /*! lock: btree page lock acquisitions */
 #define	WT_STAT_CONN_LOCK_BTREE_PAGE_COUNT		1514
 /*! lock: btree page lock application thread wait time (usecs) */

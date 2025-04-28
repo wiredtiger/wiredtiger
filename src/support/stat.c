@@ -2087,7 +2087,8 @@ static const char *const __stats_connection_desc[] = {
   "layered: the number of tables the layered table manager has open",
   "layered: whether the layered table manager thread has been started",
   "layered: whether the layered table manager thread is currently busy doing work",
-  "live-restore: live restore state",
+  "live-restore: number of bytes copied from the source to the destination",
+  "live-restore: number of files remaining for migration completion",
   "live-restore: number of reads from the source database",
   "live-restore: source read latency histogram (bucket 1) - 0-10ms",
   "live-restore: source read latency histogram (bucket 2) - 10-49ms",
@@ -2097,8 +2098,7 @@ static const char *const __stats_connection_desc[] = {
   "live-restore: source read latency histogram (bucket 6) - 500-999ms",
   "live-restore: source read latency histogram (bucket 7) - 1000ms+",
   "live-restore: source read latency histogram total (msecs)",
-  "live-restore: the number of bytes copied from the source to the destination",
-  "live-restore: the number of files remaining for migration completion",
+  "live-restore: state",
   "lock: btree page lock acquisitions",
   "lock: btree page lock application thread wait time (usecs)",
   "lock: btree page lock internal thread wait time (usecs)",
@@ -2981,7 +2981,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->layered_table_manager_tables = 0;
     stats->layered_table_manager_running = 0;
     stats->layered_table_manager_active = 0;
-    /* not clearing live_restore_state */
+    stats->live_restore_bytes_copied = 0;
+    /* not clearing live_restore_work_remaining */
     stats->live_restore_source_read_count = 0;
     stats->live_restore_hist_source_read_latency_lt10 = 0;
     stats->live_restore_hist_source_read_latency_lt50 = 0;
@@ -2991,8 +2992,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->live_restore_hist_source_read_latency_lt1000 = 0;
     stats->live_restore_hist_source_read_latency_gt1000 = 0;
     stats->live_restore_hist_source_read_latency_total_msecs = 0;
-    stats->live_restore_bytes_copied = 0;
-    /* not clearing live_restore_work_remaining */
+    /* not clearing live_restore_state */
     stats->lock_btree_page_count = 0;
     stats->lock_btree_page_wait_application = 0;
     stats->lock_btree_page_wait_internal = 0;
@@ -3943,7 +3943,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->layered_table_manager_tables += WT_STAT_CONN_READ(from, layered_table_manager_tables);
     to->layered_table_manager_running += WT_STAT_CONN_READ(from, layered_table_manager_running);
     to->layered_table_manager_active += WT_STAT_CONN_READ(from, layered_table_manager_active);
-    to->live_restore_state += WT_STAT_CONN_READ(from, live_restore_state);
+    to->live_restore_bytes_copied += WT_STAT_CONN_READ(from, live_restore_bytes_copied);
+    to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);
     to->live_restore_source_read_count += WT_STAT_CONN_READ(from, live_restore_source_read_count);
     to->live_restore_hist_source_read_latency_lt10 +=
       WT_STAT_CONN_READ(from, live_restore_hist_source_read_latency_lt10);
@@ -3961,8 +3962,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, live_restore_hist_source_read_latency_gt1000);
     to->live_restore_hist_source_read_latency_total_msecs +=
       WT_STAT_CONN_READ(from, live_restore_hist_source_read_latency_total_msecs);
-    to->live_restore_bytes_copied += WT_STAT_CONN_READ(from, live_restore_bytes_copied);
-    to->live_restore_work_remaining += WT_STAT_CONN_READ(from, live_restore_work_remaining);
+    to->live_restore_state += WT_STAT_CONN_READ(from, live_restore_state);
     to->lock_btree_page_count += WT_STAT_CONN_READ(from, lock_btree_page_count);
     to->lock_btree_page_wait_application +=
       WT_STAT_CONN_READ(from, lock_btree_page_wait_application);
