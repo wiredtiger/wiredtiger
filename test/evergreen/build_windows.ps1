@@ -1,7 +1,7 @@
 param (
     [bool]$configure = $false,
     [bool]$build = $false,
-    [string]$vcvars_bat = $null
+    [string]$vcvars_bat = "C:\Program Files\Microsoft Visual Studio\2022\VC\Auxiliary\Build\vcvars64.bat"
 )
 
 function Find-VcVars {
