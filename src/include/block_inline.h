@@ -17,6 +17,8 @@
  */
 WT_STAT_MSECS_HIST_INCR_FUNC(bmread, perf_hist_bmread_latency)
 WT_STAT_MSECS_HIST_INCR_FUNC(bmwrite, perf_hist_bmwrite_latency)
+WT_STAT_USECS_HIST_INCR_FUNC(disaggbmread, perf_hist_disaggbmread_latency)
+WT_STAT_USECS_HIST_INCR_FUNC(disaggbmwrite, perf_hist_disaggbmwrite_latency)
 
 /*
  * __wt_extlist_write_pair --
