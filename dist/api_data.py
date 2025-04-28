@@ -2028,6 +2028,8 @@ methods = {
         print open handles information''', type='boolean'),
     Config('log', 'false', r'''
         print log information''', type='boolean'),
+    Config('metadata', 'false', r'''
+        print metadata information''', type='boolean'),
     Config('sessions', 'false', r'''
         print open session information''', type='boolean'),
     Config('txn', 'false', r'''

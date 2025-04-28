@@ -1316,6 +1316,10 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
     if (cval.val != 0)
         WT_ERR(__wt_verbose_dump_log(session));
 
+    WT_ERR(__wt_config_gets(session, cfg, "metadata", &cval));
+    if (cval.val != 0)
+        WT_ERR(__wt_verbose_dump_metadata(session));
+
     WT_ERR(__wt_config_gets(session, cfg, "sessions", &cval));
     if (cval.val != 0)
         WT_ERR(__wt_verbose_dump_sessions(session, false));

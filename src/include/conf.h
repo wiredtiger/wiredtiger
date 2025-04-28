@@ -138,7 +138,7 @@ struct __wt_conf_value {
  * Per-API configuration structure declarations: BEGIN
  */
 WT_CONF_API_DECLARE(WT_CONNECTION, close, 1, 3);
-WT_CONF_API_DECLARE(WT_CONNECTION, debug_info, 1, 7);
+WT_CONF_API_DECLARE(WT_CONNECTION, debug_info, 1, 8);
 WT_CONF_API_DECLARE(WT_CONNECTION, load_extension, 1, 4);
 WT_CONF_API_DECLARE(WT_CONNECTION, open_session, 3, 9);
 WT_CONF_API_DECLARE(WT_CONNECTION, query_timestamp, 1, 1);
