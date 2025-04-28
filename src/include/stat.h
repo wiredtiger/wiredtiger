@@ -469,7 +469,6 @@ struct __wt_connection_stats {
     int64_t disagg_block_put;
     int64_t disagg_block_hs_put;
     int64_t block_preload;
-    int64_t block_reread;
     int64_t block_read;
     int64_t block_write;
     int64_t block_byte_read;
