@@ -2135,6 +2135,7 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
   bool internal_only, bool wont_need)
 {
     WT_PAGE *page;
+	uint64_t old_readgen;
 
     page = ref->page;
 
@@ -2148,8 +2149,10 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
             __evict_read_gen_new(session, page);
 		__wt_evict_enqueue_page(session, dhandle, ref, true);
     } else if (!internal_only) {
+		old_readgen = __wt_atomic_load64(&page->evict_data.read_gen);
         __wti_evict_read_gen_bump(session, page);
-		__wt_evict_enqueue_page(session, dhandle, ref, false);
+		if (old_readgen !=  __wt_atomic_load64(&page->evict_data.read_gen))
+			__wt_evict_enqueue_page(session, dhandle, ref, false);
 	}
 }
 
