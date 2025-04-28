@@ -2960,7 +2960,6 @@ err:
         }
     }
 
-done:
     WT_TRACK_OP_END(session);
 
     return (ret);
