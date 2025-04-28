@@ -2815,7 +2815,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
  */
 int
 __wti_evict_app_assist_worker(
-  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, double pct_full)
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible)
 {
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
@@ -2830,14 +2830,6 @@ __wti_evict_app_assist_worker(
 
     uint64_t cache_max_wait_us =
       session->cache_max_wait_us != 0 ? session->cache_max_wait_us : evict->cache_max_wait_us;
-
-    /*
-     * It is not safe to proceed if the eviction server threads aren't setup yet. Also, if the
-     * caller is holding shared resources, only evict if the cache is at any of its eviction
-     * targets.
-     */
-    if (!__wt_atomic_loadbool(&conn->evict_server_running) || (busy && pct_full < 100.0))
-        goto done;
 
     /*
      * Before we enter the eviction generation, make sure this session has a cached history store
@@ -2908,6 +2900,7 @@ __wti_evict_app_assist_worker(
         uint64_t max_progress = busy ? 5 : 20;
 
         /* See if eviction is still needed. */
+        double pct_full;
         if (!__wt_evict_needed(session, busy, readonly, &pct_full) ||
           (pct_full < 100.0 &&
             (__wt_atomic_loadv64(&evict->eviction_progress) > initial_progress + max_progress)))
