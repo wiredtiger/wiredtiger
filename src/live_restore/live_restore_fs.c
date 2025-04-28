@@ -947,6 +947,37 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "%s: Restoring in the background", fh->name);
 
+    /*
+     * Live restore dirties btrees to ensure its bitmap updates are persisted, through the
+     * application write path this is a non issue as the application writes would also dirty the
+     * btree but for the background thread which does not perform writes in the traditional sense it
+     * is a requirement.
+     *
+     * However, there are a number of edge cases in dirtying the btree, particularly with regards to
+     * the btree->original flag. It is possible to backup a database with trees still in the
+     * "original" state, on restore the background thread would visit the file, mark the btree as
+     * dirty but also original. This is an invalid state. To workaround this we also disable bulk
+     * loading into the btree which has the side effect of making it no longer original.
+     *
+     * Now consider what happens if an application opens a bulk cursor concurrently with live
+     * restore which can disable bulk cursors. WiredTiger does not guarantee that opening a bulk
+     * cursor must succeed so the application be prepared to handle EBUSY. Additionally, the
+     * background worker threads in live restore open cursor on any file they intend to restore.
+     * This cursor prevents the application bulk cursor from opening which would then generate an
+     * EBUSY for the application. If the application succeeded in opening the bulk cursor prior to
+     * the live restore worker opening its cursor, then the live restore worker will get EBUSY and
+     * return the item to the queue.
+     *
+     * Historically, while fixing this issue, we ran into an edge case where the application would
+     * call schema->alter on a btree which was original. Live restore had concurrently dirtied the
+     * btree but not modified the original state, schema alter expected that after a system wide
+     * checkpoint the tree being altered would be in a clean state. The original flag being true
+     * prevents checkpoints from being taken which means that the tree never left the dirty state
+     * and schema alter would fail crashing the application. This is the second reason we disable
+     * bulk loading on the btree and clear the original flag.
+     */
+    __wt_btree_disable_bulk(session);
+
     char *buf = NULL;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     /*
@@ -975,6 +1006,11 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
               " seconds. Currently copying offset %" PRId64 " of file size %" PRId64,
               lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_offset, WTI_BITMAP_END(lr_fh));
             msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
+
+            /*
+             * Dirty the tree periodically to ensure the live restore metadata is written out by the
+             * next checkpoint.
+             */
             __wt_tree_modify_set(session);
         }
 
@@ -991,6 +1027,11 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
           "%s: Finished background restoration, closing source file", fh->name);
         WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
+
+        /*
+         * Dirty the tree again to ensure the live restore metadata is written out by the next
+         * checkpoint.
+         */
         __wt_tree_modify_set(session);
     }
 err:
