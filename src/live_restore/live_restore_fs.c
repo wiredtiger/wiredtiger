@@ -1406,8 +1406,7 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
     WT_CONFIG_ITEM v;
     WT_DECL_RET;
 
-    /* FIXME-WT-14231 Allow taking backups during live restore in the COMPLETE phase. */
-    WT_ASSERT_ALWAYS(session, !F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS),
+    WT_ASSERT_ALWAYS(session, !__wt_live_restore_migration_in_progress(session),
       "Cleaning the metadata string should only be called for non-live restore file systems");
 
     ret = __wt_config_getones(session, value, "live_restore", &v);
