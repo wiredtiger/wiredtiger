@@ -279,6 +279,9 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     evict->read_gen_oldest = WT_READGEN_START_VALUE;
     __wt_atomic_store64(&evict->read_gen, WT_READGEN_START_VALUE);
 
+	WT_RET(__wt_cond_auto_alloc(
+		  session, "evict threads", 10 * WT_THOUSAND, WT_MILLION, &conn->evict_threads.wait_cond));
+
     /*
      * We get/set some values in the evict statistics (rather than have two copies), configure them.
      */

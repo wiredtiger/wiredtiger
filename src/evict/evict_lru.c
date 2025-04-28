@@ -259,6 +259,9 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
       conn->evict_threads_min, conn->evict_threads_max, session_flags, __evict_thread_chk,
       __evict_thread_run, __evict_thread_stop));
 
+	WT_RET(__wt_cond_auto_alloc(
+			 session, "evict cond", 10 * WT_THOUSAND, WT_MILLION, &conn->evict_threads.wait_cond));
+
 /*
  * Ensure the cache stuck timer is initialized when starting eviction.
  */
@@ -747,8 +750,10 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
          */
         WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
-        if (!__evict_update_work(session))
+        if (!__evict_update_work(session)) {
+			__wt_cond_auto_wait(session, conn->evict_threads.wait_cond, false, NULL);
             break;
+		}
 
         __wt_verbose_debug2(session, WT_VERB_EVICTION,
           "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64
