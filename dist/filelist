@@ -92,6 +92,7 @@ src/conn/conn_handle.c
 src/conn/conn_layered.c
 src/conn/conn_log.c
 src/conn/conn_open.c
+src/conn/conn_page_history.c
 src/conn/conn_prefetch.c
 src/conn/conn_reconfig.c
 src/conn/conn_stat.c
@@ -228,6 +229,7 @@ src/support/generation.c
 src/support/global.c
 src/support/hash_city.c
 src/support/hash_fnv.c
+src/support/hash_map.c
 src/support/hazard.c
 src/support/hex.c
 src/support/lock_ext.c
