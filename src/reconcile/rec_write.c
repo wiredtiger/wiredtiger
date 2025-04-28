@@ -2394,7 +2394,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_PAGE_BLOCK_META *block_meta;
     WT_PAGE_MODIFY *mod;
     size_t addr_size, compressed_size;
-    uint64_t checkpoint_id;
+    uint64_t checkpoint_id, delta_pct;
     uint8_t addr[WT_ADDR_MAX_COOKIE];
     bool build_delta;
 #ifdef HAVE_DIAGNOSTIC
@@ -2529,8 +2529,48 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
       block_meta->delta_count < btree->max_consecutive_delta) {
         WT_RET(__rec_build_delta(session, r, chunk->image.mem, &build_delta));
         /* Discard the delta if it is larger than one tenth of the size of the full image. */
-        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct)
+        if (build_delta && ((r->delta.size * 100) / chunk->image.size) > btree->delta_pct) {
             build_delta = false;
+        } else {
+            /*
+             * If we decide to write the delta we packed, track the number of bytes saved by
+             * avoiding writing the full page image.
+             *
+             * Also track how large the delta is compared to the full page image.
+             */
+            delta_pct = (r->delta.size * 100) / chunk->image.size;
+            if (r->page->type == WT_PAGE_COL_INT || r->page->type == WT_PAGE_ROW_INT) {
+                WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_intl, chunk->image.size);
+
+                if (delta_pct <= 20)
+                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt20);
+                else if (delta_pct <= 40)
+                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt40);
+                else if (delta_pct <= 60)
+                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt60);
+                else if (delta_pct <= 80)
+                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt80);
+                else if (delta_pct <= 100)
+                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt100);
+                else
+                    WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
+            } else {
+                WT_STAT_CONN_INCRV(session, block_byte_write_saved_delta_leaf, chunk->image.size);
+
+                if (delta_pct <= 20)
+                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
+                else if (delta_pct <= 40)
+                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt40);
+                else if (delta_pct <= 60)
+                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt60);
+                else if (delta_pct <= 80)
+                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt80);
+                else if (delta_pct <= 100)
+                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt100);
+                else
+                    WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
+            }
+        }
     }
 
     /* Write the disk image and get an address. */
