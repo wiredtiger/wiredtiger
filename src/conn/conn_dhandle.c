@@ -307,6 +307,34 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
 }
 
 /*
+ * __wt_conn_dhandle_outdated --
+ *     Mark any data handle matching a URI to be outdated, as the metadata for that URI has changed.
+ */
+int
+__wt_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
+{
+    WT_DECL_RET;
+
+    /*
+     * If there is a matching data handle, mark it as outdated. The data handle and cursor caches
+     * will know to ignore it, and it will eventually age out when references are released. Races
+     * are for readonly btrees are benign, cursors in the midst of an open may get an older btree,
+     * and they will continue to work. For layered tables, Having references to an older dhandle for
+     * a stable tree just means some data in the ingest table will be pinned for a longer time.
+     */
+    WT_WITH_HANDLE_LIST_READ_LOCK(session,
+      if ((ret = __wt_conn_dhandle_find(session, uri, NULL)) == 0)
+        WT_DHANDLE_ACQUIRE(session->dhandle));
+    if (ret == 0) {
+        F_SET(session->dhandle, WT_DHANDLE_OUTDATED);
+        WT_DHANDLE_RELEASE(session->dhandle);
+    } else if (ret != WT_NOTFOUND)
+        WT_RET(ret);
+
+    return (0);
+}
+
+/*
  * __wt_conn_dhandle_close --
  *     Sync and close the underlying btree handle.
  */
@@ -724,7 +752,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 return (0);
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+              F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
               dhandle->checkpoint != NULL || strcmp(uri, dhandle->name) != 0)
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
@@ -742,10 +771,12 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 goto done;
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+              F_ISSET(dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_OUTDATED) ||
               !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL ||
               WT_IS_METADATA(dhandle) || WT_SUFFIX_MATCH(dhandle->name, ".wtobj"))
                 continue;
+
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
 done:
