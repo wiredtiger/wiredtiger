@@ -17,7 +17,10 @@
 static WT_INLINE uint64_t
 __wt_gen(WT_SESSION_IMPL *session, int which)
 {
-    return (__wt_atomic_loadv64(&S2C(session)->generations[which]));
+    uint64_t gen;
+
+    WT_ACQUIRE_READ_WITH_BARRIER(gen, S2C(session)->generations[which]);
+    return (gen);
 }
 
 /*
@@ -41,5 +44,7 @@ __wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp)
 static WT_INLINE uint64_t
 __wt_session_gen(WT_SESSION_IMPL *session, int which)
 {
+    /* No need to consider memory ordering for this read as it is always accessed by the same
+     * thread. */
     return (__wt_atomic_loadv64(&session->generations[which]));
 }
