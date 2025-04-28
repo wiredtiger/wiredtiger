@@ -167,7 +167,7 @@ WT_CONF_API_DECLARE(colgroup, meta, 2, 12);
 WT_CONF_API_DECLARE(file, config, 6, 61);
 WT_CONF_API_DECLARE(file, meta, 7, 71);
 WT_CONF_API_DECLARE(index, meta, 2, 15);
-WT_CONF_API_DECLARE(layered, meta, 3, 23);
+WT_CONF_API_DECLARE(layered, meta, 4, 25);
 WT_CONF_API_DECLARE(object, meta, 7, 73);
 WT_CONF_API_DECLARE(table, meta, 2, 13);
 WT_CONF_API_DECLARE(tier, meta, 7, 74);

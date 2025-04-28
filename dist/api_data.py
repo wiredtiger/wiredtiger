@@ -231,7 +231,18 @@ tiered_tree_config = [
         is relative to the home directory'''),
 ]
 
-file_runtime_config = common_runtime_config + [
+log_runtime_config = [
+    Config('log', '', r'''
+        the transaction log configuration for this object. Only valid if \c log is enabled in
+        ::wiredtiger_open''',
+        type='category', subconfig=[
+        Config('enabled', 'true', r'''
+            if false, this object has checkpoint-level durability''',
+            type='boolean'),
+        ]),
+]
+
+file_runtime_config = common_runtime_config + log_runtime_config + [
     Config('access_pattern_hint', 'none', r'''
         It is recommended that workloads that consist primarily of updates and/or point queries
         specify \c random. Workloads that do many cursor scans through large ranges of data
@@ -242,14 +253,6 @@ file_runtime_config = common_runtime_config + [
         do not ever evict the object's pages from cache, see @ref tuning_cache_resident for more
         information''',
         type='boolean'),
-    Config('log', '', r'''
-        the transaction log configuration for this object. Only valid if \c log is enabled in
-        ::wiredtiger_open''',
-        type='category', subconfig=[
-        Config('enabled', 'true', r'''
-            if false, this object has checkpoint-level durability''',
-            type='boolean'),
-        ]),
     Config('os_cache_max', '0', r'''
         maximum system buffer cache usage, in bytes. If non-zero, evict object blocks from
         the system buffer cache after that many bytes from this object are read or written into
@@ -482,7 +485,7 @@ layered_config = [
         type='string', undoc=True),
 ]
 
-layered_meta = format_meta + layered_config + connection_disaggregated_config
+layered_meta = format_meta + layered_config + log_runtime_config + connection_disaggregated_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
