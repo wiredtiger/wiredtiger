@@ -34,7 +34,7 @@ __layered_create_missing_ingest_table(
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
     WT_ERR(__wt_buf_fmt(session, ingest_config,
       "key_format=\"%.*s\",value_format=\"%.*s\","
-      "in_memory=true,"
+      "in_memory=true,log=(enabled=false),"
       "disaggregated=(page_log=none,storage_source=none)",
       (int)key_format.len, key_format.str, (int)value_format.len, value_format.str));
 
