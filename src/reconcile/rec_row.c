@@ -464,9 +464,11 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                 continue;
             case WT_PM_REC_REPLACE:
                 /*
-                 * If the page is replaced, the page's modify structure has the page's address.
+                 * If the page is replaced, the page's modify structure has the page's address. If
+                 * we skipped writing an empty delta, we write the current address.
                  */
-                addr = &child->modify->mod_replace;
+                if (child->modify->mod_replace.block_cookie != NULL)
+                    addr = &child->modify->mod_replace;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, child->modify->rec_result));
