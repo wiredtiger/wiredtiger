@@ -1249,6 +1249,8 @@ conn_dsrc_stats = [
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_page_delta_internal', 'internal page deltas written'),
     RecStat('rec_page_delta_leaf', 'leaf page deltas written'),
+    RecStat('rec_page_full_image_internal', 'full internal pages written instead of a page delta'),
+    RecStat('rec_page_full_image_leaf', 'full leaf pages written instead of a page delta'),
     RecStat('rec_pages', 'page reconciliation calls'),
     RecStat('rec_pages_eviction', 'page reconciliation calls for eviction'),
     RecStat('rec_pages_with_internal_deltas', 'pages written with at least one internal page delta'),
