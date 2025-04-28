@@ -357,7 +357,7 @@ __wt_update_obsolete_check(
     WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
-    wt_timestamp_t last_ckpt_timestamp;
+    wt_timestamp_t prune_timestamp;
     size_t size;
     uint64_t oldest_id;
     u_int count;
@@ -371,8 +371,7 @@ __wt_update_obsolete_check(
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return;
 
-    WT_ACQUIRE_READ(
-      last_ckpt_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
+    WT_ACQUIRE_READ(prune_timestamp, CUR2BT(cbt)->prune_timestamp);
 
     oldest_id = __wt_txn_oldest_id(session);
 
@@ -409,8 +408,8 @@ __wt_update_obsolete_check(
          */
         if (__wt_txn_upd_visible_all(session, upd) ||
           (F_ISSET(CUR2BT(cbt), WT_BTREE_GARBAGE_COLLECT) &&
-            (WT_TXNID_LT(upd->txnid, oldest_id) && last_ckpt_timestamp != WT_TS_NONE &&
-              upd->durable_ts <= last_ckpt_timestamp))) {
+            (WT_TXNID_LT(upd->txnid, oldest_id) && prune_timestamp != WT_TS_NONE &&
+              upd->durable_ts <= prune_timestamp))) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
         } else

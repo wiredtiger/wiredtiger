@@ -824,6 +824,7 @@ fuzzutil
 fvisibility
 fwrite
 gb
+gc
 gcc
 gcp
 gdb
