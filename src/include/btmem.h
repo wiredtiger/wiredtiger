@@ -891,6 +891,7 @@ struct __wt_page {
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 
+    uint64_t rec_lsn_max; /* The LSN associated with the page's most recent reconciliation */
     WT_PAGE_BLOCK_META block_meta; /* Block metadata */
 
 #ifdef HAVE_DIAGNOSTIC

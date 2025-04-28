@@ -238,6 +238,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /* After this spot, the only recoverable failure is EBUSY. */
     ebusy_only = true;
 
+    /*
+     * Re-check whether we can evict the page due to the page materialization frontier in
+     * disaggregated storage, as the reconciliation above could have changed the LSN on the page.
+     */
+    if (!__wt_page_materialization_check(session, page))
+        WT_ERR(EBUSY);
+
     /* Check we are not evicting an accessible internal page with an active split generation. */
     WT_ASSERT(session,
       closing || !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||

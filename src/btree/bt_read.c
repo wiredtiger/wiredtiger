@@ -258,6 +258,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ERR(__wti_page_inmem(session, ref, tmp[0].data, page_flags, &notused, &instantiate_upd));
     tmp[0].mem = NULL;
     ref->page->block_meta = block_meta;
+    ref->page->rec_lsn_max = block_meta.disagg_lsn;
     if (instantiate_upd && !WT_IS_HS(session->dhandle))
         WT_ERR(__wti_page_inmem_updates(session, ref));
 

@@ -1443,6 +1443,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
     __wt_evict_inherit_page_state(orig, page);
 
+    /* Preserve the relevant metadata. */
+    if (!instantiate_upd) {
+        page->block_meta = multi->block_meta;
+        page->rec_lsn_max = orig->rec_lsn_max;
+        WT_STAT_CONN_DSRC_INCR(session, cache_scrub_restore);
+    }
+
     /*
      * Mark the page as dirty for future garbage collection through reconciliation. We only end here
      * if we have content to clean up in the future.

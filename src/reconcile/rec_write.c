@@ -415,6 +415,12 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     mod->rec_max_txn = r->max_txn;
     mod->rec_max_timestamp = r->max_ts;
 
+    /* Track the page's most recent LSN. */
+    if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
+        page->rec_lsn_max = mod->mod_multi[mod->mod_multi_entries - 1].block_meta.disagg_lsn;
+    else
+        page->rec_lsn_max = r->page->block_meta.disagg_lsn;
+
     /*
      * Track the tree's maximum transaction ID (used to decide if it's safe to discard the tree) and
      * maximum timestamp.
@@ -2806,6 +2812,11 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
     __wt_free(session, mod->mod_multi);
     mod->mod_multi_entries = 0;
+    mod->rec_result = 0;
+
+    /* Also reset the page's latest LSN, so that it can be safely discarded. */
+    /* TODO: Is this necessary? */
+    page->rec_lsn_max = WT_DISAGG_LSN_NONE;
 
     /*
      * This routine would be trivial, and only walk a single page freeing any blocks written to
