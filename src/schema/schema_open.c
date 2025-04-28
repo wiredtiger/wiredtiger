@@ -617,40 +617,30 @@ __wt_schema_open_table(WT_SESSION_IMPL *session)
 }
 
 /*
- * __schema_open_layered_member --
- *     Open the stable or ingest table for a layered table - save a reference in the layered handle.
+ * __schema_open_layered_ingest --
+ *     Open the ingest table for a layered table.
  */
 static int
-__schema_open_layered_member(
-  WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, const char *uri, bool ingest)
+__schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered, const char *uri)
 {
-    WT_DECL_RET;
+    WT_BTREE *ingest_btree;
 
-    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-    if (!ingest && ret == ENOENT && !S2C(session)->layered_table_manager.leader) {
-        /*
-         * This is fine: we may not have seen a checkpoint containing this table yet, so we won't
-         * have a stable component until the next checkpoint.
-         */
-        return (0);
-    }
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
 
-    WT_RET(ret);
+    /*
+     * TODO this is a bit of a hack. The problem is that during shutdown, all dhandles are closed.
+     * But as part of closing a layered table, we need to get the IDs of the B-Trees backing the
+     * constituent tables (to remove them from the manager thread). This involves dereferencing the
+     * dhandle pointer, but that's been freed.
+     */
+    ingest_btree = (WT_BTREE *)session->dhandle->handle;
+    layered->ingest_btree_id = ingest_btree->id;
 
-    /* Reference the dhandle and set it in the tier array. */
-    (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
-    if (ingest) {
-        layered->ingest = session->dhandle;
+    /* Flag the ingest btree as participating in automatic garbage collection */
+    F_SET(ingest_btree, WT_BTREE_GARBAGE_COLLECT);
 
-        /*
-         * TODO this is a bit of a hack. The problem is that during shutdown, all dhandles are
-         * closed. But as part of closing a layered table, we need to get the IDs of the B-Trees
-         * backing the constituent tables (to remove them from the manager thread). This involves
-         * dereferencing the dhandle pointer, but that's been freed.
-         */
-        layered->ingest_btree_id = ((WT_BTREE *)session->dhandle->handle)->id;
-    } else
-        layered->stable = session->dhandle;
+    WT_ACQUIRE_READ(
+      ingest_btree->prune_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
 
     WT_RET(__wt_session_release_dhandle(session));
     return (0);
@@ -698,10 +688,8 @@ __schema_open_layered(WT_SESSION_IMPL *session)
 int
 __wt_schema_open_layered(WT_SESSION_IMPL *session)
 {
-    WT_BTREE *ingest_btree;
     WT_DECL_RET;
     WT_LAYERED_TABLE *layered;
-    uint32_t ingest_id, stable_id;
 
     if (!__wt_conn_is_disagg(session)) {
         __wt_err(session, EINVAL, "layered table is only supported for disaggregated storage");
@@ -716,41 +704,18 @@ __wt_schema_open_layered(WT_SESSION_IMPL *session)
     WT_ASSERT_ALWAYS(session, session->dhandle->type == WT_DHANDLE_TYPE_LAYERED,
       "Handle type doesn't match layered");
     /*
-     * Open the ingest and stable tables after releasing the table write lock. That is safe, since
-     * if multiple threads are opening a layered table, the regular handle open scheme handles races
-     * of getting these sub-handles into the connection.
+     * Open the ingest table after releasing the table write lock. That is safe, since if multiple
+     * threads are opening a layered table, the regular handle open scheme handles races of getting
+     * these sub-handles into the connection.
      */
     WT_SAVE_DHANDLE(
-      session, ret = __schema_open_layered_member(session, layered, layered->ingest_uri, true));
+      session, ret = __schema_open_layered_ingest(session, layered, layered->ingest_uri));
     WT_RET(ret);
-
-    ingest_btree = (WT_BTREE *)layered->ingest->handle;
-
-    /* Flag the ingest btree as participating in automatic garbage collection */
-    F_SET(ingest_btree, WT_BTREE_GARBAGE_COLLECT);
-
-    WT_ACQUIRE_READ(
-      ingest_btree->prune_timestamp, S2C(session)->disaggregated_storage.last_checkpoint_timestamp);
-
-    WT_SAVE_DHANDLE(
-      session, ret = __schema_open_layered_member(session, layered, layered->stable_uri, false));
-    WT_RET(ret);
-
-    if (layered->stable != NULL) {
-        stable_id = ((WT_BTREE *)layered->stable->handle)->id;
-        WT_ASSERT(session, WT_BTREE_ID_SHARED(stable_id));
-    } else
-        stable_id = 0;
 
     /* Start the layered table manager thread if it isn't running. */
     WT_RET(__wt_layered_table_manager_start(session));
 
-    /*
-     * Add the ingest table file identifier into the layered table managers list of tracked tables
-     */
-    ingest_id = ingest_btree->id;
-
-    WT_RET(__wt_layered_table_manager_add_table(session, ingest_id, stable_id));
+    WT_RET(__wt_layered_table_manager_add_table(session, layered->ingest_btree_id));
 
     return (0);
 }
