@@ -920,7 +920,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * restored, changes can't be written into the history store table, nor can we re-create
      * internal pages in memory.
      *
-     * Don't set any other flags for history store table as all the content is evictable.
+     * Don't set any other visibility flags for history store table as all the content is evictable.
      */
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
@@ -947,8 +947,15 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * We must do scrub dirty eviction for disaggregated storage btrees as we cannot read back the
      * evicted page until they are materialized.
      */
-    if (F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+    if (!closing && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+        /*
+         * We should not evict dirty internal pages for disaggregated storage as they cannot be
+         * recreated in-memory and it doesn't effectively reduce cache usage.
+         */
+        WT_ASSERT_ALWAYS(session, F_ISSET(ref, WT_REF_FLAG_LEAF),
+          "Evicting dirty internal pages for disaggregated storage is not allowed.");
         LF_SET(WT_REC_SCRUB);
+    }
 
     /*
      * Acquire a snapshot if coming through the eviction thread route. Also, if we have entered

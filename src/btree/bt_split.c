@@ -2325,6 +2325,10 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
 
+    /* We can only rewrite leaf pages. */
+    WT_ASSERT_ALWAYS(
+      session, F_ISSET(ref, WT_REF_FLAG_LEAF), "Rewriting internal pages is not allowed.");
+
     /*
      * This isn't a split: a reconciliation failed because we couldn't write something, and in the
      * case of forced eviction, we need to stop this page from being such a problem. We have
