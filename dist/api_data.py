@@ -126,6 +126,10 @@ connection_disaggregated_config_common = [
         When enabled, reconciliation writes deltas for leaf pages
         instead of writing entire pages every time''',
         type='boolean', undoc=True),
+    Config('lose_all_my_data', 'false', r'''
+        This setting skips file system syncs, and will cause data loss outside of a
+        disaggregated storage context.''',
+        type='boolean', undoc=True),
     Config('next_checkpoint_id', '-1', r'''
         the next checkpoint ID to open when starting (or restarting) the node''',
         min='-1', type='int', undoc=True),

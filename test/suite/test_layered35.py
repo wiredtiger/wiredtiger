@@ -52,7 +52,7 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
     ]
 
     conn_base_config = 'transaction_sync=(enabled,method=fsync),statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                     + 'disaggregated=(page_log=palm),checkpoint=(precise=true),'
+                     + 'disaggregated=(page_log=palm,lose_all_my_data=true),checkpoint=(precise=true),'
     disagg_storages = gen_disagg_storages('test_layered35', disagg_only = True)
 
     # Make scenarios for different cloud service providers
@@ -109,7 +109,7 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
         for i in range(self.nitems):
-            self.assertEquals(cursor[str(i)], value1)
+            self.assertEqual(cursor[str(i)], value1)
         self.session.rollback_transaction()
 
         # Assert that we have written no leaf page delta.
