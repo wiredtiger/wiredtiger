@@ -269,7 +269,7 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile, uint32_t
      * in-memory configuration, or when reading a checkpoint that has no corresponding history store
      * checkpoint.
      */
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle) &&
       !(WT_READING_CHECKPOINT(session) && session->hs_checkpoint == NULL)) {
         WT_ASSERT(session, session->dhandle != NULL);
         WT_ERR(__wt_curhs_open(session, S2BT(session)->id, NULL, &ds->hs_cursor));
