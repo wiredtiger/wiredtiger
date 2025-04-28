@@ -26,8 +26,10 @@ __conn_page_history_print(WT_SESSION_IMPL *session, const WT_PAGE_HISTORY_ITEM *
     switch (item->page_type) {
     case WT_PAGE_ROW_INT:
         page_type_str = "WT_PAGE_ROW_INT";
+        break;
     case WT_PAGE_ROW_LEAF:
         page_type_str = "WT_PAGE_ROW_LEAF";
+        break;
     }
 
     WT_RET(__wt_msg(session, "  table ID                         : %" PRIu32, item->key.table_id));
