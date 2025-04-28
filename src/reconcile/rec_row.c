@@ -264,12 +264,17 @@ __rec_row_merge(
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
         /*
-         * Build the key and value cells. We should inherit the old key for the first page.
-         * Otherwise, it is difficult to build the delta for that key as it can change.
+         * Build the key and value cells. We should inherit the old key for the first page if we
+         * want to build a delta. Otherwise, it is difficult to build the delta for that key as it
+         * can change.
          */
         if (i == 0) {
-            __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
-            WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
+            if (*build_delta) {
+                __wt_ref_key(ref->home, ref, &old_key, &old_key_size);
+                WT_RET(__rec_cell_build_int_key(session, r, old_key, old_key_size));
+            } else
+                WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey),
+                  r->cell_zero ? 1 : multi->key.ikey->size));
         } else
             WT_RET(__rec_cell_build_int_key(
               session, r, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size));
@@ -303,7 +308,7 @@ __rec_row_merge(
  *     Build delta for Internal pages.
  */
 static int
-__rec_build_delta_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool build_delta)
+__rec_build_delta_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, bool build_delta)
 {
     WT_DELTA_HEADER *header;
 
@@ -521,6 +526,9 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              * The transaction ids are cleared after restart. Repack the cell with new validity
              * information to flush cleared transaction ids.
              */
+            WT_ASSERT_ALWAYS(session,
+              cms.state == WTI_CHILD_ORIGINAL || F_ISSET(btree, WT_BTREE_DISAGGREGATED),
+              "Not propagating the original fast-truncate information");
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
 
             /* The proxy cells of fast truncate pages must be handled in the above flows. */
