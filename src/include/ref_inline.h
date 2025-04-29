@@ -87,7 +87,14 @@ __ref_track_state(
 
 static WT_INLINE void
 __wt_ref_make_visible(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref) {
+	printf("session %d BEFORE make_visible for page %p, bucket %p\n", (int)session->id,
+		   (void*)ref->page, (void*)ref->page->evict_data.bucket);
+	fflush(stdout);
 	__wt_evict_touch_page(session, dhandle, ref, false, false);
+	printf("session %d AFTER make_visible for page %p, bucket %p\n", (int)session->id,
+		   (void*)ref->page, (void*)ref->page->evict_data.bucket);
+	fflush(stdout);
+	__atomic_store_n(&ref->owner, 0, __ATOMIC_RELEASE);
 	WT_REF_SET_STATE(ref, WT_REF_MEM);
 }
 
@@ -108,7 +115,7 @@ __ref_get_state(WT_REF *ref)
 static WT_INLINE WT_REF_STATE
 __ref_get_state_strict(WT_REF *ref)
 {
-    return (__atomic_load_n(&ref->__state, __ATOMIC_SEQ_CST));
+    return (__atomic_load_n(&ref->__state, __ATOMIC_ACQUIRE));
 }
 
 
@@ -154,9 +161,11 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
 			   (int)session->id, old_state, new_state, (ref->page == NULL)? 0 : (void*)ref->page,
 			   func, line);
 	}
+#if 0
 	else
 		printf("session %d FAIL to CAS STATE from %d to %d on page %p,  func %s, line %d\n", (int)session->id,
 			   old_state, new_state, (ref->page == NULL)? 0 : (void*)ref->page, func, line);
+#endif
 	fflush(stdout);
     return (cas_result);
 }
