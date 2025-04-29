@@ -1784,7 +1784,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
           session, EEXIST, "File %s already exist, cannot be created due to exclusive flag", name);
     if (!dest_exist && !source_exist && !create)
         WT_RET_MSG(session, ENOENT, "File %s doesn't exist but create flag not specified", name);
-    if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
+    if (!dest_exist && have_stop && !create)
         WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
 
 #if defined(__APPLE__) || defined(__linux__)
