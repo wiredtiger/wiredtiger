@@ -772,21 +772,21 @@ __live_restore_fh_read(
         /*
          * If a portion of the read region is serviceable then it is a partial read, add a check
          * here to ensure partial reads always identical to the reads from the source.
-         * /
+         */
         /*
-        *!!!
-        *              <--read len--->
-        * read:        |-------------|
-        *      bitmap: |####|----hole----|
-        *              ^    ^        |
-        *              |    |        |
-        *           read off|        |
-        *                hole off    |
-        * read dest:   |----|
-        * read source:      |--------|
-        *
-        *
-        */
+         *!!!
+         *              <--read len--->
+         * read:        |-------------|
+         *      bitmap: |####|----hole----|
+         *              ^    ^        |
+         *              |    |        |
+         *           read off|        |
+         *                hole off    |
+         * read dest:   |----|
+         * read source:      |--------|
+         *
+         *
+         */
         if (hole_begin_off > offset) {
             WT_ERR(__wt_calloc(session, 1, len, &tmp_buf));
             size_t dest_partial_read_len = (size_t)(hole_begin_off - offset);
