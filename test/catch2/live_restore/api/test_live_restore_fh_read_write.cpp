@@ -15,7 +15,7 @@
 
 using namespace utils;
 
-void
+static void
 init_file_handle(WT_SESSION *session, WTI_LIVE_RESTORE_FS *lr_fs, const char *file_name,
   int allocsize, int file_size, WTI_LIVE_RESTORE_FILE_HANDLE **lr_fhp)
 {
