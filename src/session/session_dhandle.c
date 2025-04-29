@@ -844,21 +844,19 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
  *     the handle's reference count while holding the handle list lock.
  */
 static int
-__session_find_shared_dhandle(
-  WT_SESSION_IMPL *session, const char *uri, const char *checkpoint, bool force)
+__session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
     WT_DECL_RET;
 
-    if (!force)
-        WT_WITH_HANDLE_LIST_READ_LOCK(session,
-          if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
-            WT_DHANDLE_ACQUIRE(session->dhandle));
+    WT_WITH_HANDLE_LIST_READ_LOCK(session,
+      if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
+        WT_DHANDLE_ACQUIRE(session->dhandle));
 
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-      if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint, force)) == 0)
+      if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0)
         WT_DHANDLE_ACQUIRE(session->dhandle));
 
     return (ret);
@@ -869,17 +867,15 @@ __session_find_shared_dhandle(
  *     Search for a data handle, first in the session cache, then in the connection.
  */
 static int
-__session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint, bool force)
+__session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
     WT_DATA_HANDLE_CACHE *dhandle_cache;
     WT_DECL_RET;
 
-    if (!force) {
-        __session_find_dhandle(session, uri, checkpoint, &dhandle_cache);
-        if (dhandle_cache != NULL) {
-            session->dhandle = dhandle_cache->dhandle;
-            return (0);
-        }
+    __session_find_dhandle(session, uri, checkpoint, &dhandle_cache);
+    if (dhandle_cache != NULL) {
+        session->dhandle = dhandle_cache->dhandle;
+        return (0);
     }
 
     /* Sweep the handle list to remove any dead handles. */
@@ -889,7 +885,7 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
      * We didn't find a match in the session cache, search the shared handle list and cache the
      * handle we find.
      */
-    WT_RET(__session_find_shared_dhandle(session, uri, checkpoint, force));
+    WT_RET(__session_find_shared_dhandle(session, uri, checkpoint));
 
     /*
      * Fixup the reference count on failure (we incremented the reference count while holding the
@@ -917,20 +913,10 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     WT_DECL_RET;
     bool force, is_dead;
 
-    force = false;
-
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
-    /* TODO this check is lifted from elsewhere - needs to be done more nicely. */
-    if (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL && (cfg[2] != NULL || cfg[1][0] != '\0')) {
-        ret = __wt_config_gets(session, cfg, "force", &cval);
-        WT_RET_NOTFOUND_OK(ret);
-        if (ret == 0 && WT_CONFIG_LIT_MATCH("true", cval))
-            force = true;
-    }
-
     for (;;) {
-        WT_RET(__session_get_dhandle(session, uri, checkpoint, force));
+        WT_RET(__session_get_dhandle(session, uri, checkpoint));
         dhandle = session->dhandle;
 
         /* Try to lock the handle. */
