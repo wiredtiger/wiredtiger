@@ -574,14 +574,14 @@ err:
  *           This scenario will only happen if background data migration occurs concurrently and has
  *           partially migrated the content we're reading. The background threads always copies data
  *           in order, so the partially filled hole can only start outside a hole and then continue
- *           into a hole. However, since reads/writes are always the size of one page, a partial
+ *           into a hole. However, since WiredTiger reads/writes are always whole blocks, a partial
  *           read implies that no writes have occurred on the page yet. Otherwise, the entire page
  *           in bitmap would have been set to -1, and we will find that the read is entirely outside
  *           all holes, which makes it safe to return false and read from the source.
  */
 static bool
-__live_restore_can_service_read(
-  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
+__live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
+  wt_off_t offset, size_t len, wt_off_t *hole_begin_off)
 {
     /*
      * The read will be serviced out of the destination if the read is beyond the length of the
@@ -613,7 +613,10 @@ __live_restore_can_service_read(
         return (true);
     }
 
-    /* Otherwise, some bits are unset(0s), iterate through those next. */
+    /* We've found a hole return its offset to the caller. */
+    *hole_begin_off = WTI_BIT_TO_OFFSET(current_bit);
+
+    /* We need to iterate through those unset bits to verify this is a valid bit range.*/
     while (current_bit < read_end_bit && !__bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
     /*
@@ -738,7 +741,7 @@ __live_restore_fh_read(
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
-    char *read_data;
+    char *read_data, *tmp_buf = NULL;
 
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
@@ -757,13 +760,49 @@ __live_restore_fh_read(
         WT_RET(__live_restore_fh_read_destination(session, lr_fh->destination, offset, len, buf));
 
     __wt_readlock(session, &lr_fh->lock);
-    if (__live_restore_can_service_read(lr_fh, session, offset, len)) {
+    wt_off_t hole_begin_off;
+    if (__live_restore_can_service_read(session, lr_fh, offset, len, &hole_begin_off)) {
         /* Read the full read from the destination. */
         WT_ERR(
           __live_restore_fh_read_destination(session, lr_fh->destination, offset, len, read_data));
-    } else
+    } else {
         /* Otherwise from the source. */
         WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, offset, len, read_data));
+
+        /*
+         * If a portion of the read region is serviceable then it is a partial read, add a check
+         * here to ensure partial reads always identical to the reads from the source.
+         * /
+        /*
+        *!!!
+        *              <--read len--->
+        * read:        |-------------|
+        *      bitmap: |####|----hole----|
+        *              ^    ^        |
+        *              |    |        |
+        *           read off|        |
+        *                hole off    |
+        * read dest:   |----|
+        * read source:      |--------|
+        *
+        *
+        */
+        if (hole_begin_off > offset) {
+            WT_ERR(__wt_calloc(session, 1, len, &tmp_buf));
+            size_t dest_partial_read_len = (size_t)(hole_begin_off - offset);
+            size_t source_partial_read_len = len - dest_partial_read_len;
+
+            /* First read the serviceable portion from the destination. */
+            WT_ERR(__live_restore_fh_read_destination(
+              session, lr_fh->destination, offset, dest_partial_read_len, tmp_buf));
+
+            /* Now read the remaining data from the source. */
+            WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, hole_begin_off,
+              source_partial_read_len, tmp_buf + dest_partial_read_len));
+            WT_ASSERT_ALWAYS(session, WT_STRING_MATCH(read_data, tmp_buf, len),
+              "Live restore partial reads should always match reads from the source!");
+        }
+    }
 
 err:
     /*
@@ -775,7 +814,7 @@ err:
      * Right now reads and writes are atomic if we unlock early we lose some guarantee of atomicity.
      */
     __wt_readunlock(session, &lr_fh->lock);
-
+    __wt_free(session, tmp_buf);
     return (ret);
 }
 
