@@ -198,7 +198,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     /*
      * Ensure no one beat us to creating the handle now that we hold the write lock.
      */
-    if (ret = __wt_conn_dhandle_find(session, uri, checkpoint) != WT_NOTFOUND)
+    if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) != WT_NOTFOUND)
         return (ret);
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
