@@ -156,17 +156,18 @@ __ref_cas_state(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE old_state,
 	if (cas_result && new_state == WT_REF_LOCKED)
 		__atomic_store_n(&ref->owner, (uint64_t)session, __ATOMIC_RELEASE);
 
+#if 0
 	if (cas_result) {
 		printf("session %d SUCCESS to CAS STATE from %d to %d on page %p,  func %s, line %d\n",
 			   (int)session->id, old_state, new_state, (ref->page == NULL)? 0 : (void*)ref->page,
 			   func, line);
 	}
-#if 0
 	else
 		printf("session %d FAIL to CAS STATE from %d to %d on page %p,  func %s, line %d\n", (int)session->id,
 			   old_state, new_state, (ref->page == NULL)? 0 : (void*)ref->page, func, line);
-#endif
 	fflush(stdout);
+#endif
+
     return (cas_result);
 }
 
