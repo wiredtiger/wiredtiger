@@ -86,7 +86,7 @@ class test_layered14(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.reopen_conn(config = follower_config)
         time.sleep(1.0)
 
-        random_cursor = self.session.open_cursor(self.uri, None, "next_random=true,force=true")
+        random_cursor = self.session.open_cursor(self.uri, None, "next_random=true")
         self.assertEqual(random_cursor.next(), 0)
         random_cursor.close()
 

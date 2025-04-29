@@ -184,8 +184,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, bool f
  *     Allocate a new data handle and return it linked into the connection's list.
  */
 int
-__wt_conn_dhandle_alloc(
-  WT_SESSION_IMPL *session, const char *uri, const char *checkpoint, bool force)
+__wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
     WT_BTREE *btree;
     WT_DATA_HANDLE *dhandle;
@@ -199,7 +198,7 @@ __wt_conn_dhandle_alloc(
     /*
      * Ensure no one beat us to creating the handle now that we hold the write lock.
      */
-    if (!force && (ret = __wt_conn_dhandle_find(session, uri, checkpoint)) != WT_NOTFOUND)
+    if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) != WT_NOTFOUND)
         return (ret);
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
