@@ -23,11 +23,9 @@ init_file_handle(WT_SESSION *session, WTI_LIVE_RESTORE_FS *lr_fs, const char *fi
       WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE, (WT_FILE_HANDLE **)lr_fhp);
 
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = *lr_fhp;
-    __wt_writelock((WT_SESSION_IMPL *)session, &lr_fh->lock);
     lr_fh->allocsize = allocsize;
     lr_fh->nbits = file_size / allocsize;
     REQUIRE(__bit_alloc((WT_SESSION_IMPL *)session, lr_fh->nbits, &lr_fh->bitmap) == 0);
-    __wt_writeunlock((WT_SESSION_IMPL *)session, &(*lr_fhp)->lock);
 }
 
 TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read_write]")

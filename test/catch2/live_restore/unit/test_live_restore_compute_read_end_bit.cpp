@@ -96,7 +96,6 @@ TEST_CASE("Test various live restore compute read end bit",
         lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session, dest_file.c_str(),
           WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE, (WT_FILE_HANDLE **)&lr_fh);
 
-        __wt_writelock(session_impl, &lr_fh->lock);
         lr_fh->allocsize = test.allocsize;
         lr_fh->bitmap = test.bitmap;
         lr_fh->nbits = test.nbits;
@@ -104,7 +103,6 @@ TEST_CASE("Test various live restore compute read end bit",
                   session_impl, lr_fh, test.buf_size, test.first_clear_bit, &end_bit) == 0);
         REQUIRE(
           is_valid_end_bit(end_bit, lr_fh, test.buf_size, test.first_clear_bit, test.file_size));
-        __wt_writeunlock(session_impl, &lr_fh->lock);
 
         REQUIRE(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session) == 0);
         testutil_remove(dest_file.c_str());
