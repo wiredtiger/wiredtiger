@@ -51,10 +51,11 @@ fi
 # Downloading a prebuilt copy failed. Assume it is because it doesn't exist for this build
 # variant. Attempt to create a shared object for this build variant and upload it.
 # From this point onward: any and all errors are fatal, and will cause the build to FAIL.
+echo "Prebuilt tcmalloc doesn't exist, trying to build a new one"
 set -e
 
 # Fetch the operating system and hardware architecture to download bazelisk binaries. The bazelisk
-# binary is used to specifically obtain the bazel 7.5.0 version. Note: We do not spport TCMalloc
+# binary is used to specifically obtain the bazel 7.5.0 version. Note: We do not support TCMalloc
 # with Windows.
 RUN_OS=$(uname -s)
 ARCH=$(uname -m)
