@@ -305,11 +305,10 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *     Write the operations of a transaction to the log at commit time.
  */
 int
-__wti_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_txn_log_commit(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
 
-    WT_UNUSED(cfg);
     txn = session->txn;
     /*
      * If there are no log records there is nothing to do.
@@ -536,7 +535,7 @@ __wt_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_LSN 
           ckpt_snapshot));
         logrec->size += (uint32_t)recsize;
         WT_ERR(__wt_log_write(
-          session, logrec, lsnp, F_ISSET(conn, WT_CONN_CKPT_SYNC) ? WT_LOG_FSYNC : 0));
+          session, logrec, lsnp, F_ISSET_ATOMIC_32(conn, WT_CONN_CKPT_SYNC) ? WT_LOG_FSYNC : 0));
 
         /*
          * If this full checkpoint completed successfully and there is no hot backup in progress and
