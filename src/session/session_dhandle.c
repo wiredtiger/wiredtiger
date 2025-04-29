@@ -908,10 +908,9 @@ int
 __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint,
   const char *cfg[], uint32_t flags)
 {
-    WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    bool force, is_dead;
+    bool is_dead;
 
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
@@ -955,7 +954,6 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
         if ((ret = __wt_conn_dhandle_open(session, cfg, flags)) == 0 &&
           LF_ISSET(WT_DHANDLE_EXCLUSIVE))
             break;
-        force = false;
 
         /*
          * If we got the handle exclusive to open it but only want ordinary access, drop our lock
