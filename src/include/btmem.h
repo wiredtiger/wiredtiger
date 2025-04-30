@@ -1286,7 +1286,7 @@ struct __wt_ref {
     wt_shared WT_PAGE_DELETED *page_del; /* Page-delete information for a deleted page. */
 
 #ifdef HAVE_REF_TRACK
-#define WT_REF_SAVE_STATE_MAX 3
+#define WT_REF_SAVE_STATE_MAX 10
     /* Capture history of ref state changes. */
     WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
     uint64_t histoff;

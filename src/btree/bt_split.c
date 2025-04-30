@@ -1281,7 +1281,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
      * This child has exclusive access to split its parent and the child's existence prevents the
      * parent from being evicted. However, once we update the parent's index, it may no longer refer
      * to the child, and could conceivably be evicted. Therefore, we need to acquire a hazard
-     * pointer and the page lock to prevent it from being evicted.
+     * pointer to prevent it from being evicted.
      */
 
     *parentp = parent;
