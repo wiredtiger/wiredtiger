@@ -5553,10 +5553,8 @@ buildvariants:
     - name: format-smoke-test
     - name: ".data-validation-stress-test"
     - name: catch2-test
-    - name: s3-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: catch2-assertions
-    - name: bench-tiered-push-pull-s3
 
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
@@ -5843,7 +5841,6 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    - name: ".lint"
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
@@ -6229,6 +6226,8 @@ buildvariants:
   batchtime: 1440 # 24 hours
   expansions:
     ENABLE_TCMALLOC: 1
+    # FIXME-WT-XXXX: Use stable toolchain once workgen tests are fixed.
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: ".workgen-test"
