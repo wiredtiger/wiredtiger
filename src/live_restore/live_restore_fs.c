@@ -583,6 +583,7 @@ static bool
 __live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
   wt_off_t offset, size_t len, wt_off_t *hole_begin_off)
 {
+    *hole_begin_off = offset;
     /*
      * The read will be serviced out of the destination if the read is beyond the length of the
      * source file.
@@ -760,7 +761,7 @@ __live_restore_fh_read(
         WT_RET(__live_restore_fh_read_destination(session, lr_fh->destination, offset, len, buf));
 
     __wt_readlock(session, &lr_fh->lock);
-    wt_off_t hole_begin_off = offset;
+    wt_off_t hole_begin_off;
     if (__live_restore_can_service_read(session, lr_fh, offset, len, &hole_begin_off)) {
         /* Read the full read from the destination. */
         WT_ERR(
