@@ -760,7 +760,7 @@ __live_restore_fh_read(
         WT_RET(__live_restore_fh_read_destination(session, lr_fh->destination, offset, len, buf));
 
     __wt_readlock(session, &lr_fh->lock);
-    wt_off_t hole_begin_off;
+    wt_off_t hole_begin_off = offset;
     if (__live_restore_can_service_read(session, lr_fh, offset, len, &hole_begin_off)) {
         /* Read the full read from the destination. */
         WT_ERR(
