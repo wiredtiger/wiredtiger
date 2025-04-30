@@ -363,19 +363,19 @@ __split_ref_prepare(
         ref = pindex->index[i];
         child = ref->page;
 
+        /* Block eviction of the newly created page by acquiring a hazard pointer on it. */
+#ifdef HAVE_DIAGNOSTIC
+        WT_ERR(__wt_hazard_set_func(session, ref, &busy, __PRETTY_FUNCTION__, __LINE__));
+#else
+        WT_ERR(__wt_hazard_set_func(session, ref, &busy));
+#endif
+        WT_ASSERT_ALWAYS(
+          session, !busy, "failed to acquire a hazard pointer in internal page split");
+
         /* Track the locked pages for cleanup. */
         WT_ERR(__wt_realloc_def(session, &alloc, cnt + 2, &locked));
         locked[cnt++] = child;
-
         WT_PAGE_LOCK(session, child);
-        /* Block eviction of the newly created page by acquiring a hazard pointer on it. */
-#ifdef HAVE_DIAGNOSTIC
-        ret = __wt_hazard_set_func(session, ref, &busy, __PRETTY_FUNCTION__, __LINE__);
-#else
-        ret = __wt_hazard_set_func(session, ref, &busy);
-#endif
-        WT_ASSERT_ALWAYS(
-          session, ret == 0 && !busy, "failed to acquire a hazard pointer in internal page split.");
 
         /* Switch the WT_REF's to their new page. */
         j = 0;
@@ -1196,6 +1196,7 @@ err:
 static int
 __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PAGE **parentp)
 {
+    WT_DECL_RET;
     WT_PAGE *parent;
     bool busy;
 
@@ -1246,7 +1247,11 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
 #endif
             if (busy)
                 return (EBUSY);
-            WT_RET(WT_PAGE_TRYLOCK(session, parent));
+            ret = WT_PAGE_TRYLOCK(session, parent);
+            if (ret != 0) {
+                WT_TRET(__wt_hazard_clear(session, parent->pg_intl_parent_ref));
+                WT_RET(ret);
+            }
         } else {
             /*
              * If the parent's children have all be evicted, the parent itself can be evicted after
