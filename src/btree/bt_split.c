@@ -316,6 +316,7 @@ __split_ref_final(WT_SESSION_IMPL *session, uint64_t split_gen, WT_PAGE ***locke
     for (i = 0; locked[i] != NULL; ++i) {
         if (split_gen != 0 && WT_PAGE_IS_INTERNAL(locked[i]))
             locked[i]->pg_intl_split_gen = split_gen;
+        WT_PAGE_UNLOCK(session, locked[i]);
         ret = __wt_hazard_clear(session, locked[i]->pg_intl_parent_ref);
         if (ret != 0)
             WT_IGNORE_RET(__wt_panic(session, ret, "hazard pointer not acquired"));
@@ -374,6 +375,7 @@ __split_ref_prepare(
         /* Track the locked pages for cleanup. */
         WT_ERR(__wt_realloc_def(session, &alloc, cnt + 2, &locked));
         locked[cnt++] = child;
+        WT_PAGE_LOCK(session, child);
 
         /* Switch the WT_REF's to their new page. */
         j = 0;
@@ -1194,6 +1196,7 @@ err:
 static int
 __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PAGE **parentp)
 {
+    WT_DECL_RET;
     WT_PAGE *parent;
     bool busy;
 
@@ -1271,7 +1274,7 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
      * This child has exclusive access to split its parent and the child's existence prevents the
      * parent from being evicted. However, once we update the parent's index, it may no longer refer
      * to the child, and could conceivably be evicted. Therefore, we need to acquire a hazard
-     * pointer to prevent it from being evicted.
+     * pointer and the page lock to prevent it from being evicted.
      */
 
     *parentp = parent;
