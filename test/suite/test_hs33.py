@@ -142,8 +142,11 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
             done.set()
             ckpt.join()
 
-        # Open the new directory, triggering recovery. Set a low eviction size and triggers to
-        # trigger the eviction checks.
+        # Open the new directory, triggering recovery. Set a low eviction size and low eviction 
+        # triggers to trigger the eviction checks during metadata log replay. Prior to the fix in 
+        # WT-14391, this would cause the history store to open during the metadata recovery which
+        # should not occur. Files should only be opened after metadata recovery to ensure the 
+        # correct checkpoint is loaded.
         self.close_conn()
         self.conn_config = 'cache_size=1MB,eviction_dirty_trigger=2,eviction_dirty_target=1,statistics=(all),log=(enabled)'
         conn = self.setUpConnectionOpen("RESTART")
