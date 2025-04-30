@@ -1,0 +1,115 @@
+/*-
+ * Copyright (c) 2014-present MongoDB, Inc.
+ * Copyright (c) 2008-2014 WiredTiger, Inc.
+ *	All rights reserved.
+ *
+ * See the file LICENSE for redistribution information.
+ */
+
+/*
+ * Tests for the Live Restore file handle's fh_truncate function. [live_restore_fh_truncate]
+ */
+
+#include "../utils_live_restore.h"
+
+using namespace utils;
+
+static void
+init_file_handle(WT_SESSION *session, WTI_LIVE_RESTORE_FS *lr_fs, const char *file_name,
+  int allocsize, int file_size, WTI_LIVE_RESTORE_FILE_HANDLE **lr_fhp)
+{
+    testutil_check(lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session, file_name,
+      WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE, (WT_FILE_HANDLE **)lr_fhp));
+
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = *lr_fhp;
+    lr_fh->allocsize = allocsize;
+    lr_fh->nbits = file_size / allocsize;
+    testutil_check(__bit_alloc((WT_SESSION_IMPL *)session, lr_fh->nbits, &lr_fh->bitmap));
+}
+
+// Validate bitmap, all bits before first set bit should be clear, and all bits after it should be
+// set. If first_set_bit_offset is -1 then all bits should be clear.
+static bool
+validate_bitmap(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t first_set_bit_offset)
+{
+    uint64_t ffs;
+    // If no bit is set we should expect first_set_bit_offset to be -1.
+    if (__bit_ffs(lr_fh->bitmap, lr_fh->nbits, &ffs) == -1)
+        return first_set_bit_offset == -1;
+
+    auto first_set_bit = WTI_OFFSET_TO_BIT(first_set_bit_offset);
+    // Validate all bits before first set bit are clear.
+    if (ffs != first_set_bit)
+        return false;
+
+    // Validate all bits after first set bit are set.
+    for (int current_bit = first_set_bit; current_bit < lr_fh->nbits; current_bit++)
+        if (!__bit_test(lr_fh->bitmap, current_bit))
+            return false;
+
+    return true;
+}
+
+TEST_CASE("Live Restore fh_truncate", "[live_restore],[live_restore_fh_truncate]")
+{
+    live_restore_test_env env;
+    std::string file = "file1.txt";
+    wt_off_t size;
+    WT_SESSION *session = (WT_SESSION *)env.session;
+    WTI_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
+    WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = nullptr;
+    int allocsize = 4, file_size = 16;
+
+    // Create source file and init file handle, the dest file will be created with a same size of
+    // source file during fs_open_file.
+    create_file(env.source_file_path(file).c_str(), file_size);
+    init_file_handle(
+      session, lr_fs, env.dest_file_path(file).c_str(), allocsize, file_size, &lr_fh);
+    testutil_check(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, &size));
+    REQUIRE(size == file_size);
+
+    // Test truncate a file that does not change the file size.
+    REQUIRE(lr_fh->iface.fh_truncate((WT_FILE_HANDLE *)lr_fh, session, file_size) == 0);
+    testutil_check(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, &size));
+    REQUIRE(size == file_size);
+
+    // Reduce file size, the truncated portion should have bitmap filled.
+    REQUIRE(
+      lr_fh->iface.fh_truncate((WT_FILE_HANDLE *)lr_fh, session, file_size - allocsize * 2) == 0);
+    testutil_check(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, &size));
+    REQUIRE(size == file_size - allocsize * 2);
+    REQUIRE(validate_bitmap(lr_fh, file_size - allocsize * 2));
+
+    // Now test positive length truncate but keep the file size smaller than its original size.
+    REQUIRE(lr_fh->iface.fh_truncate((WT_FILE_HANDLE *)lr_fh, session, file_size - allocsize) == 0);
+    testutil_check(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, &size));
+    REQUIRE(size == file_size - allocsize);
+    // The filled range for bitmap keeps the same.
+    REQUIRE(validate_bitmap(lr_fh, file_size - allocsize * 2));
+
+    // Test positive length file truncate that makes file size larger than its original size.
+    REQUIRE(
+      lr_fh->iface.fh_truncate((WT_FILE_HANDLE *)lr_fh, session, file_size + allocsize * 2) == 0);
+    testutil_check(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, &size));
+    REQUIRE(size == file_size + allocsize * 2);
+    REQUIRE(validate_bitmap(lr_fh, file_size - allocsize * 2));
+
+    // Clear bitmap to simulate a file being positive truncated before any bits in its bitmap are
+    // set.
+    __bit_nclr(lr_fh->bitmap, 0, lr_fh->nbits);
+    // Test where the truncation lies entirely beyond the bitmap, and fh_truncate should still
+    // function correctly.
+    REQUIRE(lr_fh->iface.fh_truncate((WT_FILE_HANDLE *)lr_fh, session, file_size + allocsize) == 0);
+    testutil_check(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, &size));
+    REQUIRE(size == file_size + allocsize);
+    // No bit is set at this point.
+    REQUIRE(validate_bitmap(lr_fh, -1));
+
+    // Test where the truncation is partially within the bitmap range, and fh_truncate should still
+    // function.
+    REQUIRE(lr_fh->iface.fh_truncate((WT_FILE_HANDLE *)lr_fh, session, file_size - allocsize) == 0);
+    testutil_check(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, &size));
+    REQUIRE(size == file_size - allocsize);
+    // The truncated portion which is in the bitmap range should have bits set.
+    REQUIRE(validate_bitmap(lr_fh, file_size - allocsize));
+}
