@@ -76,30 +76,30 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
     WT_PAGE_HISTORY *page_history;
     WT_PAGE_HISTORY_ITEM *item, *most_reads;
     size_t i, top_n;
-    bool first;
+    bool empty, first;
 
     page_history = &S2C(session)->page_history;
     if (!page_history->enabled)
         return (0);
 
-    first = true;
     most_reads = NULL;
     top_n = 5;
 
     WT_ERR(__wt_calloc_def(session, top_n, &most_reads));
 
+    empty = true;
     for (i = 0; i < page_history->pages->hash_size; i++) {
         __wt_spin_lock(session, &page_history->pages->hash_locks[i]);
         TAILQ_FOREACH (h, &page_history->pages->hash[i], hashq) {
             item = (WT_PAGE_HISTORY_ITEM *)h->data;
             if (item->key.page_id == WT_BLOCK_INVALID_PAGE_ID)
                 continue;
-            if (first || item->num_reads > most_reads[top_n - 1].num_reads) {
+            if (item->num_reads > most_reads[top_n - 1].num_reads) {
                 most_reads[top_n - 1] = *item;
                 __wt_qsort(
                   most_reads, top_n, sizeof(*most_reads), __conn_page_history_cmp_most_reads);
+                empty = false;
             }
-            first = false;
         }
         __wt_spin_unlock(session, &page_history->pages->hash_locks[i]);
     }
@@ -111,7 +111,7 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
     WT_ERR(__wt_msg(session, "  total evictions: %" PRIu64, page_history->global_evict_count));
     WT_ERR(__wt_msg(session, "%s", ""));
 
-    if (first) {
+    if (empty) {
         WT_ERR(__wt_msg(session, "no pages read"));
         goto err;
     }
