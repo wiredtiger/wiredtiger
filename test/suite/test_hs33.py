@@ -95,10 +95,6 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
         for uri, ds in tables.items():
             self.large_updates(self.session, uri, bigvalue2, ds, nrows)
 
-        self.session.checkpoint()
-        session2.rollback_transaction()
-        session2.close()
-
         # Wait until we reach the checkpoint stop timing stress point before copying the
         # database. This point is placed before we sync the metadata file so that the snapshot
         # includes incomplete checkpoint log records.
@@ -124,6 +120,9 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
         finally:
             done.set()
             ckpt.join()
+
+        session2.rollback_transaction()
+        session2.close()
 
         # Open the new directory, triggering recovery. Set a low eviction size and low eviction
         # triggers to trigger the eviction checks during metadata log replay. Prior to the fix in
