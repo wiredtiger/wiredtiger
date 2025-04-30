@@ -2140,8 +2140,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         WT_ACQUIRE_READ(checkpoint_gen, btree->checkpoint_gen);
         if (checkpoint_gen == __wt_gen(session, WT_GEN_CHECKPOINT)) {
             WT_ACQUIRE_READ(checkpoint_running, S2C(session)->txn_global.checkpoint_running);
-            if (checkpoint_running)
+            if (checkpoint_running) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_disagg_next_checkpoint);
                 return (false);
+            }
         }
     }
 

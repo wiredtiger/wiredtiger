@@ -26,15 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time, wiredtiger, wttest
+import os, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
-
-# We support using the reset operation to pick up the latest checkpoint for layered: URIs.
-# In milestone 4, however, layered URIs are not used, and the way we pick up the latest checkpoint
-# is a bit hacky.  We still want to verify that this technique works, at least for a while.
-# The milestone 4 specific code is marked by this variable:
-test_milestone4 = True
 
 # test_layered31.py
 #    Extra tests for follower picking up new checkpoints.
@@ -54,9 +48,6 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     layered_uris = ["layered:test_layered31a", "layered:test_layered31b"]
     all_uris = list(layered_uris)
-    if test_milestone4:
-        other_uris = ["file:test_layered31c", "table:test_layered31d"]
-        all_uris += other_uris
 
     disagg_storages = gen_disagg_storages('test_layered31', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
@@ -67,30 +58,11 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             extlist.skip_if_missing = True
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    # Open a cursor on the follower.  Generally, the test will open a layered: uri.
-    # But we want to temporarily support a world in M4 where we must directly open the
-    # stable table, using a file: or table: . This is needed because in this world we don't
-    # pre-create the ingest tables needed to use a layered: uri.
-    def open_follow_cursor(self, session, uri):
-        config = None
-        if test_milestone4:
-            if uri.startswith('table:') or uri.startswith('file:'):
-                #self.tty(f'\n\n**** OPENING FOLLOW CURSOR {uri} with force=true ****\n')
-                config = 'force=true'
-        return session.open_cursor(uri, None, config)
-
     # Reset a cursor on the follower.  Generally, the test will open a layered: uri,
     # and a reset is a signal have the cursor move to the next checkpoint. This works
     # for layered cursors but not cursors in general.  In the m4 milestone where we don't
     # use a layered cursor, to get similar behavior, we need to reopen the cursor.
     def reset_follow_cursor(self, cursor):
-        if test_milestone4:
-            uri = cursor.uri
-            if uri.startswith('table:') or uri.startswith('file:'):
-                #self.tty(f'\n\n**** INSTEAD OF RESET, REOPEN FOLLOW CURSOR {uri} with force=true ****\n')
-                session = cursor.session
-                cursor = session.open_cursor(uri, None, 'force=true')
-                return cursor
         cursor.reset()
         return cursor
 
@@ -109,7 +81,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             if cursors:
                 cursor = cursors[uri]
             else:
-                cursor = self.open_follow_cursor(self.session_follow, uri)
+                cursor = self.session_follow.open_cursor(uri)
 
             for i in range(low, high):
                 self.assertEqual(cursor[str(i)], value_prefix + str(i))
@@ -131,7 +103,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
             if cursors:
                 cursor = cursors[uri]
             else:
-                cursor = self.open_follow_cursor(self.session_follow, uri)
+                cursor = self.session_follow.open_cursor(uri)
 
             found = 0
             for i in range(low, high):

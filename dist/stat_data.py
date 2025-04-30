@@ -1070,6 +1070,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_blocked_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_blocked_hazard', 'hazard pointer blocked page eviction'),
     CacheStat('cache_eviction_blocked_disagg_dirty_internal_page', 'dirty internal page cannot be evicted in disaggregated storage'),
+    CacheStat('cache_eviction_blocked_disagg_next_checkpoint', 'page eviction blocked in disaggregated storage as it can only be written by the next checkpoint'),
     CacheStat('cache_eviction_blocked_internal_page_split', 'internal page split blocked its eviction'),
     CacheStat('cache_eviction_blocked_materialization', 'page eviction blocked due to materialization frontier'),
     CacheStat('cache_eviction_blocked_no_progress', 'eviction gave up due to no progress being made'),
