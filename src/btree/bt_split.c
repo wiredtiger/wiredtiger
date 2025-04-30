@@ -672,7 +672,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     size_t parent_decr, size;
     uint64_t split_gen;
     uint32_t deleted_entries, *deleted_refs, hint, i, j, parent_entries, result_entries;
-    bool empty_parent;
+    bool busy, empty_parent;
 
 #ifdef HAVE_DIAGNOSTIC
     WT_PAGE_INDEX *check_pindex;
@@ -805,6 +805,22 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_INTL_INDEX_GET_SAFE(parent, check_pindex);
     WT_ASSERT(session, check_pindex == pindex);
 #endif
+
+    do {
+        /* If the parent's children have all be evicted, itself can be evicted after the new page
+         * index is visible and before the split generation is set. Acquire a hazard pointer to
+         * prevent the parent being evicted before we set the page split generation. */
+#ifdef HAVE_DIAGNOSTIC
+        WT_ERR(__wt_hazard_set_func(
+          session, parent->pg_intl_parent_ref, &busy, __PRETTY_FUNCTION__, __LINE__));
+#else
+        WT_ERR(__wt_hazard_set_func(session, parent->pg_intl_parent_ref, &busy));
+#endif
+        if (busy)
+            __wt_yield();
+
+    } while (busy);
+
     WT_INTL_INDEX_SET(parent, alloc_index);
     alloc_index = NULL;
 
@@ -819,6 +835,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_FULL_BARRIER();
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     parent->pg_intl_split_gen = split_gen;
+
+    WT_ERR(__wt_hazard_clear(session, parent->pg_intl_parent_ref));
 
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER))
         WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
