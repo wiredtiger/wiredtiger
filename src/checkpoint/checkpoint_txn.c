@@ -1437,16 +1437,14 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
         WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
 
-<<<<<<< HEAD
+    /* Crash before metadata sync if checkpoint crash point is configured. */
+    if (ckpt_crash_before_metadata_sync)
+        __wt_debug_crash(session);
+
     WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 1);
     /* Wait prior to flush the checkpoint stop log record. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, &tsp);
     WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 0);
-=======
-    /* Crash before metadata sync if checkpoint crash point is configured. */
-    if (ckpt_crash_before_metadata_sync)
-        __wt_debug_crash(session);
->>>>>>> develop
 
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Either
