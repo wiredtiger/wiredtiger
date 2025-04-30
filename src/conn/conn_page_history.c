@@ -15,6 +15,7 @@
 static int
 __conn_page_history_print(WT_SESSION_IMPL *session, const WT_PAGE_HISTORY_ITEM *item)
 {
+    uint64_t total_read_count_between_reads, total_time_between_reads;
     const char *page_type_str;
 
     if (item == NULL) {
@@ -32,6 +33,9 @@ __conn_page_history_print(WT_SESSION_IMPL *session, const WT_PAGE_HISTORY_ITEM *
         break;
     }
 
+    total_read_count_between_reads = item->last_global_read_count - item->first_global_read_count;
+    total_time_between_reads = item->last_read_timestamp - item->first_read_timestamp;
+
     WT_RET(__wt_msg(session, "  table ID                         : %" PRIu32, item->key.table_id));
     WT_RET(__wt_msg(session, "  page ID                          : %" PRIu64, item->key.page_id));
     WT_RET(__wt_msg(session, "  page type                        : %" PRIu8 " (%s)",
@@ -39,9 +43,9 @@ __conn_page_history_print(WT_SESSION_IMPL *session, const WT_PAGE_HISTORY_ITEM *
     WT_RET(__wt_msg(session, "  number of evictions              : %" PRIu32, item->num_evicts));
     WT_RET(__wt_msg(session, "  number of reads                  : %" PRIu32, item->num_reads));
     WT_RET(__wt_msg(session, "  avg. time between re-reads (ms)  : %" PRIu64,
-      item->num_reads <= 1 ? 0 : item->total_time_between_reads / (item->num_reads - 1)));
+      item->num_reads <= 1 ? 0 : total_time_between_reads / (item->num_reads - 1)));
     WT_RET(__wt_msg(session, "  avg. other reads between re-reads: %" PRIu64,
-      item->num_reads <= 1 ? 0 : item->total_read_count_between_reads / (item->num_reads - 1)));
+      item->num_reads <= 1 ? 0 : total_read_count_between_reads / (item->num_reads - 1)));
 
     return (0);
 }
@@ -355,11 +359,10 @@ __wt_conn_page_history_track_read(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     __wt_milliseconds(session, &current_ms);
 
-    if (item->last_read_timestamp != 0)
-        item->total_time_between_reads += current_ms - item->last_read_timestamp;
-    if (item->last_global_read_count != 0)
-        item->total_read_count_between_reads +=
-          current_global_read_count - item->last_global_read_count;
+    if (item->first_read_timestamp == 0)
+        item->first_read_timestamp = current_ms;
+    if (item->first_global_read_count == 0)
+        item->first_global_read_count = current_global_read_count;
 
     item->last_global_read_count = current_global_read_count;
     item->last_read_timestamp = current_ms;

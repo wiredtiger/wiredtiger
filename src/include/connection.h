@@ -244,11 +244,11 @@ struct __wt_page_history_key {
 struct __wt_page_history_item {
     WT_PAGE_HISTORY_KEY key;
 
+    uint64_t first_global_read_count;
+    uint64_t first_read_timestamp;
+
     uint64_t last_global_read_count;
     uint64_t last_read_timestamp;
-
-    uint64_t total_read_count_between_reads;
-    uint64_t total_time_between_reads;
 
     uint32_t num_evicts;
     uint32_t num_reads;
