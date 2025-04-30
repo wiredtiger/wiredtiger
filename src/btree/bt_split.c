@@ -319,7 +319,7 @@ __split_ref_final(WT_SESSION_IMPL *session, uint64_t split_gen, WT_PAGE ***locke
         WT_PAGE_UNLOCK(session, locked[i]);
         ret = __wt_hazard_clear(session, locked[i]->pg_intl_parent_ref);
         if (ret != 0)
-            WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during internal page split"));
+            WT_IGNORE_RET(__wt_panic(session, ret, "hazard pointer not acquired"));
     }
     __wt_free(session, locked);
 }
@@ -1298,7 +1298,7 @@ __split_internal_unlock(WT_SESSION_IMPL *session, WT_PAGE *parent)
     WT_PAGE_UNLOCK(session, parent);
     ret = __wt_hazard_clear(session, parent->pg_intl_parent_ref);
     if (ret != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during internal page split"));
+        WT_IGNORE_RET(__wt_panic(session, ret, "hazard pointer not acquired"));
 }
 
 /*
