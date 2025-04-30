@@ -106,7 +106,9 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
 
     WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
     WT_ERR(__wt_msg(session, "page history report"));
-    WT_ERR(__wt_msg(session, "  total reads: %" PRIu64, page_history->global_read_count));
+    WT_ERR(__wt_msg(session, "  total reads    : %" PRIu64, page_history->global_read_count));
+    WT_ERR(__wt_msg(session, "  total re-reads : %" PRIu64, page_history->global_reread_count));
+    WT_ERR(__wt_msg(session, "  total evictions: %" PRIu64, page_history->global_evict_count));
     WT_ERR(__wt_msg(session, "%s", ""));
 
     if (first) {
@@ -286,6 +288,8 @@ __wt_conn_page_history_track_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (!page_history->enabled)
         return (0);
 
+    (void)__wt_atomic_add64(&page_history->global_evict_count, 1);
+
     /* So far this works only for disaggregated storage, as we don't have page IDs without it. */
     if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
         return (0);
@@ -360,6 +364,9 @@ __wt_conn_page_history_track_read(WT_SESSION_IMPL *session, WT_PAGE *page)
     item->last_global_read_count = current_global_read_count;
     item->last_read_timestamp = current_ms;
     item->num_reads++;
+
+    if (item->num_reads > 1)
+        (void)__wt_atomic_add64(&page_history->global_reread_count, 1);
 
 err:
     if (item != NULL)

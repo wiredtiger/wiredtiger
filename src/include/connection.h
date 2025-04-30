@@ -264,7 +264,10 @@ struct __wt_page_history_item {
 struct __wt_page_history {
     bool enabled;
 
+    wt_shared uint64_t global_evict_count;
     wt_shared uint64_t global_read_count;
+    wt_shared uint64_t global_reread_count;
+
     WT_HASH_MAP *pages;
 
     /* The reporting thread. */
