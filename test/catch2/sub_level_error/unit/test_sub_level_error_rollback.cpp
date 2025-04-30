@@ -37,7 +37,6 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // If the eviction server isn't running, then the threads have not been set up yet and it's
         // not safe to evict.
         CHECK(__wt_evict_app_assist_worker_check(session_impl, false, false, true, NULL) == 0);
-        // CHECK(__wti_evict_app_assist_worker(session_impl, false, false, true, 100) == 0);
         check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Set the eviction server as running.
