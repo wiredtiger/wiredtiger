@@ -1280,10 +1280,8 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
     /*
      * This child has exclusive access to split its parent and the child's existence prevents the
      * parent from being evicted. However, once we update the parent's index, it may no longer refer
-     * to the child, and could conceivably be evicted. If the parent page is dirty, our page lock
-     * prevents eviction because reconciliation is blocked. However, if the page were clean, it
-     * could be evicted without encountering our page lock. That isn't possible because you cannot
-     * move a child page and still leave the parent page clean.
+     * to the child, and could conceivably be evicted. Therefore, we need to acquire a hazard
+     * pointer and the page lock to prevent it from being evicted.
      */
 
     *parentp = parent;
