@@ -2838,7 +2838,8 @@ __wti_evict_app_assist_worker(
      * Before we enter the eviction generation, make sure this session has a cached history store
      * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
      * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
-     * inside eviction waiting on a handle list read lock to open a history store cursor.
+     * inside eviction waiting on a handle list read lock to open a history store cursor. The
+     * eviction server should be started at this point so it is safe to open the history store.
      */
     WT_ERR(__wt_curhs_cache(session));
 
