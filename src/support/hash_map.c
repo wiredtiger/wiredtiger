@@ -84,7 +84,7 @@ __wt_hash_map_destroy(WT_SESSION_IMPL *session, WT_HASH_MAP **hash_mapp)
  */
 static int
 __hash_map_insert_new(WT_SESSION_IMPL *session, WT_HASH_MAP *hash_map, size_t bucket,
-  const void *key, size_t key_size, const void *data, size_t data_size)
+  const void *key, size_t key_size, const void *data, size_t data_size, WT_HASH_MAP_ITEM **itemp)
 {
     WT_DECL_RET;
     WT_HASH_MAP_ITEM *item;
@@ -96,10 +96,13 @@ __hash_map_insert_new(WT_SESSION_IMPL *session, WT_HASH_MAP *hash_map, size_t bu
     item->key_size = key_size;
 
     WT_ERR(__wt_calloc(session, 1, data_size, &item->data));
-    memcpy(item->data, data, data_size);
+    if (data != NULL)
+        memcpy(item->data, data, data_size);
     item->data_size = data_size;
 
     TAILQ_INSERT_HEAD(&hash_map->hash[bucket], item, hashq);
+    if (itemp != NULL)
+        *itemp = item;
     return (0);
 
 err:
@@ -122,9 +125,6 @@ __wt_hash_map_get(WT_SESSION_IMPL *session, WT_HASH_MAP *hash_map, const void *k
     WT_DECL_RET;
     WT_HASH_MAP_ITEM *item;
     size_t bucket, data_size;
-    void *data;
-
-    data = NULL;
 
     if (insert_if_not_found && hash_map->value_size == 0)
         return (EINVAL);
@@ -147,19 +147,15 @@ __wt_hash_map_get(WT_SESSION_IMPL *session, WT_HASH_MAP *hash_map, const void *k
     /* Insert a zeroed out item if requested. */
     if (insert_if_not_found) {
         data_size = hash_map->value_size;
-        WT_ERR(__wt_calloc(session, 1, data_size, &data));
-        WT_ERR(__hash_map_insert_new(session, hash_map, bucket, key, key_size, data, data_size));
-        *datap = data;
+        WT_ERR(
+          __hash_map_insert_new(session, hash_map, bucket, key, key_size, NULL, data_size, &item));
+        *datap = item->data;
         if (data_sizep != NULL)
             *data_sizep = data_size;
     } else
         ret = WT_NOTFOUND;
 
-    if (0) {
 err:
-        __wt_free(session, data);
-    }
-
     if (!keep_locked || ret != 0)
         __wt_spin_unlock(session, &hash_map->hash_locks[bucket]);
     return (ret);
