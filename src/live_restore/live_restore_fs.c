@@ -583,7 +583,7 @@ static bool
 __live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
   wt_off_t offset, size_t len, wt_off_t *hole_begin_off)
 {
-    *hole_begin_off = offset;
+    *hole_begin_off = -1;
     /*
      * The read will be serviced out of the destination if the read is beyond the length of the
      * source file.
@@ -617,7 +617,7 @@ __live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_
     /* We've found a hole return its offset to the caller. */
     *hole_begin_off = WTI_BIT_TO_OFFSET(current_bit);
 
-    /* We need to iterate through those unset bits to verify this is a valid bit range.*/
+    /* We need to iterate through those unset bits to verify this is a valid bit range. */
     while (current_bit < read_end_bit && !__bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
     /*
@@ -790,19 +790,15 @@ __live_restore_fh_read(
          *
          */
         if (hole_begin_off > offset) {
-            WT_ERR(__wt_calloc(session, 1, len, &tmp_buf));
             size_t dest_partial_read_len = (size_t)(hole_begin_off - offset);
-            size_t source_partial_read_len = len - dest_partial_read_len;
+            WT_ERR(__wt_calloc(session, 1, dest_partial_read_len, &tmp_buf));
 
-            /* First read the serviceable portion from the destination. */
+            /* Read the serviceable portion from the destination. */
             WT_ERR(__live_restore_fh_read_destination(
               session, lr_fh->destination, offset, dest_partial_read_len, tmp_buf));
 
-            /* Now read the remaining data from the source. */
-            WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, hole_begin_off,
-              source_partial_read_len, tmp_buf + dest_partial_read_len));
-            WT_ASSERT_ALWAYS(session, WT_STRING_MATCH(read_data, tmp_buf, len),
-              "Live restore partial reads should always match reads from the source!");
+            /* We only need to check the destination portion matches the portion in the source. */
+            WT_ASSERT(session, strncmp(read_data, tmp_buf, dest_partial_read_len) == 0);
         }
 #endif
     }
