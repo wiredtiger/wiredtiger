@@ -673,7 +673,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     size_t parent_decr, size;
     uint64_t split_gen;
     uint32_t deleted_entries, *deleted_refs, hint, i, j, parent_entries, result_entries;
-    bool busy, empty_parent;
+    bool empty_parent;
 
 #ifdef HAVE_DIAGNOSTIC
     WT_PAGE_INDEX *check_pindex;
