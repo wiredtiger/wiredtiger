@@ -1247,11 +1247,6 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
 #endif
             if (busy)
                 return (EBUSY);
-            ret = WT_PAGE_TRYLOCK(session, parent);
-            if (ret != 0) {
-                WT_TRET(__wt_hazard_clear(session, parent->pg_intl_parent_ref));
-                WT_RET(ret);
-            }
         } else {
             /*
              * If the parent's children have all be evicted, the parent itself can be evicted after
@@ -1269,11 +1264,9 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
                 if (busy)
                     __wt_yield();
             } while (busy);
-            WT_PAGE_LOCK(session, parent);
         }
         if (parent == ref->home)
             break;
-        WT_PAGE_UNLOCK(session, parent);
         WT_RET(__wt_hazard_clear(session, parent->pg_intl_parent_ref));
     }
 
@@ -1297,7 +1290,6 @@ __split_internal_unlock(WT_SESSION_IMPL *session, WT_PAGE *parent)
 {
     WT_DECL_RET;
 
-    WT_PAGE_UNLOCK(session, parent);
     ret = __wt_hazard_clear(session, parent->pg_intl_parent_ref);
     if (ret != 0)
         WT_IGNORE_RET(__wt_panic(session, ret, "hazard pointer not acquired"));
