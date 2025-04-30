@@ -58,25 +58,6 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
                 session.commit_transaction('commit_timestamp=' + self.timestamp_str(i + 1))
         cursor.close()
 
-    def large_modifies(self, session, uri, offset, ds, nrows, timestamp=False):
-        cursor = session.open_cursor(uri)
-        for i in range(1, nrows):
-            # Unlike inserts and updates, modify operations do not implicitly start/commit a transaction.
-            # Hence, we begin/commit transaction manually.
-            session.begin_transaction()
-            cursor.set_key(ds.key(i))
-
-            mods = []
-            mod = wiredtiger.Modify('A', offset, 1)
-            mods.append(mod)
-            self.assertEqual(cursor.modify(mods), 0)
-
-            if timestamp == True:
-                session.commit_transaction('commit_timestamp=' + self.timestamp_str(i + 1))
-            else:
-                session.commit_transaction()
-        cursor.close()
-
     def add_insert(self, uri, ds, value, nrows):
         session = self.session
         cursor = session.open_cursor(uri)
