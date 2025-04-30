@@ -1441,6 +1441,10 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     if (ckpt_crash_before_metadata_sync)
         __wt_debug_crash(session);
 
+    /*
+     * Stress point to stop just before we sync the metadata file. Used to recreate log recovery
+     * scenarios with an incomplete checkpoint.
+     */
     WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 1);
     /* Wait prior to flush the checkpoint stop log record. */
     __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, &tsp);

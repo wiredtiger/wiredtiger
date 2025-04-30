@@ -99,6 +99,9 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
         session2.rollback_transaction()
         session2.close()
 
+        # Wait until we reach the checkpoint stop timing stress point before copying the
+        # database. This point is placed before we sync the metadata file so that the snapshot
+        # includes incomplete checkpoint log records.
         self.conn.reconfigure('timing_stress_for_test=[checkpoint_stop]')
 
         # Create a checkpoint thread
@@ -107,9 +110,8 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
         try:
             ckpt.start()
 
-            # Wait until we reach the checkpoint stop timing stress point before copying the
-            # database. This point is placed before we sync the metadata file so that the snapshot
-            # includes incomplete checkpoint log records.
+            # Poll the checkpoint stop timing stress stat until we know we've reached the stress
+            # point.
             ckpt_stop_timing_stress = 0
             while not ckpt_stop_timing_stress:
                 time.sleep(1)
@@ -123,10 +125,10 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
             done.set()
             ckpt.join()
 
-        # Open the new directory, triggering recovery. Set a low eviction size and low eviction 
-        # triggers to trigger the eviction checks during metadata log replay. Prior to the fix in 
+        # Open the new directory, triggering recovery. Set a low eviction size and low eviction
+        # triggers to trigger the eviction checks during metadata log replay. Prior to the fix in
         # WT-14391, this would cause the history store to open during the metadata recovery which
-        # should not occur. Files should only be opened after metadata recovery to ensure the 
+        # should not occur. Files should only be opened after metadata recovery to ensure the
         # correct checkpoint is loaded.
         self.close_conn()
         self.conn_config = 'cache_size=1MB,eviction_dirty_trigger=2,eviction_dirty_target=1,statistics=(all),log=(enabled)'
