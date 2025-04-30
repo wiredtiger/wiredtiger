@@ -966,6 +966,7 @@ restart:
             session, true, F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC))));
     }
     WT_TAILQ_SAFE_REMOVE_END
+
     return (ret);
 }
 
