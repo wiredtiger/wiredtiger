@@ -769,6 +769,7 @@ __live_restore_fh_read(
         /* Otherwise from the source. */
         WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, offset, len, read_data));
 
+#ifdef HAVE_DIAGNOSTIC
         /*
          * If a portion of the read region is serviceable then it is a partial read, add a check
          * here to ensure partial reads always identical to the reads from the source.
@@ -802,6 +803,7 @@ __live_restore_fh_read(
             WT_ASSERT_ALWAYS(session, WT_STRING_MATCH(read_data, tmp_buf, len),
               "Live restore partial reads should always match reads from the source!");
         }
+#endif
     }
 
 err:
