@@ -148,7 +148,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    uint64_t saved_split_gen;
     uint8_t stats_flags;
     bool clean_page, closing, ebusy_only, inmem_split, tree_dead;
 
@@ -157,7 +156,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     stats_flags = 0;
     clean_page = ebusy_only = false;
-    saved_split_gen = 0;
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -182,9 +180,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      */
     WT_ENTER_GENERATION(session, WT_GEN_EVICT);
     WT_ENTER_GENERATION(session, WT_GEN_SPLIT);
-
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        saved_split_gen = ref->page->pg_intl_split_gen;
 
     /*
      * Immediately increment the forcible eviction counter, we might do an in-memory split and not
@@ -243,15 +238,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /* After this spot, the only recoverable failure is EBUSY. */
     ebusy_only = true;
 
-    // if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-    //     WT_ASSERT_ALWAYS(session, saved_split_gen == ref->page->pg_intl_split_gen, "fail");
-
     /* Check we are not evicting an accessible internal page with an active split generation. */
-    WT_ASSERT_ALWAYS(session,
+    WT_ASSERT(session,
       closing || !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
-        !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen),
-      "fail saved split gen %" PRIu64 ".", saved_split_gen);
+        !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
 
     /* Count evictions of internal pages during normal operation. */
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
