@@ -34,9 +34,9 @@ from wtdataset import SimpleDataSet
 from wtthread import checkpoint_thread
 
 # test_hs33.py
-# Test that we can run recovery after crashing before the metadata is synced during recovery. 
+# Test that we can run recovery after crashing before the metadata is synced during recovery.
 # This simulates the scenario seen in WT-14376, where the eviction subsystem opened the history
-# store file before metadata recovery had completed. 
+# store file before metadata recovery had completed.
 class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'statistics=(all),log=(enabled=true)'
 
@@ -93,7 +93,7 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
 
         bigvalue = b"aaaaa" * 100
         bigvalue2 = b"ccccc" * 100
-            
+
         # Create a large number of tables.
         tables = {}
         for i in range(1, ntables):
@@ -117,16 +117,16 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
         session2.rollback_transaction()
         session2.close()
-        
+
         self.conn.reconfigure('timing_stress_for_test=[checkpoint_stop]')
-        
+
         # Create a checkpoint thread
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
 
-            # Wait until we reach the checkpoint stop timing stress point before copying the 
+            # Wait until we reach the checkpoint stop timing stress point before copying the
             # database. This point is placed before we sync the metadata file so that the snapshot
             # includes incomplete checkpoint log records.
             ckpt_stop_timing_stress = 0
@@ -141,7 +141,7 @@ class test_hs33(wttest.WiredTigerTestCase, suite_subprocess):
         finally:
             done.set()
             ckpt.join()
-            
+
         # Open the new directory, triggering recovery. Set a low eviction size and triggers to
         # trigger the eviction checks.
         self.close_conn()
