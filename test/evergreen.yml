@@ -5536,8 +5536,8 @@ buildvariants:
     # Reduce the number of test iterations in validation stressing as TSan increases runtime by a factor of roughly 10x
     validation_stress_num_runs: 20
   tasks:
-    # Skip the azure/gcp tests as they don't compile under clang
-    - name: ".pull_request !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
+    # Skip the azure/gcp/s3 tests as they don't compile under clang
+    - name: ".pull_request !s3-tiered-test-small !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
     - name: compile
     - name: make-check-test
     - name: configure-combinations
@@ -6226,7 +6226,7 @@ buildvariants:
   batchtime: 1440 # 24 hours
   expansions:
     ENABLE_TCMALLOC: 1
-    # FIXME-WT-XXXX: Use stable toolchain once workgen tests are fixed.
+    # FIXME-WT-14461: Use stable toolchain once workgen tests are fixed.
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
