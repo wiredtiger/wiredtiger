@@ -292,6 +292,7 @@ err:
 static void
 __split_ref_final(WT_SESSION_IMPL *session, uint64_t split_gen, WT_PAGE ***lockedp)
 {
+    WT_DECL_RET;
     WT_PAGE **locked;
     size_t i;
 
@@ -316,6 +317,9 @@ __split_ref_final(WT_SESSION_IMPL *session, uint64_t split_gen, WT_PAGE ***locke
         if (split_gen != 0 && WT_PAGE_IS_INTERNAL(locked[i]))
             locked[i]->pg_intl_split_gen = split_gen;
         WT_PAGE_UNLOCK(session, locked[i]);
+        ret = __wt_hazard_clear(session, locked[i]->pg_intl_parent_ref);
+        if (ret != 0)
+            WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during internal page split"));
     }
     __wt_free(session, locked);
 }
@@ -333,6 +337,7 @@ __split_ref_prepare(
     WT_REF *child_ref, *ref;
     size_t alloc, cnt;
     uint32_t i, j;
+    bool busy;
 
     *lockedp = NULL;
 
@@ -363,7 +368,14 @@ __split_ref_prepare(
         locked[cnt++] = child;
 
         WT_PAGE_LOCK(session, child);
-
+        /* Block eviction in newly created pages by acquiring hazard pointers on them. */
+#ifdef HAVE_DIAGNOSTIC
+        ret = __wt_hazard_set_func(session, ref, &busy, __PRETTY_FUNCTION__, __LINE__);
+#else
+        ret = __wt_hazard_set_func(session, ref, &busy);
+#endif
+        WT_ASSERT_ALWAYS(session, ret == 0 && !busy,
+          "failed to acquire a hazard pointer in internal page split.");
         /* Switch the WT_REF's to their new page. */
         j = 0;
         WT_INTL_FOREACH_BEGIN (session, child, child_ref) {
@@ -1021,9 +1033,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         F_SET(ref, WT_REF_FLAG_INTERNAL);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
-        /*
-         * Initialize the child page. Block eviction in newly created pages and mark them dirty.
-         */
+        /* Initialize the child page and mark them dirty. */
         child->pg_intl_parent_ref = ref;
         WT_ERR(__wt_page_modify_init(session, child));
         __wt_page_modify_set(session, child);
