@@ -806,7 +806,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_INTL_INDEX_GET_SAFE(parent, check_pindex);
     WT_ASSERT(session, check_pindex == pindex);
 #endif
-
     WT_INTL_INDEX_SET(parent, alloc_index);
     alloc_index = NULL;
 
