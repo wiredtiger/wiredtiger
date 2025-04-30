@@ -374,8 +374,8 @@ __split_ref_prepare(
 #else
         ret = __wt_hazard_set_func(session, ref, &busy);
 #endif
-        WT_ASSERT_ALWAYS(session, ret == 0 && !busy,
-          "failed to acquire a hazard pointer in internal page split.");
+        WT_ASSERT_ALWAYS(
+          session, ret == 0 && !busy, "failed to acquire a hazard pointer in internal page split.");
         /* Switch the WT_REF's to their new page. */
         j = 0;
         WT_INTL_FOREACH_BEGIN (session, child, child_ref) {
