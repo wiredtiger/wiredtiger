@@ -94,6 +94,12 @@ __wt_ref_make_visible(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
 	printf("session %d AFTER make_visible for page %p, bucket %p\n", (int)session->id,
 		   (void*)ref->page, (void*)ref->page->evict_data.bucket);
 	fflush(stdout);
+	/*
+	 * It is absolutely essential that we reset the owner before making the page
+	 * visible. Failing to do so will lead to bad race conditions where the
+	 * thread that just created a new page races with a thread that tries to
+	 * evict the same page.
+	 */
 	__atomic_store_n(&ref->owner, 0, __ATOMIC_RELEASE);
 	WT_REF_SET_STATE(ref, WT_REF_MEM);
 }
