@@ -1033,7 +1033,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         F_SET(ref, WT_REF_FLAG_INTERNAL);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
-        /* Initialize the child page and mark them dirty. */
+        /* Initialize the child page and mark it dirty. */
         child->pg_intl_parent_ref = ref;
         WT_ERR(__wt_page_modify_init(session, child));
         __wt_page_modify_set(session, child);
