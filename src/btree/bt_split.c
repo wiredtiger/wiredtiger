@@ -368,7 +368,7 @@ __split_ref_prepare(
         locked[cnt++] = child;
 
         WT_PAGE_LOCK(session, child);
-        /* Block eviction in newly created pages by acquiring hazard pointers on them. */
+        /* Block eviction of the newly created page by acquiring a hazard pointer on it. */
 #ifdef HAVE_DIAGNOSTIC
         ret = __wt_hazard_set_func(session, ref, &busy, __PRETTY_FUNCTION__, __LINE__);
 #else
@@ -376,6 +376,7 @@ __split_ref_prepare(
 #endif
         WT_ASSERT_ALWAYS(
           session, ret == 0 && !busy, "failed to acquire a hazard pointer in internal page split.");
+
         /* Switch the WT_REF's to their new page. */
         j = 0;
         WT_INTL_FOREACH_BEGIN (session, child, child_ref) {
@@ -806,21 +807,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_ASSERT(session, check_pindex == pindex);
 #endif
 
-    do {
-        /* If the parent's children have all be evicted, itself can be evicted after the new page
-         * index is visible and before the split generation is set. Acquire a hazard pointer to
-         * prevent the parent being evicted before we set the page split generation. */
-#ifdef HAVE_DIAGNOSTIC
-        WT_ERR(__wt_hazard_set_func(
-          session, parent->pg_intl_parent_ref, &busy, __PRETTY_FUNCTION__, __LINE__));
-#else
-        WT_ERR(__wt_hazard_set_func(session, parent->pg_intl_parent_ref, &busy));
-#endif
-        if (busy)
-            __wt_yield();
-
-    } while (busy);
-
     WT_INTL_INDEX_SET(parent, alloc_index);
     alloc_index = NULL;
 
@@ -835,8 +821,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_FULL_BARRIER();
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
     parent->pg_intl_split_gen = split_gen;
-
-    WT_ERR(__wt_hazard_clear(session, parent->pg_intl_parent_ref));
 
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_KEY_OUT_OF_ORDER))
         WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, parent));
@@ -1214,6 +1198,7 @@ static int
 __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PAGE **parentp)
 {
     WT_PAGE *parent;
+    bool busy;
 
     *parentp = NULL;
 
@@ -1248,12 +1233,44 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
         WT_RET(__wt_page_modify_init(session, parent));
 
         if (trylock) {
+            /*
+             * If the parent's children have all be evicted, the parent itself can be evicted after
+             * the new page index is visible and before the split generation is set. Acquire a
+             * hazard pointer to prevent the parent being evicted before we set the page split
+             * generation.
+             */
+#ifdef HAVE_DIAGNOSTIC
+            WT_RET(__wt_hazard_set_func(
+              session, parent->pg_intl_parent_ref, &busy, __PRETTY_FUNCTION__, __LINE__));
+#else
+            WT_RET(__wt_hazard_set_func(session, parent->pg_intl_parent_ref, &busy));
+#endif
+            if (busy)
+                return (EBUSY);
             WT_RET(WT_PAGE_TRYLOCK(session, parent));
-        } else
+        } else {
+            /*
+             * If the parent's children have all be evicted, the parent itself can be evicted after
+             * the new page index is visible and before the split generation is set. Acquire a
+             * hazard pointer to prevent the parent being evicted before we set the page split
+             * generation.
+             */
+            do {
+#ifdef HAVE_DIAGNOSTIC
+                WT_RET(__wt_hazard_set_func(
+                  session, parent->pg_intl_parent_ref, &busy, __PRETTY_FUNCTION__, __LINE__));
+#else
+                WT_RET(__wt_hazard_set_func(session, parent->pg_intl_parent_ref, &busy));
+#endif
+                if (busy)
+                    __wt_yield();
+            } while (busy);
             WT_PAGE_LOCK(session, parent);
+        }
         if (parent == ref->home)
             break;
         WT_PAGE_UNLOCK(session, parent);
+        WT_RET(__wt_hazard_clear(session, parent->pg_intl_parent_ref));
     }
 
     /*
@@ -1276,7 +1293,12 @@ __split_internal_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool trylock, WT_PA
 static void
 __split_internal_unlock(WT_SESSION_IMPL *session, WT_PAGE *parent)
 {
+    WT_DECL_RET;
+
     WT_PAGE_UNLOCK(session, parent);
+    ret = __wt_hazard_clear(session, parent->pg_intl_parent_ref);
+    if (ret != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during internal page split"));
 }
 
 /*
