@@ -56,7 +56,7 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
         std::vector<char> read_buf(page_size);
 
         // No writes yet, reads go into source.
-        auto data = std::vector<char>(page_size, source_char);
+        std::vector<char> data(page_size, source_char);
         REQUIRE(lr_fh->iface.fh_read(
                   (WT_FILE_HANDLE *)lr_fh, session, 0, page_size, read_buf.data()) == 0);
         REQUIRE(read_buf == data);
@@ -67,10 +67,8 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
          * partially migrated.
          */
         auto count = 13;
-        /*
-         * Select a count value that formulates background_write_len to be non-divisible by
-         * page_size to simulate a page being partially migrated.
-         */
+        // Select a count value that formulates background_write_len to be non-divisible by
+        // page_size to simulate a page being partially migrated.
         auto background_write_len = allocsize * count;
         REQUIRE(background_write_len <= file_size);
         std::vector<char> write_buf(background_write_len, source_char);
@@ -79,7 +77,6 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
 
         // The first floor(migration_page_count) are fully migrated and the data should have been
         // copied to the dest file.
-        std::fill(data.begin(), data.end(), source_char);
         int offset = 0;
         for (; offset + page_size < background_write_len; offset += page_size) {
             REQUIRE(lr_fh->iface.fh_read(
@@ -135,7 +132,6 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
         REQUIRE(read_buf == data);
 
         // Test a write that goes completely beyond the bitmap range.
-        std::fill(data.begin(), data.end(), write_char);
         std::fill(write_buf.begin(), write_buf.end(), write_char);
         offset = (file_size / page_size + 5) * page_size;
         REQUIRE(lr_fh->iface.fh_write(
@@ -180,7 +176,6 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
         REQUIRE(read_buf == data);
 
         // Test a write that partially exceeds the bitmap.
-        std::fill(data.begin(), data.end(), write_char);
         auto offset = file_size / page_size * page_size;
         REQUIRE(lr_fh->iface.fh_write(
                   (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()) == 0);
@@ -192,8 +187,6 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
         REQUIRE(read_buf == data);
 
         // Test a write that goes completely beyond the bitmap range.
-        std::fill(data.begin(), data.end(), write_char);
-        std::fill(write_buf.begin(), write_buf.end(), write_char);
         offset = (file_size / page_size + 5) * page_size;
         REQUIRE(lr_fh->iface.fh_write(
                   (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()) == 0);

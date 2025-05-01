@@ -63,7 +63,7 @@ is_valid_fill(WT_SESSION *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint64_t
         if (!__bit_test(lr_fh->bitmap, first_clear_bit + i))
             return false;
         for (auto j = 0; j < lr_fh->allocsize; j++)
-            if (buf[WTI_BIT_TO_OFFSET(i) + j] != source_char)
+            if (buf[WTI_BIT_TO_OFFSET(first_clear_bit + i) + j] != source_char)
                 return false;
     }
     // Verify unset bits.
@@ -71,7 +71,7 @@ is_valid_fill(WT_SESSION *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint64_t
         if (__bit_test(lr_fh->bitmap, first_clear_bit + i))
             return false;
         for (auto j = 0; j < lr_fh->allocsize; j++)
-            if (buf[WTI_BIT_TO_OFFSET(i) + j] != dummy_char)
+            if (buf[WTI_BIT_TO_OFFSET(first_clear_bit + i) + j] != dummy_char)
                 return false;
     }
     return true;
@@ -102,7 +102,7 @@ verify_fill_complete(WT_SESSION *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, u
     if (__bit_ffc(lr_fh->bitmap, lr_fh->nbits, &first_clear_bit) != -1)
         return false;
 
-    auto file_size = lr_fh->nbits * lr_fh->allocsize;
+    auto file_size = (size_t)(lr_fh->nbits * lr_fh->allocsize);
     std::vector<char> buf(file_size);
     testutil_check(
       lr_fh->iface.fh_read((WT_FILE_HANDLE *)lr_fh, session, 0, file_size, buf.data()));
@@ -162,7 +162,7 @@ TEST_CASE("Test various live restore fill hole", "[live_restore], [live_restore_
             lr_fh->bitmap = test.bitmap;
             lr_fh->nbits = test.nbits;
 
-            wt_off_t read_offset = 0;
+            wt_off_t read_offset = WTI_BIT_TO_OFFSET(lr_fh->nbits);
             __wt_writelock((WT_SESSION_IMPL *)session, &lr_fh->lock);
             REQUIRE(__ut_live_restore_fill_hole(
                       lr_fh, session, buf.data(), test.buf_size, &read_offset, &finished) == 0);

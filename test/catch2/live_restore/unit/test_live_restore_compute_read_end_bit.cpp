@@ -42,19 +42,23 @@ struct compute_read_end_bit_test {
 };
 
 static bool
-is_valid_end_bit(const uint64_t end_bit, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t buf_size,
-  uint64_t first_clear_bit, wt_off_t file_size)
+is_valid_end_bit(const uint64_t expected_end_bit, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
+  wt_off_t buf_size, uint64_t first_clear_bit, wt_off_t file_size)
 {
     auto max_read =
       std::min({WTI_BITMAP_END(lr_fh), WTI_BIT_TO_OFFSET(first_clear_bit) + buf_size, file_size});
     auto max_read_bit = WTI_OFFSET_TO_BIT(max_read - 1);
 
-    uint64_t current_bit;
-    for (current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++)
+    uint64_t end_bit = first_clear_bit;
+    for (uint64_t current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++) {
+        if (current_bit >= lr_fh->nbits)
+            break;
         if (__bit_test(lr_fh->bitmap, current_bit))
             break;
+        end_bit = current_bit;
+    }
 
-    return current_bit - 1 == end_bit;
+    return end_bit == expected_end_bit;
 }
 
 TEST_CASE("Test various live restore compute read end bit",
@@ -83,8 +87,7 @@ TEST_CASE("Test various live restore compute read end bit",
     auto test5 = compute_read_end_bit_test(allocsize, nbits, allocsize / 2, file_size, 4, 4);
     // Simulate file_size larger than bitmap length(When we have inserted new data to the file).
     auto test6 = compute_read_end_bit_test(allocsize, nbits, read_size, file_size + 12, 4, 4);
-    // Simulate file_size smaller than bitmap length(When we have deleted data from the file and the
-    // file has been truncated).
+    // Simulate file_size smaller than bitmap length(When we have truncated the file).
     auto test7 = compute_read_end_bit_test(allocsize, nbits, read_size, file_size - 12, 4, 4);
     std::vector<compute_read_end_bit_test> tests = {
       test1, test2, test3, test4, test5, test6, test7};
