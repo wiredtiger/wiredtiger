@@ -146,7 +146,7 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
     WT_ERR(__wt_msg(session, "%s", ""));
 
     if (empty) {
-        WT_ERR(__wt_msg(session, "no pages read"));
+        WT_ERR(__wt_msg(session, "no pages read or evicted"));
         goto err;
     }
 
