@@ -268,7 +268,7 @@ main(int argc, char *argv[])
     uint64_t oldest_ts, stable_ts, ts;
     uint32_t timeout;
     int ch, status;
-    char buf[1024];
+    char cwd_start[PATH_MAX];
     char kname[64], tscfg[64];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     const char *working_dir;
@@ -306,6 +306,9 @@ main(int argc, char *argv[])
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     testutil_recreate_dir(home);
+
+    /* Remember the current working directory. */
+    testutil_assert_errno(getcwd(cwd_start, sizeof(cwd_start)) != NULL);
 
     __wt_random_init_seed(NULL, &rnd);
     if (rand_time) {
@@ -352,12 +355,13 @@ main(int argc, char *argv[])
      * it can use a lot of disk space, which can cause test machine
      * issues.
      */
+
+    /* Go inside the home directory (typically WT_TEST). */
     if (chdir(home) != 0)
         testutil_die(errno, "parent chdir: %s", home);
 
     /* Copy the data to a separate folder for debugging purpose. */
-    testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
-    testutil_copy_data(buf);
+    testutil_copy_data();
 
     printf("Open database and run recovery\n");
 
@@ -401,9 +405,18 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     printf("Verification successful\n");
     if (!preserve) {
-        testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
-        testutil_clean_test_artifacts(buf);
-        testutil_remove(buf);
+        testutil_clean_test_artifacts();
+
+        /*
+         * We are in the home directory (typically WT_TEST), which we intend to delete. Go to the
+         * start directory. We do this to avoid deleting the current directory, which is disallowed
+         * on some platforms.
+         */
+        if (chdir(cwd_start) != 0)
+            testutil_die(errno, "root chdir: %s", home);
+
+        /* Delete the work directory. */
+        testutil_remove(home);
     }
     return (EXIT_SUCCESS);
 }

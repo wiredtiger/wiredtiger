@@ -191,7 +191,6 @@ run_test(bool column_store, bool background_compact, const char *uri, bool prese
     /* Cleanup */
     if (!preserve) {
         testutil_remove(home);
-        testutil_clean_test_artifacts(home);
     }
 
     return (EXIT_SUCCESS);

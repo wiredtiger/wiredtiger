@@ -1140,6 +1140,7 @@ main(int argc, char *argv[])
     int ch, status;
     char *arg, *p;
     char args[1024], buf[1024];
+    char cwd_start[PATH_MAX]; /* The working directory when we started */
     const char *method, *working_dir;
     bool populate_only, preserve, rand_th, rand_time, verify_only;
 
@@ -1266,6 +1267,10 @@ main(int argc, char *argv[])
         usage();
 
     testutil_work_dir_from_path(opts->home, PATH_MAX, working_dir);
+
+    /* Remember the current working directory. */
+    testutil_assert_errno(getcwd(cwd_start, sizeof(cwd_start)) != NULL);
+
     /*
      * If the user wants to verify they need to tell us how many threads there were so we know what
      * records we can expect.
@@ -1364,9 +1369,18 @@ main(int argc, char *argv[])
     if (!preserve) {
         if (chdir(opts->home) != 0)
             testutil_die(errno, "Child chdir: %s", opts->home);
-        testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
-        testutil_clean_test_artifacts(buf);
-        testutil_remove(buf);
+        testutil_clean_test_artifacts();
+
+        /*
+         * We are in the home directory (typically WT_TEST), which we intend to delete. Go to the
+         * start directory. We do this to avoid deleting the current directory, which is disallowed
+         * on some platforms.
+         */
+        if (chdir(cwd_start) != 0)
+            testutil_die(errno, "root chdir: %s", opts->home);
+
+        /* Delete the work directory. */
+        testutil_remove(opts->home);
     }
 
     return (EXIT_SUCCESS);

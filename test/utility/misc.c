@@ -223,14 +223,17 @@ testutil_cleanup(TEST_OPTS *opts)
 
 /*
  * testutil_copy_data --
- *     Copy the data to a backup folder. Usually, the data copy is cleaned up by a call to
- *     testutil_clean_test_artifacts. Expects dir to be an absolute path.
+ *     Copy the data to a backup folder in the current directory. Usually, the data copy is cleaned
+ *     up by a call to testutil_clean_test_artifacts.
  */
 void
-testutil_copy_data(const char *dir)
+testutil_copy_data(void)
 {
     WT_FILE_COPY_OPTS opts;
+    char dir[1024];
     char save_dir[512];
+
+    testutil_assert_errno(getcwd(dir, sizeof(dir)) != NULL);
 
     memset(&opts, 0, sizeof(opts));
     opts.preserve = true;
@@ -242,15 +245,18 @@ testutil_copy_data(const char *dir)
 
 /*
  * testutil_copy_data_opt --
- *     Copy the data to a backup folder. Directories and files with the specified "readonly prefix"
- *     will be hard-linked instead of copied for efficiency on supported platforms. Expects dir to
- *     be an absolute path.
+ *     Copy the data to a backup folder in the current directory. Directories and files with the
+ *     specified "readonly prefix" will be hard-linked instead of copied for efficiency on supported
+ *     platforms.
  */
 void
-testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
+testutil_copy_data_opt(const char *readonly_prefix)
 {
     WT_FILE_COPY_OPTS opts;
+    char dir[1024];
     char save_dir[512];
+
+    testutil_assert_errno(getcwd(dir, sizeof(dir)) != NULL);
 
     memset(&opts, 0, sizeof(opts));
     opts.link = true;
@@ -264,13 +270,16 @@ testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
 
 /*
  * testutil_clean_test_artifacts --
- *     Clean any temporary files and folders created during test execution Expects dir to be an
- *     absolute path.
+ *     Clean any temporary files and folders created during test execution from the current
+ *     directory.
  */
 void
-testutil_clean_test_artifacts(const char *dir)
+testutil_clean_test_artifacts(void)
 {
     char buf[512];
+    char dir[1024];
+
+    testutil_assert_errno(getcwd(dir, sizeof(dir)) != NULL);
 
     testutil_snprintf(buf, sizeof(buf), "%s.SAVE", dir);
     testutil_remove(buf);

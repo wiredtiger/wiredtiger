@@ -1277,8 +1277,7 @@ main(int argc, char *argv[])
         testutil_die(errno, "parent chdir: %s", home);
 
     /* Copy the data to a separate folder for debugging purpose given path. */
-    testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
-    testutil_copy_data(buf);
+    testutil_copy_data();
 
     /*
      * Clear the cache, if we are using LazyFS. Do this after we save the data for debugging
@@ -1476,11 +1475,14 @@ main(int argc, char *argv[])
     /* Clean up the test directory. */
     if (ret == EXIT_SUCCESS && !opts->preserve) {
         /* Current working directory is home (aka WT_TEST) */
-        testutil_assert_errno(getcwd(buf, sizeof(buf)) != NULL);
-        testutil_clean_test_artifacts(buf);
+        testutil_clean_test_artifacts();
     }
 
-    /* At this point, we are inside `home`, which we intend to delete. cd to the parent dir. */
+    /*
+     * We are in the home directory (typically WT_TEST), which we intend to delete. Go to the start
+     * directory. We do this to avoid deleting the current directory, which is disallowed on some
+     * platforms.
+     */
     if (chdir(cwd_start) != 0)
         testutil_die(errno, "root chdir: %s", home);
 
