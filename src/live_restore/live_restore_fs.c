@@ -1026,8 +1026,8 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
             msg_count = time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD);
 
             /*
-             * Dirty the tree periodically to ensure the live restore metadata is written out by
-             * the next checkpoint.
+             * Dirty the tree periodically to ensure the live restore metadata is written out by the
+             * next checkpoint.
              */
             __wt_tree_modify_set(session);
         }

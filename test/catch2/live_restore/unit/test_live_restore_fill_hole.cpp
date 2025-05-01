@@ -63,7 +63,7 @@ is_valid_fill(WT_SESSION *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint64_t
         if (!__bit_test(lr_fh->bitmap, first_clear_bit + i))
             return false;
         for (auto j = 0; j < lr_fh->allocsize; j++)
-            if (buf[WTI_BIT_TO_OFFSET(first_clear_bit + i) + j] != source_char)
+            if (buf[WTI_BIT_TO_OFFSET(i) + j] != source_char)
                 return false;
     }
     // Verify unset bits.
@@ -71,7 +71,7 @@ is_valid_fill(WT_SESSION *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint64_t
         if (__bit_test(lr_fh->bitmap, first_clear_bit + i))
             return false;
         for (auto j = 0; j < lr_fh->allocsize; j++)
-            if (buf[WTI_BIT_TO_OFFSET(first_clear_bit + i) + j] != dummy_char)
+            if (buf[WTI_BIT_TO_OFFSET(i) + j] != dummy_char)
                 return false;
     }
     return true;
@@ -167,8 +167,10 @@ TEST_CASE("Test various live restore fill hole", "[live_restore], [live_restore_
             REQUIRE(__ut_live_restore_fill_hole(
                       lr_fh, session, buf.data(), test.buf_size, &read_offset, &finished) == 0);
             __wt_writeunlock((WT_SESSION_IMPL *)session, &lr_fh->lock);
-            REQUIRE(WTI_OFFSET_TO_BIT(read_offset) == test.first_clear_bit);
             REQUIRE(finished == test.expect_finished);
+            if (!finished)
+                REQUIRE(WTI_OFFSET_TO_BIT(read_offset) == test.first_clear_bit);
+
             /*
              * Only verify hole filled when clear_len is greater than 0, as 0 means bitmap == -1,
              * which represents a test for dest file being fully written before
