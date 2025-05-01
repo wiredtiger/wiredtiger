@@ -14,7 +14,7 @@
 
 using namespace utils;
 
-static int
+static void
 fh_size_wrapper(live_restore_test_env &env, const std::string &file_name, wt_off_t *sizep)
 {
     WT_SESSION *session = (WT_SESSION *)env.session;
@@ -23,13 +23,11 @@ fh_size_wrapper(live_restore_test_env &env, const std::string &file_name, wt_off
 
     WTI_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = nullptr;
-    WT_RET(lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session,
+    testutil_check(lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session,
       env.dest_file_path(file_name).c_str(), WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE,
       (WT_FILE_HANDLE **)&lr_fh));
-    WT_RET(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, sizep));
-    WT_RET(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session));
-
-    return (0);
+    REQUIRE(lr_fh->iface.fh_size((WT_FILE_HANDLE *)lr_fh, session, sizep) == 0);
+    testutil_check(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session));
 }
 
 enum HasSource { SOURCE, NO_SOURCE };
@@ -39,7 +37,7 @@ enum HasStop { STOP, NO_STOP };
 static const int DEST_FILE_SIZE = 10;
 static const int SOURCE_FILE_SIZE = 100;
 
-static int
+static void
 test_fh_size(live_restore_test_env *env, HasSource has_source, IsMigrating is_migrating,
   HasStop stop_file_exists, wt_off_t *sizep)
 {
@@ -67,7 +65,7 @@ test_fh_size(live_restore_test_env *env, HasSource has_source, IsMigrating is_mi
     if (stop_file_exists == STOP)
         create_file(stop_file.c_str());
 
-    return fh_size_wrapper(*env, file, sizep);
+    fh_size_wrapper(*env, file, sizep);
 }
 
 TEST_CASE("Live Restore fh_size", "[live_restore],[live_restore_fh_size]")
@@ -80,20 +78,20 @@ TEST_CASE("Live Restore fh_size", "[live_restore],[live_restore_fh_size]")
      * dest file does not exist as opening the file handle will either create a dest file or return
      * ENOENT on failure.
      */
-    REQUIRE(test_fh_size(&env, NO_SOURCE, NOT_MIGRATING, NO_STOP, &size) == 0);
+    test_fh_size(&env, NO_SOURCE, NOT_MIGRATING, NO_STOP, &size);
     REQUIRE(size == DEST_FILE_SIZE);
-    REQUIRE(test_fh_size(&env, NO_SOURCE, NOT_MIGRATING, STOP, &size) == 0);
+    test_fh_size(&env, NO_SOURCE, NOT_MIGRATING, STOP, &size);
     REQUIRE(size == DEST_FILE_SIZE);
-    REQUIRE(test_fh_size(&env, NO_SOURCE, MIGRATING, NO_STOP, &size) == 0);
+    test_fh_size(&env, NO_SOURCE, MIGRATING, NO_STOP, &size);
     REQUIRE(size == DEST_FILE_SIZE);
-    REQUIRE(test_fh_size(&env, NO_SOURCE, MIGRATING, STOP, &size) == 0);
+    test_fh_size(&env, NO_SOURCE, MIGRATING, STOP, &size);
     REQUIRE(size == DEST_FILE_SIZE);
-    REQUIRE(test_fh_size(&env, SOURCE, NOT_MIGRATING, NO_STOP, &size) == 0);
+    test_fh_size(&env, SOURCE, NOT_MIGRATING, NO_STOP, &size);
     REQUIRE(size == DEST_FILE_SIZE);
-    REQUIRE(test_fh_size(&env, SOURCE, NOT_MIGRATING, STOP, &size) == 0);
+    test_fh_size(&env, SOURCE, NOT_MIGRATING, STOP, &size);
     REQUIRE(size == DEST_FILE_SIZE);
-    REQUIRE(test_fh_size(&env, SOURCE, MIGRATING, NO_STOP, &size) == 0);
+    test_fh_size(&env, SOURCE, MIGRATING, NO_STOP, &size);
     REQUIRE(size == DEST_FILE_SIZE);
-    REQUIRE(test_fh_size(&env, SOURCE, MIGRATING, STOP, &size) == 0);
+    test_fh_size(&env, SOURCE, MIGRATING, STOP, &size);
     REQUIRE(size == DEST_FILE_SIZE);
 }
