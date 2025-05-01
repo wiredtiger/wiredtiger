@@ -62,7 +62,6 @@ TEST_CASE("Test various live restore compute read end bit",
 {
     live_restore_test_env env;
     WT_SESSION *session = reinterpret_cast<WT_SESSION *>(env.session);
-    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     WTI_LIVE_RESTORE_FS *lr_fs = env.lr_fs;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh = nullptr;
 
@@ -93,18 +92,19 @@ TEST_CASE("Test various live restore compute read end bit",
     uint64_t end_bit;
     for (auto &test : tests) {
         create_file(dest_file, test.file_size);
-        lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session, dest_file.c_str(),
-          WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE, (WT_FILE_HANDLE **)&lr_fh);
+        testutil_check(
+          lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session, dest_file.c_str(),
+            WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE, (WT_FILE_HANDLE **)&lr_fh));
 
         lr_fh->allocsize = test.allocsize;
         lr_fh->bitmap = test.bitmap;
         lr_fh->nbits = test.nbits;
-        REQUIRE(__ut_live_restore_compute_read_end_bit(
-                  session_impl, lr_fh, test.buf_size, test.first_clear_bit, &end_bit) == 0);
+        REQUIRE(__ut_live_restore_compute_read_end_bit((WT_SESSION_IMPL *)session, lr_fh,
+                  test.buf_size, test.first_clear_bit, &end_bit) == 0);
         REQUIRE(
           is_valid_end_bit(end_bit, lr_fh, test.buf_size, test.first_clear_bit, test.file_size));
 
-        REQUIRE(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session) == 0);
+        testutil_check(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session));
         testutil_remove(dest_file.c_str());
     }
 }
