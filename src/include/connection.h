@@ -268,6 +268,10 @@ struct __wt_page_history {
     wt_shared uint64_t global_read_count;
     wt_shared uint64_t global_reread_count;
 
+    wt_shared uint64_t global_evict_count_local;
+    wt_shared uint64_t global_evict_count_no_page_id;
+    wt_shared uint64_t global_read_count_local;
+
     WT_HASH_MAP *pages;
 
     /* The reporting thread. */

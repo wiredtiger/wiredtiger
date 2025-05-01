@@ -40,13 +40,31 @@ __conn_page_history_print(WT_SESSION_IMPL *session, const WT_PAGE_HISTORY_ITEM *
     WT_RET(__wt_msg(session, "  page ID                          : %" PRIu64, item->key.page_id));
     WT_RET(__wt_msg(session, "  page type                        : %" PRIu8 " (%s)",
       item->page_type, page_type_str));
-    WT_RET(__wt_msg(session, "  number of evictions              : %" PRIu32, item->num_evicts));
     WT_RET(__wt_msg(session, "  number of reads                  : %" PRIu32, item->num_reads));
+    WT_RET(__wt_msg(session, "  number of evictions              : %" PRIu32, item->num_evicts));
     WT_RET(__wt_msg(session, "  avg. time between re-reads (ms)  : %" PRIu64,
       item->num_reads <= 1 ? 0 : total_time_between_reads / (item->num_reads - 1)));
     WT_RET(__wt_msg(session, "  avg. other reads between re-reads: %" PRIu64,
       item->num_reads <= 1 ? 0 : total_read_count_between_reads / (item->num_reads - 1)));
 
+    return (0);
+}
+
+/*
+ * __conn_page_history_cmp_most_evicts --
+ *     Compare function for sorting the most-evicted pages.
+ */
+static int WT_CDECL
+__conn_page_history_cmp_most_evicts(const void *a, const void *b)
+{
+    WT_PAGE_HISTORY_ITEM *item_a, *item_b;
+    item_a = (WT_PAGE_HISTORY_ITEM *)a;
+    item_b = (WT_PAGE_HISTORY_ITEM *)b;
+
+    if (item_a->num_evicts > item_b->num_evicts)
+        return (-1);
+    if (item_a->num_evicts < item_b->num_evicts)
+        return (1);
     return (0);
 }
 
@@ -78,7 +96,7 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_HASH_MAP_ITEM *h;
     WT_PAGE_HISTORY *page_history;
-    WT_PAGE_HISTORY_ITEM *item, *most_reads;
+    WT_PAGE_HISTORY_ITEM *item, *most_evicts, *most_reads;
     size_t i, top_n;
     bool empty, first;
 
@@ -86,9 +104,11 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
     if (!page_history->enabled)
         return (0);
 
+    most_evicts = NULL;
     most_reads = NULL;
     top_n = 5;
 
+    WT_ERR(__wt_calloc_def(session, top_n, &most_evicts));
     WT_ERR(__wt_calloc_def(session, top_n, &most_reads));
 
     empty = true;
@@ -98,6 +118,12 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
             item = (WT_PAGE_HISTORY_ITEM *)h->data;
             if (item->key.page_id == WT_BLOCK_INVALID_PAGE_ID)
                 continue;
+            if (item->num_evicts > most_evicts[top_n - 1].num_evicts) {
+                most_evicts[top_n - 1] = *item;
+                __wt_qsort(
+                  most_evicts, top_n, sizeof(*most_evicts), __conn_page_history_cmp_most_evicts);
+                empty = false;
+            }
             if (item->num_reads > most_reads[top_n - 1].num_reads) {
                 most_reads[top_n - 1] = *item;
                 __wt_qsort(
@@ -110,9 +136,13 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
 
     WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
     WT_ERR(__wt_msg(session, "page history report"));
-    WT_ERR(__wt_msg(session, "  total reads    : %" PRIu64, page_history->global_read_count));
+    WT_ERR(__wt_msg(session, "  total reads    : %" PRIu64 " (%" PRIu64 " local)",
+      page_history->global_read_count, page_history->global_read_count_local));
     WT_ERR(__wt_msg(session, "  total re-reads : %" PRIu64, page_history->global_reread_count));
-    WT_ERR(__wt_msg(session, "  total evictions: %" PRIu64, page_history->global_evict_count));
+    WT_ERR(__wt_msg(session,
+      "  total evictions: %" PRIu64 " (%" PRIu64 " local, %" PRIu64 " without page ID)",
+      page_history->global_evict_count, page_history->global_evict_count_local,
+      page_history->global_evict_count_no_page_id));
     WT_ERR(__wt_msg(session, "%s", ""));
 
     if (empty) {
@@ -130,6 +160,19 @@ __conn_page_history_report(WT_SESSION_IMPL *session)
         else
             WT_ERR(__wt_msg(session, "%s", ""));
         WT_ERR(__conn_page_history_print(session, &most_reads[i]));
+    }
+
+    WT_ERR(__wt_msg(session, "%s", ""));
+    WT_ERR(__wt_msg(session, "pages that were evicted the most:"));
+    first = true;
+    for (i = 0; i < top_n; i++) {
+        if (most_evicts[i].num_evicts == 0)
+            continue;
+        if (first)
+            first = false;
+        else
+            WT_ERR(__wt_msg(session, "%s", ""));
+        WT_ERR(__conn_page_history_print(session, &most_evicts[i]));
     }
 
 err:
@@ -295,14 +338,19 @@ __wt_conn_page_history_track_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
     (void)__wt_atomic_add64(&page_history->global_evict_count, 1);
 
     /* So far this works only for disaggregated storage, as we don't have page IDs without it. */
-    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+        (void)__wt_atomic_add64(&page_history->global_evict_count_local, 1);
         return (0);
+    }
 
     page_id = page->block_meta.page_id;
-    if (page_id == 0)
+    if (page_id == 0) {
+        (void)__wt_atomic_add64(&page_history->global_evict_count_no_page_id, 1);
         return (0);
+    }
 
     item = NULL;
+    memset(&key, 0, sizeof(key));
     key.page_id = page_id;
     key.table_id = S2BT(session)->id;
 
@@ -340,14 +388,17 @@ __wt_conn_page_history_track_read(WT_SESSION_IMPL *session, WT_PAGE *page)
     current_global_read_count = __wt_atomic_add64(&page_history->global_read_count, 1);
 
     /* So far this works only for disaggregated storage, as we don't have page IDs without it. */
-    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+    if (!F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED)) {
+        (void)__wt_atomic_add64(&page_history->global_read_count_local, 1);
         return (0);
+    }
 
     page_id = page->block_meta.page_id;
-    if (page_id == 0)
+    if (page_id == 0) /* This should not happen. */
         return (0);
 
     item = NULL;
+    memset(&key, 0, sizeof(key));
     key.page_id = page_id;
     key.table_id = S2BT(session)->id;
 
