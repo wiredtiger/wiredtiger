@@ -1,0 +1,22 @@
+############################################
+#  RUN PARAMETERS: V3
+############################################
+# A configuration for disaggregated storage.
+backup=0
+disagg.page_log=palm
+disagg.enabled=1
+disagg.layered=1
+runs.source=layered
+runs.type=row-store
+import=0
+ops.alter=0
+# SLS-2872 should fix cursor->modify for SLS.
+ops.pct.modify=0
+ops.compaction=0
+ops.salvage=0
+ops.throttle=0
+ops.truncate=0
+ops.verify=0
+quiet=0
+runs.in_memory=0
+transaction.timestamps=1

@@ -296,6 +296,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
+    opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
 
     testutil_disagg_storage_configuration(
       &opts, home, disagg_cfg, sizeof(disagg_cfg), ext_cfg, ext_cfg_size);

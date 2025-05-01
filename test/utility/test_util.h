@@ -72,7 +72,7 @@
 #define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                         \
     "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                             \
     "config=\"(delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
-    ",force_error=%" PRIu64 ",verbose=0)\")"
+    ",force_error=%" PRIu64 ",cache_size_mb=%" PRIu64 ",verbose=0)\")"
 #define TESTUTIL_ENV_CONFIG_TIERED               \
     ",tiered_storage=(bucket=%s"                 \
     ",bucket_prefix=%s,local_retention=%" PRIu32 \
@@ -119,6 +119,7 @@ typedef struct {
     uint64_t force_delay;     /* Force a simulated network delay every N operations */
     uint64_t force_error;     /* Force a simulated network error every N operations */
     uint32_t local_retention; /* Local retention for tiered storage */
+    uint64_t palm_map_size_mb;  /* Megabytes of map size for PALM database */
 
     bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
