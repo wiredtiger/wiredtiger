@@ -43,11 +43,11 @@
  * we would like to preserve its current behavior.
  */
 #undef M_V
-#define M_V(r) r.v
+#define M_V(r) r->v
 #undef M_W
-#define M_W(r) r.x.w
+#define M_W(r) r->x.w
 #undef M_Z
-#define M_Z(r) r.x.z
+#define M_Z(r) r->x.z
 
 #ifdef ENABLE_ANTITHESIS
 #include "instrumentation.h"
@@ -55,86 +55,85 @@
 
 #define DEFAULT_SEED_W 521288629
 #define DEFAULT_SEED_Z 362436069
-#define WT_LEFT_CIRCULAR_SHIFT32(x, nbits) (((x) << (nbits)) | ((x) >> (32 - (nbits))))
 
 /*
- * __wt_random_init --
- *     Initialize return of a 32-bit pseudo-random number.
+ * __left_circular_shift64 --
+ *     Circular shift left a 64-bit integer.
+ */
+static uint64_t
+__left_circular_shift64(uint64_t x, int nbits)
+{
+    /* Circular shift is converted by compilers to a "rol"-like CPU instruction. */
+    return (x << nbits) | (x >> (64 - nbits));
+}
+
+/* Make a seed from session id, time (in nanoseconds) and pid. */
+#define MAKE_SEED(id, t, pid) \
+    (((uint64_t)(id + 1) << 3) + ((t) / WT_BILLION) + ((t) % WT_BILLION) + (uint64_t)(pid))
+
+/*
+ * __wt_random_init_default --
+ *     Initialize a 32-bit pseudo-random number with a default seed.
  */
 void
-__wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_random_init_default(WT_RAND_STATE *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    WT_RAND_STATE rnd;
-
-    M_W(rnd) = DEFAULT_SEED_W;
-    M_Z(rnd) = DEFAULT_SEED_Z;
-
-    *rnd_state = rnd;
+    M_W(rnd_state) = DEFAULT_SEED_W;
+    M_Z(rnd_state) = DEFAULT_SEED_Z;
 }
 
 /*
- * __wt_random_init_custom_seed --
- *     Initialize the state of a 32-bit pseudo-random number with custom seed.
+ * __wt_random_init_seed --
+ *     Initialize the state of a 32-bit pseudo-random number with a seed value.
  */
 void
-__wt_random_init_custom_seed(WT_RAND_STATE volatile *rnd_state, uint64_t v)
+__wt_random_init_seed(WT_RAND_STATE *rnd_state, uint64_t v)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    WT_RAND_STATE rnd;
-
     /*
      * XOR the provided seed with the initial seed. With high probability, this would provide a
      * random-looking seed which has about 50% of the bits turned on. We don't need to check whether
      * W or Z becomes 0, because we would handle it the first time we use this state to generate a
      * random number.
+     *
+     * These circular shift operations guarantee that the bits of the seed are mixed into the
+     * initial state. It guarantees good randomness even if the seeds are very close to each other.
      */
-    M_V(rnd) = v;
-    M_W(rnd) ^= DEFAULT_SEED_W;
-    M_Z(rnd) ^= DEFAULT_SEED_Z;
-
-    *rnd_state = rnd;
+    M_V(rnd_state) = v                 /* Original seed. */
+      ^ __left_circular_shift64(v, 13) /* Mix in from higher 48 bits. */
+      ^ __left_circular_shift64(v, 29) /* Mix in from higher 32 bits. */
+      ^ __left_circular_shift64(v, 49) /* Mix in from higher 16 bits. */
+      ;
+    M_W(rnd_state) ^= DEFAULT_SEED_W;
+    M_Z(rnd_state) ^= DEFAULT_SEED_Z;
 }
 
 /*
- * __wt_random_init_seed --
- *     Initialize the state of a 32-bit pseudo-random number.
+ * __wt_session_rng_init_once --
+ *     Initialize session's RNGs.
+ *
+ * This function requires session->id to be already set!
+ *
+ * session->id is used to seed the RNG. Since session objects have infinite lifetime, each session's
+ *     RNG is seeded with a different value. This is mixed with the current time and the process ID
+ *     to ensure that the RNG is different across runs. When the session is reset, the RNG is
+ *     preserved.
+ *
  */
 void
-__wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state)
-  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_session_rng_init_once(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    struct timespec ts;
-    WT_RAND_STATE rnd;
-    uintmax_t threadid;
-
-    __wt_epoch(session, &ts);
-    __wt_thread_id(&threadid);
+    if (!WT_SESSION_FIRST_USE(session))
+        return;
 
     /*
-     * Use this, instead of __wt_random_init, to vary the initial state of the RNG. This is
-     * (currently) only used by test programs, where, for example, an initial set of test data is
-     * created by a single thread, and we want more variability in the initial state of the RNG.
-     *
-     * Take the seconds and nanoseconds from the clock together with the thread ID to generate a
-     * 64-bit seed, then smear that value using algorithm "xor" from Marsaglia, "Xorshift RNGs".
+     * Session's skiplist RNG is initialized with the special default seed.
      */
-    M_W(rnd) =
-      (uint32_t)ts.tv_sec ^ (uint32_t)WT_LEFT_CIRCULAR_SHIFT32(ts.tv_nsec, 29) ^ DEFAULT_SEED_W;
-    M_Z(rnd) =
-      (uint32_t)ts.tv_nsec ^ (uint32_t)WT_LEFT_CIRCULAR_SHIFT32(ts.tv_sec, 27) ^ DEFAULT_SEED_Z;
-/*
- * Some system clocks do not have a high enough resolution between each tick cycle. Perform an extra
- * xor against the machine's timestamp counter.
- */
-#ifdef _WIN32
-    rnd.v ^= __wt_rdtsc();
-#endif
-    rnd.v ^= (uint64_t)threadid;
-    rnd.v ^= rnd.v << 13;
-    rnd.v ^= rnd.v >> 7;
-    rnd.v ^= rnd.v << 17;
+    __wt_random_init_default(&session->rnd_skiplist);
 
-    *rnd_state = rnd;
+    uint64_t t = __wt_clock(session);
+    uint64_t seed = MAKE_SEED(session->id, t, getpid());
+    __wt_random_init_seed(&session->rnd_random, seed);
 }
 
 /*
@@ -142,23 +141,15 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
  *     Return a 32-bit pseudo-random number.
  */
 uint32_t
-__wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_random(WT_RAND_STATE *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 #ifdef ENABLE_ANTITHESIS
     return (uint32_t)(fuzz_get_random());
 #else
-    WT_RAND_STATE rnd;
     uint32_t w, z;
 
-    /*
-     * Generally, every thread should have their own RNG state, but it's not guaranteed. Take a copy
-     * of the random state so we can ensure that the calculation operates on the state consistently
-     * regardless of concurrent calls with the same random state.
-     */
-    rnd = *rnd_state;
-    WT_ACQUIRE_BARRIER();
-    w = M_W(rnd);
-    z = M_Z(rnd);
+    w = M_W(rnd_state);
+    z = M_Z(rnd_state);
 
     /*
      * Check if either of the two values goes to 0 (from which we won't recover), and reset it to
@@ -178,10 +169,26 @@ __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility
     if (z == 0)
         z = DEFAULT_SEED_Z;
 
-    M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
-    M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
-    *rnd_state = rnd;
+    M_W(rnd_state) = w = 18000 * (w & 65535) + (w >> 16);
+    M_Z(rnd_state) = z = 36969 * (z & 65535) + (z >> 16);
 
     return ((z << 16) + (w & 65535));
 #endif
+}
+
+/*
+ * __wt_random_init --
+ *     Initialize the state of a 32-bit pseudo-random number by a session's rng.
+ */
+void
+__wt_random_init(WT_SESSION_IMPL *session, WT_RAND_STATE *rnd_state)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    if (session != NULL)
+        __wt_random_init_seed(rnd_state, __wt_random(&session->rnd_random));
+    else {
+        uint64_t t = __wt_clock(session);
+        uint64_t seed = MAKE_SEED(0, t, getpid());
+        __wt_random_init_seed(rnd_state, seed);
+    }
 }

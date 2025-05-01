@@ -106,7 +106,8 @@ def run_gcovr(build_dir_base: str, gcovr_dir: str):
                 f"task_info_path = {task_info_path}, coverage_output_dir = {coverage_output_dir}")
             os.mkdir(coverage_output_dir)
             shutil.copy(src=task_info_path, dst=coverage_output_dir)
-            gcovr_command = (f"gcovr {build_copy_name} -f src -j 16 --html-self-contained --html-details "
+            gcovr_command = (f"gcovr {build_copy_name} --gcov-ignore-parse-errors -f src -j 16 "
+                             "--html-self-contained --html-details "
                              f"{coverage_output_dir}/2_coverage_report.html --json-summary-pretty "
                              f"--json-summary {coverage_output_dir}/1_coverage_report_summary.json "
                              f"--json {coverage_output_dir}/full_coverage_report.json")
@@ -133,6 +134,7 @@ def main():
     parser.add_argument('-s', '--setup', action="store_true",
                         help='Perform setup actions from the config in each build directory')
     parser.add_argument('-v', '--verbose', action="store_true", help='Be verbose')
+    parser.add_argument('-e', '--check_errors', action="store_true", help='Check result codes from tasks and exit on failure')
     args = parser.parse_args()
 
     verbose = args.verbose
@@ -141,6 +143,7 @@ def main():
     gcovr_dir = args.gcovr_dir
     parallel_tests = args.parallel
     setup = args.setup
+    check_errors = args.check_errors
 
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
 
@@ -152,6 +155,7 @@ def main():
     logging.debug(f'  Number of parallel tests:        {parallel_tests}')
     logging.debug(f'  Perform setup actions:           {setup}')
     logging.debug(f'  Gcovr output directory:          {gcovr_dir}')
+    logging.debug(f'  Check errors:                    {check_errors}')
 
     if parallel_tests < 1:
         sys.exit("Number of parallel tests must be >= 1")
@@ -193,7 +197,7 @@ def main():
     logging.debug("task_list: {}".format(task_list))
 
     # Perform code coverage task operations in parallel across the build directories
-    run_task_lists_in_parallel(build_dirs_list, task_list, run_func=run_coverage_task, optimize_test_order=False)
+    run_task_lists_in_parallel(build_dirs_list, task_list, run_func=run_coverage_task, optimize_test_order=False, check_errors=check_errors)
 
     # Run gcovr if required
     if gcovr_dir:

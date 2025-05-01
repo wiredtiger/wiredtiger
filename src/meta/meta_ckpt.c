@@ -119,7 +119,7 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
  * configured.
  */
 #ifdef WT_STANDALONE_BUILD
-    if (!F_ISSET(S2C(session), WT_CONN_COMPATIBILITY))
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_COMPATIBILITY))
         /* Check the major/minor version numbers. */
         WT_ERR(__ckpt_version_chk(session, fname, config));
 #else
@@ -652,7 +652,7 @@ __meta_blk_mods_load(
      * checkpoint's modified blocks from the block manager.
      */
     F_SET(ckpt, WT_CKPT_ADD);
-    if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_INCR_BACKUP)) {
         F_SET(ckpt, WT_CKPT_BLOCK_MODS_LIST);
         WT_RET(__ckpt_valid_blk_mods(session, ckpt, rename));
     }
@@ -1220,7 +1220,7 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
          * versions of WiredTiger
          */
         if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_BACKUP_RENAME) &&
-          !F_ISSET(blk, WT_CKPT_BLOCK_MODS_RENAME) && __wt_random(&session->rnd) % 10 == 0)
+          !F_ISSET(blk, WT_CKPT_BLOCK_MODS_RENAME) && __wt_random(&session->rnd_random) % 10 == 0)
             skip_rename = true;
 
         WT_RET(__wt_raw_to_hex(session, blk->bitstring.data, blk->bitstring.size, &bitstring));

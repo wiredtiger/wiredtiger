@@ -27,10 +27,11 @@ __live_restore_worker_check(WT_SESSION_IMPL *session)
  *     Clean up live restore metadata once background migration has completed. This will be called
  *     by the last background migration thread. In most cases, we'll enter this function on
  *     completion of background migration, but we also need to handle the case where we restart part
- *     way though the clean up.
+ *     way though the clean up. This function may be called by a thread using the default session.
+ *     We also provide a real session to perform the checkpoint.
  */
 static int
-__live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
+__live_restore_clean_up(WT_SESSION_IMPL *session, WT_SESSION_IMPL *checkpoint_session)
 {
     WTI_LIVE_RESTORE_FS *lr_fs = (WTI_LIVE_RESTORE_FS *)S2C(session)->file_system;
     const char *force_ckpt_cfg[] = {
@@ -49,7 +50,7 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * marking background migration complete. All empty bitmaps must be written to the metadata
          * durably first with the checkpoint.
          */
-        WT_RET(__wt_checkpoint_db(ctx->session, force_ckpt_cfg, true));
+        WT_RET(__wt_checkpoint_db(checkpoint_session, force_ckpt_cfg, true));
 
         uint64_t time_diff_ms;
         __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
@@ -76,7 +77,7 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_THREAD *ctx)
          * Run a second forced checkpoint now that clean up has finished. Checkpointing files on or
          * after the clean up stage will remove any bitmap strings from the metadata file.
          */
-        WT_RET(__wt_checkpoint_db(ctx->session, force_ckpt_cfg, true));
+        WT_RET(__wt_checkpoint_db(checkpoint_session, force_ckpt_cfg, true));
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
 
         /* FALLTHROUGH */
@@ -105,19 +106,18 @@ __live_restore_worker_stop(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     server->threads_working--;
 
     if (server->threads_working == 0) {
-        if (!F_ISSET(S2C(session), WT_CONN_CLOSING)) {
+        /*
+         * If the shut down flag is set we're here due to the connection closing and we can expect
+         * the work queue to still contain items. Otherwise we're here due to the completion of
+         * background migration, so we should clean up any live restore files and make sure
+         * everything is fully migrated.
+         */
+        if (!server->shutting_down) {
             /*
              * If all the threads are stopped and the queue is empty, background migration is done.
              */
             if (TAILQ_EMPTY(&server->work_queue))
-                /*
-                 * FIXME-WT-14113 This is currently the only location where we call live restore
-                 * clean up, but it requires us to start up the background migration threads first.
-                 * When WiredTiger starts in a post-background migration state, we should call live
-                 * restore clean up directly instead of spinning up the server to eventually trigger
-                 * clean up.
-                 */
-                WT_ERR(__live_restore_clean_up(session, ctx));
+                WT_ERR(__live_restore_clean_up(session, ctx->session));
 
             /*
              * Future proofing: in general unless the conn is closing the queue must be empty if
@@ -192,6 +192,17 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_DECL_RET;
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
     uint64_t time_diff_ms;
+
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READY)) {
+        /*
+         * Wait until the connection has finished opening to begin migration. Otherwise we could
+         * start up, see an empty queue, and immediately call the live restore clean up logic. This
+         * in turn triggers a checkpoint which sets connection flags and the flag setting logic can
+         * produce read-modify-write races with other threads setting up the connection flags.
+         */
+        __wt_sleep(0, 100 * WT_THOUSAND);
+        return (0);
+    }
 
     __wt_spin_lock(session, &server->queue_lock);
     if (TAILQ_EMPTY(&server->work_queue)) {
@@ -331,7 +342,7 @@ __live_restore_init_work_queue(WT_SESSION_IMPL *session)
      * restoring from a backup we don't need to queue it. Otherwise we need to ensure we transfer it
      * over.
      */
-    if (!F_ISSET(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_BACKUP_PARTIAL_RESTORE))
         WT_ERR(__insert_queue_item(session, (char *)("file:" WT_METAFILE), &work_count));
 
     WT_STAT_CONN_SET(session, live_restore_work_remaining, work_count);
@@ -358,11 +369,29 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      * Check that we have a live restore file system before starting the threads or allocating the
      * the server.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_LIVE_RESTORE_FS))
         return (0);
 
     WT_CONNECTION_IMPL *conn = S2C(session);
-    WT_ERR(__wt_calloc_one(session, &conn->live_restore_server));
+
+    /*
+     * We're currently using the default session. Create a real one for the clean up logic to
+     * perform checkpoints.
+     */
+    WT_SESSION_IMPL *checkpoint_session = NULL;
+
+    /*
+     * If background migration has already completed we don't need to start the background threads.
+     * Run the clean up logic regardless in case we've previously closed the connection after we
+     * finish migration, but before we call clean up.
+     */
+    if (__wti_live_restore_migration_complete(session)) {
+        WT_RET(__wt_open_internal_session(
+          conn, "live_restore_cleanup", false, 0, 0, &checkpoint_session));
+        WT_ERR(__live_restore_clean_up(session, checkpoint_session));
+        WT_ERR(__wt_session_close_internal(checkpoint_session));
+        return (0);
+    }
 
     /* Read the threads_max config, zero threads is valid in which case we don't do anything. */
     WT_CONFIG_ITEM cval;
@@ -370,6 +399,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (cval.val == 0)
         return (0);
 
+    WT_ERR(__wt_calloc_one(session, &conn->live_restore_server));
     WT_ERR(__wt_spin_init(
       session, &conn->live_restore_server->queue_lock, "live restore migration work queue"));
 
@@ -401,6 +431,8 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (0) {
 err:
+        if (checkpoint_session != NULL)
+            WT_TRET(__wt_session_close_internal(checkpoint_session));
         __wt_free(session, conn->live_restore_server);
     }
     return (ret);
@@ -416,13 +448,14 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
 
     /*
-     * If we didn't create a live restore file system or the server there is nothing to do, it is
-     * rare, but possible, to arrive here with the flag set and a NULL server. This situation
-     * happens when an error is encountered after the file system initialization but before the
-     * server is created.
+     * If we didn't create the background migration server there is nothing to do. It is rare, but
+     * possible, to arrive here with the flag set and a NULL server. This situation arises when an
+     * error is encountered during the server set up.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS) || server == NULL)
+    if (server == NULL)
         return (0);
+
+    WTI_WITH_LIVE_RESTORE_QUEUE_LOCK(session, server->shutting_down = true);
 
     /*
      * It is possible to get here without ever starting the thread group. Ensure that it has been
@@ -442,5 +475,6 @@ __wt_live_restore_server_destroy(WT_SESSION_IMPL *session)
         __wt_spin_destroy(session, &server->queue_lock);
     }
     __wt_free(session, server);
+    S2C(session)->live_restore_server = NULL;
     return (0);
 }

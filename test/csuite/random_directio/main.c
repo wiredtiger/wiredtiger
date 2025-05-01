@@ -497,7 +497,7 @@ thread_run(void *arg)
     char *buf1, *buf2;
     char large[LARGE_WRITE_SIZE];
 
-    __wt_random_init(&rnd);
+    __wt_random_init_default(&rnd);
     lsize = sizeof(large);
     memset(large, 0, lsize);
 
@@ -1298,7 +1298,7 @@ main(int argc, char *argv[])
             testutil_mkdir(buf);
         }
 
-        __wt_random_init_seed(NULL, &rnd);
+        __wt_random_init_default(&rnd);
         if (rand_time) {
             timeout = __wt_random(&rnd) % MAX_TIME;
             if (timeout < MIN_TIME)
