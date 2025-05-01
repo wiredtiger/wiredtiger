@@ -2056,7 +2056,7 @@ __checkpoint_lock_dirty_tree(
                 skip_ckpt = false;
         }
 
-        /* Skip the clean btree until the btree has obsolete pages. */
+        /* Skip the clean btree. */
         if (skip_ckpt) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
