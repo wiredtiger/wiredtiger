@@ -978,6 +978,25 @@ functions:
           ./t $format_args ${extra_args}
           ./t -R $format_args ${extra_args}
         done
+  "format test disagg":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
+      script: |
+        # To make sure we have plenty of flush_tier calls, we set the flush frequency high
+        # and the time between checkpoints low. We specify only using tables, as that's the
+        # only kind of URI that participates in tiered storage.
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        format_args=""  # Generally, format arguments are in CONFIG.disagg.
+        for i in $(seq ${times}); do
+          echo Iteration $i/${times}
+          rm -rf RUNDIR
+          ./t -c ../../../test/format/CONFIG.disagg $format_args ${extra_args}
+          ./t -R $format_args ${extra_args}
+        done
   "many dbs test":
     command: shell.exec
     params:
