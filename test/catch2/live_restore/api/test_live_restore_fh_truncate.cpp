@@ -112,4 +112,6 @@ TEST_CASE("Live Restore fh_truncate", "[live_restore],[live_restore_fh_truncate]
     REQUIRE(size == file_size - allocsize);
     // The truncated portion which is in the bitmap range should have bits set.
     REQUIRE(validate_bitmap(lr_fh, file_size - allocsize));
+
+    testutil_check(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session));
 }
