@@ -250,9 +250,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             WT_ERR(__wti_delete_page_instantiate(session, ref));
     }
 
-    /* Track page reads for debugging purposes. */
-    WT_ERR(__wt_conn_page_history_track_read(session, ref->page));
-
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, WT_REF_MEM);
