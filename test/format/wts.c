@@ -291,7 +291,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * We need to cast these values. Normally, testutil allocates and fills these strings based on
      * command line arguments and frees them when done. Format doesn't use the standard test command
      * line parser and doesn't rely on testutil to free anything in this struct. We're only using
-     * the options struct on a temporary basis to help create the tiered storage configuration.
+     * the options struct on a temporary basis to help create the disagg configuration.
      */
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
     opts.home = (char *)home;
