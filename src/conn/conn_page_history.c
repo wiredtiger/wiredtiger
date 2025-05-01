@@ -276,7 +276,7 @@ __wti_conn_page_history_config(WT_SESSION_IMPL *session, const char **cfg, bool 
         page_history->report_tid_set = true;
     }
 
-    page_history->enabled = enabled;
+    WT_RELEASE_WRITE(page_history->enabled, enabled);
     return (0);
 }
 
@@ -335,6 +335,8 @@ __wt_conn_page_history_track_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (!page_history->enabled)
         return (0);
 
+    WT_ACQUIRE_BARRIER();
+
     (void)__wt_atomic_add64(&page_history->global_evict_count, 1);
 
     /* So far this works only for disaggregated storage, as we don't have page IDs without it. */
@@ -384,6 +386,8 @@ __wt_conn_page_history_track_read(WT_SESSION_IMPL *session, WT_PAGE *page)
     page_history = &S2C(session)->page_history;
     if (!page_history->enabled)
         return (0);
+
+    WT_ACQUIRE_BARRIER();
 
     current_global_read_count = __wt_atomic_add64(&page_history->global_read_count, 1);
 
