@@ -114,12 +114,12 @@ typedef struct {
     uint64_t data_seed;      /* Random seed for data ops */
     uint64_t extra_seed;     /* Random seed for extra ops */
 
-    uint64_t delay_ms;        /* Average length of delay when simulated */
-    uint64_t error_ms;        /* Average length of delay when simulated */
-    uint64_t force_delay;     /* Force a simulated network delay every N operations */
-    uint64_t force_error;     /* Force a simulated network error every N operations */
-    uint32_t local_retention; /* Local retention for tiered storage */
-    uint64_t palm_map_size_mb;  /* Megabytes of map size for PALM database */
+    uint64_t delay_ms;         /* Average length of delay when simulated */
+    uint64_t error_ms;         /* Average length of delay when simulated */
+    uint64_t force_delay;      /* Force a simulated network delay every N operations */
+    uint64_t force_error;      /* Force a simulated network error every N operations */
+    uint32_t local_retention;  /* Local retention for tiered storage */
+    uint64_t palm_map_size_mb; /* Megabytes of map size for PALM database */
 
     bool absolute_bucket_dir;  /* Use an absolute bucket path when it is a directory */
     bool compat;               /* Compatibility */
