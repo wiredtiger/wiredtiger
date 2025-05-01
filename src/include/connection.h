@@ -229,60 +229,6 @@ struct __wt_disaggregated_storage {
 };
 
 /*
- * WT_PAGE_HISTORY_KEY --
- *      A key in the page history.
- */
-struct __wt_page_history_key {
-    uint64_t page_id;
-    uint32_t table_id;
-};
-
-/*
- * WT_PAGE_HISTORY_ITEM --
- *      An entry in the page history.
- */
-struct __wt_page_history_item {
-    WT_PAGE_HISTORY_KEY key;
-
-    uint64_t first_global_read_count;
-    uint64_t first_read_timestamp;
-
-    uint64_t last_global_read_count;
-    uint64_t last_read_timestamp;
-
-    uint32_t num_evicts;
-    uint32_t num_reads;
-
-    uint8_t page_type;
-};
-
-/*
- * WT_PAGE_HISTORY --
- *      A page history for debugging issues with page lifetime and eviction. It currently requires
- *      page IDs, which are available if used in disaggregated storage.
- */
-struct __wt_page_history {
-    bool enabled;
-
-    wt_shared uint64_t global_evict_count;
-    wt_shared uint64_t global_read_count;
-    wt_shared uint64_t global_reread_count;
-
-    wt_shared uint64_t global_evict_count_local;
-    wt_shared uint64_t global_evict_count_no_page_id;
-    wt_shared uint64_t global_read_count_local;
-
-    WT_HASH_MAP *pages;
-
-    /* The reporting thread. */
-    wt_thread_t report_tid;
-    bool report_tid_set;
-    WT_SESSION_IMPL *report_session;
-    WT_CONDVAR *report_cond;
-    wt_shared bool report_shutdown;
-};
-
-/*
  * WT_BUCKET_STORAGE --
  *	A list entry for a storage source with a unique name (bucket, prefix).
  */
@@ -812,7 +758,6 @@ struct __wt_connection_impl {
 
     WT_DISAGGREGATED_STORAGE disaggregated_storage;
     WT_LAYERED_TABLE_MANAGER layered_table_manager;
-    WT_PAGE_HISTORY page_history;
 
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */

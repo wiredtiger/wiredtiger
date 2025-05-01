@@ -113,9 +113,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         break;
     }
 
-    /* Update the page history information for debugging. */
-    WT_IGNORE_RET(__wt_conn_page_history_track_evict(session, page));
-
     /* Update the cache's information. */
     __wt_cache_page_evict(session, page);
 
