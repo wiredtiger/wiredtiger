@@ -313,9 +313,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     int64_t maj_version, min_version;
-    uint32_t bitcnt;
     const char **cfg;
-    bool fixed;
 
     btree = S2BT(session);
     cfg = btree->dhandle->cfg;
@@ -338,36 +336,17 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     /* Validate file types and check the data format plan. */
     WT_RET(__wt_config_gets(session, cfg, "key_format", &cval));
     WT_RET(__wt_struct_confchk(session, &cval));
-    if (WT_CONFIG_LIT_MATCH("r", cval))
-        btree->type = BTREE_COL_VAR;
-    else
-        btree->type = BTREE_ROW;
+    btree->type = BTREE_ROW;
     WT_RET(__wt_strndup(session, cval.str, cval.len, &btree->key_format));
 
     WT_RET(__wt_config_gets(session, cfg, "value_format", &cval));
     WT_RET(__wt_struct_confchk(session, &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &btree->value_format));
-
-    /* Row-store key comparison. */
-    if (btree->type == BTREE_ROW) {
-        WT_RET(__wt_config_gets_none(session, cfg, "collator", &cval));
-        if (cval.len != 0) {
-            WT_RET(__wt_config_gets(session, cfg, "app_metadata", &metadata));
-            WT_RET(__wt_collator_config(session, btree->dhandle->name, &cval, &metadata,
-              &btree->collator, &btree->collator_owned));
-        }
-    }
-
-    /* Column-store: check for fixed-size data. */
-    if (btree->type == BTREE_COL_VAR) {
-        WT_RET(__wt_struct_check(session, cval.str, cval.len, &fixed, &bitcnt));
-        if (fixed) {
-            if (bitcnt == 0 || bitcnt > 8)
-                WT_RET_MSG(session, EINVAL,
-                  "fixed-width field sizes must be greater than 0 and less than or equal to 8");
-            btree->bitcnt = (uint8_t)bitcnt;
-            btree->type = BTREE_COL_FIX;
-        }
+    WT_RET(__wt_config_gets_none(session, cfg, "collator", &cval));
+    if (cval.len != 0) {
+        WT_RET(__wt_config_gets(session, cfg, "app_metadata", &metadata));
+        WT_RET(__wt_collator_config(session, btree->dhandle->name, &cval, &metadata,
+            &btree->collator, &btree->collator_owned));
     }
 
     /* Page sizes */
@@ -468,23 +447,13 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
      *	Prefix compression (row-store)
      *	Suffix compression (row-store)
      */
-    switch (btree->type) {
-    case BTREE_COL_FIX:
-        break;
-    case BTREE_ROW:
-        WT_RET(__wt_config_gets(session, cfg, "internal_key_truncate", &cval));
-        btree->internal_key_truncate = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "internal_key_truncate", &cval));
+    btree->internal_key_truncate = cval.val != 0;
 
-        WT_RET(__wt_config_gets(session, cfg, "prefix_compression", &cval));
-        btree->prefix_compression = cval.val != 0;
-        WT_RET(__wt_config_gets(session, cfg, "prefix_compression_min", &cval));
-        btree->prefix_compression_min = (u_int)cval.val;
-    /* FALLTHROUGH */
-    case BTREE_COL_VAR:
-        WT_RET(__wt_config_gets(session, cfg, "dictionary", &cval));
-        btree->dictionary = (u_int)cval.val;
-        break;
-    }
+    WT_RET(__wt_config_gets(session, cfg, "prefix_compression", &cval));
+    btree->prefix_compression = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "prefix_compression_min", &cval));
+    btree->prefix_compression_min = (u_int)cval.val;
 
     WT_RET(__wt_config_gets_none(session, cfg, "block_compressor", &cval));
     WT_RET(__wt_compressor_config(session, &cval, &btree->compressor));
@@ -504,8 +473,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     btree->maxintlpage_precomp = btree->maxintlpage;
     btree->leafpage_compadjust = false;
     btree->maxleafpage_precomp = btree->maxleafpage;
-    if (btree->compressor != NULL && btree->compressor->compress != NULL &&
-      btree->type != BTREE_COL_FIX) {
+    if (btree->compressor != NULL && btree->compressor->compress != NULL) {
         /*
          * Don't do compression adjustment when on-disk page sizes are less than 16KB. There's not
          * enough compression going on to fine-tune the size, all we end up doing is hammering
@@ -728,36 +696,17 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
      * Be cautious about changing the order of updates in this code: to call __wt_page_out on error,
      * we require a correct page setup at each point where we might fail.
      */
-    switch (btree->type) {
-    case BTREE_COL_FIX:
-    case BTREE_COL_VAR:
-        WT_ERR(__wt_page_alloc(session, WT_PAGE_COL_INT, 1, true, &root));
-        root->pg_intl_parent_ref = &btree->root;
+    WT_ERR(__wt_page_alloc(session, WT_PAGE_ROW_INT, 1, true, &root));
+    root->pg_intl_parent_ref = &btree->root;
 
-        WT_INTL_INDEX_GET_SAFE(root, pindex);
-        ref = pindex->index[0];
-        ref->home = root;
-        ref->page = NULL;
-        ref->addr = NULL;
-        F_SET(ref, WT_REF_FLAG_LEAF);
-        WT_REF_SET_STATE(ref, WT_REF_DELETED);
-        ref->ref_recno = 1;
-        break;
-    case BTREE_ROW:
-        WT_ERR(__wt_page_alloc(session, WT_PAGE_ROW_INT, 1, true, &root));
-        root->pg_intl_parent_ref = &btree->root;
-
-        WT_INTL_INDEX_GET_SAFE(root, pindex);
-        ref = pindex->index[0];
-        ref->home = root;
-        ref->page = NULL;
-        ref->addr = NULL;
-        F_SET(ref, WT_REF_FLAG_LEAF);
-        WT_REF_SET_STATE(ref, WT_REF_DELETED);
-        WT_ERR(__wti_row_ikey_incr(session, root, 0, "", 1, ref));
-        break;
-    }
-
+    WT_INTL_INDEX_GET_SAFE(root, pindex);
+    ref = pindex->index[0];
+    ref->home = root;
+    ref->page = NULL;
+    ref->addr = NULL;
+    F_SET(ref, WT_REF_FLAG_LEAF);
+    WT_REF_SET_STATE(ref, WT_REF_DELETED);
+    WT_ERR(__wti_row_ikey_incr(session, root, 0, "", 1, ref));
     /* Bulk loads require a leaf page for reconciliation: create it now. */
     if (F_ISSET(btree, WT_BTREE_BULK)) {
         WT_ERR(__wti_btree_new_leaf_page(session, ref));
@@ -787,21 +736,7 @@ err:
 int
 __wti_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-
-    switch (btree->type) {
-    case BTREE_COL_FIX:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page));
-        break;
-    case BTREE_COL_VAR:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, &ref->page));
-        break;
-    case BTREE_ROW:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page));
-        break;
-    }
+    WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page));
 
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
@@ -948,20 +883,6 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
         WT_RET_MSG(session, EINVAL,
           "page sizes must be a multiple of the page allocation size (%" PRIu32 "B)",
           btree->allocsize);
-
-    /*
-     * FLCS leaf pages have a lower size limit than the default, because the size configures the
-     * bitmap data size and the timestamp data adds on to that. Each time window can be up to 63
-     * bytes and the total page size must not exceed 4G. Thus for an 8t table there can be 64M
-     * entries (so 64M of bitmap data and up to 63*64M == 4032M of time windows), less a bit for
-     * headers. For a 1t table there can be (64 7/8)M entries because the bitmap takes less space,
-     * but that corresponds to a configured page size of a bit over 8M. Consequently the absolute
-     * limit on the page size is 8M, but since pages this large make no sense and perform poorly
-     * even if they don't get bloated out with timestamp data, we'll cut down by a factor of 16 and
-     * set the limit to 128KB.
-     */
-    if (btree->type == BTREE_COL_FIX && btree->maxleafpage > 128 * WT_KILOBYTE)
-        WT_RET_MSG(session, EINVAL, "page size for fixed-length column store is limited to 128KB");
 
     /*
      * Default in-memory page image size for compression is 4x the maximum internal or leaf page
