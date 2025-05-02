@@ -572,7 +572,7 @@ err:
  *         - The read is entirely within a hole.
  *         - The read begins outside a hole and then ends inside.
  *           This scenario will only happen if background data migration occurs concurrently and has
- *           partially migrated the content we're reading. The background threads always copies data
+ *           partially migrated the content we're reading. The background threads always copy data
  *           in order, so the partially filled hole can only start outside a hole and then continue
  *           into a hole. However, since WiredTiger reads/writes are always whole blocks, a partial
  *           read implies that no writes have occurred on the page yet. Otherwise, the entire page
@@ -598,36 +598,36 @@ __live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_
       WTI_OFFSET_TO_BIT(WT_MIN(WTI_OFFSET_END(offset, len), WTI_BITMAP_END(lr_fh)));
     uint64_t read_start_bit = WTI_OFFSET_TO_BIT(offset);
 
-    /* The bitmap must follow the pattern 1*0*, zero or more 1s followed by zero or more 0s.*/
+    /*
+     * The bits associated with a page must follow the pattern 1*0*, zero or more 1s followed by
+     * zero or more 0s, as a page can never begin inside a hole and end outside it. See the function
+     * comment for further details.
+     */
     uint64_t current_bit = read_start_bit;
     /* Iterate through all set bits(1s) first. */
     while (current_bit < read_end_bit && __bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
 
     if (current_bit == read_end_bit) {
-        /*
-         * If we got here we either traversed the full hole list and didn't find a hole, or the read
-         * is prior to any holes.
-         */
         __wt_verbose_debug3(
           session, WT_VERB_LIVE_RESTORE, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
         return (true);
     }
 
-    /* We've found a hole return its offset to the caller. */
+    /* We've found a hole. Return its offset to the caller. */
     *hole_begin_off = WTI_BIT_TO_OFFSET(current_bit);
 
     /* We need to iterate through those unset bits to verify this is a valid bit range. */
     while (current_bit < read_end_bit && !__bit_test(lr_fh->bitmap, current_bit))
         current_bit++;
     /*
-     * If we still not reach the end, then this is an invalid case where a set bit appears after an
-     * unset bit in the range, e.g. 11000011, 00001111, or 00110011.
+     * If we still haven't reached the end of the read range then this is an invalid case where a
+     * set bit appears after an unset bit in the range, e.g. 11000011, 00001111, or 00110011.
      */
     if (current_bit != read_end_bit) {
         WT_IGNORE_RET(__live_restore_dump_bitmap(session, lr_fh));
         WT_ASSERT_ALWAYS(session, false,
-          "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT ") find a set bit (offset: %" PRId64
+          "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT ") found a set bit (offset: %" PRId64
           ") after a hole.",
           offset, len, WTI_BIT_TO_OFFSET(current_bit));
     }
@@ -742,7 +742,7 @@ __live_restore_fh_read(
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
-    char *read_data, *tmp_buf = NULL;
+    char *read_data;
 
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
@@ -763,17 +763,18 @@ __live_restore_fh_read(
     __wt_readlock(session, &lr_fh->lock);
     wt_off_t hole_begin_off;
     if (__live_restore_can_service_read(session, lr_fh, offset, len, &hole_begin_off)) {
-        /* Read the full read from the destination. */
+        /* Perform a full read from the destination. */
         WT_ERR(
           __live_restore_fh_read_destination(session, lr_fh->destination, offset, len, read_data));
     } else {
-        /* Otherwise from the source. */
+        /* Otherwise read from the source. */
         WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, offset, len, read_data));
 
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * If a portion of the read region is serviceable then it is a partial read, add a check
-         * here to ensure partial reads always identical to the reads from the source.
+         * If we found a read can be partially serviced it's because the page has been partially
+         * migrated by a background thread. This means the data in the source and destination should
+         * be identical, and we verify this as a safety check.
          */
         /*
          *!!!
@@ -789,13 +790,17 @@ __live_restore_fh_read(
          *
          *
          */
+        char *tmp_buf = NULL;
         if (hole_begin_off > offset) {
             size_t dest_partial_read_len = (size_t)(hole_begin_off - offset);
-            WT_ERR(__wt_calloc(session, 1, dest_partial_read_len, &tmp_buf));
+            WT_ERR(__wt_malloc(session, dest_partial_read_len, &tmp_buf));
 
             /* Read the serviceable portion from the destination. */
-            WT_ERR(__live_restore_fh_read_destination(
-              session, lr_fh->destination, offset, dest_partial_read_len, tmp_buf));
+            if ((ret = __live_restore_fh_read_destination(
+                   session, lr_fh->destination, offset, dest_partial_read_len, tmp_buf)) != 0) {
+                __wt_free(session, tmp_buf);
+                goto err;
+            }
 
             /* We only need to check the destination portion matches the portion in the source. */
             WT_ASSERT(session, strncmp(read_data, tmp_buf, dest_partial_read_len) == 0);
@@ -813,7 +818,6 @@ err:
      * Right now reads and writes are atomic if we unlock early we lose some guarantee of atomicity.
      */
     __wt_readunlock(session, &lr_fh->lock);
-    __wt_free(session, tmp_buf);
     return (ret);
 }
 
