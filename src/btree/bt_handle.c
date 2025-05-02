@@ -9,7 +9,6 @@
 #include "wt_internal.h"
 
 static int __btree_conf(WT_SESSION_IMPL *, WT_CKPT *ckpt, bool);
-static int __btree_get_last_recno(WT_SESSION_IMPL *);
 static int __btree_page_sizes(WT_SESSION_IMPL *);
 static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
@@ -153,10 +152,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
             /* Warm the cache, if possible. */
             WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
             WT_ERR(ret);
-
-            /* Get the last record number in a column-store file. */
-            if (btree->type != BTREE_ROW)
-                WT_ERR(__btree_get_last_recno(session));
         }
     }
 
@@ -781,65 +776,6 @@ err:
 
     WT_STAT_CONN_INCRV(session, block_preload, block_preload);
     return (ret);
-}
-
-/*
- * __btree_get_last_recno --
- *     Set the last record number for a column-store. Note that this is used to handle appending to
- *     a column store after a truncate operation. It is not related to the WT_CURSOR::largest_key
- *     API.
- */
-static int
-__btree_get_last_recno(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_PAGE *page;
-    WT_REF *next_walk;
-    uint64_t last_recno;
-    uint32_t flags;
-
-    btree = S2BT(session);
-
-    /*
-     * The last record number is used to support appending to a column store tree that has had a
-     * final page truncated. Since checkpoint trees are read-only they don't need the value.
-     */
-    if (WT_READING_CHECKPOINT(session)) {
-        btree->last_recno = WT_RECNO_OOB;
-        return (0);
-    }
-
-    /*
-     * The endpoint for append is global; read the last page with global visibility (even if it's
-     * deleted) to make sure that if the end of the tree is truncated, the tree walk finds the
-     * correct page. (Note that this path does not examine the visibility of individual data items;
-     * it only checks whether whole pages are deleted.)
-     */
-    flags = WT_READ_PREV | WT_READ_VISIBLE_ALL | WT_READ_SEE_DELETED;
-
-    next_walk = NULL;
-    WT_RET(__wt_tree_walk(session, &next_walk, flags));
-    if (next_walk == NULL)
-        return (WT_NOTFOUND);
-
-    page = next_walk->page;
-    last_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(next_walk) :
-                                                 __col_fix_last_recno(next_walk);
-
-    /*
-     * If the right-most page is deleted and globally visible, we skip reading the page from disk
-     * and instead instantiate an empty page in memory. It's possible that next_walk points to this
-     * empty page. When this happens, it has no entries and the last record number will be out of
-     * bounds, i.e. zero.
-     *
-     * In this context, the page also can't have an insert (or append) list, so it's safe to simply
-     * take the last ref's starting record number as the last record number of the tree.
-     */
-    if (last_recno == WT_RECNO_OOB)
-        last_recno = next_walk->key.recno;
-    btree->last_recno = last_recno;
-
-    return (__wt_page_release(session, next_walk, 0));
 }
 
 /*

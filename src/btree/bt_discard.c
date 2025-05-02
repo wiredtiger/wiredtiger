@@ -9,8 +9,6 @@
 #include "wt_internal.h"
 
 static void __free_page_modify(WT_SESSION_IMPL *, WT_PAGE *);
-static void __free_page_col_fix(WT_SESSION_IMPL *, WT_PAGE *);
-static void __free_page_col_var(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_int(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_skip_array(WT_SESSION_IMPL *, WT_INSERT_HEAD **, uint32_t, bool);
@@ -87,7 +85,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * discarding pages.
      */
     switch (page->type) {
-    case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         mod = page->modify;
         if (mod != NULL && mod->mod_root_split != NULL)
@@ -119,15 +116,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
         __free_page_modify(session, page);
 
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        __free_page_col_fix(session, page);
-        break;
-    case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         __free_page_int(session, page);
-        break;
-    case WT_PAGE_COL_VAR:
-        __free_page_col_var(session, page);
         break;
     case WT_PAGE_ROW_LEAF:
         __free_page_row_leaf(session, page);
@@ -148,7 +138,6 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 static void
 __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_INSERT_HEAD *append;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     uint32_t i;
@@ -200,20 +189,6 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
 
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        /* Free the append array. */
-        if ((append = WT_COL_APPEND(page)) != NULL) {
-            __free_skip_list(session, WT_SKIP_FIRST(append), update_ignore);
-            __wt_free(session, append);
-            __wt_free(session, mod->mod_col_append);
-        }
-
-        /* Free the insert/update array. */
-        if (mod->mod_col_update != NULL)
-            __free_skip_array(session, mod->mod_col_update,
-              page->type == WT_PAGE_COL_FIX ? 1 : page->entries, update_ignore);
-        break;
     case WT_PAGE_ROW_LEAF:
         /*
          * Free the insert array.
@@ -369,7 +344,7 @@ __wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_p
 
 /*
  * __free_page_int --
- *     Discard a WT_PAGE_COL_INT or WT_PAGE_ROW_INT page.
+ *     Discard a WT_PAGE_ROW_INT page.
  */
 static void
 __free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -415,28 +390,6 @@ __wti_free_ref_index(
         __wti_free_ref(session, ref, page->type, free_pages);
     }
     __wt_free(session, pindex);
-}
-
-/*
- * __free_page_col_fix --
- *     Discard a WT_PAGE_COL_FIX page.
- */
-static void
-__free_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page)
-{
-    /* Free the time window lookup array. */
-    __wt_free(session, page->u.col_fix.fix_tw);
-}
-
-/*
- * __free_page_col_var --
- *     Discard a WT_PAGE_COL_VAR page.
- */
-static void
-__free_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page)
-{
-    /* Free the RLE lookup array. */
-    __wt_free(session, page->u.col_var.repeats);
 }
 
 /*
