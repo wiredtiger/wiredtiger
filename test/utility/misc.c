@@ -223,8 +223,8 @@ testutil_cleanup(TEST_OPTS *opts)
 
 /*
  * testutil_copy_data --
- *     Copy the data to a backup folder in the current directory. Usually, the data copy is cleaned
- *     up by a call to testutil_clean_test_artifacts.
+ *     Copy the data to a backup folder alongside the current directory. Usually, the data copy is
+ *     cleaned up by a call to testutil_clean_test_artifacts.
  */
 void
 testutil_copy_data(void)
@@ -245,9 +245,9 @@ testutil_copy_data(void)
 
 /*
  * testutil_copy_data_opt --
- *     Copy the data to a backup folder in the current directory. Directories and files with the
- *     specified "readonly prefix" will be hard-linked instead of copied for efficiency on supported
- *     platforms.
+ *     Copy the data to a backup folder alongside the current directory. Directories and files with
+ *     the specified "readonly prefix" will be hard-linked instead of copied for efficiency on
+ *     supported platforms.
  */
 void
 testutil_copy_data_opt(const char *readonly_prefix)

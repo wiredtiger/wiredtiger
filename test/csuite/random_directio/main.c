@@ -537,11 +537,10 @@ again:
          * Every 1000th record write a very large value that exceeds the log buffer size. This
          * forces us to use the unbuffered path.
          */
-        if (i % WT_THOUSAND == 0) {
+        if (i % WT_THOUSAND == 0)
             cursor->set_value(cursor, large);
-        } else {
+        else
             cursor->set_value(cursor, buf2);
-        }
         testutil_check(cursor->insert(cursor));
 
         /*

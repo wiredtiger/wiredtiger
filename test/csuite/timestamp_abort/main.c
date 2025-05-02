@@ -1711,10 +1711,9 @@ main(int argc, char *argv[])
      * Clean up.
      */
     /* Clean up the test directory. */
-    if (ret == EXIT_SUCCESS && !opts->preserve) {
+    if (ret == EXIT_SUCCESS && !opts->preserve)
         /* Current working directory is home (aka WT_TEST) */
         testutil_clean_test_artifacts();
-    }
 
     /*
      * We are in the home directory (typically WT_TEST), which we intend to delete. Go to the start

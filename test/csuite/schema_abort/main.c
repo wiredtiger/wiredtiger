@@ -1276,7 +1276,7 @@ main(int argc, char *argv[])
     if (chdir(home) != 0)
         testutil_die(errno, "parent chdir: %s", home);
 
-    /* Copy the data to a separate folder for debugging purpose given path. */
+    /* Copy the data to a separate folder for debugging purposes. */
     testutil_copy_data();
 
     /*
@@ -1461,9 +1461,9 @@ main(int argc, char *argv[])
         printf("OPLOG: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_oplog, count);
         fatal = true;
     }
-    if (fatal) {
+    if (fatal)
         ret = EXIT_FAILURE;
-    } else {
+    else {
         ret = EXIT_SUCCESS;
         printf("%" PRIu64 " records verified\n", count);
     }
@@ -1473,10 +1473,9 @@ main(int argc, char *argv[])
      */
 
     /* Clean up the test directory. */
-    if (ret == EXIT_SUCCESS && !opts->preserve) {
+    if (ret == EXIT_SUCCESS && !opts->preserve)
         /* Current working directory is home (aka WT_TEST) */
         testutil_clean_test_artifacts();
-    }
 
     /*
      * We are in the home directory (typically WT_TEST), which we intend to delete. Go to the start
