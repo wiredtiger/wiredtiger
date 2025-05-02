@@ -514,8 +514,8 @@ __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
     /*
      * Any update must be either in the insert list, in which case search will have returned a
      * pointer for us, or as an update in a particular key's update list, in which case the slot
-     * will be returned to us. In either case, we want the most recent update (any update
-     * attempted after the prepare would have failed).
+     * will be returned to us. In either case, we want the most recent update (any update attempted
+     * after the prepare would have failed).
      */
     if (cbt->ins != NULL)
         upd = cbt->ins->upd;
@@ -960,7 +960,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      * not be positioned to the correct record in the case of implicit records in the append list.
      * FIXME: it appears that this is no longer true.
      */
-    if (__cursor_page_pinned(cbt, false) &&  F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
+    if (__cursor_page_pinned(cbt, false) && F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
         WT_ERR(__wt_txn_autocommit_check(session));
         /*
          * The cursor position may not be exact (the cursor's comparison value not equal to zero).
@@ -1777,15 +1777,14 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
     if (logging)
         WT_RET(__wt_txn_truncate_log(trunc_info));
 
-
     /*
      * The underlying cursor comparison routine requires cursors be fully instantiated when
-     * truncating row-store objects because it's comparing page and/or skiplist positions, not
-     * keys. (Key comparison would work, it's only that a key comparison would be relatively
-     * expensive, especially with custom collators. Column-store objects have record number
-     * keys, so the key comparison is cheap.) The session truncate code did cursor searches when
-     * setting up the truncate so we're good to go: if that ever changes, we'd need to do
-     * something here to ensure a fully instantiated cursor.
+     * truncating row-store objects because it's comparing page and/or skiplist positions, not keys.
+     * (Key comparison would work, it's only that a key comparison would be relatively expensive,
+     * especially with custom collators. Column-store objects have record number keys, so the key
+     * comparison is cheap.) The session truncate code did cursor searches when setting up the
+     * truncate so we're good to go: if that ever changes, we'd need to do something here to ensure
+     * a fully instantiated cursor.
      */
     WT_ERR(__wt_cursor_truncate(start, stop, __cursor_row_modify));
 

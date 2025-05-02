@@ -253,8 +253,8 @@ err:
  *     satisfies the given timestamp.
  */
 static int
-__rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  WT_ITEM *row_key, WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp)
+__rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, WT_ITEM *row_key,
+  WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
@@ -602,9 +602,8 @@ err:
  *     Fix the on-disk K/V version according to the given timestamp.
  */
 static int
-__rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-    WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp,
-  bool *is_ondisk_stable)
+__rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, WT_ITEM *row_key,
+  WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp, bool *is_ondisk_stable)
 {
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(key_string);
@@ -661,8 +660,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
           !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ? "true" : "false",
           !WT_TIME_WINDOW_HAS_STOP(tw) && prepared ? "true" : "false");
         if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
-            return (__rts_btree_ondisk_fixup_key(
-              session, ref, rip, row_key, vpack, rollback_timestamp));
+            return (
+              __rts_btree_ondisk_fixup_key(session, ref, rip, row_key, vpack, rollback_timestamp));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove

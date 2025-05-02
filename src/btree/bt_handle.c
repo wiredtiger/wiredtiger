@@ -346,7 +346,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     if (cval.len != 0) {
         WT_RET(__wt_config_gets(session, cfg, "app_metadata", &metadata));
         WT_RET(__wt_collator_config(session, btree->dhandle->name, &cval, &metadata,
-            &btree->collator, &btree->collator_owned));
+          &btree->collator, &btree->collator_owned));
     }
 
     /* Page sizes */
