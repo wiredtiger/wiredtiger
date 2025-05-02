@@ -18,11 +18,11 @@
  * range, then walks the tree with a flag so the tree walk code skips reading eligible pages within
  * the range and instead just marks them as deleted, by changing their WT_REF state to
  * WT_REF_DELETED. Pages ineligible for this fast path ("fast-truncate" or "fast-delete") include
- * pages that are already in the cache and can not be evicted, records in the pages that are
- * not visible to the transaction, pages containing overflow items, pages containing prepared
- * values, or pages that belong to FLCS trees. Ineligible pages are read and have their rows
- * updated/deleted individually ("slow-truncate"). The transaction for the delete operation is
- * stored in memory referenced by the WT_REF.page_del field.
+ * pages that are already in the cache and can not be evicted, records in the pages that are not
+ * visible to the transaction, pages containing overflow items, pages containing prepared values, or
+ * pages that belong to FLCS trees. Ineligible pages are read and have their rows updated/deleted
+ * individually ("slow-truncate"). The transaction for the delete operation is stored in memory
+ * referenced by the WT_REF.page_del field.
  *
  * Future cursor walks of the tree will skip the deleted page based on the transaction stored for
  * the delete, but it gets more complicated if a read is done using a random key, or a cursor walk
@@ -30,8 +30,8 @@
  * cases, we read the original contents of the page. The page-read code notices a deleted page is
  * being read, and as part of the read instantiates the contents of the page, creating tombstone
  * WT_UPDATE records, in the same transaction that deleted the page. In other words, the read
- * process makes it appear as if the page was read and each individual row deleted, exactly as
- * would have happened if the page had been in the cache all along.
+ * process makes it appear as if the page was read and each individual row deleted, exactly as would
+ * have happened if the page had been in the cache all along.
  *
  * There's an additional complication to support transaction rollback of the page delete. When the
  * page was marked deleted, a pointer to the WT_REF was saved in the deleting session's transaction
@@ -54,48 +54,6 @@
  * WT_REF.page_del field since the page contains no data. These pages are always skipped during
  * cursor traversal, and if read is forced to instantiate such a page, it creates an empty page from
  * scratch.
- *
- * This feature is not available for FLCS objects. While most of the machinery exists (it is mostly
- * a property of column-store internal pages) there is a showstopper problem. For VLCS, truncate
- * introduces gaps in the namespace, and we can just skip over those gaps when iterating and
- * instantiate fresh pages if rows in the gap are updated. For FLCS, because there are no deleted
- * values (deleted values read back as 0) we have to iterate _through_ gaps, and that means knowing
- * how many rows each gap contains. This knowledge is encoded in the internal page tree structure,
- * but it is not _available_ there; we would have to carry it around during tree-walk. (Basically,
- * every descent would need to remember the starting key of the next page, and since in general the
- * depth is more than 2 this requires a stack, and there's no place to keep it except passing it in
- * from the caller, and it would make an ugly mess and is generally a non-starter.) We can't just
- * declare that gaps are skipped, because gaps happen not where the user truncates things but at
- * nearby (and arbitrary) page boundaries and also the whim of eviction and which pages are in and
- * out of cache. Furthermore, if the end of the tree gets truncated either we have to let that move
- * the end of the table backwards (also arbitrarily and confusingly, and which is also possibly
- * problematic in its own right) or we don't know where to stop when iterating. The latter problems
- * could conceivably be avoided by never fast-deleting the last page in the tree, but there's no
- * good way to know when we're on the last page.
- *
- * For VLCS trees, there is a complication. If we create gaps in the namespace, we can fill those
- * gaps by using the append list of the next leaf page to the left. That is, if an internal page has
- * children beginning at 100, 120, 140, and 160, and the two middle pages get truncated and
- * discarded, we now have an internal page with children beginning at 100 and 160. Writes between
- * 120 and 159 will be sent to the page beginning at 100 and populate its append list, eventually
- * resulting in splits and new child pages. However, if we discard the _first_ (leftmost) child of
- * an internal page, this logic breaks. Given an internal page with children beginning at 100, 120,
- * 140, and 160, if we discard the page that begins at 100 we now have an internal page that itself
- * begins at 100 but whose children begin at 120, 140, and 160. Now if someone goes to write at 110,
- * Search quite reasonably assumes that this should go to some child of this internal page; but
- * there isn't one and it asserts. There are two reasonable ways to handle this situation: one is to
- * use the in-memory split code to insert a new ref on demand (this is logically very similar to a
- * reverse split); the other is to avoid ever discarding the leftmost child. It was decided that the
- * split operation is delicate and risky and it was better to preserve that page. This requires
- * special-case code in four places: (a) in split, for VLCS trees, don't discard the first child ref
- * in splits, even if it's deleted and the deletion is globally visible; (b) in VLCS trees, don't
- * attempt reverse splits originating from that page, as that would discard it; (c) as noted above,
- * when loading an internal page, create an extra ref in this position if the first on-disk child
- * starts at a later recno from the internal page itself; and (d) in verify, accept that the page
- * in this position might be an empty deleted ref with no on-disk address. Note that the critical
- * issue is that one must not _discard_ this page after deleting it. It is fine for it to _be_
- * deleted, as long as the ref always exists when the internal page is in memory. (It is not written
- * to disk either; internal page reconciliation skips it.)
  */
 
 /*
@@ -494,83 +452,6 @@ __instantiate_tombstone(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del,
 }
 
 /*
- * __instantiate_col_var --
- *     Iterate over a variable-length column-store page and instantiate tombstones.
- */
-static int
-__instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_del,
-  WT_UPDATE **update_list, uint32_t *countp)
-{
-    WT_CELL_UNPACK_KV unpack;
-    WT_COL *cip;
-    WT_CURSOR_BTREE cbt;
-    WT_DECL_RET;
-    WT_PAGE *page;
-    WT_UPDATE *upd;
-    uint64_t j, recno, rle;
-    uint32_t i;
-
-    page = ref->page;
-    upd = NULL;
-
-    /*
-     * Open a cursor to use with col_modify. We use col_modify here (and thus a cursor) because
-     * setting up the append list inserts properly, even given the special case that we just loaded
-     * the page and have it locked so it's empty and there are no races, requires a lot of
-     * cut-and-paste code. Repeatedly searching the page while also iterating it is untidy and
-     * somewhat wasteful, but this doesn't need to be a fast path and isn't a common case.
-     *
-     * (Note that also we can't use next -- it is subject to visibility checks. A version of next at
-     * the same layer as __wt_col_search would be nice for this, but doesn't currently exist.)
-     */
-    __wt_btcur_init(session, &cbt);
-    __wt_btcur_open(&cbt);
-
-    /* Walk the page entries, giving each key a tombstone. */
-    recno = ref->ref_recno;
-    WT_COL_FOREACH (page, cip, i) {
-        /* Retrieve the stop time point from the page. */
-        __wt_cell_unpack_kv(session, page->dsk, WT_COL_PTR(page, cip), &unpack);
-        rle = __wt_cell_rle(&unpack);
-
-        /* If it's already deleted, it doesn't need another tombstone. */
-        if (unpack.type == WT_CELL_DEL) {
-            recno += rle;
-            continue;
-        }
-
-        /* Delete each key. */
-        for (j = 0; j < rle; j++) {
-            WT_ERR(__instantiate_tombstone(
-              session, page_del, update_list, countp, &unpack.tw, &upd, NULL));
-            if (upd != NULL) {
-                /* Position the cursor on the page. */
-                WT_ERR(__wt_col_search(&cbt, recno + j, ref, true /*leaf_safe*/, NULL));
-
-                /* Make sure we landed where we expected. */
-                WT_ASSERT(session, cbt.slot == WT_COL_SLOT(page, cip));
-
-                /* Attach the tombstone, using the update-restore path. */
-                WT_ERR(__wt_col_modify(&cbt, recno + j, NULL, &upd, WT_UPDATE_INVALID, true, true));
-                /* Null the pointer so we don't free it twice. */
-                upd = NULL;
-            }
-        }
-        recno += rle;
-    }
-
-    /* We just read the page and it's still locked. The append list should be empty. */
-    WT_ASSERT(session, WT_COL_APPEND(page) == NULL);
-
-err:
-    __wt_free(session, upd);
-
-    /* Free any resources that may have been cached in the cursor. */
-    WT_TRET(__wt_btcur_close(&cbt, true));
-    return (ret);
-}
-
-/*
  * __instantiate_row --
  *     Iterate over a row-store page and instantiate tombstones.
  */
@@ -659,8 +540,8 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     page_del = ref->page_del;
     update_list = NULL;
 
-    /* Fast-truncate only happens to leaf pages, and FLCS isn't supported. */
-    WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF || page->type == WT_PAGE_COL_VAR);
+    /* Fast-truncate only happens to leaf pages. */
+    WT_ASSERT(session, page->type == WT_PAGE_ROW_LEAF);
 
     /* Empty pages should get skipped before reaching this point. */
     WT_ASSERT(session, page->entries > 0);
@@ -695,17 +576,10 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (page_del != NULL && !page_del->committed) {
         count = 0;
-        switch (page->type) {
-        case WT_PAGE_COL_VAR:
-            /* One tombstone for each recno on the page. */
-            count = (uint32_t)(__col_var_last_recno(ref) - ref->ref_recno + 1);
-            break;
-        case WT_PAGE_ROW_LEAF:
-            /* One tombstone for each row on the page. */
-            WT_ROW_FOREACH (page, rip, i)
-                ++count;
-            break;
-        }
+
+        /* One tombstone for each row on the page. */
+        WT_ROW_FOREACH (page, rip, i)
+            ++count;
         WT_RET(__wt_calloc_def(session, count + 1, &update_list));
     }
 
@@ -716,15 +590,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     count = 0;
 
-    switch (page->type) {
-    case WT_PAGE_COL_VAR:
-        WT_ERR(__instantiate_col_var(session, ref, page_del, update_list, &count));
-        break;
-    case WT_PAGE_ROW_LEAF:
-        WT_ERR(__instantiate_row(session, ref, page_del, update_list, &count));
-        break;
-    }
-
+    WT_ERR(__instantiate_row(session, ref, page_del, update_list, &count));
     page->modify->instantiated = true;
     page->modify->inst_updates = update_list;
 
