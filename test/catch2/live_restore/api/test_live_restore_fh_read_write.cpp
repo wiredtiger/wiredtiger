@@ -35,6 +35,7 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
     // portion falls within the bitmap and the second portion exceeds it.
     uint32_t allocsize = 4, page_size = allocsize * 4;
     wt_off_t file_size = (wt_off_t)allocsize * 33;
+    REQUIRE(file_size % page_size != 0);
     auto dummy_char = '0';
     auto source_char = '1';
     auto write_char = '2';
@@ -71,6 +72,7 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
         // page_size to simulate a page being partially migrated.
         auto background_write_len = allocsize * count;
         REQUIRE(background_write_len <= file_size);
+        REQUIRE(background_write_len % page_size != 0);
         std::vector<char> write_buf(background_write_len, source_char);
         REQUIRE(lr_fh->iface.fh_write((WT_FILE_HANDLE *)lr_fh, session, 0, background_write_len,
                   write_buf.data()) == 0);
