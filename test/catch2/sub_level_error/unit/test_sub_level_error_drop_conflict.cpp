@@ -94,9 +94,9 @@ TEST_CASE("Test WT_CONFLICT_BACKUP and WT_CONFLICT_DHANDLE",
 
     /*
      * This section gives us coverage in __drop_tiered. The dir_store extension is only supported
-     * for POSIX systems, so we skip this section on Windows.
+     * Linux systems, so we skip this section on Windows & Mac.
      */
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
     SECTION("Test WT_CONFLICT_DHANDLE with tiered storage")
     {
         /* Set up the connection and session to use tiered storage. */
