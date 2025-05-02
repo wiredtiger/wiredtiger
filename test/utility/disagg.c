@@ -27,7 +27,6 @@
  */
 #include "test_util.h"
 
-
 /*
  * testutil_disagg_storage_configuration --
  *     Set up disagg storage configuration.
@@ -43,8 +42,8 @@ testutil_disagg_storage_configuration(TEST_OPTS *opts, const char *home, char *d
           opts->disagg_page_log, opts->disagg_page_log, opts->delay_ms, opts->error_ms,
           opts->force_delay, opts->force_error, opts->palm_map_size_mb);
 
-        testutil_snprintf(disagg_cfg, disagg_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG,
-          opts->disagg_page_log);
+        testutil_snprintf(
+          disagg_cfg, disagg_cfg_size, TESTUTIL_ENV_CONFIG_DISAGG, opts->disagg_page_log);
     } else {
         testutil_snprintf(ext_cfg, ext_cfg_size, "\"\"");
         testutil_assert(disagg_cfg_size > 0);
