@@ -27,21 +27,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 # test_hs12.py
 # Verify we can correctly append modifies to the end of string values
 class test_hs12(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,eviction=(threads_max=1)'
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer-row', dict(key_format='i')),
-    ]
-    scenarios = make_scenarios(key_format_values)
-
     def test_modify_append_to_string(self):
         uri = "table:test_reverse_modify01_notimestamp"
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format=S,key_format=i'
         value1 = 'abcedfghijklmnopqrstuvwxyz' * 5
         value2 = 'b' * 100
         valuebig = 'e' * 1000

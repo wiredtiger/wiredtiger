@@ -141,8 +141,6 @@ struct __wt_ckpt_session;
 typedef struct __wt_ckpt_session WT_CKPT_SESSION;
 struct __wt_ckpt_snapshot;
 typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
-struct __wt_col;
-typedef struct __wt_col WT_COL;
 struct __wt_colgroup;
 typedef struct __wt_colgroup WT_COLGROUP;
 struct __wt_compact_state;

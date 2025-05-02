@@ -1268,7 +1268,7 @@ __wti_rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
     /* The free space is tracked with a pointer; convert to an integer. */
     first_free = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
 
-    inuse = r->page->type == first_free;
+    inuse = first_free;
     corrected_page_size = inuse + add_len;
 
     WT_RET(bm->write_size(bm, session, &corrected_page_size));

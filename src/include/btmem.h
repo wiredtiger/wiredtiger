@@ -1236,24 +1236,6 @@ struct __wt_row { /* On-page key, on-page cell, or off-page WT_IKEY */
 #define WT_ROW_SLOT(page, rip) ((uint32_t)((rip) - (page)->pg_row))
 
 /*
- * WT_COL -- Each in-memory variable-length column-store leaf page has an array of WT_COL
- * structures: this is created from on-page data when a page is read from the file. It's fixed in
- * size, and references data on the page.
- */
-struct __wt_col {
-    /*
-     * Variable-length column-store data references are page offsets, not pointers (we boldly
-     * re-invent short pointers). The trade-off is 4B per K/V pair on a 64-bit machine vs. a single
-     * cycle for the addition of a base pointer. The on-page data is a WT_CELL (same as row-store
-     * pages).
-     *
-     * Obscure the field name, code shouldn't use WT_COL->__col_value, the public interface is
-     * WT_COL_PTR and WT_COL_PTR_SET.
-     */
-    uint32_t __col_value;
-};
-
-/*
  * WT_IKEY --
  *  Instantiated key: row-store keys are usually prefix compressed or overflow objects.
  *  Normally, a row-store page in-memory key points to the on-page WT_CELL, but in some
