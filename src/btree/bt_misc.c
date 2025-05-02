@@ -122,12 +122,6 @@ __wt_page_type_string(u_int type) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
         return ("invalid");
     case WT_PAGE_BLOCK_MANAGER:
         return ("block manager");
-    case WT_PAGE_COL_FIX:
-        return ("column-store fixed-length leaf");
-    case WT_PAGE_COL_INT:
-        return ("column-store internal");
-    case WT_PAGE_COL_VAR:
-        return ("column-store variable-length leaf");
     case WT_PAGE_OVFL:
         return ("overflow");
     case WT_PAGE_ROW_INT:

@@ -571,13 +571,10 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
   size_t addr_size, WT_STUFF *ss)
 {
     WT_CELL_UNPACK_KV unpack;
-    WT_COL_FIX_AUXILIARY_HEADER auxhdr;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW stable_tw;
     WT_TRACK *trk;
-    uint64_t stop_recno;
-    uint32_t cell_num;
 
     page = NULL;
     WT_TIME_WINDOW_INIT(&stable_tw);
@@ -589,123 +586,34 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
     /* Allocate a WT_TRACK entry for this new page and fill it in. */
     WT_RET(__slvg_trk_init(session, dsk, addr, addr_size, ss, &trk));
 
-    switch (dsk->type) {
-    case WT_PAGE_COL_FIX:
-        /*
-         * Column-store fixed-sized format: start and stop keys can be taken from the block's
-         * header, and doesn't contain overflow items.
-         */
-        WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
-        trk->col_start = dsk->recno;
-        trk->col_stop = dsk->recno + (dsk->u.entries - 1);
-
-        /*
-         * Read the auxiliary header. Because pages that fail verify are tossed before salvage, we
-         * shouldn't fail.
-         */
-        WT_RET(__wti_col_fix_read_auxheader(session, dsk, &auxhdr));
-
-        switch (auxhdr.version) {
-        case WT_COL_FIX_VERSION_NIL:
-            /*
-             * Nothing to do besides update the time aggregate with a stable timestamp. This is
-             * necessary mechanically because a time aggregate initialized for merging will fail
-             * validation if not touched, and necessary conceptually because we have notionally
-             * iterated through all these values (which are all stable) and aggregated in their
-             * timestamps.
-             */
-            WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &stable_tw);
-            __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
-              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-              trk->col_start, trk->col_stop);
-            break;
-        case WT_COL_FIX_VERSION_TS:
-            /*
-             * Visit the time windows. Note: we're going to visit them all and produce the
-             * corresponding time aggregate, even though we might end up discarding some of the
-             * values later. The time aggregate will get updated to reflect that change when the
-             * page is reconciled after salvage, and in the meantime having the time aggregate be
-             * possibly wider than strictly necessary should not cause anything horribly wrong to
-             * happen.
-             */
-            cell_num = 0;
-            WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
-                if (cell_num % 2 == 1) {
-                    if (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
-                        continue;
-                    WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
-                }
-                cell_num++;
-            }
-            WT_CELL_FOREACH_END;
-            if (cell_num / 2 < dsk->u.entries || cell_num == 0) {
-                /* If we have keys with no time windows, or none, aggregate in a stable one. */
-                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &stable_tw);
-            }
-            __wt_verbose(session, WT_VERB_SALVAGE,
-              "%s records %" PRIu64 "-%" PRIu64 " and %" PRIu32 " time windows",
-              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-              trk->col_start, trk->col_stop, cell_num / 2);
-            break;
-        }
-        break;
-    case WT_PAGE_COL_VAR:
-        /*
-         * Column-store variable-length format: the start key can be taken from the block's header,
-         * stop key requires walking the page.
-         */
-        WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
-        stop_recno = dsk->recno;
-        WT_CELL_FOREACH_KV (session, dsk, unpack) {
-            stop_recno += __wt_cell_rle(&unpack);
-
-            WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
-        }
-        WT_CELL_FOREACH_END;
-
-        trk->col_start = dsk->recno;
-        trk->col_stop = stop_recno - 1;
-
-        __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
-          __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1), trk->col_start,
-          trk->col_stop);
-
-        /* VLCS pages can contain overflow items. */
-        WT_ERR(__slvg_trk_leaf_ovfl(session, dsk, trk));
-        break;
-    case WT_PAGE_ROW_LEAF:
-        WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
-        WT_CELL_FOREACH_KV (session, dsk, unpack) {
-            WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
-        }
-        WT_CELL_FOREACH_END;
-
-        /*
-         * Row-store format: copy the first and last keys on the page. Keys are prefix-compressed,
-         * the simplest and slowest thing to do is instantiate the in-memory page, then instantiate
-         * and copy the full keys, then free the page. We do this on every leaf page, and if you
-         * need to speed up the salvage, it's probably a great place to start.
-         *
-         * Page flags are 0 because we aren't releasing the memory used to read the page into memory
-         * and we don't want page discard to free it.
-         */
-        WT_ERR(__wti_page_inmem(session, NULL, dsk, 0, &page, NULL));
-        WT_ERR(__wt_row_leaf_key_copy(session, page, &page->pg_row[0], &trk->row_start));
-        WT_ERR(
-          __wt_row_leaf_key_copy(session, page, &page->pg_row[page->entries - 1], &trk->row_stop));
-
-        __wt_verbose(session, WT_VERB_SALVAGE, "%s start key %s",
-          __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-          __wt_buf_set_printable(
-            session, trk->row_start.data, trk->row_start.size, false, ss->tmp2));
-        __wt_verbose(session, WT_VERB_SALVAGE, "%s stop key %s",
-          __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-          __wt_buf_set_printable(session, trk->row_stop.data, trk->row_stop.size, false, ss->tmp2));
-
-        /* Row-store pages can contain overflow items. */
-        WT_ERR(__slvg_trk_leaf_ovfl(session, dsk, trk));
-        break;
+    WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
+    WT_CELL_FOREACH_KV (session, dsk, unpack) {
+        WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
     }
+    WT_CELL_FOREACH_END;
+
+    /*
+     * Row-store format: copy the first and last keys on the page. Keys are prefix-compressed, the
+     * simplest and slowest thing to do is instantiate the in-memory page, then instantiate and copy
+     * the full keys, then free the page. We do this on every leaf page, and if you need to speed up
+     * the salvage, it's probably a great place to start.
+     *
+     * Page flags are 0 because we aren't releasing the memory used to read the page into memory and
+     * we don't want page discard to free it.
+     */
+    WT_ERR(__wti_page_inmem(session, NULL, dsk, 0, &page, NULL));
+    WT_ERR(__wt_row_leaf_key_copy(session, page, &page->pg_row[0], &trk->row_start));
+    WT_ERR(__wt_row_leaf_key_copy(session, page, &page->pg_row[page->entries - 1], &trk->row_stop));
+
+    __wt_verbose(session, WT_VERB_SALVAGE, "%s start key %s",
+      __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+      __wt_buf_set_printable(session, trk->row_start.data, trk->row_start.size, false, ss->tmp2));
+    __wt_verbose(session, WT_VERB_SALVAGE, "%s stop key %s",
+      __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+      __wt_buf_set_printable(session, trk->row_stop.data, trk->row_stop.size, false, ss->tmp2));
+
+    /* Row-store pages can contain overflow items. */
+    WT_ERR(__slvg_trk_leaf_ovfl(session, dsk, trk));
     ss->pages[ss->pages_next++] = trk;
 
     if (0) {

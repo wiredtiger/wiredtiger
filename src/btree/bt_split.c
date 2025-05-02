@@ -650,7 +650,6 @@ static int
 __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t new_entries,
   size_t parent_incr, bool exclusive, bool discard)
 {
-    WT_BTREE *btree;
     WT_DECL_ITEM(scr);
     WT_DECL_RET;
     WT_PAGE *parent;
@@ -666,7 +665,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_PAGE_INDEX *check_pindex;
 #endif
 
-    btree = S2BT(session);
     parent = ref->home;
 
     alloc_index = pindex = NULL;

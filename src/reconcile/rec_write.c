@@ -2245,31 +2245,12 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 int
 __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *parent;
     WTI_RECONCILE *r;
 
-    btree = S2BT(session);
     if ((r = cbulk->reconcile) == NULL)
         return (0);
-
-    switch (btree->type) {
-    case BTREE_COL_FIX:
-        if (cbulk->entry != 0) {
-            __wti_rec_incr(
-              session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
-            __bit_clear_end(
-              WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem), cbulk->entry, btree->bitcnt);
-        }
-        break;
-    case BTREE_COL_VAR:
-        if (cbulk->rle != 0)
-            WT_ERR(__wt_bulk_insert_var(session, cbulk, false));
-        break;
-    case BTREE_ROW:
-        break;
-    }
 
     WT_ERR(__wti_rec_split_finish(session, r));
     WT_ERR(__rec_write_wrapup(session, r, r->page));
