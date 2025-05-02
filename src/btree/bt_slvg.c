@@ -96,18 +96,6 @@ struct __wt_track {
 #define row_stop u.row._row_stop
             WT_ITEM _row_stop; /* Row-store stop range */
         } row;
-
-        struct {
-#undef col_start
-#define col_start u.col._col_start
-            uint64_t _col_start; /* Col-store start range */
-#undef col_stop
-#define col_stop u.col._col_stop
-            uint64_t _col_stop; /* Col-store stop range */
-#undef col_missing
-#define col_missing u.col._col_missing
-            uint64_t _col_missing; /* Col-store missing range */
-        } col;
     } u;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -120,13 +108,6 @@ struct __wt_track {
 };
 
 static int __slvg_cleanup(WT_SESSION_IMPL *, WT_STUFF *);
-static int __slvg_col_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
-static int __slvg_col_build_leaf(WT_SESSION_IMPL *, WT_TRACK *, WT_REF *);
-static int __slvg_col_ovfl(WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *);
-static int __slvg_col_range(WT_SESSION_IMPL *, WT_STUFF *);
-static void __slvg_col_range_missing(WT_SESSION_IMPL *, WT_STUFF *);
-static int __slvg_col_range_overlap(WT_SESSION_IMPL *, uint32_t, uint32_t, WT_STUFF *);
-static void __slvg_col_trk_update_start(uint32_t, WT_STUFF *);
 static int __slvg_merge_block_free(WT_SESSION_IMPL *, WT_STUFF *);
 static int WT_CDECL __slvg_ovfl_compare(const void *, const void *);
 static int __slvg_ovfl_discard(WT_SESSION_IMPL *, WT_STUFF *);
@@ -324,23 +305,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_qsort(ss->pages, (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_key);
     if (ss->page_type == WT_PAGE_ROW_LEAF)
         WT_ERR(__slvg_row_range(session, ss));
-    else
-        WT_ERR(__slvg_col_range(session, ss));
-
-    /*
-     * !!! (Don't format the comment.)
-     * Step 6:
-     * We may have lost key ranges in column-store databases, that is, some part of the record
-     * number space is gone; look for missing ranges.
-     */
-    switch (ss->page_type) {
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        __slvg_col_range_missing(session, ss);
-        break;
-    case WT_PAGE_ROW_LEAF:
-        break;
-    }
 
     /*
      * !!! (Don't format the comment.)
@@ -363,11 +327,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (leaf_cnt != 0)
         switch (ss->page_type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            WT_WITH_PAGE_INDEX(session, ret = __slvg_col_build_internal(session, leaf_cnt, ss));
-            WT_ERR(ret);
-            break;
         case WT_PAGE_ROW_LEAF:
             WT_WITH_PAGE_INDEX(session, ret = __slvg_row_build_internal(session, leaf_cnt, ss));
             WT_ERR(ret);
@@ -480,7 +439,6 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
         dsk = buf->data;
         switch (dsk->type) {
         case WT_PAGE_BLOCK_MANAGER:
-        case WT_PAGE_COL_INT:
         case WT_PAGE_ROW_INT:
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page ignored %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
@@ -506,8 +464,6 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
           __wt_page_type_string(dsk->type), dsk->write_gen, (const char *)as->data);
 
         switch (dsk->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
         case WT_PAGE_ROW_LEAF:
             if (ss->page_type == WT_PAGE_INVALID)
                 ss->page_type = dsk->type;
@@ -773,320 +729,6 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
  * splits are rare, the chance of finding the kind of range overlap requiring
  * re-sorting the array is small.
  */
-/*
- * __slvg_col_range --
- *     Figure out the leaf pages we need and free the leaf pages we don't.
- */
-static int
-__slvg_col_range(WT_SESSION_IMPL *session, WT_STUFF *ss)
-{
-    WT_TRACK *jtrk;
-    uint32_t i, j;
-
-    /*
-     * DO NOT MODIFY THIS CODE WITHOUT REVIEWING THE CORRESPONDING ROW- OR COLUMN-STORE CODE: THEY
-     * ARE IDENTICAL OTHER THAN THE PAGES THAT ARE BEING HANDLED.
-     *
-     * Walk the page array looking for overlapping key ranges, adjusting the ranges based on the LSN
-     * until there are no overlaps.
-     *
-     * DO NOT USE POINTERS INTO THE ARRAY: THE ARRAY IS RE-SORTED IN PLACE AS ENTRIES ARE SPLIT, SO
-     * ARRAY REFERENCES MUST ALWAYS BE ARRAY BASE PLUS OFFSET.
-     */
-    for (i = 0; i < ss->pages_next; ++i) {
-        if (ss->pages[i] == NULL)
-            continue;
-
-        /* Check for pages that overlap our page. */
-        for (j = i + 1; j < ss->pages_next; ++j) {
-            if (ss->pages[j] == NULL)
-                continue;
-            /*
-             * We're done if this page starts after our stop, no subsequent pages can overlap our
-             * page.
-             */
-            if (ss->pages[j]->col_start > ss->pages[i]->col_stop)
-                break;
-
-            /* There's an overlap, fix it up. */
-            jtrk = ss->pages[j];
-            WT_RET(__slvg_col_range_overlap(session, i, j, ss));
-
-            /*
-             * If the overlap resolution changed the entry's start key, the entry might have moved
-             * and the page array re-sorted, and pages[j] would reference a different page. We don't
-             * move forward if that happened, we re-process the slot again (by decrementing j before
-             * the loop's increment).
-             */
-            if (ss->pages[j] != NULL && jtrk != ss->pages[j])
-                --j;
-        }
-    }
-    return (0);
-}
-
-/*
- * __slvg_col_range_overlap --
- *     Two column-store key ranges overlap, deal with it.
- */
-static int
-__slvg_col_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_slot, WT_STUFF *ss)
-{
-    WT_DECL_RET;
-    WT_TRACK *a_trk, *b_trk, *new;
-    uint32_t i;
-
-    /*
-     * DO NOT MODIFY THIS CODE WITHOUT REVIEWING THE CORRESPONDING ROW- OR COLUMN-STORE CODE: THEY
-     * ARE IDENTICAL OTHER THAN THE PAGES THAT ARE BEING HANDLED.
-     */
-    a_trk = ss->pages[a_slot];
-    b_trk = ss->pages[b_slot];
-
-    __wt_verbose(session, WT_VERB_SALVAGE, "%s and %s range overlap",
-      __wt_addr_string(session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
-      __wt_addr_string(session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
-
-    /*
-     * !!! (Don't format the comment.)
-     * The key ranges of two WT_TRACK pages in the array overlap -- choose
-     * the ranges we're going to take from each.
-     *
-     * We can think of the overlap possibilities as 11 different cases:
-     *
-     *		AAAAAAAAAAAAAAAAAA
-     * #1		BBBBBBBBBBBBBBBBBB		pages are the same
-     * #2	BBBBBBBBBBBBB				overlaps the beginning
-     * #3			BBBBBBBBBBBBBBBB	overlaps the end
-     * #4		BBBBB				B is a prefix of A
-     * #5			BBBBBB			B is middle of A
-     * #6			BBBBBBBBBB		B is a suffix of A
-     *
-     * and:
-     *
-     *		BBBBBBBBBBBBBBBBBB
-     * #7	AAAAAAAAAAAAA				same as #3
-     * #8			AAAAAAAAAAAAAAAA	same as #2
-     * #9		AAAAA				A is a prefix of B
-     * #10			AAAAAA			A is middle of B
-     * #11			AAAAAAAAAA		A is a suffix of B
-     *
-     * Note the leaf page array was sorted by key and a_trk appears earlier
-     * in the array than b_trk, so cases #2/8, #10 and #11 are impossible.
-     *
-     * Finally, there's one additional complicating factor -- final ranges
-     * are assigned based on the page's LSN.
-     */
-    /* Case #2/8, #10, #11 */
-    if (a_trk->col_start > b_trk->col_start)
-        WT_RET_PANIC(session, EINVAL, "unexpected merge array sort order");
-
-    if (a_trk->col_start == b_trk->col_start) { /* Case #1, #4 and #9 */
-                                                /*
-                                                 * The secondary sort of the leaf page array was the
-                                                 * page's LSN, in high-to-low order, which means
-                                                 * a_trk has a higher LSN, and is more desirable,
-                                                 * than b_trk. In cases #1 and #4 and #9, where the
-                                                 * start of the range is the same for the two pages,
-                                                 * this simplifies things, it guarantees a_trk has a
-                                                 * higher LSN than b_trk.
-                                                 */
-        if (a_trk->col_stop >= b_trk->col_stop)
-            /*
-             * Case #1, #4: a_trk is a superset of b_trk, and a_trk is more desirable -- discard
-             * b_trk.
-             */
-            goto delete_b;
-
-        /*
-         * Case #9: b_trk is a superset of a_trk, but a_trk is more desirable: keep both but delete
-         * a_trk's key range from b_trk.
-         */
-        b_trk->col_start = a_trk->col_stop + 1;
-        __slvg_col_trk_update_start(b_slot, ss);
-        F_SET(b_trk, WT_TRACK_MERGE);
-        goto merge;
-    }
-
-    if (a_trk->col_stop == b_trk->col_stop) { /* Case #6 */
-        if (a_trk->trk_gen > b_trk->trk_gen)
-            /*
-             * Case #6: a_trk is a superset of b_trk and a_trk is more desirable -- discard b_trk.
-             */
-            goto delete_b;
-
-        /*
-         * Case #6: a_trk is a superset of b_trk, but b_trk is more desirable: keep both but delete
-         * b_trk's key range from a_trk.
-         */
-        a_trk->col_stop = b_trk->col_start - 1;
-        F_SET(a_trk, WT_TRACK_MERGE);
-        goto merge;
-    }
-
-    if (a_trk->col_stop < b_trk->col_stop) { /* Case #3/7 */
-        if (a_trk->trk_gen > b_trk->trk_gen) {
-            /*
-             * Case #3/7: a_trk is more desirable, delete a_trk's key range from b_trk;
-             */
-            b_trk->col_start = a_trk->col_stop + 1;
-            __slvg_col_trk_update_start(b_slot, ss);
-            F_SET(b_trk, WT_TRACK_MERGE);
-        } else {
-            /*
-             * Case #3/7: b_trk is more desirable, delete b_trk's key range from a_trk;
-             */
-            a_trk->col_stop = b_trk->col_start - 1;
-            F_SET(a_trk, WT_TRACK_MERGE);
-        }
-        goto merge;
-    }
-
-    /*
-     * Case #5: a_trk is a superset of b_trk and a_trk is more desirable -- discard b_trk.
-     */
-    if (a_trk->trk_gen > b_trk->trk_gen) {
-delete_b:
-        /*
-         * After page and overflow reconciliation, one (and only one) page can reference an overflow
-         * record. But, if we split a page into multiple chunks, any of the chunks might own any of
-         * the backing overflow records, so overflow records won't normally be discarded until after
-         * the merge phase completes. (The merge phase is where the final pages are written, and we
-         * figure out which overflow records are actually used.) If freeing a chunk and there are no
-         * other references to the underlying shared information, the overflow records must be
-         * useless, discard them to keep the final file size small.
-         */
-        if (b_trk->shared->ref == 1)
-            for (i = 0; i < b_trk->trk_ovfl_cnt; ++i)
-                WT_RET(__slvg_trk_free(session, &ss->ovfl[b_trk->trk_ovfl_slot[i]], true));
-        return (__slvg_trk_free(session, &ss->pages[b_slot], true));
-    }
-
-    /*
-     * Case #5: b_trk is more desirable and is a middle chunk of a_trk. Split a_trk into two parts,
-     * the key range before b_trk and the key range after b_trk.
-     *
-     * Allocate a new WT_TRACK object, and extend the array of pages as necessary.
-     */
-    WT_RET(__wt_calloc_one(session, &new));
-    if ((ret = __wt_realloc_def(session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages)) !=
-      0) {
-        __wt_free(session, new);
-        return (ret);
-    }
-
-    /*
-     * First, set up the track share (we do this after the allocation to ensure the shared reference
-     * count is never incorrect).
-     */
-    new->shared = a_trk->shared;
-    new->ss = a_trk->ss;
-    ++new->shared->ref;
-
-    /*
-     * Second, insert the new element into the array after the existing element (that's probably
-     * wrong, but we'll fix it up in a second).
-     */
-    memmove(
-      ss->pages + a_slot + 1, ss->pages + a_slot, (ss->pages_next - a_slot) * sizeof(*ss->pages));
-    ss->pages[a_slot + 1] = new;
-    ++ss->pages_next;
-
-    /*
-     * Third, set its start key to be the first key after the stop key of the middle chunk (that's
-     * b_trk), and its stop key to be the stop key of the original chunk, and call
-     * __slvg_col_trk_update_start. That function will re-sort the WT_TRACK array as necessary to
-     * move our new entry into the right sorted location.
-     */
-    new->col_start = b_trk->col_stop + 1;
-    new->col_stop = a_trk->col_stop;
-    __slvg_col_trk_update_start(a_slot + 1, ss);
-
-    /*
-     * Fourth, set the original WT_TRACK information to reference only the initial key space in the
-     * page, that is, everything up to the starting key of the middle chunk (that's b_trk).
-     */
-    a_trk->col_stop = b_trk->col_start - 1;
-
-    F_SET(new, WT_TRACK_MERGE);
-    F_SET(a_trk, WT_TRACK_MERGE);
-
-merge:
-    __wt_verbose(session, WT_VERB_SALVAGE, "%s and %s require merge",
-      __wt_addr_string(session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
-      __wt_addr_string(session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
-    return (0);
-}
-
-/*
- * __slvg_col_trk_update_start --
- *     Update a column-store page's start key after an overlap.
- */
-static void
-__slvg_col_trk_update_start(uint32_t slot, WT_STUFF *ss)
-{
-    WT_TRACK *trk;
-    uint32_t i;
-
-    trk = ss->pages[slot];
-
-    /*
-     * If we deleted an initial piece of the WT_TRACK name space, it may no
-     * longer be in the right location.
-     *
-     * For example, imagine page #1 has the key range 30-50, it split, and
-     * we wrote page #2 with key range 30-40, and page #3 key range with 40-50, where pages #2 and
-     * #3 have larger LSNs than page #1.  When the
-     * key ranges were sorted, page #2 came first, then page #1 (because of
-     * their earlier start keys than page #3), and page #2 came before page #1 because of its LSN.
-     * When we resolve the overlap between page #2
-     * and page #1, we truncate the initial key range of page #1, and it now
-     * sorts after page #3, because it has the same starting key of 40, and
-     * a lower LSN.
-     *
-     * We have already updated b_trk's start key; what we may have to do is
-     * re-sort some number of elements in the list.
-     */
-    for (i = slot + 1; i < ss->pages_next; ++i) {
-        if (ss->pages[i] == NULL)
-            continue;
-        if (ss->pages[i]->col_start > trk->col_stop)
-            break;
-    }
-    i -= slot;
-    if (i > 1)
-        __wt_qsort(ss->pages + slot, (size_t)i, sizeof(WT_TRACK *), __slvg_trk_compare_key);
-}
-
-/*
- * __slvg_col_range_missing --
- *     Detect missing ranges from column-store files.
- */
-static void
-__slvg_col_range_missing(WT_SESSION_IMPL *session, WT_STUFF *ss)
-{
-    WT_TRACK *trk;
-    uint64_t r;
-    uint32_t i;
-
-    for (i = 0, r = 0; i < ss->pages_next; ++i) {
-        if ((trk = ss->pages[i]) == NULL)
-            continue;
-        if (trk->col_start != r + 1) {
-            __wt_verbose(session, WT_VERB_SALVAGE,
-              "%s column-store missing range from %" PRIu64 " to %" PRIu64 " inclusive",
-              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1), r + 1,
-              trk->col_start - 1);
-
-            /*
-             * We need to instantiate deleted items for the missing record range.
-             */
-            trk->col_missing = r + 1;
-            F_SET(trk, WT_TRACK_MERGE);
-        }
-        r = trk->col_stop;
-    }
-}
 
 /*
  * __slvg_modify_init --
@@ -1098,251 +740,6 @@ __slvg_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_RET(__wt_page_modify_init(session, page));
     __wt_page_modify_set(session, page);
 
-    return (0);
-}
-
-/*
- * __slvg_col_build_internal --
- *     Build a column-store in-memory page that references all of the leaf pages we've found.
- */
-static int
-__slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
-{
-    WT_ADDR *addr;
-    WT_DECL_RET;
-    WT_PAGE *page;
-    WT_PAGE_INDEX *pindex;
-    WT_REF *ref, **refp;
-    WT_TRACK *trk;
-    uint32_t i;
-
-    addr = NULL;
-
-    /* Allocate a column-store root (internal) page and fill it in. */
-    WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page));
-    WT_ERR(__slvg_modify_init(session, page));
-
-    WT_INTL_INDEX_GET_SAFE(page, pindex);
-    for (refp = pindex->index, i = 0; i < ss->pages_next; ++i) {
-        if ((trk = ss->pages[i]) == NULL)
-            continue;
-
-        ref = *refp++;
-        ref->home = page;
-        ref->page = NULL;
-
-        WT_ERR(__wt_calloc_one(session, &addr));
-        WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
-        WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
-        addr->size = trk->trk_addr_size;
-        addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
-        ref->addr = addr;
-        addr = NULL;
-
-        ref->ref_recno = trk->col_start;
-        F_SET(ref, WT_REF_FLAG_LEAF);
-        WT_REF_SET_STATE(ref, WT_REF_DISK);
-
-        /*
-         * If the page's key range is unmodified from when we read it (in other words, we didn't
-         * merge part of this page with another page), we can use the page without change, and the
-         * only thing we need to do is mark all overflow records the page references as in-use.
-         *
-         * If we did merge with another page, we have to build a page reflecting the updated key
-         * range. Note, that requires an additional pass to free the merge page's backing blocks.
-         */
-        if (F_ISSET(trk, WT_TRACK_MERGE)) {
-            ss->merge_free = true;
-
-            WT_ERR(__slvg_col_build_leaf(session, trk, ref));
-        } else
-            WT_ERR(__slvg_ovfl_ref_all(session, trk));
-        ++ref;
-    }
-
-    __wt_root_ref_init(session, &ss->root_ref, page, true);
-
-    if (0) {
-err:
-        __wt_free(session, addr);
-        __wt_page_out(session, &page);
-    }
-    return (ret);
-}
-
-/*
- * __slvg_col_build_leaf --
- *     Build a column-store leaf page for a merged page.
- */
-static int
-__slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
-{
-    WT_BTREE *btree;
-    WT_COL *save_col_var;
-    WT_DECL_RET;
-    WT_PAGE *page;
-    WT_SALVAGE_COOKIE *cookie, _cookie;
-    uint64_t recno, skip, take;
-    uint32_t save_entries;
-    int (*saved_free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
-
-    btree = S2BT(session);
-    saved_free = NULL;
-
-    cookie = &_cookie;
-    WT_CLEAR(*cookie);
-
-    /* Get the original page, including the full in-memory setup. */
-    WT_RET(__wt_page_in(session, ref, 0));
-    page = ref->page;
-
-    save_col_var = page->pg_var;
-    save_entries = page->entries;
-
-    /*
-     * Calculate the number of K/V entries we are going to skip, and the total number of K/V entries
-     * we'll take from this page.
-     */
-    recno = page->dsk->recno;
-    cookie->skip = skip = trk->col_start - recno;
-    cookie->take = take = (trk->col_stop - trk->col_start) + 1;
-
-    __wt_verbose(session, WT_VERB_SALVAGE,
-      "%s merge discarding first %" PRIu64 " records, then taking %" PRIu64 " records",
-      __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1), skip, take);
-
-    /* Set the referenced flag on overflow pages we're using. */
-    if (trk->trk_ovfl_cnt != 0)
-        WT_ERR(__slvg_col_ovfl(session, trk, page));
-
-    /*
-     * If we're missing some part of the range, the real start range is in trk->col_missing, else,
-     * it's in trk->col_start. Update the parent's reference as well as the page itself.
-     */
-    if (trk->col_missing == 0)
-        ref->ref_recno = trk->col_start;
-    else {
-        ref->ref_recno = trk->col_missing;
-        cookie->missing = trk->col_start - trk->col_missing;
-
-        __wt_verbose(session, WT_VERB_SALVAGE, "%s merge inserting %" PRIu64 " missing records",
-          __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
-          cookie->missing);
-    }
-
-    /*
-     * We can't discard the original blocks associated with this page now. (The problem is we don't
-     * want to overwrite any original information until the salvage run succeeds -- if we free the
-     * blocks now, the next merge page we write might allocate those blocks and overwrite them, and
-     * should the salvage run eventually fail, the original information would have been lost.) Clear
-     * the reference addr so eviction doesn't free the underlying blocks.
-     */
-    __wt_ref_addr_free(session, ref);
-
-    /*
-     * Reconciliation may skip a key/value pair (based on timestamps), and in that case, if the
-     * value is an overflow item, reconciliation will free the underlying object's backing blocks.
-     * Additionally, salvage of a column-store page can have start/stop points in the middle of a
-     * cell, and reconciliation therefore does all of the usual processing of cells, but skips the
-     * write if they're outside the salvage range. If the value is an overflow item and it's never
-     * used, reconciliation will free the underlying object's backing blocks, which is fine, but we
-     * need to adjust our list of overflow blocks so we don't free the overflow item twice.
-     * Intercept any attempt by reconciliation to free blocks.
-     */
-    saved_free = btree->bm->free;
-    btree->bm->free = __slvg_reconcile_free;
-    session->salvage_track = trk;
-
-    /* Write the new version of the leaf page to disk. */
-    WT_ERR(__slvg_modify_init(session, page));
-    WT_ERR(__wt_reconcile(session, ref, cookie, WT_REC_VISIBILITY_ERR));
-
-    /* Reset the page. */
-    page->pg_var = save_col_var;
-    page->entries = save_entries;
-
-    /* Discard our hazard pointer and evict the page, updating the parent's reference. */
-    ret = __wt_page_release(session, ref, 0);
-    if (ret == 0)
-        ret = __wt_evict(session, ref, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
-
-    if (0) {
-err:
-        WT_TRET(__wt_page_release(session, ref, 0));
-    }
-    if (saved_free != NULL) {
-        btree->bm->free = saved_free;
-        session->salvage_track = NULL;
-    }
-
-    return (ret);
-}
-
-/*
- * __slvg_col_ovfl_single --
- *     Find a single overflow record in the merge page's list, and mark it as referenced.
- */
-static int
-__slvg_col_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK_KV *unpack)
-{
-    WT_TRACK *ovfl;
-    uint32_t i;
-
-    /*
-     * Search the list of overflow records for this page -- we should find exactly one match, and we
-     * mark it as referenced.
-     */
-    for (i = 0; i < trk->trk_ovfl_cnt; ++i) {
-        ovfl = trk->ss->ovfl[trk->trk_ovfl_slot[i]];
-        if (unpack->size == ovfl->trk_addr_size &&
-          memcmp(unpack->data, ovfl->trk_addr, unpack->size) == 0)
-            return (__slvg_ovfl_ref(session, ovfl, false));
-    }
-
-    WT_RET_PANIC(session, EINVAL, "overflow record at column-store page merge not found");
-}
-
-/*
- * __slvg_col_ovfl --
- *     Mark overflow items referenced by the merged page.
- */
-static int
-__slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page)
-{
-    WT_CELL *cell;
-    WT_CELL_UNPACK_KV unpack;
-    WT_COL *cip;
-    WT_DECL_RET;
-    uint32_t i;
-
-    /*
-     * Reconciliation of a salvaged column-store page processes all of the page's cells, skipping
-     * the write if a cell is outside the salvage range. If the value is an overflow item and it's
-     * never used, reconciliation will free the underlying object's backing blocks. We'll set up a
-     * callback to track the blocks that are freed, mark all page overflow values as "referenced" so
-     * that tracking succeeds.
-     */
-    WT_COL_FOREACH (page, cip, i) {
-        cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-        if (unpack.type != WT_CELL_VALUE_OVFL)
-            continue;
-
-        /*
-         * When handling overlapping ranges on variable-length column-store leaf pages, we split
-         * ranges without considering if we were splitting RLE units. (See note at the beginning of
-         * this file for explanation of the overall process.) If the RLE unit was on-page, we can
-         * simply write it again. If the RLE unit was an overflow value that's already been used by
-         * another row (from some other page created by a range split), there's not much to do, this
-         * row can't reference an overflow record we don't have: delete the row.
-         */
-        ret = __slvg_col_ovfl_single(session, trk, &unpack);
-        if (ret == EBUSY) {
-            __wt_cell_type_reset(session, cell, WT_CELL_VALUE_OVFL, WT_CELL_DEL);
-            ret = 0;
-        }
-        WT_RET(ret);
-    }
     return (0);
 }
 
@@ -2172,7 +1569,7 @@ __slvg_trk_compare_key(const void *a, const void *b)
 {
     WT_SESSION_IMPL *session;
     WT_TRACK *a_trk, *b_trk;
-    uint64_t a_gen, a_recno, b_gen, b_recno;
+    uint64_t a_gen, b_gen;
     int cmp;
 
     a_trk = *(WT_TRACK **)a;
@@ -2184,17 +1581,6 @@ __slvg_trk_compare_key(const void *a, const void *b)
         return (-1);
 
     switch (a_trk->ss->page_type) {
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        a_recno = a_trk->col_start;
-        b_recno = b_trk->col_start;
-        if (a_recno == b_recno)
-            break;
-        if (a_recno > b_recno)
-            return (1);
-        if (a_recno < b_recno)
-            return (-1);
-        break;
     case WT_PAGE_ROW_LEAF:
         /*
          * XXX
