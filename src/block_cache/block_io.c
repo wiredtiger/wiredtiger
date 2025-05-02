@@ -126,7 +126,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
          * Increment statistics before we do anymore processing such as decompression or decryption
          * on the data.
          */
-        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+        if (dsk->type == WT_PAGE_ROW_INT)
             WT_STAT_CONN_INCRV(session, block_byte_read_intl_disk, ip->size);
         else
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf_disk, ip->size);
@@ -225,7 +225,7 @@ __wt_blkcache_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, 
      * read from disk.
      */
     if (dsk != NULL) {
-        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT)
+        if (dsk->type == WT_PAGE_ROW_INT)
             WT_STAT_CONN_INCRV(session, block_byte_read_intl, dsk->mem_size);
         else
             WT_STAT_CONN_INCRV(session, block_byte_read_leaf, dsk->mem_size);
@@ -421,7 +421,7 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, dsk->mem_size);
 
     if (dsk != NULL) {
-        if (dsk->type == WT_PAGE_COL_INT || dsk->type == WT_PAGE_ROW_INT) {
+        if (dsk->type == WT_PAGE_ROW_INT) {
             WT_STAT_CONN_INCRV(session, block_byte_write_intl, dsk->mem_size);
             WT_STAT_CONN_INCRV(session, block_byte_write_intl_disk, ip->size);
         } else {
