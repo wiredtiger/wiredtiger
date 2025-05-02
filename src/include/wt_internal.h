@@ -143,16 +143,6 @@ struct __wt_ckpt_snapshot;
 typedef struct __wt_ckpt_snapshot WT_CKPT_SNAPSHOT;
 struct __wt_col;
 typedef struct __wt_col WT_COL;
-struct __wt_col_fix_auxiliary_header;
-typedef struct __wt_col_fix_auxiliary_header WT_COL_FIX_AUXILIARY_HEADER;
-struct __wt_col_fix_tw;
-typedef struct __wt_col_fix_tw WT_COL_FIX_TW;
-struct __wt_col_fix_tw_entry;
-typedef struct __wt_col_fix_tw_entry WT_COL_FIX_TW_ENTRY;
-struct __wt_col_rle;
-typedef struct __wt_col_rle WT_COL_RLE;
-struct __wt_col_var_repeat;
-typedef struct __wt_col_var_repeat WT_COL_VAR_REPEAT;
 struct __wt_colgroup;
 typedef struct __wt_colgroup WT_COLGROUP;
 struct __wt_compact_state;
@@ -579,7 +569,6 @@ typedef uint64_t wt_timestamp_t;
 #include "block_inline.h"
 #include "btree_inline.h" /* required by cursor_inline.h */
 #include "btree_cmp_inline.h"
-#include "column_inline.h"
 #include "conf_inline.h"
 #include "cursor_inline.h"
 #include "../log/log_inline.h"

@@ -172,69 +172,6 @@ from_json(const json &j, debug_log_parser::txn_timestamp &out)
  *     Parse the given debug log entry.
  */
 static int
-from_debug_log(
-  WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, debug_log_parser::col_put &out)
-{
-    int ret;
-    uint32_t fileid;
-    uint64_t recno;
-    WT_ITEM value;
-
-    if ((ret = __wt_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value)) != 0)
-        return ret;
-
-    out.fileid = fileid;
-    out.recno = recno;
-    out.value = std::string((const char *)value.data, value.size);
-    return 0;
-}
-
-/*
- * from_debug_log --
- *     Parse the given debug log entry.
- */
-static int
-from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-  debug_log_parser::col_remove &out)
-{
-    int ret;
-    uint32_t fileid;
-    uint64_t recno;
-
-    if ((ret = __wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno)) != 0)
-        return ret;
-
-    out.fileid = fileid;
-    out.recno = recno;
-    return 0;
-}
-
-/*
- * from_debug_log --
- *     Parse the given debug log entry.
- */
-static int
-from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-  debug_log_parser::col_truncate &out)
-{
-    int ret;
-    uint32_t fileid;
-    uint64_t start, stop;
-
-    if ((ret = __wt_logop_col_truncate_unpack(session, pp, end, &fileid, &start, &stop)) != 0)
-        return ret;
-
-    out.fileid = fileid;
-    out.start = start;
-    out.stop = stop;
-    return 0;
-}
-
-/*
- * from_debug_log --
- *     Parse the given debug log entry.
- */
-static int
 from_debug_log(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   debug_log_parser::commit_header &out)
 {
@@ -831,27 +768,6 @@ from_debug_log_helper(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, W
 
             /* Parse and apply the operation. */
             switch (op_type) {
-            case WT_LOGOP_COL_PUT: {
-                debug_log_parser::col_put v;
-                if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
-                    return ret;
-                args.parser.apply(txn, v);
-                break;
-            }
-            case WT_LOGOP_COL_REMOVE: {
-                debug_log_parser::col_remove v;
-                if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
-                    return ret;
-                args.parser.apply(txn, v);
-                break;
-            }
-            case WT_LOGOP_COL_TRUNCATE: {
-                debug_log_parser::col_truncate v;
-                if ((ret = from_debug_log(session, pp, op_end, v)) != 0)
-                    return ret;
-                args.parser.apply(txn, v);
-                break;
-            }
             case WT_LOGOP_ROW_PUT: {
                 debug_log_parser::row_put v;
                 if ((ret = from_debug_log(session, pp, op_end, v)) != 0)

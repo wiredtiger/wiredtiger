@@ -912,13 +912,7 @@ __wt_ref_key_instantiated(WT_REF *ref)
 static WT_INLINE void
 __wt_ref_key_clear(WT_REF *ref)
 {
-    /*
-     * The key union has 2 8B fields; this is equivalent to:
-     *
-     *	ref->ref_recno = WT_RECNO_OOB;
-     *	ref->ref_ikey = NULL;
-     */
-    ref->ref_recno = 0;
+    ref->ref_ikey = NULL;
 }
 
 /*
@@ -1710,10 +1704,8 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
      * on the page. Split if there are enough items and the skiplist does not fit within a single
      * disk page.
      */
-    ins_head = page->type == WT_PAGE_ROW_LEAF ?
-      (page->entries == 0 ? WT_ROW_INSERT_SMALLEST(page) :
-                            WT_ROW_INSERT_SLOT(page, page->entries - 1)) :
-      WT_COL_APPEND(page);
+    ins_head = page->entries == 0 ? WT_ROW_INSERT_SMALLEST(page) :
+                                    WT_ROW_INSERT_SLOT(page, page->entries - 1);
     if (ins_head == NULL)
         return (false);
 
@@ -2165,8 +2157,7 @@ __wt_btcur_bounds_early_exit(
     if (!F_ISSET((&cbt->iface), bound_flag))
         return (0);
 
-    WT_RET(__wt_compare_bounds(
-      session, &cbt->iface, &cbt->iface.key, cbt->recno, next, key_out_of_boundsp));
+    WT_RET(__wt_compare_bounds(session, &cbt->iface, &cbt->iface.key, next, key_out_of_boundsp));
 
     if (*key_out_of_boundsp)
         return (WT_NOTFOUND);

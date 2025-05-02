@@ -457,40 +457,29 @@ __wti_cursor_set_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
 
     F_CLR(cursor, WT_CURSTD_KEY_SET);
 
-    if (WT_CURSOR_RECNO(cursor)) {
-        if (LF_ISSET(WT_CURSTD_RAW)) {
-            item = va_arg(ap, WT_ITEM *);
-            WT_ERR(__wt_struct_unpack(session, item->data, item->size, "q", &cursor->recno));
-        } else
-            cursor->recno = va_arg(ap, uint64_t);
-        if (cursor->recno == WT_RECNO_OOB)
-            WT_ERR_MSG(session, EINVAL, "%d is an invalid record number", WT_RECNO_OOB);
-        buf->data = &cursor->recno;
-        sz = sizeof(cursor->recno);
+    /*
+     * Fast path some common cases and special case WT_ITEMs. The case we care most about being fast
+     * is "u", check that first.
+     */
+    fmt = cursor->key_format;
+    if (WT_STREQ(fmt, "u") || LF_ISSET(WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON)) {
+        item = va_arg(ap, WT_ITEM *);
+        sz = item->size;
+        buf->data = item->data;
+    } else if (WT_STREQ(fmt, "S")) {
+        str = va_arg(ap, const char *);
+        sz = strlen(str) + 1;
+        buf->data = (void *)str;
     } else {
-        /*
-         * Fast path some common cases and special case WT_ITEMs. The case we care most about being
-         * fast is "u", check that first.
-         */
-        fmt = cursor->key_format;
-        if (WT_STREQ(fmt, "u") || LF_ISSET(WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON)) {
-            item = va_arg(ap, WT_ITEM *);
-            sz = item->size;
-            buf->data = item->data;
-        } else if (WT_STREQ(fmt, "S")) {
-            str = va_arg(ap, const char *);
-            sz = strlen(str) + 1;
-            buf->data = (void *)str;
-        } else {
-            va_copy(ap_copy, ap);
-            ret = __wt_struct_sizev(session, &sz, cursor->key_format, ap_copy);
-            va_end(ap_copy);
-            WT_ERR(ret);
+        va_copy(ap_copy, ap);
+        ret = __wt_struct_sizev(session, &sz, cursor->key_format, ap_copy);
+        va_end(ap_copy);
+        WT_ERR(ret);
 
-            WT_ERR(__wt_buf_initsize(session, buf, sz));
-            WT_ERR(__wt_struct_packv(session, buf->mem, sz, cursor->key_format, ap));
-        }
+        WT_ERR(__wt_buf_initsize(session, buf, sz));
+        WT_ERR(__wt_struct_packv(session, buf->mem, sz, cursor->key_format, ap));
     }
+
     if (sz == 0)
         WT_ERR_MSG(session, EINVAL, "Empty keys not permitted");
     else if ((uint32_t)sz != sz)

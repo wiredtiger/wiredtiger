@@ -95,12 +95,9 @@ check_txn_updates(std::string const &label, WT_SESSION_IMPL *session_impl, bool 
             switch (op->type) {
             case WT_TXN_OP_NONE:
             case WT_TXN_OP_REF_DELETE:
-            case WT_TXN_OP_TRUNCATE_COL:
             case WT_TXN_OP_TRUNCATE_ROW:
                 break;
-            case WT_TXN_OP_BASIC_COL:
             case WT_TXN_OP_BASIC_ROW:
-            case WT_TXN_OP_INMEM_COL:
             case WT_TXN_OP_INMEM_ROW:
                 WT_UPDATE *upd = op->u.op_upd;
                 printf("    mod %u, op->type = %i, upd->txnid = 0x%" PRIx64 "\n", i, op->type,

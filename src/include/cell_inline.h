@@ -198,7 +198,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
  *     Pack an address cell.
  */
 static WT_INLINE size_t
-__wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
+__wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type,
   WT_PAGE_DELETED *page_del, WT_TIME_AGGREGATE *ta, size_t size)
 {
     uint8_t *p;
@@ -220,14 +220,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->timestamp));
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->durable_timestamp));
     }
-
-    if (recno == WT_RECNO_OOB)
-        cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
-    else {
-        cell->__chunk[0] |= (uint8_t)(cell_type | WT_CELL_64V);
-        /* Record number */
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, recno));
-    }
+    cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
 
     /* Length */
     WT_IGNORE_RET(__wt_vpack_uint(&p, 0, (uint64_t)size));
@@ -408,35 +401,6 @@ __wt_cell_pack_copy(
 }
 
 /*
- * __wt_cell_pack_del --
- *     Write a deleted value cell.
- */
-static WT_INLINE size_t
-__wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle)
-{
-    WT_DECL_RET;
-    uint8_t *p;
-
-    /* Start building a cell: the descriptor byte starts zero. */
-    p = cell->__chunk;
-    *p = '\0';
-
-    ret = __cell_pack_value_validity(session, &p, tw);
-    WT_ASSERT(session, ret == 0);
-    WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
-
-    if (rle < 2)
-        cell->__chunk[0] |= WT_CELL_DEL; /* Type */
-    else {
-        /* Type */
-        cell->__chunk[0] |= WT_CELL_DEL | WT_CELL_64V;
-        /* RLE */
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, rle));
-    }
-    return (WT_PTRDIFF(p, cell));
-}
-
-/*
  * __wt_cell_pack_int_key --
  *     Set a row-store internal page key's WT_CELL contents.
  */
@@ -544,20 +508,6 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TI
     /* Length */
     WT_IGNORE_RET(__wt_vpack_uint(&p, 0, (uint64_t)size));
     return (WT_PTRDIFF(p, cell));
-}
-
-/*
- * __wt_cell_rle --
- *     Return the cell's RLE value.
- */
-static WT_INLINE uint64_t
-__wt_cell_rle(WT_CELL_UNPACK_KV *unpack)
-{
-    /*
-     * Any item with only 1 occurrence is stored with an RLE of 0, that is, without any RLE at all.
-     * This code is a single place to handle that correction, for simplicity.
-     */
-    return (unpack->v < 2 ? 1 : unpack->v);
 }
 
 /*

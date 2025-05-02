@@ -43,17 +43,6 @@ __wt_curhs_get_cbt(WT_CURSOR *cursor)
 }
 
 /*
- * __cursor_set_recno --
- *     The cursor value in the interface has to track the value in the underlying cursor, update
- *     them in parallel.
- */
-static WT_INLINE void
-__cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
-{
-    cbt->iface.recno = cbt->recno = v;
-}
-
-/*
  * __cursor_copy_release --
  *     Release memory used by the key and value in cursor copy debug mode.
  */
@@ -200,15 +189,6 @@ __cursor_needvalue(WT_CURSOR *cursor)
 static WT_INLINE void
 __cursor_pos_clear(WT_CURSOR_BTREE *cbt)
 {
-    /*
-     * Most of the cursor's location information that needs to be set on successful return is always
-     * set by a successful return, for example, we don't initialize the compare return value because
-     * it's always set by the row-store search. The other stuff gets cleared here, and it's a
-     * minimal set of things we need to clear. It would be a lot simpler to clear everything, but we
-     * call this function a lot.
-     */
-    cbt->recno = WT_RECNO_OOB;
-
     cbt->ins = NULL;
     cbt->ins_head = NULL;
     cbt->ins_stack[0] = NULL;

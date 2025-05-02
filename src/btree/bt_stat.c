@@ -10,8 +10,6 @@
 
 static int __stat_tree_walk(WT_SESSION_IMPL *);
 static int __stat_page(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
-static void __stat_page_col_fix(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
-static void __stat_page_col_var(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_row_int(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 
@@ -121,15 +119,6 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
      * All internal pages and overflow pages are trivial, all we track is a count of the page type.
      */
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        __stat_page_col_fix(session, page, stats);
-        break;
-    case WT_PAGE_COL_INT:
-        WT_STATP_DSRC_INCR(session, stats, btree_column_internal);
-        break;
-    case WT_PAGE_COL_VAR:
-        __stat_page_col_var(session, page, stats);
-        break;
     case WT_PAGE_ROW_INT:
         __stat_page_row_int(session, page, stats);
         break;
@@ -140,131 +129,6 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
         return (__wt_illegal_value(session, page->type));
     }
     return (0);
-}
-
-/*
- * __stat_page_col_fix --
- *     Stat a WT_PAGE_COL_FIX page.
- */
-static void
-__stat_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
-{
-    WT_CELL *cell;
-    WT_CELL_UNPACK_KV unpack;
-    WT_INSERT *ins;
-    uint32_t numtws, stat_entries, stat_tws, tw;
-
-    WT_STATP_DSRC_INCR(session, stats, btree_column_fix);
-
-    /*
-     * Iterate the page to count time windows. For now at least, don't try to reason about whether
-     * any particular update chain will result in an on-page timestamp after the next
-     * reconciliation; this is complicated at best and also subject to change as the system runs.
-     * There's accordingly no need to look at the update list.
-     */
-    stat_tws = 0;
-    numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
-    for (tw = 0; tw < numtws; tw++) {
-        /* Unpack in case the time window becomes empty. */
-        cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
-        __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-
-        if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
-            stat_tws++;
-    }
-
-    /* Visit the append list to count the full number of entries on the page. */
-    stat_entries = page->entries;
-    WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
-        stat_entries++;
-
-    WT_STATP_DSRC_INCRV(session, stats, btree_column_tws, stat_tws);
-    WT_STATP_DSRC_INCRV(session, stats, btree_entries, stat_entries);
-}
-
-/*
- * __stat_page_col_var --
- *     Stat a WT_PAGE_COL_VAR page.
- */
-static void
-__stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
-{
-    WT_CELL *cell;
-    WT_CELL_UNPACK_KV *unpack, _unpack;
-    WT_COL *cip;
-    WT_INSERT *ins;
-    uint64_t deleted_cnt, entry_cnt, ovfl_cnt, rle_cnt;
-    uint32_t i;
-    bool orig_deleted;
-
-    unpack = &_unpack;
-    deleted_cnt = entry_cnt = ovfl_cnt = rle_cnt = 0;
-
-    WT_STATP_DSRC_INCR(session, stats, btree_column_variable);
-
-    /*
-     * Walk the page counting regular items, adjusting if the item has been subsequently deleted or
-     * not. This is a mess because 10-item RLE might have 3 of the items subsequently deleted.
-     * Overflow items are harder, we can't know if an updated item will be an overflow item or not;
-     * do our best, and simply count every overflow item (or RLE set of items) we see.
-     */
-    WT_COL_FOREACH (page, cip, i) {
-        cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
-        if (unpack->type == WT_CELL_DEL) {
-            orig_deleted = true;
-            deleted_cnt += __wt_cell_rle(unpack);
-        } else {
-            orig_deleted = false;
-            entry_cnt += __wt_cell_rle(unpack);
-        }
-        rle_cnt += __wt_cell_rle(unpack) - 1;
-        if (F_ISSET(unpack, WT_CELL_UNPACK_OVERFLOW))
-            ++ovfl_cnt;
-
-        /*
-         * Walk the insert list, checking for changes. For each insert we find, correct the original
-         * count based on its state.
-         */
-        WT_SKIP_FOREACH (ins, WT_COL_UPDATE(page, cip)) {
-            switch (ins->upd->type) {
-            case WT_UPDATE_MODIFY:
-            case WT_UPDATE_STANDARD:
-                if (orig_deleted) {
-                    --deleted_cnt;
-                    ++entry_cnt;
-                }
-                break;
-            case WT_UPDATE_RESERVE:
-                break;
-            case WT_UPDATE_TOMBSTONE:
-                if (!orig_deleted) {
-                    ++deleted_cnt;
-                    --entry_cnt;
-                }
-                break;
-            }
-        }
-    }
-
-    /* Walk any append list. */
-    WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
-        switch (ins->upd->type) {
-        case WT_UPDATE_MODIFY:
-        case WT_UPDATE_STANDARD:
-            ++entry_cnt;
-            break;
-        case WT_UPDATE_RESERVE:
-            break;
-        case WT_UPDATE_TOMBSTONE:
-            ++deleted_cnt;
-            break;
-        }
-
-    WT_STATP_DSRC_INCRV(session, stats, btree_column_deleted, deleted_cnt);
-    WT_STATP_DSRC_INCRV(session, stats, btree_column_rle, rle_cnt);
-    WT_STATP_DSRC_INCRV(session, stats, btree_entries, entry_cnt);
-    WT_STATP_DSRC_INCRV(session, stats, btree_overflow, ovfl_cnt);
 }
 
 /*

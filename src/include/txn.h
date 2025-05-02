@@ -203,12 +203,9 @@ typedef enum __wt_txn_isolation {
 
 typedef enum __wt_txn_type {
     WT_TXN_OP_NONE = 0,
-    WT_TXN_OP_BASIC_COL,
     WT_TXN_OP_BASIC_ROW,
-    WT_TXN_OP_INMEM_COL,
     WT_TXN_OP_INMEM_ROW,
     WT_TXN_OP_REF_DELETE,
-    WT_TXN_OP_TRUNCATE_COL,
     WT_TXN_OP_TRUNCATE_ROW
 } WT_TXN_TYPE;
 
@@ -235,11 +232,6 @@ struct __wt_txn_op {
             WT_ITEM key;
         } op_row;
 
-        /* WT_TXN_OP_BASIC_COL, WT_TXN_OP_INMEM_COL */
-        struct {
-            WT_UPDATE *upd;
-            uint64_t recno;
-        } op_col;
 /*
  * upd is pointing to same memory in both op_row and op_col, so for simplicity just chose op_row upd
  */
@@ -248,10 +240,6 @@ struct __wt_txn_op {
 
         /* WT_TXN_OP_REF_DELETE */
         WT_REF *ref;
-        /* WT_TXN_OP_TRUNCATE_COL */
-        struct {
-            uint64_t start, stop;
-        } truncate_col;
         /* WT_TXN_OP_TRUNCATE_ROW */
         struct {
             WT_ITEM start, stop;

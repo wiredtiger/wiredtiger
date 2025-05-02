@@ -233,34 +233,6 @@ extern int __wt_logop_checkpoint_start_print(WT_SESSION_IMPL *session, const uin
   const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_checkpoint_start_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
   const uint8_t *end) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_modify_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
-  uint64_t recno, WT_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_modify_print(WT_SESSION_IMPL *session, const uint8_t **pp,
-  const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_modify_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
-  const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_put_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
-  uint64_t recno, WT_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_put_print(WT_SESSION_IMPL *session, const uint8_t **pp,
-  const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_put_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
-  const uint8_t *end, uint32_t *fileidp, uint64_t *recnop, WT_ITEM *valuep)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_remove_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
-  uint64_t recno) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_remove_print(WT_SESSION_IMPL *session, const uint8_t **pp,
-  const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_remove_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
-  const uint8_t *end, uint32_t *fileidp, uint64_t *recnop)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_truncate_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint32_t fileid,
-  uint64_t start, uint64_t stop) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_truncate_print(WT_SESSION_IMPL *session, const uint8_t **pp,
-  const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_logop_col_truncate_unpack(WT_SESSION_IMPL *session, const uint8_t **pp,
-  const uint8_t *end, uint32_t *fileidp, uint64_t *startp, uint64_t *stopp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_prev_lsn_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *prev_lsn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_logop_prev_lsn_print(WT_SESSION_IMPL *session, const uint8_t **pp,

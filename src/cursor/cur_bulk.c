@@ -129,7 +129,7 @@ __wti_curbulk_init(
 
     cursor = &cbulk->cbt.iface;
     cbt = &cbulk->cbt;
-
+    WT_UNUSED(bitmap);
     /* Bulk cursors only support insert and close (reset is a no-op). */
     __wti_cursor_set_notsup(cursor);
     switch (CUR2BT(cbt)->type) {
@@ -143,11 +143,6 @@ __wti_curbulk_init(
     }
 
     cbulk->first_insert = true;
-    cbulk->recno = 0;
-    cbulk->bitmap = bitmap;
-    if (bitmap)
-        F_SET(cursor, WT_CURSTD_RAW);
-
     /*
      * The bulk last buffer is used to detect out-of-order keys in row-store to avoid corruption,
      * and to detect duplicate values in variable-length column-store, where we increment the RLE

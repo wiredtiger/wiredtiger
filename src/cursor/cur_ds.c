@@ -498,7 +498,6 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
     source = data_source->source;
     source->session = (WT_SESSION *)session;
     memset(&source->q, 0, sizeof(source->q));
-    source->recno = WT_RECNO_OOB;
     memset(source->raw_recno_buf, 0, sizeof(source->raw_recno_buf));
     memset(&source->key, 0, sizeof(source->key));
     memset(&source->value, 0, sizeof(source->value));

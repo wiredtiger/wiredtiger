@@ -258,7 +258,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
 
         addr = &multi->addr;
-        __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, NULL);
+        __wti_rec_cell_build_addr(session, r, addr, NULL, NULL);
 
         /* Boundary: split or write the page. */
         if (__wti_rec_need_split(r, key->len + val->len))
@@ -311,7 +311,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     ikey = NULL; /* -Wuninitialized */
     cell = NULL;
 
-    WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxintlpage_precomp, 0));
+    WT_RET(__wti_rec_split_init(session, r, btree->maxintlpage_precomp));
 
     /*
      * Ideally, we'd never store the 0th key on row-store internal pages because it's never used
@@ -401,13 +401,13 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         page_del = NULL;
         if (__wt_off_page(page, addr)) {
             page_del = cms.state == WTI_CHILD_PROXY ? &cms.del : NULL;
-            __wti_rec_cell_build_addr(session, r, addr, NULL, WT_RECNO_OOB, page_del);
+            __wti_rec_cell_build_addr(session, r, addr, NULL, page_del);
             source_ta = &addr->ta;
         } else if (cms.state == WTI_CHILD_PROXY) {
             /* Proxy cells require additional information in the address cell. */
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             page_del = &cms.del;
-            __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+            __wti_rec_cell_build_addr(session, r, NULL, vpack, page_del);
             source_ta = &vpack->ta;
         } else {
             /*
@@ -423,7 +423,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
               "Proxy cell is selected with original child image");
 
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
-                __wti_rec_cell_build_addr(session, r, NULL, vpack, WT_RECNO_OOB, page_del);
+                __wti_rec_cell_build_addr(session, r, NULL, vpack, page_del);
             } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
@@ -594,7 +594,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins
             tmpkey->data = WT_INSERT_KEY(ins);
             tmpkey->size = WT_INSERT_KEY_SIZE(ins);
             WT_ERR(__wti_rec_hs_clear_on_tombstone(
-              session, r, WT_RECNO_OOB, tmpkey, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
+              session, r, tmpkey, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
         }
 
         if (upd->type == WT_UPDATE_TOMBSTONE)
@@ -710,7 +710,7 @@ __wti_rec_row_leaf(
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
 
-    WT_RET(__wti_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp, 0));
+    WT_RET(__wti_rec_split_init(session, r, btree->maxleafpage_precomp));
 
     /*
      * Write any K/V pairs inserted into the page before the first from-disk key on the page.
@@ -892,8 +892,8 @@ __wti_rec_row_leaf(
              */
             if (upd_select.no_ts_tombstone && r->hs_clear_on_tombstone) {
                 WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
-                WT_ERR(__wti_rec_hs_clear_on_tombstone(session, r, WT_RECNO_OOB, tmpkey,
-                  upd->type == WT_UPDATE_TOMBSTONE ? false : true));
+                WT_ERR(__wti_rec_hs_clear_on_tombstone(
+                  session, r, tmpkey, upd->type == WT_UPDATE_TOMBSTONE ? false : true));
             }
 
             /* Proceed with appended key/value pairs. */

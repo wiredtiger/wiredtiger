@@ -242,7 +242,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     WT_SESSION_IMPL *session;
     wt_timestamp_t commit, durable, first_commit, prepare, read;
     size_t max_memsize;
-    uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
+    uint64_t t_nsec, t_sec;
     uint32_t fileid, mode, opsize, optype;
     char lsn_str[WT_MAX_LSN_STRING];
 
@@ -268,87 +268,6 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     }
 
     switch (optype) {
-    case WT_LOGOP_COL_MODIFY:
-        WT_ERR(__wt_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
-        GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
-        cursor->set_key(cursor, recno);
-        if ((ret = cursor->search(cursor)) != 0)
-            WT_ERR_NOTFOUND_OK(ret, false);
-        else {
-            /*
-             * Build/insert a complete value during recovery rather than using cursor modify to
-             * create a partial update (for no particular reason than simplicity).
-             */
-            __wt_modify_max_memsize_format(
-              value.data, cursor->value_format, cursor->value.size, &max_memsize);
-            WT_ERR(__wt_buf_set_and_grow(
-              session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
-            WT_ERR(__wt_modify_apply_item(
-              CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
-            WT_ERR(cursor->insert(cursor));
-        }
-        break;
-
-    case WT_LOGOP_COL_PUT:
-        WT_ERR(__wt_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
-        GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
-        cursor->set_key(cursor, recno);
-        __wt_cursor_set_raw_value(cursor, &value);
-        WT_ERR(cursor->insert(cursor));
-        break;
-
-    case WT_LOGOP_COL_REMOVE:
-        WT_ERR(__wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
-        GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
-        cursor->set_key(cursor, recno);
-        /*
-         * WT_NOTFOUND is an expected error because the checkpoint snapshot we're rolling forward
-         * may race with a remove, resulting in the key not being in the tree, but recovery still
-         * processing the log record of the remove.
-         */
-        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
-        break;
-
-    case WT_LOGOP_COL_TRUNCATE:
-        WT_ERR(
-          __wt_logop_col_truncate_unpack(session, pp, end, &fileid, &start_recno, &stop_recno));
-        GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
-
-        /* Set up the cursors. */
-        start = stop = NULL;
-        if (start_recno != WT_RECNO_OOB)
-            start = cursor;
-
-        if (stop_recno != WT_RECNO_OOB) {
-            if (start != NULL)
-                WT_ERR(__recovery_cursor(session, r, lsnp, fileid, true, &stop));
-            else
-                stop = cursor;
-        }
-
-        /* Set the keys. */
-        if (start != NULL)
-            start->set_key(start, start_recno);
-        if (stop != NULL)
-            stop->set_key(stop, stop_recno);
-
-        /*
-         * If the truncate log doesn't have a recorded start and stop recno, truncate the whole file
-         * using the URI. Otherwise use the positioned start or stop cursors to truncate a range of
-         * the file.
-         */
-        if (start == NULL && stop == NULL)
-            WT_TRET(
-              session->iface.truncate(&session->iface, r->files[fileid].uri, NULL, NULL, NULL));
-        else
-            WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
-
-        /* If we opened a duplicate cursor, close it now. */
-        if (stop != NULL && stop != cursor)
-            WT_TRET(stop->close(stop));
-        WT_ERR(ret);
-        break;
-
     case WT_LOGOP_ROW_MODIFY:
         WT_ERR(__wt_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);

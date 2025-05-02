@@ -66,7 +66,6 @@ __txn_op_log(
     WT_CURSOR *cursor;
     WT_ITEM value;
     WT_UPDATE *upd;
-    uint64_t recno;
 
     cursor = &cbt->iface;
     upd = op->u.op_upd;
@@ -74,55 +73,32 @@ __txn_op_log(
     value.size = upd->size;
 
     /*
-     * Log the row- or column-store insert, modify, remove or update. Our caller doesn't log reserve
-     * operations, we shouldn't see them here.
+     * Log the row insert, modify, remove or update. Our caller doesn't log reserve operations, we
+     * shouldn't see them here.
      */
-    if (CUR2BT(cbt)->type == BTREE_ROW) {
-        if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_LOG_VALIDATE))
-            __txn_op_log_row_key_check(session, cbt);
+    if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_LOG_VALIDATE))
+        __txn_op_log_row_key_check(session, cbt);
 
-        switch (upd->type) {
-        case WT_UPDATE_MODIFY:
-            /*
-             * Write full updates to the log for size-changing modify operations: they aren't
-             * idempotent and recovery cannot guarantee that they will be applied exactly once. We
-             * rely on the cursor value already having the modify applied.
-             */
-            if (__wt_modify_idempotent(upd->data))
-                WT_RET(__wt_logop_row_modify_pack(session, logrec, fileid, &cursor->key, &value));
-            else
-                WT_RET(
-                  __wt_logop_row_put_pack(session, logrec, fileid, &cursor->key, &cursor->value));
-            break;
-        case WT_UPDATE_STANDARD:
-            WT_RET(__wt_logop_row_put_pack(session, logrec, fileid, &cursor->key, &value));
-            break;
-        case WT_UPDATE_TOMBSTONE:
-            WT_RET(__wt_logop_row_remove_pack(session, logrec, fileid, &cursor->key));
-            break;
-        default:
-            return (__wt_illegal_value(session, upd->type));
-        }
-    } else {
-        recno = WT_INSERT_RECNO(cbt->ins);
-        WT_ASSERT(session, recno != WT_RECNO_OOB);
-
-        switch (upd->type) {
-        case WT_UPDATE_MODIFY:
-            if (__wt_modify_idempotent(upd->data))
-                WT_RET(__wt_logop_col_modify_pack(session, logrec, fileid, recno, &value));
-            else
-                WT_RET(__wt_logop_col_put_pack(session, logrec, fileid, recno, &cursor->value));
-            break;
-        case WT_UPDATE_STANDARD:
-            WT_RET(__wt_logop_col_put_pack(session, logrec, fileid, recno, &value));
-            break;
-        case WT_UPDATE_TOMBSTONE:
-            WT_RET(__wt_logop_col_remove_pack(session, logrec, fileid, recno));
-            break;
-        default:
-            return (__wt_illegal_value(session, upd->type));
-        }
+    switch (upd->type) {
+    case WT_UPDATE_MODIFY:
+        /*
+         * Write full updates to the log for size-changing modify operations: they aren't idempotent
+         * and recovery cannot guarantee that they will be applied exactly once. We rely on the
+         * cursor value already having the modify applied.
+         */
+        if (__wt_modify_idempotent(upd->data))
+            WT_RET(__wt_logop_row_modify_pack(session, logrec, fileid, &cursor->key, &value));
+        else
+            WT_RET(__wt_logop_row_put_pack(session, logrec, fileid, &cursor->key, &cursor->value));
+        break;
+    case WT_UPDATE_STANDARD:
+        WT_RET(__wt_logop_row_put_pack(session, logrec, fileid, &cursor->key, &value));
+        break;
+    case WT_UPDATE_TOMBSTONE:
+        WT_RET(__wt_logop_row_remove_pack(session, logrec, fileid, &cursor->key));
+        break;
+    default:
+        return (__wt_illegal_value(session, upd->type));
     }
 
     return (0);
@@ -172,10 +148,7 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
          * unnecessary or has already been done.
          */
         return;
-    case WT_TXN_OP_BASIC_COL:
-    case WT_TXN_OP_INMEM_COL:
     case WT_TXN_OP_REF_DELETE:
-    case WT_TXN_OP_TRUNCATE_COL:
         break;
 
     case WT_TXN_OP_BASIC_ROW:
@@ -279,18 +252,12 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
     switch (op->type) {
     case WT_TXN_OP_NONE:
-    case WT_TXN_OP_INMEM_COL:
     case WT_TXN_OP_INMEM_ROW:
     case WT_TXN_OP_REF_DELETE:
         /* Nothing to log, we're done. */
         break;
-    case WT_TXN_OP_BASIC_COL:
     case WT_TXN_OP_BASIC_ROW:
         ret = __txn_op_log(session, logrec, op, cbt, fileid);
-        break;
-    case WT_TXN_OP_TRUNCATE_COL:
-        ret = __wt_logop_col_truncate_pack(
-          session, logrec, fileid, op->u.truncate_col.start, op->u.truncate_col.stop);
         break;
     case WT_TXN_OP_TRUNCATE_ROW:
         ret = __wt_logop_row_truncate_pack(session, logrec, fileid, &op->u.truncate_row.start,
@@ -576,66 +543,37 @@ err:
 int
 __wt_txn_truncate_log(WT_TRUNCATE_INFO *trunc_info)
 {
-    WT_BTREE *btree;
     WT_ITEM *item;
     WT_SESSION_IMPL *session;
     WT_TXN_OP *op;
-    uint64_t start_recno, stop_recno;
 
     session = trunc_info->session;
-    btree = S2BT(session);
-    start_recno = WT_RECNO_OOB;
-    stop_recno = WT_RECNO_OOB;
-
     WT_RET(__txn_next_op(session, &op));
 
-    if (btree->type == BTREE_ROW) {
-        op->type = WT_TXN_OP_TRUNCATE_ROW;
-        op->u.truncate_row.mode = WT_TXN_TRUNC_ALL;
-        WT_CLEAR(op->u.truncate_row.start);
-        WT_CLEAR(op->u.truncate_row.stop);
-        /*
-         * If the user provided a start cursor key (i.e. local_start is false) then use the original
-         * key provided.
-         */
-        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_START)) {
-            WT_ASSERT_ALWAYS(session, trunc_info->orig_start_key != NULL,
-              "Truncate log operation with explicit range start has empty original key.");
-            op->u.truncate_row.mode = WT_TXN_TRUNC_START;
-            item = &op->u.truncate_row.start;
-            WT_RET(__wt_buf_set(
-              session, item, trunc_info->orig_start_key->data, trunc_info->orig_start_key->size));
-        }
-        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP)) {
-            WT_ASSERT_ALWAYS(session, trunc_info->orig_stop_key != NULL,
-              "Truncate log operation with explicit range stop has empty original key.");
-            op->u.truncate_row.mode =
-              (op->u.truncate_row.mode == WT_TXN_TRUNC_ALL) ? WT_TXN_TRUNC_STOP : WT_TXN_TRUNC_BOTH;
-            item = &op->u.truncate_row.stop;
-            WT_RET(__wt_buf_set(
-              session, item, trunc_info->orig_stop_key->data, trunc_info->orig_stop_key->size));
-        }
-    } else {
-        /*
-         * If the user provided cursors, unpack the original keys that were saved in the cursor's
-         * lower_bound field.
-         */
-        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_START)) {
-            WT_ASSERT_ALWAYS(session, trunc_info->orig_start_key != NULL,
-              "Truncate log operation with explicit range start has empty original key.");
-            WT_RET(__wt_struct_unpack(session, trunc_info->orig_start_key->data,
-              trunc_info->orig_start_key->size, "q", &start_recno));
-        }
-        if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP)) {
-            WT_ASSERT_ALWAYS(session, trunc_info->orig_stop_key != NULL,
-              "Truncate log operation with explicit range stop has empty original key.");
-            WT_RET(__wt_struct_unpack(session, trunc_info->orig_stop_key->data,
-              trunc_info->orig_stop_key->size, "q", &stop_recno));
-        }
-
-        op->type = WT_TXN_OP_TRUNCATE_COL;
-        op->u.truncate_col.start = start_recno;
-        op->u.truncate_col.stop = stop_recno;
+    op->type = WT_TXN_OP_TRUNCATE_ROW;
+    op->u.truncate_row.mode = WT_TXN_TRUNC_ALL;
+    WT_CLEAR(op->u.truncate_row.start);
+    WT_CLEAR(op->u.truncate_row.stop);
+    /*
+     * If the user provided a start cursor key (i.e. local_start is false) then use the original key
+     * provided.
+     */
+    if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_START)) {
+        WT_ASSERT_ALWAYS(session, trunc_info->orig_start_key != NULL,
+          "Truncate log operation with explicit range start has empty original key.");
+        op->u.truncate_row.mode = WT_TXN_TRUNC_START;
+        item = &op->u.truncate_row.start;
+        WT_RET(__wt_buf_set(
+          session, item, trunc_info->orig_start_key->data, trunc_info->orig_start_key->size));
+    }
+    if (F_ISSET(trunc_info, WT_TRUNC_EXPLICIT_STOP)) {
+        WT_ASSERT_ALWAYS(session, trunc_info->orig_stop_key != NULL,
+          "Truncate log operation with explicit range stop has empty original key.");
+        op->u.truncate_row.mode =
+          (op->u.truncate_row.mode == WT_TXN_TRUNC_ALL) ? WT_TXN_TRUNC_STOP : WT_TXN_TRUNC_BOTH;
+        item = &op->u.truncate_row.stop;
+        WT_RET(__wt_buf_set(
+          session, item, trunc_info->orig_stop_key->data, trunc_info->orig_stop_key->size));
     }
 
     /* Write that operation into the in-memory log. */

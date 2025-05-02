@@ -56,12 +56,6 @@ __wt_page_type_str(uint8_t val)
         return ("WT_PAGE_INVALID");
     case WT_PAGE_BLOCK_MANAGER:
         return ("WT_PAGE_BLOCK_MANAGER");
-    case WT_PAGE_COL_FIX:
-        return ("WT_PAGE_COL_FIX");
-    case WT_PAGE_COL_INT:
-        return ("WT_PAGE_COL_INT");
-    case WT_PAGE_COL_VAR:
-        return ("WT_PAGE_COL_VAR");
     case WT_PAGE_OVFL:
         return ("WT_PAGE_OVFL");
     case WT_PAGE_ROW_INT:

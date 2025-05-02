@@ -72,7 +72,6 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
     vi.page_addr = addr;
     vi.page_size = size;
     vi.cell_num = 0;
-    vi.recno = 0;
     vi.flags = verify_flags;
 
     /* Check the page type. */
@@ -93,8 +92,6 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
     case WT_PAGE_OVFL:
     case WT_PAGE_ROW_INT:
     case WT_PAGE_ROW_LEAF:
-        if (dsk->recno == WT_RECNO_OOB)
-            break;
         WT_RET_VRFY(session,
           "%s page at %s has a record number, which is illegal for this page type",
           __wt_page_type_string(dsk->type), tag);

@@ -140,8 +140,7 @@ restart_read_page:
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
          * the base update for a modify chain after rollback-to-stable, required for correctness.
          */
-        WT_RET(
-          __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
+        WT_RET(__wt_txn_read(session, cbt, &cbt->iface.key, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
             continue;
@@ -261,8 +260,6 @@ __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt)
      */
     if (cbt->lastkey != NULL)
         cbt->lastkey->size = 0;
-    cbt->lastrecno = WT_RECNO_OOB;
-
     cbt->lastref = NULL;
     cbt->lastslot = UINT32_MAX;
     cbt->lastins = NULL;
@@ -288,9 +285,7 @@ __wti_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
     cbt->page_deleted_count = 0;
 
     /* Clear saved iteration cursor position information. */
-    cbt->cip_saved = NULL;
     cbt->rip_saved = NULL;
-    F_CLR(cbt, WT_CBT_CACHEABLE_RLE_CELL);
 
     /*
      * If we don't have a search page, then we're done, we're starting at the beginning or end of
@@ -508,8 +503,7 @@ err:
              */
             bool inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
             F_CLR(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);
-            ret = __wt_compare_bounds(
-              session, cursor, &cbt->iface.key, cbt->recno, false, &key_out_of_bounds);
+            ret = __wt_compare_bounds(session, cursor, &cbt->iface.key, false, &key_out_of_bounds);
             WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
             if (inclusive_set)
                 F_SET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE);

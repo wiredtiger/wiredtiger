@@ -56,14 +56,6 @@ class LogOperationType:
 #
 optypes = [
 # commit operations
-    LogOperationType('col_modify', 'column modify',
-        [('uint32_id', 'fileid'), ('recno', 'recno'), ('WT_ITEM', 'value')]),
-    LogOperationType('col_put', 'column put',
-        [('uint32_id', 'fileid'), ('recno', 'recno'), ('WT_ITEM', 'value')]),
-    LogOperationType('col_remove', 'column remove',
-        [('uint32_id', 'fileid'), ('recno', 'recno')]),
-    LogOperationType('col_truncate', 'column truncate',
-        [('uint32_id', 'fileid'), ('recno', 'start'), ('recno', 'stop')]),
     LogOperationType('row_modify', 'row modify',
         [('uint32_id', 'fileid'), ('WT_ITEM', 'key'), ('WT_ITEM', 'value')]),
     LogOperationType('row_put', 'row put',

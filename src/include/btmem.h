@@ -7,9 +7,6 @@
  */
 
 #pragma once
-
-#define WT_RECNO_OOB 0 /* Illegal record number */
-
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_READ_CACHE 0x0001u
 #define WT_READ_IGNORE_CACHE_SIZE 0x0002u
@@ -249,7 +246,6 @@ struct __wt_multi {
      * Block's key: either a column-store record number or a row-store variable length byte string.
      */
     union {
-        uint64_t recno;
         WT_IKEY *ikey;
     } key;
 
@@ -386,37 +382,6 @@ struct __wt_page_modify {
 #undef mod_root_split
 #define mod_root_split u2.intl.root_split
         struct {
-            /*
-             * Appended items to column-stores. Actual appends to the tree only happen on the last
-             * page, but gaps created in the namespace by truncate operations can result in the
-             * append lists of other pages becoming populated.
-             */
-            wt_shared WT_INSERT_HEAD **append;
-
-            /*
-             * Updated items in column-stores: variable-length RLE entries can expand to multiple
-             * entries which requires some kind of list we can expand on demand. Updated items in
-             * fixed-length files could be done based on an WT_UPDATE array as in row-stores, but
-             * there can be a very large number of bits on a single page, and the cost of the
-             * WT_UPDATE array would be huge.
-             */
-            wt_shared WT_INSERT_HEAD **update;
-
-            /*
-             * Split-saved last column-store page record. If a fixed-length column-store page is
-             * split, we save the first record number moved so that during reconciliation we know
-             * the page's last record and can write any implicitly created deleted records for the
-             * page. No longer used by VLCS.
-             */
-            uint64_t split_recno;
-        } column_leaf;
-#undef mod_col_append
-#define mod_col_append u2.column_leaf.append
-#undef mod_col_update
-#define mod_col_update u2.column_leaf.update
-#undef mod_col_split_recno
-#define mod_col_split_recno u2.column_leaf.split_recno
-        struct {
             /* Inserted items for row-store. */
             wt_shared WT_INSERT_HEAD **insert;
 
@@ -488,20 +453,6 @@ struct __wt_page_modify {
 };
 
 /*
- * WT_COL_RLE --
- *	Variable-length column-store pages have an array of page entries with
- *	RLE counts greater than 1 when reading the page, so it's not necessary
- *	to walk the page counting records to find a specific entry. We can do a
- *	binary search in this array, then an offset calculation to find the
- *	cell.
- */
-WT_PACKED_STRUCT_BEGIN(__wt_col_rle)
-    uint64_t recno; /* Record number of first repeat. */
-    uint64_t rle;   /* Repeat count. */
-    uint32_t indx;  /* Slot of entry in col_var. */
-WT_PACKED_STRUCT_END
-
-/*
  * WT_PAGE_INDEX --
  *	The page index held by each internal page.
  */
@@ -512,44 +463,6 @@ struct __wt_page_index {
     wt_shared uint32_t deleted_entries;
     WT_REF **index;
 };
-
-/*
- * WT_COL_VAR_REPEAT --
- *  Variable-length column-store pages have an array of page entries with RLE counts
- * greater than 1 when reading the page, so it's not necessary to walk the page counting
- * records to find a specific entry. We can do a binary search in this array, then an
- * offset calculation to find the cell.
- *
- * It's a separate structure to keep the page structure as small as possible.
- */
-struct __wt_col_var_repeat {
-    uint32_t nrepeats;     /* repeat slots */
-    WT_COL_RLE repeats[0]; /* lookup RLE array */
-};
-
-/*
- * WT_COL_FIX_TW_ENTRY --
- *     This is a single entry in the WT_COL_FIX_TW array. It stores the offset from the page's
- * starting recno and the offset into the page to find the value cell containing the time window.
- */
-struct __wt_col_fix_tw_entry {
-    uint32_t recno_offset;
-    uint32_t cell_offset;
-};
-
-/*
- * WT_COL_FIX_TW --
- *     Fixed-length column-store pages carry an array of page entries that have time windows. This
- * is built when reading the page to avoid the need to walk the page to find a specific entry. We
- * can do a binary search in this array instead.
- */
-struct __wt_col_fix_tw {
-    uint32_t numtws;            /* number of time window slots */
-    WT_COL_FIX_TW_ENTRY tws[0]; /* lookup array */
-};
-
-/* WT_COL_FIX_TW_CELL gets the cell pointer from a WT_COL_FIX_TW_ENTRY. */
-#define WT_COL_FIX_TW_CELL(page, entry) ((WT_CELL *)((uint8_t *)(page)->dsk + (entry)->cell_offset))
 
 #ifdef HAVE_DIAGNOSTIC
 /*
@@ -678,32 +591,6 @@ struct __wt_page {
         WT_ROW *row; /* Key/value pairs */
 #undef pg_row
 #define pg_row u.row
-
-        /* Fixed-length column-store leaf page. */
-        struct {
-            uint8_t *fix_bitf;     /* Values */
-            WT_COL_FIX_TW *fix_tw; /* Time window index */
-#define WT_COL_FIX_TWS_SET(page) ((page)->u.col_fix.fix_tw != NULL)
-        } col_fix;
-#undef pg_fix_bitf
-#define pg_fix_bitf u.col_fix.fix_bitf
-#undef pg_fix_numtws
-#define pg_fix_numtws u.col_fix.fix_tw->numtws
-#undef pg_fix_tws
-#define pg_fix_tws u.col_fix.fix_tw->tws
-
-        /* Variable-length column-store leaf page. */
-        struct {
-            WT_COL *col_var;            /* Values */
-            WT_COL_VAR_REPEAT *repeats; /* Repeats array */
-#define WT_COL_VAR_REPEAT_SET(page) ((page)->u.col_var.repeats != NULL)
-        } col_var;
-#undef pg_var
-#define pg_var u.col_var.col_var
-#undef pg_var_repeats
-#define pg_var_repeats u.col_var.repeats->repeats
-#undef pg_var_nrepeats
-#define pg_var_nrepeats u.col_var.repeats->nrepeats
     } u;
 
     /*
@@ -733,13 +620,9 @@ struct __wt_page {
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     wt_shared uint16_t flags_atomic;      /* Atomic flags, use F_*_ATOMIC_16 */
 
-#define WT_PAGE_IS_INTERNAL(page) \
-    ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
+#define WT_PAGE_IS_INTERNAL(page) ((page)->type == WT_PAGE_ROW_INT)
 #define WT_PAGE_INVALID 0       /* Invalid page */
 #define WT_PAGE_BLOCK_MANAGER 1 /* Block-manager page */
-#define WT_PAGE_COL_FIX 2       /* Col-store fixed-len leaf */
-#define WT_PAGE_COL_INT 3       /* Col-store internal page */
-#define WT_PAGE_COL_VAR 4       /* Col-store var-length leaf page */
 #define WT_PAGE_OVFL 5          /* Overflow page */
 #define WT_PAGE_ROW_INT 6       /* Row-store internal page */
 #define WT_PAGE_ROW_LEAF 7      /* Row-store leaf page */
@@ -1162,11 +1045,8 @@ struct __wt_ref {
      * __wt_ref_key.
      */
     union {
-        uint64_t recno;       /* Column-store: starting recno */
         wt_shared void *ikey; /* Row-store: key */
     } key;
-#undef ref_recno
-#define ref_recno key.recno
 #undef ref_ikey
 #define ref_ikey key.ikey
 
@@ -1372,27 +1252,6 @@ struct __wt_col {
      */
     uint32_t __col_value;
 };
-
-/*
- * WT_COL_PTR, WT_COL_PTR_SET --
- *	Return/Set a pointer corresponding to the data offset. (If the item does
- * not exist on the page, return a NULL.)
- */
-#define WT_COL_PTR(page, cip) WT_PAGE_REF_OFFSET(page, (cip)->__col_value)
-#define WT_COL_PTR_SET(cip, value) (cip)->__col_value = (value)
-
-/*
- * WT_COL_FOREACH --
- *	Walk the entries of variable-length column-store leaf page.
- */
-#define WT_COL_FOREACH(page, cip, i) \
-    for ((i) = (page)->entries, (cip) = (page)->pg_var; (i) > 0; ++(cip), --(i))
-
-/*
- * WT_COL_SLOT --
- *	Return the 0-based array offset based on a WT_COL reference.
- */
-#define WT_COL_SLOT(page, cip) ((uint32_t)((cip) - (page)->pg_var))
 
 /*
  * WT_IKEY --
@@ -1625,7 +1484,6 @@ struct __wt_insert {
     wt_shared WT_UPDATE *upd; /* value */
 
     union {
-        uint64_t recno; /* column-store record number */
         struct {
             uint32_t offset; /* row-store key data start */
             uint32_t size;   /* row-store key data size */
@@ -1634,7 +1492,6 @@ struct __wt_insert {
 
 #define WT_INSERT_KEY_SIZE(ins) (((WT_INSERT *)(ins))->u.key.size)
 #define WT_INSERT_KEY(ins) ((void *)((uint8_t *)(ins) + ((WT_INSERT *)(ins))->u.key.offset))
-#define WT_INSERT_RECNO(ins) (((WT_INSERT *)(ins))->u.recno)
 
     wt_shared WT_INSERT *next[0]; /* forward-linked skip list */
 };
@@ -1698,88 +1555,6 @@ struct __wt_insert_head {
         (page)->modify->mod_row_insert[(page)->entries])
 
 /*
- * The column-store leaf page update lists are arrays of pointers to structures, and may not exist.
- * The following macros return an array entry if the array of pointers and the specific structure
- * exist, else NULL.
- */
-#define WT_COL_UPDATE_SLOT(page, slot)                                  \
-    ((page)->modify == NULL || (page)->modify->mod_col_update == NULL ? \
-        NULL :                                                          \
-        (page)->modify->mod_col_update[slot])
-#define WT_COL_UPDATE(page, ip) WT_COL_UPDATE_SLOT(page, WT_COL_SLOT(page, ip))
-
-/*
- * WT_COL_UPDATE_SINGLE is a single WT_INSERT list, used for any fixed-length column-store updates
- * for a page.
- */
-#define WT_COL_UPDATE_SINGLE(page) WT_COL_UPDATE_SLOT(page, 0)
-
-/*
- * WT_COL_APPEND is an WT_INSERT list, used for fixed- and variable-length appends.
- */
-#define WT_COL_APPEND(page)                                             \
-    ((page)->modify == NULL || (page)->modify->mod_col_append == NULL ? \
-        NULL :                                                          \
-        (page)->modify->mod_col_append[0])
-
-/* WT_COL_FIX_FOREACH_BITS walks fixed-length bit-fields on a disk page. */
-#define WT_COL_FIX_FOREACH_BITS(btree, dsk, v, i)                            \
-    for ((i) = 0,                                                            \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
-           0;                                                                \
-         (i) < (dsk)->u.entries; ++(i),                                      \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
-           0)
-
-/*
- * FLCS pages with time information have a small additional header after the main page data that
- * holds a version number and cell count, plus the byte offset to the start of the cell data. The
- * latter values are limited by the page size, so need only be 32 bits. One hopes we'll never need
- * 2^32 versions.
- *
- * This struct is the in-memory representation. The number of entries is the number of time windows
- * (there are twice as many cells) and the offsets is from the beginning of the page. The space
- * between the empty offset and the data offset is not used and is expected to be zeroed.
- *
- * This structure is only used when handling on-disk pages; once the page is read in, one should
- * instead use the time window index in the page structure, which is a different type found above.
- */
-struct __wt_col_fix_auxiliary_header {
-    uint32_t version;
-    uint32_t entries;
-    uint32_t emptyoffset;
-    uint32_t dataoffset;
-};
-
-/*
- * The on-disk auxiliary header uses a 1-byte version (the header must always begin with a nonzero
- * byte) and packed integers for the entry count and offset. To make the size of the offset entry
- * predictable (rather than dependent on the total page size) and also as small as possible, we
- * store the distance from the auxiliary data. To avoid complications computing the offset, we
- * include the offset's own storage space in the offset, and to make things simpler all around, we
- * include the whole auxiliary header in the offset; that is, the position of the auxiliary data is
- * computed as the position of the start of the auxiliary header plus the decoded stored offset.
- *
- * Both the entry count and the offset are limited to 32 bits because pages may not exceed 4G, so
- * their maximum encoded lengths are 5 each, so the maximum size of the on-disk header is 11 bytes.
- * It can be as small as 3 bytes, though.
- *
- * We reserve 7 bytes for the header on a full page (not 11) because on a full page the encoded
- * offset is the reservation size, and 7 encodes in one byte. This is enough for all smaller pages:
- * obviously if there's at least 4 extra bytes in the bitmap space any header will fit (4 + 7 = 11)
- * and if there's less the encoded offset is less than 11, which still encodes to one byte.
- */
-
-#define WT_COL_FIX_AUXHEADER_RESERVATION 7
-#define WT_COL_FIX_AUXHEADER_SIZE_MAX 11
-
-/* Values for ->version. Version 0 never appears in an on-disk header. */
-#define WT_COL_FIX_VERSION_NIL 0 /* Original page format with no timestamp data */
-#define WT_COL_FIX_VERSION_TS 1  /* Upgraded format with cells carrying timestamp info */
-
-/*
  * Manage split generation numbers. Splits walk the list of sessions to check when it is safe to
  * free structures that have been replaced. We also check that list periodically (e.g., when
  * wrapping up a transaction) to free any memory we can.
@@ -1828,7 +1603,6 @@ struct __wt_verify_info {
     WT_ADDR *page_addr;        /* An item representing a page entry being verified */
     size_t page_size;
     uint32_t cell_num; /* The current cell offset being verified */
-    uint64_t recno;    /* The current record number in a column store page */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_VRFY_DISK_CONTINUE_ON_FAILURE 0x1u

@@ -95,37 +95,6 @@ __wt_txn_err_set(WT_SESSION_IMPL *session, int ret)
 }
 
 /*
- * __wt_txn_op_set_recno --
- *     Set the latest transaction operation with the given recno.
- */
-static WT_INLINE void
-__wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
-{
-    WT_TXN *txn;
-    WT_TXN_OP *op;
-
-    txn = session->txn;
-
-    WT_ASSERT(session, txn->mod_count > 0 && recno != WT_RECNO_OOB);
-    op = txn->mod + txn->mod_count - 1;
-
-    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree->dhandle) ||
-      WT_IS_METADATA(op->btree->dhandle))
-        return;
-
-    WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL);
-
-    /*
-     * Copy the recno into the transaction operation structure, so when update is evicted to the
-     * history store, we have a chance of finding it again. Even though only prepared updates can be
-     * evicted, at this stage we don't know whether this transaction will be prepared or not, hence
-     * we are copying the key for all operations, so that we can use this key to fetch the update in
-     * case this transaction is prepared.
-     */
-    op->u.op_col.recno = recno;
-}
-
-/*
  * __txn_op_need_set_key --
  *     Check if we need to copy the key to the most recent transaction operation.
  */
@@ -690,15 +659,9 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
     WT_RET(__txn_next_op(session, &op));
     if (F_ISSET(session, WT_SESSION_LOGGING_INMEM)) {
-        if (op->btree->type == BTREE_ROW)
-            op->type = WT_TXN_OP_INMEM_ROW;
-        else
-            op->type = WT_TXN_OP_INMEM_COL;
+        op->type = WT_TXN_OP_INMEM_ROW;
     } else {
-        if (op->btree->type == BTREE_ROW)
-            op->type = WT_TXN_OP_BASIC_ROW;
-        else
-            op->type = WT_TXN_OP_BASIC_COL;
+        op->type = WT_TXN_OP_BASIC_ROW;
     }
     op->u.op_upd = upd;
 
@@ -1467,8 +1430,7 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
  *     function will search the history store for a visible update.
  */
 static WT_INLINE int
-__wt_txn_read(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
+__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, WT_UPDATE *upd)
 {
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
@@ -1571,7 +1533,7 @@ retry:
           __wt_random(&session->rnd_random) % 100 == 0)
             __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
 
-        WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
+        WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format,
           cbt->upd_value, &cbt->upd_value->buf));
     }
 

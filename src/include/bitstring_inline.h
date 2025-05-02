@@ -278,17 +278,6 @@ __bit_getv(const uint8_t *bitf, uint64_t entry, uint8_t width)
 }
 
 /*
- * __bit_getv_recno --
- *	Return a record number's bit-field value.
- */
-static WT_INLINE uint8_t
-__bit_getv_recno(const WT_REF *ref, uint64_t recno, uint8_t width)
-{
-	return (__bit_getv(
-	    ref->page->pg_fix_bitf, recno - ref->ref_recno, width));
-}
-
-/*
  * __bit_setv --
  *	Set a fixed-length column store bit-field value.
  */

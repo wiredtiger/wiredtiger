@@ -164,7 +164,7 @@ __curversion_next_int(WT_CURSOR *cursor)
     wt_timestamp_t durable_start_ts, durable_stop_ts, stop_ts;
     size_t max_memsize;
     uint64_t hs_upd_type, raw, stop_txn;
-    uint8_t *p, version_prepare_state;
+    uint8_t version_prepare_state;
     bool upd_found;
 
     session = CUR2S(cursor);
@@ -286,25 +286,6 @@ __curversion_next_int(WT_CURSOR *cursor)
                 WT_ERR(WT_NOTFOUND);
             }
             break;
-        case WT_PAGE_COL_FIX:
-            /*
-             * If search returned an insert, we might be past the end of page in the append list, so
-             * there's no on-disk value.
-             */
-            if (cbt->recno >= cbt->ref->ref_recno + page->entries) {
-                F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
-                F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-                WT_ERR(WT_NOTFOUND);
-            }
-            break;
-        case WT_PAGE_COL_VAR:
-            /* Empty page doesn't have any on page value. */
-            if (page->entries == 0) {
-                F_SET(version_cursor, WT_CURVERSION_ON_DISK_EXHAUSTED);
-                F_SET(version_cursor, WT_CURVERSION_HS_EXHAUSTED);
-                WT_ERR(WT_NOTFOUND);
-            }
-            break;
         default:
             WT_ERR(__wt_illegal_value(session, page->type));
         }
@@ -353,18 +334,8 @@ __curversion_next_int(WT_CURSOR *cursor)
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
         if (!F_ISSET(hs_cursor, WT_CURSTD_KEY_INT)) {
-            if (page->type == WT_PAGE_ROW_LEAF)
-                hs_cursor->set_key(
-                  hs_cursor, 4, S2BT(session)->id, &file_cursor->key, WT_TS_MAX, UINT64_MAX);
-            else {
-                /* Ensure enough room for a column-store key without checking. */
-                WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-                p = key->mem;
-                WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
-                key->size = WT_PTRDIFF(p, key->data);
-                hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
-            }
+            hs_cursor->set_key(
+              hs_cursor, 4, S2BT(session)->id, &file_cursor->key, WT_TS_MAX, UINT64_MAX);
             WT_ERR(__wt_curhs_search_near_before(session, hs_cursor));
         } else
             WT_ERR(hs_cursor->prev(hs_cursor));
@@ -531,13 +502,6 @@ __curversion_search(WT_CURSOR *cursor)
             rip = &page->pg_row[cbt->slot];
             version_cursor->next_upd = WT_ROW_UPDATE(page, rip);
         }
-        break;
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        if (cbt->ins != NULL)
-            version_cursor->next_upd = cbt->ins->upd;
-        else
-            version_cursor->next_upd = NULL;
         break;
     default:
         WT_ERR(__wt_illegal_value(session, page->type));

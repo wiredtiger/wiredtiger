@@ -1066,10 +1066,6 @@ __txn_search_prepared_op(
     F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     switch (op->type) {
-    case WT_TXN_OP_BASIC_COL:
-    case WT_TXN_OP_INMEM_COL:
-        ((WT_CURSOR_BTREE *)cursor)->iface.recno = op->u.op_col.recno;
-        break;
     case WT_TXN_OP_BASIC_ROW:
     case WT_TXN_OP_INMEM_ROW:
         F_CLR(txn, txn_flags);
@@ -1078,7 +1074,6 @@ __txn_search_prepared_op(
         break;
     case WT_TXN_OP_NONE:
     case WT_TXN_OP_REF_DELETE:
-    case WT_TXN_OP_TRUNCATE_COL:
     case WT_TXN_OP_TRUNCATE_ROW:
         WT_RET_PANIC_ASSERT(session, WT_DIAGNOSTIC_PREPARED, false, WT_PANIC,
           "invalid prepared operation update type");
@@ -1107,19 +1102,16 @@ __txn_search_prepared_op(
 static int
 __txn_append_tombstone(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR_BTREE *cbt)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_UPDATE *tombstone;
     size_t not_used;
 
     tombstone = NULL;
-    btree = S2BT(session);
 
     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
     WT_WITH_BTREE(session, op->btree,
-      ret = btree->type == BTREE_ROW ?
-        __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false) :
-        __wt_col_modify(cbt, cbt->recno, NULL, &tombstone, WT_UPDATE_INVALID, false, false));
+      ret =
+        __wt_row_modify(cbt, &cbt->iface.key, NULL, &tombstone, WT_UPDATE_INVALID, false, false));
     WT_ERR(ret);
     tombstone = NULL;
 
@@ -1189,13 +1181,12 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    WT_ITEM hs_recno_key;
     WT_PAGE *page;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_UPDATE *first_committed_upd, *upd, *upd_followed_tombstone;
     WT_UPDATE *head_upd;
-    uint8_t hs_recno_key_buf[WT_INTPACK64_MAXSIZE], *p, resolve_case;
+    uint8_t resolve_case;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool has_hs_record, tw_found;
 
@@ -1376,15 +1367,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          */
         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-        if (btree->type == BTREE_ROW)
-            hs_cursor->set_key(hs_cursor, 4, btree->id, &cbt->iface.key, WT_TS_MAX, UINT64_MAX);
-        else {
-            p = hs_recno_key_buf;
-            WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
-            hs_recno_key.data = hs_recno_key_buf;
-            hs_recno_key.size = WT_PTRDIFF(p, hs_recno_key_buf);
-            hs_cursor->set_key(hs_cursor, 4, btree->id, &hs_recno_key, WT_TS_MAX, UINT64_MAX);
-        }
+        hs_cursor->set_key(hs_cursor, 4, btree->id, &cbt->iface.key, WT_TS_MAX, UINT64_MAX);
         /*
          * Locate the previous update from the history store. We know there may be content in the
          * history store if the prepared update is written to the disk image or first committed
@@ -1520,12 +1503,9 @@ __txn_mod_sortable_key(WT_TXN_OP *opt)
     switch (opt->type) {
     case (WT_TXN_OP_NONE):
     case (WT_TXN_OP_REF_DELETE):
-    case (WT_TXN_OP_TRUNCATE_COL):
     case (WT_TXN_OP_TRUNCATE_ROW):
         return (false);
-    case (WT_TXN_OP_BASIC_COL):
     case (WT_TXN_OP_BASIC_ROW):
-    case (WT_TXN_OP_INMEM_COL):
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
     }
@@ -1587,16 +1567,9 @@ __txn_mod_compare(const void *a, const void *b)
         return (0);
 
     /* Finally, order by key. We cannot sort if there is a collator as we need a session pointer. */
-    if (aopt->btree->type == BTREE_ROW) {
-        return (aopt->btree->collator == NULL ?
-            __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
-            0);
-    }
-    if (aopt->u.op_col.recno < bopt->u.op_col.recno)
-        return (-1);
-    if (aopt->u.op_col.recno > bopt->u.op_col.recno)
-        return (1);
-    return (0);
+    return (aopt->btree->collator == NULL ?
+        __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
+        0);
 }
 
 /*
@@ -1767,9 +1740,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
-        case WT_TXN_OP_BASIC_COL:
         case WT_TXN_OP_BASIC_ROW:
-        case WT_TXN_OP_INMEM_COL:
         case WT_TXN_OP_INMEM_ROW:
             if (!prepare) {
                 upd = op->u.op_upd;
@@ -1825,7 +1796,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__wt_txn_op_set_timestamp(session, op, false));
 #endif
             break;
-        case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
             break;
@@ -2076,9 +2046,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
-        case WT_TXN_OP_BASIC_COL:
         case WT_TXN_OP_BASIC_ROW:
-        case WT_TXN_OP_INMEM_COL:
         case WT_TXN_OP_INMEM_ROW:
             upd = op->u.op_upd;
 
@@ -2117,7 +2085,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_delete_apply_prepare_state(session, op->u.ref, false);
             break;
-        case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
             break;
@@ -2196,9 +2163,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
-        case WT_TXN_OP_BASIC_COL:
         case WT_TXN_OP_BASIC_ROW:
-        case WT_TXN_OP_INMEM_COL:
         case WT_TXN_OP_INMEM_ROW:
             upd = op->u.op_upd;
 
@@ -2223,7 +2188,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_REF_DELETE:
             WT_TRET(__wt_delete_page_rollback(session, op->u.ref));
             break;
-        case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /*
              * Nothing to do: these operations are only logged for recovery. The in-memory changes

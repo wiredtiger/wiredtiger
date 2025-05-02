@@ -37,23 +37,15 @@ __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
     WT_INSERT *current, *ins, *next_ins;
     WT_ITEM key;
     WT_SESSION_IMPL *session;
-    uint64_t recno;
     int i;
 
     session = CUR2S(cbt);
 
 restart:
-    /*
-     * If the search stack does not point at the current item, fill it in with a search.
-     */
-    recno = WT_INSERT_RECNO(cbt->ins);
     while ((current = cbt->ins) != PREV_INS(cbt, 0)) {
-        if (CUR2BT(cbt)->type == BTREE_ROW) {
-            key.data = WT_INSERT_KEY(current);
-            key.size = WT_INSERT_KEY_SIZE(current);
-            WT_RET(__wt_search_insert(session, cbt, cbt->ins_head, &key));
-        } else
-            cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
+        key.data = WT_INSERT_KEY(current);
+        key.size = WT_INSERT_KEY_SIZE(current);
+        WT_RET(__wt_search_insert(session, cbt, cbt->ins_head, &key));
     }
 
     /*
@@ -278,8 +270,7 @@ restart_read_page:
          * Read the on-disk value and/or history. Pass an update list: the update list may contain
          * the base update for a modify chain after rollback-to-stable, required for correctness.
          */
-        WT_RET(
-          __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
+        WT_RET(__wt_txn_read(session, cbt, &cbt->iface.key, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
             continue;
@@ -369,14 +360,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         /* Calls with key only flag should never restart. */
         WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY) || !restart);
         page = cbt->ref == NULL ? NULL : cbt->ref->page;
-
-        /*
-         * Column-store pages may have appended entries. Handle it separately from the usual cursor
-         * code, it's in a simple format.
-         */
-        if (newpage && page != NULL && page->type != WT_PAGE_ROW_LEAF &&
-          (cbt->ins_head = WT_COL_APPEND(page)) != NULL)
-            F_SET(cbt, WT_CBT_ITERATE_APPEND);
 
         if (page != NULL) {
             switch (page->type) {
@@ -502,8 +485,7 @@ err:
              */
             inclusive_set = F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
             F_CLR(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);
-            ret = __wt_compare_bounds(
-              session, cursor, &cbt->iface.key, cbt->recno, true, &key_out_of_bounds);
+            ret = __wt_compare_bounds(session, cursor, &cbt->iface.key, true, &key_out_of_bounds);
             WT_ASSERT(session, ret == 0 && !key_out_of_bounds);
             if (inclusive_set)
                 F_SET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE);

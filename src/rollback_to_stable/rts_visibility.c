@@ -9,21 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wti_rts_visibility_has_stable_update --
- *     Check if an update chain has a stable update on it. Assume the update chain has already been
- *     processed so all we need to do is look for a valid, non-aborted entry.
- */
-bool
-__wti_rts_visibility_has_stable_update(WT_UPDATE *upd)
-{
-    while (upd != NULL &&
-      (upd->type == WT_UPDATE_INVALID || upd->txnid == WT_TXN_ABORTED ||
-        F_ISSET(upd, WT_UPDATE_RTS_DRYRUN_ABORT)))
-        upd = upd->next;
-    return (upd != NULL);
-}
-
-/*
  * __wti_rts_visibility_txn_visible_id --
  *     Check if the transaction id is visible or not.
  */

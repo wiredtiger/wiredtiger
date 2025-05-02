@@ -51,13 +51,13 @@ __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
  */
 int
 __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
-  const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, WT_ITEM *base_value_buf)
+  const char *value_format, WT_UPDATE_VALUE *upd_value, WT_ITEM *base_value_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
-    WT_ITEM hs_key, recno_key;
+    WT_ITEM hs_key;
     WT_TXN_SHARED *txn_shared;
     WT_UPDATE *mod_upd;
     WT_UPDATE_VECTOR modifies;
@@ -65,7 +65,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
     size_t max_memsize;
     uint64_t upd_type_full;
-    uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
+    uint8_t upd_type;
     bool upd_found;
 
     hs_cursor = NULL;
@@ -79,16 +79,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     WT_STAT_CONN_DSRC_INCR(session, cursor_search_hs);
 
     /* Row-store key is as passed to us, create the column-store key as needed. */
-    WT_ASSERT(
-      session, (key == NULL && recno != WT_RECNO_OOB) || (key != NULL && recno == WT_RECNO_OOB));
-    if (key == NULL) {
-        p = recno_key_buf;
-        WT_RET(__wt_vpack_uint(&p, 0, recno));
-        memset(&recno_key, 0, sizeof(recno_key));
-        key = &recno_key;
-        key->data = recno_key_buf;
-        key->size = WT_PTRDIFF(p, recno_key_buf);
-    }
+    WT_ASSERT(session, key != NULL);
 
     /*
      * If reading from a checkpoint, it is possible to get here because the history store is

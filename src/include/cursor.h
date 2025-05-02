@@ -127,8 +127,6 @@ struct __wt_cursor_btree {
 
     uint32_t page_deleted_count; /* Deleted items on the page */
 
-    uint64_t recno; /* Record number */
-
     /*
      * Next-random cursors can optionally be configured to step through a percentage of the total
      * leaf pages to their next value. Note the configured value and the calculated number of leaf
@@ -156,13 +154,6 @@ struct __wt_cursor_btree {
     WT_ITEM *row_key, _row_key;
 
     /*
-     * It's relatively expensive to calculate the last record on a variable- length column-store
-     * page because of the repeat values. Calculate it once per page and cache it. This value
-     * doesn't include the skiplist of appended entries on the last page.
-     */
-    uint64_t last_standard_recno;
-
-    /*
      * For row-store pages, we need a single item that tells us the part of the page we're walking
      * (otherwise switching from next to prev and vice-versa is just too complicated), so we map the
      * WT_ROW and WT_INSERT_HEAD insert array slots into a single name space: slot 1 is the
@@ -170,17 +161,6 @@ struct __wt_cursor_btree {
      * means WT_INSERT lists are odd-numbered slots, and WT_ROW array slots are even-numbered slots.
      */
     uint32_t row_iteration_slot; /* Row-store iteration slot */
-
-    /*
-     * Variable-length column-store values are run-length encoded and may be overflow values. To
-     * avoid repeatedly reading overflow values or decompressing encoded values, process it once and
-     * store the result in a temporary buffer. The cip_saved field is used to determine if we've
-     * switched columns since our last cursor call. Note however that this result caching is not
-     * necessarily safe for all RLE cells. The flag WT_CBT_CACHEABLE_RLE_CELL indicates that the
-     * value is uniform across the whole cell. If it is not set (e.g. if the cell is not globally
-     * visible yet), the cached values should not be used.
-     */
-    WT_COL *cip_saved; /* Last iteration reference */
 
     /*
      * We don't instantiate prefix-compressed keys on pages because we don't want to waste memory if
@@ -230,12 +210,6 @@ struct __wt_cursor_btree {
     uint64_t checkpoint_write_gen;
     uint64_t checkpoint_id;
 
-    /*
-     * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate
-     * the space for it now than keep checking to see if we need to grow the buffer.
-     */
-    uint8_t v; /* Fixed-length return value */
-
     uint8_t append_tree; /* Cursor appended to the tree */
 
     /*
@@ -253,7 +227,6 @@ struct __wt_cursor_btree {
 #ifdef HAVE_DIAGNOSTIC
     /* Check that cursor next/prev never returns keys out-of-order. */
     WT_ITEM *lastkey, _lastkey;
-    uint64_t lastrecno;
 
     /* Record where the last key is when we see it to help debugging out of order issues. */
     WT_REF *lastref;    /* The page where the last key is */
@@ -262,22 +235,18 @@ struct __wt_cursor_btree {
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CBT_ACTIVE 0x001u             /* Active in the tree */
-#define WT_CBT_CACHEABLE_RLE_CELL 0x002u /* Col-store: value in RLE cell valid for its keys */
-#define WT_CBT_ITERATE_APPEND 0x004u     /* Col-store: iterating append list */
-#define WT_CBT_ITERATE_NEXT 0x008u       /* Next iteration configuration */
-#define WT_CBT_ITERATE_PREV 0x010u       /* Prev iteration configuration */
-#define WT_CBT_ITERATE_RETRY_NEXT 0x020u /* Prepare conflict by next. */
-#define WT_CBT_ITERATE_RETRY_PREV 0x040u /* Prepare conflict by prev. */
-#define WT_CBT_READ_ONCE 0x080u          /* Page in with WT_READ_WONT_NEED */
-#define WT_CBT_SEARCH_SMALLEST 0x100u    /* Row-store: small-key insert list */
-#define WT_CBT_VAR_ONPAGE_MATCH 0x200u   /* Var-store: on-page recno match */
+#define WT_CBT_ACTIVE 0x01u             /* Active in the tree */
+#define WT_CBT_ITERATE_NEXT 0x02u       /* Next iteration configuration */
+#define WT_CBT_ITERATE_PREV 0x04u       /* Prev iteration configuration */
+#define WT_CBT_ITERATE_RETRY_NEXT 0x08u /* Prepare conflict by next. */
+#define WT_CBT_ITERATE_RETRY_PREV 0x10u /* Prepare conflict by prev. */
+#define WT_CBT_READ_ONCE 0x20u          /* Page in with WT_READ_WONT_NEED */
+#define WT_CBT_SEARCH_SMALLEST 0x40u    /* Row-store: small-key insert list */
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
-#define WT_CBT_POSITION_MASK /* Flags associated with position */                      \
-    (WT_CBT_ITERATE_APPEND | WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV |               \
-      WT_CBT_ITERATE_RETRY_NEXT | WT_CBT_ITERATE_RETRY_PREV | WT_CBT_SEARCH_SMALLEST | \
-      WT_CBT_VAR_ONPAGE_MATCH)
+#define WT_CBT_POSITION_MASK /* Flags associated with position */            \
+    (WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV | WT_CBT_ITERATE_RETRY_NEXT | \
+      WT_CBT_ITERATE_RETRY_PREV | WT_CBT_SEARCH_SMALLEST)
 
     uint32_t flags;
 };
@@ -309,26 +278,9 @@ __wt_curbt2bt(WT_CURSOR_BTREE *cursor_btree)
 struct __wt_cursor_bulk {
     WT_CURSOR_BTREE cbt;
 
-    /*
-     * Variable-length column store compares values during bulk load as part of RLE compression,
-     * row-store compares keys during bulk load to avoid corruption.
-     */
+    /* Row-store compares keys during bulk load to avoid corruption. */
     bool first_insert; /* First insert */
     WT_ITEM *last;     /* Last key/value inserted */
-
-    /*
-     * Additional column-store bulk load support.
-     */
-    uint64_t recno; /* Record number */
-    uint64_t rle;   /* Variable-length RLE counter */
-
-    /*
-     * Additional fixed-length column store bitmap bulk load support: current entry in memory chunk
-     * count, and the maximum number of records per chunk.
-     */
-    bool bitmap;    /* Bitmap bulk load */
-    uint32_t entry; /* Entry count */
-    uint32_t nrecs; /* Max records per chunk */
 
     void *reconcile; /* Reconciliation support */
     WT_REF *ref;     /* The leaf page */

@@ -25,12 +25,9 @@ has_key(WT_TXN_TYPE type)
     switch (type) {
     case (WT_TXN_OP_NONE):
     case (WT_TXN_OP_REF_DELETE):
-    case (WT_TXN_OP_TRUNCATE_COL):
     case (WT_TXN_OP_TRUNCATE_ROW):
         return (false);
-    case (WT_TXN_OP_BASIC_COL):
     case (WT_TXN_OP_BASIC_ROW):
-    case (WT_TXN_OP_INMEM_COL):
     case (WT_TXN_OP_INMEM_ROW):
         return (true);
     }
@@ -74,8 +71,7 @@ __mod_ops_sorted(WT_TXN_OP *ops, int op_count, size_t key_size)
 WT_TXN_TYPE
 rand_non_keyd_type()
 {
-    WT_TXN_TYPE types[4] = {
-      WT_TXN_OP_NONE, WT_TXN_OP_REF_DELETE, WT_TXN_OP_TRUNCATE_COL, WT_TXN_OP_TRUNCATE_ROW};
+    WT_TXN_TYPE types[3] = {WT_TXN_OP_NONE, WT_TXN_OP_REF_DELETE, WT_TXN_OP_TRUNCATE_ROW};
     return (types[rand() % 4]);
 }
 
@@ -94,10 +90,7 @@ init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, uint64_t recno, WT_ITE
 {
     op->btree = btree;
     op->type = type;
-    if (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL) {
-        REQUIRE(recno != WT_RECNO_OOB);
-        op->u.op_col.recno = recno;
-    } else if (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) {
+    if (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) {
         REQUIRE(key != NULL);
         op->u.op_row.key = *key;
     } else
@@ -227,7 +220,7 @@ TEST_CASE("Row, column, and non key'd operations", "[mod_compare]")
     init_op(&ops[7], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[5]);
 
     // Non key'd operations.
-    init_op(&ops[8], &btrees[0], WT_TXN_OP_TRUNCATE_COL, WT_RECNO_OOB, NULL);
+    init_op(&ops[8], &btrees[0], WT_TXN_OP_TRUNCATE_ROW, WT_RECNO_OOB, NULL);
     init_op(&ops[9], &btrees[1], WT_TXN_OP_REF_DELETE, WT_RECNO_OOB, NULL);
 
     __wt_qsort(&ops, 10, sizeof(WT_TXN_OP), __ut_txn_mod_compare);

@@ -602,15 +602,8 @@ __rec_hs_pack_key(WT_SESSION_IMPL *session, WT_BTREE *btree, WTI_RECONCILE *r, W
   WT_ROW *rip, WT_ITEM *key)
 {
     WT_DECL_RET;
-    uint8_t *p;
 
     switch (r->page->type) {
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        p = key->mem;
-        WT_RET(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
-        key->size = WT_PTRDIFF(p, key->data);
-        break;
     case WT_PAGE_ROW_LEAF:
         if (ins == NULL) {
             WT_WITH_BTREE(

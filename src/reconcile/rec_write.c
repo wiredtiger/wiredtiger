@@ -17,7 +17,7 @@ static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *
 static int __rec_hs_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
-static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *, uint8_t);
+static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *);
 static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, bool);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
@@ -252,15 +252,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
     /* Reconcile the page. */
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        ret = __wti_rec_col_fix(session, r, ref, salvage);
-        break;
-    case WT_PAGE_COL_INT:
-        WT_WITH_PAGE_INDEX(session, ret = __wti_rec_col_int(session, r, ref));
-        break;
-    case WT_PAGE_COL_VAR:
-        ret = __wti_rec_col_var(session, r, ref, salvage);
-        break;
     case WT_PAGE_ROW_INT:
         WT_WITH_PAGE_INDEX(session, ret = __wti_rec_row_int(session, r, page));
         break;
@@ -545,7 +536,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
     /*
      * Fake up a reference structure, and write the next root page.
      */
-    __wt_root_ref_init(session, &fake_ref, next, page->type == WT_PAGE_COL_INT);
+    __wt_root_ref_init(session, &fake_ref, next);
     return (__wt_reconcile(session, &fake_ref, NULL, flags));
 
 err:
@@ -937,36 +928,6 @@ __rec_leaf_page_max_slvg(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     page = r->page;
 
     page_size = 0;
-    switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        /*
-         * Column-store pages can grow if there are missing records (that is, we lost a chunk of the
-         * range, and have to write deleted records). Fixed-length objects are a problem, if there's
-         * a big missing range, we could theoretically have to write large numbers of missing
-         * objects.
-         *
-         * The code in rec_col.c already figured this out for us, including both space for missing
-         * chunks of the namespace and space for time windows, so we will take what it says. Thus,
-         * we shouldn't come here.
-         */
-        WT_ASSERT(session, false);
-        break;
-    case WT_PAGE_COL_VAR:
-        /*
-         * Column-store pages can grow if there are missing records (that is, we lost a chunk of the
-         * range, and have to write deleted records). Variable-length objects aren't usually a
-         * problem because we can write any number of deleted records in a single page entry because
-         * of the RLE, we just need to ensure that additional entry fits.
-         */
-        break;
-    case WT_PAGE_ROW_LEAF:
-    default:
-        /*
-         * Row-store pages can't grow, salvage never does anything other than reduce the size of a
-         * page read from disk.
-         */
-        break;
-    }
 
     /*
      * Default size for variable-length column-store and row-store pages during salvage is the
@@ -1025,13 +986,11 @@ __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
 static int
 __rec_split_chunk_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk)
 {
-    chunk->recno = WT_RECNO_OOB;
     /* Don't touch the key item memory, that memory is reused. */
     chunk->key.size = 0;
     chunk->entries = 0;
     WT_TIME_AGGREGATE_INIT_MERGE(&chunk->ta);
 
-    chunk->recno_at_split_boundary = WT_RECNO_OOB;
     /* Don't touch the key item memory, that memory is reused. */
     chunk->key_at_split_boundary.size = 0;
     chunk->entries_before_split_boundary = 0;
@@ -1049,17 +1008,6 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
      */
     WT_RET(__wt_buf_init(session, &chunk->image, r->disk_img_buf_size));
     memset(chunk->image.mem, 0, WT_PAGE_HEADER_SIZE);
-
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * For fixed-length column-store, poison the rest of the buffer. This helps verify ensure that
-     * all the bytes in the buffer are explicitly set and not left uninitialized.
-     */
-    if (r->page->type == WT_PAGE_COL_FIX)
-        memset((uint8_t *)chunk->image.mem + WT_PAGE_HEADER_SIZE, 0xa9,
-          r->disk_img_buf_size - WT_PAGE_HEADER_SIZE);
-#endif
-
     return (0);
 }
 
@@ -1068,8 +1016,7 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
  *     Initialization for the reconciliation split functions.
  */
 int
-__wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, uint64_t recno,
-  uint64_t primary_size, uint32_t auxiliary_size)
+__wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t primary_size)
 {
     /* FUTURE: primary_size should probably also be 32 bits. */
 
@@ -1091,7 +1038,7 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, 
      * For FLCS, the salvage page size can get very large indeed if pieces of the namespace have
      * vanished, so don't second-guess the caller, who's figured it out for us.
      */
-    if (r->salvage != NULL && page->type != WT_PAGE_COL_FIX)
+    if (r->salvage != NULL)
         primary_size = __rec_leaf_page_max_slvg(session, r);
 
     /*
@@ -1115,8 +1062,7 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, 
      * because once created larger they cannot be split again later, but for the moment at least it
      * isn't readily avoided.)
      */
-    WT_ASSERT(session, auxiliary_size == 0 || page->type == WT_PAGE_COL_FIX);
-    r->page_size = (uint32_t)(primary_size + auxiliary_size);
+    r->page_size = (uint32_t)(primary_size);
 
     /*
      * If we have to split, we want to choose a smaller page size for the split pages, because
@@ -1151,11 +1097,7 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, 
      * Finally, all this doesn't matter at all for salvage; as noted above, in salvage we can't
      * split at all.
      */
-    if (page->type == WT_PAGE_COL_FIX) {
-        r->split_size = r->salvage != NULL ? 0 : btree->maxleafpage;
-        r->space_avail = primary_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-        r->aux_space_avail = auxiliary_size - WT_COL_FIX_AUXHEADER_RESERVATION;
-    } else if (r->salvage != NULL) {
+    if (r->salvage != NULL) {
         r->split_size = 0;
         r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
     } else {
@@ -1184,31 +1126,19 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, 
     WT_RET(__rec_split_chunk_init(session, r, &r->chunk_A));
     r->cur_ptr = &r->chunk_A;
     r->prev_ptr = NULL;
-
-    /* Starting record number, entries, first free byte. */
-    r->recno = recno;
     r->entries = 0;
     r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
-
-    if (page->type == WT_PAGE_COL_FIX) {
-        r->aux_start_offset = (uint32_t)(primary_size + WT_COL_FIX_AUXHEADER_RESERVATION);
-        r->aux_entries = 0;
-        r->aux_first_free = (uint8_t *)r->cur_ptr->image.mem + r->aux_start_offset;
-    }
 
     /* New page, compression off. */
     r->key_pfx_compress = r->key_sfx_compress = false;
 
     /* Set the first chunk's key. */
     chunk = r->cur_ptr;
-    if (btree->type == BTREE_ROW) {
-        ref = r->ref;
-        if (__wt_ref_is_root(ref))
-            WT_RET(__wt_buf_set(session, &chunk->key, "", 1));
-        else
-            __wt_ref_key(ref->home, ref, &chunk->key.data, &chunk->key.size);
-    } else
-        chunk->recno = recno;
+    ref = r->ref;
+    if (__wt_ref_is_root(ref))
+        WT_RET(__wt_buf_set(session, &chunk->key, "", 1));
+    else
+        __wt_ref_key(ref->home, ref, &chunk->key.data, &chunk->key.size);
 
     return (0);
 }
@@ -1244,7 +1174,7 @@ __rec_is_checkpoint(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
  *     Key promotion for a row-store.
  */
 static int
-__rec_split_row_promote(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key, uint8_t type)
+__rec_split_row_promote(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(update);
@@ -1256,33 +1186,7 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key
     const uint8_t *pa, *pb;
     int cmp;
 
-    /*
-     * For a column-store, the promoted key is the recno and we already have a copy. For a
-     * row-store, it's the first key on the page, a variable-length byte string, get a copy.
-     *
-     * This function is called from the split code at each split boundary, but that means we're not
-     * called before the first boundary, and we will eventually have to get the first key explicitly
-     * when splitting a page.
-     *
-     * For the current slot, take the last key we built, after doing suffix compression. The "last
-     * key we built" describes some process: before calling the split code, we must place the last
-     * key on the page before the boundary into the "last" key structure, and the first key on the
-     * page after the boundary into the "current" key structure, we're going to compare them for
-     * suffix compression.
-     *
-     * Suffix compression is a hack to shorten keys on internal pages. We only need enough bytes in
-     * the promoted key to ensure searches go to the correct page: the promoted key has to be larger
-     * than the last key on the leaf page preceding it, but we don't need any more bytes than that.
-     * In other words, we can discard any suffix bytes not required to distinguish between the key
-     * being promoted and the last key on the leaf page preceding it. This can only be done for the
-     * first level of internal pages, you cannot repeat suffix truncation as you split up the tree,
-     * it loses too much information.
-     *
-     * Note #1: if the last key on the previous page was an overflow key, we don't have the
-     * in-memory key against which to compare, and don't try to do suffix compression. The code for
-     * that case turns suffix compression off for the next key, we don't have to deal with it here.
-     */
-    if (type != WT_PAGE_ROW_LEAF || !r->key_sfx_compress)
+    if (!r->key_sfx_compress)
         return (__wt_buf_set(session, key, r->cur->data, r->cur->size));
 
     btree = S2BT(session);
@@ -1356,18 +1260,15 @@ __wti_rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    size_t aux_first_free, corrected_page_size, first_free, inuse;
+    size_t corrected_page_size, first_free, inuse;
 
-    aux_first_free = 0; /* gcc -Werror=maybe-uninitialized, with -O3 */
     btree = S2BT(session);
     bm = btree->bm;
 
     /* The free space is tracked with a pointer; convert to an integer. */
     first_free = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-    if (r->page->type == WT_PAGE_COL_FIX)
-        aux_first_free = WT_PTRDIFF(r->aux_first_free, r->cur_ptr->image.mem);
 
-    inuse = r->page->type == WT_PAGE_COL_FIX ? aux_first_free : first_free;
+    inuse = r->page->type == first_free;
     corrected_page_size = inuse + add_len;
 
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
@@ -1377,68 +1278,10 @@ __wti_rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
 
     /* Convert the free space back to pointers. */
     r->first_free = (uint8_t *)r->cur_ptr->image.mem + first_free;
-    if (r->page->type == WT_PAGE_COL_FIX)
-        r->aux_first_free = (uint8_t *)r->cur_ptr->image.mem + aux_first_free;
-
-    /* Adjust the available space. */
-    if (r->page->type == WT_PAGE_COL_FIX) {
-        /* Reallocating an FLCS page increases the auxiliary space. */
-        r->aux_space_avail = corrected_page_size - aux_first_free;
-        WT_ASSERT(session, r->aux_space_avail >= add_len);
-    } else {
-        r->space_avail = corrected_page_size - first_free;
-        WT_ASSERT(session, r->space_avail >= add_len);
-    }
+    r->space_avail = corrected_page_size - first_free;
+    WT_ASSERT(session, r->space_avail >= add_len);
 
     return (0);
-}
-
-/*
- * __rec_split_fix_shrink --
- *     Consider eliminating the empty space on an FLCS page.
- */
-static void
-__rec_split_fix_shrink(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
-{
-    uint32_t auxsize, emptysize, primarysize, totalsize;
-    uint8_t *dst, *src;
-
-    /* Total size of page. */
-    totalsize = WT_PTRDIFF32(r->aux_first_free, r->cur_ptr->image.mem);
-
-    /* Size of the entire primary data area, including headers. */
-    primarysize = WT_PTRDIFF32(r->first_free, r->cur_ptr->image.mem);
-
-    /* Size of the empty space. */
-    emptysize = r->aux_start_offset - (primarysize + WT_COL_FIX_AUXHEADER_RESERVATION);
-
-    /* Size of the auxiliary data. */
-    auxsize = totalsize - r->aux_start_offset;
-
-    /*
-     * Arbitrary criterion: if the empty space is bigger than the auxiliary data, memmove the
-     * auxiliary data, on the assumption that the cost of the memmove is outweighed by the cost of
-     * taking checksums of, writing out, and reading back in a bunch of useless empty space.
-     */
-    if (emptysize > auxsize) {
-        /* Source: current auxiliary start. */
-        src = (uint8_t *)r->cur_ptr->image.mem + r->aux_start_offset;
-
-        /* Destination: immediately after the primary data with space for the auxiliary header. */
-        dst = r->first_free + WT_COL_FIX_AUXHEADER_RESERVATION;
-
-        /* The move span should be the empty data size. */
-        WT_ASSERT(session, src == dst + emptysize);
-
-        /* Do the move. */
-        memmove(dst, src, auxsize);
-
-        /* Update the tracking information. */
-        r->aux_start_offset -= emptysize;
-        r->aux_first_free -= emptysize;
-        r->space_avail -= emptysize;
-        r->aux_space_avail += emptysize;
-    }
 }
 
 /* The minimum number of entries before we'll split a row-store internal page. */
@@ -1477,10 +1320,8 @@ __wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
      * contain the current item if we don't have enough items to split an internal page.
      */
     inuse = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-    if (inuse < r->split_size / 2 && !__wti_rec_need_split(r, 0)) {
-        WT_ASSERT(session, r->page->type != WT_PAGE_COL_FIX);
+    if (inuse < r->split_size / 2 && !__wti_rec_need_split(r, 0))
         goto done;
-    }
 
     if (r->page->type == WT_PAGE_ROW_INT && r->entries < WT_PAGE_INTL_MINIMUM_ENTRIES)
         goto done;
@@ -1490,18 +1331,7 @@ __wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 
     /* Set the entries, timestamps and size for the just finished chunk. */
     r->cur_ptr->entries = r->entries;
-    if (r->page->type == WT_PAGE_COL_FIX) {
-        if ((r->cur_ptr->auxentries = r->aux_entries) != 0) {
-            __rec_split_fix_shrink(session, r);
-            /* This must come after the shrink call, which can change the offset. */
-            r->cur_ptr->aux_start_offset = r->aux_start_offset;
-            r->cur_ptr->image.size = WT_PTRDIFF(r->aux_first_free, r->cur_ptr->image.mem);
-        } else {
-            r->cur_ptr->aux_start_offset = r->aux_start_offset;
-            r->cur_ptr->image.size = inuse;
-        }
-    } else
-        r->cur_ptr->image.size = inuse;
+    r->cur_ptr->image.size = inuse;
 
     /*
      * Normally we keep two chunks in memory at a given time, and we write the previous chunk at
@@ -1525,36 +1355,18 @@ __wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 
     /* Initialize the next chunk, including the key. */
     WT_RET(__rec_split_chunk_init(session, r, r->cur_ptr));
-    r->cur_ptr->recno = r->recno;
-    if (btree->type == BTREE_ROW)
-        WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key, r->page->type));
+    WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key));
 
     /* Reset tracking information. */
     r->entries = 0;
     r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
-
-    if (r->page->type == WT_PAGE_COL_FIX) {
-        /*
-         * In the first chunk, we use the passed-in primary size, whatever it is, as the size for
-         * the bitmap data; the auxiliary space follows it. It might be larger than the configured
-         * maximum leaf page size if we're in salvage. For the second and subsequent chunks, we
-         * aren't in salvage so always use the maximum leaf page size; that will produce the fixed
-         * size pages we want.
-         */
-        r->aux_start_offset = btree->maxleafpage + WT_COL_FIX_AUXHEADER_RESERVATION;
-        r->aux_entries = 0;
-        r->aux_first_free = (uint8_t *)r->cur_ptr->image.mem + r->aux_start_offset;
-    }
 
     /*
      * Set the space available to another split-size and minimum split-size chunk. For FLCS,
      * min_space_avail and min_split_size are both left as zero.
      */
     r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-    if (r->page->type == WT_PAGE_COL_FIX) {
-        r->aux_space_avail = r->page_size - btree->maxleafpage - WT_COL_FIX_AUXHEADER_RESERVATION;
-    } else
-        r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+    r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
 done:
     /*
@@ -1601,10 +1413,7 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t 
             return (0);
 
         r->cur_ptr->entries_before_split_boundary = r->entries;
-        r->cur_ptr->recno_at_split_boundary = r->recno;
-        if (S2BT(session)->type == BTREE_ROW)
-            WT_RET(__rec_split_row_promote(
-              session, r, &r->cur_ptr->key_at_split_boundary, r->page->type));
+        WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key_at_split_boundary));
         WT_TIME_AGGREGATE_COPY(&r->cur_ptr->ta_before_split_boundary, &r->cur_ptr->ta);
         /* Reset the "next" time aggregate which may be used in certain split scenarios. */
         WT_TIME_AGGREGATE_INIT_MERGE(&r->cur_ptr->ta_after_split_boundary);
@@ -1652,9 +1461,6 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     combined_size = prev_ptr->image.size + (cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
 
     if (combined_size <= r->page_size) {
-        /* This won't work for FLCS pages, so make sure we don't get here by accident. */
-        WT_ASSERT(session, r->page->type != WT_PAGE_COL_FIX);
-
         /*
          * We have two boundaries, but the data in the buffers can fit a single page. Merge the
          * boundaries and create a single chunk.
@@ -1677,9 +1483,6 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     }
 
     if (prev_ptr->min_offset != 0 && cur_ptr->image.size < r->min_split_size) {
-        /* This won't work for FLCS pages, so make sure we don't get here by accident. */
-        WT_ASSERT(session, r->page->type != WT_PAGE_COL_FIX);
-
         /*
          * The last chunk, pointed to by the current image pointer, has less than the minimum data.
          * Let's move any data more than the minimum from the previous image into the current.
@@ -1717,7 +1520,6 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
         /* Update boundary information */
         cur_ptr->entries += prev_ptr->entries - prev_ptr->entries_before_split_boundary;
-        cur_ptr->recno = prev_ptr->recno_at_split_boundary;
         WT_RET(__wt_buf_set(session, &cur_ptr->key, prev_ptr->key_at_split_boundary.data,
           prev_ptr->key_at_split_boundary.size));
         WT_TIME_AGGREGATE_MERGE(session, &cur_ptr->ta, &prev_ptr->ta_after_split_boundary);
@@ -1755,35 +1557,11 @@ __wti_rec_split_finish(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     /* Set the number of entries and size for the just finished chunk. */
     r->cur_ptr->entries = r->entries;
-    if (r->page->type == WT_PAGE_COL_FIX) {
-        if ((r->cur_ptr->auxentries = r->aux_entries) != 0) {
-            __rec_split_fix_shrink(session, r);
-            /* This must come after the shrink call, which can change the offset. */
-            r->cur_ptr->aux_start_offset = r->aux_start_offset;
-            r->cur_ptr->image.size = WT_PTRDIFF(r->aux_first_free, r->cur_ptr->image.mem);
-        } else {
-            r->cur_ptr->aux_start_offset = r->aux_start_offset;
-            r->cur_ptr->image.size = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-        }
-    } else
-        r->cur_ptr->image.size = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
+    r->cur_ptr->image.size = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
 
-    /*
-     *  Potentially reconsider a previous chunk.
-     *
-     * Skip for FLCS because (a) pages can be combined only if the combined bitmap data size is in
-     * range, not the overall page size (which requires entirely different logic) and (b) this
-     * cannot happen because we only split when we've fully filled the previous page. This is true
-     * even when in-memory splits give us odd page sizes to work with -- some of those might be
-     * mergeable (though more likely not) but we can't see them on this code path. So instead just
-     * write the previous chunk out.
-     */
-    if (r->prev_ptr != NULL) {
-        if (r->page->type != WT_PAGE_COL_FIX)
-            WT_RET(__rec_split_finish_process_prev(session, r));
-        else
-            WT_RET(__rec_split_write(session, r, r->prev_ptr, false));
-    }
+    /* Potentially reconsider a previous chunk. */
+    if (r->prev_ptr != NULL)
+        WT_RET(__rec_split_finish_process_prev(session, r));
 
     /* Write the remaining data/last page. */
     return (__rec_split_write(session, r, r->cur_ptr, true));
@@ -1856,26 +1634,22 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK
      */
     next = chunk == r->cur_ptr ? r->prev_ptr : r->cur_ptr;
     page = r->page;
-    if (page->type == WT_PAGE_ROW_LEAF) {
-        btree = S2BT(session);
-        WT_RET(__wt_scr_alloc(session, 0, &key));
+    btree = S2BT(session);
+    WT_RET(__wt_scr_alloc(session, 0, &key));
 
-        for (i = 0, supd = r->supd; i < r->supd_next; ++i, ++supd) {
-            if (supd->ins == NULL)
-                WT_ERR(__wt_row_leaf_key(session, page, supd->rip, key, false));
-            else {
-                key->data = WT_INSERT_KEY(supd->ins);
-                key->size = WT_INSERT_KEY_SIZE(supd->ins);
-            }
-            WT_ASSERT(session, next != NULL);
-            WT_ERR(__wt_compare(session, btree->collator, key, &next->key, &cmp));
-            if (cmp >= 0)
-                break;
+    for (i = 0, supd = r->supd; i < r->supd_next; ++i, ++supd) {
+        if (supd->ins == NULL)
+            WT_ERR(__wt_row_leaf_key(session, page, supd->rip, key, false));
+        else {
+            key->data = WT_INSERT_KEY(supd->ins);
+            key->size = WT_INSERT_KEY_SIZE(supd->ins);
         }
-    } else
-        for (i = 0, supd = r->supd; i < r->supd_next; ++i, ++supd)
-            if (WT_INSERT_RECNO(supd->ins) >= next->recno)
-                break;
+        WT_ASSERT(session, next != NULL);
+        WT_ERR(__wt_compare(session, btree->collator, key, &next->key, &cmp));
+        if (cmp >= 0)
+            break;
+    }
+
     if (i != 0) {
         WT_ERR(__rec_supd_move(session, multi, r->supd, i));
 
@@ -1933,16 +1707,14 @@ __rec_set_page_write_gen(WT_BTREE *btree, WT_PAGE_HEADER *dsk)
  *     Initialize a disk page's header.
  */
 static void
-__rec_split_write_header(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk,
-  WT_MULTI *multi, WT_PAGE_HEADER *dsk)
+__rec_split_write_header(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, WT_PAGE_HEADER *dsk)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
 
     btree = S2BT(session);
     page = r->page;
-
-    dsk->recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : multi->key.recno;
 
     __rec_set_page_write_gen(btree, dsk);
     dsk->mem_size = WT_STORE_SIZE(chunk->image.size);
@@ -1959,8 +1731,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHU
     }
 
     /* Set the fast-truncate proxy cell information flag. */
-    if ((page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT) &&
-      __wt_process.fast_truncate_2022)
+    if (page->type == WT_PAGE_ROW_INT && __wt_process.fast_truncate_2022)
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     dsk->unused = 0;
@@ -2084,14 +1855,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
 
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        multi->addr.type = WT_ADDR_LEAF_NO;
-        break;
-    case WT_PAGE_COL_VAR:
     case WT_PAGE_ROW_LEAF:
         multi->addr.type = r->ovfl_items ? WT_ADDR_LEAF : WT_ADDR_LEAF_NO;
         break;
-    case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         multi->addr.type = WT_ADDR_INT;
         break;
@@ -2099,23 +1865,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         return (__wt_illegal_value(session, page->type));
     }
     multi->supd_restore = false;
-
-    /* Set the key. */
-    if (btree->type == BTREE_ROW)
-        WT_RET(__wt_row_ikey_alloc(session, 0, chunk->key.data, chunk->key.size, &multi->key.ikey));
-    else
-        multi->key.recno = chunk->recno;
+    WT_RET(__wt_row_ikey_alloc(session, 0, chunk->key.data, chunk->key.size, &multi->key.ikey));
 
     /* Check if there are saved updates that might belong to this block. */
     if (r->supd_next != 0)
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
 
     /* Initialize the page header(s). */
-    __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
-    if (r->page->type == WT_PAGE_COL_FIX)
-        __wti_rec_col_fix_write_auxheader(session, chunk->entries, chunk->aux_start_offset,
-          chunk->auxentries, chunk->image.mem, chunk->image.size);
-
+    __rec_split_write_header(session, r, chunk, chunk->image.mem);
     /*
      * If we are writing the whole page in our first/only attempt, it might be a checkpoint
      * (checkpoints are only a single page, by definition). Checkpoints aren't written here, the
@@ -2210,7 +1967,6 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_BTREE *btree;
     WT_PAGE_INDEX *pindex;
     WTI_RECONCILE *r;
-    uint64_t recno;
 
     btree = S2BT(session);
 
@@ -2233,9 +1989,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     r = cbulk->reconcile;
     r->is_bulk_load = true;
 
-    recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : 1;
-
-    return (__wti_rec_split_init(session, r, cbulk->leaf, recno, btree->maxleafpage_precomp, 0));
+    return (__wti_rec_split_init(session, r, btree->maxleafpage_precomp));
 }
 
 /*
@@ -2341,17 +2095,12 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     __wt_verbose_debug2(session, WT_VERB_SPLIT, "split: %" PRIu32 " pages", r->multi_next);
 
-    if (btree->type == BTREE_ROW) {
-        WT_RET(__wt_scr_alloc(session, 0, &tkey));
-        for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-            __wt_verbose_debug2(session, WT_VERB_SPLIT, "starting key %s",
-              __wt_buf_set_printable_format(session, WT_IKEY_DATA(multi->key.ikey),
-                multi->key.ikey->size, btree->key_format, false, tkey));
-        __wt_scr_free(session, &tkey);
-    } else
-        for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-            __wt_verbose_debug2(
-              session, WT_VERB_SPLIT, "starting recno %" PRIu64, multi->key.recno);
+    WT_RET(__wt_scr_alloc(session, 0, &tkey));
+    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
+        __wt_verbose_debug2(session, WT_VERB_SPLIT, "starting key %s",
+          __wt_buf_set_printable_format(session, WT_IKEY_DATA(multi->key.ikey),
+            multi->key.ikey->size, btree->key_format, false, tkey));
+    __wt_scr_free(session, &tkey);
     return (0);
 }
 
@@ -2763,26 +2512,15 @@ err:
  */
 int
 __wti_rec_hs_clear_on_tombstone(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t recno, WT_ITEM *rowkey, bool reinsert)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *rowkey, bool reinsert)
 {
     WT_BTREE *btree;
-    WT_ITEM hs_recno_key, *key;
-    uint8_t hs_recno_key_buf[WT_INTPACK64_MAXSIZE], *p;
+    WT_ITEM *key;
 
     btree = S2BT(session);
 
-    /* We should be passed a recno or a row-store key, but not both. */
-    WT_ASSERT(session, (recno == WT_RECNO_OOB) != (rowkey == NULL));
-
-    if (rowkey != NULL)
-        key = rowkey;
-    else {
-        p = hs_recno_key_buf;
-        WT_RET(__wt_vpack_uint(&p, 0, recno));
-        hs_recno_key.data = hs_recno_key_buf;
-        hs_recno_key.size = WT_PTRDIFF(p, hs_recno_key_buf);
-        key = &hs_recno_key;
-    }
+    WT_ASSERT(session, rowkey != NULL);
+    key = rowkey;
 
     /* Open a history store cursor if we don't yet have one. */
     if (r->hs_cursor == NULL)
