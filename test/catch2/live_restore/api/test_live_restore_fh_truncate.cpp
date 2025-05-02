@@ -32,7 +32,7 @@ init_file_handle(WT_SESSION *session, WTI_LIVE_RESTORE_FS *lr_fs, const char *fi
 static bool
 validate_bitmap(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t offset)
 {
-    uint64_t ffs;
+    uint64_t ffs = -1;
     // In this function we don't consider the case where there's no set bit in the bitmap.
     REQUIRE(__bit_ffs(lr_fh->bitmap, lr_fh->nbits, &ffs) != -1);
 
