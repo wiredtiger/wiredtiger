@@ -243,7 +243,7 @@ __wti_conn_page_history_config(WT_SESSION_IMPL *session, const char **cfg, bool 
     if (!enabled && previous_enabled) {
 
         /* Stop the reporting thread. */
-        WT_RELEASE_WRITE(page_history->report_shutdown, true);
+        WT_RELEASE_WRITE(page_history->report_shutdown, (bool)true);
         __wt_cond_signal(session, page_history->report_cond);
         WT_RET(__wt_thread_join(session, &page_history->report_tid));
         page_history->report_tid_set = false;
@@ -270,7 +270,7 @@ __wti_conn_page_history_config(WT_SESSION_IMPL *session, const char **cfg, bool 
         }
 
         /* Start the reporting thread. */
-        WT_RELEASE_WRITE(page_history->report_shutdown, false);
+        WT_RELEASE_WRITE(page_history->report_shutdown, (bool)false);
         WT_RET(__wt_thread_create(session, &page_history->report_tid, __conn_page_history_reporter,
           page_history->report_session));
         page_history->report_tid_set = true;
@@ -298,7 +298,7 @@ __wti_conn_page_history_destroy(WT_SESSION_IMPL *session)
     }
 
     if (page_history->report_tid_set) {
-        WT_RELEASE_WRITE(page_history->report_shutdown, true);
+        WT_RELEASE_WRITE(page_history->report_shutdown, (bool)true);
         __wt_cond_signal(session, page_history->report_cond);
         WT_TRET(__wt_thread_join(session, &page_history->report_tid));
         page_history->report_tid_set = false;
