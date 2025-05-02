@@ -187,8 +187,6 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
     WT_DECL_ITEM(key_string);
     WT_DECL_RET;
     WT_INSERT *ins;
-    uint64_t recno;
-    uint8_t *memp;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool stable_update_found;
 
@@ -198,15 +196,8 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL) {
-            if (page->type == WT_PAGE_ROW_LEAF) {
-                key->data = WT_INSERT_KEY(ins);
-                key->size = WT_INSERT_KEY_SIZE(ins);
-            } else {
-                recno = WT_INSERT_RECNO(ins);
-                memp = key->mem;
-                WT_ERR(__wt_vpack_uint(&memp, 0, recno));
-                key->size = WT_PTRDIFF(memp, key->data);
-            }
+            key->data = WT_INSERT_KEY(ins);
+            key->size = WT_INSERT_KEY_SIZE(ins);
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT
               "attempting to abort update on the insert list with durable_timestamp=%s, key=%s",
@@ -223,36 +214,6 @@ __rts_btree_abort_insert_list(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT
 err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &key_string);
-    return (ret);
-}
-
-/*
- * __rts_btree_col_modify --
- *     Add the provided update to the head of the update list.
- */
-static WT_INLINE int
-__rts_btree_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE **updp, uint64_t recno)
-{
-    WT_CURSOR_BTREE cbt;
-    WT_DECL_RET;
-    bool dryrun;
-
-    dryrun = S2C(session)->rts->dryrun;
-
-    __wt_btcur_init(session, &cbt);
-    __wt_btcur_open(&cbt);
-
-    /* Search the page. */
-    WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
-
-    /* Apply the modification. */
-    if (!dryrun)
-        WT_ERR(__wt_col_modify(&cbt, recno, NULL, updp, WT_UPDATE_INVALID, true, false));
-
-err:
-    /* Free any resources that may have been cached in the cursor. */
-    WT_TRET(__wt_btcur_close(&cbt, true));
-
     return (ret);
 }
 
@@ -292,7 +253,7 @@ err:
  *     satisfies the given timestamp.
  */
 static int
-__rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno,
+__rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
   WT_ITEM *row_key, WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp)
 {
     WT_CURSOR *hs_cursor;
@@ -309,7 +270,7 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     size_t max_memsize;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id;
-    uint8_t *memp, type;
+    uint8_t type;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
     char tw_string[WT_TIME_STRING_SIZE];
     bool dryrun, first_record, valid_update_found;
@@ -329,20 +290,12 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    if (rip != NULL) {
-        if (row_key != NULL)
-            key = row_key;
-        else {
-            /* Unpack a row key. */
-            WT_ERR(__wt_scr_alloc(session, 0, &key));
-            WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-        }
-    } else {
-        /* Manufacture a column key. */
-        WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-        memp = key->mem;
-        WT_ERR(__wt_vpack_uint(&memp, 0, recno));
-        key->size = WT_PTRDIFF(memp, key->data);
+    if (row_key != NULL)
+        key = row_key;
+    else {
+        /* Unpack a row key. */
+        WT_ERR(__wt_scr_alloc(session, 0, &key));
+        WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
     }
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
@@ -610,8 +563,6 @@ __rts_btree_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
 
     if (rip != NULL)
         WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
-    else
-        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
@@ -651,8 +602,8 @@ err:
  *     Fix the on-disk K/V version according to the given timestamp.
  */
 static int
-__rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno,
-  WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp,
+__rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
+    WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp,
   bool *is_ondisk_stable)
 {
     WT_DECL_ITEM(key);
@@ -662,7 +613,6 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     WT_PAGE *page;
     WT_TIME_WINDOW *tw;
     WT_UPDATE *upd;
-    uint8_t *memp;
     char time_string[WT_TIME_STRING_SIZE];
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool prepared;
@@ -712,7 +662,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
           !WT_TIME_WINDOW_HAS_STOP(tw) && prepared ? "true" : "false");
         if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
             return (__rts_btree_ondisk_fixup_key(
-              session, ref, rip, recno, row_key, vpack, rollback_timestamp));
+              session, ref, rip, row_key, vpack, rollback_timestamp));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
@@ -736,7 +686,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             WT_ASSERT(session, prepared == true);
             if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
                 return (__rts_btree_ondisk_fixup_key(
-                  session, ref, rip, recno, row_key, vpack, rollback_timestamp));
+                  session, ref, rip, row_key, vpack, rollback_timestamp));
             else {
                 /*
                  * In-memory database don't have a history store to provide a stable update, so
@@ -790,20 +740,12 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
         return (0);
     }
 
-    if (rip != NULL) {
-        if (row_key != NULL)
-            key = row_key;
-        else {
-            /* Unpack a row key. */
-            WT_ERR(__wt_scr_alloc(session, 0, &key));
-            WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-        }
-    } else {
-        /* Manufacture a column key. */
-        WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-        memp = key->mem;
-        WT_ERR(__wt_vpack_uint(&memp, 0, recno));
-        key->size = WT_PTRDIFF(memp, key->data);
+    if (row_key != NULL)
+        key = row_key;
+    else {
+        /* Unpack a row key. */
+        WT_ERR(__wt_scr_alloc(session, 0, &key));
+        WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
     }
 
     WT_ERR(__wt_scr_alloc(session, 0, &key_string));
@@ -812,10 +754,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
       upd->type == WT_UPDATE_TOMBSTONE ? "true" : "false",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, key_string));
 
-    if (rip != NULL)
-        WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
-    else
-        WT_ERR(__rts_btree_col_modify(session, ref, &upd, recno));
+    WT_ERR(__rts_btree_row_modify(session, ref, &upd, key));
 
     if (S2C(session)->rts->dryrun) {
 err:
@@ -825,229 +764,6 @@ err:
         __wt_scr_free(session, &key);
     __wt_scr_free(session, &key_string);
     return (ret);
-}
-
-/*
- * __rts_btree_abort_col_var --
- *     Abort updates on a variable length col leaf page with timestamps newer than the rollback
- *     timestamp.
- */
-static int
-__rts_btree_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
-{
-    WT_CELL *kcell;
-    WT_CELL_UNPACK_KV unpack;
-    WT_COL *cip;
-    WT_INSERT *ins;
-    WT_INSERT_HEAD *inshead;
-    WT_PAGE *page;
-    uint64_t ins_recno, recno, rle;
-    uint32_t i, j, stable_updates_count;
-    bool is_ondisk_stable;
-
-    page = ref->page;
-    /*
-     * If a disk image exists, start from the provided recno; or else start from 0.
-     */
-    if (page->dsk != NULL)
-        recno = page->dsk->recno;
-    else
-        recno = 0;
-
-    /* Review the changes to the original on-page data items. */
-    WT_COL_FOREACH (page, cip, i) {
-        stable_updates_count = 0;
-
-        if ((inshead = WT_COL_UPDATE(page, cip)) != NULL)
-            WT_RET(__rts_btree_abort_insert_list(
-              session, page, inshead, rollback_timestamp, &stable_updates_count));
-
-        if (page->dsk != NULL) {
-            /* Unpack the cell. We need its RLE count whether or not we're going to iterate it. */
-            kcell = WT_COL_PTR(page, cip);
-            __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
-            rle = __wt_cell_rle(&unpack);
-
-            /*
-             * Each key whose on-disk value is not stable and has no stable update on the update
-             * list must be processed downstream.
-             *
-             * If we can determine that the cell's on-disk value is stable, we can skip iterating
-             * over the cell; likewise, if we can determine that every key in the cell has a stable
-             * update on the update list, we can skip the iteration. Otherwise we have to try each
-             * key.
-             *
-             * If the on-disk cell is deleted, it is stable, because cells only appear as deleted
-             * when there is no older value that might need to be restored.
-             *
-             * Note that in a purely timestamped world, the presence of any stable update for any
-             * key in the cell means the on-disk value must be stable, because the update must be
-             * newer than the on-disk value. However, this is no longer true if the stable update
-             * has no timestamp. It may also not be true if the on-disk value is prepared, or other
-             * corner cases. Therefore, we must iterate the cell unless _every_ key has a stable
-             * update.
-             *
-             * We can, however, stop iterating as soon as the downstream code reports back that the
-             * on-disk value is actually stable.
-             */
-            if (unpack.type == WT_CELL_DEL)
-                WT_STAT_CONN_DSRC_INCR(session, txn_rts_delete_rle_skipped);
-            else if (stable_updates_count == rle)
-                WT_STAT_CONN_DSRC_INCR(session, txn_rts_stable_rle_skipped);
-            else {
-                j = 0;
-                if (inshead != NULL) {
-                    WT_SKIP_FOREACH (ins, inshead) {
-                        /* If the update list goes past the end of the cell, something's wrong. */
-                        WT_ASSERT(session, j < rle);
-                        ins_recno = WT_INSERT_RECNO(ins);
-                        /* Process all the keys before this update. */
-                        while (recno + j < ins_recno) {
-                            WT_RET(__rts_btree_abort_ondisk_kv(session, ref, NULL, recno + j, NULL,
-                              &unpack, rollback_timestamp, &is_ondisk_stable));
-                            /* We can stop right away if the on-disk version is stable. */
-                            if (is_ondisk_stable) {
-                                if (rle > 1)
-                                    WT_STAT_CONN_DSRC_INCR(session, txn_rts_stable_rle_skipped);
-                                goto stop;
-                            }
-                            j++;
-                        }
-                        /* If this key has a stable update, skip over it. */
-                        if (recno + j == ins_recno &&
-                          __wti_rts_visibility_has_stable_update(ins->upd))
-                            j++;
-                    }
-                }
-                /* Process the rest of the keys. */
-                while (j < rle) {
-                    WT_RET(__rts_btree_abort_ondisk_kv(session, ref, NULL, recno + j, NULL, &unpack,
-                      rollback_timestamp, &is_ondisk_stable));
-                    /* We can stop right away if the on-disk version is stable. */
-                    if (is_ondisk_stable) {
-                        if (rle > 1)
-                            WT_STAT_CONN_DSRC_INCR(session, txn_rts_stable_rle_skipped);
-                        goto stop;
-                    }
-                    j++;
-                }
-            }
-stop:
-            recno += rle;
-        }
-    }
-
-    /* Review the append list */
-    if ((inshead = WT_COL_APPEND(page)) != NULL)
-        WT_RET(__rts_btree_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
-
-    return (0);
-}
-
-/*
- * __rts_btree_abort_col_fix_one --
- *     Handle one possibly unstable on-disk time window.
- */
-static int
-__rts_btree_abort_col_fix_one(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t tw,
-  uint32_t recno_offset, wt_timestamp_t rollback_timestamp)
-{
-    WT_BTREE *btree;
-    WT_CELL *cell;
-    WT_CELL_UNPACK_KV unpack;
-    WT_PAGE *page;
-    uint8_t value;
-
-    btree = S2BT(session);
-    page = ref->page;
-
-    /* Unpack the cell to get the time window. */
-    cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
-    __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-
-    /* Fake up the value (which is not physically in the cell) in case it's wanted. */
-    value = __bit_getv(page->pg_fix_bitf, recno_offset, btree->bitcnt);
-    unpack.data = &value;
-    unpack.size = 1;
-
-    return (__rts_btree_abort_ondisk_kv(session, ref, NULL, page->dsk->recno + recno_offset, NULL,
-      &unpack, rollback_timestamp, NULL));
-}
-
-/*
- * __rts_btree_abort_col_fix --
- *     Abort updates on a fixed length col leaf page with timestamps newer than the rollback
- *     timestamp.
- */
-static int
-__rts_btree_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
-{
-    WT_INSERT *ins;
-    WT_INSERT_HEAD *inshead;
-    WT_PAGE *page;
-    uint32_t ins_recno_offset, numtws, recno_offset, tw;
-    char ts_string[WT_TS_INT_STRING_SIZE];
-
-    page = ref->page;
-    WT_ASSERT(session, page != NULL);
-
-    /*
-     * Review the changes to the original on-page data items. Note that while this can report back
-     * to us whether it saw a stable update, that information doesn't do us any good -- unlike in
-     * VLCS where the uniformity of cells lets us reason about the timestamps of all of them based
-     * on the timestamp of an update to any of them, in FLCS everything is just thrown together, so
-     * we'll need to iterate over all the keys anyway.
-     */
-    if ((inshead = WT_COL_UPDATE_SINGLE(page)) != NULL)
-        WT_RET(__rts_btree_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
-
-    /*
-     * Iterate over all the keys, stopping only on keys that (a) have a time window on disk, and
-     * also (b) do not have a stable update remaining in the update list. Keys with no on-disk time
-     * window are stable. And we must not try to adjust the on-disk value for keys with stable
-     * updates, because the downstream code assumes that has already been checked and in some cases
-     * (e.g. in-memory databases) the wrong thing will happen.
-     *
-     * Iterate over the update list and carry along the iteration over the time window list in
-     * parallel, even though the code would perhaps make more sense the other way around, because
-     * this allows using the skiplist iterator macro instead of an open-coded mess.
-     */
-    numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
-    WT_ASSERT(session, numtws == 0 || page->dsk != NULL);
-    tw = 0;
-    if (inshead != NULL) {
-        WT_SKIP_FOREACH (ins, inshead) {
-            /* Process all the keys before this update entry. */
-            ins_recno_offset = (uint32_t)(WT_INSERT_RECNO(ins) - ref->ref_recno);
-            while (tw < numtws &&
-              (recno_offset = page->pg_fix_tws[tw].recno_offset) < ins_recno_offset) {
-
-                __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-                  WT_RTS_VERB_TAG_ONDISK_KV_FIX
-                  "adjust on-disk key values according to the rollback_timestamp=%s",
-                  __wt_timestamp_to_string(rollback_timestamp, ts_string));
-                WT_RET(__rts_btree_abort_col_fix_one(
-                  session, ref, tw, recno_offset, rollback_timestamp));
-                tw++;
-            }
-            /* If this key has a stable update, skip over it. */
-            if (tw < numtws && page->pg_fix_tws[tw].recno_offset == ins_recno_offset &&
-              ins->upd != NULL && __wti_rts_visibility_has_stable_update(ins->upd))
-                tw++;
-        }
-    }
-    /* Process the rest of the keys with time windows. */
-    while (tw < numtws) {
-        recno_offset = page->pg_fix_tws[tw].recno_offset;
-        WT_RET(__rts_btree_abort_col_fix_one(session, ref, tw, recno_offset, rollback_timestamp));
-        tw++;
-    }
-
-    /* Review the append list. */
-    if ((inshead = WT_COL_APPEND(page)) != NULL)
-        WT_RET(__rts_btree_abort_insert_list(session, page, inshead, rollback_timestamp, NULL));
-
-    return (0);
 }
 
 /*
@@ -1122,7 +838,7 @@ __rts_btree_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t
                            session, key->data, key->size, S2BT(session)->key_format, key_string) :
                          NULL);
             WT_ERR(__rts_btree_abort_ondisk_kv(
-              session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
+              session, ref, rip, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }
     }
 
@@ -1165,16 +881,9 @@ __wti_rts_btree_abort_updates(
       __wt_page_type_str(page->type), (void *)ref, modified ? "true" : "false");
 
     switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        WT_RET(__rts_btree_abort_col_fix(session, ref, rollback_timestamp));
-        break;
-    case WT_PAGE_COL_VAR:
-        WT_RET(__rts_btree_abort_col_var(session, ref, rollback_timestamp));
-        break;
     case WT_PAGE_ROW_LEAF:
         WT_RET(__rts_btree_abort_row_leaf(session, ref, rollback_timestamp));
         break;
-    case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         /* This function is not called for internal pages. */
         WT_ASSERT(session, false);
