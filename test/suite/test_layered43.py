@@ -81,15 +81,11 @@ class test_layered43(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
             cursor[str(i)] = value_prefix1 + str(i)
-            if i % 250 == 0:
-                time.sleep(1)
         cursor.close()
         self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(timestamp1)}')
 
-        time.sleep(1)
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp1)}')
         self.session.checkpoint()
-        time.sleep(1)
 
         # Create several updates with small changes
         value_prefix2 = 'bbb'
@@ -101,7 +97,6 @@ class test_layered43(wttest.WiredTigerTestCase, DisaggConfigMixin):
             cursor.close()
             timestamp_n = timestamp1 + n
             self.session.commit_transaction(f'commit_timestamp={self.timestamp_str(timestamp_n)}')
-            time.sleep(1)
             self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp_n)}')
             self.session.checkpoint()
 
@@ -115,7 +110,6 @@ class test_layered43(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction()
         cursor = self.session.open_cursor(self.uri, None, None)
         self.assertEqual(cursor[str(self.key_to_update)], last_value)
-        cursor.reset()
         cursor.close()
         self.session.rollback_transaction()
 
@@ -137,7 +131,6 @@ class test_layered43(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.begin_transaction()
         cursor = self.session.open_cursor(self.uri, None, None)
         self.assertEqual(cursor[str(self.key_to_update)], last_value)
-        cursor.reset()
         cursor.close()
         self.session.rollback_transaction()
 
