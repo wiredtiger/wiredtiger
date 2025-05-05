@@ -196,7 +196,8 @@ __rec_append_orig_value(
             WT_ASSERT(session,
               (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
                 (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE ||
-                  (oldest_upd->txnid == WT_TXN_NONE && F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) &&
+                  (oldest_upd->txnid == WT_TXN_NONE &&
+                    F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) &&
                     F_ISSET(oldest_upd, WT_UPDATE_RESTORED_FROM_DS))));
 
             if (tombstone_globally_visible)

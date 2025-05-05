@@ -641,6 +641,7 @@ struct __wt_connection_stats {
     int64_t eviction_app_attempt;
     int64_t eviction_app_fail;
     int64_t cache_eviction_blocked_materialization;
+    int64_t cache_eviction_blocked_disagg_next_checkpoint;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
     int64_t eviction_consider_prefetch;
@@ -1368,6 +1369,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_blocked_materialization;
+    int64_t cache_eviction_blocked_disagg_next_checkpoint;
     int64_t cache_eviction_deepen;
     int64_t cache_write_hs;
     int64_t cache_eviction_dirty_obsolete_tw;
