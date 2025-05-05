@@ -16,9 +16,6 @@ static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
 /*
- *
- */
-/*
  * __layered_get_disagg_checkpoint --
  *     Get existing checkpoint information from disaggregated storage.
  */
@@ -39,6 +36,12 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &page_log_name));
     WT_ERR(conn->iface.get_page_log(&conn->iface, page_log_name, &page_log));
+
+    /*
+     * Getting the last opened checkpoint and the complete checkpoint from disaggregated storage
+     * are only supported in test implementations of the page log interface. This function will
+     * never be called in production.
+     */
     if (page_log->pl_get_complete_checkpoint_ext == NULL ||
       page_log->pl_get_open_checkpoint == NULL)
         WT_ERR(ENOTSUP);
