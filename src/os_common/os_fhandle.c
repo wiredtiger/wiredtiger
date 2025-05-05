@@ -277,7 +277,7 @@ __wt_open_fs(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE fi
      *
      * The only file created in read-only mode is the lock file.
      */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY)) {
+    if (F_ISSET_ATOMIC_64(conn, WT_CONN_READONLY)) {
         lock_file = strcmp(name, WT_SINGLETHREAD) == 0;
         if (!lock_file)
             LF_SET(WT_FS_OPEN_READONLY);

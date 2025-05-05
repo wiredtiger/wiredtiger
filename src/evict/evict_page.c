@@ -267,7 +267,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
-    else if ((clean_page && !F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) &&
+    else if ((clean_page && !F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY) &&
                !F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY)) ||
       tree_dead)
         /*
@@ -684,7 +684,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Do not perform any obsolete time window cleanup during the startup or shutdown phase. */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
+    if (F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT))
         return (0);
 
     /* If the file is being checkpointed, other threads can't evict dirty pages. */
@@ -818,7 +818,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * Clean pages can't be evicted when running in memory only. This should be uncommon - we don't
      * add clean pages to the queue.
      */
-    if ((F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) &&
+    if ((F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY)) &&
       !modified && !closing)
         return (__wt_set_return(session, EBUSY));
 
@@ -863,7 +863,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * moving would result in the same page being written out as last time.
      */
     WT_ACQUIRE_READ(checkpoint_timestamp, conn->txn_global.checkpoint_timestamp);
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
+    if (F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT) && checkpoint_timestamp != WT_TS_NONE &&
       page->modify->rec_pinned_stable_timestamp >= checkpoint_timestamp) {
         WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_precise);
         return (__wt_set_return(session, EBUSY));
@@ -925,7 +925,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
     /* Always do update restore for in-memory database. */
-    else if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
+    else if (F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     /* For data store leaf pages, write the history to history store except for metadata. */
     else if (!WT_IS_METADATA(btree->dhandle)) {
@@ -970,7 +970,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
       !WT_IS_METADATA(session->dhandle) &&
       __wt_atomic_loadv64(&WT_SESSION_TXN_SHARED(session)->id) != WT_TXN_NONE &&
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) &&
-      !F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT);
+      !F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT);
     is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
@@ -991,7 +991,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
          * outside world.
          */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT))
+        if (F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT))
             LF_SET(WT_REC_VISIBLE_ALL_TXNID);
         else
             __wt_txn_bump_snapshot(session);

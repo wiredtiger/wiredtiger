@@ -32,9 +32,9 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
      * future.
      */
     if (cval.val)
-        F_SET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT);
+        F_SET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT);
     else
-        F_CLR_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT);
+        F_CLR_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT);
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint.wait", &cval));
     conn->ckpt.server.usecs = (uint64_t)cval.val * WT_MILLION;

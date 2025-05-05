@@ -383,12 +383,10 @@ __wt_background_compact_end(WT_SESSION_IMPL *session)
      * compaction to do work (rewriting bytes) while other operations cause the file to increase in
      * size.
      */
-    if (bytes_recovered <= 0) {
-        compact_stat->consecutive_unsuccessful_attempts++;
+    if (bytes_recovered <= 0)
         compact_stat->prev_compact_success = false;
-    } else {
+    else {
         WT_STAT_CONN_INCRV(session, background_compact_bytes_recovered, bytes_recovered);
-        compact_stat->consecutive_unsuccessful_attempts = 0;
         conn->background_compact.files_compacted++;
         compact_stat->prev_compact_success = true;
 
@@ -715,7 +713,7 @@ __wti_background_compact_server_create(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+    if (F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
     /* Set first, the thread might run before we finish up. */
@@ -798,7 +796,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
     stripped_config = NULL;
 
     /* The background compaction server is not compatible with in-memory or readonly databases. */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+    if (F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
         __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
           "Background compact cannot be configured for in-memory or readonly databases.");
         return (ENOTSUP);

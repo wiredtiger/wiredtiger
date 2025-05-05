@@ -290,7 +290,7 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
 static bool
 __evict_thread_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_EVICTION_RUN));
+    return (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_EVICTION_RUN));
 }
 
 /*
@@ -340,7 +340,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          */
         if (was_intr)
             while (__wt_atomic_loadv32(&evict->pass_intr) != 0 &&
-              F_ISSET_ATOMIC_32(conn, WT_CONN_EVICTION_RUN) && F_ISSET(thread, WT_THREAD_RUN))
+              F_ISSET_ATOMIC_64(conn, WT_CONN_EVICTION_RUN) && F_ISSET(thread, WT_THREAD_RUN))
                 __wt_yield();
         else {
             __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "sleeping");
@@ -414,7 +414,7 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * set.
      */
     WT_ASSERT(
-      session, F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING | WT_CONN_PANIC | WT_CONN_RECOVERING));
+      session, F_ISSET_ATOMIC_64(conn, WT_CONN_CLOSING | WT_CONN_PANIC | WT_CONN_RECOVERING));
 
     /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_EVICTION);
@@ -459,7 +459,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     /* Evict pages from the cache as needed. */
     WT_RET(__evict_pass(session));
 
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_EVICTION_RUN) ||
+    if (!F_ISSET_ATOMIC_64(conn, WT_CONN_EVICTION_RUN) ||
       __wt_atomic_loadv32(&evict->pass_intr) != 0)
         return (0);
 
@@ -519,7 +519,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
      * the cache being full. If the cache becomes full of clean pages, we can be servicing reads
      * while the cache appears stuck to eviction.
      */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY))
+    if (F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY))
         return (0);
 
     __wt_epoch(session, &now);
@@ -587,7 +587,7 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, conn->evict_threads_min > 0);
     /* Set first, the thread might run before we finish up. */
-    F_SET_ATOMIC_32(conn, WT_CONN_EVICTION_RUN);
+    F_SET_ATOMIC_64(conn, WT_CONN_EVICTION_RUN);
 
     /*
      * Create the eviction thread group. Set the group size to the maximum allowed sessions.
@@ -640,7 +640,7 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
     /*
      * Signal the threads to finish and stop populating the queue.
      */
-    F_CLR_ATOMIC_32(conn, WT_CONN_EVICTION_RUN);
+    F_CLR_ATOMIC_64(conn, WT_CONN_EVICTION_RUN);
     __wt_atomic_storebool(&conn->evict_server_running, false);
     __wt_evict_server_wake(session);
 
@@ -684,7 +684,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /* Build up the new state. */
     flags = 0;
 
-    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_EVICTION_RUN)) {
+    if (!F_ISSET_ATOMIC_64(conn, WT_CONN_EVICTION_RUN)) {
         __wt_atomic_store32(&evict->flags, 0);
         return (false);
     }
@@ -697,7 +697,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
      * values could lead to surprising bugs in the future.
      */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN)) {
+    if (F_ISSET_ATOMIC_64(conn, WT_CONN_HS_OPEN)) {
         total_dirty = total_inmem = 0;
         hs_id = 0;
         for (;;) {
@@ -772,7 +772,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     /*
      * With an in-memory cache, we only do dirty eviction in order to scrub pages.
      */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY)) {
+    if (F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY)) {
         if (LF_ISSET(WT_EVICT_CACHE_CLEAN))
             LF_SET(WT_EVICT_CACHE_DIRTY);
         if (LF_ISSET(WT_EVICT_CACHE_CLEAN_HARD))
@@ -1348,7 +1348,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
      * Reconcile and discard some pages: EBUSY is returned if a page fails eviction because it's
      * unavailable, continue in that case.
      */
-    while (F_ISSET_ATOMIC_32(conn, WT_CONN_EVICTION_RUN) && ret == 0)
+    while (F_ISSET_ATOMIC_64(conn, WT_CONN_EVICTION_RUN) && ret == 0)
         if ((ret = __evict_page(session, is_server)) == EBUSY)
             ret = 0;
 
@@ -1356,7 +1356,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     WT_TRET(__wt_session_release_resources(session));
 
     /* If a worker thread found the queue empty, pause. */
-    if (ret == WT_NOTFOUND && !is_server && F_ISSET_ATOMIC_32(conn, WT_CONN_EVICTION_RUN))
+    if (ret == WT_NOTFOUND && !is_server && F_ISSET_ATOMIC_64(conn, WT_CONN_EVICTION_RUN))
         __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
 
     WT_TRACK_OP_END(session);
@@ -1673,8 +1673,8 @@ retry:
     loop_count = 0;
     while (slot < max_entries && loop_count++ < conn->dhandle_count) {
         /* We're done if shutting down or reconfiguring. */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING) ||
-          F_ISSET_ATOMIC_32(conn, WT_CONN_RECONFIGURING))
+        if (F_ISSET_ATOMIC_64(conn, WT_CONN_CLOSING) ||
+          F_ISSET_ATOMIC_64(conn, WT_CONN_RECONFIGURING))
             break;
 
         /*
@@ -1801,7 +1801,7 @@ retry:
              * If eviction is not in aggressive mode, sleep a bit to give the checkpoint thread a
              * chance to gather its handles.
              */
-            if (F_ISSET_ATOMIC_32(conn, WT_CONN_CKPT_GATHER) && !__wt_evict_aggressive(session)) {
+            if (F_ISSET_ATOMIC_64(conn, WT_CONN_CKPT_GATHER) && !__wt_evict_aggressive(session)) {
                 __wt_sleep(0, 10);
                 WT_STAT_CONN_INCR(session, eviction_walk_sleeps);
             }
@@ -2846,7 +2846,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
  */
 int
 __wti_evict_app_assist_worker(
-  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible, double pct_full)
+  WT_SESSION_IMPL *session, bool busy, bool readonly, bool interruptible)
 {
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
@@ -2866,17 +2866,10 @@ __wti_evict_app_assist_worker(
      * Before we enter the eviction generation, make sure this session has a cached history store
      * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
      * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
-     * inside eviction waiting on a handle list read lock to open a history store cursor.
+     * inside eviction waiting on a handle list read lock to open a history store cursor. The
+     * eviction server should be started at this point so it is safe to open the history store.
      */
     WT_ERR(__wt_curhs_cache(session));
-
-    /*
-     * It is not safe to proceed if the eviction server threads aren't setup yet. Also, if the
-     * caller is holding shared resources, only evict if the cache is at any of its eviction
-     * targets.
-     */
-    if (!__wt_atomic_loadbool(&conn->evict_server_running) || (busy && pct_full < 100.0))
-        goto done;
 
     /* Wake the eviction server if we need to do work. */
     __wt_evict_server_wake(session);
@@ -2895,7 +2888,7 @@ __wti_evict_app_assist_worker(
          * If eviction is stuck, check if this thread is likely causing problems and should be
          * rolled back. Ignore if in recovery, those transactions can't be rolled back.
          */
-        if (!F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
+        if (!F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
                 __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
@@ -2939,6 +2932,7 @@ __wti_evict_app_assist_worker(
         uint64_t max_progress = busy ? 5 : 20;
 
         /* See if eviction is still needed. */
+        double pct_full;
         if (!__wt_evict_needed(session, busy, readonly, &pct_full) ||
           (pct_full < 100.0 &&
             (__wt_atomic_loadv64(&evict->eviction_progress) > initial_progress + max_progress)))
@@ -2995,7 +2989,6 @@ err:
         }
     }
 
-done:
     WT_TRACK_OP_END(session);
 
     return (ret);

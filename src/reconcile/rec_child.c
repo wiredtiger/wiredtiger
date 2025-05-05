@@ -66,7 +66,7 @@ __rec_child_deleted(
                     visible = false;
             }
 
-            if (visible && F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+            if (visible && F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT) &&
               page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
                 visible = false;
 
@@ -74,7 +74,7 @@ __rec_child_deleted(
         } else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
 
-            if (visible && F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+            if (visible && F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT) &&
               page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
                 visible = false;
 

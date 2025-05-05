@@ -278,7 +278,7 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
      * can't sync it.
      */
     if (!need_sync || session->meta_cursor == NULL ||
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
+      F_ISSET_ATOMIC_64(S2C(session), WT_CONN_IN_MEMORY))
         goto err;
 
     /* If we're logging, make sure the metadata update was flushed. */
