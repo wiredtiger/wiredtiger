@@ -1640,7 +1640,7 @@ config_disagg_storage(void)
 
     g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
     if (g.disagg_storage_config) {
-        /* Dsiaggregated storage requires timestamps. */
+        /* Disaggregated storage requires timestamps. */
         config_off(NULL, "transaction.implicit");
         config_single(NULL, "transaction.timestamps=on", true);
 
