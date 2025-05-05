@@ -756,6 +756,12 @@ main(int argc, char *argv[])
          * Whereas a seed of 0x9b1bde3f111fe316 will succeed even if the WT-10551 fix is commented
          * out because that seed doesn't generate the right set of steps to hit the issue.
          */
+
+        /*
+         * TODO: WT-14558 - incr_backup test artefacts are generated and retained in a nested manner
+         * (WT_TEST.incr_backup/WT_TEST.incr_backup...) when preserve is true. These artefacts
+         * should instead be alongside the WT_TEST directory.
+         */
         rnd.v = 0x9b1bde3f111fe316;
         run_test(working_dir, &rnd, preserve);
 
