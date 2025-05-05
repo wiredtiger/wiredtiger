@@ -29,14 +29,13 @@
 import os, glob, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from helper import copy_wiredtiger_home
-from suite_subprocess import suite_subprocess
+from wtbackup import backup_base
 
 
 # test_live_restore05.py
 # Reproduce a live restore edge case that resulted in duplicate metadata entries.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
-class test_live_restore05(wttest.WiredTigerTestCase, suite_subprocess):
+class test_live_restore05(backup_base):
     format_values = [
         ('row_integer', dict(key_format='i', value_format='S')),
         ('column_store', dict(key_format='r', value_format='S'))
@@ -62,10 +61,12 @@ class test_live_restore05(wttest.WiredTigerTestCase, suite_subprocess):
                                value_format=self.value_format)
             ds.populate()
 
-        # Close the default connection.
-        self.close_conn()
+        self.session.checkpoint()
 
-        copy_wiredtiger_home(self, '.', "SOURCE")
+        # Close the default connection.
+        os.mkdir("SOURCE")
+        self.take_full_backup("SOURCE")
+        self.close_conn()
 
         # Remove everything but SOURCE / stderr / stdout / util output folder.
         for f in glob.glob("*"):
@@ -89,4 +90,3 @@ class test_live_restore05(wttest.WiredTigerTestCase, suite_subprocess):
                 if index != -1:
                     new_line = line[index+len("live_restore="):]
                     assert(new_line.find("live_restore=") == -1)
-

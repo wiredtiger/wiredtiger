@@ -28,14 +28,14 @@
 
 import os
 import wiredtiger, wttest
-from helper import copy_wiredtiger_home
 import glob
 import shutil
+from wtbackup import backup_base
 
 # test_live_restore01.py
 # Test live restore compatibility with various other connection options.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
-class test_live_restore01(wttest.WiredTigerTestCase):
+class test_live_restore01(backup_base):
 
     def expect_success(self, config_str):
         self.open_conn("DEST", config=config_str)
@@ -48,13 +48,17 @@ class test_live_restore01(wttest.WiredTigerTestCase):
     def expect_failure(self, config_str, expected_error):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.open_conn("DEST", config=config_str), expected_error)
-        # No need to clean up the destination as WiredTiger failed to open.
+        # Clean out the destination. Subsequent live_restore opens will expect it to contain nothing.
+        shutil.rmtree("DEST")
+        os.mkdir("DEST")
 
     def test_live_restore01(self):
         # Close the default connection.
+
+        os.mkdir("SOURCE")
+        self.take_full_backup("SOURCE")
         self.close_conn()
 
-        copy_wiredtiger_home(self, '.', "SOURCE")
         # Remove everything but SOURCE / stderr / stdout.
         for f in glob.glob("*"):
             if not f == "SOURCE" and not f == "stderr.txt" and not f == "stdout.txt":
@@ -93,3 +97,15 @@ class test_live_restore01(wttest.WiredTigerTestCase):
 
         # Start in read only mode
         self.expect_failure("readonly=true,live_restore=(enabled=true,path=SOURCE)", "/live restore is incompatible with readonly mode/")
+
+        # Specify salvage is enabled.
+        self.expect_failure("salvage=true,live_restore=(enabled=true,path=SOURCE)", "/Live restore is not compatible with salvage/")
+
+        # Specify statistics are disabled.
+        self.expect_failure("statistics=(none),live_restore=(enabled=true,path=SOURCE)", "/Statistics must be enabled when live restore is active./")
+
+        # Expect a failure if statistics are disabled via a reconfigure call.
+        self.open_conn("DEST", config="live_restore=(enabled=true,path=SOURCE)")
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("statistics=(none)"), "/Statistics must be enabled when live restore is active./")
+        self.close_conn()

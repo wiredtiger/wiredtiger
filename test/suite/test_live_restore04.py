@@ -29,14 +29,13 @@
 import filecmp, os, glob, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from helper import copy_wiredtiger_home
-from suite_subprocess import suite_subprocess
+from wtbackup import backup_base
 
 
 # test_live_restore04.py
 # Test using the wt utility with live restore.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
-class test_live_restore04(wttest.WiredTigerTestCase, suite_subprocess):
+class test_live_restore04(backup_base):
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('row_integer', dict(key_format='i', value_format='S')),
@@ -69,15 +68,17 @@ class test_live_restore04(wttest.WiredTigerTestCase, suite_subprocess):
                                value_format=self.value_format)
             ds.populate()
 
+        self.session.checkpoint()
+
         # Dump file data for later comparison.
         for i in range(self.ntables):
             dump_out = os.path.join(util_out_path, f'{uris[i]}.out')
             self.runWt(['dump', '-x', uris[i]], outfilename=dump_out)
 
         # Close the default connection.
+        os.mkdir("SOURCE")
+        self.take_full_backup("SOURCE")
         self.close_conn()
-
-        copy_wiredtiger_home(self, '.', "SOURCE")
 
         # Remove everything but SOURCE / stderr / stdout / util output folder.
         for f in glob.glob("*"):

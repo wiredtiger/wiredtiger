@@ -1036,9 +1036,9 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     if (cval.val != 0) {
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_seed", 0, &cval));
         if (cval.val != 0)
-            __wt_random_init_custom_seed(&cbt->rnd, (uint64_t)cval.val);
+            __wt_random_init_seed(&cbt->rnd, (uint64_t)cval.val);
         else
-            __wt_random_init_seed(session, &cbt->rnd);
+            __wt_random_init(session, &cbt->rnd);
 
         if (WT_CURSOR_RECNO(cursor))
             WT_ERR_MSG(
@@ -1123,7 +1123,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     /*
      * Decode the bulk configuration settings. In memory databases ignore bulk load.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
         if (cval.type == WT_CONFIG_ITEM_BOOL ||
           (cval.type == WT_CONFIG_ITEM_NUM && (cval.val == 0 || cval.val == 1))) {

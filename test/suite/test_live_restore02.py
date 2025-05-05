@@ -30,12 +30,12 @@ import os, glob, time, wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from helper import copy_wiredtiger_home
+from wtbackup import backup_base
 
 # test_live_restore02.py
 # Enable background thread migration and loop until it completes
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
-class test_live_restore02(wttest.WiredTigerTestCase):
+class test_live_restore02(backup_base):
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('row_integer', dict(key_format='i', value_format='S')),
@@ -74,10 +74,12 @@ class test_live_restore02(wttest.WiredTigerTestCase):
           key_format=self.key_format, value_format=self.value_format)
         ds2.populate()
 
-        # Close the default connection.
-        self.close_conn()
+        self.session.checkpoint()
 
-        copy_wiredtiger_home(self, '.', "SOURCE")
+        # Close the default connection.
+        os.mkdir("SOURCE")
+        self.take_full_backup("SOURCE")
+        self.close_conn()
 
         # Remove everything but SOURCE / stderr / stdout.
         for f in glob.glob("*"):

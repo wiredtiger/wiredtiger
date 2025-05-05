@@ -29,12 +29,11 @@
 import os, glob, time, wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from helper import copy_wiredtiger_home
 from wtbackup import backup_base
 
 
 # test_live_restore06.py
-# Ensure WiredTiger cleans any remaining 'nbits=-1' strings from file metadata during backups.
+# Ensure WiredTiger cleans all 'nbits=-1' strings from file metadata during backups.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore06(backup_base):
 
@@ -49,14 +48,17 @@ class test_live_restore06(backup_base):
         if os.name == 'nt':
             return
 
-        # Create a DB in SOURCE to be restored
+        # Create an initial DB in SOURCE to be restored
         for i in range(0, 3):
             ds = SimpleDataSet(self, f'file:collection_{i}', 10_000,
             key_format='S', value_format='S')
             ds.populate()
 
+        self.session.checkpoint()
+
+        os.mkdir("SOURCE")
+        self.take_full_backup("SOURCE")
         self.close_conn()
-        copy_wiredtiger_home(self, '.', "SOURCE")
 
         # Remove everything but SOURCE / stderr / stdout.
         for f in glob.glob("*"):
@@ -88,40 +90,36 @@ class test_live_restore06(backup_base):
             iteration_count += 1
         self.assertEqual(state, wiredtiger.WT_LIVE_RESTORE_COMPLETE)
 
-        # Walk through all the metadata configs to find a file with nbits == -1.
-        # This is the value we need to clean up.
+        # Once live restore has completed the metadata of all files will have nbits=-1
         meta_cursor = self.session.open_cursor('metadata:', None, None)
-        neg_one_metadata_file = None
-        while True:
-            ret = meta_cursor.next()
-            if ret != 0:
-                break
+        while meta_cursor.next() != 0:
             uri = meta_cursor.get_key()
-            if uri.find("file:") != -1 and "nbits=-1" in meta_cursor[uri]:
-                neg_one_metadata_file = uri
-                break
-
+            if uri.find("file:") != -1:
+                self.assertTrue("nbits=-1" in meta_cursor[uri])
         meta_cursor.close()
-        self.assertTrue(neg_one_metadata_file is not None)
 
         # Now take a backup of the destination.
-        # This requires opening a new connection in non-live restore mode
-        # FIXME-WT-14231 Add a testing for taking backups when live restore in the COMPLETE phase
-        self.reopen_conn(directory="DEST", config="statistics=(all),live_restore=(enabled=false)")
-        os.mkdir("backup")
+        # Test backups when live restore is in the COMPLETE phase
+        self.do_backup_test("backup0","statistics=(all),live_restore=(enabled=true,path=\"SOURCE\")")
+        # Test backups in non-live restore mode
+        self.do_backup_test("backup1","statistics=(all),live_restore=(enabled=false)")
+
+    def do_backup_test(self, backup_dir, backup_conn_config):
+        self.reopen_conn(directory="DEST", config=backup_conn_config)
+        os.mkdir(backup_dir)
         backup_cursor = self.session.open_cursor("backup:")
-        self.take_full_backup("backup", backup_cursor, home=self.conn.get_home())
+        self.take_full_backup(backup_dir, backup_cursor, home=self.conn.get_home())
 
         # Assert that backup/WiredTiger.backup doesn't contain the nbits=-1 string.
         # The backup file is plain text so we can simply grep for the string
-        with open("backup/WiredTiger.backup", "r") as f:
+        with open(backup_dir + "/WiredTiger.backup", "r") as f:
             self.assertTrue("nbits=-1" not in f.read())
 
-        # Now open the backup and check the metadata for the nbits=-1 string is not present.
-        self.reopen_conn(directory="backup", config="statistics=(all),live_restore=(enabled=false)")
+        # Now open the backup and check all files have been cleaned and contain nbits=0.
+        self.reopen_conn(directory=backup_dir, config="statistics=(all),live_restore=(enabled=false)")
         meta_cursor = self.session.open_cursor('metadata:', None, None)
-        meta_cursor.set_key(neg_one_metadata_file)
-        config = meta_cursor[neg_one_metadata_file]
-        self.assertTrue("nbits=-1" not in config)
+        while meta_cursor.next() != 0:
+            uri = meta_cursor.get_key()
+            if uri.find("file:") != -1:
+                self.assertTrue("nbits=0," in meta_cursor[uri])
         meta_cursor.close()
-

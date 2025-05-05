@@ -33,26 +33,26 @@ TEST_CASE("Test functions for error handling in compaction workflows",
     SECTION("Test __wt_background_compact_signal - in-memory or readonly database")
     {
         // Set database as in-memory and readonly.
-        F_SET(conn_impl, WT_CONN_IN_MEMORY | WT_CONN_READONLY);
+        F_SET_ATOMIC_32(conn_impl, WT_CONN_IN_MEMORY | WT_CONN_READONLY);
         CHECK(__wt_background_compact_signal(session_impl, NULL) == ENOTSUP);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
         // Clear in-memory and read only flag as connection close requires them to be cleared.
-        F_CLR(conn_impl, WT_CONN_IN_MEMORY | WT_CONN_READONLY);
+        F_CLR_ATOMIC_32(conn_impl, WT_CONN_IN_MEMORY | WT_CONN_READONLY);
     }
 
     SECTION("Test __wt_background_compact_signal - changes in config string")
     {
         // New background compaction config string doesn't contain background key.
         CHECK(__wt_background_compact_signal(session_impl, "") == WT_NOTFOUND);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Set new background compaction config string to false.
         CHECK(__wt_background_compact_signal(session_impl, "background=false") == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Set new background compaction config string to true.
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
     }
 
     SECTION("Test __wt_background_compact_signal - background_compact configuration")
@@ -64,7 +64,7 @@ TEST_CASE("Test functions for error handling in compaction workflows",
           "dryrun=false,exclude=,free_space_target=20MB,run_once=false,timeout=1200";
 
         CHECK(__wt_background_compact_signal(session_impl, "background=true") == 0);
-        check_error_info(err_info, 0, WT_NONE, "");
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
 
         // Expect the new configuration not match the already set configuration. Expect an error.
         conn_impl->background_compact.config = "";

@@ -279,7 +279,9 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
         WT_TRET(cursor->close(cursor));
     }
     WT_TAILQ_SAFE_REMOVE_END
-
+#ifdef HAVE_DIAGNOSTIC
+    WT_CONN_CLOSE_ABORT(session, ret);
+#endif
     return (ret);
 }
 
@@ -295,6 +297,9 @@ __session_close_cached_cursors(WT_SESSION_IMPL *session)
 
     for (i = 0; i < S2C(session)->hash_size; i++)
         WT_TRET(__session_close_cursors(session, &session->cursor_cache[i]));
+#ifdef HAVE_DIAGNOSTIC
+    WT_CONN_CLOSE_ABORT(session, ret);
+#endif
     return (ret);
 }
 
@@ -388,7 +393,7 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      * Close the file where we tracked long operations. Do this before releasing resources, as we do
      * scratch buffer management when we flush optrack buffers to disk.
      */
-    if (F_ISSET(conn, WT_CONN_OPTRACK)) {
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_OPTRACK)) {
         if (session->optrackbuf_ptr > 0) {
             __wt_optrack_flush_buffer(session);
             WT_TRET(__wt_close(session, &session->optrack_fh));
@@ -458,7 +463,9 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
     if (!internal_session)
         WT_TRET(__wt_call_log_print_return(conn, session, ret, ""));
 #endif
-
+#ifdef HAVE_DIAGNOSTIC
+    WT_CONN_CLOSE_ABORT(&conn->dummy_session, ret);
+#endif
     return (ret);
 }
 
@@ -692,9 +699,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
             WT_RET(__wt_curmetadata_open(session, uri, owner, cfg, cursorp));
         break;
     case 'b':
-        /* FIXME-WT-14231 Allow taking backups when live restore is in the COMPLETE phase. */
         if (WT_PREFIX_MATCH(uri, "backup:")) {
-            if (F_ISSET(S2C(session), WT_CONN_LIVE_RESTORE_FS))
+            if (__wt_live_restore_migration_in_progress(session))
                 WT_RET_SUB(session, EINVAL, WT_CONFLICT_LIVE_RESTORE,
                   "backup cannot be taken when live restore is enabled");
             WT_RET(__wt_curbackup_open(session, uri, other, cfg, cursorp));
@@ -810,8 +816,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
      * - The session is an internal session
      * - The connection is minimally ready and the URI is "statistics:"
      */
-    if (!F_ISSET(S2C(session), WT_CONN_READY) && !F_ISSET(session, WT_SESSION_INTERNAL) &&
-      (!F_ISSET(S2C(session), WT_CONN_MINIMAL) || strcmp(uri, "statistics:") != 0))
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READY) && !F_ISSET(session, WT_SESSION_INTERNAL) &&
+      (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_MINIMAL) || strcmp(uri, "statistics:") != 0))
         WT_ERR_MSG(
           session, EINVAL, "cannot open a non-statistics cursor before connection is opened");
 
@@ -875,7 +881,7 @@ __session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *
     WT_DECL_RET;
 
     /* In-memory ignores alter operations. */
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
         goto err;
 
     /* Disallow objects in the WiredTiger name space. */
@@ -1969,6 +1975,9 @@ err:
 #ifdef HAVE_CALL_LOG
     WT_TRET(__wt_call_log_rollback_transaction(session, config, ret));
 #endif
+#ifdef HAVE_DIAGNOSTIC
+    WT_CONN_CLOSE_ABORT(session, ret);
+#endif
     API_END_RET(session, ret);
 }
 
@@ -2374,7 +2383,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * Make sure we don't try to open a new session after the application closes the connection.
      * This is particularly intended to catch cases where server threads open sessions.
      */
-    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_CLOSING));
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING));
 
     /* Find the first inactive session slot. */
     for (session_ret = WT_CONN_SESSIONS_GET(conn), i = 0; i < conn->session_array.size;
@@ -2395,10 +2404,10 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __wt_atomic_store32(&conn->session_array.cnt, i + 1);
 
     /* Find the set of methods appropriate to this session. */
-    if (F_ISSET(conn, WT_CONN_MINIMAL) && !F_ISSET(session, WT_SESSION_INTERNAL))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_MINIMAL) && !F_ISSET(session, WT_SESSION_INTERNAL))
         session_ret->iface = stds_min;
     else
-        session_ret->iface = F_ISSET(conn, WT_CONN_READONLY) ? stds_readonly : stds;
+        session_ret->iface = F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY) ? stds_readonly : stds;
     session_ret->iface.connection = &conn->iface;
 
     session_ret->name = NULL;
@@ -2421,8 +2430,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * problem because sessions are long-lived and will diverge into different parts of the value
      * space, and what we care about are small values, that is, the low-order bits.
      */
-    if (WT_SESSION_FIRST_USE(session_ret))
-        __wt_random_init(&session_ret->rnd);
+    __wt_session_rng_init_once(session_ret);
 
     __wt_event_handler_set(
       session_ret, event_handler == NULL ? session->event_handler : event_handler);
@@ -2478,7 +2486,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
       session, session_ret->stat_dsrc_bucket == session_ret->id % WT_STAT_DSRC_COUNTER_SLOTS);
 
     /* Allocate the buffer for operation tracking */
-    if (F_ISSET(conn, WT_CONN_OPTRACK)) {
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_OPTRACK)) {
         WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE, &session_ret->optrack_buf));
         session_ret->optrackbuf_ptr = 0;
     }
@@ -2486,7 +2494,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     __wt_stat_session_init_single(&session_ret->stats);
 
     /* Set the default value for session flags. */
-    if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_CACHE_CURSORS))
         F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
 
     /*
@@ -2500,7 +2508,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     F_SET(session_ret, WT_SESSION_SAVE_ERRORS);
     session_ret->err_info.err_msg = NULL;
     WT_ERR(__wt_buf_initsize(session, &(session_ret->err_info.err_msg_buf), 128));
-    __wt_session_set_last_error(session_ret, 0, WT_NONE, WT_ERROR_INFO_EMPTY);
+    __wt_session_reset_last_error(session_ret);
 
     /*
      * Release write to ensure structure fields are set before any other thread will consider the

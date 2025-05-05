@@ -63,6 +63,13 @@ struct __wti_live_restore_file_handle {
     WT_RWLOCK lock;
     /* Number of bits in the bitmap, should be equivalent to source file size / alloc_size. */
     uint64_t nbits;
+    /*
+     * The live restore bitmap size is set once on bitmap creation and will never change, which
+     * means it is always the size of the source file. This means reads or writes beyond the end of
+     * the bitmap are only relevant to the destination file. The destination file could shrink to be
+     * smaller than the original source file size, in this case we could shrink the bitmap but we
+     * have chosen not to as that is an optimization.
+     */
     uint8_t *bitmap;
     WT_FILE_HANDLE *source;
 };
@@ -78,9 +85,28 @@ struct __wti_live_restore_file_handle {
         __wt_writeunlock((session), &(lr_fh)->lock);            \
     } while (0)
 
+/*
+ * WTI_WITH_LIVE_RESTORE_QUEUE_LOCK --
+ *     Acquire the background migration queue lock and perform an operation.
+ */
+#define WTI_WITH_LIVE_RESTORE_QUEUE_LOCK(session, op)                                \
+    do {                                                                             \
+        __wt_spin_lock((session), &S2C(session)->live_restore_server->queue_lock);   \
+        op;                                                                          \
+        __wt_spin_unlock((session), &S2C(session)->live_restore_server->queue_lock); \
+    } while (0)
+
+/*
+ * WTI_WITH_LIVE_RESTORE_STATE_LOCK --
+ *	Acquire the state lock, perform an operation, drop the lock.
+ */
+#define WTI_WITH_LIVE_RESTORE_STATE_LOCK(session, lr_fs, op) \
+    WT_WITH_LOCK_WAIT((session), &(lr_fs)->state_lock, WT_SESSION_LOCKED_LIVE_RESTORE_STATE, op)
+
 typedef enum {
     WTI_LIVE_RESTORE_FS_LAYER_DESTINATION,
-    WTI_LIVE_RESTORE_FS_LAYER_SOURCE
+    WTI_LIVE_RESTORE_FS_LAYER_SOURCE,
+    WTI_LIVE_RESTORE_FS_LAYER_NONE,
 } WTI_LIVE_RESTORE_FS_LAYER_TYPE;
 
 /*
@@ -155,6 +181,7 @@ struct __wti_live_restore_server {
     uint64_t msg_count;
     uint64_t work_count;
     uint64_t work_items_remaining;
+    bool shutting_down; /* Set when connection close terminates the server. */
 
     TAILQ_HEAD(__wti_live_restore_work_queue, __wti_live_restore_work_item) work_queue;
 };

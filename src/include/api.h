@@ -32,7 +32,8 @@
          * already hold it.                                                       \
          */                                                                       \
         if ((s)->id != 0 && (s)->thread_check.owning_thread != __tmp_api_tid) {   \
-            WT_ASSERT((s), __wt_spin_trylock((s), &(s)->thread_check.lock) == 0); \
+            bool lock_success = __wt_spin_trylock((s), &(s)->thread_check.lock);  \
+            WT_ASSERT((s), lock_success == 0);                                    \
             (s)->thread_check.owning_thread = __tmp_api_tid;                      \
         }                                                                         \
                                                                                   \
@@ -70,23 +71,26 @@
     --(s)->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
-#define API_SESSION_INIT(s, struct_name, func_name, dh)                                            \
-    WT_TRACK_OP_DECL;                                                                              \
-    API_SESSION_PUSH(s, struct_name, func_name, dh);                                               \
-    /*                                                                                             \
-     * No code before this line, otherwise error handling won't be                                 \
-     * correct.                                                                                    \
-     */                                                                                            \
-    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                                             \
-    WT_SINGLE_THREAD_CHECK_START(s);                                                               \
-    WT_TRACK_OP_INIT(s);                                                                           \
-    if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                            \
-        __wt_op_timer_start(s);                                                                    \
-    /* Reset wait time if this isn't an API reentry. */                                            \
-    if ((s)->api_call_counter == 1)                                                                \
-        (s)->cache_wait_us = 0;                                                                    \
-    /* Initialize the err_info struct - passing NULL sets the message to WT_ERROR_INFO_SUCCESS. */ \
-    __wt_session_set_last_error((s), 0, WT_NONE, NULL);                                            \
+#define API_SESSION_INIT(s, struct_name, func_name, dh)                                  \
+    WT_TRACK_OP_DECL;                                                                    \
+    API_SESSION_PUSH(s, struct_name, func_name, dh);                                     \
+    /*                                                                                   \
+     * No code before this line, otherwise error handling won't be                       \
+     * correct.                                                                          \
+     */                                                                                  \
+    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                                   \
+    WT_SINGLE_THREAD_CHECK_START(s);                                                     \
+    WT_TRACK_OP_INIT(s);                                                                 \
+    if ((s)->api_call_counter == 1 && !F_ISSET(s, WT_SESSION_INTERNAL))                  \
+        __wt_op_timer_start(s);                                                          \
+    /* Reset wait time if this isn't an API reentry. */                                  \
+    if ((s)->api_call_counter == 1)                                                      \
+        (s)->cache_wait_us = 0;                                                          \
+    /*                                                                                   \
+     * Reset the err_info struct back to default only if the prior API call had an error \
+     */                                                                                  \
+    if ((s)->err_info.err != 0)                                                          \
+        __wt_session_reset_last_error((s));                                              \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
 #define API_CALL_NOCONF(s, struct_name, func_name, dh) \
@@ -335,12 +339,12 @@
       s, WT_CURSOR, remove, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
     SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, remove)
 
-#define CURSOR_UPDATE_API_CALL_BTREE(cur, s, ret, func_name)                                  \
-    (s) = CUR2S(cur);                                                                         \
-    TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, ((WT_CURSOR_BTREE *)(cur))->dhandle);        \
-    SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);                                  \
-    if (F_ISSET(S2C(s), WT_CONN_IN_MEMORY) && !F_ISSET(CUR2BT(cur), WT_BTREE_IGNORE_CACHE) && \
-      __wt_cache_full(s))                                                                     \
+#define CURSOR_UPDATE_API_CALL_BTREE(cur, s, ret, func_name)                           \
+    (s) = CUR2S(cur);                                                                  \
+    TXN_API_CALL_NOCONF(s, WT_CURSOR, func_name, ((WT_CURSOR_BTREE *)(cur))->dhandle); \
+    SESSION_API_PREPARE_CHECK(s, ret, WT_CURSOR, func_name);                           \
+    if (F_ISSET_ATOMIC_32(S2C(s), WT_CONN_IN_MEMORY) &&                                \
+      !F_ISSET(CUR2BT(cur), WT_BTREE_IGNORE_CACHE) && __wt_cache_full(s))              \
         WT_ERR(WT_CACHE_FULL);
 
 #define CURSOR_UPDATE_API_CALL(cur, s, ret, func_name)  \
