@@ -30,10 +30,6 @@ fh_size_wrapper(live_restore_test_env &env, const std::string &file_name, wt_off
     testutil_check(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session));
 }
 
-enum HasSource { SOURCE, NO_SOURCE };
-enum IsMigrating { MIGRATING, NOT_MIGRATING };
-enum HasStop { STOP, NO_STOP };
-
 static const int DEST_FILE_SIZE = 10;
 static const int SOURCE_FILE_SIZE = 100;
 

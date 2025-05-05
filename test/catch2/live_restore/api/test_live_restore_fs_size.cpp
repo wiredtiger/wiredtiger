@@ -26,11 +26,6 @@ file_size(live_restore_test_env &env, const std::string &file_name, wt_off_t *si
     return env.lr_fs->iface.fs_size(fs, session, dest_file_path.c_str(), sizep);
 }
 
-enum HasDest { DEST, NO_DEST };
-enum HasSource { SOURCE, NO_SOURCE };
-enum IsMigrating { MIGRATING, NOT_MIGRATING };
-enum HasStop { STOP, NO_STOP };
-
 static const int DEST_FILE_SIZE = 10;
 static const int SOURCE_FILE_SIZE = 100;
 
