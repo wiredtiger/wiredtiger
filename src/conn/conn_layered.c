@@ -1017,7 +1017,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                 ret = __layered_get_disagg_checkpoint(
                   session, cfg, &open_checkpoint, NULL, &complete_checkpoint, NULL, NULL);
                 if (ret == WT_NOTFOUND)
-                    WT_RET_MSG(session, ret, "disaggregated checkpoint not found.");
+                    WT_ERR_MSG(session, ret, "disaggregated checkpoint not found.");
                 WT_ERR(ret);
                 if (open_checkpoint == 0)
                     next_checkpoint_id = complete_checkpoint + 1;
