@@ -1638,20 +1638,16 @@ config_disagg_storage(void)
 
     page_log = GVS(DISAGG_PAGE_LOG);
 
-    /*
-     * FIXME-WT-9934 If we ever allow tiered storage to be run only locally but with switching
-     * objects, then none becomes a valid option with tiered storage enabled.
-     */
     g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
     if (g.disagg_storage_config) {
-        /* Tiered storage requires timestamps. */
+        /* Dsiaggregated storage requires timestamps. */
         config_off(NULL, "transaction.implicit");
         config_single(NULL, "transaction.timestamps=on", true);
 
         /* It makes sense to do checkpoints. */
         config_single(NULL, "checkpoint=on", false);
 
-        /* TODO: Some operations are not yet supported for tiered storage. */
+        /* TODO: Some operations are not yet supported for disaggregated storage. */
         config_off(NULL, "ops.salvage");
         config_off(NULL, "ops.verify");
         config_off(NULL, "backup");
