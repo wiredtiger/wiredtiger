@@ -758,8 +758,8 @@ main(int argc, char *argv[])
          */
 
         /*
-         * TODO: WT-14558 - incr_backup test artefacts are generated and retained in a nested manner
-         * (WT_TEST.incr_backup/WT_TEST.incr_backup...) when preserve is true. These artefacts
+         * TODO: WT-14558 - incr_backup test artifacts are generated and retained in a nested manner
+         * (WT_TEST.incr_backup/WT_TEST.incr_backup...) when preserve is true. These artifacts
          * should instead be alongside the WT_TEST directory.
          */
         rnd.v = 0x9b1bde3f111fe316;
