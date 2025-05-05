@@ -687,7 +687,6 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     printf("Success.\n");
     if (!preserve) {
         testutil_delete_old_backups(0);
-        testutil_clean_test_artifacts(home);
         /*
          * We are in the home directory (typically WT_TEST), which we intend to delete. Go to the
          * start directory. We do this to avoid deleting the current directory, which is disallowed
