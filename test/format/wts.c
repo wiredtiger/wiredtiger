@@ -635,7 +635,7 @@ create_object(TABLE *table, void *arg)
      * to be used together, at least for now.
      */
     if (DATASOURCE(table, "layered") != TV(DISAGG_ENABLED))
-        testutil_die(ENOMEM, "disagg setting expected to match layered setting");
+        testutil_die(EINVAL, "disagg setting expected to match layered setting");
     if (DATASOURCE(table, "layered"))
         CONFIG_APPEND(p, ",type=layered");
     if (TV(DISAGG_ENABLED))
