@@ -36,7 +36,7 @@ from wtthread import checkpoint_thread
 # call.
 class test_compact16(compact_util):
     create_params = 'key_format=i,value_format=S,allocation_size=4KB,leaf_page_max=32KB,leaf_value_max=16MB'
-    conn_config = 'cache_size=100MB,statistics=(all),verbose=[compact:2]'
+    conn_config = 'cache_size=100MB,statistics=(all),verbose=[block_trace:4]'
     uri = 'table:test_compact16'
 
     table_numkv = 1000 * 1000

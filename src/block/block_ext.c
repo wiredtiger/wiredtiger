@@ -580,6 +580,9 @@ append:
             el = &block->live.alloc;
             WT_RET(__block_extend(session, block, el, offp, size));
             WT_RET(__block_append(session, block, el, *offp, (wt_off_t)size));
+
+            __wt_verbose(session, WT_VERB_BLOCK_TRACE, "%" PRIdMAX ",%" PRIdMAX, (intmax_t)*offp,
+              (intmax_t)size);
             return (0);
         }
 
@@ -587,9 +590,13 @@ append:
         ext = szp->off[0];
     }
 
+    
     /* Remove the record, and set the returned offset. */
     WT_RET(__block_off_remove(session, block, &block->live.avail, ext->off, &ext));
     *offp = ext->off;
+
+    __wt_verbose(
+      session, WT_VERB_BLOCK_TRACE, "%" PRIdMAX ",%" PRIdMAX, (intmax_t)*offp, (intmax_t)size);
 
     /* If doing a partial allocation, adjust the record and put it back. */
     if (ext->size > size) {

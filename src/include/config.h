@@ -173,6 +173,7 @@ extern const char __WT_CONFIG_CHOICE_backup_rename[];
 extern const char __WT_CONFIG_CHOICE_best[];
 extern const char __WT_CONFIG_CHOICE_block[];
 extern const char __WT_CONFIG_CHOICE_block_cache[];
+extern const char __WT_CONFIG_CHOICE_block_trace[];
 extern const char __WT_CONFIG_CHOICE_btree[];
 extern const char __WT_CONFIG_CHOICE_cache_walk[];
 extern const char __WT_CONFIG_CHOICE_checkpoint[];

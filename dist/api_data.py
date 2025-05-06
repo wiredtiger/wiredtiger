@@ -811,6 +811,7 @@ connection_runtime_config = [
             'api',
             'backup',
             'block',
+            'block_trace',
             'block_cache',
             'checkpoint',
             'checkpoint_cleanup',
