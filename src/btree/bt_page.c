@@ -624,6 +624,7 @@ err:
                         __wt_free(session, pindex->index[i]);
                     __wt_free(session, pindex);
                 }
+                return (ret);
             }
         }
         break;

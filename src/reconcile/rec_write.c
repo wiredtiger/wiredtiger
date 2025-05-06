@@ -2398,6 +2398,38 @@ __rec_build_delta(
 }
 
 /*
+ * __rec_set_updates_durable --
+ *     Set the updates durable. This must be called when the reconciliation can no longer fail.
+ */
+static void
+__rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
+{
+    WT_SAVE_UPD *supd;
+    uint32_t i;
+
+    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
+        return;
+
+    /*
+     * TODO: we should rethink where we should call this. Is this safe to call this right after we
+     * have called the write function of PALI? What will happen if we fail after the write and
+     * before we call this function or if we fail after calling this function.
+     *
+     * Instead of thinking all this failure cases, we may be better off to always write a full page
+     * in the next reconciliation if this reconciliation fail.
+     */
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        if (supd->onpage_upd == NULL)
+            continue;
+
+        if (supd->onpage_tombstone != NULL)
+            F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
+
+        F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
+    }
+}
+
+/*
  * __rec_split_write --
  *     Write a disk block out for the split helper functions.
  */
@@ -2477,7 +2509,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         /* We have an empty page. Free the multi. */
         if (chunk->entries == 0 && !multi->supd_restore) {
             WT_ASSERT(session, F_ISSET(btree, WT_BTREE_DISAGGREGATED));
-            __wt_rec_set_updates_durable(btree, multi);
+            __rec_set_updates_durable(btree, multi);
             if (btree->type == BTREE_ROW)
                 __wt_free(session, multi->key.ikey);
             __wt_free(session, multi->supd);
@@ -2987,38 +3019,6 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
 }
 
 /*
- * __wt_rec_set_updates_durable --
- *     Set the updates durable. This must be called when the reconciliation can no longer fail.
- */
-void
-__wt_rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
-{
-    WT_SAVE_UPD *supd;
-    uint32_t i;
-
-    if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED))
-        return;
-
-    /*
-     * TODO: we should rethink where we should call this. Is this safe to call this right after we
-     * have called the write function of PALI? What will happen if we fail after the write and
-     * before we call this function or if we fail after calling this function.
-     *
-     * Instead of thinking all this failure cases, we may be better off to always write a full page
-     * in the next reconciliation if this reconciliation fail.
-     */
-    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        if (supd->onpage_upd == NULL)
-            continue;
-
-        if (supd->onpage_tombstone != NULL)
-            F_SET(supd->onpage_tombstone, WT_UPDATE_DURABLE);
-
-        F_SET(supd->onpage_upd, WT_UPDATE_DURABLE);
-    }
-}
-
-/*
  * __rec_write_wrapup --
  *     Finish the reconciliation.
  */
@@ -3189,7 +3189,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          */
         if (r->wrapup_checkpoint == NULL) {
             if (r->multi->addr.block_cookie != NULL) {
-                __wt_rec_set_updates_durable(btree, r->multi);
+                __rec_set_updates_durable(btree, r->multi);
                 mod->mod_replace = r->multi->addr;
                 r->multi->addr.block_cookie = NULL;
                 mod->mod_disk_image = r->multi->disk_image;
@@ -3236,7 +3236,7 @@ split:
 
         /* Calculate the max stop time point by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            __wt_rec_set_updates_durable(btree, multi);
+            __rec_set_updates_durable(btree, multi);
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &multi->addr.ta);
         }
         break;

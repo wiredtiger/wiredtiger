@@ -1862,14 +1862,14 @@ __clayered_next_random(WT_CURSOR *cursor)
              * This call to next_random on the layered table can potentially end in WT_NOTFOUND if
              * the layered table is empty. When that happens, use the ingest table.
              */
-            WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
+            WT_ERR_NOTFOUND_OK(__wti_curfile_next_random(c), true);
         } else
             ret = WT_NOTFOUND;
 
         /* The stable table was either empty or missing. */
         if (ret == WT_NOTFOUND) {
             c = clayered->ingest_cursor;
-            WT_ERR(__wt_curfile_next_random(c));
+            WT_ERR(__wti_curfile_next_random(c));
         }
 
         F_SET(cursor, WT_CURSTD_KEY_INT);
