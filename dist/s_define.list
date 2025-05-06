@@ -133,7 +133,6 @@ __F
 __WIREDTIGER_EXT_H_
 __WIREDTIGER_H_
 __WT_INTERNAL_H
-__WT_MISC_H
 __wt_atomic_and_generic
 __wt_atomic_load_generic
 __wt_atomic_or_generic

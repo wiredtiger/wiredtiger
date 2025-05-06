@@ -480,52 +480,6 @@ extern const WT_NAME_FLAG __wt_stress_types[];
  */
 #define WT_CONN_SESSIONS_GET(conn) ((conn)->session_array.__array)
 
-struct __wt_log_info {
-    WT_RWLOCK debug_log_retention_lock; /* Log retention reconfiguration lock */
-
-    /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_LOG_CONFIG_ENABLED 0x001u  /* Logging is configured */
-#define WT_CONN_LOG_DOWNGRADED 0x002u      /* Running older version */
-#define WT_CONN_LOG_ENABLED 0x004u         /* Logging is enabled */
-#define WT_CONN_LOG_EXISTED 0x008u         /* Log files found */
-#define WT_CONN_LOG_FORCE_DOWNGRADE 0x010u /* Force downgrade */
-#define WT_CONN_LOG_INCR_BACKUP 0x020u     /* Incremental backup log required */
-#define WT_CONN_LOG_RECOVER_DIRTY 0x040u   /* Recovering unclean */
-#define WT_CONN_LOG_RECOVER_DONE 0x080u    /* Recovery completed */
-#define WT_CONN_LOG_RECOVER_ERR 0x100u     /* Error if recovery required */
-#define WT_CONN_LOG_RECOVER_FAILED 0x200u  /* Recovery failed */
-#define WT_CONN_LOG_REMOVE 0x400u          /* Removal is enabled */
-#define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
-                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    uint32_t log_flags;                    /* Global logging configuration */
-    WT_CONDVAR *log_cond;                  /* Log server wait mutex */
-    WT_SESSION_IMPL *log_session;          /* Log server session */
-    wt_thread_t log_tid;                   /* Log server thread */
-    bool log_tid_set;                      /* Log server thread set */
-    WT_CONDVAR *log_file_cond;             /* Log file thread wait mutex */
-    WT_SESSION_IMPL *log_file_session;     /* Log file thread session */
-    wt_thread_t log_file_tid;              /* Log file thread */
-    bool log_file_tid_set;                 /* Log file thread set */
-    WT_CONDVAR *log_wrlsn_cond;            /* Log write lsn thread wait mutex */
-    WT_SESSION_IMPL *log_wrlsn_session;    /* Log write lsn thread session */
-    wt_thread_t log_wrlsn_tid;             /* Log write lsn thread */
-    bool log_wrlsn_tid_set;                /* Log write lsn thread set */
-    WTI_LOG *log;                          /* Logging structure */
-    WT_COMPRESSOR *log_compressor;         /* Logging compressor */
-    wt_shared uint32_t log_cursors;        /* Log cursor count */
-    wt_off_t log_dirty_max;                /* Log dirty system cache max size */
-    wt_off_t log_file_max;                 /* Log file max size */
-    uint32_t log_force_write_wait;         /* Log force write wait configuration */
-    const char *log_path;                  /* Logging path format */
-    uint32_t log_prealloc;                 /* Log file pre-allocation */
-    uint32_t log_prealloc_init_count;      /* initial number of pre-allocated log files */
-    uint16_t log_req_max;                  /* Max required log version */
-    uint16_t log_req_min;                  /* Min required log version */
-    wt_shared uint32_t txn_logsync;        /* Log sync configuration */
-
-    wt_off_t log_extend_len; /* file_extend log length */
-};
-
 /*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
