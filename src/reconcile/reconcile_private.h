@@ -166,7 +166,7 @@ struct __wti_reconcile {
     WT_REF *ref; /* Page being reconciled */
     WT_PAGE *page;
     uint32_t flags; /* Caller's configuration */
-    
+
     /* Track the oldest running transaction. */
     uint64_t last_running;
 
