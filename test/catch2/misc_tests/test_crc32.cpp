@@ -14,6 +14,7 @@
 
 TEST_CASE("CRC calculations: crc32c", "[crc32c]")
 {
+#ifndef WORDS_BIGENDIAN
     auto crc32c = wiredtiger_crc32c_func();
     auto crc32c_with_seed = wiredtiger_crc32c_with_seed_func();
 
@@ -50,4 +51,5 @@ TEST_CASE("CRC calculations: crc32c", "[crc32c]")
         crc_val = crc32c_with_seed(crc_val, lots_of_data.c_str() + size, size);
     }
     REQUIRE(crc_val == 0x47a00ee5);
+#endif
 }

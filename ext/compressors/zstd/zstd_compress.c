@@ -35,6 +35,7 @@
  * We need to include the configuration file to detect whether this extension is being built into
  * the WiredTiger library; application-loaded compression functions won't need it.
  */
+#include <time.h>
 #include <wiredtiger_config.h>
 
 #include <wiredtiger.h>
@@ -247,9 +248,17 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, si
     ZSTD_CONTEXT *context = NULL;
     size_t zstd_ret;
     uint64_t zstd_len;
+    static time_t last_print_time = 0;
+    time_t now = time(NULL);
 
     wt_api = ((ZSTD_COMPRESSOR *)compressor)->wt_api;
     zcompressor = (ZSTD_COMPRESSOR *)compressor;
+
+    /* printf("last_print_time = %ld, now = %ld\n", last_print_time, now); */
+    if (last_print_time < now) {
+        printf("ZSTD_versionNumber(): %u\n", ZSTD_versionNumber());
+        last_print_time = now;
+    }
 
     /*
      * Retrieve the saved length, handling little- to big-endian conversion as necessary.
