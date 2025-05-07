@@ -815,7 +815,7 @@ main(int argc, char *argv[])
         testutil_die(errno, "parent chdir: %s", home);
 
     if (!verify_only)
-        /* Copy the data to the home directory for debugging purposes given its absolute path */
+        /* Copy the data to the home directory for debugging purposes. */
         testutil_copy_data();
 
     /*
