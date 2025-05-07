@@ -338,7 +338,7 @@ __wt_cache_page_inmem_incr_delta_updates(WT_SESSION_IMPL *session, WT_PAGE *page
 
     (void)__wt_atomic_add64(&cache->bytes_delta_updates, size);
     (void)__wt_atomic_add64(&btree->bytes_delta_updates, size);
-    (void)__wt_atomic_addsize(&page->modify->bytes_delta_updates, size);
+    (void)__wt_atomic_add64(&page->modify->bytes_delta_updates, size);
 }
 
 /*
@@ -399,7 +399,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
         if (!WT_PAGE_IS_INTERNAL(page)) {
             (void)__wt_atomic_add64(&cache->bytes_updates, size);
             (void)__wt_atomic_add64(&btree->bytes_updates, size);
-            (void)__wt_atomic_addsize(&page->modify->bytes_updates, size);
+            (void)__wt_atomic_add64(&page->modify->bytes_updates, size);
         }
         if (__wt_page_is_modified(page)) {
             if (WT_PAGE_IS_INTERNAL(page)) {
@@ -409,7 +409,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size,
                 (void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
                 (void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
             }
-            (void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
+            (void)__wt_atomic_add64(&page->modify->bytes_dirty, size);
         }
     }
 }
@@ -505,7 +505,7 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
          */
         WT_ACQUIRE_READ_WITH_BARRIER(orig, page->modify->bytes_dirty);
         decr = WT_MIN(size, orig);
-        if (__wt_atomic_cassize(&page->modify->bytes_dirty, orig, orig - decr))
+        if (__wt_atomic_cas64(&page->modify->bytes_dirty, orig, orig - decr))
             break;
     }
 
@@ -547,7 +547,7 @@ __wt_cache_page_byte_updates_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_
     for (i = 0; i < 5; ++i) {
         WT_ACQUIRE_READ_WITH_BARRIER(orig, page->modify->bytes_updates);
         decr = WT_MIN(size, orig);
-        if (__wt_atomic_cassize(&page->modify->bytes_updates, orig, orig - decr))
+        if (__wt_atomic_cas64(&page->modify->bytes_updates, orig, orig - decr))
             break;
     }
 
@@ -624,7 +624,7 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
     (void)__wt_atomic_add64(&cache->bytes_dirty_total, size);
     (void)__wt_atomic_add64(&btree->bytes_dirty_total, size);
-    (void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
+    (void)__wt_atomic_add64(&page->modify->bytes_dirty, size);
 }
 
 /*
