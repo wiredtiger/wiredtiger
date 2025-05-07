@@ -36,6 +36,9 @@
 #       as a WT btree page.
 
 import copy, io, os, re, subprocess, sys
+from py_common import binary_data, binary_data
+import wt_ckpt_decode
+binary_to_pretty_string = binary_data.binary_to_pretty_string  # a convenient function name
 
 decode_version = "2024-11-15.0"
 
@@ -153,7 +156,7 @@ def palm_dump_key(opts, kstr):
     page_id = dehex(m.group(2))
     is_delta = dehex(m.group(5))
 
-    print(f'KEY: {cp.get(1)}{cp.get(2)}{cp.get(3)}{cp.get(4)}{cp.get(5)}{cp.get(7)}{cp.get(8)}{cp.get(9)}{cp.get(10)}{cp.get(11)}{cp.get(12)}')
+    print(f'PALM KEY: {cp.get(1)}{cp.get(2)}{cp.get(3)}{cp.get(4)}{cp.get(5)}{cp.get(7)}{cp.get(8)}{cp.get(9)}{cp.get(10)}{cp.get(11)}{cp.get(12)}')
     if m.group(6) != '00000000':
         print('  WARNING: gap between is_Delta and backlink is not zero')
     if is_delta < 0 or is_delta > 1:
@@ -177,7 +180,7 @@ def palm_dump_delta_header(vstr):
     if not m:
         raise Exception('bad key: ' + vstr)
 
-    print(f'KEY: {cp.get(1)}{cp.get(2)}{cp.get(3)}{cp.get(4)}{cp.get(5)}')
+    print(f'PALM KEY: {cp.get(1)}{cp.get(2)}{cp.get(3)}{cp.get(4)}{cp.get(5)}')
     if m.group(6) != '00':
         print('  WARNING: padding byte is not zero')
 
@@ -225,15 +228,50 @@ def palm_dump_block_header(vstr):
         print('  WARNING: padding bytes are not zero')
 
 def palm_dump_payload(opts, vstr):
-    if opts.length != -1:
-        if len(vstr) > opts.length:
-            vstr = vstr[0:opts.length * 2] + '...'
-    print(f'  payload={vstr}')
+    b = bytes.fromhex(vstr)
+    continuation = ''
+    binlen = len(vstr) // 2
+    if opts.length != -1 and binlen > opts.length:
+        vstr = vstr[0:opts.length * 2]
+        continuation = '\n  ...'
+    print(f'  payload:\n{binary_to_pretty_string(b)}{continuation}')
+
+# Look for special strings like checkpoint address cookies
+def advanced_checkpoint(b):
+    # latin-1 decoding won't fail on whatever binary we have, and it's
+    # easy to look at.
+    lstr = b.decode("latin-1")
+    pattern = 'addr="([0-9a-f]*)"'
+    m = re.search(pattern, lstr)
+    if m:
+        # Show a decoded cookie
+        print(f'Checkpoint cookie ', end='')
+        wt_ckpt_decode.decode_arg(m.group(1), 4096)
+
+# Look for special strings like checkpoint address cookies
+def advanced_page(opts, b):
+    import wt_binary_decode
+    parser = wt_binary_decode.get_arg_parser()
+    args = []
+    args.append('-fsv')    # fragment
+    args.append('--disagg')
+    if opts.debug:
+        args.append('-D')
+    args.append('-')     # no file name
+    bin_opts = parser.parse_args(args)
+    bf = binary_data.BinaryFile(io.BytesIO(b))
+    wt_binary_decode.wtdecode_file_object(bf, bin_opts, len(b))
+    print('------------------------------------------')
 
 def palm_dump_value(opts, vstr, is_delta):
-    print('VALUE:')
+    # The advanced option calls the binary decoder, so it doesn't need extra verbiage here.
+    if not opts.advanced:
+        print('PALM VALUE:')
+    b = bytes.fromhex(vstr)
     if opts.raw:
-        print(' ' + vstr)
+        print(binary_to_pretty_string(b))
+        if opts.advanced:
+            advanced_checkpoint(b)
         return
     # Length of the page header, delta header, block header
     # Multiplied by 2 because the input is ascii hex - two chars is one byte.
@@ -245,9 +283,12 @@ def palm_dump_value(opts, vstr, is_delta):
         palm_dump_block_header(vstr[dh:dh+bh])
         palm_dump_payload(opts, vstr[dh+bh:])
     else:
-        palm_dump_page_header(vstr[0:ph])
-        palm_dump_block_header(vstr[ph:ph+bh])
-        palm_dump_payload(opts, vstr[ph+bh:])
+        if opts.advanced:
+            advanced_page(opts, b)
+        else:
+            palm_dump_page_header(vstr[0:ph])
+            palm_dump_block_header(vstr[ph:ph+bh])
+            palm_dump_payload(opts, vstr[ph+bh:])
 
 def palm_dump(opts, line):
     pattern = '^ *([0-9a-f]*)[^0-9a-f]+([0-9a-f]*)$'
@@ -259,6 +300,7 @@ def palm_dump(opts, line):
     if table_id == 1 and page_id == 1:
         t_opts = copy.deepcopy(opts)
         t_opts.raw = True
+        t_opts.raw_advanced = True
     palm_dump_value(t_opts, m.group(2), is_delta)
     print('')
 
@@ -274,13 +316,19 @@ def palm_command_line_args():
 
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('-D', '--debug', help="debug this tool", action='store_true')
     parser.add_argument('-l', '--length', help="max length of value payload to show", type=check_int)
     parser.add_argument('-p', '--pageid', help="page id to decode", type=check_pos_int)
     parser.add_argument('-r', '--raw', help="show raw bytes for value", action='store_true')
     parser.add_argument('-t', '--tableid', help="table id to decode", type=check_pos_int)
     parser.add_argument('-V', '--version', help="print version number of this program", action='store_true')
     parser.add_argument('directory', help="home directory for LMDB kv-store (often <WT_HOME>/kv-store)")
-    return parser.parse_args()
+    opts = parser.parse_args()
+
+    # Add additional options, that are used internally.
+    opts.advanced = (not opts.raw)
+
+    return opts
 
 opts = palm_command_line_args()
 if opts.version:
