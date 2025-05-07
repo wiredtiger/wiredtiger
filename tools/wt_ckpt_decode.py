@@ -138,15 +138,17 @@ def decode_arg(arg, allocsize):
 #decode_arg('c0268280bfe4ef31a1e1', 4096) # disagg, 5 entries
 #decode_arg('c026e4123436388280bfe4ef31a1e1', 4096) # disagg, 6 entries
 #decode_arg('01818181e412e4fd01818281e41546bd16818381e4f2dbec39808080e22fc0cfc0', 4096) # bad
+
+# Only run the main code if this file is not imported.
+if __name__ == '__main__':
+    allocsize = 4096
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "a:", ["allocsize"])
+    except getopt.GetoptError as err:
+        err_usage(str(err))
+    for o, a in opts:
+        if o == '-a':
+            allocsize = int(a)
     
-allocsize = 4096
-try:
-    opts, args = getopt.getopt(sys.argv[1:], "a:", ["allocsize"])
-except getopt.GetoptError as err:
-    err_usage(str(err))
-for o, a in opts:
-    if o == '-a':
-        allocsize = int(a)
-    
-for arg in args:
-    decode_arg(arg, allocsize)
+    for arg in args:
+        decode_arg(arg, allocsize)
