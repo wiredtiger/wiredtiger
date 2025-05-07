@@ -115,6 +115,10 @@ connection_disaggregated_config_common = [
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
+    Config('flatten_leaf_page_delta', 'false', r'''
+        When enabled, page read rewrites the leaf pages with deltas to a new
+        disk image if successful''',
+        type='boolean', undoc=True),
     Config('internal_page_delta', 'true', r'''
         When enabled, reconciliation writes deltas for internal pages
         instead of writing entire pages every time''',

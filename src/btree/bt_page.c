@@ -488,7 +488,8 @@ __wti_page_reconstruct_deltas(
          *
          * TODO: this should go away when we use an algorithm to directly rewrite delta.
          */
-        if (r == NULL || r->ref == NULL) {
+        if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA) &&
+          (r == NULL || r->ref == NULL)) {
             ret = __wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA);
             if (ret == 0) {
                 mod = ref->page->modify;
