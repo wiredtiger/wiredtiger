@@ -33,6 +33,9 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
     conn = S2C(session);
     page_log_name = NULL;
 
+    /*
+     * We need our own copy of the page log config string, it must be NULL terminated to look it up.
+     */
     WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &page_log_name));
     WT_ERR(conn->iface.get_page_log(&conn->iface, page_log_name, &page_log));
