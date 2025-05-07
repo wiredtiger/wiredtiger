@@ -291,8 +291,6 @@ struct __wt_layered_table_manager_entry;
 typedef struct __wt_layered_table_manager_entry WT_LAYERED_TABLE_MANAGER_ENTRY;
 struct __wt_live_restore_fh_meta;
 typedef struct __wt_live_restore_fh_meta WT_LIVE_RESTORE_FH_META;
-struct __wt_log_info;
-typedef struct __wt_log_info WT_LOG_INFO;
 struct __wt_log_manager;
 typedef struct __wt_log_manager WT_LOG_MANAGER;
 struct __wt_log_record;

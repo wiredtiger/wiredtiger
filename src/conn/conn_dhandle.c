@@ -310,11 +310,11 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
 }
 
 /*
- * __wt_conn_dhandle_outdated --
+ * __wti_conn_dhandle_outdated --
  *     Mark any data handle matching a URI to be outdated, as the metadata for that URI has changed.
  */
 int
-__wt_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
+__wti_conn_dhandle_outdated(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_DECL_RET;
 

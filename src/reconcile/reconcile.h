@@ -44,7 +44,6 @@ extern uint32_t __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
-extern void __wt_rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi);
 
 #ifdef HAVE_UNITTEST
 extern int __ut_ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell,

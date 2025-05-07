@@ -242,7 +242,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
      * Throw away any references to the old disaggregated metadata table. This ensures that we are
      * on the most recent checkpoint from now on.
      */
-    WT_ERR(__wt_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
+    WT_ERR(__wti_conn_dhandle_outdated(session, WT_DISAGG_METADATA_URI));
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_open_cursor);
     cfg[1] = NULL;
@@ -284,7 +284,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
              * Mark any matching data handles to be out of date. Any new opens will get the new
              * metadata.
              */
-            WT_ERR(__wt_conn_dhandle_outdated(session, metadata_key));
+            WT_ERR(__wti_conn_dhandle_outdated(session, metadata_key));
             __wt_free(session, cfg_ret);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
