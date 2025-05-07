@@ -2361,7 +2361,7 @@ __rec_build_delta_leaf(WT_SESSION_IMPL *session, WT_PAGE_HEADER *full_image, WTI
     stop = __wt_clock(session);
 
     __wt_verbose(session, WT_VERB_PAGE_DELTA,
-      "Generated leaf page delta, full page size %" PRIu32 ", delta size %" PRIu64
+      "Generated leaf page delta, full page size %" PRIu32 ", delta size %" WT_SIZET_FMT
       ", total time %" PRIu64 "us",
       full_image->mem_size, r->delta.size, WT_CLOCKDIFF_US(stop, start));
 
