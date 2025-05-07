@@ -512,6 +512,8 @@ __wti_page_reconstruct_deltas(
                     mod->mod_disk_image = tmp;
                     WT_RET(ret);
                 }
+
+                WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta);
             } else if (ret != EBUSY)
                 WT_RET(ret);
         }
