@@ -37,14 +37,20 @@
  */
 
 /*
- * The range of read generations represented by the bucket presents a tradeoff. A higher number
- * means there is more lock contention as we add/remove things to/from buckets, because the higher
- * the range the more pages there are in the bucket. A smaller range number means that we have to
- * move pages between buckets more often as their read generations increase.
+ *     We use a decreasing geometric progression to compute the range of each bucket.
+ *     For example, if the first bucket supports read generations in the range up to
+ *     100, the next bucket will support the read generation up to 100 * c_r, where
+ *     c_r is the common ratio of the progression. If c_r is 0.9, then the next bucket
+ *     will support read generations between 101 and 190.
+ *
+ *     Using the geometric progress allows us to spread newer read generations among
+ *     more buckets, so there is less contention when incrementing current read generations.
+ *     If we want to reduce contention for buckets even further, increase the number of buckets.
  */
+#define WT_EVICT_COMMON_RATIO 0.9
+#define WT_EVICT_NUM_BUCKETS  20
+#define WT_EVICT_BUCKET_STARTING_RANGE 100 /* starting upper range for the first bucket */
 
-#define WT_EVICT_BUCKET_RANGE 1000
-#define WT_EVICT_NUM_BUCKETS 100
 #define WT_EVICT_LEVEL_CLEAN_LEAF 0
 #define WT_EVICT_LEVEL_CLEAN_INTERNAL 1
 #define WT_EVICT_LEVEL_DIRTY_LEAF 2

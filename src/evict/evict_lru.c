@@ -1593,7 +1593,7 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
      */
     for (i = 0; i < WT_EVICT_LEVELS; i++) {
         bucketset = &evict_data->evict_bucketset[i];
-		bucketset->lowest_bucket_upper_range =  WT_EVICT_BUCKET_RANGE;
+		bucketset->lowest_bucket_upper_range =  WT_EVICT_BUCKET_STARTING_RANGE;
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
             bucket = &bucketset->buckets[j];
             bucket->id = (uint64_t)j;
@@ -1608,41 +1608,38 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 /*
  * __evict_bucket_range --
  *     Get the lower and upper range of read generations hosted by this bucket.
+ *     We compute the ranges using a geometric progression. See comments in the header file.
  */
 static inline void
 __evict_bucket_range(WT_SESSION_IMPL *session, WT_EVICT_BUCKET *bucket,
 					 uint64_t *min_rangep, uint64_t *max_rangep)
 {
 	WT_EVICT_BUCKETSET *bucketset;
-	uint64_t min_range, max_range;
+	uint64_t min_range, max_range, first_bucket_range;
 
 	WT_ASSERT(session, bucket != NULL);
 
 	bucketset = WT_BUCKET_TO_BUCKETSET(bucket);
-    /*
-     * Example where the lowest bucket upper range is 400 and the evict bucket range is defined
-     * to 300. Bucket 1 lower range is the upper range of the previous bucket plus one. Bucket 1
-     * upper range is the upper range of the previous evict bucket plus 300.
-     *
-     * | bucket0           | bucket 1         | bucket 2          |
-     * |                   |                  |                   |
-     * | lower range: 0    | lower range: 401 | lower range: 701  |    etc.
-     * | upper range: 400  | upper range: 700 | upper range: 1000 |
-     *
-     */
-    if (bucket->id == 0) {
-        min_range = 0;
-        max_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range);
-    } else {
-        min_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) +
-          WT_EVICT_BUCKET_RANGE * (bucket->id - 1) + 1;
-        max_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) +
-          WT_EVICT_BUCKET_RANGE * bucket->id;
-    }
+	first_bucket_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range);
+
+	/*
+	 * We use the sum of the geometric progression to compute the lower and upper range for the
+	 * bucket. For the lower range, we sum the number of buckets that are below the current one;
+	 * the number of buckets below us is the same as our bucket ID. For the upper range we use
+	 * bucket ID plus one.
+	 */
+
+	min_range = __evict_geo_sum(first_bucket_range, bucket->id, WT_EVICT_COMMON_RATIO);
+	max_range = __evict_geo_sum(first_bucket_range, bucket->id + 1, WT_EVICT_COMMON_RATIO) - 1;
+
 	if (min_rangep != NULL)
 		*min_rangep = min_range;
 	if (max_rangep != NULL)
 		*max_rangep = max_range;
+
+	printf("Bucket id %d, min_range = %d, max_range = %d, first_bucket_range = %d\n",
+		   (int)bucket->id, (int)min_range, (int)max_range, (int)first_bucket_range);
+	fflush(stdout);
 }
 
 /*
@@ -1741,21 +1738,20 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
  *     implicitly derived from that of the lowest bucket, so as a result the upper bounds of all
  *     buckets are shifted up. We need to renumber the buckets every time there is a read generation
  *     that’s larger than the range accepted by the highest bucket.
+ *
+ *     We use a decreasing geometric progression to compute the range of read generations for each
+ *     bucket. With a common ratio of 0.9 and ten buckets, doubling the range of the smallest bucket
+ *     roughly doubles the largest read generation for the bucketset.
  */
 static inline void
-__evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset, uint64_t read_gen)
+__evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
 {
-    uint64_t prev, new, target_max_readgen;
-
-	/*
-	 * We don't want to renumber buckets often, so let's accommodate a read generation 50% larger
-	 * than the one that caused the renumbering.
-	 */
-	target_max_readgen = read_gen + read_gen / 2;
-	new = target_max_readgen - (WT_EVICT_NUM_BUCKETS - 1) * WT_EVICT_BUCKET_RANGE;
+    uint64_t prev, new;
 
     prev = __wt_atomic_load64(&bucketset->lowest_bucket_upper_range);
-    /*
+
+	new = prev * 2;
+    /*z
      * If the compare and swap fails, someone else is trying to update the value at the same time.
      * We let them win the race and return. The bucket's upper range can only grow, so we are okay
      * to lose this race.
@@ -1952,6 +1948,7 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 
     page = ref->page;
 	previous_state = WT_REF_GET_STATE_STRICT(ref);
+	read_gen =  __wt_atomic_load64(&page->evict_data.read_gen);
     retries = 0;
 
 	WT_ASSERT(session, page->evict_data.destroying == false);
@@ -1969,14 +1966,9 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	/* Evict handle has the bucket sets for this data handle */
     evict_data = &((WT_BTREE*)dhandle->handle)->evict_data;
     WT_ASSERT(session, evict_data->initialized);
-
-	if (page->type < WT_PAGE_INVALID || page->type > WT_PAGE_ROW_LEAF) {
-		printf("Unexpected page type!!!!!!!!!!!\n");
-		fflush(stdout);
-		while(1);
-	}
-
+	WT_ASSERT(session, (page->type > WT_PAGE_INVALID) && (page->type <= WT_PAGE_ROW_LEAF));
 	WT_ASSERT(session, previous_state == WT_REF_LOCKED || previous_state == WT_REF_MEM);
+
     /*
      * Lock the page so it doesn't disappear. We aren't evicting the page, so we don't need to check
      * for hazard pointers.
@@ -2051,25 +2043,24 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
      * because read generations are updated infrequently.
      */
 retry:
-    if ((read_gen =
-		 __wt_atomic_load64(&page->evict_data.read_gen)) <= bucketset->lowest_bucket_upper_range)
-        dst_bucket = 0;
-    else {
-        dst_bucket = 1 + (read_gen - bucketset->lowest_bucket_upper_range) / WT_EVICT_BUCKET_RANGE;
-        if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries++ < MAX_RETRIES) {
-            __evict_renumber_buckets(bucketset, read_gen);
-			WT_STAT_CONN_INCR(session, eviction_renumbered_buckets);
-            goto retry;
-        } else if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries >= MAX_RETRIES) {
-            /*
-             * We are here if the page's read generation keeps increasing as we are renumbering
-             * buckets. This is extremely unlikely to happen, but we use this safety measure to not
-             * get stuck in this loop. We simply place the page in the highest bucket and proceed.
-             * This is okay, because all we care about is an approximate sorted order.
-             */
-            dst_bucket = WT_EVICT_NUM_BUCKETS - 1;
-        }
-    }
+	dst_bucket = __evict_destination_bucket(read_gen,
+				 __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range));
+	printf("read_gen = %d, dst_bucket = %d\n", (int)read_gen, (int)dst_bucket);
+	fflush(stdout);
+
+	if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries++ < MAX_RETRIES) {
+		__evict_renumber_buckets(bucketset);
+		WT_STAT_CONN_INCR(session, eviction_renumbered_buckets);
+		goto retry;
+	} else if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries >= MAX_RETRIES) {
+		/*
+		 * We are here if the page's read generation keeps increasing as we are renumbering
+		 * buckets. This is extremely unlikely to happen, but we use this safety measure to not
+		 * get stuck in this loop. We simply place the page in the highest bucket and proceed.
+		 * This is okay, because all we care about is an approximate sorted order.
+		 */
+		dst_bucket = WT_EVICT_NUM_BUCKETS - 1;
+	}
     bucket = &bucketset->buckets[dst_bucket];
 
 //	printf("Session %p acquiring %p\n", (void*)session, (void*)&bucket->evict_queue_lock);

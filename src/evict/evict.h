@@ -9,6 +9,7 @@
 #pragma once
 
 #include "evict_private.h"
+#include <math.h>
 
 #define WT_EVICT_DISABLED(btree) btree->evict_data.evict_disabled
 #define WT_EVICT_PAGE_CLEARED(page) (page->evict_data.bucket == NULL)

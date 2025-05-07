@@ -58,6 +58,50 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __evict_destination_bucket --
+ *       Given the read generation, find the id of its destination bucket. Since we use the
+ *       geometric progression to determine the ranges of each bucket given the range of
+ *       the first element, to compute the destination bucket, we calculate the number of elements,
+ *       needed for the sum of those elements to exceed the target read generation. The formula is:
+ *
+ *       n > log (1 - (target / e1) * (1 - c)) / log (c)
+ *
+ *       where target is the given read generaion, e1 is the first element (upper range of the first
+ *       bucket, and c is the common ratio.
+ *
+ */
+static WT_INLINE uint64_t
+__evict_destination_bucket(uint64_t read_gen, uint64_t first_bucket)
+{
+	double e1, target, c, n;
+
+	c = WT_EVICT_COMMON_RATIO;
+	e1 = (double) first_bucket;
+	target = (double)read_gen;
+
+	n = ceil(log(1 - (target / e1) * (1 - c)) / log(c));
+	return (uint64_t)n;
+}
+
+/*
+ * __evict_geo_sum --
+ *      Compute the sum of the first elements of a geometric progression given the first element
+ *      and the common ratio. Used to calculate the range of read generations for eviction buckets.
+ *
+ * 	    The sum of the first N elements in the progression is:
+ *
+ *      S_n = e1 * (1 - c ^ n) / (1 - c)
+ *
+ *      where e1 is the value of the first element (the range of the first bucket) and c is
+ *      the common ratio.
+ */
+static WT_INLINE uint64_t
+__evict_geo_sum(uint64_t e1, uint64_t n, double c)
+{
+	return (uint64_t)((double)e1 * (1.0 - pow(c, (double)n)) / (1.0 - c));
+}
+
+/*
  * __evict_read_gen --
  *     Get the current read generation number.
  */
