@@ -79,6 +79,8 @@ struct __wt_backup_target;
 typedef struct __wt_backup_target WT_BACKUP_TARGET;
 struct __wt_blkcache;
 typedef struct __wt_blkcache WT_BLKCACHE;
+struct __wt_blkcache_delta;
+typedef struct __wt_blkcache_delta WT_BLKCACHE_DELTA;
 struct __wt_blkcache_item;
 typedef struct __wt_blkcache_item WT_BLKCACHE_ITEM;
 struct __wt_blkincr;
@@ -271,6 +273,10 @@ struct __wt_generation_cookie;
 typedef struct __wt_generation_cookie WT_GENERATION_COOKIE;
 struct __wt_generation_drain_cookie;
 typedef struct __wt_generation_drain_cookie WT_GENERATION_DRAIN_COOKIE;
+struct __wt_hash_map;
+typedef struct __wt_hash_map WT_HASH_MAP;
+struct __wt_hash_map_item;
+typedef struct __wt_hash_map_item WT_HASH_MAP_ITEM;
 struct __wt_hazard;
 typedef struct __wt_hazard WT_HAZARD;
 struct __wt_hazard_array;
@@ -367,6 +373,12 @@ struct __wt_page_deleted;
 typedef struct __wt_page_deleted WT_PAGE_DELETED;
 struct __wt_page_header;
 typedef struct __wt_page_header WT_PAGE_HEADER;
+struct __wt_page_history;
+typedef struct __wt_page_history WT_PAGE_HISTORY;
+struct __wt_page_history_item;
+typedef struct __wt_page_history_item WT_PAGE_HISTORY_ITEM;
+struct __wt_page_history_key;
+typedef struct __wt_page_history_key WT_PAGE_HISTORY_KEY;
 struct __wt_page_index;
 typedef struct __wt_page_index WT_PAGE_INDEX;
 struct __wt_page_modify;
@@ -565,6 +577,7 @@ typedef uint64_t wt_timestamp_t;
 #include "dlh.h"
 #include "error.h"
 #include "generation.h"
+#include "hash_map.h"
 #include "hazard.h"
 #include "log.h"
 #include "lsm.h"

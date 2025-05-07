@@ -509,8 +509,10 @@ err:
     if (no_schema_lock)
         FLD_CLR(session->lock_flags, WT_SESSION_NO_SCHEMA_LOCK);
 
-    if (is_btree)
+    if (is_btree) {
+        WT_ASSERT(session, session->dhandle != NULL);
         __wt_evict_file_exclusive_off(session);
+    }
 
     return (ret);
 }
