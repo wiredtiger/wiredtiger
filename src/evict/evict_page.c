@@ -889,7 +889,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * cannot read.
      */
     if (closing)
-        LF_SET(WT_REC_VISIBILITY_ERR);
+        LF_SET(WT_REC_EVICT_CALL_CLOSING | WT_REC_VISIBILITY_ERR);
     /*
      * Don't set any other flags for internal pages: there are no update lists to be saved and
      * restored, changes can't be written into the history store table, nor can we re-create
