@@ -222,6 +222,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         WT_ERR(ret);
     }
 
+    __wt_free(session, tmp);
+
     if (instantiate_upd && !WT_IS_HS(session->dhandle))
         WT_ERR(__wti_page_inmem_updates(session, ref));
 
@@ -241,8 +243,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     WT_ASSERT(
       session, previous_state != WT_REF_DISK || (ref->page_del == NULL && addr.del_set == false));
-
-    __wt_free(session, tmp);
 
     if (previous_state == WT_REF_DELETED) {
         if (F_ISSET(S2BT(session), WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
