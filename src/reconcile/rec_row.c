@@ -1190,6 +1190,10 @@ slow:
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len)) {
+            /* We cannot split a page that is restored from deltas. */
+            if (F_ISSET(r, WT_REC_REWRITE_DELTA))
+                WT_ERR(EBUSY);
+
             /*
              * If we copied address blocks from the page rather than building the actual key, we
              * have to build the key now because we are about to promote it.

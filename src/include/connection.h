@@ -221,9 +221,10 @@ struct __wt_disaggregated_storage {
      * e.g. if the config parsing does anything even slightly off the beaten track.
      */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_DISAGG_INTERNAL_PAGE_DELTA 0x1u
-#define WT_DISAGG_LEAF_PAGE_DELTA 0x2u
-#define WT_DISAGG_NO_SYNC 0x4u
+#define WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA 0x1u
+#define WT_DISAGG_INTERNAL_PAGE_DELTA 0x2u
+#define WT_DISAGG_LEAF_PAGE_DELTA 0x4u
+#define WT_DISAGG_NO_SYNC 0x8u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
