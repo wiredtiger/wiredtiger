@@ -1128,10 +1128,11 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t ckpt_tree_duration_usecs, fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
     uint64_t time_start_ckpt_tree, time_start_fsync, time_start_hs, time_stop_ckpt_tree,
       time_stop_fsync, time_stop_hs;
-    u_int i, ckpt_total_steps, ckpt_relative_crash_step;
+    u_int i, ckpt_total_crash_points, ckpt_relative_crash_point;
     int ckpt_crash_point;
     const char *name;
-    bool can_skip, ckpt_crash_before_metadata_upd, failed, idle, logging, tracking, use_timestamp;
+    bool can_skip, failed, idle, logging, tracking, use_timestamp;
+    bool ckpt_crash_before_metadata_sync, ckpt_crash_before_metadata_update;
     void *saved_meta_next;
 
     conn = S2C(session);
@@ -1140,7 +1141,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
-    ckpt_crash_before_metadata_upd = idle = tracking = use_timestamp = false;
+    idle = tracking = use_timestamp = false;
+    ckpt_crash_before_metadata_sync = ckpt_crash_before_metadata_update = false;
 
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
@@ -1251,18 +1253,25 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (ckpt_crash_point >= 0) {
         /*
-         * Calculate total checkpoint steps and crash point. The total checkpoint steps required are
-         * the number of data handles that need to be checkpointed plus the final metadata update.
+         * Calculate total checkpoint crash points. The total checkpoint points required are the
+         * number of data handles that need to be checkpointed plus the additional crash points.
          */
-        ckpt_total_steps = session->ckpt.handle_next + 1;
-        ckpt_relative_crash_step = ((u_int)ckpt_crash_point / (WT_THOUSAND / ckpt_total_steps));
+        ckpt_total_crash_points = session->ckpt.handle_next + CKPT_CRASH_ENUM_END;
+        ckpt_relative_crash_point =
+          ((u_int)ckpt_crash_point / (WT_THOUSAND / ckpt_total_crash_points));
 
-        if (ckpt_relative_crash_step < session->ckpt.handle_next)
+        if (ckpt_relative_crash_point < session->ckpt.handle_next)
             /* Adjust crash step if it's between checkpointing tables. */
-            session->ckpt.crash_point = ckpt_relative_crash_step + 1;
-        else
-            /* Crash before updating the metadata. */
-            ckpt_crash_before_metadata_upd = true;
+            session->ckpt.crash_point = ckpt_relative_crash_point + 1;
+        else {
+            if ((ckpt_total_crash_points - ckpt_relative_crash_point) ==
+              CKPT_CRASH_BEFORE_METADATA_SYNC)
+                ckpt_crash_before_metadata_sync = true;
+            else {
+                /* CKPT_CRASH_BEFORE_METADATA_UPDATE. */
+                ckpt_crash_before_metadata_update = true;
+            }
+        }
     }
 
     /* Log the final checkpoint prepare progress message if needed. */
@@ -1415,11 +1424,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
     WT_ERR(__wt_txn_commit(session, NULL));
 
-    /*
-     * Crash if the checkpoint crash feature is enabled and configured to fail before updating the
-     * metadata.
-     */
-    if (ckpt_crash_before_metadata_upd)
+    /* Crash before updating the metadata if checkpoint crash point is configured. */
+    if (ckpt_crash_before_metadata_update)
         __wt_debug_crash(session);
 
     /*
@@ -1430,6 +1436,19 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
         WT_ERR(__wt_log_flush(session, WT_LOG_FSYNC));
+
+    /* Crash before metadata sync if checkpoint crash point is configured. */
+    if (ckpt_crash_before_metadata_sync)
+        __wt_debug_crash(session);
+
+    /*
+     * Stress point to stop just before we sync the metadata file. Used to recreate log recovery
+     * scenarios with an incomplete checkpoint.
+     */
+    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 1);
+    /* Wait prior to flush the checkpoint stop log record. */
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, &tsp);
+    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 0);
 
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Either
@@ -1458,11 +1477,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(ret);
 
     __checkpoint_verbose_track(session, "metadata sync completed");
-
-    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 1);
-    /* Wait prior to flush the checkpoint stop log record. */
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_STOP, &tsp);
-    WT_STAT_CONN_SET(session, checkpoint_stop_stress_active, 0);
 
     /*
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
@@ -2057,8 +2071,8 @@ __checkpoint_lock_dirty_tree(
                 skip_ckpt = false;
         }
 
-        /* Skip the clean btree until the btree has obsolete pages. */
-        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES)) {
+        /* Skip the clean btree. */
+        if (skip_ckpt) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
         }
@@ -2073,9 +2087,8 @@ __checkpoint_lock_dirty_tree(
     if (!is_wt_ckpt || is_drop || btree->ckpt_bytes_allocated == 0)
         __wt_ckptlist_saved_free(session);
 
-    /* If we have to process this btree for any reason, reset the timer and obsolete pages flag. */
+    /* If we have to process this btree for any reason, reset the timer. */
     WT_BTREE_CLEAN_CKPT(session, btree, 0);
-    F_CLR(btree, WT_BTREE_OBSOLETE_PAGES);
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_bytes_allocated));
@@ -2175,35 +2188,6 @@ skip:
 }
 
 /*
- * __checkpoint_apply_obsolete --
- *     Returns true if the checkpoint is obsolete.
- */
-static bool
-__checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *ckpt)
-{
-    wt_timestamp_t stop_ts;
-
-    stop_ts = WT_TS_MAX;
-    if (ckpt->size != 0) {
-        /*
-         * If the checkpoint has a valid stop timestamp, mark the btree as having obsolete pages.
-         * This flag is used to avoid skipping the btree until the obsolete check is performed on
-         * the checkpoints.
-         */
-        if (ckpt->ta.newest_stop_ts != WT_TS_MAX) {
-            F_SET(btree, WT_BTREE_OBSOLETE_PAGES);
-            stop_ts = ckpt->ta.newest_stop_durable_ts;
-        }
-        if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn, stop_ts)) {
-            WT_STAT_CONN_DSRC_INCR(session, checkpoint_obsolete_applied);
-            return (true);
-        }
-    }
-
-    return (false);
-}
-
-/*
  * __checkpoint_mark_skip --
  *     Figure out whether the checkpoint can be skipped for a tree.
  */
@@ -2239,13 +2223,6 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
         int deleted = 0;
 
         WT_CKPT_FOREACH (ckptbase, ckpt) {
-            /*
-             * Don't skip the objects that have obsolete pages to let them to be removed as part of
-             * checkpoint cleanup.
-             */
-            if (__checkpoint_apply_obsolete(session, btree, ckpt))
-                return (0);
-
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
                 ++deleted;
         }
