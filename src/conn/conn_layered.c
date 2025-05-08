@@ -1026,6 +1026,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                     next_checkpoint_id = complete_checkpoint + 1;
                 else
                     next_checkpoint_id = open_checkpoint + 1;
+                WT_WITH_CHECKPOINT_LOCK(
+                  session, ret = __disagg_pick_up_checkpoint(session, 0, complete_checkpoint));
+                WT_ERR(ret);
             } else if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
                 next_checkpoint_id = checkpoint_id + 1;
             WT_WITH_CHECKPOINT_LOCK(
