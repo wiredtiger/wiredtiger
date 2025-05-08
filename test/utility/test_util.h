@@ -68,7 +68,9 @@
 #define DIR_STORE "dir_store"
 #define S3_STORE "s3_store"
 
-#define TESTUTIL_ENV_CONFIG_DISAGG ",disaggregated=(role=\"leader\",page_log=%s)"
+#define TESTUTIL_ENV_CONFIG_DISAGG                  \
+    ",disaggregated=(role=\"leader\",page_log=%s)," \
+    "checkpoint=(precise=true)"
 #define TESTUTIL_ENV_CONFIG_DISAGG_EXT                                         \
     "\"%s/ext/page_log/%s/libwiredtiger_%s.so\"=("                             \
     "config=\"(delay_ms=%" PRIu64 ",error_ms=%" PRIu64 ",force_delay=%" PRIu64 \
