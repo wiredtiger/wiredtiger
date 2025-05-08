@@ -87,6 +87,9 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_SESSION_IMPL *checkpoint_se
 
     WT_ASSERT(
       session, __wti_live_restore_get_state(session, lr_fs) == WTI_LIVE_RESTORE_STATE_COMPLETE);
+
+    __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS, "%s", "Live restore has completed.");
+
     return (0);
 }
 
