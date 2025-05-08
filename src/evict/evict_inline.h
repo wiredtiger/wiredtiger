@@ -71,7 +71,8 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
  *
  */
 static WT_INLINE uint64_t
-__evict_destination_bucket(uint64_t read_gen, uint64_t first_bucket)
+__evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t first_bucket,
+							bool blast)
 {
 	double e1, target, c, n;
 
@@ -80,7 +81,22 @@ __evict_destination_bucket(uint64_t read_gen, uint64_t first_bucket)
 	target = (double)read_gen;
 
 	n = ceil(log(1 - (target / e1) * (1 - c)) / log(c));
-	return (uint64_t)n;
+
+	if (blast) {
+		/*
+		 * Read generations tend to cluster together, so during each given time window all pages
+		 * go into the same bucket. To prevent this (and hence avoid bucket contention), we add
+		 * or subtract a small delta from the computed bucket. We "blast" the page away from the
+		 * mathematically computed bucket. The delta correlates with the session id,
+		 * so same session is likely to land in the same bucket during each small time window.
+		 * If the session has an odd id, we subtract, if it has an even id we add.
+		 */
+#define WT_BLAST_RADIUS WT_EVICT_NUM_BUCKETS / 8
+		return (uint64_t)WT_MIN(WT_EVICT_NUM_BUCKETS - 1,
+								WT_MAX(0, (int64_t)n + ((int)session->id % WT_BLAST_RADIUS) * (((int)session->id % 2) ? 1 : (-1))));
+	}
+	else
+		return (uint64_t)n;
 }
 
 /*
@@ -99,6 +115,88 @@ static WT_INLINE uint64_t
 __evict_geo_sum(uint64_t e1, uint64_t n, double c)
 {
 	return (uint64_t)((double)e1 * (1.0 - pow(c, (double)n)) / (1.0 - c));
+}
+
+/*
+ * __evict_page_get_bucketset --
+ *     Find the home bucketset of the page if the page is already enqueued.
+ */
+static WT_INLINE void
+__evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
+						   WT_EVICT_BUCKETSET **bucketset, int *bucketset_level)
+{
+	WT_EVICT_BUCKET *bucket;
+	WT_EVICT_HANDLE_DATA *evict_handle_data;
+
+	*bucketset = NULL;
+	*bucketset_level = 0;
+
+	if (!WT_DHANDLE_BTREE(dhandle)) {
+#ifdef HAVE_DIAGNOSTIC
+		WT_IGNORE_RET(__wt_msg(session,
+		  "page (%s) %p: dhandle is not btree, should not be in eviction",
+							   __wt_page_type_string(page->type), (void*)page));
+#endif
+		return;
+	}
+	evict_handle_data = &((WT_BTREE*)dhandle->handle)->evict_data;
+	if (!evict_handle_data->initialized) {
+#ifdef HAVE_DIAGNOSTIC
+		WT_IGNORE_RET(__wt_msg(session,
+							   "page (%s) %p: dhandle evict data is not initialized",
+							   __wt_page_type_string(page->type), (void*)page));
+#endif
+		return;
+	}
+
+	bucket = __wt_atomic_load_pointer(&page->evict_data.bucket);
+	if (bucket == NULL)
+		return;
+
+	*bucketset =  WT_BUCKET_TO_BUCKETSET(bucket);
+
+	if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset)
+		*bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == *bucketset)
+		*bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == *bucketset)
+		*bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == *bucketset)
+		*bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
+}
+
+/*
+ * __evict_needs_new_bucket --
+ *     A quick check to see if the page will need to be moved into a new bucket.
+ */
+static WT_INLINE bool
+__evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page)
+{
+	WT_EVICT_BUCKETSET *bucketset;
+	int bucketset_level;
+	uint64_t cur_bucket_id, new_bucket_id, read_gen;
+
+	if (page == NULL)
+		return false;
+
+	if (__wt_atomic_load_pointer(&page->evict_data.bucket) == NULL)
+		return true;
+
+	read_gen = __wt_atomic_load64(&page->evict_data.read_gen);
+	cur_bucket_id = __wt_atomic_load64(&page->evict_data.bucket->id);
+	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level);
+
+	new_bucket_id = __evict_destination_bucket(session, read_gen,
+								__wt_atomic_load64(&bucketset->lowest_bucket_upper_range), false);
+
+	if (cur_bucket_id >= new_bucket_id - WT_BLAST_RADIUS &&
+		cur_bucket_id <=  new_bucket_id + WT_BLAST_RADIUS) {
+		printf("read_gen %llu, current bucket = %d, new bucket = %d, no need to move\n", read_gen,
+			   (int)cur_bucket_id, (int)new_bucket_id);
+		fflush(stdout);
+		return false;
+	}
+	return true;
 }
 
 /*

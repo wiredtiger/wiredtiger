@@ -48,7 +48,7 @@
  *     If we want to reduce contention for buckets even further, increase the number of buckets.
  */
 #define WT_EVICT_COMMON_RATIO 0.9
-#define WT_EVICT_NUM_BUCKETS  20
+#define WT_EVICT_NUM_BUCKETS  50
 #define WT_EVICT_BUCKET_STARTING_RANGE 100 /* starting upper range for the first bucket */
 
 #define WT_EVICT_LEVEL_CLEAN_LEAF 0

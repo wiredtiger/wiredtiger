@@ -1123,8 +1123,6 @@ __evict_page(WT_SESSION_IMPL *session)
 	WT_ASSERT(session,
 			  (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
 			   && WT_REF_OWNER(ref) == (uint64_t)session));
-	printf("session %d got ref on page %p in __evict_get_ref\n", (int)session->id, (void*)ref->page);
-	fflush(stdout);
 
     time_start = 0;
 
@@ -1750,8 +1748,8 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
 
     prev = __wt_atomic_load64(&bucketset->lowest_bucket_upper_range);
 
-	new = prev * 2;
-    /*z
+	new = (prev * 15) / 10; /* multiply by 1.5 */
+    /*
      * If the compare and swap fails, someone else is trying to update the value at the same time.
      * We let them win the race and return. The bucket's upper range can only grow, so we are okay
      * to lose this race.
@@ -1789,51 +1787,6 @@ __evict_page_correct_bucketset(WT_PAGE *page, int home_bucketset_level)
 	return (true);
 }
 
-/*
- * __evict_page_get_bucketset --
- *     Find the home bucketset of the page if the page is already enqueued.
- */
-static void
-__evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
-						   WT_EVICT_BUCKETSET **bucketset, int *bucketset_level)
-{
-	WT_EVICT_BUCKET *bucket;
-	WT_EVICT_HANDLE_DATA *evict_handle_data;
-
-	*bucketset = NULL;
-	*bucketset_level = 0;
-
-	if (!WT_DHANDLE_BTREE(dhandle)) {
-#ifdef HAVE_DIAGNOSTIC
-		WT_IGNORE_RET(__wt_msg(session,
-		  "page (%s) %p: dhandle is not btree, should not be in eviction",
-							   __wt_page_type_string(page->type), (void*)page));
-#endif
-		return;
-	}
-	evict_handle_data = &((WT_BTREE*)dhandle->handle)->evict_data;
-	if (!evict_handle_data->initialized) {
-#ifdef HAVE_DIAGNOSTIC
-		WT_IGNORE_RET(__wt_msg(session,
-							   "page (%s) %p: dhandle evict data is not initialized",
-							   __wt_page_type_string(page->type), (void*)page));
-#endif
-		return;
-	}
-	if ((bucket = page->evict_data.bucket) == NULL)
-		return;
-
-	*bucketset =  WT_BUCKET_TO_BUCKETSET(page->evict_data.bucket);
-
-	if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset)
-		*bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == *bucketset)
-		*bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == *bucketset)
-		*bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == *bucketset)
-		*bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
-}
 
 /*
  * __evict_page_consistency_check --
@@ -1846,7 +1799,9 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 	WT_EVICT_BUCKETSET *bucketset;
 	WT_EVICT_HANDLE_DATA *evict_handle_data;
 	WT_REF_STATE state;
+#if 0
 	uint64_t min_range, max_range;
+#endif
 	int home_bucketset_level = -1;
 
 	evict_handle_data = &((WT_BTREE*)dhandle->handle)->evict_data;
@@ -1919,6 +1874,7 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 		return (false);
 	}
 
+#if 0
 	__evict_bucket_range(session, page->evict_data.bucket, &min_range, &max_range);
 	if (page->evict_data.read_gen > max_range) {
 		if (verbose)
@@ -1927,6 +1883,7 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 							PRIu64 "", (void*)page, page->evict_data.read_gen, max_range));
 		return (false);
 	}
+#endif
 	return (true);
 }
 
@@ -2043,8 +2000,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
      * because read generations are updated infrequently.
      */
 retry:
-	dst_bucket = __evict_destination_bucket(read_gen,
-				 __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range));
+	dst_bucket = __evict_destination_bucket(session, read_gen,
+				 __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range), true);
 	printf("read_gen = %d, dst_bucket = %d\n", (int)read_gen, (int)dst_bucket);
 	fflush(stdout);
 
@@ -2125,7 +2082,6 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
   bool internal_only, bool wont_need)
 {
     WT_PAGE *page;
-	uint64_t old_readgen;
 
     page = ref->page;
 
@@ -2139,9 +2095,8 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
             __evict_read_gen_new(session, page);
 		__wt_evict_enqueue_page(session, dhandle, ref, true);
     } else if (!internal_only) {
-		old_readgen = __wt_atomic_load64(&page->evict_data.read_gen);
         __wti_evict_read_gen_bump(session, page);
-		if (old_readgen !=  __wt_atomic_load64(&page->evict_data.read_gen))
+		if (__evict_needs_new_bucket(session, dhandle, page))
 			__wt_evict_enqueue_page(session, dhandle, ref, false);
 	}
 }

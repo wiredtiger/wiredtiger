@@ -210,8 +210,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 		WT_ASSERT(session,
 				  (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
 				   && WT_REF_OWNER(ref) == (uint64_t)session));
-		printf("Eviction to PERMANENTLY remove page %p read gen %llu from bucket %p by session %d\n",
-			   (void*)ref->page, ref->page->evict_data.read_gen, (void*)ref->page->evict_data.bucket, session->id);
+		printf("to evict page %p read_gen %llu from bucket %d by session %d\n",
+			   (void*)ref->page, ref->page->evict_data.read_gen,
+			   (int)ref->page->evict_data.bucket->id, session->id);
 		fflush(stdout);
         __wt_evict_remove(session, ref, false);
 
