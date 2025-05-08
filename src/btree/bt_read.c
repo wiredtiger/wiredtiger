@@ -214,9 +214,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     ref->page->old_rec_lsn_max = block_meta.disagg_lsn;
     ref->page->rec_lsn_max = block_meta.disagg_lsn;
 
-    if (instantiate_upd && !WT_IS_HS(session->dhandle))
-        WT_ERR(__wti_page_inmem_updates(session, ref));
-
     /* Reconstruct deltas*/
     if (count > 1) {
         ret = __wti_page_reconstruct_deltas(session, ref, deltas, count - 1);
@@ -224,6 +221,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
             __wt_buf_free(session, &deltas[i]);
         WT_ERR(ret);
     }
+
+    if (instantiate_upd && !WT_IS_HS(session->dhandle))
+        WT_ERR(__wti_page_inmem_updates(session, ref));
 
     /*
      * In the case of a fast delete, move all of the page's records to a deleted state based on the

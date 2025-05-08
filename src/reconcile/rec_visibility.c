@@ -661,7 +661,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
         /*
          * Don't write any update that is not stable if precise checkpoint is enabled.
          *
-         * If we are rewriting the page restored from deltas on the standby, we may see the pinged
+         * If we are rewriting the page restored from deltas on the standby, we may see the pinned
          * stable timestamp behind the shared checkpoint timestamp. Check the update flag to write
          * it anyway.
          *
