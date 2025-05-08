@@ -17,18 +17,23 @@ usage(void)
 {
     static const char *options[] = {"-a", "abort on error during verification of all tables", "-c",
       "continue to the next page after encountering error during verification", "-d config",
-      "display underlying information during verification", "-s",
+      "display underlying information during verification", "-S",
+      "Treat any verification problem as an error by default"
+      "-s",
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
       "-k",
       "display only the keys in the application data with configuration dump_blocks or dump_pages",
       "-u",
       "display all the application data when dumping with configuration dump_blocks or dump_pages",
+      "-v",
+      "verify only the specified checkpoint. If the checkpoint does not exist in any of "
+      "the verified files, return an error ",
       "-?", "show this message", NULL, NULL};
 
     util_usage(
       "verify [-ackSstu] [-d dump_address | dump_blocks | dump_layout | dump_tree_shape | "
       "dump_offsets=#,# "
-      "| dump_pages] [uri]",
+      "| dump_pages] [-v checkpoint-name] [uri]",
       "options:", options);
 
     return (1);
@@ -43,12 +48,21 @@ verify_one(WT_SESSION *session, char *config, char *uri)
 {
     WT_DECL_RET;
 
-    if ((ret = session->verify(session, uri, config)) != 0)
-        ret = util_err(session, ret, "session.verify: %s", uri);
-    else if (verbose) {
-        /* Verbose configures a progress counter, move to the next line. */
-        printf("\n");
+    ret = session->verify(session, uri, config);
+
+    /*
+     * Usually means that a specific checkpoint verification was requested and this checkpoint isn't
+     * valid for the provided URI.
+     */
+    if (ret == ENOENT) {
+        return (ret);
     }
+
+    if (ret == 0)
+        printf("%s - done\n", uri);
+    else
+        ret = util_err(session, ret, "session.verify: %s", uri);
+
     return (ret);
 }
 
@@ -63,16 +77,16 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_RET;
     size_t size;
     int ch;
-    char *config, *dump_offsets, *key, *uri;
+    char *config, *dump_offsets, *key, *uri, *ckpt;
     bool abort_on_error, do_not_clear_txn_id, dump_address, dump_all_data, dump_key_data,
       dump_blocks, dump_layout, dump_tree_shape, dump_pages, read_corrupt, stable_timestamp, strict;
 
     abort_on_error = do_not_clear_txn_id = dump_address = dump_all_data = dump_key_data =
       dump_blocks = dump_layout = dump_tree_shape = dump_pages = read_corrupt = stable_timestamp =
         strict = false;
-    config = dump_offsets = uri = NULL;
+    config = dump_offsets = uri = ckpt = NULL;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "acd:kSstu?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "acd:kSstuv:?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
@@ -116,6 +130,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         case 'u':
             dump_all_data = true;
             break;
+        case 'v':
+            ckpt = __wt_optarg;
+            break;
         case '?':
             usage();
             return (0);
@@ -128,12 +145,16 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
           "-u (unredact all data), should not be set to true simultaneously with -k (unredact only "
           "keys)");
 
+    if (dump_offsets != NULL && ckpt != NULL)
+        WT_RET_MSG((WT_SESSION_IMPL *)session, ENOTSUP, "%s",
+          "-u dump_offsets, should not be set simultaneously with -v checkpoint-name");
+
     argc -= __wt_optind;
     argv += __wt_optind;
 
-    if (do_not_clear_txn_id || dump_address || dump_all_data || dump_blocks || dump_key_data ||
-      dump_layout || dump_tree_shape || dump_offsets != NULL || dump_pages || read_corrupt ||
-      stable_timestamp || strict) {
+    if (ckpt || do_not_clear_txn_id || dump_address || dump_all_data || dump_blocks ||
+      dump_key_data || dump_layout || dump_tree_shape || dump_offsets != NULL || dump_pages ||
+      read_corrupt || stable_timestamp || strict) {
         size = strlen("do_not_clear_txn_id,") + strlen("dump_address,") + strlen("dump_all_data,") +
           strlen("dump_blocks,") + strlen("dump_key_data,") + strlen("dump_layout,") +
           strlen("dump_tree_shape,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
@@ -143,7 +164,8 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             ret = util_err(session, errno, NULL);
             goto err;
         }
-        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+               ckpt != NULL ? "checkpoint=" : "", ckpt != NULL ? ckpt : "",
                do_not_clear_txn_id ? "do_not_clear_txn_id," : "",
                dump_address ? "dump_address," : "", dump_all_data ? "dump_all_data," : "",
                dump_blocks ? "dump_blocks," : "", dump_key_data ? "dump_key_data," : "",
@@ -171,6 +193,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             WT_ERR(util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
         }
 
+        bool check_done = false;
         while ((ret = cursor->next(cursor)) == 0) {
             if ((ret = cursor->get_key(cursor, &key)) != 0)
                 WT_ERR(util_cerr(cursor, "get_key", ret));
@@ -185,10 +208,17 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                     WT_ERR_ERROR_OK(verify_one(session, config, key), ENOTSUP, false);
                 else
                     WT_TRET(verify_one(session, config, key));
+
+                if (ret == 0)
+                    check_done = true;
             }
         }
         if (ret == WT_NOTFOUND)
             ret = 0;
+
+        /* Specific checkpoint verification requested but the checkpoint wasn't found. */
+        if (ckpt != NULL && check_done == false)
+            ret = ENOENT;
     } else {
         if ((uri = util_uri(session, *argv, "table")) == NULL)
             goto err;
