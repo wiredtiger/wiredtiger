@@ -2296,7 +2296,8 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __wt_split_rewrite --
- *     Rewrite an in-memory page with a new version.
+ *     Rewrite an in-memory page with a new version. If the caller changes the ref state later, it
+ *     should not change ref state in this function.
  */
 int
 __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool change_ref_state)
