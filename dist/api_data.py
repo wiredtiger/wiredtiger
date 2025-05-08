@@ -652,6 +652,10 @@ connection_runtime_config = [
                 If no in-memory ref is found on the root page, attempt to locate a random 
                 in-memory page by examining all entries on the root page.''',
                 type='boolean'),
+            Config('legacy_page_visit_strategy', 'false', r'''
+                Use legacy page visit strategy for eviction. Using this option is highly discouraged
+                as it will re-introduce the bug described in WT-9121.''',
+                type='boolean'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
