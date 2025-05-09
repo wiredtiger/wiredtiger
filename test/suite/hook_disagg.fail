@@ -146,6 +146,7 @@ test_prepare_hs03.py
 test_prepare_hs04.py # times out
 test_recovery01.py
 test_readonly01.py
+test_readonly03.py  # WT-14582
 test_rename.py
 test_reserve.py
 test_rollback_to_stable07.py # times out
