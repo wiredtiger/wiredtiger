@@ -78,17 +78,16 @@ is_valid_fill(WT_SESSION *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint64_t
 }
 
 static void
-generate_random_bitmap(
-  std::mt19937 &gen, double prob, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint8_t *bitmap_old)
+generate_bitmap(uint64_t bitmap_value, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, uint8_t *bitmap_old)
 {
     __bit_nclr(lr_fh->bitmap, 0, lr_fh->nbits - 1);
     __bit_nclr(bitmap_old, 0, lr_fh->nbits - 1);
-    std::bernoulli_distribution dist(prob);
     for (auto i = 0; i < lr_fh->nbits; i++) {
-        if (dist(gen)) {
+        if (bitmap_value & 1) {
             __bit_set(lr_fh->bitmap, i);
             __bit_set(bitmap_old, i);
         }
+        bitmap_value >>= 1;
     }
 }
 
@@ -164,8 +163,8 @@ TEST_CASE("Test various live restore fill hole", "[live_restore], [live_restore_
 
             wt_off_t read_offset = WTI_BIT_TO_OFFSET(lr_fh->nbits);
             __wt_writelock((WT_SESSION_IMPL *)session, &lr_fh->lock);
-            REQUIRE(__ut_live_restore_fill_hole(
-                      lr_fh, session, buf.data(), test.buf_size, &read_offset, &finished) == 0);
+            testutil_check(__ut_live_restore_fill_hole(
+              lr_fh, session, buf.data(), test.buf_size, &read_offset, &finished));
             __wt_writeunlock((WT_SESSION_IMPL *)session, &lr_fh->lock);
             REQUIRE(finished == test.expect_finished);
             if (!finished)
@@ -190,25 +189,26 @@ TEST_CASE("Test various live restore fill hole", "[live_restore], [live_restore_
     SECTION("Live restore fill hole multiple calls")
     {
         /*
-         * Try 50 runs of the fill hole function until migration is complete. The prob value
-         * controls the probability of a bit being set, e.g. 0.5 means 50% of a bit being set, 1
-         * means 100% of a bit being set.
+         * Try multiple runs of the fill hole function until migration is complete. In each run, use
+         * a value from 0 to 65535 (as `nbits` is defined as 16 here) to represent the bitmap in
+         * decimal. This value will be used to generate the bitmap for the test.
          * -- the first run simulates a common case where bitmap is 0 representing no data written
          *    to the dest file before migration starts.
          * -- the second run simulates bitmap is -1 representing all data has been written to the
          *    dest file before migration starts.
-         * -- the rest runs generate random bitmaps with each bit having 50% of chance being set.
+         * -- the rest runs use some random bitmaps.
          */
-        std::vector<double> probabilities(50, 0.5);
-        probabilities[0] = 0;
-        probabilities[1] = 1;
-        std::random_device rd;
-        std::mt19937 gen(rd());
-
+        std::vector<uint64_t> bitmap_values = {0, (1 << 16) - 1, 25570, 60512, 61138, 5312, 54072,
+          53673, 12818, 25220, 43891, 24512, 4554, 31056, 33855, 47176, 16133, 38798, 5838, 47037,
+          52768, 53470, 20027, 1178, 25770, 24647, 1252, 54659, 37263, 2932, 32675, 45793, 9074,
+          18155, 19660, 22559, 27085, 52890, 25813, 30261, 16726, 52872, 44574, 41308, 36030, 58776,
+          39381, 5055, 38016, 10280};
         uint8_t *bitmap_old = nullptr;
         testutil_check(__bit_alloc((WT_SESSION_IMPL *)session, nbits, &bitmap_old));
         std::vector<char> buf(read_size);
-        for (const auto prob : probabilities) {
+        for (auto bitmap_value : bitmap_values) {
+            testutil_assert(nbits < 64);
+            testutil_assert(bitmap_value < ((uint64_t)1 << nbits));
             create_file(env.source_file_path(file_name), file_size, source_char);
             create_file(env.dest_file_path(file_name), file_size, dummy_char);
             testutil_check(lr_fs->iface.fs_open_file((WT_FILE_SYSTEM *)lr_fs, session,
@@ -218,16 +218,16 @@ TEST_CASE("Test various live restore fill hole", "[live_restore], [live_restore_
             lr_fh->allocsize = allocsize;
             testutil_check(__bit_alloc((WT_SESSION_IMPL *)session, nbits, &lr_fh->bitmap));
             lr_fh->nbits = nbits;
-            // Generate random bitmap for the run.
-            generate_random_bitmap(gen, prob, lr_fh, bitmap_old);
+            // Generate bitmap for the run.
+            generate_bitmap(bitmap_value, lr_fh, bitmap_old);
 
             wt_off_t read_offset;
             bool finished = false;
             // Run fill hole until finished.
             __wt_writelock((WT_SESSION_IMPL *)session, &lr_fh->lock);
             while (!finished)
-                REQUIRE(__ut_live_restore_fill_hole(
-                          lr_fh, session, buf.data(), read_size, &read_offset, &finished) == 0);
+                testutil_check(__ut_live_restore_fill_hole(
+                  lr_fh, session, buf.data(), read_size, &read_offset, &finished));
             __wt_writeunlock((WT_SESSION_IMPL *)session, &lr_fh->lock);
 
             // Verify if filling hole completes.

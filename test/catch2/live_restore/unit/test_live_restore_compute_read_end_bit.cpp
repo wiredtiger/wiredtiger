@@ -102,8 +102,8 @@ TEST_CASE("Test various live restore compute read end bit",
         lr_fh->allocsize = test.allocsize;
         lr_fh->bitmap = test.bitmap;
         lr_fh->nbits = test.nbits;
-        REQUIRE(__ut_live_restore_compute_read_end_bit((WT_SESSION_IMPL *)session, lr_fh,
-                  test.buf_size, test.first_clear_bit, &end_bit) == 0);
+        testutil_check(__ut_live_restore_compute_read_end_bit(
+          (WT_SESSION_IMPL *)session, lr_fh, test.buf_size, test.first_clear_bit, &end_bit));
         REQUIRE(
           is_valid_end_bit(end_bit, lr_fh, test.buf_size, test.first_clear_bit, test.file_size));
 
