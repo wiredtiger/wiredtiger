@@ -58,8 +58,8 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
 
         // No writes yet, reads go into source.
         std::vector<char> data(page_size, source_char);
-        REQUIRE(lr_fh->iface.fh_read(
-                  (WT_FILE_HANDLE *)lr_fh, session, 0, page_size, read_buf.data()) == 0);
+        testutil_check(
+          lr_fh->iface.fh_read((WT_FILE_HANDLE *)lr_fh, session, 0, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
 
         /*
@@ -74,31 +74,31 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
         REQUIRE(background_write_len <= file_size);
         REQUIRE(background_write_len % page_size != 0);
         std::vector<char> write_buf(background_write_len, source_char);
-        REQUIRE(lr_fh->iface.fh_write((WT_FILE_HANDLE *)lr_fh, session, 0, background_write_len,
-                  write_buf.data()) == 0);
+        testutil_check(lr_fh->iface.fh_write(
+          (WT_FILE_HANDLE *)lr_fh, session, 0, background_write_len, write_buf.data()));
 
         // The first floor(migration_page_count) are fully migrated and the data should have been
         // copied to the dest file.
         int offset = 0;
         for (; offset + page_size < background_write_len; offset += page_size) {
-            REQUIRE(lr_fh->iface.fh_read(
-                      (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()) == 0);
+            testutil_check(lr_fh->iface.fh_read(
+              (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()));
             REQUIRE(read_buf == data);
             // Verify data has been written to the dest file.
-            REQUIRE(lr_fh->destination->fh_read(
-                      lr_fh->destination, session, offset, page_size, read_buf.data()) == 0);
+            testutil_check(lr_fh->destination->fh_read(
+              lr_fh->destination, session, offset, page_size, read_buf.data()));
             REQUIRE(read_buf == data);
         }
 
         // The last page is partially migrated, since there's no write on dest yet read will just
         // get source chars.
-        REQUIRE(lr_fh->iface.fh_read(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->iface.fh_read(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
         // However in the dest file we should only see the first part of the page copied where the
         // second part should still be dummy chars.
-        REQUIRE(lr_fh->destination->fh_read(
-                  lr_fh->destination, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->destination->fh_read(
+          lr_fh->destination, session, offset, page_size, read_buf.data()));
         auto migrated_size = background_write_len % page_size;
         std::fill(data.begin(), data.begin() + migrated_size, source_char);
         std::fill(data.begin() + migrated_size, data.end(), dummy_char);
@@ -108,53 +108,55 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
         // remains unchanged.
         std::fill(data.begin(), data.end(), write_char);
         write_buf.assign(page_size, write_char);
-        REQUIRE(lr_fh->iface.fh_write(
-                  (WT_FILE_HANDLE *)lr_fh, session, 0, page_size, write_buf.data()) == 0);
-        REQUIRE(lr_fh->iface.fh_read(
-                  (WT_FILE_HANDLE *)lr_fh, session, 0, page_size, read_buf.data()) == 0);
+        testutil_check(
+          lr_fh->iface.fh_write((WT_FILE_HANDLE *)lr_fh, session, 0, page_size, write_buf.data()));
+        testutil_check(
+          lr_fh->iface.fh_read((WT_FILE_HANDLE *)lr_fh, session, 0, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
-        REQUIRE(lr_fh->destination->fh_read(
-                  lr_fh->destination, session, 0, page_size, read_buf.data()) == 0);
+        testutil_check(
+          lr_fh->destination->fh_read(lr_fh->destination, session, 0, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
         std::fill(data.begin(), data.end(), source_char);
-        REQUIRE(lr_fh->source->fh_read(lr_fh->source, session, 0, page_size, read_buf.data()) == 0);
+        testutil_check(
+          lr_fh->source->fh_read(lr_fh->source, session, 0, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
 
         // Test a write that partially exceeds the bitmap.
         std::fill(data.begin(), data.end(), write_char);
         std::fill(write_buf.begin(), write_buf.end(), write_char);
         offset = file_size / page_size * page_size;
-        REQUIRE(lr_fh->iface.fh_write(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()) == 0);
-        REQUIRE(lr_fh->iface.fh_read(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->iface.fh_write(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()));
+        testutil_check(lr_fh->iface.fh_read(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
-        REQUIRE(lr_fh->destination->fh_read(
-                  lr_fh->destination, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->destination->fh_read(
+          lr_fh->destination, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
 
         // Test a write that goes completely beyond the bitmap range.
         std::fill(write_buf.begin(), write_buf.end(), write_char);
         offset = (file_size / page_size + 5) * page_size;
-        REQUIRE(lr_fh->iface.fh_write(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()) == 0);
-        REQUIRE(lr_fh->iface.fh_read(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->iface.fh_write(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()));
+        testutil_check(lr_fh->iface.fh_read(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
-        REQUIRE(lr_fh->destination->fh_read(
-                  lr_fh->destination, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->destination->fh_read(
+          lr_fh->destination, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
 
         // Source should remain untouched during the whole test.
         data.assign(file_size, source_char);
         read_buf.resize(file_size);
-        REQUIRE(lr_fh->source->fh_read(lr_fh->source, session, 0, file_size, read_buf.data()) == 0);
+        testutil_check(
+          lr_fh->source->fh_read(lr_fh->source, session, 0, file_size, read_buf.data()));
         REQUIRE(read_buf == data);
 
         testutil_check(lr_fh->iface.close((WT_FILE_HANDLE *)lr_fh, session));
     }
 
-    SECTION("Read/write when source doesn't exists")
+    SECTION("Read/write when source doesn't exist")
     {
         testutil_remove(env.source_file_path(file_name).c_str());
         testutil_remove(env.dest_file_path(file_name).c_str());
@@ -167,36 +169,36 @@ TEST_CASE("Live Restore fh_read fh_write", "[live_restore],[live_restore_fh_read
         std::vector<char> read_buf(page_size);
         std::vector<char> write_buf(page_size, write_char);
         // Test written data can be read from fh_read().
-        REQUIRE(lr_fh->iface.fh_write(
-                  (WT_FILE_HANDLE *)lr_fh, session, 0, page_size, write_buf.data()) == 0);
-        REQUIRE(lr_fh->iface.fh_read(
-                  (WT_FILE_HANDLE *)lr_fh, session, 0, page_size, read_buf.data()) == 0);
+        testutil_check(
+          lr_fh->iface.fh_write((WT_FILE_HANDLE *)lr_fh, session, 0, page_size, write_buf.data()));
+        testutil_check(
+          lr_fh->iface.fh_read((WT_FILE_HANDLE *)lr_fh, session, 0, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
         // Verify data has been written to the dest file.
-        REQUIRE(lr_fh->destination->fh_read(
-                  lr_fh->destination, session, 0, page_size, read_buf.data()) == 0);
+        testutil_check(
+          lr_fh->destination->fh_read(lr_fh->destination, session, 0, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
 
         // Test a write that partially exceeds the bitmap.
         auto offset = file_size / page_size * page_size;
-        REQUIRE(lr_fh->iface.fh_write(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()) == 0);
-        REQUIRE(lr_fh->iface.fh_read(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->iface.fh_write(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()));
+        testutil_check(lr_fh->iface.fh_read(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
-        REQUIRE(lr_fh->destination->fh_read(
-                  lr_fh->destination, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->destination->fh_read(
+          lr_fh->destination, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
 
         // Test a write that goes completely beyond the bitmap range.
         offset = (file_size / page_size + 5) * page_size;
-        REQUIRE(lr_fh->iface.fh_write(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()) == 0);
-        REQUIRE(lr_fh->iface.fh_read(
-                  (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->iface.fh_write(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, write_buf.data()));
+        testutil_check(lr_fh->iface.fh_read(
+          (WT_FILE_HANDLE *)lr_fh, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
-        REQUIRE(lr_fh->destination->fh_read(
-                  lr_fh->destination, session, offset, page_size, read_buf.data()) == 0);
+        testutil_check(lr_fh->destination->fh_read(
+          lr_fh->destination, session, offset, page_size, read_buf.data()));
         REQUIRE(read_buf == data);
 
         // Source should remain untouched during the whole test.
