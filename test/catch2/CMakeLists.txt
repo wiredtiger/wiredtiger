@@ -54,6 +54,8 @@ endif()
 # FIXME-WT-14051: Live restore is not supported on Windows
 if(NOT WT_WIN)
     set(unittests live_restore/api/test_live_restore_fh_lock_close_sync.cpp ${unittests})
+    set(unittests live_restore/api/test_live_restore_fh_size.cpp ${unittests})
+    set(unittests live_restore/api/test_live_restore_fh_truncate.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fs_directory_list.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fs_open_file.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fs_exist.cpp ${unittests})
@@ -107,6 +109,10 @@ target_compile_options(
 )
 
 target_link_libraries(catch2-unittests Catch2::Catch2)
+
+if(WT_POSIX)
+    add_dependencies(catch2-unittests wiredtiger_dir_store)
+endif()
 
 add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/catch2-unittests)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")
