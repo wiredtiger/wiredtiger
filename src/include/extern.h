@@ -82,6 +82,8 @@ extern const char *__wt_session_strerror(WT_SESSION *wt_session, int error)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern const char *__wt_verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_wiredtiger_error(int error)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wti_cell_type_string(uint8_t type)
@@ -505,6 +507,8 @@ extern int __wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t
   const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_addr_print(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_debug_cursor_dsk(void *cursor_arg, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE(
+  (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_cursor_page(void *cursor_arg, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE(
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)

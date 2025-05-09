@@ -781,6 +781,27 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 }
 
 /*
+ * __wt_debug_cursor_block --
+ *     Dump the on-disk information for a cursor-referenced block.
+ */
+int
+__wt_debug_cursor_dsk(void *cursor_arg, const char *ofile)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    cbt = cursor_arg;
+    session = CUR2S(cursor_arg);
+
+    WT_WITH_BTREE(session, CUR2BT(cbt),
+      ret = __wti_debug_disk(session, cbt->ref->page->dsk, ofile, false, false));
+
+    return (ret);
+}
+
+/*
  * __wti_debug_disk --
  *     Dump a disk page in debugging mode.
  */
@@ -1023,6 +1044,7 @@ __wti_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *of
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint32_t flags;
+    WT_DECL_ITEM(buff);
 
     session = (WT_SESSION_IMPL *)session_arg;
     flags = WT_DEBUG_TREE_LEAF;
@@ -1042,10 +1064,27 @@ __wti_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *of
     WT_WITH_BTREE(session, btree, ret = __debug_config(session, ds, ofile, flags));
     WT_ERR(ret);
 
-    WT_WITH_BTREE(session, btree, ret = __debug_page(ds, ref));
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &buff));
+
+    /* Dump the page metadata. */
+    WT_WITH_BTREE(
+      session, btree, WT_WITH_PAGE_INDEX(session, ret = __debug_page_metadata(ds, ref)));
+    WT_ERR(ret);
+
+    // Dump the page addr.
+    // __wt_verify_addr_string(session, ref, buff);
+
+    // __wt_verbose(session, WT_VERB_VERIFY, "%s", __wt_verify_addr_string(session, ref, buff)); 
+
+    ds->f(ds, "%s", __wt_verify_addr_string(session, ref, buff));
+    // __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &unpack);
+    // WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
+
+    // WT_WITH_BTREE(session, btree, ret = __debug_page(ds, ref));
 
 err:
     WT_TRET(__debug_wrapup(ds));
+    __wt_scr_free(session, &buff);
     return (ret);
 }
 
@@ -1143,10 +1182,6 @@ __debug_page(WT_DBG *ds, WT_REF *ref)
 
     session = ds->session;
     WT_RET(__wt_scr_alloc(session, 100, &ds->key));
-
-    /* Dump the page metadata. */
-    WT_WITH_PAGE_INDEX(session, ret = __debug_page_metadata(ds, ref));
-    WT_ERR(ret);
 
     /* Dump the page. */
     switch (ref->page->type) {

@@ -20,6 +20,7 @@ __wt_curhs_open
 __wt_cursor_get_raw_value
 __wt_debug_addr
 __wt_debug_addr_print
+__wt_debug_cursor_dsk
 __wt_debug_cursor_page
 __wt_debug_cursor_tree_hs
 __wt_debug_offset
