@@ -798,14 +798,17 @@ __live_restore_fh_read(
             /* Read the serviceable portion from the destination. */
             ret = __live_restore_fh_read_destination(
               session, lr_fh->destination, offset, dest_partial_read_len, tmp_buf);
+
+            if (ret == 0)
+                /*
+                 * We only need to check the destination portion matches the portion in the source.
+                 */
+                WT_ASSERT(session, strncmp(read_data, tmp_buf, dest_partial_read_len) == 0);
+
             __wt_free(session, tmp_buf);
 
-            if (ret != 0) {
+            if (ret != 0)
                 goto err;
-            }
-
-            /* We only need to check the destination portion matches the portion in the source. */
-            WT_ASSERT(session, strncmp(read_data, tmp_buf, dest_partial_read_len) == 0);
         }
 #endif
     }
