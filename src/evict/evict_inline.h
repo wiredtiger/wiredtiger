@@ -69,18 +69,34 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
  *       where target is the given read generaion, e1 is the first element (upper range of the first
  *       bucket, and c is the common ratio.
  *
+ *       This function may return a destination bucket larger than the number of buckets. That's a
+ *       signal to the caller that the buckets can't hold the current read generation and we must
+ *       trigger a renumbering.
  */
 static WT_INLINE uint64_t
 __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t first_bucket,
 							bool blast)
 {
 	double e1, target, c, n;
+	int64_t blast_value;
 
+	blast_value = 0;
 	c = WT_EVICT_COMMON_RATIO;
 	e1 = (double) first_bucket;
 	target = (double)read_gen;
 
 	n = ceil(log(1 - (target / e1) * (1 - c)) / log(c));
+	printf("e1 = %.2f, c =  %.2f, target =  %.2f, n =  %.2f\n", e1, c, target, n);
+
+	/*
+	 * This can happen if we fail to renumber the buckets for a very long time -- i.e.,
+	 * the read generation is too large to find a valid bucket within this diminishing
+	 * geometric sequence. This shouldn't happen, but we have a safeguard here to set us
+	 * back on track. Returning the largest bucket value will force the caller to renumber
+	 * the buckets.
+	 */
+	if (isnan(n))
+		return WT_EVICT_NUM_BUCKETS;
 
 	if (blast) {
 		/*
@@ -91,12 +107,14 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
 		 * so same session is likely to land in the same bucket during each small time window.
 		 * If the session has an odd id, we subtract, if it has an even id we add.
 		 */
-#define WT_BLAST_RADIUS WT_EVICT_NUM_BUCKETS / 8
-		return (uint64_t)WT_MIN(WT_EVICT_NUM_BUCKETS - 1,
-								WT_MAX(0, (int64_t)n + ((int)session->id % WT_BLAST_RADIUS) * (((int)session->id % 2) ? 1 : (-1))));
+		blast_value =
+			((int)session->id % WT_EVICT_BLAST_RADIUS) * (((int)session->id % 2 == 0) ? 1 : (-1));
 	}
-	else
-		return (uint64_t)n;
+	printf("read_gen = %llu, unblasted bucket is %lld, bv is %lld (blast is %s), session %d, blast radius %d\n",
+		   read_gen, (int64_t)n, blast_value, blast?"true":"false", (int)session->id, WT_EVICT_BLAST_RADIUS);
+	fflush(stdout);
+
+	return (uint64_t)WT_MAX(0, ((int64_t)n + blast_value));
 }
 
 /*
@@ -189,8 +207,11 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
 	new_bucket_id = __evict_destination_bucket(session, read_gen,
 								__wt_atomic_load64(&bucketset->lowest_bucket_upper_range), false);
 
-	if (cur_bucket_id >= new_bucket_id - WT_BLAST_RADIUS &&
-		cur_bucket_id <=  new_bucket_id + WT_BLAST_RADIUS) {
+	if (new_bucket_id >= WT_EVICT_NUM_BUCKETS)
+		return true;
+
+	if (cur_bucket_id >= new_bucket_id - WT_EVICT_BLAST_RADIUS &&
+		cur_bucket_id <=  new_bucket_id + WT_EVICT_BLAST_RADIUS) {
 		printf("read_gen %llu, current bucket = %d, new bucket = %d, no need to move\n", read_gen,
 			   (int)cur_bucket_id, (int)new_bucket_id);
 		fflush(stdout);
