@@ -63,6 +63,7 @@ test_config02.py
 test_config03.py # times out
 test_config04.py
 test_config09.py
+test_config10.py
 test_config11.py # times out
 test_cursor01.py
 test_cursor02.py
@@ -125,6 +126,7 @@ test_metadata_cursor02.py
 test_metadata_cursor03.py
 test_metadata_cursor04.py
 test_overwrite.py
+test_prefetch01.py
 test_prefetch02.py # times out
 test_prepare03.py
 test_prepare08.py # times out
@@ -144,6 +146,7 @@ test_prepare_hs03.py
 test_prepare_hs04.py # times out
 test_recovery01.py
 test_readonly01.py
+test_readonly03.py  # WT-14582
 test_rename.py
 test_reserve.py
 test_rollback_to_stable07.py # times out
@@ -183,6 +186,7 @@ test_stat03.py
 test_stat04.py
 test_stat05.py
 test_stat06.py
+test_stat_log01.py
 test_stat_log02.py
 test_sweep03.py
 test_tiered16.py

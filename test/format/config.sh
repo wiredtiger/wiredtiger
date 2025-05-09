@@ -179,6 +179,12 @@ CONFIG configuration_list[] = {
 
 {"debug.update_restore_evict", "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0}
 
+{"disagg.page_log", "configure page log for disaggregated storage (off | palm)", C_IGNORE | C_STRING, 0, 0, 0}
+
+{"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
+
+{"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0}
+
 {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0}
@@ -293,7 +299,7 @@ CONFIG configuration_list[] = {
 
 {"runs.rows", "number of rows", C_TABLE, 10, M(1), M(100)}
 
-{"runs.source", "data source type (file | lsm | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
+{"runs.source", "data source type (file | layered | lsm | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"runs.tables", "number of tables", 0x0, 1, 32, V_MAX_TABLES_CONFIG}
 

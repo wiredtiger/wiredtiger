@@ -159,6 +159,15 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
     "control all dirty page evictions through forcing update restore eviction", C_BOOL, 2, 0, 0,
     V_GLOBAL_DEBUG_UPDATE_RESTORE_EVICT},
 
+  {"disagg.page_log", "configure page log for disaggregated storage (off | palm)",
+    C_IGNORE | C_STRING, 0, 0, 0, V_GLOBAL_DISAGG_PAGE_LOG},
+
+  {"disagg.enabled", "configure page log for disaggregated storage (off | palm)",
+    C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0, V_TABLE_DISAGG_ENABLED},
+
+  {"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0,
+    V_GLOBAL_DISAGG_LAYERED},
+
   {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_DISK_CHECKSUM},
 

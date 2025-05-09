@@ -978,6 +978,22 @@ functions:
           ./t $format_args ${extra_args}
           ./t -R $format_args ${extra_args}
         done
+  "format test disagg":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        format_args=""  # Generally, format arguments are in CONFIG.disagg.
+        for i in $(seq ${times}); do
+          echo Iteration $i/${times}
+          rm -rf RUNDIR
+          ./t -c ../../../test/format/CONFIG.disagg $format_args ${extra_args}
+          ./t -R $format_args ${extra_args}
+        done
   "many dbs test":
     command: shell.exec
     params:
