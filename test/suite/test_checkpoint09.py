@@ -32,18 +32,9 @@
 import wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 class test_checkpoint09(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
-
-    format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('column', dict(key_format='r', value_format='u')),
-        ('row_string', dict(key_format='S', value_format='u')),
-    ]
-
-    scenarios = make_scenarios(format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -92,21 +83,15 @@ class test_checkpoint09(wttest.WiredTigerTestCase):
         nrows = 1000
 
         # Create a table.
-        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, nrows, key_format='S', value_format='u')
         ds.populate()
 
         # Pin oldest and stable timestamp to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
-
-        if self.value_format == '8t':
-            value1 = 86
-            value2 = 87
-            value3 = 88
-        else:
-            value1 = b"aaaaa" * 100
-            value2 = b"bbbbb" * 100
-            value3 = b"ccccc" * 100
+        value1 = b"aaaaa" * 100
+        value2 = b"bbbbb" * 100
+        value3 = b"ccccc" * 100
 
         self.large_updates(uri, value1, ds, nrows, 1, 10)
         self.check(value1, uri, nrows)

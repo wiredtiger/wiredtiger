@@ -36,12 +36,6 @@ import wttest
 from wtscenario import make_scenarios
 
 class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
-    key_format_values = [
-        ('column', dict(key_format='r', usestrings=False)),
-        ('string-row', dict(key_format='S', usestrings=True))
-    ]
-    scenarios = make_scenarios(key_format_values)
-
     def apply_timestamps(self, timestamp):
         self.session.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(timestamp))
@@ -53,11 +47,10 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
     def test_timestamp_alter(self):
         base = 'assert07'
         uri = 'file:' + base
-
-        key_ts1 = 'key_ts1' if self.usestrings else 1
+        key_ts1 = 'key_ts1'
 
         # No reserved, single update.
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(uri, 'key_format=S,value_format=S')
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         c[key_ts1] = 'value1'

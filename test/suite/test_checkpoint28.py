@@ -51,14 +51,6 @@ class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_handle]'
     session_config = 'isolation=snapshot'
 
-    format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def large_updates(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)
         self.session.begin_transaction()
@@ -72,13 +64,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
 
     def check(self, cursor, value):
         count = 0
-        zero_count = 0
         for k, v in cursor:
-            if self.value_format == '8t' and v == 0:
-                zero_count += 1
-            else:
-                self.assertEqual(v, value)
-                count += 1
+            self.assertEqual(v, value)
+            count += 1
         return count
 
     def test_checkpoint(self):
@@ -87,21 +75,12 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         nrows = 1000
 
         # Create two tables.
-        ds_1 = SimpleDataSet(
-            self, uri_1, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds_1 = SimpleDataSet(self, uri_1, 0)
         ds_1.populate()
 
-        ds_2 = SimpleDataSet(
-            self, uri_2, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds_2 = SimpleDataSet(self, uri_2, 0)
         ds_2.populate()
-
-        if self.value_format == '8t':
-            nrows *= 5
-            value_a = 97
-        else:
-            value_a = "aaaaa" * 100
+        value_a = "aaaaa" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

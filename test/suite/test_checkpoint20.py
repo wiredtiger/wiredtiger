@@ -38,13 +38,6 @@ from wtscenario import make_scenarios
 
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
-
-    format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-    ]
     stable_ts_values = [
         ('15', dict(stable_ts=15)),
         ('25', dict(stable_ts=25)),
@@ -53,7 +46,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('named', dict(first_checkpoint='first_checkpoint')),
         ('unnamed', dict(first_checkpoint=None)),
     ]
-    scenarios = make_scenarios(format_values, stable_ts_values, name_values)
+    scenarios = make_scenarios(stable_ts_values, name_values)
 
 
     def large_updates(self, uri, ds, nrows, value, ts):
@@ -119,19 +112,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         nrows = 10000
 
         # Create a table.
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0)
         ds.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Pin oldest and stable timestamps to 5.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +

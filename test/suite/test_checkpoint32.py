@@ -30,22 +30,12 @@ import threading, time
 import wttest
 import wiredtiger
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 from wiredtiger import stat
 
 # test_checkpoint32.py
 #
 # Test that skipping in-memory reconciled deleted pages as part of the tree walk.
 class test_checkpoint32(wttest.WiredTigerTestCase):
-
-    format_values = [
-        # FLCS doesn't support skipping pages based on aggregated time.
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def check(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)
         count = 0
@@ -60,9 +50,7 @@ class test_checkpoint32(wttest.WiredTigerTestCase):
         nrows = 1000
 
         # Create a table.
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0)
         ds.populate()
 
         value_a = "aaaaa" * 100

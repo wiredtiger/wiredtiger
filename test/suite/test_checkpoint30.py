@@ -30,8 +30,6 @@ import threading, time
 import wttest
 import wiredtiger
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
-
 # test_checkpoint30.py
 #
 # Test reading a cursor when the aggregate time window is visible to the snapshot
@@ -39,12 +37,6 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-    ]
-    scenarios = make_scenarios(format_values)
 
     def large_updates(self, uri, ds, nrows, value, ts):
         cursor = self.session.open_cursor(uri)
@@ -93,13 +85,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         nrows = 100
 
         # Create a table.
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0)
         ds.populate()
 
         value_a = "aaaaa" * 100
-        value_b = "bbbbb" * 100
 
         # Pin oldest and stable timestamps to 5.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +

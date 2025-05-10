@@ -34,7 +34,7 @@ class test_bug017(wttest.WiredTigerTestCase):
 
     def test_bug017_run(self):
         self.session.create("table:bug17",
-            'key_format=r,value_format=5sHQ,' +
+            'key_format=i,value_format=5sHQ,' +
             'columns=(id,country,year,population),colgroups=(main,population)')
 
         msg = '/column groups/'

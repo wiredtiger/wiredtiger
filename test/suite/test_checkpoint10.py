@@ -42,12 +42,6 @@ from wtscenario import make_scenarios
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
-    format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-    ]
     overlap_values = [
         ('no-overlap', dict(do_overlap=False)),
         ('overlap', dict(do_overlap=True)),
@@ -63,7 +57,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('nonlogged', dict(do_log=False)),
         ('logged', dict(do_log=True)),
     ]
-    scenarios = make_scenarios(format_values, overlap_values, name_values, log_values)
+    scenarios = make_scenarios(overlap_values, name_values, log_values)
 
     def conn_config(self):
         cfg = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
@@ -94,8 +88,6 @@ class test_checkpoint(wttest.WiredTigerTestCase):
                 seen[v] += 1
             else:
                 seen[v] = 1
-        #for v in seen:
-        #    self.prout("seen {}: {}".format(v if self.value_format == '8t' else v[0], seen[v]))
         self.assertTrue(seen in expected)
         #self.session.rollback_transaction()
         cursor.close()
@@ -107,18 +99,10 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         morerows = 10000
 
         # Create a table.
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0)
         ds.populate()
-
-        if self.value_format == '8t':
-            morerows *= 5
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Write some data.
         self.large_updates(uri, ds, nrows, value_a)
@@ -169,14 +153,8 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         expected_b = { value_a: nrows - overlap, value_b: overlap + morerows }
         expected = [expected_a, expected_b]
 
-        # For FLCS, because the table expands under uncommitted data, we should
-        # see zeros once the additional data's been written (that is, always strictly
-        # before the checkpoint) if we don't see the actual values.
-        expected_flcs_a = { value_a: nrows, 0: morerows }
-        expected_flcs = [expected_flcs_a, expected_b]
-
         # Now read the checkpoint.
-        self.check(ds, self.second_checkpoint, expected_flcs if self.value_format == '8t' else expected)
+        self.check(ds, self.second_checkpoint, expected)
 
         # If we haven't died yet, pretend to crash and run RTS to see if the
         # checkpoint was inconsistent.

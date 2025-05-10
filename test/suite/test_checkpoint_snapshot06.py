@@ -46,35 +46,21 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
     uri_2 = "table:test_checkpoint_snapshot06_2"
     backup_dir = "BACKUP"
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     restart_values = [
         ("crash_restart", dict(restart=True)),
         ("backup", dict(restart=False)),
     ]
 
-    scenarios = make_scenarios(format_values, restart_values)
+    scenarios = make_scenarios(restart_values)
 
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),debug_mode=(log_retention=10),timing_stress_for_test=[checkpoint_slow]'
         return config
 
     def moresetup(self):
-        if self.value_format == '8t':
-            # Rig to use more than one page; otherwise the inconsistent checkpoint assertions fail.
-            self.extraconfig = ',leaf_page_max=4096'
-            self.nrows = 5000
-            self.valuea = 97
-            self.valueb = 98
-        else:
-            self.extraconfig = ''
-            self.nrows = 1000
-            self.valuea = "aaaaa" * 100
-            self.valueb = "bbbbb" * 100
+        self.nrows = 1000
+        self.valuea = "aaaaa" * 100
+        self.valueb = "bbbbb" * 100
 
     def take_full_backup(self, fromdir, todir):
         # Open up the backup cursor, and copy the files.  Do a full backup.
@@ -119,13 +105,6 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts, more_invisible_rows_exist):
-        # In FLCS the existence of the invisible extra set of rows causes the table to
-        # extend under them. Until that's fixed, expect (not just allow) those rows to
-        # exist and demand that they read back as zero and not as check_value. When it
-        # is fixed (so the end of the table updates transactionally) the special-case
-        # logic can just be removed.
-        flcs_tolerance = more_invisible_rows_exist and self.value_format == '8t'
-
         session = self.session
         if read_ts == 0:
             session.begin_transaction()
@@ -134,13 +113,10 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
-            if flcs_tolerance and count >= nrows:
-                self.assertEqual(v, 0)
-            else:
-                self.assertEqual(v, check_value)
+            self.assertEqual(v, check_value)
             count += 1
         session.commit_transaction()
-        self.assertEqual(count, nrows * 2 if flcs_tolerance else nrows)
+        self.assertEqual(count, nrows)
 
     def perform_backup_or_crash_restart(self, fromdir, todir):
         if self.restart == True:
@@ -156,14 +132,12 @@ class test_checkpoint_snapshot06(wttest.WiredTigerTestCase):
     def test_checkpoint_snapshot(self):
         self.moresetup()
 
-        ds_1 = SimpleDataSet(self, self.uri_1, 0, \
-                key_format=self.key_format, value_format=self.value_format, \
-                config="log=(enabled=true)" +self.extraconfig)
+        ds_1 = SimpleDataSet(self, self.uri_1, 0, key_format='i', value_format='S', \
+                config="log=(enabled=true)")
         ds_1.populate()
 
-        ds_2 = SimpleDataSet(self, self.uri_2, 0, \
-                key_format=self.key_format, value_format=self.value_format, \
-                config="log=(enabled=true)" + self.extraconfig)
+        ds_2 = SimpleDataSet(self, self.uri_2, 0, key_format='i', value_format='S', \
+                config="log=(enabled=true)")
         ds_2.populate()
 
         # Insert number of records into both tables.

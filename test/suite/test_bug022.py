@@ -30,23 +30,15 @@
 #       Testing that we don't allow modifies on top of tombstone updates.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 class test_bug022(wttest.WiredTigerTestCase):
     uri = 'file:test_bug022'
     conn_config = 'cache_size=50MB'
-
-    key_format_values = [
-        ('string-row', dict(key_format='S', usestrings=True)),
-        ('column', dict(key_format='r', usestrings=False)),
-    ]
-    scenarios = make_scenarios(key_format_values)
-
     def get_key(self, i):
-        return str(i) if self.usestrings else i
+        return str(i)
 
     def test_apply_modifies_on_onpage_tombstone(self):
-        self.session.create(self.uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(self.uri, 'key_format=S,value_format=S')
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
 

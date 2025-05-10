@@ -28,7 +28,6 @@
 
 import wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_bug032.py
 # This tests for the scenario discovered in WT-11845.
@@ -45,13 +44,6 @@ from wtscenario import make_scenarios
 #   truncate operation.
 class test_bug032(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('string_row', dict(key_format='S', value_format='S')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def populate(self, uri, ds, nrows, value):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -72,7 +64,7 @@ class test_bug032(wttest.WiredTigerTestCase):
         value_str = 'a' * 512
 
         # Create a table and populate it
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format, config='allocation_size=512,leaf_page_max=10KB')
+        ds = SimpleDataSet(self, uri, 0, key_format='S', value_format='S', config='allocation_size=512,leaf_page_max=10KB')
         ds.create()
         self.populate(uri, ds, nrows, value_str)
 

@@ -36,23 +36,15 @@
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # Test search/search-near operations, including invisible values and keys
 # past the end of the table.
 class test_bug008(wttest.WiredTigerTestCase):
     uri = 'file:test_bug008'                # This is a btree layer test.
-    scenarios = make_scenarios([
-        ('fix', dict(key_format='r', value_format='8t', empty=1, colvar=0)),
-        ('row', dict(key_format='S', value_format='S', empty=0, colvar=0)),
-        ('var', dict(key_format='r', value_format='S', empty=0, colvar=1))
-    ])
-
     # Verify cursor search and search-near operations in an empty table.
     def test_search_empty(self):
         # Create the object and open a cursor.
-        ds = SimpleDataSet(self, self.uri, 0, key_format=self.key_format,
-                           value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 0, key_format='S', value_format='S')
         ds.create()
         cursor = ds.open_cursor(self.uri, None)
 
@@ -69,8 +61,7 @@ class test_bug008(wttest.WiredTigerTestCase):
     def test_search_eot(self):
         # Populate the tree and reopen the connection, forcing it to disk
         # and moving the records to an on-page format.
-        ds = SimpleDataSet(self, self.uri, 100, key_format=self.key_format,
-                           value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 100, key_format='S', value_format='S')
         ds.populate()
         self.reopen_conn()
 
@@ -101,55 +92,11 @@ class test_bug008(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), ds.key(100))
         self.assertEqual(cursor.get_value(), ds.value(100))
 
-    # Verify cursor search-near operations before and after a set of
-    # column-store duplicates.
-    def test_search_duplicate(self):
-        if self.colvar == 0:
-                return
-
-        # Populate the tree.
-        ds = SimpleDataSet(self, self.uri, 105, key_format=self.key_format,
-                           value_format=self.value_format)
-        ds.populate()
-
-        # Set up deleted records before and after a set of duplicate records,
-        # and make sure search/search-near returns the correct record.
-        cursor = ds.open_cursor(self.uri, None)
-        for i in range(20, 100):
-            cursor[ds.key(i)] = '=== IDENTICAL VALUE ==='
-        for i in range(15, 25):
-            cursor.set_key(ds.key(i))
-            self.assertEqual(cursor.remove(), 0)
-        for i in range(95, 106):
-            cursor.set_key(ds.key(i))
-            self.assertEqual(cursor.remove(), 0)
-        cursor.close()
-
-        # Reopen the connection, forcing it to disk and moving the records to
-        # an on-page format.
-        self.reopen_conn()
-
-        # Open a cursor.
-        cursor = ds.open_cursor(self.uri, None)
-
-        # Search-near for a record in the deleted set before the duplicate set,
-        # which should succeed, returning the first record in the duplicate set.
-        cursor.set_key(ds.key(18))
-        self.assertEqual(cursor.search_near(), 1)
-        self.assertEqual(cursor.get_key(), ds.key(25))
-
-        # Search-near for a record in the deleted set after the duplicate set,
-        # which should succeed, returning the last record in the duplicate set.
-        cursor.set_key(ds.key(98))
-        self.assertEqual(cursor.search_near(), -1)
-        self.assertEqual(cursor.get_key(), ds.key(94))
-
     # Verify cursor search and search-near operations on a file with a set of
     # on-page visible records, and a set of insert-list invisible records.
     def test_search_invisible_one(self):
         # Populate the tree.
-        ds = SimpleDataSet(self, self.uri, 100, key_format=self.key_format,
-                           value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 100, key_format='S', value_format='S')
         ds.populate()
 
         # Delete a range of records.
@@ -182,13 +129,7 @@ class test_bug008(wttest.WiredTigerTestCase):
         # it.
         for i in range(5, 10):
             cursor.set_key(ds.key(i))
-            if self.empty:
-                # Fixed-length column-store rows always exist.
-                self.assertEqual(cursor.search(), 0)
-                self.assertEqual(cursor.get_key(), i)
-                self.assertEqual(cursor.get_value(), 0)
-            else:
-                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
         # Search for an existing record in the updated range, should see the
         # original value.
@@ -200,31 +141,15 @@ class test_bug008(wttest.WiredTigerTestCase):
         # Search for a added record, should not find it.
         for i in range(120, 130):
             cursor.set_key(ds.key(i))
-            if self.empty:
-                # Invisible updates to fixed-length column-store objects are
-                # invisible to the reader, but the fact that they exist past
-                # the end of the initial records causes the instantiation of
-                # empty records: confirm successful return of an empty row.
-                self.assertEqual(cursor.search(), 0)
-                self.assertEqual(cursor.get_key(), i)
-                self.assertEqual(cursor.get_value(), 0)
-            else:
-                # Otherwise, we should not find any matching records.
-                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
         # Search-near for an existing record in the deleted range, should find
         # the next largest record. (This depends on the implementation behavior
         # which currently includes a bias to prefix search.)
         for i in range(5, 10):
             cursor.set_key(ds.key(i))
-            if self.empty:
-                # Fixed-length column-store rows always exist.
-                self.assertEqual(cursor.search_near(), 0)
-                self.assertEqual(cursor.get_key(), i)
-                self.assertEqual(cursor.get_value(), 0)
-            else:
-                self.assertEqual(cursor.search_near(), 1)
-                self.assertEqual(cursor.get_key(), ds.key(10))
+            self.assertEqual(cursor.search_near(), 1)
+            self.assertEqual(cursor.get_key(), ds.key(10))
 
         # Search-near for an existing record in the updated range, should see
         # the original value.
@@ -237,17 +162,8 @@ class test_bug008(wttest.WiredTigerTestCase):
         # record.
         for i in range(120, 130):
             cursor.set_key(ds.key(i))
-            if self.empty:
-                # Invisible updates to fixed-length column-store objects are
-                # invisible to the reader, but the fact that they exist past
-                # the end of the initial records causes the instantiation of
-                # empty records: confirm successful return of an empty row.
-                self.assertEqual(cursor.search_near(), 0)
-                self.assertEqual(cursor.get_key(), i)
-                self.assertEqual(cursor.get_value(), 0)
-            else:
-                self.assertEqual(cursor.search_near(), -1)
-                self.assertEqual(cursor.get_key(), ds.key(100))
+            self.assertEqual(cursor.search_near(), -1)
+            self.assertEqual(cursor.get_key(), ds.key(100))
 
     # Verify cursor search and search-near operations on a file with a set of
     # on-page visible records, a set of insert-list visible records, and a set
@@ -259,8 +175,7 @@ class test_bug008(wttest.WiredTigerTestCase):
     def test_search_invisible_two(self):
         # Populate the tree and reopen the connection, forcing it to disk
         # and moving the records to an on-page format.
-        ds = SimpleDataSet(self, self.uri, 100, key_format=self.key_format,
-                           value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 100, key_format='S', value_format='S')
         ds.populate()
         self.reopen_conn()
 
@@ -282,32 +197,13 @@ class test_bug008(wttest.WiredTigerTestCase):
 
         # Search for an invisible record.
         cursor.set_key(ds.key(130))
-        if self.empty:
-            # Invisible updates to fixed-length column-store objects are
-            # invisible to the reader, but the fact that they exist past
-            # the end of the initial records causes the instantiation of
-            # empty records: confirm successful return of an empty row.
-            cursor.search()
-            self.assertEqual(cursor.get_key(), 130)
-            self.assertEqual(cursor.get_value(), 0)
-        else:
-            # Otherwise, we should not find any matching records.
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
 
         # Search-near for an invisible record, which should succeed, returning
         # the last visible record.
         cursor.set_key(ds.key(130))
         cursor.search_near()
-        if self.empty:
-            # Invisible updates to fixed-length column-store objects are
-            # invisible to the reader, but the fact that they exist past
-            # the end of the initial records causes the instantiation of
-            # empty records: confirm successful return of an empty row.
-            cursor.search()
-            self.assertEqual(cursor.get_key(), 130)
-            self.assertEqual(cursor.get_value(), 0)
-        else:
-            # Otherwise, we should find the closest record for which we can see
-            # the value.
-            self.assertEqual(cursor.get_key(), ds.key(119))
-            self.assertEqual(cursor.get_value(), ds.value(119))
+        # Otherwise, we should find the closest record for which we can see
+        # the value.
+        self.assertEqual(cursor.get_key(), ds.key(119))
+        self.assertEqual(cursor.get_value(), ds.value(119))

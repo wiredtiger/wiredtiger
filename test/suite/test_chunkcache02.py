@@ -48,11 +48,6 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
     rows = 10000
     num_threads = 5
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_string', dict(key_format='S', value_format='S')),
-    ]
-
     # This is one of the more IO-intensive chunk cache tests. Exercise throttling.
     io_capacities = [
         ('loads', dict(io_capacity='10G')),
@@ -64,7 +59,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
 
-    scenarios = make_scenarios(format_values, cache_types, io_capacities)
+    scenarios = make_scenarios(cache_types, io_capacities)
 
     def conn_config(self):
         if not os.path.exists('bucket2'):
@@ -89,8 +84,7 @@ class test_chunkcache02(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.get_value(), str(key) * self.rows)
 
     def test_chunkcache02(self):
-        ds = SimpleDataSet(
-            self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 0)
         ds.populate()
 
         # Insert a large amount of data.

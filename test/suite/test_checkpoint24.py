@@ -41,13 +41,6 @@ from wtscenario import make_scenarios
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
-
-    format_values = [
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-    ]
     name_values = [
         # Reopening and unnamed checkpoints will not work as intended because the reopen makes
         # a new checkpoint.
@@ -55,7 +48,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('named_reopen', dict(first_checkpoint='first_checkpoint', do_reopen=True)),
         ('unnamed', dict(first_checkpoint=None, do_reopen=False)),
     ]
-    scenarios = make_scenarios(format_values, name_values)
+    scenarios = make_scenarios(name_values)
 
 
     def large_updates(self, uri, ds, nrows, value):
@@ -91,16 +84,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(ds.uri, None, cfg)
         #self.session.begin_transaction()
         count = 0
-        zcount = 0
         for k, v in cursor:
-            if self.value_format == '8t' and v == 0:
-                zcount += 1
-            else:
-                self.assertEqual(v, value)
-                count += 1
+            self.assertEqual(v, value)
+            count += 1
         #self.session.rollback_transaction()
         self.assertEqual(count, nrows)
-        self.assertEqual(zcount, zeros if self.value_format == '8t' else 0)
         cursor.close()
 
     def test_checkpoint(self):
@@ -108,15 +96,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         nrows = 10000
 
         # Create a table.
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0)
         ds.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-        else:
-            value_a = "aaaaa" * 100
+        value_a = "aaaaa" * 100
 
         # Write some data at time 10.
         self.large_updates(uri, ds, nrows, value_a)
@@ -128,13 +110,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         self.do_truncate(ds, nrows // 4 + 1, nrows // 4 + nrows // 2)
 
         # Check stats to make sure we fast-deleted at least one page.
-        # (Except for FLCS, where it's not supported and we should fast-delete zero pages.)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
-        if self.value_format == '8t':
-            self.assertEqual(fastdelete_pages, 0)
-        else:
-            self.assertGreater(fastdelete_pages, 0)
+        self.assertGreater(fastdelete_pages, 0)
 
         # Take a checkpoint.
         self.do_checkpoint(self.first_checkpoint)

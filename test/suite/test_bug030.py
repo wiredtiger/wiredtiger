@@ -26,24 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 import wttest
-from helper import simulate_crash_restart
-from wiredtiger import stat
-from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_bug030.py
 # This tests for the scenario in WT-10522 where we could return early when
 # appending a key's original value to its update list due to checking some
 # flags that must be ignored when looking at an aborted tombstone.
 class test_bug_030(wttest.WiredTigerTestCase):
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def conn_config(self):
         config = 'debug_mode=(update_restore_evict=true)'
         return config
@@ -51,16 +39,10 @@ class test_bug_030(wttest.WiredTigerTestCase):
     def test_bug030(self):
         nrows = 10
         uri = "table:test_bug030"
+        valuea = "abcdef" * 3
+        valueb = "ghijkl" * 3
 
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-        else:
-            valuea = "abcdef" * 3
-            valueb = "ghijkl" * 3
-
-        self.session.create(uri, 'key_format={},value_format={}'.format(
-            self.key_format, self.value_format))
+        self.session.create(uri, 'key_format=i,value_format=S')
 
         # Stable insert
         self.session.begin_transaction()

@@ -31,7 +31,6 @@ from wtthread import checkpoint_thread
 from wttest import open_cursor
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 from wiredtiger import stat
 
 # test_checkpoint_snapshot05.py
@@ -43,30 +42,14 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
     uri = "table:test_checkpoint_snapshot05"
     backup_dir = "BACKUP"
 
-    format_values = [
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
         return config
 
     def moresetup(self):
-        if self.value_format == '8t':
-            # Rig to use more than one page; otherwise the inconsistent checkpoint assertions fail.
-            self.extraconfig = ',leaf_page_max=4096'
-            self.nrows = 5000
-            self.valuea = 97
-            self.valueb = 98
-        else:
-            self.extraconfig = ''
-            self.nrows = 1000
-            self.valuea = "aaaaa" * 100
-            self.valueb = "bbbbb" * 100
+        self.nrows = 1000
+        self.valuea = "aaaaa" * 100
+        self.valueb = "bbbbb" * 100
 
     def take_full_backup(self, fromdir, todir):
         # Open up the backup cursor, and copy the files.  Do a full backup.
@@ -91,10 +74,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
-            if self.value_format == '8t':
-                self.assertEqual(v, check_value)
-            else:
-                self.assertEqual(v, check_value + str(count + 1))
+            self.assertEqual(v, check_value + str(count + 1))
             count += 1
         session.commit_transaction()
         self.assertEqual(count, nrows)
@@ -115,17 +95,13 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
     def test_checkpoint_snapshot(self):
         self.moresetup()
 
-        ds = SimpleDataSet(self, self.uri, 0, \
-                key_format=self.key_format, value_format=self.value_format, \
-                config='log=(enabled=false)'+self.extraconfig)
+        ds = SimpleDataSet(self, self.uri, 0, key_format='i', value_format='S', \
+                config='log=(enabled=false)')
         ds.populate()
 
         cursor = self.session.open_cursor(self.uri, None, "bulk")
         for i in range(1, self.nrows + 1):
-            if self.value_format == '8t':
-                cursor[i] = self.valuea
-            else:
-                cursor[i] = self.valuea + str(i)
+            cursor[i] = self.valuea + str(i)
         cursor.close()
 
         self.check(self.valuea, self.uri, self.nrows)
@@ -136,10 +112,7 @@ class test_checkpoint_snapshot05(wttest.WiredTigerTestCase):
 
         for i in range(1, self.nrows + 1):
             cursor1.set_key(ds.key(i))
-            if self.value_format == '8t':
-                cursor1.set_value(self.valueb)
-            else:
-                cursor1.set_value(self.valueb + str(i))
+            cursor1.set_value(self.valueb + str(i))
             self.assertEqual(cursor1.update(), 0)
 
         # Commit the transaction concurrently with the checkpoint.

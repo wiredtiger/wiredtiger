@@ -31,7 +31,6 @@ import wiredtiger, wttest
 
 from test_chunkcache01 import stat_assert_equal, stat_assert_greater
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 '''
 Functional testing for chunk cache persistence. Verifies that persistent
@@ -40,14 +39,6 @@ content is loaded back in using stats.
 class test_chunkcache05(wttest.WiredTigerTestCase):
     rows = 10000
     uri = "table:chunkcache05"
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_string', dict(key_format='S', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def conn_config(self):
         if sys.byteorder != 'little':
             return ''
@@ -70,7 +61,7 @@ class test_chunkcache05(wttest.WiredTigerTestCase):
         if sys.byteorder != 'little':
             return
 
-        ds = SimpleDataSet(self, self.uri, self.rows, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, self.rows)
         ds.populate()
 
         # Haven't persisted anything yet - check the stats agree.

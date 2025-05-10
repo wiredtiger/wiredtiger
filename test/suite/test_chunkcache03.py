@@ -39,12 +39,6 @@ from wtscenario import make_scenarios
 '''
 class test_chunkcache03(wttest.WiredTigerTestCase):
     rows = 10000
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_string', dict(key_format='S', value_format='S')),
-    ]
-
     cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
     if sys.byteorder == 'little':
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
@@ -52,7 +46,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
 
     pinned_uris = ["table:chunkcache01", "table:chunkcache02"]
 
-    scenarios = make_scenarios(format_values, cache_types)
+    scenarios = make_scenarios(cache_types)
 
     def conn_config(self):
         if not os.path.exists('bucket2'):
@@ -89,7 +83,7 @@ class test_chunkcache03(wttest.WiredTigerTestCase):
 
     def test_chunkcache03(self):
         uris = self.pinned_uris + ["table:chunkcache03", "table:chunkcache04"]
-        ds = [SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format) for uri in uris]
+        ds = [SimpleDataSet(self, uri, 0) for uri in uris]
 
         # Insert data into four tables.
         for i, dataset in enumerate(ds):

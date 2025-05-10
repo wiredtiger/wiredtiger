@@ -50,7 +50,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(operation_values)
 
     # No need to run this on more than one btree type.
-    key_format = 'r'
+    key_format = 'S'
     value_format = 'S'
 
     def large_updates(self, uri, ds, nrows, value, ts):

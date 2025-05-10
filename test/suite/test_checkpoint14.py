@@ -44,19 +44,13 @@ class test_checkpoint(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
 
-    format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-    ]
     name_values = [
         ('nn', dict(first_checkpoint='first_checkpoint', second_checkpoint='second_checkpoint')),
         ('nu', dict(first_checkpoint='first_checkpoint', second_checkpoint=None)),
         # This doesn't work because there's no way to open the first unnamed checkpoint.
         #('un', dict(first_checkpoint=None, second_checkpoint='second_checkpoint')),
     ]
-    scenarios = make_scenarios(format_values, name_values)
+    scenarios = make_scenarios(name_values)
 
     def large_updates(self, uri, ds, nrows, value):
         cursor = self.session.open_cursor(uri)
@@ -88,20 +82,11 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         nrows = 10000
 
         # Create a table.
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='S', value_format='S')
         ds.populate()
-
-        if self.value_format == '8t':
-            nrows *= 5
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
 
         # Write some baseline data.
         self.large_updates(uri, ds, nrows, value_a)

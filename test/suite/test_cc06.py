@@ -29,7 +29,6 @@
 from test_cc01 import test_cc_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_cc06.py
 # Verify checkpoint cleanup ignores the empty or newly created files.
@@ -37,20 +36,11 @@ from wtscenario import make_scenarios
 class test_cc06(test_cc_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def test_cc(self):
         uri = "table:cc06"
 
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)'+self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', value_format='S',
+                           config='log=(enabled=false)')
         ds.populate()
 
         # Set the oldest and stable timestamps to 10.

@@ -32,29 +32,6 @@ import wiredtiger, wttest
 #       WT-2757: WT_CURSOR.get_key() fails after WT_CURSOR.insert unless the
 # cursor has a record number key with append configured.
 class test_bug016(wttest.WiredTigerTestCase):
-
-    # Insert a row into a simple column-store table configured to append.
-    # WT_CURSOR.get_key should succeed.
-    def test_simple_column_store_append(self):
-        uri='file:bug016'
-        self.session.create(uri, 'key_format=r,value_format=S')
-        cursor = self.session.open_cursor(uri, None, 'append')
-        cursor.set_value('value')
-        cursor.insert()
-        self.assertEqual(cursor.get_key(), 1)
-
-    # Insert a row into a simple column-store table.
-    # WT_CURSOR.get_key should fail.
-    def test_simple_column_store(self):
-        uri='file:bug016'
-        self.session.create(uri, 'key_format=r,value_format=S')
-        cursor = self.session.open_cursor(uri, None)
-        cursor.set_key(37)
-        cursor.set_value('value')
-        cursor.insert()
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: cursor.get_key(), "/requires key be set/")
-
     # Insert a row into a simple row-store table.
     # WT_CURSOR.get_key should fail.
     def test_simple_row_store(self):
@@ -62,30 +39,6 @@ class test_bug016(wttest.WiredTigerTestCase):
         self.session.create(uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(uri, None)
         cursor.set_key('key')
-        cursor.set_value('value')
-        cursor.insert()
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: cursor.get_key(), "/requires key be set/")
-
-    # Insert a row into a complex column-store table configured to append.
-    # WT_CURSOR.get_key should succeed.
-    def test_complex_column_store_append(self):
-        uri='table:bug016'
-        self.session.create(
-            uri, 'key_format=r,value_format=S,columns=(key,value)')
-        cursor = self.session.open_cursor(uri, None, 'append')
-        cursor.set_value('value')
-        cursor.insert()
-        self.assertEqual(cursor.get_key(), 1)
-
-    # Insert a row into a complex column-store table.
-    # WT_CURSOR.get_key should fail.
-    def test_complex_column_store(self):
-        uri='table:bug016'
-        self.session.create(
-            uri, 'key_format=r,value_format=S,columns=(key,value)')
-        cursor = self.session.open_cursor(uri, None)
-        cursor.set_key(37)
         cursor.set_value('value')
         cursor.insert()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

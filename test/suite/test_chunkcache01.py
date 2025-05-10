@@ -64,18 +64,12 @@ def stat_assert_greater(session, stat, expected):
 class test_chunkcache01(wttest.WiredTigerTestCase):
     uri = 'table:test_chunkcache01'
 
-    format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('column', dict(key_format='r', value_format='u')),
-        ('row_string', dict(key_format='S', value_format='u')),
-    ]
-
     cache_types = [('in-memory', dict(chunk_cache_type='DRAM'))]
     if sys.byteorder == 'little':
         # WT's filesystem layer doesn't support mmap on big-endian platforms.
         cache_types.append(('on-disk', dict(chunk_cache_type='FILE')))
 
-    scenarios = make_scenarios(format_values, cache_types)
+    scenarios = make_scenarios(cache_types)
 
     def conn_config(self):
         if not os.path.exists('bucket1'):
@@ -90,7 +84,7 @@ class test_chunkcache01(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', 'dir_store')
 
     def test_chunkcache(self):
-        ds = SimpleDataSet(self, self.uri, 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 10, key_format='S', value_format='u')
         ds.populate()
         ds.check()
         self.session.checkpoint()

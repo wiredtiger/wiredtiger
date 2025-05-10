@@ -32,17 +32,9 @@
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
 class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
-    key_format_values = [
-        ('fix', dict(key_format='r', value_format='8t')),
-        ('row', dict(key_format='S', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-    ]
-    scenarios = make_scenarios(key_format_values)
-
     msg_usage='/use timestamps once they are first used/'
 
     def apply_timestamps(self, timestamp, prepare):
@@ -60,14 +52,12 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10, key_format='S', value_format='S')
 
         # Create a few items with and without timestamps.
         # Then alter the setting and verify the inconsistent usage is detected.
         uri = 'file:assert06'
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format))
+        self.session.create(uri, 'key_format=S,value_format=S')
         c = self.session.open_cursor(uri)
 
         # Insert a data item at timestamp 2.
@@ -123,16 +113,13 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
-
+        ds = SimpleDataSet(self, 'file:notused', 10, key_format='S', value_format='S')
         # Create the table with the key consistency checking turned on. That checking will verify
         # any individual key is always or never used with a timestamp. And if it is used with a
         # timestamp that the timestamps are in increasing order for that key.
         uri = 'file:assert06'
         self.session.create(uri,
-            'key_format={},value_format={},'.format(self.key_format, self.value_format) +
-            'write_timestamp_usage=ordered,assert=(write_timestamp=on)')
+            'key_format=S,value_format=S,write_timestamp_usage=ordered,assert=(write_timestamp=on)')
         c = self.session.open_cursor(uri)
 
         # Insert a data item at timestamp 2.

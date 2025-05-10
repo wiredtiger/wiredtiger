@@ -36,17 +36,11 @@ from wtscenario import make_scenarios
 class test_cc05(test_cc_base):
     conn_config = 'cache_size=50MB,statistics=(all)'
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
     named_values = [
         ('named', dict(named=True)),
         ('anonymous', dict(named=False)),
     ]
-    scenarios = make_scenarios(format_values, named_values)
+    scenarios = make_scenarios(named_values)
 
     def test_cc(self):
         uri = "table:cc05"
@@ -60,9 +54,7 @@ class test_cc05(test_cc_base):
         value_x = "xxxxx" * 100
         value_y = "yyyyy" * 100
         value_z = "zzzzz" * 100
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', value_format='S')
         ds.populate()
 
         # Set the oldest and stable timestamps to 10.

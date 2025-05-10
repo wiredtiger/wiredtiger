@@ -26,32 +26,19 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 import wttest
-from wtscenario import make_scenarios
 
 # test_bug031.py
 # This tests for the scenario discovered in WT-10717 with WT-10522 reverted.
 # Without WT-10522, it is possible to miss an update when constructing the update list when there is
 # an existing aborted update with a WT_UPDATE_RESTORED_FROM_DS flag.
 class test_bug_031(wttest.WiredTigerTestCase):
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def test_bug031(self):
         uri = "table:test_bug031"
 
         key = 1
-        if self.value_format == '8t':
-            value = 1
-        else:
-            value = "1"
+        value = "1"
 
-        self.session.create(uri, 'key_format={},value_format={}'.format(
-            self.key_format, self.value_format))
+        self.session.create(uri, 'key_format=i,value_format=S')
         cursor = self.session.open_cursor(uri)
 
         # Perform a first insertion.

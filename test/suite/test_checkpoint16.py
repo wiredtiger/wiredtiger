@@ -41,17 +41,11 @@ from wtscenario import make_scenarios
 class test_checkpoint(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
-    format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-    ]
     name_values = [
         ('named', dict(second_checkpoint='second_checkpoint')),
         ('unnamed', dict(second_checkpoint=None)),
     ]
-    scenarios = make_scenarios(format_values, name_values)
+    scenarios = make_scenarios(name_values)
 
     def large_updates(self, ds, nrows, value):
         cursor = self.session.open_cursor(ds.uri)
@@ -89,21 +83,12 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         nrows = 1000
 
         # Create two tables.
-        ds1 = SimpleDataSet(
-            self, uri1, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds1 = SimpleDataSet(self, uri1, 0)
         ds1.populate()
-        ds2 = SimpleDataSet(
-            self, uri2, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds2 = SimpleDataSet(self, uri2, 0)
         ds2.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Set oldest and stable to 5.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5) +

@@ -74,13 +74,6 @@ from wtscenario import make_scenarios
 
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_checkpoint(wttest.WiredTigerTestCase):
-
-    format_values = [
-        ('column-fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('string_row', dict(key_format='S', value_format='S', extraconfig='')),
-    ]
     first_name_values = [
         ('named', dict(first_checkpoint='first_checkpoint')),
         ('unnamed', dict(first_checkpoint=None)),
@@ -89,7 +82,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         ('named', dict(second_checkpoint='second_checkpoint')),
         ('unnamed', dict(second_checkpoint=None)),
     ]
-    scenarios = make_scenarios(format_values, first_name_values, second_name_values)
+    scenarios = make_scenarios(first_name_values, second_name_values)
 
 
     def do_checkpoint(self, ckpt_name):
@@ -118,32 +111,22 @@ class test_checkpoint(wttest.WiredTigerTestCase):
         nrows = 1000
 
         # Create a table.
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0)
         ds.populate()
 
         # Create a second table so the second checkpoint can avoid being entirely vacuous.
-        ds2 = SimpleDataSet(
-            self, uri2, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds2 = SimpleDataSet(self, uri2, 0)
         ds2.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
 
         # Write some initial data, and then write more, to crank up the txnid counter.
         cursor = self.session.open_cursor(ds.uri, None, None)
         for i in range(10000 // nrows):
             for k in range(1, nrows + 1):
                 self.session.begin_transaction()
-                cursor[ds.key(k)] = 40 + i if self.value_format == '8t' else str(i) + value_a
+                cursor[ds.key(k)] = str(i) + value_a
                 self.session.commit_transaction()
 
         # Put some material in the second table too to keep things from being degenerate.

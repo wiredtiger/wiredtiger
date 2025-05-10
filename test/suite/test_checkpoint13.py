@@ -51,7 +51,7 @@ class test_checkpoint(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(ckptname_values)
 
     # No need to run this on more than one btree type.
-    key_format = 'r'
+    key_format = 'S'
     value_format = 'S'
 
     def updates(self, uri, ds, nrows, value, ts):
@@ -74,14 +74,9 @@ class test_checkpoint(wttest.WiredTigerTestCase):
             self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 10
-            value_b = "bbbbb" * 10
-            value_c = "ccccc" * 10
+        value_a = "aaaaa" * 10
+        value_b = "bbbbb" * 10
+        value_c = "ccccc" * 10
 
         # Set oldest and stable timestamps to 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
