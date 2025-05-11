@@ -206,7 +206,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *name;
-    bool bm_start, quit, check_done;
+    bool bm_start, quit, skip_hs, check_done;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
@@ -215,7 +215,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm = btree->bm;
     ckptbase = NULL;
     name = session->dhandle->name;
-    bm_start = quit = check_done = false;
+    bm_start = quit = skip_hs = check_done = false;
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
@@ -267,7 +267,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * work correctly when we do not clear the record's txn IDs.
      * - we are verifying only the specified checkpoint.
      */
-    bool skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0 ||
+    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0 ||
       F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID) || cfg_ckpt.len > 0;
 
     /* Loop through the file's checkpoints, verifying each one. */
