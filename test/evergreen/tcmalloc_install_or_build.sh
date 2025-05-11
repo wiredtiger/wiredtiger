@@ -11,9 +11,8 @@ fi
 
 build_variant=$1
 
-# This is tcmalloc upstream revision 093ba93 source patched by the SERVER team.
-# https://github.com/mongodb-forks/tcmalloc/releases/tag/mongo-SERVER-85737
-PATCHED_SRC=mongo-SERVER-85737
+# MongoDB uses a patched version of TCMalloc and WT should use the same one for testing.
+PATCHED_SRC=mongo-20240522
 PATCHED_TGZ="${PATCHED_SRC}.tar.gz"
 PATCHED_TGZ_URL="https://github.com/mongodb-forks/tcmalloc/archive/refs/tags/${PATCHED_TGZ}"
 PATCHED_SRC_DIR="tcmalloc-${PATCHED_SRC}"
