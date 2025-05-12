@@ -139,15 +139,17 @@ __evict_geo_sum(uint64_t e1, uint64_t n, double c)
  * __evict_page_get_bucketset --
  *     Find the home bucketset of the page if the page is already enqueued.
  */
-static WT_INLINE void
+static WT_INLINE bool
 __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
 						   WT_EVICT_BUCKETSET **bucketset, int *bucketset_level)
 {
 	WT_EVICT_BUCKET *bucket;
 	WT_EVICT_HANDLE_DATA *evict_handle_data;
+	bool correct_bucketset;
 
 	*bucketset = NULL;
 	*bucketset_level = 0;
+	correct_bucketset = false;
 
 	if (!WT_DHANDLE_BTREE(dhandle)) {
 #ifdef HAVE_DIAGNOSTIC
@@ -155,7 +157,7 @@ __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT
 		  "page (%s) %p: dhandle is not btree, should not be in eviction",
 							   __wt_page_type_string(page->type), (void*)page));
 #endif
-		return;
+		return false;
 	}
 	evict_handle_data = &((WT_BTREE*)dhandle->handle)->evict_data;
 	if (!evict_handle_data->initialized) {
@@ -164,23 +166,36 @@ __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT
 							   "page (%s) %p: dhandle evict data is not initialized",
 							   __wt_page_type_string(page->type), (void*)page));
 #endif
-		return;
+		return false;
 	}
 
 	bucket = __wt_atomic_load_pointer(&page->evict_data.bucket);
 	if (bucket == NULL)
-		return;
+		return false;
 
 	*bucketset =  WT_BUCKET_TO_BUCKETSET(bucket);
 
-	if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset)
+	if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset) {
 		*bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == *bucketset)
+		if (!WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
+			correct_bucketset = true;
+	}
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == *bucketset) {
 		*bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == *bucketset)
+		if (WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
+			correct_bucketset = true;
+	}
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == *bucketset) {
 		*bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == *bucketset)
+		if (!WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
+			correct_bucketset = true;
+	}
+	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == *bucketset) {
 		*bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
+		if (WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
+			correct_bucketset = true;
+	}
+	return correct_bucketset;
 }
 
 /*
@@ -202,7 +217,8 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
 
 	read_gen = __wt_atomic_load64(&page->evict_data.read_gen);
 	cur_bucket_id = __wt_atomic_load64(&page->evict_data.bucket->id);
-	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level);
+	if (__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level) == false)
+		return true;
 
 	new_bucket_id = __evict_destination_bucket(session, read_gen,
 								__wt_atomic_load64(&bucketset->lowest_bucket_upper_range), false);

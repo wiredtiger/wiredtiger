@@ -715,25 +715,30 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
         if (loop == 0)
             time_prev = time_now;
 
-        __evict_tune_workers(session);
-        /*
-         * Increment the shared read generation. Do this occasionally even if eviction is not
-         * currently required, so that pages have some relative read generation when the eviction
-         * server does need to do some work.
-         */
-        __wt_atomic_add64(&evict->read_gen, 1);
-        __wt_atomic_add64(&evict->evict_pass_gen, 1);
+		/* Designate one thread to tune eviction workers and increment the read generation */
+		if (__wt_atomic_loadbool(&conn->evict_server_running) &&
+			__wt_spin_trylock(session, &evict->evict_housekeeping_lock) == 0) {
+			__evict_tune_workers(session);
+			/*
+			 * Increment the shared read generation. Do this occasionally even if eviction is not
+			 * currently required, so that pages have some relative read generation when the eviction
+			 * server does need to do some work.
+			 */
+			__wt_atomic_add64(&evict->read_gen, 1);
+			__wt_atomic_add64(&evict->evict_pass_gen, 1);
 
-        /*
-         * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
-         * Without this, if all threads are blocked after a long-running transaction (such as a
-         * checkpoint) completes, we may never start evicting again.
-         *
-         * Do this every time the eviction server wakes up, regardless of whether the cache is full,
-         * to prevent the oldest ID falling too far behind. Don't wait to lock the table: with
-         * highly threaded workloads, that creates a bottleneck.
-         */
-        WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
+			/*
+			 * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
+			 * Without this, if all threads are blocked after a long-running transaction (such as a
+			 * checkpoint) completes, we may never start evicting again.
+			 *
+			 * Do this every time the eviction server wakes up, regardless of whether the cache is full,
+			 * to prevent the oldest ID falling too far behind. Don't wait to lock the table: with
+			 * highly threaded workloads, that creates a bottleneck.
+			 */
+			WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
+			__wt_spin_unlock(session,  &evict->evict_housekeeping_lock);
+		}
 
         if (!__evict_update_work(session)) {
 			__wt_cond_auto_wait(session, conn->evict_threads.wait_cond, false, NULL);
@@ -1765,34 +1770,6 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
 }
 
 /*
- * __evict_page_correct_bucketset
- *     Is the page in the correct bucketset given its type?
- */
-static bool
-__evict_page_correct_bucketset(WT_PAGE *page, int home_bucketset_level)
-{
-	if (WT_PAGE_IS_INTERNAL(page)) {
-		if (__wt_page_is_modified(page)) {
-			if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_INTERNAL) {
-				return (false);
-			}
-		}
-		else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_INTERNAL)
-			return (false);
-	}
-	else { /* leaf page */
-		if (__wt_page_is_modified(page)) {
-			if (home_bucketset_level != WT_EVICT_LEVEL_DIRTY_LEAF)
-				return (false);
-		}
-		else if (home_bucketset_level != WT_EVICT_LEVEL_CLEAN_LEAF)
-			return (false);
-	}
-	return (true);
-}
-
-
-/*
  * __evict_page_consistency_check --
  *     Check that the page is in the right place in the eviction data structures.
  */
@@ -1803,7 +1780,7 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 	WT_EVICT_BUCKETSET *bucketset;
 	WT_EVICT_HANDLE_DATA *evict_handle_data;
 	WT_REF_STATE state;
-#if 0
+#if 0 /* Doesn't make sense with blasting */
 	uint64_t min_range, max_range;
 #endif
 	int home_bucketset_level = -1;
@@ -1841,7 +1818,8 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 	}
 	WT_ASSERT(session,
 			  page->evict_data.bucket->id >= 0 && page->evict_data.bucket->id < WT_EVICT_NUM_BUCKETS);
-	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &home_bucketset_level);
+	if(__evict_page_get_bucketset(session, dhandle, page, &bucketset, &home_bucketset_level) == false)
+		return (false);
 
 	if (bucketset == NULL) {
 		if (verbose)
@@ -1867,17 +1845,6 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 		return (false);
 	}
 
-	/* Is this the right bucketset given the page type? */
-	if (!__evict_page_correct_bucketset(page, home_bucketset_level)) {
-		if (verbose)
-			WT_RET(__wt_msg(session,
-			"page (%s) %p is in bucketset %d, which isn't the correct bucketset for %s %s pages",
-							__wt_page_type_string(page->type), (void*)page,  home_bucketset_level,
-							WT_PAGE_IS_INTERNAL(page) ? "internal" : "leaf",
-							 __wt_page_is_modified(page) ? "dirty" : "clean"));
-		return (false);
-	}
-
 #if 0
 	__evict_bucket_range(session, page->evict_data.bucket, &min_range, &max_range);
 	if (page->evict_data.read_gen > max_range) {
@@ -1892,6 +1859,25 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 }
 
 /*
+ * __evict_help_organize_buckets --
+ *    If we renumber buckets, pages will end up in buckets that are too young for them.
+ *	  Help fix this here by randomly selecting a bucket and moving a page from the top
+ *	  of the queue to a lower bucket if the page belongs to a lower bucket. We can tune
+ *    how often we call this help function and where we call it from. If we find that
+ *    calling it on the read patch causes too much contention, we can call it less
+ *    frequently or not at all, or only call it from eviction threads.
+ *
+ *    We use try lock for buckets and the page we are trying to move, so we don't worsen
+ *    contention if it is already heavy.
+ */
+#if 0
+static void
+__evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page)
+{
+}
+#endif
+
+/*
  * __wt_evict_enqueue_page --
  *     Put the page into the evict bucket corresponding to its read generation.
  */
@@ -1903,9 +1889,9 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     WT_EVICT_HANDLE_DATA *evict_data;
     WT_PAGE *page;
     WT_REF_STATE previous_state;
-	bool must_unlock_ref;
+	bool correct_bucketset, must_unlock_ref;
 	int bucketset_level;
-    uint64_t min_range, max_range, dst_bucket, read_gen, retries;
+    uint64_t dst_bucket, read_gen, retries;
 	uint64_t new_lower_range;
 
     page = ref->page;
@@ -1921,15 +1907,17 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
 		return;
 
-	printf("PAGE %p STATE is %d in __wt_evict_enqueue_page, session %d\n",
-		   (void*)page, previous_state, (int)session->id);
-	fflush(stdout);
-
 	/* Evict handle has the bucket sets for this data handle */
     evict_data = &((WT_BTREE*)dhandle->handle)->evict_data;
     WT_ASSERT(session, evict_data->initialized);
 	WT_ASSERT(session, (page->type > WT_PAGE_INVALID) && (page->type <= WT_PAGE_ROW_LEAF));
 	WT_ASSERT(session, previous_state == WT_REF_LOCKED || previous_state == WT_REF_MEM);
+
+	/*
+	 * Help ordering the buckets by opportunistically moving pages to the right buckets if they
+	 * end up in a bucket that's too young for them.
+	 */
+	//__evict_help_organize_buckets(session, dhandle, page);
 
     /*
      * Lock the page so it doesn't disappear. We aren't evicting the page, so we don't need to check
@@ -1952,7 +1940,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 
 	page->evict_data.dhandle = dhandle;
 	bucket = page->evict_data.bucket;
-	__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level);
+	correct_bucketset =
+		__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level);
 
 	if (is_new) {
 		WT_ASSERT(session, bucketset == NULL && bucket == NULL);
@@ -1964,21 +1953,15 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	/* If the page is already in a bucketset, is this the right one? */
 	if (bucketset != NULL) {
 		WT_ASSERT(session, bucket != NULL);
-		if (__evict_page_correct_bucketset(page, bucketset_level)) {
-			bucket = page->evict_data.bucket; /* won't be NULL if bucketset was set to a value */
-			/* Is the page already in the right bucket? */
-			__evict_bucket_range(session, bucket, &min_range, &max_range);
-			if ((read_gen = __wt_atomic_load64(&page->evict_data.read_gen)) >= min_range
-				&& read_gen <= max_range)
-				goto done;
-			else
-				__wt_evict_remove(session, ref, false);
-		} else /* wrong bucketset */
+		if (correct_bucketset && !__evict_needs_new_bucket(session, dhandle, page))
+			goto done;
+		else {
 			__wt_evict_remove(session, ref, false);
+			printf("page %p %s (type %d) was removed from bucket %p by session %d\n",
+				   (void*)page, __wt_page_type_string(page->type), page->type, (void*)bucket, session->id);
+			fflush(stdout);
+		}
 	}
-	printf("page %p %s (type %d) was removed from bucket %p by session %d\n",
-		   (void*)page, __wt_page_type_string(page->type), page->type, (void*)bucket, session->id);
-	fflush(stdout);
 
   new:
 	WT_ASSERT(session, page->evict_data.bucket == NULL);
@@ -2035,7 +2018,7 @@ retry:
 	// printf("Session %p ACQUIRED %p\n", (void*)session, (void*)&bucket->evict_queue_lock);
 	//fflush(stdout);
 	page->evict_data.bucket = bucket;
-    TAILQ_INSERT_HEAD(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
+    TAILQ_INSERT_TAIL(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
     bucket->num_items++;
 
 	printf(

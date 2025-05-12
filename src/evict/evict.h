@@ -31,6 +31,7 @@ struct __wt_evict {
     uint64_t reentry_hs_eviction_ms;        /* Total milliseconds spent inside a nested eviction */
     struct timespec stuck_time;             /* Stuck time */
 
+	WT_SPINLOCK evict_housekeeping_lock;    /* A thread who wins tunes eviction workers and such. */
     /*
      * Read information.
      */
