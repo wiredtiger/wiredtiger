@@ -58,12 +58,11 @@ typedef enum __wt_background_compact_cleanup_stat_type {
  */
 struct __wt_background_compact_stat {
     const char *uri;
-    uint32_t id;                                /* File ID */
-    bool prev_compact_success;                  /* Last compact successfully reclaimed space */
-    uint64_t prev_compact_time;                 /* Start time for last compact attempt */
-    uint64_t skip_count;                        /* Number of times we've skipped this file */
-    uint64_t consecutive_unsuccessful_attempts; /* Number of failed attempts since last success */
-    uint64_t bytes_rewritten;                   /* Bytes rewritten during last compaction call */
+    uint32_t id;                /* File ID */
+    bool prev_compact_success;  /* Last compact successfully reclaimed space */
+    uint64_t prev_compact_time; /* Start time for last compact attempt */
+    uint64_t skip_count;        /* Number of times we've skipped this file */
+    uint64_t bytes_rewritten;   /* Bytes rewritten during last compaction call */
 
     wt_off_t start_size; /* File size before compact last started */
     wt_off_t end_size;   /* File size after compact last ended */
@@ -814,11 +813,12 @@ struct __wt_connection_impl {
 #define WT_CONN_READY 0x00800000u
 #define WT_CONN_RECONFIGURING 0x01000000u
 #define WT_CONN_RECOVERING 0x02000000u
-#define WT_CONN_RECOVERY_COMPLETE 0x04000000u
-#define WT_CONN_RTS_THREAD_RUN 0x08000000u
-#define WT_CONN_SALVAGE 0x10000000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x20000000u
-#define WT_CONN_WAS_BACKUP 0x40000000u
+#define WT_CONN_RECOVERING_METADATA 0x04000000u
+#define WT_CONN_RECOVERY_COMPLETE 0x08000000u
+#define WT_CONN_RTS_THREAD_RUN 0x10000000u
+#define WT_CONN_SALVAGE 0x20000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x40000000u
+#define WT_CONN_WAS_BACKUP 0x80000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     wt_shared uint32_t flags_atomic;
 };
