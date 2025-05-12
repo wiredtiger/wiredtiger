@@ -1874,9 +1874,19 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
 static void
 __evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page)
 {
+	WT_EVICT_BUCKET *bucket;
+
+	if (page == NULL)
+		return;
+
+	if ((bucket = __wt_atomic_load_pointer(&page->evict_data.bucket)) == NULL)
+		return;
+
+	__wt_spin_lock_name(session, &bucket->evict_queue_lock, "__evict_help_organize_buckets");
+	
+	__wt_spin_unlock_name(session, &bucket->evict_queue_lock, "__evict_help_organize_buckets");
 }
 #endif
-
 /*
  * __wt_evict_enqueue_page --
  *     Put the page into the evict bucket corresponding to its read generation.
@@ -2179,11 +2189,11 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
         btree = dhandle->handle;
 
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
-            continue;
+            goto next;
         /* Skip files that don't allow eviction. */
         if (btree->evict_data.evict_disabled > 0) {
             WT_STAT_CONN_INCR(session, eviction_skip_trees_eviction_disabled);
-            continue;
+            goto next;
         }
         /*
          * Skip files that are checkpointing if we are only looking for dirty pages.
@@ -2191,7 +2201,7 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
         if (WT_BTREE_SYNCING(btree) &&
           !F_ISSET(evict, WT_EVICT_CACHE_CLEAN | WT_EVICT_CACHE_UPDATES)) {
             WT_STAT_CONN_INCR(session, eviction_skip_checkpointing_trees);
-            continue;
+            goto next;
         }
         /*
          * Skip files that are configured to stick in cache until we become aggressive.
@@ -2202,13 +2212,13 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
         if (btree->evict_data.evict_priority != 0 && !__wt_evict_aggressive(session) &&
           !__evict_btree_dominating_cache(session, btree)) {
             WT_STAT_CONN_INCR(session, eviction_skip_trees_stick_in_cache);
-            continue;
+            goto next;
         }
 
         WT_WITH_DHANDLE(session, dhandle, want_tree = __evict_want_tree(session));
         if (!want_tree) {
             WT_STAT_CONN_INCR(session, eviction_skip_unwanted_tree);
-            continue;
+            goto next;
         }
 
 #ifdef EVICT_MAX_FOOTPRINT
@@ -2262,6 +2272,7 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
 			}
 		}
 #endif
+	  next:
         dhandle = TAILQ_NEXT(dhandle, q);
     }
     *dhandle_p = best_dhandle;
