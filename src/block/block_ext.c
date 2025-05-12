@@ -25,7 +25,7 @@
 static int __block_append(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
 static int __block_ext_overlap(
   WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, WT_EXT **, WT_EXTLIST *, WT_EXT **);
-static int __block_extlist_dump(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *);
+// static int __block_extlist_dump(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *, bool);
 static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
 
 /*
@@ -1236,7 +1236,8 @@ corrupted:
         WT_ERR(func(session, block, el, off, size));
     }
 
-    WT_ERR(__block_extlist_dump(session, block, el, "read"));
+    if (block->verify_layout || WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_2))
+        WT_ERR(__wt_block_extlist_dump(session, block, el, "read", true));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -1259,7 +1260,8 @@ __wti_block_extlist_write(
     uint32_t entries;
     uint8_t *p;
 
-    WT_RET(__block_extlist_dump(session, block, el, "write"));
+    if (block->verify_layout || WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_2))
+        WT_RET(__wt_block_extlist_dump(session, block, el, "write", true));
 
     /*
      * Figure out how many entries we're writing -- if there aren't any entries, there's nothing to
@@ -1438,8 +1440,9 @@ __wti_block_extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST *el)
  * __block_extlist_dump --
  *     Dump an extent list as verbose messages.
  */
-static int
-__block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, const char *tag)
+int
+__wt_block_extlist_dump(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, const char *tag, bool bucket)
 {
     WT_DECL_ITEM(t1);
     WT_DECL_ITEM(t2);
@@ -1450,16 +1453,16 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
     u_int i;
     const char *sep;
 
-    if (!block->verify_layout &&
-      !WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_2))
-        return (0);
+    // if (!block->verify_layout &&
+    //   !WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_2))
+    //     return (0);
 
     WT_ERR(__wt_scr_alloc(session, 0, &t1));
     if (block->verify_layout)
         level = WT_VERBOSE_NOTICE;
     else
         level = WT_VERBOSE_DEBUG_2;
-    __wt_verbose_level(session, WT_VERB_BLOCK, level,
+    __wt_verbose_level(session, WT_VERB_BLOCK_EXT, level,
       "%s extent list %s, %" PRIu32 " entries, %s bytes", tag, el->name, el->entries,
       __wt_buf_set_size(session, el->bytes, true, t1));
 
@@ -1467,23 +1470,33 @@ __block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, 
         goto done;
 
     memset(sizes, 0, sizeof(sizes));
-    WT_EXT_FOREACH (ext, el->off)
+    WT_EXT_FOREACH (ext, el->off){
         for (i = 9, pow = 512;; ++i, pow *= 2)
             if (ext->size <= (wt_off_t)pow) {
                 ++sizes[i];
                 break;
             }
-    sep = "extents by bucket:";
-    t1->size = 0;
-    WT_ERR(__wt_scr_alloc(session, 0, &t2));
-    for (i = 9, pow = 512; i < WT_ELEMENTS(sizes); ++i, pow *= 2)
-        if (sizes[i] != 0) {
-            WT_ERR(__wt_buf_catfmt(session, t1, "%s {%s: %" PRIu64 "}", sep,
-              __wt_buf_set_size(session, pow, false, t2), sizes[i]));
-            sep = ",";
+        if (!bucket) {
+            __wt_verbose_debug2(session, WT_VERB_BLOCK_EXT, "%" PRIuMAX ",%" PRIuMAX,
+            (uintmax_t)ext->off, (uintmax_t)ext->size);
         }
+    }
 
-    __wt_verbose_level(session, WT_VERB_BLOCK, level, "%s", (char *)t1->data);
+    __wt_verbose_debug2(session, WT_VERB_BLOCK_EXT, "%s", "extent list end");
+
+    if (bucket) {
+        sep = "extents by bucket:";
+        t1->size = 0;
+        WT_ERR(__wt_scr_alloc(session, 0, &t2));
+        for (i = 9, pow = 512; i < WT_ELEMENTS(sizes); ++i, pow *= 2)
+            if (sizes[i] != 0) {
+                WT_ERR(__wt_buf_catfmt(session, t1, "%s {%s: %" PRIu64 "}", sep,
+                  __wt_buf_set_size(session, pow, false, t2), sizes[i]));
+                sep = ",";
+            }
+
+        __wt_verbose_level(session, WT_VERB_BLOCK_EXT, level, "%s", (char *)t1->data);
+    }
 
 done:
 err:

@@ -812,6 +812,7 @@ connection_runtime_config = [
             'backup',
             'block',
             'block_cache',
+            'block_ext',
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
