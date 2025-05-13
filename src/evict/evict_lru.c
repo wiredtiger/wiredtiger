@@ -1008,17 +1008,11 @@ __evict_get_ref(
 				previous_state =  WT_REF_GET_STATE_STRICT(ref);
 				if (previous_state == WT_REF_LOCKED) {
 					WT_STAT_CONN_INCR(session, eviction_skip_pages_locked_or_evicted);
-//					printf("page %p was locked or evicted. Eviction skipping... session %d\n",
-//						   (void*)page, (int)session->id);
-//					fflush(stdout);
                     ref = NULL;
                     continue;
 				} else if (previous_state == WT_REF_MEM) {
 					if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
 						WT_STAT_CONN_INCR(session, eviction_skip_pages_locked_or_evicted);
-//						printf("page %p could not be locked. Eviction skipping... session %d\n",
-//							   (void*)page, (int)session->id);
-//						fflush(stdout);
 						ref = NULL;
 						continue;
 					}
@@ -1692,8 +1686,6 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 		TAILQ_REMOVE(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
 		page->evict_data.bucket->num_items--;
 		WT_ASSERT(session, page->evict_data.bucket->num_items >= 0);
-		page->evict_data.evict_q.tqe_next = NULL;
-		page->evict_data.evict_q.tqe_prev = NULL;
 
 		printf("page %p readgen %llu removed by session %d from evict structs. Bucket: %p,  next = %p, prev = %p\n",
 			   (void*)page,  ref->page->evict_data.read_gen, (int)session->id, (void*)page->evict_data.bucket,
@@ -1872,19 +1864,72 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
  */
 #if 0
 static void
-__evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page)
+__evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
+							  WT_EVICT_BUCKET *bucket)
 {
-	WT_EVICT_BUCKET *bucket;
+	WT_EVICT_BUCKET *new_bucket;
+	WT_EVICT_BUCKETSET *bucketset;
+	WT_PAGE *page;
+	WT_REF_STATE previous_state;
+	int bucketset_level;
+	uint64_t new_bucket_id;
 
+	if (bucket == NULL)
+		return;
+
+	/* Try to lock this bucket */
+	if (__wt_spin_trylock(session, &bucket->evict_queue_lock) == EBUSY)
+		return;
+
+	page = TAILQ_FIRST(&bucket->evict_queue);
 	if (page == NULL)
-		return;
+		goto unlock_last;
 
-	if ((bucket = __wt_atomic_load_pointer(&page->evict_data.bucket)) == NULL)
-		return;
+	WT_ASSERT(session, page->ref != NULL);
+	previous_state =  WT_REF_GET_STATE_STRICT(page->ref);
 
-	__wt_spin_lock_name(session, &bucket->evict_queue_lock, "__evict_help_organize_buckets");
-	
-	__wt_spin_unlock_name(session, &bucket->evict_queue_lock, "__evict_help_organize_buckets");
+	/* If page is unlocked, try to lock it */
+	if ((previous_state != WT_REF_MEM) ||
+		!WT_REF_CAS_STATE(session, page->ref, previous_state, WT_REF_LOCKED))
+		goto unlock_last;
+
+	if (bucket != page->evict_data.bucket)
+		WT_ASSERT(session, 0);
+
+	/* Ref is locked. Does it need a new bucket? */
+	if (!__evict_needs_new_bucket(session, dhandle, page, &new_bucket_id)
+		|| new_bucket_id >= WT_EVICT_NUM_BUCKETS )
+		goto unlock_one_before_last;
+
+	/* We shoudn't be moving pages into lower buckets. */
+	if (new_bucket_id >= bucket->id)
+		goto unlock_one_before_last;
+
+	WT_IGNORE_RET(__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level));
+	new_bucket = &bucketset->buckets[new_bucket_id];
+
+	/* Try to lock the destination bucket */
+    if (__wt_spin_trylock(session, &new_bucket->evict_queue_lock) == EBUSY)
+		goto unlock_one_before_last;
+
+	/*
+	 * We are all set. The old bucket is locked, the new one is locked and the ref is locked.
+	 * Move the ref to the new bucket, unlock everything and get out.
+	 */
+	TAILQ_REMOVE(&bucket->evict_queue, page, evict_data.evict_q);
+	bucket->num_items--;
+	TAILQ_INSERT_HEAD(&new_bucket->evict_queue, page, evict_data.evict_q);
+	page->evict_data.bucket = new_bucket;
+    new_bucket->num_items++;
+
+	printf("session %d helved shove page %p read_gen %llu from bucket %d to bucket %d\n",
+		   (int) session->id, (void*)page, page->evict_data.read_gen, (int)bucket->id, (int)new_bucket->id);
+	__wt_spin_unlock(session, &new_bucket->evict_queue_lock);
+
+  unlock_one_before_last:
+	WT_REF_UNLOCK(page->ref, previous_state);
+  unlock_last:
+	__wt_spin_unlock(session, &bucket->evict_queue_lock);
 }
 #endif
 /*
@@ -1927,7 +1972,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	 * Help ordering the buckets by opportunistically moving pages to the right buckets if they
 	 * end up in a bucket that's too young for them.
 	 */
-	//__evict_help_organize_buckets(session, dhandle, page);
+	//__evict_help_organize_buckets(session, dhandle,
+	//							  __wt_atomic_load_pointer(&page->evict_data.bucket));
 
     /*
      * Lock the page so it doesn't disappear. We aren't evicting the page, so we don't need to check
@@ -1963,7 +2009,7 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	/* If the page is already in a bucketset, is this the right one? */
 	if (bucketset != NULL) {
 		WT_ASSERT(session, bucket != NULL);
-		if (correct_bucketset && !__evict_needs_new_bucket(session, dhandle, page))
+		if (correct_bucketset && !__evict_needs_new_bucket(session, dhandle, page, NULL))
 			goto done;
 		else {
 			__wt_evict_remove(session, ref, false);
@@ -2028,7 +2074,7 @@ retry:
 	// printf("Session %p ACQUIRED %p\n", (void*)session, (void*)&bucket->evict_queue_lock);
 	//fflush(stdout);
 	page->evict_data.bucket = bucket;
-    TAILQ_INSERT_TAIL(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
+    TAILQ_INSERT_TAIL(&bucket->evict_queue, page, evict_data.evict_q);
     bucket->num_items++;
 
 	printf(
@@ -2099,7 +2145,7 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
 		__wt_evict_enqueue_page(session, dhandle, ref, true);
     } else if (!internal_only) {
         __wti_evict_read_gen_bump(session, page);
-		if (__evict_needs_new_bucket(session, dhandle, page))
+		if (__evict_needs_new_bucket(session, dhandle, page, NULL))
 			__wt_evict_enqueue_page(session, dhandle, ref, false);
 	}
 }

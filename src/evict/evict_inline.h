@@ -203,7 +203,8 @@ __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT
  *     A quick check to see if the page will need to be moved into a new bucket.
  */
 static WT_INLINE bool
-__evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page)
+__evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
+						 uint64_t *ret_id)
 {
 	WT_EVICT_BUCKETSET *bucketset;
 	int bucketset_level;
@@ -222,11 +223,13 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
 
 	new_bucket_id = __evict_destination_bucket(session, read_gen,
 								__wt_atomic_load64(&bucketset->lowest_bucket_upper_range), false);
+	if (ret_id != NULL)
+		*ret_id = new_bucket_id;
 
 	if (new_bucket_id >= WT_EVICT_NUM_BUCKETS)
 		return true;
 
-	if (cur_bucket_id >= new_bucket_id - WT_EVICT_BLAST_RADIUS &&
+	if ((int64_t)cur_bucket_id >= WT_MAX(0, (int64_t)new_bucket_id - WT_EVICT_BLAST_RADIUS) &&
 		cur_bucket_id <=  new_bucket_id + WT_EVICT_BLAST_RADIUS) {
 		printf("read_gen %llu, current bucket = %d, new bucket = %d, no need to move\n", read_gen,
 			   (int)cur_bucket_id, (int)new_bucket_id);
