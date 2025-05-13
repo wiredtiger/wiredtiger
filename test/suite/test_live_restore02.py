@@ -30,17 +30,24 @@ import os, glob, time, wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from helper import copy_wiredtiger_home
+from wtbackup import backup_base
 
 # test_live_restore02.py
 # Enable background thread migration and loop until it completes
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
-class test_live_restore02(wttest.WiredTigerTestCase):
+class test_live_restore02(backup_base):
     format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
-    scenarios = make_scenarios(format_values)
+
+    read_sizes = [
+        ('512B', dict(read_size='512B')),
+        ('4KB', dict(read_size='4KB')),
+        ('1MB', dict(read_size='1MB'))
+    ]
+
+    scenarios = make_scenarios(format_values, read_sizes)
     nrows = 10000
 
     def get_stat(self, statistic):
@@ -67,17 +74,20 @@ class test_live_restore02(wttest.WiredTigerTestCase):
           key_format=self.key_format, value_format=self.value_format)
         ds2.populate()
 
-        # Close the default connection.
-        self.close_conn()
+        self.session.checkpoint()
 
-        copy_wiredtiger_home(self, '.', "SOURCE")
+        # Close the default connection.
+        os.mkdir("SOURCE")
+        self.take_full_backup("SOURCE")
+        self.close_conn()
 
         # Remove everything but SOURCE / stderr / stdout.
         for f in glob.glob("*"):
             if not f == "SOURCE" and not f == "stderr.txt" and not f == "stdout.txt":
                 os.remove(f)
 
-        self.open_conn(config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1)")
+        os.mkdir("DEST")
+        self.open_conn("DEST", config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=1,read_size=" + self.read_size + ")")
 
         state = 0
         timeout = 120
@@ -85,12 +95,16 @@ class test_live_restore02(wttest.WiredTigerTestCase):
         # Build in a 2 minute timeout. Once we see the complete state exit the loop.
         while (iteration_count < timeout):
             state = self.get_stat(stat.conn.live_restore_state)
-            self.pr("Looping until finish, live restore state is: " + str(state))
+            # Stress the file create path in the meantime, this checks some assert conditions.
+            self.session.create(f'file:abc{iteration_count}', f'key_format={self.key_format},value_format={self.value_format}')
+            self.pr(f'Looping until finish, live restore state is: {state}, \
+                      Current iteration: is {iteration_count}')
             # State 2 means the live restore has completed.
-            if (state == 2):
+            if (state == wiredtiger.WT_LIVE_RESTORE_COMPLETE):
                 break
             time.sleep(1)
-        self.assertEqual(state, 2)
+            iteration_count += 1
+        self.assertEqual(state, wiredtiger.WT_LIVE_RESTORE_COMPLETE)
 
         conn2 = self.setUpConnectionOpen('SOURCE/')
         session2 = self.setUpSessionOpen(conn2)

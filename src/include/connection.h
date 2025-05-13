@@ -58,12 +58,11 @@ typedef enum __wt_background_compact_cleanup_stat_type {
  */
 struct __wt_background_compact_stat {
     const char *uri;
-    uint32_t id;                                /* File ID */
-    bool prev_compact_success;                  /* Last compact successfully reclaimed space */
-    uint64_t prev_compact_time;                 /* Start time for last compact attempt */
-    uint64_t skip_count;                        /* Number of times we've skipped this file */
-    uint64_t consecutive_unsuccessful_attempts; /* Number of failed attempts since last success */
-    uint64_t bytes_rewritten;                   /* Bytes rewritten during last compaction call */
+    uint32_t id;                /* File ID */
+    bool prev_compact_success;  /* Last compact successfully reclaimed space */
+    uint64_t prev_compact_time; /* Start time for last compact attempt */
+    uint64_t skip_count;        /* Number of times we've skipped this file */
+    uint64_t bytes_rewritten;   /* Bytes rewritten during last compaction call */
 
     wt_off_t start_size; /* File size before compact last started */
     wt_off_t end_size;   /* File size after compact last ended */
@@ -262,7 +261,7 @@ struct __wt_name_flag {
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
-#define WT_CONN_CHECK_PANIC(conn) (F_ISSET(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
+#define WT_CONN_CHECK_PANIC(conn) (F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
 #define WT_SESSION_CHECK_PANIC(session) WT_CONN_CHECK_PANIC(S2C(session))
 
 /*
@@ -329,7 +328,7 @@ struct __wt_name_flag {
  */
 #define WT_CONN_SET_INCR_BACKUP(conn)                     \
     do {                                                  \
-        F_SET((conn), WT_CONN_INCR_BACKUP);               \
+        F_SET_ATOMIC_32((conn), WT_CONN_INCR_BACKUP);     \
         F_SET(&(conn)->log_mgr, WT_LOG_INCR_BACKUP);      \
         WT_STAT_CONN_SET(session, backup_incremental, 1); \
     } while (0)
@@ -563,6 +562,7 @@ struct __wt_connection_impl {
     uint32_t evict_threads_min; /* Min eviction threads */
     bool evict_sample_inmem;
     wt_shared bool evict_use_npos;
+    bool evict_legacy_page_visit_strategy;
 
 #define WT_MAX_PREFETCH_QUEUE 120
 #define WT_PREFETCH_QUEUE_PER_TRIGGER 30
@@ -738,25 +738,26 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x000001000ull
 #define WT_TIMING_STRESS_HS_SEARCH 0x000002000ull
 #define WT_TIMING_STRESS_HS_SWEEP 0x000004000ull
-#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x000008000ull
-#define WT_TIMING_STRESS_PREFETCH_1 0x000010000ull
-#define WT_TIMING_STRESS_PREFETCH_2 0x000020000ull
-#define WT_TIMING_STRESS_PREFETCH_3 0x000040000ull
-#define WT_TIMING_STRESS_PREFIX_COMPARE 0x000080000ull
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x000100000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x000200000ull
-#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x000400000ull
-#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x000800000ull
-#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x001000000ull
-#define WT_TIMING_STRESS_SPLIT_1 0x002000000ull
-#define WT_TIMING_STRESS_SPLIT_2 0x004000000ull
-#define WT_TIMING_STRESS_SPLIT_3 0x008000000ull
-#define WT_TIMING_STRESS_SPLIT_4 0x010000000ull
-#define WT_TIMING_STRESS_SPLIT_5 0x020000000ull
-#define WT_TIMING_STRESS_SPLIT_6 0x040000000ull
-#define WT_TIMING_STRESS_SPLIT_7 0x080000000ull
-#define WT_TIMING_STRESS_SPLIT_8 0x100000000ull
-#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x200000000ull
+#define WT_TIMING_STRESS_LIVE_RESTORE_CLEAN_UP 0x000008000ull
+#define WT_TIMING_STRESS_OPEN_INDEX_SLOW 0x000010000ull
+#define WT_TIMING_STRESS_PREFETCH_1 0x000020000ull
+#define WT_TIMING_STRESS_PREFETCH_2 0x000040000ull
+#define WT_TIMING_STRESS_PREFETCH_3 0x000080000ull
+#define WT_TIMING_STRESS_PREFIX_COMPARE 0x000100000ull
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x000200000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_1 0x000400000ull
+#define WT_TIMING_STRESS_PREPARE_RESOLUTION_2 0x000800000ull
+#define WT_TIMING_STRESS_SESSION_ALTER_SLOW 0x001000000ull
+#define WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE 0x002000000ull
+#define WT_TIMING_STRESS_SPLIT_1 0x004000000ull
+#define WT_TIMING_STRESS_SPLIT_2 0x008000000ull
+#define WT_TIMING_STRESS_SPLIT_3 0x010000000ull
+#define WT_TIMING_STRESS_SPLIT_4 0x020000000ull
+#define WT_TIMING_STRESS_SPLIT_5 0x040000000ull
+#define WT_TIMING_STRESS_SPLIT_6 0x080000000ull
+#define WT_TIMING_STRESS_SPLIT_7 0x100000000ull
+#define WT_TIMING_STRESS_SPLIT_8 0x200000000ull
+#define WT_TIMING_STRESS_TIERED_FLUSH_FINISH 0x400000000ull
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
@@ -812,13 +813,14 @@ struct __wt_connection_impl {
 #define WT_CONN_READY 0x00800000u
 #define WT_CONN_RECONFIGURING 0x01000000u
 #define WT_CONN_RECOVERING 0x02000000u
-#define WT_CONN_RECOVERY_COMPLETE 0x04000000u
-#define WT_CONN_RTS_THREAD_RUN 0x08000000u
-#define WT_CONN_SALVAGE 0x10000000u
-#define WT_CONN_TIERED_FIRST_FLUSH 0x20000000u
-#define WT_CONN_WAS_BACKUP 0x40000000u
+#define WT_CONN_RECOVERING_METADATA 0x04000000u
+#define WT_CONN_RECOVERY_COMPLETE 0x08000000u
+#define WT_CONN_RTS_THREAD_RUN 0x10000000u
+#define WT_CONN_SALVAGE 0x20000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x40000000u
+#define WT_CONN_WAS_BACKUP 0x80000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
-    wt_shared uint32_t flags;
+    wt_shared uint32_t flags_atomic;
 };
 
 /*
@@ -838,3 +840,12 @@ struct __wt_verbose_dump_cookie {
 struct __wt_sweep_cookie {
     uint64_t now;
 };
+
+/*
+ * WT_CONN_CLOSE_ABORT --
+ *      Whenever conn->close encounters a non-zero return code, abort the process to track where it
+ * came from. This is strictly to be used for debugging purposes.
+ */
+#define WT_CONN_CLOSE_ABORT(s, ret)                                                    \
+    if (F_ISSET_ATOMIC_32(S2C(s), WT_CONN_CLOSING) && (ret != 0) && (ret != WT_PANIC)) \
+        __wt_abort(s);

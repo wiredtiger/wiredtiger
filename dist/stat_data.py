@@ -285,6 +285,8 @@ conn_stats = [
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
+    CacheStat('cache_updates_txn_uncommitted_bytes', 'updates in uncommitted txn - bytes', 'no_clear,no_scale,size'),
+    CacheStat('cache_updates_txn_uncommitted_count', 'updates in uncommitted txn - count', 'no_clear,no_scale,size'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
     CacheStat('npos_evict_walk_max', 'eviction walk restored - had to walk this many pages', 'max_aggregate,no_scale'),
@@ -538,8 +540,18 @@ conn_stats = [
     ##########################################
     # Live Restore statistics
     ##########################################
-    LiveRestoreStat('live_restore_state', 'live restore state', 'no_clear,no_scale'),
-    LiveRestoreStat('live_restore_work_remaining', 'the number of files remaining for live restore completion', 'no_clear,no_scale'),
+    LiveRestoreStat('live_restore_bytes_copied', 'number of bytes copied from the source to the destination', 'size'),
+    LiveRestoreStat('live_restore_hist_source_read_latency_gt1000', 'source read latency histogram (bucket 7) - 1000ms+'),
+    LiveRestoreStat('live_restore_hist_source_read_latency_lt10', 'source read latency histogram (bucket 1) - 0-10ms'),
+    LiveRestoreStat('live_restore_hist_source_read_latency_lt50', 'source read latency histogram (bucket 2) - 10-49ms'),
+    LiveRestoreStat('live_restore_hist_source_read_latency_lt100', 'source read latency histogram (bucket 3) - 50-99ms'),
+    LiveRestoreStat('live_restore_hist_source_read_latency_lt250', 'source read latency histogram (bucket 4) - 100-249ms'),
+    LiveRestoreStat('live_restore_hist_source_read_latency_lt500', 'source read latency histogram (bucket 5) - 250-499ms'),
+    LiveRestoreStat('live_restore_hist_source_read_latency_lt1000', 'source read latency histogram (bucket 6) - 500-999ms'),
+    LiveRestoreStat('live_restore_hist_source_read_latency_total_msecs', 'source read latency histogram total (msecs)'),
+    LiveRestoreStat('live_restore_source_read_count', 'number of reads from the source database'),
+    LiveRestoreStat('live_restore_state', 'state', 'no_clear,no_scale'),
+    LiveRestoreStat('live_restore_work_remaining', 'number of files remaining for migration completion', 'no_clear,no_scale'),
 
     ##########################################
     # Locking statistics
@@ -1057,7 +1069,6 @@ conn_dsrc_stats = [
     CheckpointStat('checkpoint_cleanup_pages_removed', 'pages removed during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_visited', 'pages visited during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during checkpoint cleanup tree walk'),
-    CheckpointStat('checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
     CheckpointStat('checkpoint_snapshot_acquired', 'checkpoint has acquired a snapshot for its transaction'),
 
     ##########################################
@@ -1182,6 +1193,7 @@ session_stats = [
     SessionStat('lock_dhandle_wait', 'dhandle lock wait time (usecs)'),
     SessionStat('lock_schema_wait', 'schema lock wait time (usecs)'),
     SessionStat('read_time', 'page read from disk to cache time (usecs)'),
-    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn'),
+    SessionStat('txn_bytes_dirty', 'dirty bytes in this txn', 'no_clear,no_scale,size'),
+    SessionStat('txn_updates', 'number of updates in this txn', 'no_clear,no_scale,size'),
     SessionStat('write_time', 'page write from cache to disk time (usecs)'),
 ]

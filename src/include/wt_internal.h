@@ -209,8 +209,6 @@ struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
 typedef struct __wt_data_handle_cache WT_DATA_HANDLE_CACHE;
-struct __wt_delete_hs_upd;
-typedef struct __wt_delete_hs_upd WT_DELETE_HS_UPD;
 struct __wt_dlh;
 typedef struct __wt_dlh WT_DLH;
 struct __wt_dsrc_stats;
@@ -263,6 +261,8 @@ struct __wt_json;
 typedef struct __wt_json WT_JSON;
 struct __wt_keyed_encryptor;
 typedef struct __wt_keyed_encryptor WT_KEYED_ENCRYPTOR;
+struct __wt_live_restore_fh_meta;
+typedef struct __wt_live_restore_fh_meta WT_LIVE_RESTORE_FH_META;
 struct __wt_log_manager;
 typedef struct __wt_log_manager WT_LOG_MANAGER;
 struct __wt_log_record;
@@ -309,8 +309,6 @@ struct __wt_prefetch_queue_entry;
 typedef struct __wt_prefetch_queue_entry WT_PREFETCH_QUEUE_ENTRY;
 struct __wt_process;
 typedef struct __wt_process WT_PROCESS;
-struct __wt_reconcile;
-typedef struct __wt_reconcile WT_RECONCILE;
 struct __wt_reconcile_timeline;
 typedef struct __wt_reconcile_timeline WT_RECONCILE_TIMELINE;
 struct __wt_recovery_timeline;
@@ -413,6 +411,8 @@ struct __wti_ckpt_timer;
 typedef struct __wti_ckpt_timer WTI_CKPT_TIMER;
 struct __wti_cursor_log;
 typedef struct __wti_cursor_log WTI_CURSOR_LOG;
+struct __wti_delete_hs_upd;
+typedef struct __wti_delete_hs_upd WTI_DELETE_HS_UPD;
 struct __wti_evict_entry;
 typedef struct __wti_evict_entry WTI_EVICT_ENTRY;
 struct __wti_evict_queue;
@@ -423,8 +423,6 @@ struct __wti_live_restore_fs;
 typedef struct __wti_live_restore_fs WTI_LIVE_RESTORE_FS;
 struct __wti_live_restore_fs_layer;
 typedef struct __wti_live_restore_fs_layer WTI_LIVE_RESTORE_FS_LAYER;
-struct __wti_live_restore_hole_node;
-typedef struct __wti_live_restore_hole_node WTI_LIVE_RESTORE_HOLE_NODE;
 struct __wti_live_restore_server;
 typedef struct __wti_live_restore_server WTI_LIVE_RESTORE_SERVER;
 struct __wti_live_restore_work_item;
@@ -443,6 +441,8 @@ struct __wti_rec_dictionary;
 typedef struct __wti_rec_dictionary WTI_REC_DICTIONARY;
 struct __wti_rec_kv;
 typedef struct __wti_rec_kv WTI_REC_KV;
+struct __wti_reconcile;
+typedef struct __wti_reconcile WTI_RECONCILE;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -506,6 +506,7 @@ typedef uint64_t wt_timestamp_t;
 #include "dhandle.h"      /* required by btree.h, connection.h */
 #include "timestamp.h"    /* required by reconcile.h */
 #include "thread_group.h" /* required by rollback_to_stable.h */
+#include "verbose.h"      /* required by rollback_to_stable.h */
 
 #include "api.h"
 #include "bitstring.h"
@@ -542,7 +543,6 @@ typedef uint64_t wt_timestamp_t;
 #include "tiered.h"
 #include "truncate.h"
 #include "txn.h"
-#include "verbose.h"
 
 #include "session.h" /* required by connection.h */
 #include "version.h" /* required by connection.h */
@@ -567,12 +567,13 @@ typedef uint64_t wt_timestamp_t;
 #include "intpack_inline.h"        /* required by cell_inline.h, packing_inline.h */
 #include "misc_inline.h"           /* required by mutex_inline.h */
 
-#include "buf_inline.h"       /* required by cell_inline.h */
-#include "ref_inline.h"       /* required by btree_inline.h */
-#include "timestamp_inline.h" /* required by btree_inline.h */
-#include "cell_inline.h"      /* required by btree_inline.h */
-#include "mutex_inline.h"     /* required by btree_inline.h */
-#include "txn_inline.h"       /* required by btree_inline.h */
+#include "generation_inline.h" /* required by txn_inline.h */
+#include "buf_inline.h"        /* required by cell_inline.h */
+#include "ref_inline.h"        /* required by btree_inline.h */
+#include "timestamp_inline.h"  /* required by btree_inline.h */
+#include "cell_inline.h"       /* required by btree_inline.h */
+#include "mutex_inline.h"      /* required by btree_inline.h */
+#include "txn_inline.h"        /* required by btree_inline.h */
 
 #include "bitstring_inline.h"
 #include "block_inline.h"
@@ -587,7 +588,6 @@ typedef uint64_t wt_timestamp_t;
 #include "os_fs_inline.h"
 #include "os_fstream_inline.h"
 #include "packing_inline.h"
-#include "../reconcile/reconcile_inline.h"
 #include "serial_inline.h"
 #include "str_inline.h"
 #include "time_inline.h"

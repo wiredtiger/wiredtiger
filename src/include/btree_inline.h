@@ -270,7 +270,7 @@ __wt_btree_bytes_updates(WT_SESSION_IMPL *session)
  *     Increment a page's memory footprint in the cache.
  */
 static WT_INLINE void
-__wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+__wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size, bool new_update)
 {
     WT_BTREE *btree;
     WT_CACHE *cache;
@@ -295,16 +295,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     (void)__wt_atomic_addsize(&page->memory_footprint, size);
 
     if (page->modify != NULL) {
-        /*
-         * For application threads, track the transaction bytes added to cache usage. We want to
-         * capture only the application's own changes to page data structures. Exclude changes to
-         * internal pages or changes that are the result of the application thread being co-opted
-         * into eviction work.
-         */
-        if (!F_ISSET(session, WT_SESSION_INTERNAL) &&
-          F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID) &&
-          __wt_session_gen(session, WT_GEN_EVICT) == 0)
-            WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, size);
+        __txn_incr_bytes_dirty(session, size, new_update);
         if (!WT_PAGE_IS_INTERNAL(page)) {
             (void)__wt_atomic_add64(&cache->bytes_updates, size);
             (void)__wt_atomic_add64(&btree->bytes_updates, size);
@@ -703,8 +694,8 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT), "%s",
-              "A btree is marked dirty during recovery or shutdown");
+              !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT),
+              "%s", "A btree is marked dirty during recovery or shutdown");
         }
         S2BT(session)->modified = true;
         WT_FULL_BARRIER();
@@ -740,8 +731,8 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
      */
     if (__wt_page_is_modified(page)) {
         WT_ASSERT_ALWAYS(session,
-          F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING) ||
-            !__wt_page_is_reconciling(page),
+          F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
+            F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) || !__wt_page_is_reconciling(page),
           "Illegal attempt to mark a page clean that is being reconciled");
 
         /*
@@ -1997,7 +1988,8 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
         probability = 0xe6666665; /* ~90% of the value of uint32 max. */
 #endif
 
-    for (depth = 1; depth < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < probability; depth++)
+    for (depth = 1; depth < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd_skiplist) < probability;
+         depth++)
         ;
     return (depth);
 }

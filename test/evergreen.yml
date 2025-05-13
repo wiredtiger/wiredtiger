@@ -48,7 +48,7 @@ functions:
               export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
               export PYTHONPATH="($WT_TOPDIR/lang/python/wiredtiger):$(cygpath -w $WT_TOPDIR/lang/python)"
             else
-              export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+              export PATH=/opt/mongodbtoolchain/v5/bin:$PATH
               export LD_LIBRARY_PATH=$WT_BUILDDIR
             fi
 
@@ -76,7 +76,7 @@ functions:
             if [ "$OS" = "Windows_NT" ]; then
               export PATH=/cygdrive/c/python/Python311:/cygdrive/c/python/Python311/Scripts:$PATH
             else
-              export PATH=/opt/mongodbtoolchain/v4/bin:$PATH
+              export PATH=/opt/mongodbtoolchain/v5/bin:$PATH
             fi
   # Since Bazel (currently used in SCons) uses EngFlow's remote execution system instead of icecream,
   # additional credentials need to be setup to maintain efficient compilation speed.
@@ -154,7 +154,7 @@ functions:
     params:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
-      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}${postfix|}.tgz
       bucket: build_external
       extract_to: ${destination|wiredtiger}
   "fetch endian format artifacts" :
@@ -192,11 +192,8 @@ functions:
           mongo_repo=https://github.com/mongodb/mongo
           mongo_branch=v$(echo $branch | cut -d'-' -f 2)
         else
-          # FIXME-WT-14185 Use the public main repo when it is starting to sync with private repo.
-          # The WT-13948 ticket requires changes from the private repository. As a workaround
-          # use a mongodb forked repo with custom branch.
-          mongo_repo=https://github.com/jiechenbo/mongo
-          mongo_branch=wt-13948-workaround
+          mongo_repo=https://github.com/mongodb/mongo
+          mongo_branch=master
         fi
         popd
         git clone $mongo_repo -b $mongo_branch
@@ -228,7 +225,7 @@ functions:
         echo "startup --output_user_root=${workdir}/bazel-output-root" >> ~/.bazelrc
         echo "BAZELISK_HOME=${workdir}/bazelisk_home" >> ~/.bazeliskrc
 
-        bazel build --mongo_toolchain_version=v4 --config=opt --build_enterprise=False install-mongod
+        bazel build --mongo_toolchain_version=v5 --config=opt --build_enterprise=False install-mongod
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
@@ -279,19 +276,6 @@ functions:
         # The RHEL PPC platform does not have ZSTD. Strip it out.
         if [ "${build_variant|}" = "rhel8-ppc" ] && [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
           DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
-        fi
-
-        # FIXME-WT-14152: Enable LZ4 and snappy compressors once installed on machines.
-        if [[ "${build_variant|}" =~ "amazon2023" ]]; then
-          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_LZ4=1) ]]; then
-            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_LZ4=1/}
-          fi
-          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_ZSTD=1) ]]; then
-            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_ZSTD=1/}
-          fi
-          if [[ "$DEFINED_EVERGREEN_CONFIG_FLAGS" =~ (\-DHAVE_BUILTIN_EXTENSION_SNAPPY=1) ]]; then
-            DEFINED_EVERGREEN_CONFIG_FLAGS=${DEFINED_EVERGREEN_CONFIG_FLAGS/\-DHAVE_BUILTIN_EXTENSION_SNAPPY=1/}
-          fi
         fi
 
         if [[ "${build_variant|}" =~ "macos-14" ]]; then
@@ -360,7 +344,13 @@ functions:
 
             # Preload tcmalloc in the Evergreen environment: this will affect
             # ALL binaries.
-            export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
+            # FIXME-WT-14389 v5 toolchain clang Cmake configuration fails with tcmalloc preloading
+            # so it worth doing LD_PRELOAD right before running the tests (in PREPARE_TEST_ENV).
+            # Didn't move it there as part of this patch, since it is very likely that currently
+            # WT is tested without TCMalloc, because Evergreen resets the environment after
+            # execution of "configure wiredtiger" step which is another bug, but it should
+            # be handled in a separate PR.
+            # export LD_PRELOAD=$PWD/TCMALLOC_LIB/libtcmalloc.so
           fi
 
           # Compiling with CMake.
@@ -834,11 +824,13 @@ functions:
           echo "Using num_jobs '-j ${num_jobs}' for 'unit test'"
           threads_command="-j ${num_jobs}"
         fi
-        if [ ${check_coverage|false} = true ]; then
-            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
-        else
-            ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
-        fi
+        for i in $(seq ${times|1}); do
+            if [ ${check_coverage|false} = true ]; then
+                ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+            else
+                ${python_binary|python3} ../test/suite/run.py ${ignore_stdout} ${unit_test_args|-v 2} ${unit_test_variant_args} $threads_command 2>&1
+            fi
+        done
 
   "code coverage analysis":
     command: shell.exec
@@ -865,7 +857,7 @@ functions:
         # Record the start time, in seconds
         date +%s > time.txt
 
-        ${python_binary|python3} test/evergreen/code_coverage/parallel_code_coverage.py -c ${code_coverage_test_file|test/evergreen/code_coverage/code_coverage_config.json} -b $(pwd)/build_ -j ${num_jobs} -s ${code_cov_extra_args}
+        ${python_binary|python3} test/evergreen/code_coverage/parallel_code_coverage.py -c ${code_coverage_test_file|test/evergreen/code_coverage/code_coverage_config.json} -b $(pwd)/build_ -j ${num_jobs} -s ${code_cov_extra_args} -v
 
         # Record the end time, in seconds
         date +%s >> time.txt
@@ -950,19 +942,6 @@ functions:
         for i in $(seq ${times|1}); do
           ./format.sh -j ${num_jobs} ${format_test_script_args|} cache.maximum=$memory_max 2>&1
         done
-  "format test tiered":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/cmake_build/test/format"
-      shell: bash
-      script: |
-        # To make sure we have plenty of flush_tier calls, we set the flush frequency high
-        # and the time between checkpoints low. We specify only using tables, as that's the
-        # only kind of URI that participates in tiered storage.
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        ../../../test/evergreen/format_test_tiered.sh ${times} ${test_format_extra_args}
   "many dbs test":
     command: shell.exec
     params:
@@ -1161,17 +1140,6 @@ functions:
           pip3 install psutil==5.9.4
           ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -b -o test_stats/evergreen_out_${perf-test-name}.json ${wtarg}
           ${python_binary|python3} ../../../bench/perf_run_py/perf_run.py --${test_type|wtperf} -e ${exec_path|./wtperf} -t ${perf-test-path|../../../bench/wtperf/runners}/${perf-test-name} -ho WT_TEST -m ${maxruns} -v -re -o test_stats/atlas_out_${perf-test-name}.json ${wtarg}
-
-  "csuite smoke test":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-        ${PREPARE_TEST_ENV}
-        test/csuite/${test_binary}/smoke.sh ${test_args|} 2>&1
 
   "upload test stats":
     - command: perf.send
@@ -1512,6 +1480,10 @@ tasks:
         vars:
           GNU_C_VERSION: -DGNU_C_VERSION=9
           GNU_CXX_VERSION: -DGNU_CXX_VERSION=9
+      - func: "compile wiredtiger"
+        vars:
+          GNU_C_VERSION: -DGNU_C_VERSION=11
+          GNU_CXX_VERSION: -DGNU_CXX_VERSION=11
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
@@ -1537,6 +1509,26 @@ tasks:
         vars:
           CLANG_C_VERSION: -DCLANG_C_VERSION=8
           CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=8
+      - func: "compile wiredtiger"
+        vars:
+          CLANG_C_VERSION: -DCLANG_C_VERSION=9
+          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=9
+      - func: "compile wiredtiger"
+        vars:
+          CLANG_C_VERSION: -DCLANG_C_VERSION=10
+          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=10
+      - func: "compile wiredtiger"
+        vars:
+          CLANG_C_VERSION: -DCLANG_C_VERSION=11
+          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=12
+      - func: "compile wiredtiger"
+        vars:
+          CLANG_C_VERSION: -DCLANG_C_VERSION=13
+          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=13
+      - func: "compile wiredtiger"
+        vars:
+          CLANG_C_VERSION: -DCLANG_C_VERSION=14
+          CLANG_CXX_VERSION: -DCLANG_CXX_VERSION=14
 
   # Compile WiredTiger with uncommon build flags to make sure we compile code that
   # is often pre-processed out.
@@ -1636,6 +1628,16 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
+          ctest_extra_args: -LE "long_running" ${ctest_extra_args}
+          directory: test/checkpoint
+
+  - name: checkpoint-test-long-running
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          ctest_extra_args: -L "long_running" ${ctest_extra_args}
           directory: test/checkpoint
 
   - name: cursor-order-test
@@ -2534,6 +2536,62 @@ tasks:
             ${PREPARE_TEST_ENV}
             ../test/live_restore/long_test.sh
 
+  # The following tests are temporary so we can heavily test live restore in the final weeks of the project.
+  # They should be deleted when on project completion.
+  # FIXME-WT-14312
+
+  - name: live-restore-short-heavy-testing
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+
+            # Runtime is approx 20 seconds under ASan. Run for 1 hour
+            for i in $(seq 180); do
+                ../test/live_restore/short_test.sh
+            done
+
+  # Runtime is already 1 hour under ASan. Create a second task to double the testing time.
+  - name: live-restore-long-heavy-testing
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ../test/live_restore/long_test.sh
+
+  - name: unit-test-live-restore-heavy-testing
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: live_restore
+          times: 60 # Run time is approx 10 seconds. Loops it for 10 minutes
+
+  - name: format-live-restore-heavy-testing
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          # 2 hours using a custom config to maximally test live restore
+          format_test_script_args: "-c ../../../test/format/CONFIG.live_restore -t 120"
+
   # End of live restore tests
 
   - name: s-all
@@ -2557,11 +2615,6 @@ tasks:
 
             cd dist
             bash -x s_all -E 2>&1
-
-            # Run s_string with the "-r" option to remove no-longer-needed words from s_string.ok
-            # This is run separately from s_all as it can be too proactive when run as part of
-            # developers local workflow, but needs to be run in PR builds before the code is merged.
-            bash s_string -r 2>&1
 
   - name: s-outdated-fixmes
     # Detect any FIXME comments in the codebase tied to closed Jira tickets.
@@ -2864,7 +2917,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            env CC=/opt/mongodbtoolchain/v4/bin/gcc CXX=/opt/mongodbtoolchain/v4/bin/g++ PATH=/opt/mongodbtoolchain/v4/bin:/opt/java/jdk11/bin:$PATH bash s_release `date +%Y%m%d`
+            env CC=/opt/mongodbtoolchain/v5/bin/gcc CXX=/opt/mongodbtoolchain/v5/bin/g++ PATH=/opt/mongodbtoolchain/v5/bin:/opt/java/jdk11/bin:$PATH bash s_release `date +%Y%m%d`
 
   # Note that the project settings use this task name to compile the documentation during PR
   # testing, keep this in mind if you decide to change it.
@@ -3040,6 +3093,7 @@ tasks:
         vars:
           num_jobs: 1
           code_coverage_test_file: test/evergreen/code_coverage/code_coverage_config_catch2.json
+          code_cov_extra_args: --check_errors
       - func: "code coverage analysis"
         vars:
           working_dir: "wiredtiger"
@@ -3500,7 +3554,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            export "PATH=/opt/mongodbtoolchain/v4/bin:$PATH"
+            ${PREPARE_TEST_ENV}
             g++ -o memory_model_test -O2 memory_model_test.cpp -lpthread -std=c++20 -Wall -Werror
             ./memory_model_test -n 100000000
 
@@ -4011,18 +4065,6 @@ tasks:
       - func: "format test predictable"
         vars:
           times: 5
-
-  - name: format-tiered-test
-    # Set 2.5 hour timeout (60 * 60 * 2.5)
-    exec_timeout_secs: 9000
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          <<: *configure_flags_with_builtins
-      - func: "format test tiered"
-        vars:
-          times: 10
 
   - name: schema-abort-predictable-test
     # Set 20 minute timeout (60 * 20)
@@ -4934,6 +4976,21 @@ tasks:
         vars:
           upload_filename: WT_TEST.tgz
           upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0/
+      # Now take and upload a backup. We use this as the source in our live restore perf tests.
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build/bench/wtperf"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ${python_binary|python3} ../../../test/live_restore/take_backup.py
+      - func: "upload artifact"
+        vars:
+          upload_filename: WT_TEST_backup.tgz
+          upload_source_dir: wiredtiger/cmake_build/bench/wtperf/WT_TEST_0_0_backup/
+          postfix: "_backup"
       # Call cleanup function to avoid duplicated artifact upload in the post-task stage.
       - func: "cleanup"
 
@@ -5077,7 +5134,6 @@ tasks:
 
   - name: perf-test-live-restore
     tags: ["long-perf"]
-    patch_only: true
     depends_on:
       - name: perf-test-long-500m-btree-populate
     commands:
@@ -5093,6 +5149,7 @@ tasks:
         vars:
           dependent_task: perf-test-long-500m-btree-populate
           destination: "wiredtiger/cmake_build/bench/wtperf/SOURCE"
+          postfix: "_backup"
       # Create an empty home directory to be used as the destination for live restore.
       - command: shell.exec
         params:
@@ -5118,7 +5175,6 @@ tasks:
 
   - name: perf-test-live-restore-no-server
     tags: ["long-perf"]
-    patch_only: true
     depends_on:
       - name: perf-test-long-500m-btree-populate
     commands:
@@ -5134,6 +5190,7 @@ tasks:
         vars:
           dependent_task: perf-test-long-500m-btree-populate
           destination: "wiredtiger/cmake_build/bench/wtperf/SOURCE"
+          postfix: "_backup"
       # Create an empty home directory to be used as the destination for live restore.
       - command: shell.exec
         params:
@@ -5405,6 +5462,10 @@ buildvariants:
     - name: csuite-long-running
       batchtime: 1440 # once a day
     - name: live-restore-long
+    - name: live-restore-short-heavy-testing
+    - name: live-restore-long-heavy-testing
+    - name: unit-test-live-restore-heavy-testing
+    - name: format-live-restore-heavy-testing
 
 - name: ubuntu2004-asan
   display_name: "! Ubuntu 20.04 ASAN"
@@ -5428,6 +5489,9 @@ buildvariants:
     - name: model-test-long-random-config
       batchtime: 1440 # once a day
     - name: live-restore-long
+    - name: live-restore-short-heavy-testing
+    - name: live-restore-long-heavy-testing
+    - name: format-live-restore-heavy-testing
 
 - name: ubuntu2004-tsan
   display_name: "! Ubuntu 20.04 TSAN"
@@ -5472,8 +5536,8 @@ buildvariants:
     # Reduce the number of test iterations in validation stressing as TSan increases runtime by a factor of roughly 10x
     validation_stress_num_runs: 20
   tasks:
-    # Skip the azure/gcp tests as they don't compile under clang
-    - name: ".pull_request !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
+    # Skip the azure/gcp/s3 tests as they don't compile under clang
+    - name: ".pull_request !s3-tiered-test-small !.tiered_unittest !azure-gcp-tiered-test-small !.pull_request_compilers !.model_checking !csuite-wt12015-backup-corruption-test"
     - name: compile
     - name: make-check-test
     - name: configure-combinations
@@ -5489,10 +5553,8 @@ buildvariants:
     - name: format-smoke-test
     - name: ".data-validation-stress-test"
     - name: catch2-test
-    - name: s3-tiered-storage-extensions-test
     - name: bench-tiered-push-pull
     - name: catch2-assertions
-    - name: bench-tiered-push-pull-s3
 
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal
@@ -5541,10 +5603,6 @@ buildvariants:
     - name: format-msan-test
     - name: make-check-test
       distros: ubuntu2004-large
-    - name: csuite-long-running
-      # Some of the long-running tests require a large instance to run successfully.
-      distros: ubuntu2004-large
-      batchtime: 1440 # once a day
 
 - name: ubuntu2004-ubsan
   display_name: "! Ubuntu 20.04 UBSAN"
@@ -5598,8 +5656,6 @@ buildvariants:
       - ubuntu2004-medium
     - name: format-abort-recovery-stress-test
     - name: format-predictable-test
-    # FIXME-WT-10822
-    # - name: format-tiered-test
     - name: schema-abort-predictable-test
     - name: checkpoint-filetypes-predictable-test
 
@@ -5785,7 +5841,6 @@ buildvariants:
     ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    - name: ".lint"
     - name: ".workgen-test"
       batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
@@ -5820,6 +5875,10 @@ buildvariants:
       distros: ubuntu2004-arm64-large
     - name: unit-test-zstd
     - name: wtperf-test
+    - name: live-restore-short-heavy-testing
+    - name: live-restore-long-heavy-testing
+    - name: unit-test-live-restore-heavy-testing
+    - name: format-live-restore-heavy-testing
 
 - name: amazon2-arm64
   display_name: "Amazon Linux 2 ARM64"
@@ -5893,6 +5952,10 @@ buildvariants:
     - name: configure-combinations
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
+    - name: live-restore-short-heavy-testing
+    - name: live-restore-long-heavy-testing
+    - name: unit-test-live-restore-heavy-testing
+    - name: format-live-restore-heavy-testing
 
 - name: ubuntu2004-release-arm64
   display_name: "~ Ubuntu 20.04 (ARM64, Release Build)"
@@ -6083,7 +6146,7 @@ buildvariants:
   run_on:
   - amazon2023-arm64-latest-small-m8g
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
@@ -6106,7 +6169,7 @@ buildvariants:
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"
@@ -6124,8 +6187,7 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
-    # FIXME-WT-14152: Enable stress tests that require snappy compressors
-    - name: ".cppsuite-stress-test !cppsuite-burst-inserts-stress !cppsuite-hs-cleanup-stress !cppsuite-operations-test-stress !cppsuite-reverse-split-stress"
+    - name: ".cppsuite-stress-test"
       batchtime: 720 # 12 hours
 
 - name: amazon2023-release-armv9
@@ -6134,7 +6196,7 @@ buildvariants:
   - amazon2023-arm64-latest-small-m8g
   batchtime: 720 # 12 hours
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=RelWithDebInfo
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
@@ -6152,6 +6214,10 @@ buildvariants:
       distros: amazon2023-arm64-latest-large-m8g
     - name: format-smoke-test
     - name: s3-tiered-storage-extensions-test
+    - name: live-restore-short-heavy-testing
+    - name: live-restore-long-heavy-testing
+    - name: unit-test-live-restore-heavy-testing
+    - name: format-live-restore-heavy-testing
 
 - name: amazon2023-armv9
   display_name: "(ARMV9) Amazon Linux 2023 ARM64"
@@ -6159,19 +6225,19 @@ buildvariants:
   - amazon2023-arm64-latest-small-m8g
   batchtime: 1440 # 24 hours
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
+    # FIXME-WT-14461: Use stable toolchain once workgen tests are fixed.
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
-    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
-    # - name: ".workgen-test"
-    #  batchtime: 1440 # 24 hours
+    - name: ".workgen-test"
+      batchtime: 1440 # 24 hours
     - name: checkpoint-filetypes-test
     - name: chunkcache-test
     - name: compile
     - name: fops
-    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
-    # - name: format-failure-configs-test
-    #  distros: amazon2023-arm64-latest-large-m8g
+    - name: format-failure-configs-test
+      distros: amazon2023-arm64-latest-large-m8g
     - name: format-smoke-test
     - name: format-stress-pull-request-test
     - name: long-test
@@ -6200,9 +6266,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: compile
     - name: fops
-    # FIXME-WT-14152: Enable once LZ4 and snappy compressors are on machines
-    # - name: format-failure-configs-test
-    #  distros: amazon2023-arm64-latest-large-m8g
+    - name: format-failure-configs-test
+      distros: amazon2023-arm64-latest-large-m8g
 
 - name: cppsuite-stress-tests-armv9
   display_name: "(ARMV9) Cppsuite Stress Tests ARM64"
@@ -6210,19 +6275,18 @@ buildvariants:
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: compile
-    # FIXME-WT-14152: Enable stress tests that require snappy compressors
-    - name: ".cppsuite-stress-test !cppsuite-burst-inserts-stress !cppsuite-hs-cleanup-stress !cppsuite-operations-test-stress !cppsuite-reverse-split-stress"
+    - name: ".cppsuite-stress-test"
 
 - name: amazon2023-stress-tests-armv9
   display_name: (ARMV9) Amazon2023 Stress tests ARM64
   run_on:
   - amazon2023-arm64-latest-large-m8g
   expansions:
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: ".stress-test-1"
@@ -6230,5 +6294,119 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
-    - name: checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
+    - name: ".stress-test-sanitizer"
+    - name: format-predictable-test
+    - name: schema-abort-predictable-test
+    - name: checkpoint-filetypes-predictable-test
+
+- name: amazon2023-armv9-asan
+  display_name: "(ARMV9) Amazon Linux 2023 ASAN"
+  run_on:
+  - amazon2023-arm64-latest-small-m8g
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=ASan
+    ENABLE_TCMALLOC: 0
+    additional_env_vars: |
+      export LSAN_OPTIONS="$COMMON_SAN_OPTIONS:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/asan_leaks.supp"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    # Exclude wt12015_backup_corruption for ASan builds. It creates false positives when it deliberately kills processes that invoke corruption.
+    ctest_extra_args: -E "wt12015_backup_corruption"
+  tasks:
+    - name: ".pull_request !.pull_request_compilers !.python !.tiered_unittest !csuite-wt12015-backup-corruption-test"
+    - name: examples-c-test
+    - name: format-asan-smoke-test
+    - name: model-test-long
+      batchtime: 1440 # once a day
+    - name: model-test-long-random-config
+      batchtime: 1440 # once a day
+    - name: live-restore-long
+
+- name: amazon2023-armv9-tsan
+  display_name: "(ARMV9) Amazon Linux 2023 TSAN"
+  run_on:
+  - amazon2023-arm64-latest-small-m8g
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
+    ENABLE_TCMALLOC: 0
+    additional_env_vars: |
+      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: examples-c-tsan
+
+- name: amazon2023-armv9-msan
+  display_name: "(ARMV9) Amazon Linux 2023 MSAN"
+  run_on:
+  - amazon2023-arm64-latest-small-m8g
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=MSan
+    # MemorySanitizer requires that all program code is instrumented, otherwise it may generate false reports.
+    posix_configure_flags: -DENABLE_LZ4=0 -DENABLE_SNAPPY=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0
+    # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
+    # builds) as -O1, making test binaries more difficult to debug.
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
+    ENABLE_TCMALLOC: 0
+    # We don't run C++ memory sanitized testing as it creates false positives. MSAN also causes
+    # some csuite tests to take an extended amount of time. These are excluded from the
+    # make-check-test task and are covered by the csuite-long-running task.
+    ctest_extra_args: -LE "cppsuite|long_running"
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
+  tasks:
+    - name: compile
+    - name: compile-production-disable-shared
+    - name: compile-production-disable-static
+    - name: examples-c-production-disable-shared-test
+    - name: examples-c-production-disable-static-test
+    - name: format-msan-test
+    - name: make-check-test
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: csuite-long-running
+      # Some of the long-running tests require a large instance to run successfully.
+      distros: amazon2023-arm64-latest-large-m8g
+      batchtime: 1440 # once a day
+
+- name: amazon2023-armv9-ubsan
+  display_name: "(ARMV9) Amazon Linux 2023 UBSAN"
+  run_on:
+  - amazon2023-arm64-latest-small-m8g
+  expansions:
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/clang.cmake
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=UBSan
+    # Use optimisation level -O0 since Clang treats -Og (our default optimisation for non-release
+    # builds) as -O1, making test binaries more difficult to debug.
+    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
+    ENABLE_TCMALLOC: 0
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+  tasks:
+    - name: compile
+    - name: compile-production-disable-shared
+    - name: compile-production-disable-static
+    - name: examples-c-production-disable-shared-test
+    - name: examples-c-production-disable-static-test
+    - name: format-stress-pull-request-test
+    - name: make-check-test
+      distros: amazon2023-arm64-latest-large-m8g
+    - name: cppsuite-default-all
+
+- name: amazon2023-stress-nonstandalone
+  display_name: "(ARMV9) Amazon Linux 2023 Stress tests (Non-standalone)"
+  run_on:
+  - amazon2023-arm64-latest-large-m8g
+  expansions:
+    ENABLE_TCMALLOC: 1
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
+    NONSTANDALONE: -DWT_STANDALONE_BUILD=0
+  tasks:
+    - name: ".stress-test-1"
+    - name: ".stress-test-2"
+    - name: ".stress-test-3"
+    - name: ".stress-test-4"
+    - name: ".stress-test-no-barrier"
+    - name: format-abort-recovery-stress-test
+    - name: compile
+    - name: ".cppsuite-stress-test"
+      batchtime: 720 # 12 hours

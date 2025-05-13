@@ -14,9 +14,10 @@
 
 namespace utils {
 
-// Extent list helpers
-bool extent_list_in_order(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh);
-std::string extent_list_str(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh);
+typedef enum { DEST, NO_DEST } HasDest;
+typedef enum { SOURCE, NO_SOURCE } HasSource;
+typedef enum { MIGRATING, NOT_MIGRATING } IsMigrating;
+typedef enum { STOP, NO_STOP } HasStop;
 
 // File op helpers
 void create_file(const std::string &filepath, int len = 1);

@@ -7,13 +7,15 @@
  */
 
 #include "wt_internal.h"
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 
 /*
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.
  */
 static WT_INLINE int
-__rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+__rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore, size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
@@ -41,13 +43,13 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
 
 /*
  * __rec_delete_hs_upd_save --
- *     Save an update into a WT_DELETE_HS_UPD list to delete it from the history store later.
+ *     Save an update into a WTI_DELETE_HS_UPD list to delete it from the history store later.
  */
 static WT_INLINE int
-__rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+__rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_UPDATE *upd, WT_UPDATE *tombstone)
 {
-    WT_DELETE_HS_UPD *delete_hs_upd;
+    WTI_DELETE_HS_UPD *delete_hs_upd;
 
     WT_RET(__wt_realloc_def(
       session, &r->delete_hs_upd_allocated, r->delete_hs_upd_next + 1, &r->delete_hs_upd));
@@ -108,7 +110,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if (F_ISSET(conn, WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
           unpack->tw.start_txn == upd->txnid && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
@@ -168,7 +170,7 @@ __rec_append_orig_value(
              * done so when we read the page into memory to avoid using the transaction id from the
              * previous run.
              */
-            if (F_ISSET(conn, WT_CONN_RECOVERING))
+            if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
                 tombstone->txnid = WT_TXN_NONE;
             else
                 tombstone->txnid = unpack->tw.stop_txn;
@@ -206,7 +208,7 @@ __rec_append_orig_value(
          * so when we read the page into memory to avoid using the transaction id from the previous
          * run.
          */
-        if (F_ISSET(conn, WT_CONN_RECOVERING))
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
             append->txnid = WT_TXN_NONE;
         else
             append->txnid = unpack->tw.start_txn;
@@ -223,7 +225,7 @@ __rec_append_orig_value(
     /* Append the new entry into the update list. */
     WT_RELEASE_WRITE_WITH_BARRIER(upd->next, append);
 
-    __wt_cache_page_inmem_incr(session, page, total_size);
+    __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
@@ -239,7 +241,7 @@ err:
  *     Find and save the update that needs to be deleted from the history store later
  */
 static int
-__rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
+__rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WTI_UPDATE_SELECT *upd_select)
 {
     WT_UPDATE *delete_tombstone, *delete_upd;
@@ -277,7 +279,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
  *     Return if we need to save the update chain
  */
 static WT_INLINE bool
-__rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_UPDATE_SELECT *upd_select,
+__rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELECT *upd_select,
   WT_CELL_UNPACK_KV *vpack, bool has_newer_updates)
 {
     WT_UPDATE *upd;
@@ -319,8 +321,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WTI_UPDATE_SELECT
      * 2. On-disk entry exists.
      * 3. Valid updates exist in the update chain to be written to the history store.
      */
-    supd_restore =
-      F_ISSET(r, WT_REC_EVICT) && (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+    supd_restore = F_ISSET(r, WT_REC_EVICT) &&
+      (has_newer_updates || F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY));
 
     if (!supd_restore && vpack == NULL && upd_select->upd != NULL) {
         upd = upd_select->upd;
@@ -377,7 +379,7 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
  *     time.
  */
 static int
-__rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *select_upd,
+__rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *select_upd,
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *prev_upd, *upd;
@@ -547,7 +549,7 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
  *     Select the update to write to disk image.
  */
 static int
-__rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd,
+__rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd,
   WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp,
   size_t *upd_memsizep)
 {
@@ -801,7 +803,8 @@ __rec_fill_tw_from_upd_select(
         if (last_upd->next != NULL) {
             WT_ASSERT_ALWAYS(session,
               last_upd->next->txnid ==
-                  (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_NONE : vpack->tw.start_txn) &&
+                  (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_NONE :
+                                                                         vpack->tw.start_txn) &&
                 last_upd->next->start_ts == vpack->tw.start_ts &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
               "Tombstone is globally visible, but the tombstoned update is on the update "
@@ -834,7 +837,7 @@ __rec_fill_tw_from_upd_select(
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
 int
-__wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+__wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
@@ -985,7 +988,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, 
          * eviction, or for cases that don't support history store, such as an in-memory database.
          */
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
-          (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+          (has_newer_updates || F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY));
 
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
         WT_RET(__rec_update_save(

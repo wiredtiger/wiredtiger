@@ -439,6 +439,7 @@ WTI
 WTPERF
 WaitForSingleObject
 WaitOn
+Warray
 Wconditional
 Wduplicated
 WeakHashLen
@@ -510,7 +511,6 @@ bInheritHandle
 backoff
 bal
 basecfg
-basename
 bb
 bba
 bbb
@@ -1204,6 +1204,7 @@ rle
 rmw
 rnd
 rng
+rol
 rotN
 rotn
 rpc
@@ -1366,7 +1367,6 @@ uintAny
 ulock
 umount
 unallocated
-unbacked
 unbare
 unbuffered
 uncached

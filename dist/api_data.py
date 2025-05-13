@@ -337,6 +337,10 @@ file_meta = file_config + [
         LSN of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
+    Config('live_restore', '', r'''
+        live restore metadata for a file''', type='category', subconfig=[
+            Config('bitmap', '', r'''bitmap representation of a file'''),
+            Config('nbits', 0, r'''the number of bits in the bitmap as an integer''', type='int')]),
     Config('readonly', 'false', r'''
         the file is read-only. All methods that modify a file are disabled. See @ref
         readonly for more information''',
@@ -589,6 +593,10 @@ connection_runtime_config = [
                 be preferable to set to "true" if there are many collections. It can improve or
                 degrade performance depending on the workload.''',
                 type='boolean', undoc=True),
+            Config('legacy_page_visit_strategy', 'false', r'''
+                Use legacy page visit strategy for eviction. Using this option is highly discouraged
+                as it will re-introduce the bug described in WT-9121.''',
+                type='boolean'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
@@ -786,11 +794,11 @@ connection_runtime_config = [
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'evict_reposition', 'failpoint_eviction_split',
         'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'open_index_slow', 'prefetch_1',
-        'prefetch_2', 'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
-        'prepare_resolution_1', 'prepare_resolution_2', 'session_alter_slow',
-        'sleep_before_read_overflow_onpage', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'split_8', 'tiered_flush_finish']),
+        'history_store_search', 'history_store_sweep_race', 'live_restore_clean_up',
+        'open_index_slow', 'prefetch_1', 'prefetch_2', 'prefetch_3', 'prefix_compare',
+        'prepare_checkpoint_delay', 'prepare_resolution_1', 'prepare_resolution_2',
+        'session_alter_slow', 'sleep_before_read_overflow_onpage', 'split_1', 'split_2',
+        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8', 'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as
@@ -1392,7 +1400,7 @@ methods = {
 'WT_SESSION.create' : Method(file_config + tiered_config +
         source_meta + index_only_config + table_only_config + [
     Config('exclusive', 'false', r'''
-        explicitly fail with EEXIST if the object exists. When false (the default), if the object 
+        explicitly fail with EEXIST if the object exists. When false (the default), if the object
         exists, silently fail without creating a new object.''',
         type='boolean'),
     Config('import', '', r'''

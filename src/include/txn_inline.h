@@ -65,7 +65,7 @@ __wt_txn_log_op_check(WT_SESSION_IMPL *session)
         return (false);
 
     /* No logging during recovery. */
-    if (F_ISSET(conn, WT_CONN_RECOVERING))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
         return (false);
 
     return (true);
@@ -557,7 +557,7 @@ __wt_txn_timestamp_usage_check(
      * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
      * when applying commits, and it is possible that timestamps may be out-of-order in log replay.
      */
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
     /* Check for disallowed timestamps. */
@@ -777,7 +777,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      */
     WT_ACQUIRE_READ_WITH_BARRIER(oldest_id, txn_global->oldest_id);
 
-    if (!F_ISSET(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
       F_ISSET(S2BT(session), WT_BTREE_LOGGED)) {
         /*
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
@@ -930,7 +930,7 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
      */
-    if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
         return (true);
 
     if (!__txn_visible_all_id(session, id))
@@ -1561,13 +1561,14 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
+      !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
          * on every random 100th iteration when this is enabled.
          */
         if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_HS_SEARCH) &&
-          __wt_random(&session->rnd) % 100 == 0)
+          __wt_random(&session->rnd_random) % 100 == 0)
             __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
 
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
@@ -1606,6 +1607,67 @@ retry:
     /* Return invalid not tombstone if nothing is found in history store. */
     WT_ASSERT(session, cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
     return (0);
+}
+
+/*
+ * __txn_incr_bytes_dirty --
+ *     Increment the number of bytes dirty in the transaction.
+ *
+ * The "new_update" argument indicates whether a piece of data is: (1) Newly created (not just data
+ *     being moved). (2) Exclusively belongs to the current transaction.
+ *
+ * There are two types of "dirty" data in the system for the purpose of this function: (1) Dirty
+ *     data associated with a specific transaction. (2) Dirty data that isn't tied to a single
+ *     transaction (e.g., a page with updates from multiple transactions).
+ *
+ * Examples:
+ *
+ * 1. A page can be dirty with multiple updates, each belonging to different transactions. In this
+ *     case: (a) The updates are tied to specific transactions. (b) The page itself isn't
+ *     exclusively tied to any one transaction.
+ *
+ * 2. During a page split, updates move between pages. However, this movement doesn't create new
+ *     dirty data, so the "new_update" flag would be set to false.
+ */
+static void
+__txn_incr_bytes_dirty(WT_SESSION_IMPL *session, size_t size, bool new_update)
+{
+    /*
+     * For application threads, track the transaction bytes added to cache usage. We want to capture
+     * only the application's own changes to page data structures. Exclude changes to internal pages
+     * or changes that are the result of the application thread being co-opted into eviction work.
+     */
+    if (!new_update || F_ISSET(session, WT_SESSION_INTERNAL) ||
+      !F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_ID) ||
+      __wt_session_gen(session, WT_GEN_EVICT) != 0)
+        return;
+
+    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, (int64_t)size);
+    WT_STAT_CONN_INCRV_ATOMIC(session, cache_updates_txn_uncommitted_count, 1);
+    WT_STAT_SESSION_INCRV(session, txn_bytes_dirty, (int64_t)size);
+    WT_STAT_SESSION_INCRV(session, txn_updates, 1);
+}
+
+/*
+ * __txn_clear_bytes_dirty --
+ *     Clear the number of bytes dirty in the transaction.
+ */
+static void
+__txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
+{
+    int64_t val;
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_bytes_dirty);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_bytes, val);
+        WT_STAT_SESSION_SET(session, txn_bytes_dirty, 0);
+    }
+
+    val = WT_STAT_SESSION_READ(&(session)->stats, txn_updates);
+    if (val != 0) {
+        WT_STAT_CONN_DECRV_ATOMIC(session, cache_updates_txn_uncommitted_count, val);
+        WT_STAT_SESSION_SET(session, txn_updates, 0);
+    }
 }
 
 /*
@@ -1648,11 +1710,13 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
     F_SET(txn, WT_TXN_RUNNING);
-    if (F_ISSET(S2C(session), WT_CONN_READONLY))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
 
     WT_ASSERT_ALWAYS(
       session, txn->mod_count == 0, "The mod count should be 0 when beginning a transaction");
+
+    __txn_clear_bytes_dirty(session);
 
     return (0);
 }
@@ -1811,7 +1875,7 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
         return (0);
 
     /* Skip checks during recovery. */
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
     /* Verify if the table should always or never use a read timestamp. */

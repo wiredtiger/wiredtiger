@@ -48,3 +48,13 @@ define_test_variants(test_checkpoint
         check
         test_checkpoint
 )
+
+define_test_variants(test_checkpoint
+    VARIANTS
+        "test_checkpoint_row_server_93028_1;-t r -W 50 -r 2 -s 1 -x -n 100000 -k 100000 -C cache_size=250MB"
+        "test_checkpoint_row_server_93028_2;-t r -W 50 -r 2 -s 1 -n 100000 -k 100000 -C cache_size=250MB"
+    LABELS
+        check
+        test_checkpoint
+        long_running
+)

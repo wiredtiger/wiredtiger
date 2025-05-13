@@ -73,7 +73,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
     stats = conn->stats;
 
-    __wti_cache_stats_update(session);
+    __wt_cache_stats_update(session);
     __wt_checkpoint_timer_stats(session);
     __wt_evict_stats_update(session);
     __wt_txn_stats_update(session);
@@ -448,7 +448,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
      * sources. Statistics logging starts before recovery is run. Only walk the handles after the
      * connection completes recovery.
      */
-    if (conn->stat_sources != NULL && F_ISSET(conn, WT_CONN_RECOVERY_COMPLETE))
+    if (conn->stat_sources != NULL && F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERY_COMPLETE))
         WT_RET(__wt_conn_btree_apply(session, NULL, __statlog_apply, NULL, NULL));
 
     WT_RET(__statlog_print_footer(session));
@@ -595,7 +595,7 @@ __wti_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
 
     /* Readonly systems don't configure statistics logging. */
-    if (F_ISSET(conn, WT_CONN_READONLY))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY))
         return (0);
 
     /*
@@ -634,7 +634,7 @@ __wti_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
     conn = S2C(session);
 
     /* Readonly systems don't configure statistics logging. */
-    if (F_ISSET(conn, WT_CONN_READONLY))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY))
         return (0);
 
     /* Stop the server thread. */

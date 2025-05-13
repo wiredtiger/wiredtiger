@@ -28,11 +28,10 @@
 
 /*
  * [live_restore]: live_restore_fs.c
- * This file tests WiredTiger's live restore behavior. If called with the -f flag it will populate a
- * test database and place it in a "backup" folder. Subsequent runs that don't have -f will open
- * WiredTiger in live restore mode using the backup folder as the source. It will then perform
- * random updates to the database, testing that we can perform operations on the database while live
- * restore copies data across from source in parallel.
+ * This file tests WiredTiger's live restore behavior. It will populate a test database and place it
+ * in a "backup" folder. Subsequent runs will open WiredTiger in live restore mode using the backup
+ * folder as the source. It will then perform random updates to the database, testing that we can
+ * perform operations on the database while live restore copies data across from source in parallel.
  */
 #include "src/common/constants.h"
 #include "src/common/logger.h"
@@ -61,9 +60,11 @@ class database_model {
 public:
     /* Collection names start from zero. */
     void
-    add_new_collection(scoped_session &session)
+    add_new_collection(scoped_session &session, bool subdirectory)
     {
-        auto uri = database::build_collection_name(collection_count());
+        auto uri = subdirectory ? std::string("table:") + SUB_DIR + DIR_DELIM + SUB_DIR +
+            DIR_DELIM + "collection_" + std::to_string(collection_count()) :
+                                  database::build_collection_name(collection_count());
         testutil_check(session->create(
           session.get(), uri.c_str(), (DEFAULT_FRAMEWORK_SCHEMA + file_config).c_str()));
         _collections.emplace_back(uri);
@@ -122,8 +123,7 @@ static const char *SOURCE_PATH = "WT_LIVE_RESTORE_SOURCE";
 static const char *HOME_PATH = DEFAULT_DIR;
 
 /* Declarations to avoid the error raised by -Werror=missing-prototypes. */
-void do_random_crud(scoped_session &session, bool fresh_start);
-void create_collection(scoped_session &session);
+void create_collection(scoped_session &session, bool subdirectory = false);
 void read(scoped_session &session);
 void trigger_fs_truncate(scoped_session &session);
 void write(scoped_session &session, bool fresh_start);
@@ -134,6 +134,7 @@ void insert(scoped_cursor &cursor, std::string &coll);
 void update(scoped_cursor &cursor, std::string &coll);
 void remove(scoped_session &session, scoped_cursor &cursor, std::string &coll);
 void configure_database(scoped_session &session);
+void reopen_conn(scoped_session &session, const std::string &conn_config, const std::string &home);
 
 void
 read(scoped_session &session)
@@ -245,14 +246,24 @@ write(scoped_session &session, bool fresh_start)
 }
 
 void
-create_collection(scoped_session &session)
+create_collection(scoped_session &session, bool subdirectory)
 {
-    db.add_new_collection(session);
+    db.add_new_collection(session, subdirectory);
+}
+
+void
+reopen_conn(scoped_session &session, const std::string &conn_config, const std::string &home)
+{
+    session.close_session();
+    connection_manager::instance().close();
+    logger::log_msg(LOG_INFO, "Reopening connection");
+    connection_manager::instance().reopen(conn_config, home);
 }
 
 static void
 do_random_crud(scoped_session &session, const int64_t collection_count, const int64_t op_count,
-  const bool fresh_start)
+  const bool fresh_start, const std::string &conn_config, const std::string &home,
+  const bool allow_reopen = true, bool subdirectory = false)
 {
     bool file_created = fresh_start == false;
 
@@ -265,7 +276,7 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
             if (static_cast<size_t>(collection_count) == db.collection_count())
                 continue;
             // Create a new file, if none exist force this path.
-            create_collection(session);
+            create_collection(session, subdirectory);
             file_created = true;
             continue;
         }
@@ -277,9 +288,14 @@ do_random_crud(scoped_session &session, const int64_t collection_count, const in
         }
 
         if (ran < 3) {
+            logger::log_msg(LOG_INFO, "Taking checkpoint");
             // 0.01% Checkpoint.
             testutil_check(session->checkpoint(session.get(), NULL));
             logger::log_msg(LOG_INFO, "Taking checkpoint");
+        } else if (ran < 15 && !fresh_start && allow_reopen) {
+            logger::log_msg(LOG_INFO, "Commencing connection reopen");
+            reopen_conn(session, conn_config, home);
+            session = std::move(connection_manager::instance().create_session());
         } else if (ran < 9000) {
             // 90% Write.
             write(session, false);
@@ -325,10 +341,56 @@ configure_database(scoped_session &session)
     }
 }
 
+// Take a backup of the provided database and then delete the original db. This backup will be used
+// in the next loop as a source directory.
+static void
+take_backup_and_delete_original(const std::string &home, const std::string &backup_dir)
+{
+    testutil_recreate_dir(backup_dir.c_str());
+    const std::string conn_config = "log=(enabled=true,path=journal)";
+    connection_manager::instance().reopen(conn_config, home);
+
+    {
+        scoped_session backup_session = connection_manager::instance().create_session();
+        scoped_cursor backup_cursor = backup_session.open_scoped_cursor("backup:", "");
+
+        while (backup_cursor->next(backup_cursor.get()) == 0) {
+            char *file_c_str = nullptr;
+            testutil_check(backup_cursor->get_key(backup_cursor.get(), &file_c_str));
+            std::string file = std::string(file_c_str);
+
+            // If the file is a log file prepend the hard-coded journal folder path
+            if (strncmp(file.c_str(), "WiredTigerLog", 13) == 0) {
+                if (!testutil_exists(backup_dir.c_str(), "journal")) {
+                    testutil_mkdir((backup_dir + "/" + std::string("journal")).c_str());
+                }
+                file = "journal/" + file;
+            }
+
+            // Create a nested subdirectory to simulate directory per db usage if it does not exist.
+            if (WT_PREFIX_MATCH(file_c_str, SUB_DIR)) {
+                if (!testutil_exists(backup_dir.c_str(), SUB_DIR)) {
+                    auto path = backup_dir + std::string(DIR_DELIM_STR) + SUB_DIR;
+                    testutil_mkdir(path.c_str());
+                    path += std::string(DIR_DELIM_STR) + SUB_DIR;
+                    testutil_mkdir(path.c_str());
+                }
+            }
+
+            std::string dest_file = home + "/" + file;
+            std::string source_file = backup_dir + "/" + file;
+            testutil_copy(dest_file.c_str(), source_file.c_str());
+        }
+    }
+
+    connection_manager::instance().close();
+    testutil_remove(home.c_str());
+}
+
 static void
 run_restore(const std::string &home, const std::string &source, const int64_t thread_count,
-  const int64_t collection_count, const int64_t op_count, const bool background_thread_mode,
-  const int64_t verbose_level, const bool first, const bool die, const bool recovery)
+  const int64_t collection_count, const int64_t op_count, const int64_t verbose_level,
+  const bool die, const bool recovery, bool subdirectory)
 {
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string verbose_string = verbose_level == 0 ?
@@ -341,32 +403,71 @@ run_restore(const std::string &home, const std::string &source, const int64_t th
       ",statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,path=journal)";
 
     /* Create connection. */
-    connection_manager::instance().create(conn_config, home, true);
+    if (recovery)
+        connection_manager::instance().reopen(conn_config, home);
+    else
+        /*
+         * We don't want connection_manager::create() to create the nested subdirectory structure,
+         * leave subdirectory as default false and let live restore handle this.
+         */
+        connection_manager::instance().create(conn_config, home, true);
 
     auto crud_session = connection_manager::instance().create_session();
     if (recovery)
         configure_database(crud_session);
-    if (!background_thread_mode)
-        do_random_crud(crud_session, collection_count, op_count, first);
+    // Run 90% of random crud here and do the rest when live restore completes.
+    do_random_crud(crud_session, collection_count, (int64_t)(op_count * 0.9), false, conn_config,
+      home, true, subdirectory);
     if (die)
         raise(SIGKILL);
 
     // Loop until the state stat is complete!
-    if (thread_count > 0 || background_thread_mode) {
-        logger::log_msg(LOG_INFO, "Waiting for background data transfer to complete...");
-        while (true) {
-            auto stat_cursor = crud_session.open_scoped_cursor("statistics:");
-            int64_t state;
-            get_stat(stat_cursor.get(), WT_STAT_CONN_LIVE_RESTORE_STATE, &state);
-            if (state == WT_LIVE_RESTORE_COMPLETE)
-                break;
-            __wt_sleep(1, 0);
-        }
-        logger::log_msg(LOG_INFO, "Done!");
+    logger::log_msg(LOG_INFO, "Waiting for background data transfer to complete...");
+    while (true) {
+        auto stat_cursor = crud_session.open_scoped_cursor("statistics:");
+        int64_t state;
+        get_stat(stat_cursor.get(), WT_STAT_CONN_LIVE_RESTORE_STATE, &state);
+        if (state == WT_LIVE_RESTORE_COMPLETE)
+            break;
+        __wt_sleep(1, 0);
     }
+    logger::log_msg(LOG_INFO, "Done!");
+
+    /*
+     * Once background migration has finished there's no reason for us to access the backing source
+     * files any more. Verify this by deleting the backing directory. Any accesses to the deleted
+     * files will trigger a crash.
+     */
+    testutil_remove(SOURCE_PATH);
+    logger::log_msg(LOG_INFO, "Run random crud after live restore completion");
+    // We've deleted the source folder, so reopening the connection will fail. Disable reopens and
+    // do the remaining 10% of random crud operations.
+    do_random_crud(crud_session, collection_count, (int64_t)(op_count * 0.1), false, conn_config,
+      home, false, subdirectory);
 
     // We need to close the session here because the connection close will close it out for us if we
     // don't. Then we'll crash because we'll double close a WT session.
+    crud_session.close_session();
+    connection_manager::instance().close();
+}
+
+// Populate an initial database to be live restored. This will be used for the first live restore
+// and after that we can use the restored database from the prior iterations as the source.
+static void
+create_db(const std::string &home, const int64_t thread_count, const int64_t collection_count,
+  const int64_t op_count, const int64_t verbose_level, bool subdirectory)
+{
+    const std::string conn_config = CONNECTION_CREATE +
+      ",cache_size=5GB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true,"
+      "path=journal)";
+
+    // Open the connection and create the log folder. In future runs this is copied by live restore.
+    connection_manager::instance().create(conn_config, home, true, subdirectory);
+
+    auto crud_session = connection_manager::instance().create_session();
+    do_random_crud(
+      crud_session, collection_count, op_count, true, conn_config, home, true, subdirectory);
+
     crud_session.close_session();
     connection_manager::instance().close();
 }
@@ -380,13 +481,11 @@ usage()
                  "no options are specified it will run with a default configuration."
               << std::endl;
     std::cout << "OPTIONS" << std::endl;
-    std::cout << "\t-b Background thread debug mode, initialize the database then loop for "
-                 "iteration count. Each iteration will wait for the background thread to finish "
-                 "transferring data before terminating. No additional CRUD operations will take "
-                 "place during background thread debug mode. "
-              << std::endl;
     std::cout << "\t-c The maximum number of collections to run the test with, if unset "
                  "collections are created at random."
+              << std::endl;
+    std::cout << "\t-D Simulate MongoDB directory per db and directory for indexes configurations "
+                 "by creating a subdirectory for the table to populate."
               << std::endl;
     std::cout << "\t-d Die randomly while applying crud operation." << std::endl;
     std::cout << "\t-H Specifies the database home directory." << std::endl;
@@ -402,10 +501,10 @@ usage()
               << std::endl;
     std::cout << "\t-o The number of crud operations to apply while live restoring." << std::endl;
     std::cout << "\t-r Start from existing data files and run recovery." << std::endl;
-    std::cout << "\t-t Thread count for the background thread. A value of 0 is legal in which case "
-                 "data files will not be transferred in the background."
+    std::cout << "\t-t Thread count for the background thread. A value greater than 0 must be "
+                 "specified."
               << std::endl;
-    std::cout << "\t-o Verbose level, this setting will set WT_VERB_FILE_OPS with whatever level "
+    std::cout << "\t-v Verbose level, this setting will set WT_VERB_FILE_OPS with whatever level "
                  "is provided. The default is off."
               << std::endl;
 }
@@ -437,6 +536,10 @@ main(int argc, char *argv[])
     int64_t thread_count =
       thread_count_str.empty() ? thread_count_default : atoi(thread_count_str.c_str());
     logger::log_msg(LOG_INFO, "Background thread count: " + std::to_string(thread_count));
+    if (thread_count == 0) {
+        logger::log_msg(LOG_ERROR, "Background thread count can't have a value of 0.");
+        return EXIT_FAILURE;
+    }
 
     // Get the collection count if it exists.
     auto coll_count_str = value_for_opt("-c", argc, argv);
@@ -445,6 +548,10 @@ main(int argc, char *argv[])
         coll_count = atoi(coll_count_str.c_str());
         logger::log_msg(LOG_INFO, "Collection count: " + std::to_string(coll_count));
     }
+
+    // Get the subdirectory config.
+    auto subdirectory = option_exists("-D", argc, argv);
+    logger::log_msg(LOG_INFO, "Subdirectory enabled: " + std::string(subdirectory ? "Y" : "N"));
 
     // Get the death mode config.
     auto death_mode = option_exists("-d", argc, argv);
@@ -468,44 +575,36 @@ main(int argc, char *argv[])
     int64_t verbose_level = verbose_str.empty() ? 0 : atoi(verbose_str.c_str());
     logger::log_msg(LOG_INFO, "Verbose level: " + std::to_string(verbose_level));
 
-    // Background thread debug mode option.
-    bool background_thread_debug_mode = option_exists("-b", argc, argv);
-    if (background_thread_debug_mode && thread_count == 0) {
-        logger::log_msg(
-          LOG_ERROR, "Cannot run in background thread debug mode with zero background threads.");
-        return EXIT_FAILURE;
-    }
-
     // Home path option.
     std::string home_path = value_for_opt("-H", argc, argv);
     if (home_path.empty())
         home_path = HOME_PATH;
     logger::log_msg(LOG_INFO, "Home path: " + home_path);
 
+    // Assuming this run is following a -d "death" run then no folder manipulation is required
+    // as the home and source path remain the same.
     if (!recovery) {
         // Delete any existing source dir and home path.
         logger::log_msg(LOG_INFO, "Source path: " + std::string(SOURCE_PATH));
-        testutil_recreate_dir(SOURCE_PATH);
-        testutil_remove(home_path.c_str());
-    } else {
-        // Assuming this run is following a -d "death" run then the previous home path will be the
-        // source path.
         testutil_remove(SOURCE_PATH);
-        testutil_move(home_path.c_str(), SOURCE_PATH);
+        testutil_remove(home_path.c_str());
+
+        // We need to create a database to restore from initially.
+        create_db(home_path, thread_count, coll_count, op_count, verbose_level, subdirectory);
+        take_backup_and_delete_original(home_path, std::string(SOURCE_PATH));
     }
 
     /* When setting up the database we don't want to wait for the background threads to complete. */
     int death_it = -1;
-    if (death_mode) {
-        death_it = random_generator::instance().generate_integer(0, (int)it_count - 1);
+    if (death_mode && it_count > 1) {
+        death_it = random_generator::instance().generate_integer(1, (int)it_count - 1);
         logger::log_msg(LOG_INFO, "Dying on iteration " + std::to_string(death_it));
     }
     for (int i = 0; i < it_count; i++) {
         logger::log_msg(LOG_INFO, "!!!! Beginning iteration: " + std::to_string(i) + " !!!!");
-        run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count,
-          background_thread_debug_mode, verbose_level, i == 0, i == death_it, recovery);
-        testutil_remove(SOURCE_PATH);
-        testutil_move(home_path.c_str(), SOURCE_PATH);
+        run_restore(home_path, SOURCE_PATH, thread_count, coll_count, op_count, verbose_level,
+          i == death_it, recovery, subdirectory);
+        take_backup_and_delete_original(home_path, std::string(SOURCE_PATH));
     }
 
     return (0);

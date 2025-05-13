@@ -185,6 +185,7 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     __wt_stats_aggregate_conn(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
 #define WT_STAT_DSRC_READ(stats, fld) \
     __wt_stats_aggregate_dsrc(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+#define WT_STAT_SESSION_READ(stats, fld) ((stats)->fld)
 #define WT_STAT_WRITE(session, stats, fld, v) \
     do {                                      \
         if (WT_STAT_ENABLED(session))         \
@@ -229,12 +230,16 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
     WT_STAT_DECRV_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_DECR_ATOMIC(session, fld) \
     WT_STAT_DECRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, 1)
+#define WT_STAT_CONN_DECRV_ATOMIC(session, fld, value) \
+    WT_STAT_DECRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_DECR(session, fld) WT_STAT_CONN_DECRV(session, fld, 1)
 
 #define WT_STAT_CONN_INCRV(session, fld, value) \
     WT_STAT_INCRV_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_INCR_ATOMIC(session, fld) \
     WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, 1)
+#define WT_STAT_CONN_INCRV_ATOMIC(session, fld, value) \
+    WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_conn_bucket], fld, value)
 #define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session, fld, 1)
 
 #define WT_STATP_CONN_SET(session, stats, fld, value)                           \
@@ -654,6 +659,8 @@ struct __wt_connection_stats {
     int64_t cache_pages_dirty;
     int64_t cache_eviction_blocked_uncommitted_truncate;
     int64_t cache_eviction_clean;
+    int64_t cache_updates_txn_uncommitted_bytes;
+    int64_t cache_updates_txn_uncommitted_count;
     int64_t fsync_all_fh_total;
     int64_t fsync_all_fh;
     int64_t fsync_all_time;
@@ -722,7 +729,6 @@ struct __wt_connection_stats {
     int64_t checkpoints_total_failed;
     int64_t checkpoints_total_succeed;
     int64_t checkpoint_time_total;
-    int64_t checkpoint_obsolete_applied;
     int64_t checkpoint_wait_reduce_dirty;
     int64_t chunkcache_spans_chunks_read;
     int64_t chunkcache_chunks_evicted;
@@ -856,8 +862,18 @@ struct __wt_connection_stats {
     int64_t dh_sweep_skip_ckpt;
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
-    int64_t live_restore_state;
+    int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
+    int64_t live_restore_source_read_count;
+    int64_t live_restore_hist_source_read_latency_lt10;
+    int64_t live_restore_hist_source_read_latency_lt50;
+    int64_t live_restore_hist_source_read_latency_lt100;
+    int64_t live_restore_hist_source_read_latency_lt250;
+    int64_t live_restore_hist_source_read_latency_lt500;
+    int64_t live_restore_hist_source_read_latency_lt1000;
+    int64_t live_restore_hist_source_read_latency_gt1000;
+    int64_t live_restore_hist_source_read_latency_total_msecs;
+    int64_t live_restore_state;
     int64_t lock_btree_page_count;
     int64_t lock_btree_page_wait_application;
     int64_t lock_btree_page_wait_internal;
@@ -1276,7 +1292,6 @@ struct __wt_dsrc_stats {
     int64_t checkpoint_cleanup_pages_removed;
     int64_t checkpoint_cleanup_pages_walk_skipped;
     int64_t checkpoint_cleanup_pages_visited;
-    int64_t checkpoint_obsolete_applied;
     int64_t compress_precomp_intl_max_page_size;
     int64_t compress_precomp_leaf_max_page_size;
     int64_t compress_write_fail;
@@ -1434,6 +1449,7 @@ struct __wt_session_stats {
     int64_t bytes_write;
     int64_t lock_dhandle_wait;
     int64_t txn_bytes_dirty;
+    int64_t txn_updates;
     int64_t read_time;
     int64_t write_time;
     int64_t lock_schema_wait;

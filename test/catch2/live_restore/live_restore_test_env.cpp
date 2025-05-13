@@ -9,45 +9,50 @@
 #include "live_restore_test_env.h"
 
 #include <fstream>
+#include <iostream>
 namespace utils {
 
 /*
- * This class sets up and tears down the testing environment for Live Restore. It spins up a normal
- * WiredTiger database and then removes all content to leave an empty destination and source folder.
- * Developers are expected to create the respective files in the these folders manually.
+ * This class sets up and tears down the testing environment for Live Restore. Developers are
+ * expected to create the respective files in the these folders manually.
  */
 live_restore_test_env::live_restore_test_env()
 {
-    // Clean up any pre-existing folders. Make sure an empty DB_SOURCE exists
-    // as it need to exist to open the connection in live restore mode.
+    // Clean up any pre-existing folders.
     testutil_remove(DB_DEST.c_str());
-    testutil_remove(DB_TEMP_BACKUP.c_str());
-    testutil_recreate_dir(DB_SOURCE.c_str());
+    testutil_remove(DB_SOURCE.c_str());
 
-    /*
-     * We're using a connection to set up the file system and let us print WT traces, but all of our
-     * tests will use empty folders where we create files manually. The issue here is
-     * wiredtiger_open will create metadata and turtle files on open and think it needs to remove
-     * them on close. Move these files to a temp location. We'll restore them in destructor before
-     * _conn->close() is called.
-     */
-    static std::string cfg_string =
-      "create=true,live_restore=(enabled=true, path=" + DB_SOURCE + ")";
+    // Live restore requires the source directory to be a valid backup. Create one now.
+    {
+        static std::string non_lr_config = "create=true";
+        auto backup_conn =
+          std::make_unique<connection_wrapper>(DB_DEST.c_str(), non_lr_config.c_str());
+
+        backup_conn->get_wt_connection_impl();
+        WT_SESSION *session = (WT_SESSION *)backup_conn->create_session();
+        WT_CURSOR *backup_cursor = nullptr;
+        REQUIRE(session->open_cursor(session, "backup:", nullptr, nullptr, &backup_cursor) == 0);
+
+        testutil_mkdir(DB_SOURCE.c_str());
+        while (backup_cursor->next(backup_cursor) == 0) {
+            const char *uri = nullptr;
+            REQUIRE(backup_cursor->get_key(backup_cursor, &uri) == 0);
+            std::string dest_file = DB_DEST + "/" + uri;
+            std::string source_file = DB_SOURCE + "/" + uri;
+            testutil_copy(dest_file.c_str(), source_file.c_str());
+        }
+
+        backup_cursor->close(backup_cursor);
+        session->close(session, nullptr);
+    }
+
+    testutil_remove(DB_DEST.c_str());
+    static std::string cfg_string = "create=true,live_restore=(enabled=true, path=" + DB_SOURCE +
+      ",threads_max=0),statistics=(fast)";
     conn = std::make_unique<connection_wrapper>(DB_DEST.c_str(), cfg_string.c_str());
-    testutil_copy(DB_DEST.c_str(), DB_TEMP_BACKUP.c_str());
-    testutil_recreate_dir(DB_DEST.c_str());
 
     session = conn->create_session();
     lr_fs = (WTI_LIVE_RESTORE_FS *)conn->get_wt_connection_impl()->file_system;
-    lr_fs->finished = false;
-}
-
-live_restore_test_env::~live_restore_test_env()
-{
-    // Clean up directories on close. The connections destructor will remove the final
-    // destination folder.
-    testutil_remove(DB_SOURCE.c_str());
-    testutil_move(DB_TEMP_BACKUP.c_str(), DB_DEST.c_str());
 }
 
 std::string

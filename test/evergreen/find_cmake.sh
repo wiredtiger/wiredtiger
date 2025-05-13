@@ -1,5 +1,4 @@
-#!/bin/sh
-set -o errexit  # Exit the script with error if any of the commands fail
+#!/bin/bash
 
 # CMake version we fallback to and download when cmake doesn't exist on the
 # host system.
@@ -12,11 +11,15 @@ CMAKE_VERSION=$CMAKE_MAJOR_VER.$CMAKE_MINOR_VER.$CMAKE_PATCH_VER
 #   https://github.com/mongodb/mongo-c-driver/blob/master/.evergreen/find-cmake.sh
 find_cmake ()
 {
+    # Setting a trap so the function ends after the first error occurs.
+    # The trap should be cleaned up after both successful and failed executions.
+    trap 'echo "Error occurred in find_cmake()"; trap - ERR; return 1' ERR
+
     if [ -n "$CMAKE" ]; then
         return 0
-    elif [ -f "/opt/mongodbtoolchain/v4/bin/cmake" ]; then
-        CMAKE="/opt/mongodbtoolchain/v4/bin/cmake"
-        CTEST="/opt/mongodbtoolchain/v4/bin/ctest"
+    elif [ -f "/opt/mongodbtoolchain/v5/bin/cmake" ]; then
+        CMAKE="/opt/mongodbtoolchain/v5/bin/cmake"
+        CTEST="/opt/mongodbtoolchain/v5/bin/ctest"
     elif [ -f "/opt/homebrew/bin/cmake" ]; then
         # Mac: If a homebrew version of CMake and CTest is installed then it is likely newer than the default one.
         # This is important on M1 Macs as M1 silicon is only supported in CMake 3.19.2 and later
@@ -83,6 +86,8 @@ find_cmake ()
     ${CMAKE} --version
     ${CTEST} --version
     echo "=========================================================="
+
+    trap - ERR
 }
 
 find_cmake

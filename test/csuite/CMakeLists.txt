@@ -71,6 +71,14 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_random_session
+    SOURCES random_session/main.c
+    DIR_NAME random_session
+    ARGUMENTS
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_rwlock
     SOURCES rwlock/main.c
     DIR_NAME rwlock

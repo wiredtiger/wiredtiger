@@ -7,6 +7,22 @@ set -e
 set -x
 
 #############################################################
+# bcopy:
+#       arg1: branch name
+#############################################################
+bcopy()
+{
+    # Return true if the branch's format backup generates a BACKUP.copy directory.
+    test "$1" = "mongodb-8.0" && echo "1"
+    test "$1" = "mongodb-7.0" && echo "1"
+    test "$1" = "mongodb-6.0" && echo "1"
+    test "$1" = "mongodb-5.0" && echo "1"
+    test "$1" = "mongodb-4.4" && echo "1"
+    # Anything newer than mongodb-8.0 returns false.
+    return 0
+}
+
+#############################################################
 # bflag:
 #       arg1: branch name
 #############################################################
@@ -96,10 +112,15 @@ build_branch()
         # Old releases didn't have these enabled, need to make it consistent.
         config+="-DENABLE_LZ4=0 -DENABLE_ZLIB=0 -DENABLE_ZSTD=0 "
         config+="-DWT_STANDALONE_BUILD=0 "
-        # Use the stable MongoDB toolchain for this build.
-        config+="-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake "
         # Disable cppsuite - not all versions build with the toolchain
-        config+="-DENABLE_CPPSUITE=0"
+        config+="-DENABLE_CPPSUITE=0 "
+
+        # Use the stable MongoDB toolchain if it exists
+        toolchain="$PWD/cmake/toolchains/mongodbtoolchain_stable_gcc.cmake"
+        if [ ! -f $toolchain ]; then
+            toolchain="$PWD/cmake/toolchains/mongodbtoolchain_v4_gcc.cmake"
+        fi
+        config+="-DCMAKE_TOOLCHAIN_FILE=$toolchain "
 
         (mkdir -p build && cd build &&
             $CMAKE $config ../. && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
@@ -489,8 +510,15 @@ upgrade_downgrade()
 	    # directory if BACKUP exists. After 8.0 the directory structure
 	    # changed. So copy it for older releases if testing against a
 	    # develop run that is doing backups.
+            need_bcopy1=$(bcopy $1)
+            need_bcopy2=$(bcopy $2)
 	    dir2=$top/$format_dir_branch2/RUNDIR.$am
-	    if [ -e $dir2/BACKUP -a ! -e $dir2/BACKUP.copy ] ; then
+	    # If there is a BACKUP and the older release needs a BACKUP.copy directory and
+	    # the source version does not create one, remove any from an earlier run and
+	    # copy the BACKUP contents for this run.
+	    if [ -e $dir2/BACKUP -a "$need_bcopy1" == "1" -a -z "$need_bcopy2" ] ; then
+                echo "Remove any earlier $dir2/BACKUP.copy for older releases"
+		rm -rf $dir2/BACKUP.copy
                 echo "Copying backup directory for older releases"
 		cp -rp $dir2/BACKUP $dir2/BACKUP.copy
 	    fi

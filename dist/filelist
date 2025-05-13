@@ -49,6 +49,8 @@ src/btree/col_srch.c
 src/btree/row_key.c
 src/btree/row_modify.c
 src/btree/row_srch.c
+src/cache/cache.c
+src/cache/cache_pool.c
 src/call_log/call_log.c
 src/checkpoint/checkpoint_ckptlist.c
 src/checkpoint/checkpoint_conn.c
@@ -78,8 +80,6 @@ src/conn/api_calc_modify.c
 src/conn/api_strerror.c
 src/conn/api_version.c
 src/conn/conn_api.c
-src/conn/conn_cache.c
-src/conn/conn_cache_pool.c
 src/conn/conn_capacity.c
 src/conn/conn_chunkcache.c
 src/conn/conn_compact.c
@@ -112,10 +112,10 @@ src/evict/evict_page.c
 src/evict/evict_stat.c
 src/history/hs_conn.c
 src/history/hs_cursor.c
-src/history/hs_rec.c
 src/history/hs_verify.c
-src/live_restore/live_restore_fs.c       POSIX_HOST
-src/live_restore/live_restore_server.c       POSIX_HOST
+src/live_restore/live_restore_fs.c
+src/live_restore/live_restore_server.c
+src/live_restore/live_restore_state.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_cursor.c
@@ -187,6 +187,7 @@ src/reconcile/rec_row.c
 src/reconcile/rec_track.c
 src/reconcile/rec_visibility.c
 src/reconcile/rec_write.c
+src/reconcile/rec_hs.c
 src/schema/schema_alter.c
 src/schema/schema_create.c
 src/schema/schema_drop.c
