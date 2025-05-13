@@ -106,7 +106,7 @@ struct __wti_ckpt_work_unit {
 };
 
 /* Checkpoint threads information. */
-struct __wti_ckpt_threads {
+struct __wti_ckpt_workers {
     WT_CONDVAR *cond; /* Checkpoint thread condition */
     WT_THREAD_GROUP thread_group;
     uint32_t threads; /* Checkpoint threads */

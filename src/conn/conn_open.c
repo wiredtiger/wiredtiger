@@ -128,7 +128,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
       F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DONE))
         WT_TRET(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
-    WT_TRET(__wt_checkpoint_thread_destroy(session));
+    WT_TRET(__wt_checkpoint_workers_destroy(session));
 
     /* Free memory for collators, compressors, data sources. */
     WT_TRET(__wti_conn_remove_collator(session));
@@ -229,7 +229,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_statlog_create(session, cfg));
     WT_RET(__wti_tiered_storage_create(session));
     WT_RET(__wt_logmgr_create(session));
-    WT_RET(__wt_checkpoint_thread_create(session));
+    WT_RET(__wt_checkpoint_workers_create(session));
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
