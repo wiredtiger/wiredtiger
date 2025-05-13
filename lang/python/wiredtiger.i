@@ -1395,14 +1395,14 @@ err:	Py_XDECREF(arglist2);
 }
 
 static int
-pythonErrorCallback(WT_EVENT_HANDLER *handler, WT_SESSION *session, int err,
+pythonErrorCallback(WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int err,
     const char *message)
 {
 	return writeToPythonStream("stderr", message);
 }
 
 static int
-pythonMessageCallback(WT_EVENT_HANDLER *handler, WT_SESSION *session,
+pythonMessageCallback(WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id,
     const char *message)
 {
 	return writeToPythonStream("stdout", message);
