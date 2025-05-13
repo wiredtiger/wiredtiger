@@ -70,8 +70,8 @@ typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
     (S2C(s)->txn_global.txn_shared_list == NULL ? NULL : \
                                                   &S2C(s)->txn_global.txn_shared_list[(s)->id])
 
-#define WT_SESSION_IS_CHECKPOINT(s) \
-    ((s)->id != 0 && (s)->id == __wt_atomic_loadv32(&S2C(s)->txn_global.checkpoint_id))
+// Do we need to make read/write atomically in this case ???
+#define WT_SESSION_IS_CHECKPOINT(s) (F_ISSET((s), WT_SESSION_CHECKPOINT))
 
 /*
  * Perform an operation at the specified isolation level.

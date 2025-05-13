@@ -94,6 +94,30 @@ struct __wti_ckpt_timer {
     uint64_t total;
 };
 
+/*
++ * WTI_CKPT_WORK_UNIT --
++ *	A definition of maintenance that a Checkpoint tree needs done.
++ */
+struct __wti_ckpt_work_unit {
+    TAILQ_ENTRY(__wti_ckpt_work_unit) q; /* Worker unit queue */
+    WT_DATA_HANDLE *handle;
+    const char **config;
+    WT_TXN_SNAPSHOT *snapshot;
+};
+
+/* Checkpoint threads information. */
+struct __wti_ckpt_threads {
+    WT_CONDVAR *cond; /* Checkpoint thread condition */
+    WT_THREAD_GROUP thread_group;
+    uint32_t threads; /* Checkpoint threads */
+    uint32_t push;
+    uint32_t pop;
+
+    /* Locked: checkpoint system work queue. */
+    TAILQ_HEAD(__wti_ckpt_qh, __wti_ckpt_work_unit) qh;
+    WT_SPINLOCK lock; /* Checkpoint work queue spinlock */
+};
+
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */
 
 /* DO NOT EDIT: automatically built by prototypes.py: END */

@@ -407,8 +407,12 @@ struct __wti_ckpt_progress;
 typedef struct __wti_ckpt_progress WTI_CKPT_PROGRESS;
 struct __wti_ckpt_thread;
 typedef struct __wti_ckpt_thread WTI_CKPT_THREAD;
+struct __wti_ckpt_threads;
+typedef struct __wti_ckpt_threads WTI_CKPT_THREADS;
 struct __wti_ckpt_timer;
 typedef struct __wti_ckpt_timer WTI_CKPT_TIMER;
+struct __wti_ckpt_work_unit;
+typedef struct __wti_ckpt_work_unit WTI_CKPT_WORK_UNIT;
 struct __wti_cursor_log;
 typedef struct __wti_cursor_log WTI_CURSOR_LOG;
 struct __wti_delete_hs_upd;
@@ -505,7 +509,7 @@ typedef uint64_t wt_timestamp_t;
 #include "stat.h"         /* required by dhandle.h */
 #include "dhandle.h"      /* required by btree.h, connection.h */
 #include "timestamp.h"    /* required by reconcile.h */
-#include "thread_group.h" /* required by rollback_to_stable.h */
+#include "thread_group.h" /* required by checkpoint.h, rollback_to_stable.h */
 #include "verbose.h"      /* required by rollback_to_stable.h */
 
 #include "api.h"
