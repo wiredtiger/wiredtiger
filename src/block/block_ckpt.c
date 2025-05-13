@@ -937,8 +937,11 @@ __ckpt_update(
     WT_RET(__wti_block_extlist_write(session, block, &ci->discard, NULL));
 
     // Dump extent list to logs.
-    __wt_verbose_debug2(session, WT_VERB_BLOCK_EXT, "%s", "Checkpoint alloc list:");
-    WT_RET(__wt_block_extlist_dump(session, block, &ci->alloc, "write", false));
+    // __wt_verbose_debug2(session, WT_VERB_BLOCK_EXT, "%s", "Checkpoint alloc list:");
+    // WT_RET(__wt_block_extlist_dump(session, block, &ci->alloc, "write", false));
+
+    // WT_ERR(__bm_corrupt_dump(session, tmp, ci->alloc.objectid, ci->alloc.offset, ci->alloc.size, ci->alloc.checksum));
+
     /*
      * If this is the final block, we append an incomplete copy of the checkpoint information to the
      * avail list for standalone retrieval.

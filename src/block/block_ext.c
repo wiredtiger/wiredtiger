@@ -27,6 +27,7 @@ static int __block_ext_overlap(
   WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, WT_EXT **, WT_EXTLIST *, WT_EXT **);
 // static int __block_extlist_dump(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, const char *, bool);
 static int __block_merge(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
+static int __block_ext_byte_dump(WT_SESSION_IMPL *, WT_ITEM *, uint32_t, wt_off_t , uint32_t ,uint32_t );
 
 /*
  * __block_off_srch_last --
@@ -1319,6 +1320,10 @@ __wti_block_extlist_write(
       session, block, tmp, &el->offset, &el->size, &el->checksum, true, true, true));
     el->objectid = block->objectid;
 
+    __wt_verbose_debug2(session, WT_VERB_BLOCK_EXT, "%s: byte dump [file: %s, size: %" PRIuMAX "]", 
+        el->name, block->name, (uintmax_t)block->size);
+    WT_ERR(__block_ext_byte_dump(session, tmp, el->objectid, el->offset, el->size, el->checksum));
+
     /*
      * Remove the allocated blocks from the system's allocation list, extent blocks never appear on
      * any allocation list.
@@ -1502,6 +1507,46 @@ done:
 err:
     __wt_scr_free(session, &t1);
     __wt_scr_free(session, &t2);
+    return (ret);
+}
+
+/*
+ * __bm_corrupt_dump --
+ *     Dump a block into the log in 1KB chunks.
+ */
+static int
+__block_ext_byte_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t objectid, wt_off_t offset,
+  uint32_t size, uint32_t checksum) WT_GCC_FUNC_ATTRIBUTE((cold))
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    size_t chunk, i, nchunks;
+
+#define WT_DUMP_FMT "{%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}"
+    if (buf->size == 0) {
+        __wt_errx(session, WT_DUMP_FMT ": empty buffer, no dump available", objectid,
+          (uintmax_t)offset, size, checksum);
+        return (0);
+    }
+
+    WT_RET(__wt_scr_alloc(session, 4 * 1024, &tmp));
+
+    nchunks = buf->size / 1024 + (buf->size % 1024 == 0 ? 0 : 1);
+    for (chunk = i = 0;;) {
+        WT_ERR(__wt_buf_catfmt(session, tmp, "%02x ", ((uint8_t *)buf->data)[i]));
+        if (++i == buf->size || i % 1024 == 0) {
+            __wt_verbose_debug2(session, WT_VERB_BLOCK_EXT,
+                WT_DUMP_FMT ": (chunk %" WT_SIZET_FMT " of %" WT_SIZET_FMT "): %.*s", objectid,
+              (uintmax_t)offset, size, checksum, ++chunk, nchunks, (int)tmp->size,
+              (char *)tmp->data);
+            if (i == buf->size)
+                break;
+            WT_ERR(__wt_buf_set(session, tmp, "", 0));
+        }
+    }
+
+err:
+    __wt_scr_free(session, &tmp);
     return (ret);
 }
 
