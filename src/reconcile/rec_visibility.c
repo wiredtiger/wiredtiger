@@ -298,6 +298,9 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT 
     WT_UPDATE *upd;
     bool supd_restore, visible_all;
 
+    if (F_ISSET(r, WT_REC_REWRITE_DELTA))
+        return (false);
+
     if (upd_select->tw.prepare)
         return (true);
 

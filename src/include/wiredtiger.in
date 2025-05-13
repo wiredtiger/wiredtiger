@@ -6454,9 +6454,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_READ_FLATTEN_LEAF_DELTA	1225
 /*!
  * cache: number of leaf pages not flattened that had deltas attached due
- * to ebusy
+ * to failure
  */
-#define	WT_STAT_CONN_CACHE_READ_FLATTEN_LEAF_DELTA_FAIL_EBUSY	1226
+#define	WT_STAT_CONN_CACHE_READ_FLATTEN_LEAF_DELTA_FAIL	1226
 /*! cache: number of leaf pages read that had deltas attached */
 #define	WT_STAT_CONN_CACHE_READ_LEAF_DELTA		1227
 /*! cache: operations timed out waiting for space in cache */
@@ -8286,9 +8286,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_READ_FLATTEN_LEAF_DELTA	2116
 /*!
  * cache: number of leaf pages not flattened that had deltas attached due
- * to ebusy
+ * to failure
  */
-#define	WT_STAT_DSRC_CACHE_READ_FLATTEN_LEAF_DELTA_FAIL_EBUSY	2117
+#define	WT_STAT_DSRC_CACHE_READ_FLATTEN_LEAF_DELTA_FAIL	2117
 /*! cache: number of leaf pages read that had deltas attached */
 #define	WT_STAT_DSRC_CACHE_READ_LEAF_DELTA		2118
 /*!
