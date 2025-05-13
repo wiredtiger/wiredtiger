@@ -20,7 +20,7 @@ __wti_bm_close_block(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_CONNECTION_IMPL *conn;
     uint64_t bucket, hash;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE, "block close: %s", block->name);
+    __wt_verbose(session, 1212801, WT_VERB_BLKCACHE, "block close: %s", block->name);
 
     conn = S2C(session);
     __wt_spin_lock(session, &conn->block_lock);
@@ -180,7 +180,7 @@ __bm_checkpoint(
         bm->block = bm->next_block;
         bm->next_block = NULL;
         __wt_writeunlock(session, &bm->handle_array_lock);
-        __wt_verbose(session, WT_VERB_TIERED, "block manager switched from %s to %s",
+        __wt_verbose(session, 1095300, WT_VERB_TIERED, "block manager switched from %s to %s",
           bm->prev_block->name, bm->block->name);
     }
 
@@ -663,8 +663,8 @@ __bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t objectid)
 
     WT_RET(__wt_blkcache_get_handle(session, bm, objectid, false, &block));
 
-    __wt_verbose(session, WT_VERB_TIERED, "block manager scheduling a switch from %s to %s",
-      current->name, block->name);
+    __wt_verbose(session, 1098900, WT_VERB_TIERED,
+      "block manager scheduling a switch from %s to %s", current->name, block->name);
 
     /* This will be the new writable object. Load its checkpoint */
     WT_RET(__wt_block_checkpoint_load(session, block, NULL, 0, NULL, &root_addr_size, false));

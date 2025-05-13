@@ -60,7 +60,8 @@ __wti_rts_history_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp
             break;
 
         if (!dryrun) {
-            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+            __wt_verbose_level_multi(session, 1027508, WT_VERB_RECOVERY_RTS(session),
+              WT_VERBOSE_DEBUG_3,
               WT_RTS_VERB_TAG_HS_UPDATE_REMOVE "deleting history store update for btree_id=%" PRIu32
                                                "with update stop_timestamp=%s greater than "
                                                "stable_timestamp=%s, time_window=%s",
@@ -124,7 +125,7 @@ __wti_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
         goto done;
     }
 
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+    __wt_verbose_multi(session, 1167303, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_HS_TRUNCATING "truncating history store entries for tree with id=%u",
       btree_id);
 
@@ -150,7 +151,7 @@ __wti_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
         /* We can find the start point then we must be able to find the stop point. */
         if (ret == WT_NOTFOUND)
             WT_ERR_PANIC(
-              session, ret, "cannot locate the stop point to truncate the history store.");
+              session, 1016423, ret, "cannot locate the stop point to truncate the history store.");
         hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
     } while (hs_btree_id != btree_id);
 
@@ -160,7 +161,7 @@ __wti_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 
     WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
 
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+    __wt_verbose_multi(session, 1027600, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_HS_TRUNCATED
       "Rollback to stable has truncated records for btree=%u from the history store",
       btree_id);
@@ -237,12 +238,12 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
      */
     if ((S2BT(session)->modified || max_durable_ts > rollback_timestamp) &&
       rollback_timestamp != WT_TS_NONE) {
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+        __wt_verbose_multi(session, 1016420, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_ROLLBACK "tree rolled back with durable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
         WT_TRET(__wti_rts_btree_walk_btree(session, rollback_timestamp));
     } else
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+        __wt_verbose_multi(session, 1016421, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_HS_TREE_SKIP
           "tree skipped with durable_timestamp=%s and stable_timestamp=%s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),

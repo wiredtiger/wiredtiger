@@ -327,8 +327,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         maj_version = cval.val;
         WT_RET(__wt_config_gets(session, cfg, "version.minor", &cval));
         min_version = cval.val;
-        __wt_verbose(session, WT_VERB_VERSION, "btree version: %" PRId64 ".%" PRId64, maj_version,
-          min_version);
+        __wt_verbose(session, 1204703, WT_VERB_VERSION, "btree version: %" PRId64 ".%" PRId64,
+          maj_version, min_version);
     }
 
     /* Get the file ID. */
@@ -1013,7 +1013,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     WT_RET(__wt_config_gets(session, cfg, "split_pct", &cval));
     if (cval.val < WT_BTREE_MIN_SPLIT_PCT) {
         btree->split_pct = WT_BTREE_MIN_SPLIT_PCT;
-        __wt_verbose_notice(session, WT_VERB_SPLIT,
+        __wt_verbose_notice(session, 839707, WT_VERB_SPLIT,
           "Re-setting split_pct for %s to the minimum allowed of %d%%", session->dhandle->name,
           WT_BTREE_MIN_SPLIT_PCT);
     } else

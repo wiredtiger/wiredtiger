@@ -54,7 +54,8 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             break;
         WT_ERR(__wt_tiered_name(
           session, &entry->tiered->iface, entry->id, WT_TIERED_NAME_OBJECT, &object));
-        __wt_verbose_debug2(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
+        __wt_verbose_debug2(
+          session, 1005303, WT_VERB_TIERED, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
         WT_PREFIX_SKIP_REQUIRED(session, object, "object:");
         /*
          * If the handle is still open, it could still be in use for reading. In that case put the
@@ -69,7 +70,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             __wt_tiered_work_free(session, entry);
         } else {
             __wt_verbose_debug2(
-              session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
+              session, 1005304, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
             WT_STAT_CONN_INCR(session, local_objects_inuse);
             /*
              * Update the time on the entry before pushing it back on the queue so that we don't get
@@ -212,7 +213,7 @@ __tier_do_operation(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, co
      */
     WT_ASSERT(session, tiered->bstorage != NULL);
     if (F_ISSET(dhandle, WT_DHANDLE_DROPPED)) {
-        __wt_verbose(session, WT_VERB_TIERED,
+        __wt_verbose(session, 1218200, WT_VERB_TIERED,
           "DO_OP: DH %s flags 0x%" PRIx32 " not open or dropped tiered %p.", dhandle->name,
           dhandle->flags, (void *)tiered);
         return (0);
@@ -475,7 +476,7 @@ __tiered_server(void *arg)
 
     if (0) {
 err:
-        WT_IGNORE_RET(__wt_panic(session, ret, "storage server error from %s", msg));
+        WT_IGNORE_RET(__wt_panic(session, 1008303, ret, "storage server error from %s", msg));
     }
     __wt_buf_free(session, &path);
     __wt_buf_free(session, &tmp);

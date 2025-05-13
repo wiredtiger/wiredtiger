@@ -23,12 +23,12 @@ __wti_rts_progress_msg(WT_SESSION_IMPL *session, WT_TIMER *rollback_start, uint6
 
     if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > *rollback_msg_count) {
         if (walk)
-            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+            __wt_verbose(session, 1097200, WT_VERB_RECOVERY_PROGRESS,
               "Rollback to stable has been performing on %s for %" PRIu64
               " milliseconds. For more detailed logging, enable WT_VERB_RTS ",
               session->dhandle->name, time_diff_ms);
         else
-            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+            __wt_verbose(session, 1097201, WT_VERB_RECOVERY_PROGRESS,
               "Rollback to stable has been running for %" PRIu64
               " milliseconds and has inspected %" PRIu64 " files of %" PRIu64
               ". For more detailed logging, enable WT_VERB_RTS",
@@ -79,7 +79,7 @@ __rts_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 
     if (0) {
 err:
-        WT_RET_PANIC(session, ret, "rts thread error");
+        WT_RET_PANIC(session, 571053, ret, "rts thread error");
     }
     return (ret);
 }
@@ -151,8 +151,8 @@ __rts_thread_destroy(WT_SESSION_IMPL *session)
     F_CLR_ATOMIC_32(conn, WT_CONN_RTS_THREAD_RUN);
     __wt_cond_signal(session, conn->rts->thread_group.wait_cond);
 
-    __wt_verbose(
-      session, WT_VERB_RTS, WT_RTS_VERB_TAG_WAIT_THREADS "%s", "waiting for helper threads");
+    __wt_verbose(session, 1074301, WT_VERB_RTS, WT_RTS_VERB_TAG_WAIT_THREADS "%s",
+      "waiting for helper threads");
 
     /* We call the destroy function still holding the write lock. It assumes it is called locked. */
     WT_TRET(__wt_thread_group_destroy(session, &conn->rts->thread_group));
@@ -249,7 +249,8 @@ __wti_rts_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_time
      * doesn't exist.
      */
     if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY)) {
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+        __wt_verbose_level_multi(session, 1027509, WT_VERB_RECOVERY_RTS(session),
+          WT_VERBOSE_DEBUG_3,
           WT_RTS_VERB_TAG_HS_TREE_FINAL_PASS
           "performing final pass of the history store to remove unstable entries with "
           "rollback_timestamp=%s",

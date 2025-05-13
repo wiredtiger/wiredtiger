@@ -317,7 +317,7 @@ __chunkcache_memory_alloc(WT_SESSION_IMPL *session, WT_CHUNKCACHE_CHUNK *chunk)
          */
         if ((ret = __chunkcache_bitmap_alloc(session, &bit_index)) == ENOSPC) {
             WT_STAT_CONN_INCR(session, chunkcache_exceeded_bitmap_capacity);
-            __wt_verbose(session, WT_VERB_CHUNKCACHE,
+            __wt_verbose(session, 1187300, WT_VERB_CHUNKCACHE,
               "chunk cache bitmap exceeded capacity of %" PRIu64
               " bytes "
               "with %" PRIu64 " bytes in use and the chunk size of %" PRIu64 " bytes",
@@ -350,7 +350,7 @@ __chunkcache_can_admit_new_chunk(WT_SESSION_IMPL *session, size_t chunk_size)
         return (true);
 
     WT_STAT_CONN_INCR(session, chunkcache_exceeded_capacity);
-    __wt_verbose(session, WT_VERB_CHUNKCACHE,
+    __wt_verbose(session, 981200, WT_VERB_CHUNKCACHE,
       "chunk cache exceeded capacity of %" PRIu64
       " bytes "
       "with %" PRIu64 " bytes in use and the chunk size of %" PRIu64 " bytes",
@@ -440,9 +440,10 @@ __chunkcache_alloc_chunk(WT_SESSION_IMPL *session, wt_off_t offset, wt_off_t siz
         __wt_free(session, *newchunk);
         return (ret);
     }
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "allocate: %s(%u), offset=%" PRIu64 ", size=%" PRIu64,
-      (*newchunk)->hash_id.objectname, (*newchunk)->hash_id.objectid,
-      (uint64_t)(*newchunk)->chunk_offset, (uint64_t)(*newchunk)->chunk_size);
+    __wt_verbose(session, 981201, WT_VERB_CHUNKCACHE,
+      "allocate: %s(%u), offset=%" PRIu64 ", size=%" PRIu64, (*newchunk)->hash_id.objectname,
+      (*newchunk)->hash_id.objectid, (uint64_t)(*newchunk)->chunk_offset,
+      (uint64_t)(*newchunk)->chunk_size);
 
     return (0);
 }
@@ -594,7 +595,7 @@ __chunkcache_eviction_thread(void *arg)
                     __delete_update_stats(session, chunk);
                     __chunkcache_free_chunk(session, chunk);
                     WT_STAT_CONN_INCR(session, chunkcache_chunks_evicted);
-                    __wt_verbose(session, WT_VERB_CHUNKCACHE,
+                    __wt_verbose(session, 1114100, WT_VERB_CHUNKCACHE,
                       "evicted chunk: %s(%u), offset=%" PRId64 ", size=%" PRIu64,
                       chunk->hash_id.objectname, chunk->hash_id.objectid, chunk->chunk_offset,
                       (uint64_t)chunk->chunk_size);
@@ -850,7 +851,7 @@ __wt_chunkcache_get(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid
     if (!block->readonly)
         return (0);
 
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
+    __wt_verbose(session, 981202, WT_VERB_CHUNKCACHE, "get: %s(%u), offset=%" PRId64 ", size=%u",
       (char *)block->name, objectid, offset, size);
     WT_STAT_CONN_INCR(session, chunkcache_lookups);
 
@@ -930,7 +931,7 @@ retry:
 
             WT_RET(__chunkcache_read_into_chunk(session, bucket_id, block->fh, chunk));
 
-            __wt_verbose(session, WT_VERB_CHUNKCACHE,
+            __wt_verbose(session, 981203, WT_VERB_CHUNKCACHE,
               "insert: %s(%u), offset=%" PRId64 ", size=%lu", (char *)block->name, objectid,
               chunk->chunk_offset, chunk->chunk_size);
             goto retry;
@@ -1043,8 +1044,9 @@ __wt_chunkcache_ingest(
 
         WT_STAT_CONN_INCR(session, chunkcache_chunks_loaded_from_flushed_tables);
 
-        __wt_verbose(session, WT_VERB_CHUNKCACHE, "ingest: %s(%u), offset=%" PRId64 ", size=%lu",
-          (char *)local_name, objectid, chunk->chunk_offset, chunk->chunk_size);
+        __wt_verbose(session, 1147300, WT_VERB_CHUNKCACHE,
+          "ingest: %s(%u), offset=%" PRId64 ", size=%lu", (char *)local_name, objectid,
+          chunk->chunk_offset, chunk->chunk_size);
 
         already_read += (wt_off_t)chunk->chunk_size;
     }
@@ -1167,7 +1169,7 @@ __wt_chunkcache_create_from_metadata(WT_SESSION_IMPL *session, const char *name,
     TAILQ_INSERT_HEAD(WT_BUCKET_CHUNKS(chunkcache, bucket_id), newchunk, next_chunk);
     WT_RELEASE_WRITE_WITH_BARRIER(newchunk->valid, true);
 
-    __wt_verbose_debug2(session, WT_VERB_CHUNKCACHE,
+    __wt_verbose_debug2(session, 1172300, WT_VERB_CHUNKCACHE,
       "new chunk instantiated from metadata during startup: %s(%u), offset=%" PRId64 ", size=%lu",
       (char *)name, id, newchunk->chunk_offset, newchunk->chunk_size);
     WT_STAT_CONN_INCR(session, chunkcache_created_from_metadata);
@@ -1284,7 +1286,8 @@ __wt_chunkcache_setup(WT_SESSION_IMPL *session, const char *cfg[])
       session, &chunkcache->evict_thread_tid, __chunkcache_eviction_thread, (void *)session));
 
     F_SET(chunkcache, WT_CHUNKCACHE_CONFIGURED);
-    __wt_verbose(session, WT_VERB_CHUNKCACHE, "configured cache in %s, with capacity %" PRIu64 "",
+    __wt_verbose(session, 981204, WT_VERB_CHUNKCACHE,
+      "configured cache in %s, with capacity %" PRIu64 "",
       (chunkcache->type == WT_CHUNKCACHE_IN_VOLATILE_MEMORY) ? "volatile memory" : "file system",
       chunkcache->capacity);
 

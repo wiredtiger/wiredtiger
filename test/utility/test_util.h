@@ -512,8 +512,8 @@ const char *example_setup(int, char *const *);
  * The functions below can generate errors that we wish to ignore. We have handler functions
  * available for them here, to avoid making tests crash prematurely.
  */
-int handle_op_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
-int handle_op_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+int handle_op_error(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, int, const char *);
+int handle_op_message(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, const char *);
 bool is_mounted(const char *);
 void lazyfs_command(const char *, const char *);
 void lazyfs_clear_cache(const char *);

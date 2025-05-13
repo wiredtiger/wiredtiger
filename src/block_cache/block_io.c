@@ -36,7 +36,8 @@ __blkcache_read_corrupt(WT_SESSION_IMPL *session, int error, const uint8_t *addr
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
     if (!F_ISSET(btree, WT_BTREE_VERIFY) && !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
         WT_TRET(bm->corrupt(bm, session, addr, addr_size));
-        WT_RET_PANIC(session, ret, "%s: fatal read error: %s", btree->dhandle->name, fail_msg);
+        WT_RET_PANIC(
+          session, 846600, ret, "%s: fatal read error: %s", btree->dhandle->name, fail_msg);
     }
     return (ret);
 }

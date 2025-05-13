@@ -602,7 +602,7 @@ __wti_rec_col_fix(
         auxspace *= 2;
 
         if (rawbitmapsize + auxspace > UINT32_MAX || salvage->take + salvage->missing > UINT32_MAX)
-            WT_RET_PANIC(session, WT_PANIC,
+            WT_RET_PANIC(session, 828702, WT_PANIC,
               "%s page too large (%" PRIu64 "); cannot split it during salvage",
               __wt_page_type_string(page->type), rawbitmapsize + auxspace);
 

@@ -181,9 +181,10 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     /* If the connection is not set up for tiered storage there is nothing more to do. */
     if (!WT_CONN_TIERED_STORAGE_ENABLED(conn))
         return (0);
-    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
     __wt_verbose(
-      session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->bstorage->bucket_prefix);
+      session, 742800, WT_VERB_TIERED, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
+    __wt_verbose(
+      session, 742801, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->bstorage->bucket_prefix);
 
     /* Check for incompatible configuration options. */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY))

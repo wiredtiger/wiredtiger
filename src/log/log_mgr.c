@@ -471,7 +471,8 @@ __log_remove_once(WT_SESSION_IMPL *session, uint32_t backup_file)
          */
         return (0);
 
-    __wt_verbose(session, WT_VERB_LOG, "log_remove: remove to log number %" PRIu32, min_lognum);
+    __wt_verbose(
+      session, 596000, WT_VERB_LOG, "log_remove: remove to log number %" PRIu32, min_lognum);
 
     /*
      * Main remove code. Get the list of all log files and remove any earlier than the minimum log
@@ -535,15 +536,16 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
      */
     if (log->prep_missed > 0) {
         log_mgr->prealloc += log->prep_missed;
-        __wt_verbose(session, WT_VERB_LOG, "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
-          log->prep_missed, log_mgr->prealloc);
+        __wt_verbose(session, 196200, WT_VERB_LOG,
+          "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32, log->prep_missed,
+          log_mgr->prealloc);
     } else if (reccount > log_mgr->prealloc / 2 &&
       log_mgr->prealloc > log_mgr->prealloc_init_count) {
         /*
          * If we used less than half, then start adjusting down.
          */
         --log_mgr->prealloc;
-        __wt_verbose(session, WT_VERB_LOG,
+        __wt_verbose(session, 375600, WT_VERB_LOG,
           "Adjust down. Did not use %" PRIu32 ". Now pre-allocating %" PRIu32, reccount,
           log_mgr->prealloc);
     }
@@ -598,7 +600,7 @@ __wt_log_truncate_files(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool force)
     }
     WT_ASSERT(session, backup_file <= log->alloc_lsn.l.file);
     __wt_verbose(
-      session, WT_VERB_LOG, "log_truncate_files: remove once up to %" PRIu32, backup_file);
+      session, 282234, WT_VERB_LOG, "log_truncate_files: remove once up to %" PRIu32, backup_file);
 
     __wt_writelock(session, &log->log_remove_lock);
     ret = __log_remove_once(session, backup_file);
@@ -688,7 +690,7 @@ __log_file_server(void *arg)
 
     if (0) {
 err:
-        WT_IGNORE_RET(__wt_panic(session, ret, "log close server error"));
+        WT_IGNORE_RET(__wt_panic(session, 1089800, ret, "log close server error"));
     }
     __wt_spin_unlock_if_owned(session, &log->log_sync_lock);
     return (WT_THREAD_RET_VALUE);
@@ -885,7 +887,7 @@ __log_wrlsn_server(void *arg)
     __wti_log_wrlsn(session, NULL);
     if (0) {
 err:
-        WT_IGNORE_RET(__wt_panic(session, ret, "log wrlsn server error"));
+        WT_IGNORE_RET(__wt_panic(session, 571017, ret, "log wrlsn server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -968,7 +970,7 @@ __log_server(void *arg)
                     __wt_writeunlock(session, &log->log_remove_lock);
                     WT_ERR(ret);
                 } else
-                    __wt_verbose(session, WT_VERB_LOG, "%s",
+                    __wt_verbose(session, 339404, WT_VERB_LOG, "%s",
                       "log_remove: Blocked due to open log cursor holding remove lock");
             }
             time_start = __wt_clock(session);
@@ -983,7 +985,7 @@ __log_server(void *arg)
 
     if (0) {
 err:
-        WT_IGNORE_RET(__wt_panic(session, ret, "log server error"));
+        WT_IGNORE_RET(__wt_panic(session, 571018, ret, "log server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }

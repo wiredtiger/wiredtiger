@@ -151,7 +151,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
           session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
 
     if (obsolete) {
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+        __wt_verbose_debug2(session, 1349301, WT_VERB_CHECKPOINT_CLEANUP,
           "%p in-memory page with %s obsolete has a stop time aggregate %s", (void *)ref, tag,
           __wt_time_aggregate_to_string(&newest_ta, time_string));
 
@@ -173,7 +173,7 @@ __sync_obsolete_inmem_evict_or_mark_dirty(WT_SESSION_IMPL *session, WT_REF *ref)
          * Dirty the page with an obsolete time window to let the page reconciliation remove all the
          * obsolete time window information.
          */
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+        __wt_verbose_debug2(session, 1349302, WT_VERB_CHECKPOINT_CLEANUP,
           "%p in-memory page %s obsolete time window: time aggregate %s", (void *)ref, tag,
           __wt_time_aggregate_to_string(&newest_ta, time_string));
 
@@ -209,12 +209,12 @@ __sync_obsolete_deleted_cleanup(WT_SESSION_IMPL *session, WT_REF *ref)
     if (page_del == NULL ||
       __wt_txn_visible_all(session, page_del->txnid, page_del->durable_timestamp)) {
         WT_RET(__wt_page_parent_modify_set(session, ref, false));
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+        __wt_verbose_debug2(session, 1028600, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete deleted page parent dirty", (void *)ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
     } else
         __wt_verbose_debug2(
-          session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
+          session, 1028601, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping deleted page", (void *)ref);
 
     return (0);
 }
@@ -258,13 +258,13 @@ __sync_obsolete_disk_cleanup(WT_SESSION_IMPL *session, WT_REF *ref, bool *ref_de
           session, newest_ta.newest_stop_txn, newest_ta.newest_stop_durable_ts);
     }
 
-    __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+    __wt_verbose_debug2(session, 1349303, WT_VERB_CHECKPOINT_CLEANUP,
       "%p on-disk page obsolete check: %s"
       "obsolete, stop time aggregate %s",
       (void *)ref, obsolete ? "" : "not ", __wt_time_aggregate_to_string(&newest_ta, time_string));
 
     if (obsolete && ((ret = __wt_page_parent_modify_set(session, ref, false)) == 0)) {
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+        __wt_verbose_debug2(session, 1028602, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: marking obsolete disk page parent dirty", (void *)ref);
         *ref_deleted = true;
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_removed);
@@ -294,13 +294,13 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref)) {
         __wt_verbose_debug2(
-          session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping root page", (void *)ref);
+          session, 1028603, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping root page", (void *)ref);
         return (0);
     }
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+        __wt_verbose_debug2(session, 1028604, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: skipping internal page with parent: %p", (void *)ref, (void *)ref->home);
         return (0);
     }
@@ -335,7 +335,8 @@ __sync_obsolete_cleanup_one(WT_SESSION_IMPL *session, WT_REF *ref)
          * example they might have split or changed to deleted between checking the ref state. Log a
          * diagnostic message for skipped pages and move along.
          */
-        __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping page", (void *)ref);
+        __wt_verbose_debug2(
+          session, 1028605, WT_VERB_CHECKPOINT_CLEANUP, "%p: skipping page", (void *)ref);
 
     return (ret);
 }
@@ -355,7 +356,7 @@ __checkpoint_cleanup_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_ASSERT_ALWAYS(session, WT_PAGE_IS_INTERNAL(parent->page),
       "Checkpoint obsolete cleanup requires an internal page");
 
-    __wt_verbose_debug2(session, WT_VERB_CHECKPOINT_CLEANUP,
+    __wt_verbose_debug2(session, 1028606, WT_VERB_CHECKPOINT_CLEANUP,
       "%p: traversing the internal page %p for obsolete child pages", (void *)parent,
       (void *)parent->page);
 
@@ -469,7 +470,7 @@ __checkpoint_cleanup_page_skip(
 
     if (*skipp) {
         __wt_verbose_debug2(
-          session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
+          session, 1265700, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
         WT_STAT_CONN_DSRC_INCR(session, checkpoint_cleanup_pages_walk_skipped);
     }
 
@@ -504,8 +505,8 @@ __checkpoint_cleanup_walk_btree(WT_SESSION_IMPL *session, WT_ITEM *uri)
     /* Open a handle for processing. */
     ret = __wt_session_get_dhandle(session, uri->data, NULL, NULL, 0);
     if (ret != 0) {
-        __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP, "%s: unable to open handle%s",
-          (char *)uri->data,
+        __wt_verbose_debug1(session, 1288300, WT_VERB_CHECKPOINT_CLEANUP,
+          "%s: unable to open handle%s", (char *)uri->data,
           ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
         return (ret);
     }
@@ -715,7 +716,7 @@ __checkpoint_cleanup_int(WT_SESSION_IMPL *session)
     while ((ret = __checkpoint_cleanup_get_uri(session, uri)) == 0) {
         ret = __checkpoint_cleanup_walk_btree(session, uri);
         if (ret == ENOENT || ret == EBUSY) {
-            __wt_verbose_debug1(session, WT_VERB_CHECKPOINT_CLEANUP,
+            __wt_verbose_debug1(session, 1265701, WT_VERB_CHECKPOINT_CLEANUP,
               "%s: skipped performing checkpoint cleanup because the file %s", (char *)uri->data,
               ret == ENOENT ? "does not exist" : "is busy");
             continue;
@@ -786,7 +787,7 @@ __checkpoint_cleanup(void *arg)
 
 err:
     if (ret != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "checkpoint cleanup error"));
+        WT_IGNORE_RET(__wt_panic(session, 1383300, ret, "checkpoint cleanup error"));
     return (WT_THREAD_RET_VALUE);
 }
 

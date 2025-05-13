@@ -129,7 +129,7 @@ __gen_drain_callback(
         }
         /* If we're waiting on ourselves, we're deadlocked. */
         if (array_session == session) {
-            WT_IGNORE_RET(__wt_panic(array_session, WT_PANIC, "self-deadlock"));
+            WT_IGNORE_RET(__wt_panic(array_session, 1121703, WT_PANIC, "self-deadlock"));
             *exit_walkp = true;
             return (0);
         }
@@ -155,7 +155,7 @@ __gen_drain_callback(
             time_diff_ms = WT_TIMEDIFF_MS(stop, cookie->start);
 
             if (time_diff_ms > cookie->minutes * WT_MINUTE * WT_THOUSAND) {
-                __wt_verbose_notice(session, WT_VERB_GENERATION,
+                __wt_verbose_notice(session, 1121701, WT_VERB_GENERATION,
                   "%s generation drain waited %" PRIu64 " minutes", __gen_name(cookie->base.which),
                   cookie->minutes);
                 ++cookie->minutes;
@@ -187,8 +187,8 @@ __gen_drain_callback(
             }
 #endif
             if (time_diff_ms >= conn->gen_drain_timeout_ms) {
-                __wt_verbose_error(session, WT_VERB_GENERATION, "%s generation drain timed out",
-                  __gen_name(cookie->base.which));
+                __wt_verbose_error(session, 1121702, WT_VERB_GENERATION,
+                  "%s generation drain timed out", __gen_name(cookie->base.which));
                 WT_ASSERT(session, false);
             }
         }

@@ -580,7 +580,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
         WT_ASSERT(session, WT_TXNID_LE(oldest_id, current_id));
         if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
           current_id - oldest_id > (10 * WT_THOUSAND) && oldest_session != NULL) {
-            __wt_verbose(session, WT_VERB_TRANSACTION,
+            __wt_verbose(session, 282247, WT_VERB_TRANSACTION,
               "oldest id %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
               oldest_id, oldest_session->id, oldest_session->lastop,
               oldest_session->txn->snapshot_data.snap_min);
@@ -890,7 +890,7 @@ __txn_prepare_rollback_restore_hs_update(
     F_SET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
     total_size += size;
 
-    __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
+    __wt_verbose_debug2(session, 1005900, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
       __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
@@ -910,7 +910,7 @@ __txn_prepare_rollback_restore_hs_update(
         F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS);
         total_size += size;
 
-        __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
+        __wt_verbose_debug2(session, 1005901, WT_VERB_TRANSACTION,
           "tombstone restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
           tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
           __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
@@ -1080,7 +1080,7 @@ __txn_search_prepared_op(
     case WT_TXN_OP_REF_DELETE:
     case WT_TXN_OP_TRUNCATE_COL:
     case WT_TXN_OP_TRUNCATE_ROW:
-        WT_RET_PANIC_ASSERT(session, WT_DIAGNOSTIC_PREPARED, false, WT_PANIC,
+        WT_RET_PANIC_ASSERT(session, 1043900, WT_DIAGNOSTIC_PREPARED, false, WT_PANIC,
           "invalid prepared operation update type");
         break;
     }
@@ -1211,14 +1211,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
     if (commit)
-        __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
+        __wt_verbose_debug2(session, 1005902, WT_VERB_TRANSACTION,
           "commit resolving prepared transaction with txnid: %" PRIu64
           " and timestamp: %s to commit and durable timestamps: %s, %s",
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]),
           __wt_timestamp_to_string(txn->durable_timestamp, ts_string[2]));
     else
-        __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
+        __wt_verbose_debug2(session, 1005903, WT_VERB_TRANSACTION,
           "rollback resolving prepared transaction with txnid: %" PRIu64 " and timestamp: %s",
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]));
 
@@ -1962,7 +1962,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (prepare && txn->durable_timestamp <= txn_global->stable_timestamp) {
         WT_ERR(__wt_verbose_dump_sessions(session, true));
-        WT_ERR_PANIC(session, WT_PANIC,
+        WT_ERR_PANIC(session, 770800, WT_PANIC,
           "stable timestamp is larger than or equal to the committing prepared transaction's "
           "durable timestamp");
     }
@@ -1996,7 +1996,7 @@ err:
 
     /* Check for a failure after we can no longer fail. */
     if (cannot_fail)
-        WT_RET_PANIC(session, ret,
+        WT_RET_PANIC(session, 817000, ret,
           "failed to commit a transaction after data corruption point, failing the system");
 
     /*
@@ -2004,7 +2004,8 @@ err:
      * a prepared transaction.
      */
     if (prepare)
-        WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
+        WT_RET_PANIC(
+          session, 893501, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
     WT_TRET(__wt_txn_rollback(session, cfg));
@@ -2591,7 +2592,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     conn = S2C(session);
     use_timestamp = false;
 
-    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s",
+    __wt_verbose_info(session, 1341106, WT_VERB_RECOVERY_PROGRESS, "%s",
       "perform final checkpoint and shutting down the global transaction state");
 
     /*
@@ -2623,7 +2624,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             }
 
             __wt_timer_start(session, &timer);
-            __wt_verbose_info(session, WT_VERB_RTS,
+            __wt_verbose_info(session, 1341107, WT_VERB_RTS,
               "[SHUTDOWN_INIT] performing shutdown rollback to stable, stable_timestamp=%s",
               __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string));
             WT_TRET(conn->rts->rollback_to_stable(session, rts_cfg, true));
@@ -2631,12 +2632,12 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
             /* Time since the shutdown RTS has started. */
             __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.rts_ms);
             if (ret != 0)
-                __wt_verbose_notice(session, WT_VERB_RTS,
+                __wt_verbose_notice(session, 1027700, WT_VERB_RTS,
                   WT_RTS_VERB_TAG_SHUTDOWN_RTS
                   "performing shutdown rollback to stable failed with code %s",
                   __wt_strerror(session, ret, NULL, 0));
             else
-                __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
+                __wt_verbose_info(session, 1341108, WT_VERB_RECOVERY_PROGRESS,
                   "shutdown rollback to stable has successfully finished and ran for %" PRIu64
                   " milliseconds",
                   conn->shutdown_timeline.rts_ms);
@@ -2661,7 +2662,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 
             /* Time since the shutdown checkpoint has started. */
             __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
-            __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
+            __wt_verbose_info(session, 1341109, WT_VERB_RECOVERY_PROGRESS,
               "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
               conn->shutdown_timeline.checkpoint_ms);
         }

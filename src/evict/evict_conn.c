@@ -10,7 +10,7 @@
 
 #define WT_CONFIG_DEBUG(session, fmt, ...)                                 \
     if (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_CONFIGURATION)) \
-        __wt_verbose_warning(session, WT_VERB_CONFIGURATION, fmt, __VA_ARGS__);
+        __wt_verbose_warning(session, 1355600, WT_VERB_CONFIGURATION, fmt, __VA_ARGS__);
 
 /*
  * __evict_config_abs_to_pct --

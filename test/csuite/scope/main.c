@@ -37,9 +37,11 @@ static int ignore_errors;
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+handle_error(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *message)
 {
     (void)(handler);
+    (void)(id);
 
     /* Skip the error messages we're expecting to see. */
     if (ignore_errors > 0 &&

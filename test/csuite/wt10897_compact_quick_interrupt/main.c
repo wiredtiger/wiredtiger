@@ -54,10 +54,11 @@ static bool do_interrupt_compaction = false;
  *     Message handler.
  */
 static int
-message_handler(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+message_handler(WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     (void)(handler);
     (void)(session);
+    (void)(id);
 
     if (strstr(message, "skipping compaction") != NULL)
         skipped_compaction = true;

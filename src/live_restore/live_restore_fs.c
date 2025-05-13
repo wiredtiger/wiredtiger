@@ -58,7 +58,7 @@ __live_restore_fs_backing_filename(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
         WT_ERR(__wt_snprintf(buf, len, "%s%s", lr_fs->source.home, filename));
 
         *pathp = buf;
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug3(session, 1391500, WT_VERB_LIVE_RESTORE,
           "Generated SOURCE path: %s. layer->home = %s, name = %s", buf, lr_fs->source.home, name);
     }
 
@@ -109,7 +109,8 @@ __live_restore_fs_create_stop_file_locked(
       session, lr_fs, WTI_LIVE_RESTORE_FS_LAYER_DESTINATION, name, &path));
     WT_ERR(__live_restore_create_stop_file_path(session, path, &path_marker));
 
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "Creating stop file: %s", path_marker);
+    __wt_verbose_debug2(
+      session, 1404800, WT_VERB_LIVE_RESTORE, "Creating stop file: %s", path_marker);
 
     open_flags = WT_FS_OPEN_CREATE;
     if (LF_ISSET(WT_FS_DURABLE | WT_FS_OPEN_DURABLE))
@@ -157,8 +158,8 @@ __dest_has_stop_file(
 
     lr_fs->os_file_system->fs_exist(
       lr_fs->os_file_system, (WT_SESSION *)session, path_marker, existp);
-    __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "Stop file check for %s (Y/N)? %s", name, *existp ? "Y" : "N");
+    __wt_verbose_debug2(session, 1381900, WT_VERB_LIVE_RESTORE, "Stop file check for %s (Y/N)? %s",
+      name, *existp ? "Y" : "N");
 
 err:
     __wt_free(session, path_marker);
@@ -259,7 +260,7 @@ __live_restore_fs_directory_list_worker(WT_FILE_SYSTEM *fs, WT_SESSION *wt_sessi
     *dirlistp = dirlist_dest = dirlist_src = entries = NULL;
     path_dest = path_src = NULL;
 
-    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug1(session, 1391501, WT_VERB_LIVE_RESTORE,
       "DIRECTORY LIST %s (single ? %s) : ", directory, single ? "YES" : "NO");
     WT_ASSERT_SPINLOCK_OWNED(session, &lr_fs->state_lock);
 
@@ -512,8 +513,9 @@ __live_restore_fh_fill_bit_range(
         partial_fill = true;
         fill_end_bit = lr_fh->nbits - 1;
     }
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE%s HOLE %s: %" PRId64 "-%" PRId64,
-      partial_fill ? " PARTIAL" : "", lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
+    __wt_verbose_debug3(session, 1413900, WT_VERB_LIVE_RESTORE,
+      "REMOVE%s HOLE %s: %" PRId64 "-%" PRId64, partial_fill ? " PARTIAL" : "", lr_fh->iface.name,
+      offset, WTI_OFFSET_END(offset, len));
     __bit_nset(lr_fh->bitmap, offset_bit, fill_end_bit);
     return;
 }
@@ -549,13 +551,13 @@ __live_restore_dump_bitmap(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDL
 
     WT_CLEAR(buf);
 
-    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug1(session, 1413901, WT_VERB_LIVE_RESTORE,
       "%s: Dumping bitmap, nbits (%" PRIu64 "), address (%p)", lr_fh->iface.name, lr_fh->nbits,
       (void *)lr_fh->bitmap);
     if (lr_fh->nbits > 0) {
         WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
         __wt_verbose_debug1(
-          session, WT_VERB_LIVE_RESTORE, "%s: %s", lr_fh->iface.name, (char *)buf.data);
+          session, 1413902, WT_VERB_LIVE_RESTORE, "%s: %s", lr_fh->iface.name, (char *)buf.data);
     }
 err:
     __wt_buf_free(session, &buf);
@@ -609,8 +611,8 @@ __live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_
         current_bit++;
 
     if (current_bit == read_end_bit) {
-        __wt_verbose_debug3(
-          session, WT_VERB_LIVE_RESTORE, "CAN SERVICE %s: No hole found", lr_fh->iface.name);
+        __wt_verbose_debug3(session, 1440300, WT_VERB_LIVE_RESTORE, "CAN SERVICE %s: No hole found",
+          lr_fh->iface.name);
         return (true);
     }
 
@@ -642,8 +644,8 @@ static int
 __live_restore_fh_write_destination(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
   wt_off_t offset, size_t len, const void *buf)
 {
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT,
-      lr_fh->iface.name, offset, len);
+    __wt_verbose_debug3(session, 1422900, WT_VERB_LIVE_RESTORE,
+      "WRITE %s: %" PRId64 ", %" WT_SIZET_FMT, lr_fh->iface.name, offset, len);
     return (
       lr_fh->destination->fh_write(lr_fh->destination, (WT_SESSION *)session, offset, len, buf));
 }
@@ -707,7 +709,7 @@ static int
 __live_restore_fh_read_destination(
   WT_SESSION_IMPL *session, WT_FILE_HANDLE *destination, wt_off_t offset, size_t len, void *buf)
 {
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM DEST");
+    __wt_verbose_debug3(session, 1422901, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM DEST");
     return (destination->fh_read(destination, (WT_SESSION *)session, offset, len, buf));
 }
 
@@ -721,7 +723,7 @@ __live_restore_fh_read_source(
 {
     uint64_t time_start, time_stop;
 
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
+    __wt_verbose_debug3(session, 1406500, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
 
     time_start = __wt_clock(session);
     WT_RET(source->fh_read(source, (WT_SESSION *)session, off, len, buf));
@@ -747,8 +749,8 @@ __live_restore_fh_read(
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "READ %s : %" PRId64 ", %" WT_SIZET_FMT,
-      fh->name, offset, len);
+    __wt_verbose_debug3(session, 1391502, WT_VERB_LIVE_RESTORE,
+      "READ %s : %" PRId64 ", %" WT_SIZET_FMT, fh->name, offset, len);
 
     read_data = (char *)buf;
 
@@ -840,7 +842,7 @@ __live_restore_fh_close_source(
 
     if (lr_fh->source != NULL) {
         __wt_verbose_debug1(
-          session, WT_VERB_LIVE_RESTORE, "Closing source fh %s", lr_fh->iface.name);
+          session, 1423300, WT_VERB_LIVE_RESTORE, "Closing source fh %s", lr_fh->iface.name);
         WT_ERR(lr_fh->source->close(lr_fh->source, (WT_SESSION *)session));
         lr_fh->source = NULL;
     }
@@ -933,11 +935,11 @@ __live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_ses
     wt_off_t read_end = WTI_BIT_TO_OFFSET(read_end_bit + 1);
     size_t read_size = (size_t)(read_end - read_start);
 
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug3(session, 1413903, WT_VERB_LIVE_RESTORE,
       "Found hole in %s at %" PRId64 "-%" PRId64 " during background migration. ",
       lr_fh->iface.name, read_start, read_end);
 
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug3(session, 1391503, WT_VERB_LIVE_RESTORE,
       "    BACKGROUND READ %s : %" PRId64 ", %" WT_SIZET_FMT, lr_fh->iface.name, read_start,
       read_size);
 
@@ -958,7 +960,8 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     WT_DECL_RET;
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE, "%s: Restoring in the background", fh->name);
+    __wt_verbose_debug2(
+      session, 1413904, WT_VERB_LIVE_RESTORE, "%s: Restoring in the background", fh->name);
 
     /*
      * Live restore dirties btrees to ensure its bitmap updates are persisted, through the
@@ -1014,7 +1017,7 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
 
         __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
         if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
-            __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+            __wt_verbose(session, 1413905, WT_VERB_LIVE_RESTORE_PROGRESS,
               "Live restore running on %s for %" PRIu64
               " seconds. Currently copying offset %" PRId64 " of file size %" PRId64,
               lr_fh->iface.name, time_diff_ms / WT_THOUSAND, read_offset, WTI_BITMAP_END(lr_fh));
@@ -1037,7 +1040,7 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     }
 
     if (finished) {
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug1(session, 1423301, WT_VERB_LIVE_RESTORE,
           "%s: Finished background restoration, closing source file", fh->name);
         WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
 
@@ -1078,8 +1081,8 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
         if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
             WT_ERR(__wt_filename_construct(
               session, fs->destination.home, files[i], UINTMAX_MAX, UINT32_MAX, filepath));
-            __wt_verbose_info(
-              session, WT_VERB_LIVE_RESTORE, "Removing stop file %s", (char *)filepath->data);
+            __wt_verbose_info(session, 1401200, WT_VERB_LIVE_RESTORE, "Removing stop file %s",
+              (char *)filepath->data);
             WT_ERR(os_fs->fs_remove(os_fs, wt_session, (char *)filepath->data, 0));
         }
     }
@@ -1101,7 +1104,7 @@ __wti_live_restore_cleanup_stop_files(WT_SESSION_IMPL *session)
         for (uint32_t i = 0; i < count; i++) {
             if (WT_SUFFIX_MATCH(files[i], WTI_LIVE_RESTORE_STOP_FILE_SUFFIX)) {
                 WT_ERR(__wt_buf_fmt(session, buf, "%s/%s", (char *)filepath->data, files[i]));
-                __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+                __wt_verbose_info(session, 1401201, WT_VERB_LIVE_RESTORE,
                   "Removing log directory stop file %s", (char *)buf->data);
                 WT_ERR(os_fs->fs_remove(os_fs, wt_session, buf->data, 0));
             }
@@ -1128,7 +1131,7 @@ __live_restore_fh_close(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
     __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Closing file: %s", fh->name);
+      session, 1391504, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE_FS: Closing file: %s", fh->name);
 
     /*
      * If we hit an error during file handle creation we'll call this function to free the partially
@@ -1173,7 +1176,7 @@ __live_restore_fh_truncate(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t 
     if (old_len == len)
         return (0);
 
-    __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug2((WT_SESSION_IMPL *)wt_session, 1391505, WT_VERB_LIVE_RESTORE,
       "truncating file %s from %" PRId64 " to %" PRId64, fh->name, old_len, len);
 
     WT_SESSION_IMPL *session = (WT_SESSION_IMPL *)wt_session;
@@ -1222,7 +1225,7 @@ __live_restore_fs_open_in_source(WTI_LIVE_RESTORE_FS *lr_fs, WT_SESSION_IMPL *se
      */
     FLD_CLR(flags, WT_FS_OPEN_CREATE);
     __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "%s: Opening source file", lr_fh->iface.name);
+      session, 1423302, WT_VERB_LIVE_RESTORE, "%s: Opening source file", lr_fh->iface.name);
     /* Open the file in the layer. */
     WT_ERR(__live_restore_fs_backing_filename(
       session, lr_fs, WTI_LIVE_RESTORE_FS_LAYER_SOURCE, lr_fh->iface.name, &path));
@@ -1335,7 +1338,7 @@ __wt_live_restore_metadata_to_fh(
     } else if (lr_fh_meta->nbits > 0) {
         /* We shouldn't be reconstructing a bitmap if the live restore has finished. */
         WT_ASSERT(session, !__wti_live_restore_migration_complete(session));
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug3(session, 1413906, WT_VERB_LIVE_RESTORE,
           "Reconstructing bitmap for %s, bitmap_sz %" PRId64 ", bitmap_str %s", fh->name,
           lr_fh_meta->nbits, lr_fh_meta->bitmap_str);
         /* Reconstruct a pre-existing bitmap. */
@@ -1380,14 +1383,14 @@ __wt_live_restore_fh_to_metadata(WT_SESSION_IMPL *session, WT_FILE_HANDLE *fh, W
         WT_ERR(__live_restore_encode_bitmap(session, lr_fh, &buf));
         WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=%s,nbits=%" PRIu64 ")",
           (char *)buf.data, lr_fh->nbits));
-        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug3(session, 1413907, WT_VERB_LIVE_RESTORE,
           "%s: Appending live restore bitmap (%s, %" PRIu64 ") to metadata", fh->name,
           (char *)buf.data, lr_fh->nbits);
     } else {
         /* -1 indicates the file has completed migration. */
         WT_ERR(__wt_buf_catfmt(session, meta_string, ",live_restore=(bitmap=,nbits=-1)"));
-        __wt_verbose_debug3(
-          session, WT_VERB_LIVE_RESTORE, "%s: Appending empty live restore metadata", fh->name);
+        __wt_verbose_debug3(session, 1413908, WT_VERB_LIVE_RESTORE,
+          "%s: Appending empty live restore metadata", fh->name);
     }
 err:
     __wt_readunlock(session, &lr_fh->lock);
@@ -1538,7 +1541,7 @@ __live_restore_remove_temporary_file(
     WT_RET(os_fs->fs_exist(os_fs, (WT_SESSION *)session, *tmp_file_path, &exists));
     if (!exists)
         return (0);
-    __wt_verbose_info(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_info(session, 1413909, WT_VERB_LIVE_RESTORE,
       "Found existing temporary file: %s deleting it!", *tmp_file_path);
     return (os_fs->fs_remove(os_fs, (WT_SESSION *)session, *tmp_file_path, 0));
 }
@@ -1566,7 +1569,7 @@ __live_restore_fs_atomic_copy_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS
       "Attempting to atomically copy a file outside of the migration phase!");
 
     WT_ASSERT(session, type == WT_FS_OPEN_FILE_TYPE_LOG || type == WT_FS_OPEN_FILE_TYPE_REGULAR);
-    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug2(session, 1413910, WT_VERB_LIVE_RESTORE,
       "Atomically copying %s file (%s) from source to dest.\n",
       type == WT_FS_OPEN_FILE_TYPE_LOG ? "log" : "regular", filename);
 
@@ -1656,7 +1659,7 @@ __live_restore_fs_create_destination_data_file(WT_SESSION_IMPL *session, WTI_LIV
     /* Get the source size. */
     WT_ERR(lr_fh->source->fh_size(lr_fh->source, wt_session, &source_size));
     WT_ASSERT(session, source_size != 0);
-    __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+    __wt_verbose_debug1(session, 1423500, WT_VERB_LIVE_RESTORE,
       "%s: Creating destination file backed by source file", tmp_dest_path);
     /*
      * We're creating a new destination file which is backed by a source file. It currently has a
@@ -1970,8 +1973,8 @@ __live_restore_fs_rename(
      * WiredTiger frequently renames the turtle file, and some other files. This function is more
      * critical than it may seem at first.
      */
-    __wt_verbose_debug1(
-      session, WT_VERB_LIVE_RESTORE, "LIVE_RESTORE: Renaming file from: %s to %s", from, to);
+    __wt_verbose_debug1(session, 1380400, WT_VERB_LIVE_RESTORE,
+      "LIVE_RESTORE: Renaming file from: %s to %s", from, to);
 
     WT_RET(__live_restore_fs_find_layer(fs, session, from, &which));
     if (which == WTI_LIVE_RESTORE_FS_LAYER_NONE)

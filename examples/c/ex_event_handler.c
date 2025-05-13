@@ -32,8 +32,8 @@
 
 static const char *home;
 
-int handle_wiredtiger_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
-int handle_wiredtiger_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+int handle_wiredtiger_error(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, int, const char *);
+int handle_wiredtiger_message(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, const char *);
 
 /*! [Function event_handler] */
 /*
@@ -52,7 +52,7 @@ typedef struct {
  */
 int
 handle_wiredtiger_error(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *message)
 {
     CUSTOM_EVENT_HANDLER *custom_handler;
 
@@ -60,8 +60,8 @@ handle_wiredtiger_error(
     custom_handler = (CUSTOM_EVENT_HANDLER *)handler;
 
     /* Report the error on the console. */
-    fprintf(stderr, "app_id %s, thread context %p, error %d, message %s\n", custom_handler->app_id,
-      (void *)session, error, message);
+    fprintf(stderr, "app_id %s, thread context %p, id %d, error %d, message %s\n",
+      custom_handler->app_id, (void *)session, id, error, message);
 
     /* Exit if the database has a fatal error. */
     if (error == WT_PANIC)
@@ -75,8 +75,10 @@ handle_wiredtiger_error(
  *     Function to handle message callbacks from WiredTiger.
  */
 int
-handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handle_wiredtiger_message(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
+    (void)(id);
     /* Cast the handler back to our custom handler. */
     printf("app id %s, thread context %p, message %s\n", ((CUSTOM_EVENT_HANDLER *)handler)->app_id,
       (void *)session, message);

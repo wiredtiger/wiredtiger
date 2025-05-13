@@ -670,7 +670,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
                 if (ckpt_running || ckpt_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
                     ret = __wt_set_return(session, EBUSY);
                 else {
-                    __wt_verbose_warning(session, WT_VERB_DEFAULT,
+                    __wt_verbose_warning(session, 1054500, WT_VERB_DEFAULT,
                       "Session (@: 0x%p name: %s) could not open the checkpoint '%s' (config: %s) "
                       "on the file '%s'.",
                       (void *)session, session->name == NULL ? "EMPTY" : session->name, checkpoint,

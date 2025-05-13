@@ -321,7 +321,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
         if (write_gen < best->write_gen)
             continue;
 
-        __wt_verbose_level(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2,
+        __wt_verbose_level(session, 1005200, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2,
           "scan: checkpoint block at offset %" PRIuMAX ", generation #%" PRIu64, (uintmax_t)offset,
           write_gen);
 

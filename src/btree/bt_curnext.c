@@ -560,10 +560,10 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
 
     WT_RET(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
-    __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
+    __wt_verbose_error(session, 839705, WT_VERB_OUT_OF_ORDER,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
-    WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
+    WT_ERR_PANIC(session, 839721, EINVAL, "found key out-of-order returns");
 
 err:
     return (ret);
@@ -600,7 +600,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
 
-    __wt_verbose_error(session, WT_VERB_OUT_OF_ORDER,
+    __wt_verbose_error(session, 839706, WT_VERB_OUT_OF_ORDER,
       "WT_CURSOR.%s out-of-order returns: returned key %.1024s then key %.1024s",
       next ? "next" : "prev",
       __wt_buf_set_printable_format(
@@ -608,7 +608,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
       __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b));
     WT_ERR(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
-    WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
+    WT_ERR_PANIC(session, 705400, EINVAL, "found key out-of-order returns");
 
 err:
     __wt_scr_free(session, &a);

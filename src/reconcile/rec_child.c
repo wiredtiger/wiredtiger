@@ -87,7 +87,7 @@ __rec_child_deleted(
     if (!visible) {
         WT_ASSERT(session, !visible_all);
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-            WT_RET_PANIC(session, EINVAL, "reconciliation illegally skipped an update");
+            WT_RET_PANIC(session, 571050, EINVAL, "reconciliation illegally skipped an update");
         /*
          * In addition to the WT_REC_CLEAN_AFTER_REC case, fail if we're trying to evict an internal
          * page and we can't see the update to it. There's not much point continuing; unlike with a

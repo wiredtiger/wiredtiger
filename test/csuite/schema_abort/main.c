@@ -180,11 +180,12 @@ static const char *const config = NULL;
  */
 static int
 subtest_error_handler(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *message)
 {
     (void)(handler);
     (void)(session);
     (void)(error);
+    (void)(id);
 
     /* Filter out errors about bulk load usage - they are annoying */
     if (strstr(message, "bulk-load is only supported on newly") == NULL)

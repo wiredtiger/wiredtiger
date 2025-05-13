@@ -39,7 +39,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     btree = S2BT(session);
     page = ref->page;
 
-    __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
+    __wt_verbose(session, 532000, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
       LF_ISSET(WT_REC_HS) ? ", history store" : "");
 
@@ -382,7 +382,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
 err:
     if (ret != 0)
-        WT_RET_PANIC(session, ret, "reconciliation failed after building the disk image");
+        WT_RET_PANIC(session, 847600, ret, "reconciliation failed after building the disk image");
     return (ret);
 }
 
@@ -499,8 +499,8 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
         return (__wt_illegal_value(session, mod->rec_result));
     }
 
-    __wt_verbose(
-      session, WT_VERB_SPLIT, "root page split -> %" PRIu32 " pages", mod->mod_multi_entries);
+    __wt_verbose(session, 282245, WT_VERB_SPLIT, "root page split -> %" PRIu32 " pages",
+      mod->mod_multi_entries);
 
     /*
      * Create a new root page, initialize the array of child references, mark it dirty, then write
@@ -1456,7 +1456,7 @@ __wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
      * page.
      */
     if (r->salvage != NULL)
-        WT_RET_PANIC(session, WT_PANIC, "%s page too large, attempted split during salvage",
+        WT_RET_PANIC(session, 571052, WT_PANIC, "%s page too large, attempted split during salvage",
           __wt_page_type_string(r->page->type));
 
     /*
@@ -2351,19 +2351,19 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     btree = S2BT(session);
 
-    __wt_verbose_debug2(session, WT_VERB_SPLIT, "split: %" PRIu32 " pages", r->multi_next);
+    __wt_verbose_debug2(session, 1005506, WT_VERB_SPLIT, "split: %" PRIu32 " pages", r->multi_next);
 
     if (btree->type == BTREE_ROW) {
         WT_RET(__wt_scr_alloc(session, 0, &tkey));
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-            __wt_verbose_debug2(session, WT_VERB_SPLIT, "starting key %s",
+            __wt_verbose_debug2(session, 1005507, WT_VERB_SPLIT, "starting key %s",
               __wt_buf_set_printable_format(session, WT_IKEY_DATA(multi->key.ikey),
                 multi->key.ikey->size, btree->key_format, false, tkey));
         __wt_scr_free(session, &tkey);
     } else
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             __wt_verbose_debug2(
-              session, WT_VERB_SPLIT, "starting recno %" PRIu64, multi->key.recno);
+              session, 1005508, WT_VERB_SPLIT, "starting recno %" PRIu64, multi->key.recno);
     return (0);
 }
 
@@ -2394,7 +2394,7 @@ __rec_page_modify_ta_safe_free(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE **ta)
     split_gen = __wt_gen(session, WT_GEN_SPLIT);
 
     if (__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, sizeof(WT_TIME_AGGREGATE)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during page modify ta free"));
+        WT_IGNORE_RET(__wt_panic(session, 1080700, ret, "fatal error during page modify ta free"));
     __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 }
 
@@ -2500,8 +2500,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     __rec_page_modify_ta_safe_free(session, &mod->stop_ta);
     WT_TIME_AGGREGATE_INIT_MERGE(&stop_ta);
 
-    __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
-      r->multi_next);
+    __wt_verbose(session, 366200, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages",
+      (void *)ref, r->multi_next);
 
     switch (r->multi_next) {
     case 0: /* Page delete */

@@ -34,7 +34,7 @@ __wt_fs_directory_list(
     *dirlistp = NULL;
     *countp = 0;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: directory-list: prefix %s", dir,
+    __wt_verbose(session, 282229, WT_VERB_FILEOPS, "%s: directory-list: prefix %s", dir,
       prefix == NULL ? "all" : prefix);
 
     WT_RET(__wt_filename(session, dir, &path));
@@ -63,7 +63,7 @@ __wt_fs_directory_list_single(
     *dirlistp = NULL;
     *countp = 0;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: directory-list-single: prefix %s", dir,
+    __wt_verbose(session, 375000, WT_VERB_FILEOPS, "%s: directory-list-single: prefix %s", dir,
       prefix == NULL ? "all" : prefix);
 
     WT_RET(__wt_filename(session, dir, &path));
@@ -110,7 +110,7 @@ __wt_fs_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
     WT_SESSION *wt_session;
     char *path;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-exist", name);
+    __wt_verbose(session, 282230, WT_VERB_FILEOPS, "%s: file-exist", name);
 
     WT_RET(__wt_filename(session, name, &path));
 
@@ -136,7 +136,7 @@ __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable, bool lo
 
     WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY));
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-remove", name);
+    __wt_verbose(session, 282231, WT_VERB_FILEOPS, "%s: file-remove", name);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -173,7 +173,7 @@ __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to, bool 
 
     WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY));
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s to %s: file-rename", from, to);
+    __wt_verbose(session, 282232, WT_VERB_FILEOPS, "%s to %s: file-rename", from, to);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -213,7 +213,7 @@ __wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
     WT_SESSION *wt_session;
     char *path;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-size", name);
+    __wt_verbose(session, 282233, WT_VERB_FILEOPS, "%s: file-size", name);
 
     WT_RET(__wt_filename(session, name, &path));
 

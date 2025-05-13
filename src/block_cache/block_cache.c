@@ -30,7 +30,7 @@ __blkcache_verbose(WT_SESSION_IMPL *session, WT_VERBOSE_LEVEL level, const char 
       __wt_addr_string(session, addr, addr_size, tmp) :
       "[unable to format addr]";
     __wt_verbose_level(
-      session, WT_VERB_BLKCACHE, level, "%s: %s, hash=%" PRIu64, tag, addr_string, hash);
+      session, 1005208, WT_VERB_BLKCACHE, level, "%s: %s, hash=%" PRIu64, tag, addr_string, hash);
     __wt_scr_free(session, &tmp);
 }
 
@@ -114,12 +114,12 @@ __blkcache_print_reference_hist(WT_SESSION_IMPL *session, const char *header, ui
 {
     int j;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s:", header);
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "Reuses \t Number of blocks");
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "-----------------------------");
+    __wt_verbose(session, 602200, WT_VERB_BLKCACHE, "%s:", header);
+    __wt_verbose(session, 602201, WT_VERB_BLKCACHE, "%s", "Reuses \t Number of blocks");
+    __wt_verbose(session, 602202, WT_VERB_BLKCACHE, "%s", "-----------------------------");
     for (j = 0; j < WT_BLKCACHE_HIST_BUCKETS; j++) {
-        __wt_verbose(session, WT_VERB_BLKCACHE, "[%d - %d] \t %u", j * WT_BLKCACHE_HIST_BOUNDARY,
-          (j + 1) * WT_BLKCACHE_HIST_BOUNDARY, hist[j]);
+        __wt_verbose(session, 1012200, WT_VERB_BLKCACHE, "[%d - %d] \t %u",
+          j * WT_BLKCACHE_HIST_BOUNDARY, (j + 1) * WT_BLKCACHE_HIST_BOUNDARY, hist[j]);
     }
 }
 
@@ -207,7 +207,7 @@ __blkcache_eviction_thread(void *arg)
     session = (WT_SESSION_IMPL *)arg;
     blkcache = &S2C(session)->blkcache;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE,
+    __wt_verbose(session, 602203, WT_VERB_BLKCACHE,
       "Block cache eviction thread starting... "
       "Aggressive target = %d, full target = %" PRIu64 ":",
       blkcache->evict_aggressive, blkcache->full_target);
@@ -602,7 +602,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, u_int hash_size, u_
 
     blkcache->type = type;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE,
+    __wt_verbose(session, 602204, WT_VERB_BLKCACHE,
       "block cache initialized: type=%s, size=%" WT_SIZET_FMT " path=%s",
       (type == WT_BLKCACHE_NVRAM)  ? "nvram" :
         (type == WT_BLKCACHE_DRAM) ? "dram" :
@@ -626,7 +626,7 @@ __wt_blkcache_destroy(WT_SESSION_IMPL *session)
 
     blkcache = &S2C(session)->blkcache;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE,
+    __wt_verbose(session, 602205, WT_VERB_BLKCACHE,
       "block cache with %" PRIu64 " bytes used to be destroyed", blkcache->bytes_used);
 
     if (blkcache->type == WT_BLKCACHE_UNCONFIGURED)
@@ -634,7 +634,7 @@ __wt_blkcache_destroy(WT_SESSION_IMPL *session)
 
     blkcache->blkcache_exiting = true;
     WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "block cache eviction thread exited");
+    __wt_verbose(session, 831400, WT_VERB_BLKCACHE, "%s", "block cache eviction thread exited");
 
     for (i = 0; i < blkcache->hash_size; i++) {
         __wt_spin_lock(session, &blkcache->hash_locks[i]);
@@ -732,7 +732,7 @@ __wt_blkcache_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
 
     *bmp = NULL;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE, "open: %s", uri);
+    __wt_verbose(session, 1352800, WT_VERB_BLKCACHE, "open: %s", uri);
 
     WT_RET(__wt_calloc_one(session, &bm));
     __wti_bm_method_set(bm, false);

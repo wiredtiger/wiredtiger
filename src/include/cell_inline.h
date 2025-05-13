@@ -21,7 +21,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
     if ((ret = __wt_time_value_validate(session, tw, NULL, false)) != 0)
         return (expected_error ?
             WT_ERROR :
-            __wt_panic(session, ret, "value timestamp window failed validation"));
+            __wt_panic(session, 594003, ret, "value timestamp window failed validation"));
 #else
     WT_UNUSED(session);
     WT_UNUSED(tw);
@@ -107,7 +107,7 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, bool e
     if ((ret = __wt_time_aggregate_validate(session, ta, NULL, false)) != 0)
         return (expected_error ?
             WT_ERROR :
-            __wt_panic(session, ret, "address timestamp window failed validation"));
+            __wt_panic(session, 594004, ret, "address timestamp window failed validation"));
 #else
     WT_UNUSED(session);
     WT_UNUSED(ta);

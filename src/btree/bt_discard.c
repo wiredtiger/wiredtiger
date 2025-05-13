@@ -264,7 +264,7 @@ __wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len)
     __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 
     if (ret != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during ref address free"));
+        WT_IGNORE_RET(__wt_panic(session, 1106200, ret, "fatal error during ref address free"));
 }
 
 /*

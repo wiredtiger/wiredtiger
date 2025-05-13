@@ -34,7 +34,7 @@ __wti_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_region
     WT_RET(fh->fh_size(fh, wt_session, &file_size));
     len = (size_t)file_size;
 
-    __wt_verbose(session, WT_VERB_HANDLEOPS,
+    __wt_verbose(session, 1079800, WT_VERB_HANDLEOPS,
       "%s: memory-map: %" WT_SIZET_FMT " bytes, read=%s, write=%s", fh->name, len,
       pfh->mmap_prot & PROT_READ ? "true" : "false",
       pfh->mmap_prot & PROT_WRITE ? "true" : "false");
@@ -150,8 +150,8 @@ __wti_posix_unmap(
 
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose(
-      session, WT_VERB_HANDLEOPS, "%s: memory-unmap: %" WT_SIZET_FMT " bytes", fh->name, len);
+    __wt_verbose(session, 282244, WT_VERB_HANDLEOPS, "%s: memory-unmap: %" WT_SIZET_FMT " bytes",
+      fh->name, len);
 
     if (munmap(mapped_region, len) == 0)
         return (0);

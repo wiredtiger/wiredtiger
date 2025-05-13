@@ -32,8 +32,8 @@
 
 GLOBAL g;
 
-static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
-static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, int, const char *);
+static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void cleanup(bool);
 static int usage(void);
@@ -445,13 +445,15 @@ cleanup(bool remove_dir)
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+handle_error(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *errmsg)
 {
     int ret;
 
     WT_UNUSED(handler);
     WT_UNUSED(session);
     WT_UNUSED(error);
+    WT_UNUSED(id);
 
     ret = fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0;
     fflush(stderr);
@@ -463,12 +465,13 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     int ret;
 
     WT_UNUSED(handler);
     WT_UNUSED(session);
+    WT_UNUSED(id);
 
     if (g.logfp != NULL)
         return (fprintf(g.logfp, "%s\n", message) < 0 ? -1 : 0);

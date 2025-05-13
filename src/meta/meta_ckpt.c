@@ -316,7 +316,7 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
         base_hash = __wt_hash_city64(meta_base, strlen(meta_base));
         __wt_epoch(session, &ts);
         if (dhandle->meta_hash != base_hash)
-            WT_ERR_PANIC(session, WT_PANIC,
+            WT_ERR_PANIC(session, 1198700, WT_PANIC,
               "Corrupted metadata. The original metadata inserted was %s and the current "
               "metadata is now %s.",
               dhandle->orig_meta_base, meta_base);
@@ -1512,7 +1512,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session, const char *name, size_t namelen
 
     /* Print what we did. */
 
-    __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
+    __wt_verbose_info(session, 1349309, WT_VERB_CHECKPOINT_PROGRESS,
       "saving checkpoint snapshot min: %" PRIu64 ", snapshot max: %" PRIu64
       " snapshot count: %" PRIu32
       ", oldest timestamp: %s , meta checkpoint timestamp: %s"
@@ -1707,7 +1707,7 @@ __meta_retrieve_timestamp(WT_SESSION_IMPL *session, const char *system_uri,
         WT_CLEAR(cval);
         WT_ERR_NOTFOUND_OK(__wt_config_getones(session, sys_config, timestamp_name, &cval), false);
         if (cval.len != 0) {
-            __wt_verbose(session, WT_VERB_RECOVERY, "Recovery %s %.*s", timestamp_name,
+            __wt_verbose(session, 592700, WT_VERB_RECOVERY, "Recovery %s %.*s", timestamp_name,
               (int)cval.len, cval.str);
             WT_ERR(__wt_txn_parse_timestamp_raw(session, timestamp_name, timestampp, &cval));
         }

@@ -272,7 +272,7 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
         bytes_max = conn->cache_size;
         bytes_dirty = __wt_cache_dirty_inuse(cache);
         bytes_updates = __wt_cache_bytes_updates(cache);
-        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+        __wt_verbose_debug2(session, 1341500, WT_VERB_EVICTION,
           "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB), bytes dirty %" PRIu64
           "(bytes), bytes updates %" PRIu64 "(bytes)",
           bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
@@ -343,18 +343,18 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
               F_ISSET_ATOMIC_32(conn, WT_CONN_EVICTION_RUN) && F_ISSET(thread, WT_THREAD_RUN))
                 __wt_yield();
         else {
-            __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "sleeping");
+            __wt_verbose_debug2(session, 1341501, WT_VERB_EVICTION, "%s", "sleeping");
 
             /* Don't rely on signals: check periodically. */
             __wt_cond_auto_wait(session, evict->evict_cond, did_work, NULL);
-            __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
+            __wt_verbose_debug2(session, 1341502, WT_VERB_EVICTION, "%s", "waking");
         }
     } else
         WT_ERR(__evict_lru_pages(session, false));
 
     if (0) {
 err:
-        WT_RET_PANIC(session, ret, "eviction thread error");
+        WT_RET_PANIC(session, 1353301, ret, "eviction thread error");
     }
     return (ret);
 }
@@ -419,11 +419,11 @@ __evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_EVICTION);
 
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "eviction thread exiting");
+    __wt_verbose_info(session, 1353300, WT_VERB_EVICTION, "%s", "eviction thread exiting");
 
     if (0) {
 err:
-        WT_RET_PANIC(session, ret, "eviction thread error");
+        WT_RET_PANIC(session, 1353302, ret, "eviction thread error");
     }
     return (ret);
 }
@@ -575,7 +575,7 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
     uint32_t session_flags;
 
     conn = S2C(session);
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "starting eviction threads");
+    __wt_verbose_info(session, 1338300, WT_VERB_EVICTION, "%s", "starting eviction threads");
 
     /*
      * In case recovery has allocated some transaction IDs, bump to the current state. This will
@@ -631,7 +631,7 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
     if (!__wt_atomic_loadbool(&conn->evict_server_running))
         return (0);
 
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "stopping eviction threads");
+    __wt_verbose_info(session, 1338301, WT_VERB_EVICTION, "%s", "stopping eviction threads");
 
     /* Wait for any eviction thread group changes to stabilize. */
     __wt_writelock(session, &conn->evict_threads.lock);
@@ -643,7 +643,8 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
     __wt_atomic_storebool(&conn->evict_server_running, false);
     __wt_evict_server_wake(session);
 
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "waiting for eviction threads to stop");
+    __wt_verbose_info(
+      session, 1338302, WT_VERB_EVICTION, "%s", "waiting for eviction threads to stop");
 
     /*
      * We call the destroy function still holding the write lock. It assumes it is called locked.
@@ -818,7 +819,7 @@ __evict_pass(WT_SESSION_IMPL *session)
         if (!__evict_update_work(session))
             break;
 
-        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+        __wt_verbose_debug2(session, 1341503, WT_VERB_EVICTION,
           "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64
           " Updates: %" PRIu64,
           conn->cache_size, __wt_atomic_load64(&cache->bytes_inmem),
@@ -886,7 +887,8 @@ __evict_pass(WT_SESSION_IMPL *session)
             }
 
             WT_STAT_CONN_INCR(session, eviction_slow);
-            __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "unable to reach eviction goal");
+            __wt_verbose_debug1(
+              session, 1338303, WT_VERB_EVICTION, "%s", "unable to reach eviction goal");
             break;
         }
         __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
@@ -966,7 +968,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session, bool clear_pos)
             else {
                 btree->evict_pos =
                   __wt_page_npos(session, ref, pos, path_str, &path_str_offset, PATH_STR_MAX);
-                __wt_verbose_debug1(session, WT_VERB_EVICTION,
+                __wt_verbose_debug1(session, 1379000, WT_VERB_EVICTION,
                   "Evict walk point memorized at position %lf %s of %s page %s ref %p",
                   btree->evict_pos, where, F_ISSET(ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF",
                   path_str, (void *)ref);
@@ -1046,8 +1048,8 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
         return (0);
     }
 
-    __wt_verbose_debug1(session, WT_VERB_EVICTION, "obtained exclusive eviction lock on btree %s",
-      btree->dhandle->name);
+    __wt_verbose_debug1(session, 1347700, WT_VERB_EVICTION,
+      "obtained exclusive eviction lock on btree %s", btree->dhandle->name);
 
     /*
      * Special operations don't enable eviction, however the underlying command (e.g. verify) may
@@ -1138,8 +1140,8 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 #else
     (void)__wt_atomic_subi32(&btree->evict_disabled, 1);
 #endif
-    __wt_verbose_debug1(session, WT_VERB_EVICTION, "released exclusive eviction lock on btree %s",
-      btree->dhandle->name);
+    __wt_verbose_debug1(session, 1347701, WT_VERB_EVICTION,
+      "released exclusive eviction lock on btree %s", btree->dhandle->name);
 }
 
 #define EVICT_TUNE_BATCH 1 /* Max workers to add each period */
@@ -1298,7 +1300,7 @@ __evict_tune_workers(WT_SESSION_IMPL *session)
          */
         for (i = cur_threads; i < target_threads; ++i) {
             __wt_thread_group_start_one(session, &conn->evict_threads, false);
-            __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "added worker thread");
+            __wt_verbose_debug1(session, 1338304, WT_VERB_EVICTION, "%s", "added worker thread");
         }
         evict->evict_tune_last_action_time = current_time;
     }
@@ -2106,7 +2108,7 @@ __evict_try_restore_walk_position(WT_SESSION_IMPL *session, WT_BTREE *btree, uin
       WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1)) {
         WT_UNUSED(unused = __wt_page_npos(session, btree->evict_ref, WT_NPOS_MID, path_str,
                     &path_str_offset, PATH_STR_MAX));
-        __wt_verbose_debug1(session, WT_VERB_EVICTION,
+        __wt_verbose_debug1(session, 1264400, WT_VERB_EVICTION,
           "Evict walk point recalled from position %lf %s page %s ref %p", btree->evict_pos,
           F_ISSET(btree->evict_ref, WT_REF_FLAG_INTERNAL) ? "INTERNAL" : "LEAF", path_str,
           (void *)btree->evict_ref);
@@ -2368,7 +2370,7 @@ fast:
         return;
 
     *queuedp = true;
-    __wt_verbose_debug2(session, WT_VERB_EVICTION, "walk select: %p, size %" WT_SIZET_FMT,
+    __wt_verbose_debug2(session, 1338305, WT_VERB_EVICTION, "walk select: %p, size %" WT_SIZET_FMT,
       (void *)page, __wt_atomic_loadsize(&page->memory_footprint));
 
     return;
@@ -2508,7 +2510,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     *slotp += (u_int)(evict_entry - start);
     WT_STAT_CONN_INCRV(session, eviction_pages_ordinary_queued, (u_int)(evict_entry - start));
 
-    __wt_verbose_debug2(session, WT_VERB_EVICTION,
+    __wt_verbose_debug2(session, 1338306, WT_VERB_EVICTION,
       "%s walk: target %" PRIu32 ", seen %" PRIu64 ", queued %" PRIu64, session->dhandle->name,
       target_pages, pages_seen, pages_queued);
 
@@ -2867,8 +2869,8 @@ __wti_evict_app_assist_worker(
 
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
                 if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
-                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
-                      session->err_info.err_msg);
+                    __wt_verbose_debug1(session, 1394800, WT_VERB_TRANSACTION,
+                      "rollback reason: %s", session->err_info.err_msg);
             }
             WT_ERR(ret);
         }
@@ -2956,8 +2958,8 @@ err:
 
             WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
             if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
-                __wt_verbose_notice(
-                  session, WT_VERB_TRANSACTION, "rollback reason: %s", session->err_info.err_msg);
+                __wt_verbose_notice(session, 1394801, WT_VERB_TRANSACTION, "rollback reason: %s",
+                  session->err_info.err_msg);
         }
     }
 

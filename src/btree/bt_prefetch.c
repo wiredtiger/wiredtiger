@@ -109,7 +109,7 @@ __wt_prefetch_page_in(WT_SESSION_IMPL *session, WT_PREFETCH_QUEUE_ENTRY *pe)
 
     if (pe->ref->home != pe->first_home)
         __wt_verbose(
-          session, WT_VERB_PREFETCH, "%s", "The home changed while queued for pre-fetch");
+          session, 1071600, WT_VERB_PREFETCH, "%s", "The home changed while queued for pre-fetch");
 
     WT_PREFETCH_ASSERT(session, pe->dhandle != NULL, prefetch_skipped_no_valid_dhandle);
     WT_PREFETCH_ASSERT(

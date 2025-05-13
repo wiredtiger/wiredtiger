@@ -301,7 +301,7 @@ __wt_cursor_set_key(WT_CURSOR *cursor, ...)
 
     va_start(ap, cursor);
     if ((ret = __wti_cursor_set_keyv(cursor, cursor->flags, ap)) != 0)
-        WT_IGNORE_RET(__wt_panic(CUR2S(cursor), ret, "failed to set key"));
+        WT_IGNORE_RET(__wt_panic(CUR2S(cursor), 864701, ret, "failed to set key"));
     va_end(ap);
 }
 
@@ -1487,12 +1487,14 @@ __wt_cursor_bounds_restore(
     if (bounds_state->lower_bound != NULL)
         if ((ret = __wt_buf_set(session, &cursor->lower_bound, bounds_state->lower_bound->data,
                bounds_state->lower_bound->size)) != 0)
-            WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");
+            WT_RET_PANIC(
+              session, 958900, ret, "Unrecoverable error encountered while restoring bounds");
 
     if (bounds_state->upper_bound != NULL)
         if ((ret = __wt_buf_set(session, &cursor->upper_bound, bounds_state->upper_bound->data,
                bounds_state->upper_bound->size)) != 0)
-            WT_RET_PANIC(session, ret, "Unrecoverable error encountered while restoring bounds");
+            WT_RET_PANIC(
+              session, 958901, ret, "Unrecoverable error encountered while restoring bounds");
 
     return (0);
 }

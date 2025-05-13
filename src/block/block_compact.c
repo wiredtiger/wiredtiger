@@ -189,20 +189,20 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
     }
 
     if (!estimate)
-        __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+        __wt_verbose_level(session, 963100, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
           "%s: total reviewed %" PRIu64 " pages, total rewritten %" PRIu64 " pages", block->name,
           block->compact_pages_reviewed, block->compact_pages_rewritten);
-    __wt_verbose_level(session, WT_VERB_COMPACT,
+    __wt_verbose_level(session, 963101, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 80%% of the file",
       block->name, estimate ? " estimating --" : "", (uintmax_t)avail_eighty / WT_MEGABYTE,
       (uintmax_t)avail_eighty);
-    __wt_verbose_level(session, WT_VERB_COMPACT,
+    __wt_verbose_level(session, 963102, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s %" PRIuMAX "MB (%" PRIuMAX ") available space in the first 90%% of the file",
       block->name, estimate ? " estimating --" : "", (uintmax_t)avail_ninety / WT_MEGABYTE,
       (uintmax_t)avail_ninety);
-    __wt_verbose_level(session, WT_VERB_COMPACT,
+    __wt_verbose_level(session, 963103, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1),
       "%s:%s require 10%% or %" PRIuMAX "MB (%" PRIuMAX
       ") in the first 90%% of the file to perform compaction",
@@ -215,14 +215,14 @@ __block_compact_skip_internal(WT_SESSION_IMPL *session, WT_BLOCK *block, bool es
      */
     if (block->compact_estimated && !*skipp) {
         if (block->compact_pages_rewritten == block->compact_prev_pages_rewritten) {
-            __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+            __wt_verbose_level(session, 1270000, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
               "%s: compaction failed to make progress, no new pages rewritten", block->name);
             *skipp = true;
         } else
             block->compact_prev_pages_rewritten = block->compact_pages_rewritten;
     }
 
-    __wt_verbose_level(session, WT_VERB_COMPACT,
+    __wt_verbose_level(session, 1270001, WT_VERB_COMPACT,
       (estimate ? WT_VERBOSE_DEBUG_3 : WT_VERBOSE_DEBUG_1), "%s:%s compaction %s", block->name,
       estimate ? " estimating --" : "", *skipp ? "skipped" : "proceeding");
 }
@@ -281,10 +281,10 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
      */
     depth1_subtree_size = avg_block_size * leaves_per_internal_page + avg_internal_block_size;
 
-    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
+    __wt_verbose_level(session, 964100, WT_VERB_COMPACT, verbose_level,
       "%s: the average block size is %" PRId64 " bytes (based on %" PRIu64 " blocks)", block->name,
       avg_block_size, block->compact_pages_reviewed);
-    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
+    __wt_verbose_level(session, 964101, WT_VERB_COMPACT, verbose_level,
       "%s: reviewed %" PRIu64 " internal pages so far", block->name,
       block->compact_internal_pages_reviewed);
 
@@ -316,7 +316,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
         compact_start_off = file_size - compact_pct_tenths * file_size / 10;
         if (write_off >= compact_start_off)
             break;
-        __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
+        __wt_verbose_level(session, 964102, WT_VERB_COMPACT, verbose_level,
           "%s: estimating -- pass %d: file size: %" PRId64 " MB (%" PRId64
           "B), compact offset: %" PRId64 ", will move blocks from the last %d%% of the file",
           block->name, iteration, file_size / WT_MEGABYTE, file_size, compact_start_off,
@@ -344,7 +344,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             if (off > last) {
                 n = WT_EXT_SIZE_TO_LEAF_PAGES(off - last);
                 pages_to_move += n;
-                __wt_verbose_debug3(session, WT_VERB_COMPACT,
+                __wt_verbose_debug3(session, 963104, WT_VERB_COMPACT,
                   "%s: estimating -- %" PRIu64 " pages to move between %" PRId64 " and %" PRId64,
                   block->name, n, last, off);
             }
@@ -352,7 +352,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
         }
         n = WT_EXT_SIZE_TO_LEAF_PAGES(file_size - last);
         pages_to_move += n;
-        __wt_verbose_debug3(session, WT_VERB_COMPACT,
+        __wt_verbose_debug3(session, 963105, WT_VERB_COMPACT,
           "%s: estimating -- %" PRIu64 " pages to move between %" PRId64 " and %" PRId64,
           block->name, n, last, file_size);
 
@@ -368,7 +368,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
 
             n = WT_EXT_SIZE_TO_LEAF_PAGES(size);
             pages_to_move -= WT_MIN(n, pages_to_move);
-            __wt_verbose_debug3(session, WT_VERB_COMPACT,
+            __wt_verbose_debug3(session, 963106, WT_VERB_COMPACT,
               "%s: estimating -- %" PRIu64 " pages on discard list between %" PRId64
               " and %" PRId64,
               block->name, n, off, off + size);
@@ -402,7 +402,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
             if (pages_to_move > 0)
                 extra_space += size - rewrite_size;
         }
-        __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
+        __wt_verbose_level(session, 963107, WT_VERB_COMPACT, verbose_level,
           "%s: estimating -- pass %d: will rewrite %" PRIu64 " pages, next write offset: %" PRId64
           ", extra space: %" PRId64,
           block->name, iteration, pages_to_move_orig - pages_to_move, write_off, extra_space);
@@ -429,7 +429,7 @@ __block_compact_estimate_remaining_work(WT_SESSION_IMPL *session, WT_BLOCK *bloc
     block->compact_bytes_rewritten_expected =
       block->compact_pages_rewritten_expected * (uint64_t)avg_block_size;
 
-    __wt_verbose_level(session, WT_VERB_COMPACT, verbose_level,
+    __wt_verbose_level(session, 1133200, WT_VERB_COMPACT, verbose_level,
       "%s: expecting to move approx. %" PRIu64 " more pages (%" PRIu64 "MB), %" PRIu64
       " total, target %" PRIu64 "MB (%" PRIu64 "B)",
       block->name, total_pages_to_move,
@@ -460,7 +460,7 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block)
     if (time_diff_msg > WT_PROGRESS_MSG_PERIOD) {
         session->compact->last_progress = cur_time;
 
-        __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
+        __wt_verbose_debug1(session, 1230300, WT_VERB_COMPACT_PROGRESS,
           "Compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64 " pages, rewritten %" PRIu64
           " pages (%" PRIu64 "MB)",
           block->name, time_diff_start, block->compact_pages_reviewed,
@@ -470,13 +470,13 @@ __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block)
          * enough pages. This should almost never happen.
          */
         if (block->compact_pages_rewritten_expected == 0)
-            __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS, "%s",
+            __wt_verbose_debug1(session, 1230301, WT_VERB_COMPACT_PROGRESS, "%s",
               "Still collecting information for estimating the progress.");
         else {
             progress = WT_MIN(
               (int)(100 * block->compact_pages_rewritten / block->compact_pages_rewritten_expected),
               100);
-            __wt_verbose_debug1(session, WT_VERB_COMPACT_PROGRESS,
+            __wt_verbose_debug1(session, 963108, WT_VERB_COMPACT_PROGRESS,
               "Approx. %d%% of the estimated work done.%s", progress,
               progress == 100 ? " More work has been discovered since the estimation." : "");
         }
@@ -498,7 +498,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * are unlikely to recover 10% of the file.
      */
     if (block->size <= WT_MEGABYTE) {
-        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+        __wt_verbose_debug1(session, 1089700, WT_VERB_COMPACT,
           "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.",
           block->name, (uintmax_t)block->size);
 
@@ -517,7 +517,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      */
     if (block->compact_pages_reviewed == 0 &&
       block->live.avail.bytes < session->compact->free_space_target)
-        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+        __wt_verbose_debug1(session, 1133201, WT_VERB_COMPACT,
           "%s: skipping because the number of available bytes %" PRIu64
           "B is less than the configured threshold %" PRIu64 "B.",
           block->name, block->live.avail.bytes, session->compact->free_space_target);
@@ -526,7 +526,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * conflicting behavior.
      */
     else if (block->compact_prev_size > 0 && block->size > block->compact_prev_size)
-        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+        __wt_verbose_debug1(session, 1232800, WT_VERB_COMPACT,
           "%s: skipping because the file has grown between compact passes.", block->name);
     else
         __block_compact_skip_internal(
@@ -679,7 +679,7 @@ __wt_block_compact_page_rewrite(
     WT_STAT_CONN_INCRV(session, block_byte_write_compact, size);
 
     discard_block = false;
-    __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_4,
+    __wt_verbose_level(session, 963109, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_4,
       "%s: rewrite %" PRId64 " --> %" PRId64 " (%" PRIu32 "B)", block->name, offset, new_offset,
       size);
 
@@ -715,7 +715,7 @@ __block_dump_bucket_stat(WT_SESSION_IMPL *session, uintmax_t file_size, uintmax_
     if (file_size > file_free)
         used_pct = (bucket_used * 100) / (file_size - file_free);
 
-    __wt_verbose_debug2(session, WT_VERB_COMPACT,
+    __wt_verbose_debug2(session, 1005201, WT_VERB_COMPACT,
       "%2u%%: %12" PRIuMAX "MB, (free: %" PRIuMAX "B, %" PRIuMAX "%%), (used: %" PRIuMAX
       "MB, %" PRIuMAX "B, %" PRIuMAX "%%)",
       bucket_pct, bucket_free / WT_MEGABYTE, bucket_free, free_pct, bucket_used / WT_MEGABYTE,
@@ -740,20 +740,20 @@ __block_dump_file_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
     el = &block->live.avail;
     size = block->size;
 
-    __wt_verbose_debug1(session, WT_VERB_COMPACT, "============ %s",
+    __wt_verbose_debug1(session, 1009000, WT_VERB_COMPACT, "============ %s",
       start ? "testing for compaction" : "ending compaction pass");
 
     if (!start) {
-        __wt_verbose_debug1(
-          session, WT_VERB_COMPACT, "pages reviewed: %" PRIu64, block->compact_pages_reviewed);
-        __wt_verbose_debug1(
-          session, WT_VERB_COMPACT, "pages skipped: %" PRIu64, block->compact_pages_skipped);
-        __wt_verbose_debug1(session, WT_VERB_COMPACT,
+        __wt_verbose_debug1(session, 287100, WT_VERB_COMPACT, "pages reviewed: %" PRIu64,
+          block->compact_pages_reviewed);
+        __wt_verbose_debug1(session, 287101, WT_VERB_COMPACT, "pages skipped: %" PRIu64,
+          block->compact_pages_skipped);
+        __wt_verbose_debug1(session, 963110, WT_VERB_COMPACT,
           "pages rewritten: %" PRIu64 " (%" PRIu64 " expected)", block->compact_pages_rewritten,
           block->compact_pages_rewritten_expected);
     }
 
-    __wt_verbose_debug1(session, WT_VERB_COMPACT,
+    __wt_verbose_debug1(session, 1009001, WT_VERB_COMPACT,
       "file size %" PRIuMAX "MB (%" PRIuMAX "B) with %" PRIuMAX "%% space available %" PRIuMAX
       "MB (%" PRIuMAX "B)",
       (uintmax_t)size / WT_MEGABYTE, (uintmax_t)size,

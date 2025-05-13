@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <list>
@@ -16,8 +17,9 @@
 #include "wt_internal.h"
 
 int handle_wiredtiger_error(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message);
-int handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message);
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *message);
+int handle_wiredtiger_message(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message);
 
 /* Forward declare the class so we can include it in our wrapper. */
 class mock_session;

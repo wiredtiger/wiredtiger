@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+#include <cstdint>
 #include <utility>
 
 #include "mock_session.h"
@@ -86,14 +87,15 @@ mock_session::setup_block_manager_file_operations()
 }
 
 int
-handle_wiredtiger_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int, const char *message)
+handle_wiredtiger_error(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int, const char *message)
 {
-    handle_wiredtiger_message(handler, session, message);
+    handle_wiredtiger_message(handler, session, id, message);
     return (0);
 }
 
 int
-handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *, const char *message)
+handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *, int32_t, const char *message)
 {
     reinterpret_cast<event_handler_wrap *>(handler)->ms->add_callback_message(message);
     return (0);

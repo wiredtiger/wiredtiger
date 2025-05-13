@@ -602,9 +602,9 @@ __conf_verbose(WT_SESSION_IMPL *session, const char *method, const char **cfg, W
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
     __wt_verbose_debug2(
-      session, WT_VERB_CONFIGURATION, "config parsing for method: \"%s\"", method);
+      session, 1112600, WT_VERB_CONFIGURATION, "config parsing for method: \"%s\"", method);
     for (c = cfg; *c != NULL; ++c)
-        __wt_verbose_debug2(session, WT_VERB_CONFIGURATION, "input config: \"%s\"", *c);
+        __wt_verbose_debug2(session, 1112601, WT_VERB_CONFIGURATION, "input config: \"%s\"", *c);
 
     /*
      * Get the list of keys for this API.
@@ -613,7 +613,7 @@ __conf_verbose(WT_SESSION_IMPL *session, const char *method, const char **cfg, W
     WT_ERR(__conf_verbose_cat_config(
       session, cfg, conf, 0, buf, centry->checks, centry->checks_entries, ""));
     __wt_verbose_debug2(
-      session, WT_VERB_CONFIGURATION, "reconstructed config: %s", (const char *)buf->data);
+      session, 1112602, WT_VERB_CONFIGURATION, "reconstructed config: %s", (const char *)buf->data);
 
 err:
     __wt_scr_free(session, &buf);

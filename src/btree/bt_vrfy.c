@@ -266,7 +266,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Loop through the file's checkpoints, verifying each one. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        __wt_verbose(session, WT_VERB_VERIFY, "%s: checkpoint %s", name, ckpt->name);
+        __wt_verbose(session, 449400, WT_VERB_VERIFY, "%s: checkpoint %s", name, ckpt->name);
 
         /* Fake checkpoints require no work. */
         if (F_ISSET(ckpt, WT_CKPT_FAKE))
@@ -535,8 +535,8 @@ __verify_tree(
     if (__wt_session_prefetch_check(session, ref))
         WT_RET(__wti_btree_prefetch(session, ref));
 
-    __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
-      __wt_page_type_string(page->type));
+    __wt_verbose(session, 521900, WT_VERB_VERIFY, "%s %s",
+      __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type));
 
     /* Optionally dump address information. */
     if (vs->dump_address)

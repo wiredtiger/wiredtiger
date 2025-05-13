@@ -696,7 +696,7 @@ err:
     __wt_scr_free(session, &uri);
 
     if (ret != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "compact server error"));
+        WT_IGNORE_RET(__wt_panic(session, 1134200, ret, "compact server error"));
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -797,7 +797,7 @@ __wt_background_compact_signal(WT_SESSION_IMPL *session, const char *config)
 
     /* The background compaction server is not compatible with in-memory or readonly databases. */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
-        __wt_verbose_warning(session, WT_VERB_COMPACT, "%s",
+        __wt_verbose_warning(session, 1145900, WT_VERB_COMPACT, "%s",
           "Background compact cannot be configured for in-memory or readonly databases.");
         return (ENOTSUP);
     }

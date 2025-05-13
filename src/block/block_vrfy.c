@@ -156,10 +156,11 @@ __verify_set_file_size(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 
     if (block->verify_layout) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-        __wt_verbose_notice(session, WT_VERB_VERIFY, "%s: physical size %s", block->name,
+        __wt_verbose_notice(session, 839703, WT_VERB_VERIFY, "%s: physical size %s", block->name,
           __wt_buf_set_size(session, (uint64_t)block->size, true, tmp));
-        __wt_verbose_notice(session, WT_VERB_VERIFY, "%s: correcting to %s checkpoint size %s",
-          block->name, ckpt->name, __wt_buf_set_size(session, (uint64_t)ci->file_size, true, tmp));
+        __wt_verbose_notice(session, 839704, WT_VERB_VERIFY,
+          "%s: correcting to %s checkpoint size %s", block->name, ckpt->name,
+          __wt_buf_set_size(session, (uint64_t)ci->file_size, true, tmp));
     }
 
     /*
@@ -357,7 +358,7 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *typ
 {
     uint64_t f, frag, frags, i;
 
-    __wt_verbose(session, WT_VERB_VERIFY,
+    __wt_verbose(session, 282203, WT_VERB_VERIFY,
       "add file block%s%s%s at %" PRIuMAX "-%" PRIuMAX " (%" PRIuMAX ")", type == NULL ? "" : " (",
       type == NULL ? "" : type, type == NULL ? "" : ")", (uintmax_t)offset,
       (uintmax_t)(offset + size), (uintmax_t)size);
@@ -449,7 +450,7 @@ __verify_ckptfrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset
 {
     uint64_t f, frag, frags, i;
 
-    __wt_verbose(session, WT_VERB_VERIFY,
+    __wt_verbose(session, 282204, WT_VERB_VERIFY,
       "add checkpoint block at %" PRIuMAX "-%" PRIuMAX " (%" PRIuMAX ")", (uintmax_t)offset,
       (uintmax_t)(offset + size), (uintmax_t)size);
 

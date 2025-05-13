@@ -190,7 +190,7 @@ __wt_spin_lock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
     WT_DECL_RET;
 
     if ((ret = pthread_mutex_lock(&t->lock)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "pthread_mutex_lock: %s", t->name));
+        WT_IGNORE_RET(__wt_panic(session, 571015, ret, "pthread_mutex_lock: %s", t->name));
     __wt_atomic_store32(&t->session_id, WT_SPIN_SESSION_ID_SAFE(session));
 }
 #endif
@@ -206,7 +206,7 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 
     __wt_atomic_store32(&t->session_id, WT_SESSION_ID_INVALID);
     if ((ret = pthread_mutex_unlock(&t->lock)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "pthread_mutex_unlock: %s", t->name));
+        WT_IGNORE_RET(__wt_panic(session, 571016, ret, "pthread_mutex_unlock: %s", t->name));
 }
 
 #elif SPINLOCK_TYPE == SPINLOCK_MSVC

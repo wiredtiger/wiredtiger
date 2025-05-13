@@ -83,7 +83,7 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
     const char *key, *value;
     bool release;
 
-    __wt_verbose(session, WT_VERB_TIERED, "CKPT_FLUSH_TIER: Called force %d", force);
+    __wt_verbose(session, 988100, WT_VERB_TIERED, "CKPT_FLUSH_TIER: Called force %d", force);
 
     WT_STAT_CONN_INCR(session, flush_tier);
     conn = S2C(session);
@@ -122,8 +122,8 @@ __checkpoint_flush_tier(WT_SESSION_IMPL *session, bool force)
         cursor->get_value(cursor, &value);
         /* For now just switch tiers which just does metadata manipulation. */
         if (WT_PREFIX_MATCH(key, "tiered:")) {
-            __wt_verbose(
-              session, WT_VERB_TIERED, "CKPT_FLUSH_TIER: %s %s force %d", key, value, force);
+            __wt_verbose(session, 1011200, WT_VERB_TIERED, "CKPT_FLUSH_TIER: %s %s force %d", key,
+              value, force);
             if (!force) {
                 /*
                  * Check the table's last checkpoint time and only flush trees that have a
@@ -434,7 +434,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
              * rollback error. We will ignore this dhandle as part of this checkpoint by returning
              * from here.
              */
-            __wt_verbose_notice(session, WT_VERB_CHECKPOINT, "%s",
+            __wt_verbose_notice(session, 839708, WT_VERB_CHECKPOINT, "%s",
               "WT_ROLLBACK: checkpoint raced with transaction operating on dhandle");
             WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
             return (0);
@@ -580,7 +580,7 @@ __checkpoint_prepare_progress(WT_SESSION_IMPL *session, bool final)
     time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.ckpt_api.timer_start);
 
     if (final || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
-        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
+        __wt_verbose_info(session, 1349305, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint prepare %s for %" PRIu64 " seconds and it has gathered %" PRIu64
           " dhandles and skipped %" PRIu64 " dhandles",
           final ? "ran" : "has been running", time_diff, conn->ckpt.handle_stats.apply,
@@ -607,7 +607,7 @@ __checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
     time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt.ckpt_api.timer_start);
 
     if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt.progress.msg_count) {
-        __wt_verbose_info(session, WT_VERB_CHECKPOINT_PROGRESS,
+        __wt_verbose_info(session, 1349306, WT_VERB_CHECKPOINT_PROGRESS,
           "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
           closing ? "ran" : "has been running", time_diff, conn->ckpt.progress.write_pages,
           conn->ckpt.progress.write_bytes / WT_MEGABYTE);
@@ -745,7 +745,7 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session, const char *msg)
 
     /* Get time diff in milliseconds. */
     msec = WT_TIMEDIFF_MS(stop, conn->ckpt.ckpt_api.timer_start);
-    __wt_verbose_debug1(session, WT_VERB_CHECKPOINT,
+    __wt_verbose_debug1(session, 1349307, WT_VERB_CHECKPOINT,
       "time: %" PRIu64 " ms, gen: %" PRIu64 ": Full database checkpoint %s", msec,
       __wt_gen(session, WT_GEN_CHECKPOINT), msg);
 }
@@ -923,7 +923,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_UNUSED(original_snap_min);
 
     if (use_timestamp)
-        __wt_verbose_info(session, WT_VERB_CHECKPOINT,
+        __wt_verbose_info(session, 1349308, WT_VERB_CHECKPOINT,
           "Checkpoint requested at stable timestamp %s",
           __wt_timestamp_to_string(txn_global->checkpoint_timestamp, ts_string[0]));
 
@@ -1702,7 +1702,7 @@ __wt_checkpoint_db(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
      */
     if (ret != 0 && flush)
         WT_IGNORE_RET(
-          __wt_panic(session, ret, "checkpoint can not fail when flush_tier is enabled"));
+          __wt_panic(session, 1098901, ret, "checkpoint can not fail when flush_tier is enabled"));
     WT_ERR(ret);
 
     /* Trigger the checkpoint cleanup thread to remove the obsolete pages. */

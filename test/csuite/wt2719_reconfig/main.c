@@ -97,11 +97,12 @@ static const char *const list[] = {",cache_overhead=13", ",cache_overhead=27", "
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     (void)(handler);
     (void)(session);
     (void)(message);
+    (void)(id);
 
     /* We configure verbose output, so just ignore. */
     return (0);

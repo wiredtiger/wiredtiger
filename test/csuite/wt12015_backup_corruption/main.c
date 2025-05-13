@@ -72,7 +72,7 @@ static const char *env_config;
 /*
  * Error handling.
  */
-static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
+static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, int, const char *);
 static WT_EVENT_HANDLER child_event_handler = {handle_error, NULL, NULL, NULL, NULL};
 
 /*
@@ -88,11 +88,13 @@ static WT_EVENT_HANDLER child_event_handler = {handle_error, NULL, NULL, NULL, N
  *     Function to handle errors.
  */
 static int
-handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+handle_error(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *errmsg)
 {
     (void)(handler);
     (void)(session);
     (void)(error);
+    (void)(id);
 
     /* Ignore the abort message if we expect the test to abort. */
     if (testutil_exists(NULL, EXPECT_ABORT))

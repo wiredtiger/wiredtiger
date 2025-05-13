@@ -44,7 +44,7 @@ __rec_hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
         WT_IGNORE_RET(__wt_evict_clean_needed(session, &pct_full));
         WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
 
-        __wt_verbose_multi(session,
+        __wt_verbose_multi(session, 819200,
           WT_DECL_VERBOSE_MULTI_CATEGORY(
             ((WT_VERBOSE_CATEGORY[]){WT_VERB_HS, WT_VERB_HS_ACTIVITY})),
           "Page reconciliation triggered history store write: file ID %" PRIu32
@@ -100,8 +100,8 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
      */
     if (error_on_ts_ordering) {
         ret = EBUSY;
-        __wt_verbose_info(
-          session, WT_VERB_HS, "%s", "out-of-order timestamp update detected, aborting eviction");
+        __wt_verbose_info(session, 1393600, WT_VERB_HS, "%s",
+          "out-of-order timestamp update detected, aborting eviction");
         WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
         goto err;
     }
@@ -179,7 +179,7 @@ __rec_hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor
               hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts)
                 ++cache_hs_order_lose_durable_timestamp;
 
-            __wt_verbose(session, WT_VERB_TIMESTAMP,
+            __wt_verbose(session, 1393601, WT_VERB_TIMESTAMP,
               "fixing existing updates by moving them; start_ts=%s, "
               "durable_start_ts=%s, "
               "stop_ts=%s, durable_stop_ts=%s, new_ts=%s",
@@ -774,7 +774,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                  */
                 if (error_on_ts_ordering) {
                     ret = EBUSY;
-                    __wt_verbose_info(session, WT_VERB_HS, "%s",
+                    __wt_verbose_info(session, 1338309, WT_VERB_HS, "%s",
                       "out-of-order timestamp update detected, aborting eviction");
                     WT_STAT_CONN_INCR(session, eviction_fail_checkpoint_no_ts);
                     goto err;
@@ -976,7 +976,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
             /* Skip updates that are already in the history store. */
             if (F_ISSET(upd, WT_UPDATE_HS)) {
                 if (hs_inserted)
-                    WT_ERR_PANIC(session, WT_PANIC,
+                    WT_ERR_PANIC(session, 658500, WT_PANIC,
                       "Reinserting updates to the history store may corrupt the data as it may "
                       "clear the history store data newer than it.");
                 continue;
@@ -1055,7 +1055,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     if (max_hs_size != 0) {
         WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
         if ((uint64_t)hs_size > max_hs_size)
-            WT_ERR_PANIC(session, WT_PANIC,
+            WT_ERR_PANIC(session, 1237600, WT_PANIC,
               "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64,
               (uint64_t)hs_size, max_hs_size);
     }

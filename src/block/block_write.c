@@ -20,8 +20,8 @@ __wti_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 
     conn = S2C(session);
 
-    __wt_verbose(
-      session, WT_VERB_BLOCK, "truncate file %s to %" PRIuMAX, block->name, (uintmax_t)len);
+    __wt_verbose(session, 1212800, WT_VERB_BLOCK, "truncate file %s to %" PRIuMAX, block->name,
+      (uintmax_t)len);
 
     /*
      * Truncate requires serialization, we depend on our caller for that.
@@ -357,7 +357,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     if (checkpoint_io)
         WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, align_size);
 
-    __wt_verbose_debug2(session, WT_VERB_WRITE,
+    __wt_verbose_debug2(session, 1005207, WT_VERB_WRITE,
       "off %" PRIuMAX ", size %" PRIuMAX ", checksum %#" PRIx32, (uintmax_t)offset,
       (uintmax_t)align_size, checksum);
 

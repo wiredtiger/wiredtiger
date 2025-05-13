@@ -72,7 +72,7 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs
         return;
     }
 
-    __wt_verbose_debug2(session, WT_VERB_MUTEX, "wait %s", cond->name);
+    __wt_verbose_debug2(session, 1005807, WT_VERB_MUTEX, "wait %s", cond->name);
     WT_STAT_CONN_INCR(session, cond_wait);
 
     WT_ERR(pthread_mutex_lock(&cond->mtx));
@@ -106,7 +106,7 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs
 #ifdef HAVE_PTHREAD_COND_MONOTONIC
         WT_SYSCALL_RETRY(clock_gettime(CLOCK_MONOTONIC, &ts), ret);
         if (ret != 0)
-            WT_IGNORE_RET(__wt_panic(session, ret, "clock_gettime"));
+            WT_IGNORE_RET(__wt_panic(session, 571020, ret, "clock_gettime"));
 #else
         __wt_epoch_raw(session, &ts);
 #endif
@@ -140,7 +140,7 @@ err:
     if (ret == 0)
         return;
 
-    WT_IGNORE_RET(__wt_panic(session, ret, "pthread_cond_wait: %s", cond->name));
+    WT_IGNORE_RET(__wt_panic(session, 571021, ret, "pthread_cond_wait: %s", cond->name));
 }
 
 /*
@@ -153,7 +153,7 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
     WT_DECL_RET;
     int cond_waiters;
 
-    __wt_verbose_debug2(session, WT_VERB_MUTEX, "signal %s", cond->name);
+    __wt_verbose_debug2(session, 1005808, WT_VERB_MUTEX, "signal %s", cond->name);
 
     /*
      * Our callers often set flags to cause a thread to exit. Add a barrier to ensure exit flags are
@@ -177,7 +177,7 @@ __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond)
         return;
 
 err:
-    WT_IGNORE_RET(__wt_panic(session, ret, "pthread_cond_broadcast: %s", cond->name));
+    WT_IGNORE_RET(__wt_panic(session, 571022, ret, "pthread_cond_broadcast: %s", cond->name));
 }
 
 /*
@@ -195,10 +195,10 @@ __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
         return;
 
     if ((ret = pthread_cond_destroy(&cond->cond)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "pthread_cond_destroy: %s", cond->name));
+        WT_IGNORE_RET(__wt_panic(session, 571023, ret, "pthread_cond_destroy: %s", cond->name));
 
     if ((ret = pthread_mutex_destroy(&cond->mtx)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "pthread_mutex_destroy: %s", cond->name));
+        WT_IGNORE_RET(__wt_panic(session, 571024, ret, "pthread_mutex_destroy: %s", cond->name));
 
     __wt_free(session, *condp);
 }

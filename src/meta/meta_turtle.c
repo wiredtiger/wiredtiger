@@ -122,7 +122,7 @@ __wt_read_metadata_file(WT_SESSION_IMPL *session, const char *file,
             break;
         WT_ERR(__wt_getline(session, fs, value));
         if (value->size == 0)
-            WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", file);
+            WT_ERR_PANIC(session, 905200, EINVAL, "%s: zero-length value", file);
 
         WT_ERR(meta_entry_worker_func(session, key, value, state));
     }
@@ -395,7 +395,7 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
         return (0);
 
     WT_RET(__wt_fs_rename(session, WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE, true));
-    __wt_verbose_notice(session, WT_VERB_METADATA, "%s not found, %s renamed to %s",
+    __wt_verbose_notice(session, 839718, WT_VERB_METADATA, "%s not found, %s renamed to %s",
       WT_METADATA_TURTLE, WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE);
     *existp = true;
     return (0);
@@ -551,7 +551,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, bool verify_meta, const char *cfg[])
          * from the backup.
          */
         if (exist_backup) {
-            __wt_verbose_notice(session, WT_VERB_METADATA,
+            __wt_verbose_notice(session, 839719, WT_VERB_METADATA,
               "Both %s and %s exist; recreating metadata from backup", WT_METADATA_TURTLE,
               WT_METADATA_BACKUP);
             WT_ERR(__wt_remove_if_exists(session, WT_METAFILE, false));
@@ -685,7 +685,7 @@ err:
       F_ISSET_ATOMIC_32(S2C(session), WT_CONN_SALVAGE))
         return (ret);
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-    WT_RET_PANIC(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error %d at %s",
+    WT_RET_PANIC(session, 1398000, WT_TRY_SALVAGE, "%s: fatal turtle file read error %d at %s",
       WT_METADATA_TURTLE, ret, msg);
 }
 
@@ -761,5 +761,5 @@ err:
     if (ret == 0)
         return (ret);
     F_SET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION);
-    WT_RET_PANIC(session, ret, "%s: fatal turtle file update error", WT_METADATA_TURTLE);
+    WT_RET_PANIC(session, 571043, ret, "%s: fatal turtle file update error", WT_METADATA_TURTLE);
 }

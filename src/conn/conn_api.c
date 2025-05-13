@@ -1055,7 +1055,8 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 
     CONNECTION_API_CALL(conn, session, close, config, cfg);
 err:
-    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing WiredTiger library.");
+    __wt_verbose_info(
+      session, 1341100, WT_VERB_RECOVERY_PROGRESS, "%s", "closing WiredTiger library.");
     __wt_timer_start(session, &timer);
 
     __wt_evict_favor_clearing_dirty_cache(session);
@@ -1067,7 +1068,7 @@ err:
     F_CLR_ATOMIC_32(conn, WT_CONN_MINIMAL | WT_CONN_READY);
 
     __wt_verbose_info(
-      session, WT_VERB_RECOVERY_PROGRESS, "%s", "rolling back all running transactions.");
+      session, 1341101, WT_VERB_RECOVERY_PROGRESS, "%s", "rolling back all running transactions.");
 
     /*
      * Rollback all running transactions. We do this as a separate pass because an active
@@ -1077,7 +1078,8 @@ err:
     WT_TRET(__wt_session_array_walk(
       conn->default_session, __conn_rollback_transaction_callback, true, NULL));
 
-    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing all running sessions.");
+    __wt_verbose_info(
+      session, 1341102, WT_VERB_RECOVERY_PROGRESS, "%s", "closing all running sessions.");
     /* Close open, external sessions. */
     WT_TRET(
       __wt_session_array_walk(conn->default_session, __conn_close_session_callback, true, NULL));
@@ -1095,7 +1097,7 @@ err:
     WT_TRET(__wt_txn_activity_drain(session));
 
     __wt_verbose_info(
-      session, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
+      session, 1341104, WT_VERB_RECOVERY_PROGRESS, "%s", "closing some of the internal threads.");
     /* Shut down pre-fetching - it should not operate while closing the connection. */
     WT_TRET(__wti_prefetch_destroy(session));
 
@@ -1161,7 +1163,7 @@ err:
 
     /* Time since the shutdown has started. */
     __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.shutdown_ms);
-    __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
+    __wt_verbose_info(session, 1341105, WT_VERB_RECOVERY_PROGRESS,
       "shutdown was completed successfully and took %" PRIu64 "ms, including %" PRIu64
       "ms for the rollback to stable, and %" PRIu64 "ms for the checkpoint.",
       conn->shutdown_timeline.shutdown_ms, conn->shutdown_timeline.rts_ms,
@@ -3075,8 +3077,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     conn->page_size = __wt_get_vm_pagesize();
 
     /* Now that we know if verbose is configured, output the version. */
-    __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "opening the WiredTiger library");
-    __wt_verbose(session, WT_VERB_VERSION, "%s", WIREDTIGER_VERSION_STRING);
+    __wt_verbose_info(session, 1338100, WT_VERB_RECOVERY, "%s", "opening the WiredTiger library");
+    __wt_verbose(session, 282223, WT_VERB_VERSION, "%s", WIREDTIGER_VERSION_STRING);
 
     /*
      * Open the connection, then reset the local session as the real one was allocated in the open
@@ -3147,8 +3149,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Configuration completed; optionally write a base configuration file.
      */
     WT_ERR(__conn_write_base_config(session, cfg));
-    __wt_verbose_info(
-      session, WT_VERB_RECOVERY, "%s", "connection configuration string parsing completed");
+    __wt_verbose_info(session, 1338101, WT_VERB_RECOVERY, "%s",
+      "connection configuration string parsing completed");
 
     /*
      * Check on the turtle and metadata files, creating them if necessary (which avoids application
@@ -3164,7 +3166,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /* Verify the metadata file. */
     if (verify_meta) {
-        __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "performing metadata verify");
+        __wt_verbose_info(session, 1338102, WT_VERB_RECOVERY, "%s", "performing metadata verify");
         wt_session = &session->iface;
         ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
         WT_ERR(ret);
@@ -3176,7 +3178,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * overwrite any salvage we did if done before that call.
      */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_SALVAGE)) {
-        __wt_verbose_info(session, WT_VERB_RECOVERY, "%s", "performing metadata salvage");
+        __wt_verbose_info(session, 1338103, WT_VERB_RECOVERY, "%s", "performing metadata salvage");
         wt_session = &session->iface;
         WT_ERR(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
@@ -3236,7 +3238,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     F_CLR_ATOMIC_32(conn, WT_CONN_MINIMAL);
     *connectionp = &conn->iface;
     __wt_verbose_info(
-      session, WT_VERB_RECOVERY, "%s", "the WiredTiger library has successfully opened");
+      session, 1338104, WT_VERB_RECOVERY, "%s", "the WiredTiger library has successfully opened");
 
 err:
     /* Discard the scratch buffers. */

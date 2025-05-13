@@ -85,7 +85,7 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
             WT_ERR(__wt_fs_exist(session, tmp->data, &exists));
             if (!exists) {
                 WT_ERR(__wt_fs_rename(session, filename, tmp->data, false));
-                __wt_verbose_notice(session, WT_VERB_BLOCK,
+                __wt_verbose_notice(session, 839702, WT_VERB_BLOCK,
                   "unexpected file %s found, renamed to %s", filename, (const char *)tmp->data);
                 break;
             }
@@ -125,7 +125,8 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
     if (block == NULL) /* Safety check, if failed to initialize. */
         return (0);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
+    __wt_verbose(
+      session, 787200, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
 
     /* We shouldn't have any read requests in progress. */
     WT_ASSERT(session, block->read_count == 0);
@@ -178,7 +179,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
 
     *blockp = NULL;
 
-    __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
+    __wt_verbose(session, 282202, WT_VERB_BLOCK, "open: %s", filename);
 
     block = NULL;
     conn = S2C(session);
@@ -441,8 +442,9 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
           "to %d/%d, and the file is version %" PRIu16 "/%" PRIu16,
           WT_BLOCK_MAJOR_VERSION, WT_BLOCK_MINOR_VERSION, desc->majorv, desc->minorv);
 
-    __wt_verbose(session, WT_VERB_BLOCK, "%s: magic %" PRIu32 ", major/minor: %" PRIu32 "/%" PRIu32,
-      block->name, desc->magic, desc->majorv, desc->minorv);
+    __wt_verbose(session, 445200, WT_VERB_BLOCK,
+      "%s: magic %" PRIu32 ", major/minor: %" PRIu32 "/%" PRIu32, block->name, desc->magic,
+      desc->majorv, desc->minorv);
 
 err:
     __wt_scr_free(session, &buf);

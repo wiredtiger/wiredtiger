@@ -68,11 +68,12 @@ static const char uri2[] = "table:compact2";
  */
 static int
 subtest_error_handler(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *message)
 {
     (void)(handler);
     (void)(session);
     (void)(error);
+    (void)(id);
     fprintf(stderr, "%s\n", message);
     return (0);
 }

@@ -55,9 +55,11 @@ static WT_SESSION *wt_session;
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+handle_message(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *message)
 {
     (void)(handler);
+    (void)(id);
 
     (void)fprintf(stderr, "%s: %s\n", message, session->strerror(session, error));
     if (test_abort) {

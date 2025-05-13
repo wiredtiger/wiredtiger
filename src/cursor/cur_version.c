@@ -27,7 +27,7 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
 
     /* Reset the cursor every time for a new key. */
     if ((ret = cursor->reset(cursor)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "failed to reset cursor"));
+        WT_IGNORE_RET(__wt_panic(session, 833300, ret, "failed to reset cursor"));
 
     version_cursor = (WT_CURSOR_VERSION *)cursor;
     file_cursor = version_cursor->file_cursor;
@@ -37,7 +37,7 @@ __curversion_set_key(WT_CURSOR *cursor, ...)
     if (F_ISSET(cursor, WT_CURSTD_RAW))
         LF_SET(WT_CURSTD_RAW);
     if ((ret = __wti_cursor_set_keyv(file_cursor, flags, ap)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "failed to set key"));
+        WT_IGNORE_RET(__wt_panic(session, 833301, ret, "failed to set key"));
     va_end(ap);
 }
 

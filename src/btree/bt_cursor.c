@@ -755,7 +755,7 @@ err:
          * transaction is being killed - don't panic in that case.
          */
         if (ret != WT_ROLLBACK)
-            WT_RET_PANIC(session, ret, "failed to reposition the cursor");
+            WT_RET_PANIC(session, 870700, ret, "failed to reposition the cursor");
     }
 
     return (ret);

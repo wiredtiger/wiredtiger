@@ -63,10 +63,10 @@ __rts_btree_walk_page_skip(
                 page_del->prepare_state == WT_PREPARE_RESOLVED);
 
             if (page_del == NULL)
-                __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+                __wt_verbose_multi(session, 1016402, WT_VERB_RECOVERY_RTS(session),
                   WT_RTS_VERB_TAG_SKIP_DEL_NULL "ref=%p: deleted page walk skipped", (void *)ref);
             else {
-                __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+                __wt_verbose_multi(session, 1016403, WT_VERB_RECOVERY_RTS(session),
                   WT_RTS_VERB_TAG_SKIP_DEL "ref=%p: deleted page walk skipped page_del %s",
                   (void *)ref,
                   __wt_time_point_to_string(page_del->timestamp, page_del->durable_timestamp,
@@ -78,7 +78,8 @@ __rts_btree_walk_page_skip(
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
 
         if (page_del != NULL)
-            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
+            __wt_verbose_level_multi(session, 1027500, WT_VERB_RECOVERY_RTS(session),
+              WT_VERBOSE_DEBUG_3,
               WT_RTS_VERB_TAG_PAGE_DELETE
               "deleted page with commit_timestamp=%s, durable_timestamp=%s > "
               "rollback_timestamp=%s, txnid=%" PRIu64,
@@ -100,12 +101,13 @@ __rts_btree_walk_page_skip(
      */
     if (!__wti_rts_visibility_page_needs_abort(session, ref, rollback_timestamp)) {
         *skipp = true;
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+        __wt_verbose_multi(session, 1029000, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_STABLE_PG_WALK_SKIP "ref=%p: stable page walk skipped", (void *)ref);
         WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
     } else
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_3,
-          WT_RTS_VERB_TAG_PAGE_UNSKIPPED "ref=%p page not skipped", (void *)ref);
+        __wt_verbose_level_multi(session, 1329100, WT_VERB_RECOVERY_RTS(session),
+          WT_VERBOSE_DEBUG_3, WT_RTS_VERB_TAG_PAGE_UNSKIPPED "ref=%p page not skipped",
+          (void *)ref);
 
     return (0);
 }
@@ -250,7 +252,7 @@ __rts_btree(WT_SESSION_IMPL *session, const char *uri, wt_timestamp_t rollback_t
      */
     if (ret == ENOENT ||
       (ret == WT_ERROR && F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))) {
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+        __wt_verbose_multi(session, 1074300, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_SKIP_DAMAGE
           "%s: skipped performing rollback to stable because the file %s",
           uri, ret == ENOENT ? "does not exist" : "is corrupted.");
@@ -333,7 +335,8 @@ __wti_rts_btree_walk_btree_apply(
         WT_RET_NOTFOUND_OK(ret);
 
         if (ret == 0)
-            __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
+            __wt_verbose_level_multi(session, 1167301, WT_VERB_RECOVERY_RTS(session),
+              WT_VERBOSE_DEBUG_2,
               WT_RTS_VERB_TAG_TREE_OBJECT_LOG
               "btree object found with newest_start_durable_timestamp=%s, "
               "newest_stop_durable_timestamp=%s, "
@@ -359,7 +362,7 @@ __wti_rts_btree_walk_btree_apply(
 
     /* Skip empty and newly-created tables during recovery. */
     if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) && addr_size == 0) {
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+        __wt_verbose_multi(session, 1016404, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_FILE_SKIP
           "skipping rollback to stable on file=%s because has never been checkpointed",
           uri);
@@ -381,7 +384,7 @@ __wti_rts_btree_walk_btree_apply(
 
     if (modified || max_durable_ts > rollback_timestamp || prepared_updates ||
       has_txn_updates_gt_than_ckpt_snap) {
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+        __wt_verbose_multi(session, 1016405, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_TREE
           "rolling back tree. uri=%s"
           ", modified=%s, durable_timestamp=%s > stable_timestamp=%s: %s, "
@@ -399,7 +402,8 @@ __wti_rts_btree_walk_btree_apply(
             WT_RET(__rts_push_work(session, uri, rollback_timestamp));
         file_skipped = false;
     } else
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_2,
+        __wt_verbose_level_multi(session, 1167302, WT_VERB_RECOVERY_RTS(session),
+          WT_VERBOSE_DEBUG_2,
           WT_RTS_VERB_TAG_TREE_SKIP
           "%s: tree skipped with durable_timestamp=%s and stable_timestamp=%s or txnid=%" PRIu64
           " has_prepared_updates=%s, txnid=%" PRIu64 " > recovery_checkpoint_snap_min=%" PRIu64
@@ -443,7 +447,7 @@ __wti_rts_btree_walk_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     btree = S2BT(session);
     conn = S2C(session);
 
-    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
+    __wt_verbose_level_multi(session, 1027400, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
       WT_RTS_VERB_TAG_TREE_LOGGING
       "rollback to stable connection_logging_enabled=%s and btree_logging_enabled=%s",
       F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) ? "true" : "false",

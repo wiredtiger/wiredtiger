@@ -14,11 +14,12 @@
  */
 static int
 __handle_error_verbose(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *errmsg)
 {
     WT_UNUSED(handler);
     WT_UNUSED(session);
     WT_UNUSED(error);
+    WT_UNUSED(id);
 
     return (fprintf(stderr, "%s\n", errmsg) < 0 ? EIO : 0);
 }
@@ -28,10 +29,12 @@ __handle_error_verbose(
  *     Verbose WT_EVENT_HANDLER->handle_message implementation: send to stdout.
  */
 static int
-__handle_message_verbose(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+__handle_message_verbose(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     WT_UNUSED(handler);
     WT_UNUSED(session);
+    WT_UNUSED(id);
 
     return (printf("%s\n", message) < 0 ? EIO : 0);
 }

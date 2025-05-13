@@ -361,7 +361,7 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
 
     if (select_tw->stop_ts < select_tw->start_ts) {
         WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
-        __wt_verbose(session, WT_VERB_TIMESTAMP,
+        __wt_verbose(session, 758500, WT_VERB_TIMESTAMP,
           "Warning: fixing remove without a timestamp earlier than value; time window %s",
           __wt_time_window_to_string(select_tw, time_string));
 
@@ -905,7 +905,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
      */
     if (has_newer_updates && F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-            WT_RET_PANIC(session, EINVAL, "reconciliation error, update not visible");
+            WT_RET_PANIC(session, 571051, EINVAL, "reconciliation error, update not visible");
         return (__wt_set_return(session, EBUSY));
     }
 

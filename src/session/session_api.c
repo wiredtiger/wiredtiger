@@ -1854,7 +1854,8 @@ err:
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     } else if (F_ISSET(txn, WT_TXN_RUNNING)) {
         if (F_ISSET(txn, WT_TXN_PREPARE))
-            WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
+            WT_RET_PANIC(
+              session, 893500, ret, "failed to commit prepared transaction, failing the system");
 
         WT_TRET(__wt_session_reset_cursors(session, false));
         F_SET(session, WT_SESSION_RESOLVING_TXN);
@@ -1969,7 +1970,7 @@ err:
      * a prepared transaction.
      */
     if (ret != 0 && session->txn && F_ISSET(session->txn, WT_TXN_PREPARE))
-        WT_IGNORE_RET(__wt_panic(session, ret,
+        WT_IGNORE_RET(__wt_panic(session, 1415600, ret,
           "transactional error logged after transaction was prepared, failing the system"));
 
 #ifdef HAVE_CALL_LOG

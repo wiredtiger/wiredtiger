@@ -147,7 +147,7 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 err:
     /* Something really bad just happened. */
-    WT_RET_PANIC(session, ret, "fatal error during page split");
+    WT_RET_PANIC(session, 571038, ret, "fatal error during page split");
 }
 
 /*
@@ -434,7 +434,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     chunk = pindex->entries / children;
     remain = pindex->entries - chunk * (children - 1);
 
-    __wt_verbose(session, WT_VERB_SPLIT,
+    __wt_verbose(session, 282216, WT_VERB_SPLIT,
       "%p: %" PRIu32 " root page elements, splitting into %" PRIu32 " children", (void *)root,
       pindex->entries, children);
 
@@ -582,7 +582,8 @@ err:
         }
     /* FALLTHROUGH */
     case WT_ERR_PANIC:
-        ret = __wt_panic(session, ret, "fatal error during root page split to deepen the tree");
+        ret =
+          __wt_panic(session, 571007, ret, "fatal error during root page split to deepen the tree");
         break;
     }
     return (ret);
@@ -863,7 +864,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      * We've discarded the WT_REFs and swapping in a new page index released the page for eviction;
      * we can no longer look inside the WT_REF or the page, be careful logging the results.
      */
-    __wt_verbose(session, WT_VERB_SPLIT,
+    __wt_verbose(session, 565800, WT_VERB_SPLIT,
       "%p: split into parent, %" PRIu32 "->%" PRIu32 ", %" PRIu32 " deleted", (void *)ref,
       parent_entries, result_entries, deleted_entries);
 
@@ -900,7 +901,7 @@ err:
         }
     /* FALLTHROUGH */
     case WT_ERR_PANIC:
-        ret = __wt_panic(session, ret, "fatal error during parent page split");
+        ret = __wt_panic(session, 571008, ret, "fatal error during parent page split");
         break;
     }
     __wt_scr_free(session, &scr);
@@ -960,7 +961,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     chunk = pindex->entries / children;
     remain = pindex->entries - chunk * (children - 1);
 
-    __wt_verbose(session, WT_VERB_SPLIT,
+    __wt_verbose(session, 282217, WT_VERB_SPLIT,
       "%p: %" PRIu32 " internal page elements, splitting %" PRIu32 " children into parent %p",
       (void *)page, pindex->entries, children, (void *)parent);
 
@@ -1172,7 +1173,7 @@ err:
         }
     /* FALLTHROUGH */
     case WT_ERR_PANIC:
-        ret = __wt_panic(session, ret, "fatal error during internal page split");
+        ret = __wt_panic(session, 571009, ret, "fatal error during internal page split");
         break;
     }
     return (ret);
@@ -2093,7 +2094,7 @@ __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
+    __wt_verbose(session, 338900, WT_VERB_SPLIT, "%p: split-insert", (void *)ref);
 
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
@@ -2205,7 +2206,7 @@ __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
 {
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
+    __wt_verbose(session, 338901, WT_VERB_SPLIT, "%p: split-multi", (void *)ref);
 
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
@@ -2241,7 +2242,7 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
+    __wt_verbose(session, 314400, WT_VERB_SPLIT, "%p: reverse-split", (void *)ref);
 
     /*
      * Set the session split generation to ensure underlying code isn't surprised by internal page
@@ -2264,7 +2265,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     page = ref->page;
 
-    __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
+    __wt_verbose(session, 314401, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
 
     /*
      * This isn't a split: a reconciliation failed because we couldn't write something, and in the

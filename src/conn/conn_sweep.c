@@ -322,7 +322,7 @@ __sweep_check_session_callback(
         if (!array_session->sweep_warning_60min) {
             array_session->sweep_warning_60min = 1;
             WT_STAT_CONN_INCR(session, no_session_sweep_60min);
-            __wt_verbose_warning(session, WT_VERB_DEFAULT,
+            __wt_verbose_warning(session, 1121700, WT_VERB_DEFAULT,
               "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.",
               array_session->id, (void *)array_session,
               array_session->name == NULL ? "EMPTY" : array_session->name);
@@ -432,7 +432,7 @@ __sweep_server(void *arg)
 
     if (0) {
 err:
-        WT_IGNORE_RET(__wt_panic(session, ret, "handle sweep server error"));
+        WT_IGNORE_RET(__wt_panic(session, 571013, ret, "handle sweep server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }

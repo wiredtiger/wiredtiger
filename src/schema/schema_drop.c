@@ -140,7 +140,7 @@ __drop_table(
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
 
     if (force && !table->is_simple) {
-        __wt_verbose_warning(session, WT_VERB_HANDLEOPS,
+        __wt_verbose_warning(session, 1057600, WT_VERB_HANDLEOPS,
           "ENOTSUP: drop table with force=true is not supported for complex tables. uri=%s", uri);
         WT_ERR(ENOTSUP);
     }
@@ -266,8 +266,8 @@ __drop_tiered(
     tier = tiered_tmp.tiers[WT_TIERED_INDEX_LOCAL].tier;
     localid = tiered_tmp.current_id;
     if (tier != NULL) {
-        __wt_verbose_debug2(
-          session, WT_VERB_TIERED, "DROP_TIERED: drop %u local object %s", localid, tier->name);
+        __wt_verbose_debug2(session, 1005600, WT_VERB_TIERED,
+          "DROP_TIERED: drop %u local object %s", localid, tier->name);
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
@@ -286,7 +286,7 @@ __drop_tiered(
     tier = tiered_tmp.tiers[WT_TIERED_INDEX_SHARED].tier;
     if (tier != NULL) {
         __wt_verbose_debug2(
-          session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
+          session, 1005601, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
@@ -304,13 +304,13 @@ __drop_tiered(
      */
     for (i = tiered_tmp.oldest_id; i < tiered_tmp.current_id; ++i) {
         WT_ERR(__wt_tiered_name(session, &tiered_tmp.iface, i, WT_TIERED_NAME_LOCAL, &name));
-        __wt_verbose_debug2(
-          session, WT_VERB_TIERED, "DROP_TIERED: remove local object %s from metadata", name);
+        __wt_verbose_debug2(session, 1005602, WT_VERB_TIERED,
+          "DROP_TIERED: remove local object %s from metadata", name);
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
         __wt_free(session, name);
         WT_ERR(__wt_tiered_name(session, &tiered_tmp.iface, i, WT_TIERED_NAME_OBJECT, &name));
         __wt_verbose_debug2(
-          session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
+          session, 1005603, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
         if (remove_files && tier != NULL) {
             filename = name;
@@ -334,7 +334,8 @@ __drop_tiered(
      * dhandle has been released here but queued work may still refer to it. The queued work unit
      * has its own reference to it and we're holding the lock so it isn't yet stale.
      */
-    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove work for %p", (void *)tiered);
+    __wt_verbose(
+      session, 1097800, WT_VERB_TIERED, "DROP_TIERED: remove work for %p", (void *)tiered);
     __wt_tiered_remove_work(session, tiered, true);
     __wt_spin_unlock(session, &conn->tiered_lock);
 

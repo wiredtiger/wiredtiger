@@ -248,7 +248,7 @@ __compact_walk_internal(WT_SESSION_IMPL *session, WT_REF *parent)
     while ((ret = __wt_spin_trylock(session, &S2BT(session)->flush_lock)) == EBUSY) {
         WT_STAT_CONN_INCR(session, session_table_compact_conflicting_checkpoint);
 
-        __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
+        __wt_verbose_level(session, 1284600, WT_VERB_COMPACT, WT_VERBOSE_DEBUG_1,
           "The compaction of the data handle %s returned EBUSY due to an in-progress "
           "conflicting checkpoint. Compaction of this data handle will resume after checkpoint "
           "completes.",
@@ -354,7 +354,7 @@ __wt_compact(WT_SESSION_IMPL *session)
          */
         __wt_block_compact_get_progress_stats(session, bm, &stats_pages_reviewed);
         if (stats_pages_reviewed == 0)
-            __wt_verbose_info(session, WT_VERB_COMPACT,
+            __wt_verbose_info(session, 1092800, WT_VERB_COMPACT,
               "%s: there is no useful work to do - skipping compaction", bm->block->name);
 
         return (0);

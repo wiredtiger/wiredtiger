@@ -175,7 +175,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     failures = 0;
     bufsize = size;
     max_failures = F_ISSET(&S2C(session)->chunkcache, WT_CHUNKCACHE_CONFIGURED) ? 2 : 1;
-    __wt_verbose_debug2(session, WT_VERB_READ,
+    __wt_verbose_debug2(session, 1005206, WT_VERB_READ,
       "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32, (uintmax_t)offset, size, checksum);
 
     WT_STAT_CONN_INCR(session, block_read);
@@ -249,7 +249,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
          * immediately, so we will reload the data and retry one time.
          */
         if (failures < max_failures) {
-            __wt_verbose(session, WT_VERB_BLOCK,
+            __wt_verbose(session, 1172400, WT_VERB_BLOCK,
               "Reloading data due to checksum mismatch for block: %s" PRIu32 ", offset: %" PRIuMAX
               ", size: %" PRIu32
               " with possibly stale or corrupt chunk cache content for object id: %" PRIu32
@@ -281,5 +281,5 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
     if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
         return (WT_ERROR);
-    WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
+    WT_RET_PANIC(session, 571032, WT_ERROR, "%s: fatal read error", block->name);
 }

@@ -470,11 +470,12 @@ run_process(TEST_OPTS *opts, const char *prog, char *argv[], int *statusp)
  */
 static int
 subtest_error_handler(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *message)
 {
     (void)(handler);
     (void)(session);
     (void)(message);
+    (void)(id);
 
     /* Exit on panic, there's no checking to be done. */
     if (error == WT_PANIC)

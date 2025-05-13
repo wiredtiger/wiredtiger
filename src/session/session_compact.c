@@ -201,7 +201,7 @@ __session_compact_check_timeout(WT_SESSION_IMPL *session)
     if (ret != 0) {
         WT_STAT_CONN_INCR(session, session_table_compact_timeout);
 
-        __wt_verbose_info(session, WT_VERB_COMPACT,
+        __wt_verbose_info(session, 828300, WT_VERB_COMPACT,
           "Compact has timed out! The operation has been running for %" PRIu64
           " second(s). Configured timeout is %" PRIu64 " second(s).",
           WT_TIMEDIFF_SEC(end, session->compact->begin), session->compact->max_time);
@@ -250,9 +250,9 @@ __wt_session_compact_check_interrupted(WT_SESSION_IMPL *session)
          * be exposed as a warning.
          */
         if (!background_compaction || !F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING | WT_CONN_MINIMAL))
-            __wt_verbose_warning(session, WT_VERB_COMPACT, "%s", interrupt_msg);
+            __wt_verbose_warning(session, 1182600, WT_VERB_COMPACT, "%s", interrupt_msg);
         else
-            __wt_verbose(session, WT_VERB_COMPACT, "%s", interrupt_msg);
+            __wt_verbose(session, 1182601, WT_VERB_COMPACT, "%s", interrupt_msg);
         return (ret);
     }
 
@@ -320,8 +320,8 @@ __compact_worker(WT_SESSION_IMPL *session)
                 continue;
 
             __wt_timing_stress(session, WT_TIMING_STRESS_COMPACT_SLOW, NULL);
-            __wt_verbose_debug2(
-              session, WT_VERB_COMPACT, "%s: compact pass %u", session->op_handle[i]->name, loop);
+            __wt_verbose_debug2(session, 963111, WT_VERB_COMPACT, "%s: compact pass %u",
+              session->op_handle[i]->name, loop);
 
             session->compact_state = WT_COMPACT_RUNNING;
             WT_WITH_DHANDLE(session, session->op_handle[i], ret = __wt_compact(session));
@@ -449,12 +449,12 @@ __wti_session_compact(WT_SESSION *wt_session, const char *uri, const char *confi
 
     WT_STAT_CONN_SET(session, session_table_compact_running, 1);
 
-    __wt_verbose_debug1(session, WT_VERB_COMPACT, "Compacting %s", uri);
+    __wt_verbose_debug1(session, 963112, WT_VERB_COMPACT, "Compacting %s", uri);
 
     /* In-memory ignores compaction operations. */
     if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY)) {
         __wt_verbose_warning(
-          session, WT_VERB_COMPACT, "%s", "Compact does not work for in-memory databases.");
+          session, 828301, WT_VERB_COMPACT, "%s", "Compact does not work for in-memory databases.");
         goto err;
     }
 

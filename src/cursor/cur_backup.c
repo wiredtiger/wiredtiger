@@ -264,8 +264,8 @@ err:
 
     conn = S2C(session);
     if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP)) {
-        __wt_verbose(
-          session, WT_VERB_BACKUP, "%s", "Releasing resources from forced stop incremental");
+        __wt_verbose(session, 513900, WT_VERB_BACKUP, "%s",
+          "Releasing resources from forced stop incremental");
         __wt_backup_destroy(session);
     }
 
@@ -364,7 +364,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
         WT_CURSOR_BACKUP_CHECK_STOP(othercb);
 
     if (cfg != NULL && cfg[1] != NULL)
-        __wt_verbose(session, WT_VERB_BACKUP, "Backup cursor config \"%s\"", cfg[1]);
+        __wt_verbose(session, 1215700, WT_VERB_BACKUP, "Backup cursor config \"%s\"", cfg[1]);
 
     /* Special backup cursor to query incremental IDs. */
     if (WT_STRING_LIT_MATCH("backup:query_id", uri, uri_len)) {
@@ -430,22 +430,23 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
         blk = &conn->incr_backups[i];
         /* If it isn't already in use, we can use it. */
         if (!F_ISSET(blk, WT_BLKINCR_INUSE)) {
-            __wt_verbose_debug2(session, WT_VERB_BACKUP, "Free blk[%u] entry", i);
+            __wt_verbose_debug2(session, 1005404, WT_VERB_BACKUP, "Free blk[%u] entry", i);
             break;
         }
         __wt_verbose_debug2(
-          session, WT_VERB_BACKUP, "Entry blk[%u] has flags 0x%" PRIx8, i, blk->flags);
+          session, 1005405, WT_VERB_BACKUP, "Entry blk[%u] has flags 0x%" PRIx8, i, blk->flags);
     }
     /*
      * We didn't find an entry. This should not happen.
      */
     if (i == WT_BLKINCR_MAX)
-        WT_RET_PANIC(session, WT_NOTFOUND, "Could not find an incremental backup slot to use");
+        WT_RET_PANIC(
+          session, 571040, WT_NOTFOUND, "Could not find an incremental backup slot to use");
 
     /* Use the slot. */
     if (blk->id_str != NULL)
-        __wt_verbose_debug2(
-          session, WT_VERB_BACKUP, "Freeing and reusing backup slot with old id %s", blk->id_str);
+        __wt_verbose_debug2(session, 1005406, WT_VERB_BACKUP,
+          "Freeing and reusing backup slot with old id %s", blk->id_str);
 
     /* Set up with the information. */
     WT_ERR(__wt_backup_set_blkincr(session, i, conn->incr_granularity, cval->str, cval->len));
@@ -460,12 +461,13 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
         /*
          * If we don't find any checkpoint, backup files need to be full copy.
          */
-        __wt_verbose(session, WT_VERB_BACKUP,
+        __wt_verbose(session, 728200, WT_VERB_BACKUP,
           "Backup id %s: Did not find any metadata checkpoint for %s.", blk->id_str,
           WT_METAFILE_URI);
         F_SET(blk, WT_BLKINCR_FULL);
     } else {
-        __wt_verbose(session, WT_VERB_BACKUP, "Backup id %s using backup slot %u", blk->id_str, i);
+        __wt_verbose(
+          session, 520600, WT_VERB_BACKUP, "Backup id %s using backup slot %u", blk->id_str, i);
         F_CLR(blk, WT_BLKINCR_FULL);
     }
     return (0);
@@ -498,13 +500,13 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
                 WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
             if (incrp != NULL)
                 *incrp = blk;
-            __wt_verbose_debug2(
-              session, WT_VERB_BACKUP, "Found src id %s at backup slot %u", blk->id_str, i);
+            __wt_verbose_debug2(session, 1005407, WT_VERB_BACKUP,
+              "Found src id %s at backup slot %u", blk->id_str, i);
             return (0);
         }
     }
     __wt_verbose_debug2(
-      session, WT_VERB_BACKUP, "Search %.*s not found", (int)cval->len, cval->str);
+      session, 1005408, WT_VERB_BACKUP, "Search %.*s not found", (int)cval->len, cval->str);
     return (WT_NOTFOUND);
 }
 
@@ -578,8 +580,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             if (conn->incr_granularity != 0)
                 WT_RET_MSG(session, EINVAL, "Cannot change the incremental backup granularity");
             conn->incr_granularity = (uint64_t)cval.val;
-            __wt_verbose(session, WT_VERB_BACKUP, "Backup config set granularity value %" PRIu64,
-              conn->incr_granularity);
+            __wt_verbose(session, 728201, WT_VERB_BACKUP,
+              "Backup config set granularity value %" PRIu64, conn->incr_granularity);
         }
         WT_CONN_SET_INCR_BACKUP(conn);
         incremental_config = true;

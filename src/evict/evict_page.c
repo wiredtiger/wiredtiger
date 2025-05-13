@@ -104,7 +104,7 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
         if (eviction_time_milliseconds > __wt_atomic_load64(&conn->evict->evict_max_ms))
             __wt_atomic_store64(&conn->evict->evict_max_ms, eviction_time_milliseconds);
         if (eviction_time_milliseconds > WT_MINUTE * WT_THOUSAND)
-            __wt_verbose_warning(session, WT_VERB_EVICTION,
+            __wt_verbose_warning(session, 1341504, WT_VERB_EVICTION,
               "Eviction took more than 1 minute (%" PRIu64 "us). Building disk image took %" PRIu64
               "us. History store wrapup took %" PRIu64 "us.",
               eviction_time,
@@ -157,8 +157,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     stats_flags = 0;
     clean_page = ebusy_only = false;
 
-    __wt_verbose_debug3(
-      session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
+    __wt_verbose_debug3(session, 1338307, WT_VERB_EVICTION, "page %p (%s)", (void *)page,
+      __wt_page_type_string(page->type));
 
     tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
     if (tree_dead)
@@ -286,7 +286,7 @@ err:
             __evict_exclusive_clear(session, ref, previous_state);
 
         if (ebusy_only && ret != EBUSY)
-            WT_RET_PANIC(session, ret, "eviction failed when only EBUSY is allowed");
+            WT_RET_PANIC(session, 1127400, ret, "eviction failed when only EBUSY is allowed");
     }
 
 done:
@@ -735,7 +735,7 @@ __evict_review_obsolete_time_window(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (__wt_txn_has_newest_and_visible_all(session, newest_ta.newest_txn,
           WT_MAX(newest_ta.newest_start_durable_ts, newest_ta.newest_stop_durable_ts))) {
-        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+        __wt_verbose_debug2(session, 1338308, WT_VERB_EVICTION,
           "%p in-memory page obsolete time window: time aggregate %s", (void *)ref,
           __wt_time_aggregate_to_string(&newest_ta, time_string));
 

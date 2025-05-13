@@ -54,7 +54,7 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_SESSION_IMPL *checkpoint_se
 
         uint64_t time_diff_ms;
         __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
-        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+        __wt_verbose(session, 1413911, WT_VERB_LIVE_RESTORE_PROGRESS,
           "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
           S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
 
@@ -208,20 +208,21 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     if (TAILQ_EMPTY(&server->work_queue)) {
         /* Stop our thread from running. This will call the stop_func and trigger state cleanup. */
         F_CLR(ctx, WT_THREAD_RUN);
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE, "%s", "Live restore worker terminating");
+        __wt_verbose_debug1(
+          session, 1391506, WT_VERB_LIVE_RESTORE, "%s", "Live restore worker terminating");
         __wt_spin_unlock(session, &server->queue_lock);
         return (0);
     }
     WTI_LIVE_RESTORE_WORK_ITEM *work_item = TAILQ_FIRST(&server->work_queue);
     WT_ASSERT(session, work_item != NULL);
     TAILQ_REMOVE(&server->work_queue, work_item, q);
-    __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "Live restore worker taking queue item: %s", work_item->uri);
+    __wt_verbose_debug2(session, 1391507, WT_VERB_LIVE_RESTORE,
+      "Live restore worker taking queue item: %s", work_item->uri);
     __wt_timer_evaluate_ms(session, &server->msg_timer, &time_diff_ms);
 
     /* Print out a progress message periodically. */
     if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > server->msg_count) {
-        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+        __wt_verbose(session, 1391508, WT_VERB_LIVE_RESTORE_PROGRESS,
           "Live restore has been running for %" PRIu64 " seconds and has %" PRIu64
           " files of %" PRIu64 " left to process",
           time_diff_ms / WT_THOUSAND, server->work_items_remaining, server->work_count);
@@ -239,7 +240,7 @@ __live_restore_worker_run(WT_SESSION_IMPL *session, WT_THREAD *ctx)
     WT_SESSION *wt_session = (WT_SESSION *)session;
     ret = wt_session->open_cursor(wt_session, work_item->uri, NULL, NULL, &cursor);
     if (ret != 0)
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+        __wt_verbose_debug1(session, 1406900, WT_VERB_LIVE_RESTORE,
           "Live restore worker: Error opening cursor to %s, ret %d", work_item->uri, ret);
     if (ret == ENOENT) {
         /* Free the work item. */
@@ -287,8 +288,8 @@ __insert_queue_item(WT_SESSION_IMPL *session, char *uri, uint64_t *work_count)
 {
     WT_DECL_RET;
 
-    __wt_verbose_debug2(
-      session, WT_VERB_LIVE_RESTORE, "Live restore server: Adding %s to the work queue", uri);
+    __wt_verbose_debug2(session, 1388800, WT_VERB_LIVE_RESTORE,
+      "Live restore server: Adding %s to the work queue", uri);
 
     WTI_LIVE_RESTORE_SERVER *server = S2C(session)->live_restore_server;
     WTI_LIVE_RESTORE_WORK_ITEM *work_item = NULL;
@@ -323,8 +324,8 @@ __live_restore_init_work_queue(WT_SESSION_IMPL *session)
 
     /* Initialize the work queue. */
     TAILQ_INIT(&server->work_queue);
-    __wt_verbose_debug1(
-      session, WT_VERB_LIVE_RESTORE, "%s", "Live restore server: Initializing the work queue");
+    __wt_verbose_debug1(session, 1380900, WT_VERB_LIVE_RESTORE, "%s",
+      "Live restore server: Initializing the work queue");
 
     WT_CURSOR *cursor;
     WT_RET(__wt_metadata_cursor(session, &cursor));
@@ -422,7 +423,7 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
      */
     __wt_timer_start(session, &conn->live_restore_server->msg_timer);
     conn->live_restore_server->start_timer = conn->live_restore_server->msg_timer;
-    __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
+    __wt_verbose(session, 1391509, WT_VERB_LIVE_RESTORE_PROGRESS,
       "Starting %" PRId64 " threads to restore %" PRIu64 " files", cval.val,
       conn->live_restore_server->work_count);
     WT_ERR(__wt_thread_group_create(session, &conn->live_restore_server->threads,

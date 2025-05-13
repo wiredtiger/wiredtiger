@@ -74,8 +74,8 @@ __recovery_cursor(
     else if (id >= r->nfiles || r->files[id].uri == NULL) {
         /* If a file is missing, output a verbose message once. */
         if (!r->missing)
-            __wt_verbose(
-              session, WT_VERB_RECOVERY, "No file found with ID %u (max %u)", id, r->nfiles);
+            __wt_verbose(session, 282246, WT_VERB_RECOVERY, "No file found with ID %u (max %u)", id,
+              r->nfiles);
         r->missing = true;
     } else if (__wt_log_cmp(lsnp, &r->files[id].ckpt_lsn) >= 0) {
         /*
@@ -177,18 +177,18 @@ __txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const ui
     if (index < WT_BLKINCR_MAX) {
         blk = &conn->incr_backups[index];
         if (granularity != UINT64_MAX) {
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
+            __wt_verbose_multi(session, 1166900, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%s]: Applying slot %" PRIu32 " granularity %" PRIu64 " ID string %s",
               lsn_str, index, granularity, id_str);
             WT_ERR(__wt_backup_set_blkincr(session, index, granularity, id_str, strlen(id_str)));
         } else {
-            __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
+            __wt_verbose_multi(session, 1166901, WT_VERB_RECOVERY_ALL,
               "Backup ID: LSN [%s]: Clearing slot %" PRIu32, lsn_str, index);
             /* This is the result of a force stop, clear the entry. */
             WT_CLEAR(*blk);
         }
     } else
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
+        __wt_verbose_multi(session, 1166902, WT_VERB_RECOVERY_ALL,
           "Ignoring out-of-range (%d) backup ID index %" PRIu32, WT_BLKINCR_MAX, index);
 
     if (0) {
@@ -219,7 +219,7 @@ __txn_system_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8
  */
 #define GET_RECOVERY_CURSOR(session, r, lsnp, fileid, cp)         \
     ret = __recovery_cursor(session, r, lsnp, fileid, false, cp); \
-    __wt_verbose_debug2(session, WT_VERB_RECOVERY,                \
+    __wt_verbose_debug2(session, 1351900, WT_VERB_RECOVERY,       \
       "%s op %" PRIu32 " to file %" PRIu32 " at LSN %s",          \
       ret != 0         ? "Error" :                                \
         cursor == NULL ? "Skipping" :                             \
@@ -560,7 +560,7 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
      */
     conn->txn_global.meta_ckpt_timestamp = conn->txn_global.recovery_timestamp = ckpt_timestamp;
 
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global recovery timestamp: %s",
+    __wt_verbose_multi(session, 819201, WT_VERB_RECOVERY_ALL, "Set global recovery timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.recovery_timestamp, ts_string));
 
     return (0);
@@ -589,7 +589,7 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
     conn->txn_global.oldest_timestamp = oldest_timestamp;
     __wt_atomic_storebool(&conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
 
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
+    __wt_verbose_multi(session, 819202, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));
 
     return (0);
@@ -729,7 +729,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     }
 
     if (r->files[fileid].uri != NULL)
-        WT_RET_PANIC(r->session, WT_PANIC,
+        WT_RET_PANIC(r->session, 594005, WT_PANIC,
           "metadata corruption: files %s and %s have the same file ID %u", uri,
           r->files[fileid].uri, fileid);
     WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
@@ -749,8 +749,8 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     WT_ASSIGN_LSN(&r->files[fileid].ckpt_lsn, &lsn);
 
     WT_ERR(__wt_lsn_string(&lsn, sizeof(lsn_str), lsn_str));
-    __wt_verbose(r->session, WT_VERB_RECOVERY, "Recovering %s with id %" PRIu32 " @ (%s)", uri,
-      fileid, lsn_str);
+    __wt_verbose(r->session, 1351901, WT_VERB_RECOVERY, "Recovering %s with id %" PRIu32 " @ (%s)",
+      uri, fileid, lsn_str);
 
     if ((!WT_IS_MAX_LSN(&lsn) && !WT_IS_INIT_LSN(&lsn)) &&
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
@@ -834,7 +834,7 @@ __recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *igno
 static int
 __recovery_file_scan(WT_RECOVERY *r)
 {
-    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+    __wt_verbose_level_multi(r->session, 1338107, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
       "scanning metadata to find the largest file ID");
 
     /* Scan through all files and tiered entries in the metadata. */
@@ -847,7 +847,7 @@ __recovery_file_scan(WT_RECOVERY *r)
      */
     S2C(r->session)->next_file_id = r->max_fileid;
 
-    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+    __wt_verbose_level_multi(r->session, 1338108, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "largest file ID found in the metadata %u", r->max_fileid);
     return (0);
 }
@@ -948,8 +948,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     eviction_started = false;
     was_backup = F_ISSET_ATOMIC_32(conn, WT_CONN_WAS_BACKUP);
 
-    __wt_verbose_level_multi(
-      session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s", "starting WiredTiger recovery");
+    __wt_verbose_level_multi(session, 1338109, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+      "starting WiredTiger recovery");
     __wt_timer_start(session, &timer);
 
     /* We need a real session for recovery. */
@@ -1095,7 +1095,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     r.metadata_only = false;
     WT_ERR(__wt_lsn_string(&r.ckpt_lsn, sizeof(ckpt_lsn_str), ckpt_lsn_str));
     WT_ERR(__wt_lsn_string(&r.max_rec_lsn, sizeof(max_rec_lsn_str), max_rec_lsn_str));
-    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+    __wt_verbose_level_multi(session, 1338110, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "Main recovery loop: starting at %s to %s", ckpt_lsn_str, max_rec_lsn_str);
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
     /*
@@ -1115,7 +1115,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     if (!hs_exists) {
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+        __wt_verbose_level_multi(session, 1338111, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
           "Creating the history store before applying log records. Likely recovering after an"
           "unclean shutdown on an earlier version");
         /*
@@ -1162,7 +1162,7 @@ done:
 #endif
     /* Time since the Log replay has started. */
     __wt_timer_evaluate_ms(session, &timer, &conn->recovery_timeline.log_replay_ms);
-    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+    __wt_verbose_level_multi(session, 1338112, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "recovery log replay has successfully finished and ran for %" PRIu64 " milliseconds",
       conn->recovery_timeline.log_replay_ms);
 
@@ -1198,7 +1198,7 @@ done:
             eviction_started = true;
         }
 
-        __wt_verbose_level_multi(session,
+        __wt_verbose_level_multi(session, 1338113,
           WT_DECL_VERBOSE_MULTI_CATEGORY(
             ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS, WT_VERB_RTS})),
           WT_VERBOSE_INFO,
@@ -1211,7 +1211,7 @@ done:
 
         /* Time since the rollback to stable has started. */
         __wt_timer_evaluate_ms(session, &rts_timer, &conn->recovery_timeline.rts_ms);
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+        __wt_verbose_level_multi(session, 1338114, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
           "recovery rollback to stable has successfully finished and ran for %" PRIu64
           " milliseconds",
           conn->recovery_timeline.rts_ms);
@@ -1235,7 +1235,7 @@ done:
 
         /* Time since the recovery checkpoint has started. */
         __wt_timer_evaluate_ms(session, &checkpoint_timer, &conn->recovery_timeline.checkpoint_ms);
-        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+        __wt_verbose_level_multi(session, 1338115, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
           "recovery checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
           conn->recovery_timeline.checkpoint_ms);
     }
@@ -1262,7 +1262,7 @@ done:
 
     /* Time since the recovery has started. */
     __wt_timer_evaluate_ms(session, &timer, &conn->recovery_timeline.recovery_ms);
-    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+    __wt_verbose_level_multi(session, 1338116, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
       "recovery was completed successfully and took %" PRIu64 "ms, including %" PRIu64
       "ms for the log replay, %" PRIu64 "ms for the rollback to stable, and %" PRIu64
       "ms for the checkpoint.",

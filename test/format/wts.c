@@ -83,7 +83,7 @@ encryptor_at_open(void)
  *     Event handler for verbose and error messages.
  */
 static int
-handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     SAP *sap;
     WT_DECL_RET;
@@ -108,7 +108,7 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
      * use, but that requires locking.
      */
     if (g.trace_conn != NULL && (sap = session->app_private) != NULL && sap->trace != NULL) {
-        testutil_check(sap->trace->log_printf(sap->trace, "%s", message));
+        testutil_check(sap->trace->log_printf(sap->trace, "%d %s", id, message));
         if (!printf_msg)
             return (0);
     } else if (g.trace_session != NULL) {

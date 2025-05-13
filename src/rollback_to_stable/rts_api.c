@@ -144,7 +144,7 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
      */
     WT_ACQUIRE_READ_WITH_BARRIER(stable_timestamp, txn_global->stable_timestamp);
     WT_ACQUIRE_READ_WITH_BARRIER(pinned_timestamp, txn_global->pinned_timestamp);
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+    __wt_verbose_multi(session, 1016400, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_INIT
       "start rollback to stable with stable_timestamp=%s and oldest_timestamp=%s using %u worker "
       "threads",
@@ -156,12 +156,13 @@ __rollback_to_stable_int(WT_SESSION_IMPL *session, bool no_ckpt)
         rollback_timestamp = stable_timestamp;
     else {
         rollback_timestamp = WT_TS_MAX;
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), WT_RTS_VERB_TAG_NO_STABLE "%s",
+        __wt_verbose_multi(session, 1290900, WT_VERB_RECOVERY_RTS(session),
+          WT_RTS_VERB_TAG_NO_STABLE "%s",
           "the stable timestamp is not set; set the rollback timestamp to the maximum timestamp");
     }
 
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+        __wt_verbose_multi(session, 1016401, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_RECOVER_CKPT "recovered checkpoint snapshot_min=%" PRIu64
                                        ", snapshot_max=%" PRIu64 ", snapshot_count=%" PRIu32,
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
@@ -219,8 +220,8 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
     __wt_timer_start(session, &timer);
     WT_RET(__wt_metadata_search(session, uri, &config));
 
-    __wt_verbose_multi(
-      session, WT_VERB_RECOVERY_RTS(session), "starting rollback to stable on uri %s", uri);
+    __wt_verbose_multi(session, 1149100, WT_VERB_RECOVERY_RTS(session),
+      "starting rollback to stable on uri %s", uri);
 
     /* Read the stable timestamp once, when we first start up. */
     WT_ACQUIRE_READ_WITH_BARRIER(stable_timestamp, conn->txn_global.stable_timestamp);
@@ -231,7 +232,8 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
         rollback_timestamp = stable_timestamp;
     else {
         rollback_timestamp = WT_TS_MAX;
-        __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session), WT_RTS_VERB_TAG_NO_STABLE "%s",
+        __wt_verbose_multi(session, 1290901, WT_VERB_RECOVERY_RTS(session),
+          WT_RTS_VERB_TAG_NO_STABLE "%s",
           "the stable timestamp is not set; set the rollback timestamp to the maximum timestamp");
     }
 
@@ -241,7 +243,7 @@ __rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 
     __rts_assert_timestamps_unchanged(session, pinned_timestamp, stable_timestamp);
     __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+    __wt_verbose_multi(session, 1149101, WT_VERB_RECOVERY_RTS(session),
       "finished rollback to stable on uri %s and has ran for %" PRIu64 " milliseconds", uri,
       time_diff_ms);
 
@@ -311,7 +313,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 
     /* Time since the RTS started. */
     __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
-    __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
+    __wt_verbose_multi(session, 1076400, WT_VERB_RECOVERY_RTS(session),
       WT_RTS_VERB_TAG_END "finished rollback to stable%s and has ran for %" PRIu64 " milliseconds",
       dryrun ? " dryrun" : "", time_diff_ms);
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);

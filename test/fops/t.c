@@ -39,8 +39,8 @@ static FILE *logfp; /* Log file */
 
 static char home[512];
 
-static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
-static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, int, const char *);
+static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void shutdown(void);
 static int usage(void);
@@ -179,11 +179,13 @@ shutdown(void)
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+handle_error(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *errmsg)
 {
     (void)(handler);
     (void)(session);
     (void)(error);
+    (void)(id);
 
     /* Ignore complaints about missing files. */
     if (error == ENOENT)
@@ -201,10 +203,11 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     (void)(handler);
     (void)(session);
+    (void)(id);
 
     /* Ignore messages about failing to create forced checkpoints. */
     if (strstr(message, "forced or named checkpoint") != NULL)

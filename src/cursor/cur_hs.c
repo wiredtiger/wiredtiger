@@ -392,7 +392,7 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
         datastore_key = va_arg(ap, WT_ITEM *);
         if ((ret = __wt_buf_set(
                session, hs_cursor->datastore_key, datastore_key->data, datastore_key->size)) != 0)
-            WT_IGNORE_RET(__wt_panic(session, ret, "failed to set the contents of buffer"));
+            WT_IGNORE_RET(__wt_panic(session, 864700, ret, "failed to set the contents of buffer"));
         F_SET(hs_cursor, WT_HS_CUR_KEY_SET);
     } else {
         hs_cursor->datastore_key->data = NULL;

@@ -98,7 +98,7 @@ __cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
         WT_ERR(__wt_cond_alloc(session, "cache pool server", &cp->cache_pool_cond));
 
         __wt_process.cache_pool = cp;
-        __wt_verbose(session, WT_VERB_SHARED_CACHE, "Created cache pool %s", cp->name);
+        __wt_verbose(session, 282218, WT_VERB_SHARED_CACHE, "Created cache pool %s", cp->name);
     } else if (!updating && strcmp(__wt_process.cache_pool->name, pool_name) != 0)
         /* Only a single cache pool is supported. */
         WT_ERR_MSG(
@@ -202,7 +202,7 @@ __cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
     if (updating)
         __wt_cond_signal(session, __wt_process.cache_pool->cache_pool_cond);
 
-    __wt_verbose(session, WT_VERB_SHARED_CACHE,
+    __wt_verbose(session, 282219, WT_VERB_SHARED_CACHE,
       "Configured cache pool %s. Size: %" PRIu64 ", chunk size: %" PRIu64, cp->name, cp->size,
       cp->chunk);
 
@@ -258,7 +258,8 @@ __cache_pool_server(void *arg)
         /* Try to become the managing thread */
         if (__wt_atomic_cas8(&cp->pool_managed, 0, 1)) {
             FLD_SET_ATOMIC_16(cache->pool_flags_atomic, WT_CACHE_POOL_MANAGER);
-            __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s", "Cache pool switched manager thread");
+            __wt_verbose(
+              session, 1298600, WT_VERB_SHARED_CACHE, "%s", "Cache pool switched manager thread");
         }
 
         /*
@@ -308,7 +309,8 @@ __conn_cache_pool_open(WT_SESSION_IMPL *session)
     TAILQ_INSERT_TAIL(&cp->cache_pool_qh, conn, cpq);
     __wt_spin_unlock(session, &cp->cache_pool_lock);
 
-    __wt_verbose(session, WT_VERB_SHARED_CACHE, "Added %s to cache pool %s", conn->home, cp->name);
+    __wt_verbose(
+      session, 282220, WT_VERB_SHARED_CACHE, "Added %s to cache pool %s", conn->home, cp->name);
 
     /*
      * Each connection participating in the cache pool starts a manager thread. Only one manager is
@@ -390,7 +392,8 @@ __wt_cache_pool_destroy(WT_SESSION_IMPL *session)
      * the reference count, so proceed regardless.
      */
     if (found) {
-        __wt_verbose(session, WT_VERB_SHARED_CACHE, "Removing %s from cache pool", entry->home);
+        __wt_verbose(
+          session, 282221, WT_VERB_SHARED_CACHE, "Removing %s from cache pool", entry->home);
         TAILQ_REMOVE(&cp->cache_pool_qh, entry, cpq);
 
         /* Give the connection's resources back to the pool. */
@@ -434,7 +437,7 @@ __wt_cache_pool_destroy(WT_SESSION_IMPL *session)
     }
 
     if (!F_ISSET(cp, WT_CACHE_POOL_ACTIVE)) {
-        __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s", "Destroying cache pool");
+        __wt_verbose(session, 339400, WT_VERB_SHARED_CACHE, "%s", "Destroying cache pool");
         __wt_spin_lock(session, &__wt_process.spinlock);
         /*
          * We have been holding the pool lock - no connections could have been added.
@@ -463,8 +466,8 @@ __wt_cache_pool_destroy(WT_SESSION_IMPL *session)
         /* Notify other participants if we were managing */
         if (FLD_ISSET_ATOMIC_16(cache->pool_flags_atomic, WT_CACHE_POOL_MANAGER)) {
             cp->pool_managed = 0;
-            __wt_verbose(
-              session, WT_VERB_SHARED_CACHE, "%s", "Shutting down shared cache manager connection");
+            __wt_verbose(session, 339401, WT_VERB_SHARED_CACHE, "%s",
+              "Shutting down shared cache manager connection");
         }
     }
 
@@ -599,12 +602,12 @@ __cache_pool_assess(WT_SESSION_IMPL *session, uint64_t *phighest)
         if (cache->cp_pass_pressure > highest)
             highest = cache->cp_pass_pressure;
 
-        __wt_verbose_debug2(session, WT_VERB_SHARED_CACHE,
+        __wt_verbose_debug2(session, 1005300, WT_VERB_SHARED_CACHE,
           "Assess entry. reads: %" PRIu64 ", app evicts: %" PRIu64 ", app waits: %" PRIu64
           ", pressure: %" PRIu64,
           reads, app_evicts, app_waits, cache->cp_pass_pressure);
     }
-    __wt_verbose(session, WT_VERB_SHARED_CACHE,
+    __wt_verbose(session, 282222, WT_VERB_SHARED_CACHE,
       "Highest eviction count: %" PRIu64 ", entries: %" PRIu64, highest, entries);
 
     *phighest = highest;
@@ -641,8 +644,8 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
     WT_ASSERT_SPINLOCK_OWNED(NULL, &cp->cache_pool_lock);
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_SHARED_CACHE)) {
-        __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s", "Cache pool distribution: ");
-        __wt_verbose(session, WT_VERB_SHARED_CACHE, "%s",
+        __wt_verbose(session, 339402, WT_VERB_SHARED_CACHE, "%s", "Cache pool distribution: ");
+        __wt_verbose(session, 339403, WT_VERB_SHARED_CACHE, "%s",
           "\t"
           "cache (MB), pressure, skips, busy, %% full:");
     }
@@ -664,7 +667,7 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
         pressure = cache->cp_pass_pressure / highest_percentile;
         busy = __wt_evict_needed(entry->default_session, false, true, &pct_full);
 
-        __wt_verbose_debug2(session, WT_VERB_SHARED_CACHE,
+        __wt_verbose_debug2(session, 1005301, WT_VERB_SHARED_CACHE,
           "\t%5" PRIu64 ", %3" PRIu64 ", %2" PRIu32 ", %d, %2.3f", entry->cache_size >> 20,
           pressure, cache->cp_skip_count, busy, pct_full);
 
@@ -761,8 +764,8 @@ __cache_pool_adjust(WT_SESSION_IMPL *session, uint64_t highest, uint64_t bump_th
                 entry->cache_size -= adjustment;
                 cp->currently_used -= adjustment;
             }
-            __wt_verbose_debug2(session, WT_VERB_SHARED_CACHE, "Allocated %s%" PRIu64 " to %s",
-              grow ? "" : "-", adjustment, entry->home);
+            __wt_verbose_debug2(session, 1005302, WT_VERB_SHARED_CACHE,
+              "Allocated %s%" PRIu64 " to %s", grow ? "" : "-", adjustment, entry->home);
 
             /*
              * TODO: Add a loop waiting for connection to give up cache.

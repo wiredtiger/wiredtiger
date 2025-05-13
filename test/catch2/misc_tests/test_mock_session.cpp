@@ -32,11 +32,11 @@ TEST_CASE("Directly test the error handler on the mock session", "[mock_session]
 
     // Call the two valid function pointers on the handler, validate the rest are NULL.
     REQUIRE(handler->handle_error != nullptr);
-    REQUIRE(handler->handle_error(handler, nullptr, 0, "Message 2!") == 0);
+    REQUIRE(handler->handle_error(handler, nullptr, 0, 0, "Message 2!") == 0);
     REQUIRE(session_mock->get_last_message() == "Message 2!");
 
     REQUIRE(handler->handle_message != nullptr);
-    REQUIRE(handler->handle_message(handler, nullptr, "Message 3!") == 0);
+    REQUIRE(handler->handle_message(handler, nullptr, 0, "Message 3!") == 0);
     REQUIRE(session_mock->get_last_message() == "Message 3!");
 
     REQUIRE((handler->handle_close == nullptr && handler->handle_general == nullptr &&

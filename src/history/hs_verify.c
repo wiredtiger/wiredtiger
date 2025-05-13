@@ -74,7 +74,7 @@ __hs_verify_id(
         if (ds_cbt->compare != 0) {
             F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
             /* Note that we are reformatting the HS key here. */
-            WT_ERR_PANIC(session, WT_PANIC,
+            WT_ERR_PANIC(session, 668200, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
               __wt_key_string(session, key.data, key.size, CUR2BT(ds_cbt)->key_format, &key),
               session->dhandle->name);
@@ -184,7 +184,7 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
         WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
         if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
             F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
-            WT_ERR_PANIC(session, ret,
+            WT_ERR_PANIC(session, 668201, ret,
               "Unable to find btree id %" PRIu32
               " in the metadata file for the associated key '%s'.",
               btree_id, __wt_buf_set_printable(session, key.data, key.size, false, buf));

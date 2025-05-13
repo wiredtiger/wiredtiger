@@ -34,7 +34,7 @@ __wti_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void **mapped
     WT_RET(__wti_win_fs_size(file_handle->file_system, wt_session, file_handle->name, &file_size));
     len = (size_t)file_size;
 
-    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: memory-map: %" WT_SIZET_FMT " bytes",
+    __wt_verbose(session, 255200, WT_VERB_HANDLEOPS, "%s: memory-map: %" WT_SIZET_FMT " bytes",
       file_handle->name, len);
 
     desired_access = PAGE_READONLY;
@@ -86,7 +86,7 @@ __wti_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, void *mappe
     win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: memory-unmap: %" WT_SIZET_FMT " bytes",
+    __wt_verbose(session, 255201, WT_VERB_HANDLEOPS, "%s: memory-unmap: %" WT_SIZET_FMT " bytes",
       file_handle->name, length);
 
     if (UnmapViewOfFile(mapped_region) == 0) {

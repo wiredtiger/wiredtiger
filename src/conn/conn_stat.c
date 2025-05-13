@@ -539,7 +539,7 @@ __statlog_server(void *arg)
 
     if (0) {
 err:
-        WT_IGNORE_RET(__wt_panic(session, ret, "statistics log server error"));
+        WT_IGNORE_RET(__wt_panic(session, 571012, ret, "statistics log server error"));
     }
     __wt_buf_free(session, &path);
     __wt_buf_free(session, &tmp);

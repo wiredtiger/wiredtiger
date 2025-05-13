@@ -36,7 +36,8 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, const char *func, uint16_t 
 
     if (0) {
 err:
-        WT_IGNORE_RET(__wt_panic(session, ret, "operation tracking initialization failure"));
+        WT_IGNORE_RET(
+          __wt_panic(session, 571019, ret, "operation tracking initialization failure"));
     }
 
     __wt_spin_unlock_if_owned(session, &conn->optrack_map_spinlock);

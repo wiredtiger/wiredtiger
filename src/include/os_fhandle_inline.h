@@ -26,7 +26,7 @@ __wt_fsync(WT_SESSION_IMPL *session, WT_FH *fh, bool block)
 
     WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY));
 
-    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-sync", fh->handle->name);
+    __wt_verbose(session, 282224, WT_VERB_HANDLEOPS, "%s: handle-sync", fh->handle->name);
 
     handle = fh->handle;
     /*
@@ -60,8 +60,8 @@ __wt_fextend(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
     WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY));
     WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY));
 
-    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-extend: to %" PRIuMAX, fh->handle->name,
-      (uintmax_t)offset);
+    __wt_verbose(session, 282225, WT_VERB_HANDLEOPS, "%s: handle-extend: to %" PRIuMAX,
+      fh->handle->name, (uintmax_t)offset);
 
     /*
      * Our caller is responsible for handling any locking issues, all we have to do is find a
@@ -92,7 +92,7 @@ __wt_file_lock(WT_SESSION_IMPL *session, WT_FH *fh, bool lock)
 {
     WT_FILE_HANDLE *handle;
 
-    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-lock: %s", fh->handle->name,
+    __wt_verbose(session, 282226, WT_VERB_HANDLEOPS, "%s: handle-lock: %s", fh->handle->name,
       lock ? "lock" : "unlock");
 
     handle = fh->handle;
@@ -109,7 +109,7 @@ __wt_read(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, void
     WT_DECL_RET;
     uint64_t time_start, time_stop;
 
-    __wt_verbose_debug2(session, WT_VERB_HANDLEOPS,
+    __wt_verbose_debug2(session, 1005800, WT_VERB_HANDLEOPS,
       "%s: handle-read: %" WT_SIZET_FMT " at %" PRIuMAX, fh->handle->name, len, (uintmax_t)offset);
 
     WT_STAT_CONN_INCR_ATOMIC(session, thread_read_active);
@@ -135,7 +135,7 @@ __wt_read(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, void
 static WT_INLINE int
 __wt_filesize(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t *sizep)
 {
-    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-size", fh->handle->name);
+    __wt_verbose(session, 282227, WT_VERB_HANDLEOPS, "%s: handle-size", fh->handle->name);
 
     return (fh->handle->fh_size(fh->handle, (WT_SESSION *)session, sizep));
 }
@@ -154,8 +154,8 @@ __wt_ftruncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
 
     WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY));
 
-    __wt_verbose(session, WT_VERB_HANDLEOPS, "%s: handle-truncate: to %" PRIuMAX, fh->handle->name,
-      (uintmax_t)offset);
+    __wt_verbose(session, 282228, WT_VERB_HANDLEOPS, "%s: handle-truncate: to %" PRIuMAX,
+      fh->handle->name, (uintmax_t)offset);
 
     /*
      * Our caller is responsible for handling any locking issues, all we have to do is find a
@@ -189,7 +189,7 @@ __wt_write(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len, con
       !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY) ||
         WT_STRING_MATCH(fh->name, WT_SINGLETHREAD, strlen(WT_SINGLETHREAD)));
 
-    __wt_verbose_debug2(session, WT_VERB_HANDLEOPS,
+    __wt_verbose_debug2(session, 1005801, WT_VERB_HANDLEOPS,
       "%s: handle-write: %" WT_SIZET_FMT " at %" PRIuMAX, fh->handle->name, len, (uintmax_t)offset);
 
     /*

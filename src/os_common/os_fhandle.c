@@ -91,7 +91,8 @@ __wt_remove_locked(WT_SESSION_IMPL *session, const char *name, bool *removed)
         __wt_spin_unlock(session, &conn->fh_lock);
         return (0);
     } else {
-        __wt_verbose_debug2(session, WT_VERB_TIERED, "REMOVE_LOCKED: actually remove %s", name);
+        __wt_verbose_debug2(
+          session, 1000700, WT_VERB_TIERED, "REMOVE_LOCKED: actually remove %s", name);
         WT_ERR(__wt_fs_remove(session, name, false, true));
         WT_STAT_CONN_INCR(session, local_objects_removed);
         *removed = true;
@@ -213,7 +214,7 @@ __open_verbose(
     if (tmp->size != 0)
         WT_ERR(__wt_buf_catfmt(session, tmp, ")"));
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-open: type %s%s", name,
+    __wt_verbose(session, 282242, WT_VERB_FILEOPS, "%s: file-open: type %s%s", name,
       __open_verbose_file_type_tag(file_type), tmp->size == 0 ? "" : (char *)tmp->data);
 
 err:
@@ -352,7 +353,7 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
     *fhp = NULL;
 
     /* Track handle-close as a file operation, so open and close match. */
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-close", fh->name);
+    __wt_verbose(session, 282243, WT_VERB_FILEOPS, "%s: file-close", fh->name);
 
     /*
      * If the reference count hasn't gone to 0, or if it's an in-memory object, we're done.

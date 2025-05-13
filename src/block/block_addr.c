@@ -338,9 +338,9 @@ __wti_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag,
     WT_DECL_RET;
 
     if (ckpt_string == NULL) {
-        __wt_verbose_worker(session, WT_VERB_CHECKPOINT, S2C(session)->verbose[WT_VERB_CHECKPOINT],
-          "%s: %s: %s%s[Empty]", block->name, tag, ckpt_name ? ckpt_name : "",
-          ckpt_name ? ": " : "");
+        __wt_verbose_worker(session, 825900, WT_VERB_CHECKPOINT,
+          S2C(session)->verbose[WT_VERB_CHECKPOINT], "%s: %s: %s%s[Empty]", block->name, tag,
+          ckpt_name ? ckpt_name : "", ckpt_name ? ": " : "");
         return;
     }
 
@@ -383,9 +383,9 @@ __wti_ckpt_verbose(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *tag,
     WT_ERR(__wt_buf_catfmt(session, tmp, ", file size=%" PRIuMAX, (uintmax_t)ci->file_size));
     WT_ERR(__wt_buf_catfmt(session, tmp, ", checkpoint size=%" PRIu64, ci->ckpt_size));
 
-    __wt_verbose_worker(session, WT_VERB_CHECKPOINT, S2C(session)->verbose[WT_VERB_CHECKPOINT],
-      "%s: %s: %s%s%s", block->name, tag, ckpt_name ? ckpt_name : "", ckpt_name ? ": " : "",
-      (const char *)tmp->data);
+    __wt_verbose_worker(session, 825901, WT_VERB_CHECKPOINT,
+      S2C(session)->verbose[WT_VERB_CHECKPOINT], "%s: %s: %s%s%s", block->name, tag,
+      ckpt_name ? ckpt_name : "", ckpt_name ? ": " : "", (const char *)tmp->data);
 
 err:
     __wt_scr_free(session, &tmp);

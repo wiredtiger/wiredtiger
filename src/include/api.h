@@ -91,7 +91,7 @@
      */                                                                                  \
     if ((s)->err_info.err != 0)                                                          \
         __wt_session_reset_last_error((s));                                              \
-    __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
+    __wt_verbose((s), 118600, WT_VERB_API, "%s", "CALL: " #struct_name ":" #func_name)
 
 #define API_CALL_NOCONF(s, struct_name, func_name, dh) \
     do {                                               \

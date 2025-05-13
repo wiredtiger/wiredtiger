@@ -188,7 +188,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 static void handle_conn_close(void);
 static void handle_conn_ready(WT_CONNECTION *);
-static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
+static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, int, const char *);
 static int handle_general(WT_EVENT_HANDLER *, WT_CONNECTION *, WT_SESSION *, WT_EVENT_TYPE, void *);
 
 static WT_CONNECTION *stat_conn = NULL;
@@ -275,11 +275,13 @@ handle_conn_ready(WT_CONNECTION *conn)
  *     Function to handle errors.
  */
 static int
-handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+handle_error(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *errmsg)
 {
     (void)(handler);
     (void)(session);
     (void)(error);
+    (void)(id);
 
     /* Ignore complaints about incremental backup not being configured. */
     if (backup_force_stop_interval > 0 &&

@@ -39,8 +39,8 @@ int session_per_op;    /* New session per operation */
 static char home[512]; /* Program working dir */
 static FILE *logfp;    /* Log file */
 
-static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
-static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, int, const char *);
+static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void shutdown(void);
 static int usage(void);
@@ -217,11 +217,13 @@ shutdown(void)
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
+handle_error(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *errmsg)
 {
     (void)(handler);
     (void)(session);
     (void)(error);
+    (void)(id);
 
     return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
 }
@@ -231,10 +233,11 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
  *     TODO: Add a comment describing this function.
  */
 static int
-handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     (void)(handler);
     (void)(session);
+    (void)(id);
 
     if (logfp != NULL)
         return (fprintf(logfp, "%s\n", message) < 0 ? -1 : 0);

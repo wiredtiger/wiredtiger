@@ -316,7 +316,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
              * handle it.
              */
             if (ret != 0)
-                WT_RET_PANIC(session, ret, "fail to update oldest after serializing the updates");
+                WT_RET_PANIC(
+                  session, 1253500, ret, "fail to update oldest after serializing the updates");
 
             if (!__wt_txn_visible_all(session, txn, obsolete_timestamp))
                 return (0);

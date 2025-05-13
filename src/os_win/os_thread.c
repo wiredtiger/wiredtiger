@@ -58,7 +58,7 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t *tid)
             windows_error = __wt_getlasterror();
 
         /* If we fail to wait, we will leak handles, do not continue. */
-        return (__wt_panic(session, __wt_map_windows_error(windows_error),
+        return (__wt_panic(session, 571028, __wt_map_windows_error(windows_error),
           "thread join: WaitForSingleObject: %s", __wt_formatmessage(session, windows_error)));
     }
 

@@ -65,7 +65,7 @@ __chunkcache_verify_metadata_config(WT_SESSION_IMPL *session, char *md_config, u
       __wt_snprintf(tmp, sizeof(tmp), WT_CC_APP_META_FORMAT, capacity, hashtable_size, chunk_size));
 
     if (strstr(md_config, tmp) == NULL) {
-        __wt_verbose_error(session, WT_VERB_CHUNKCACHE,
+        __wt_verbose_error(session, 1172301, WT_VERB_CHUNKCACHE,
           "stored chunk cache config (%s) incompatible with runtime config (%s)", md_config, tmp);
         return (-1);
     }
@@ -192,7 +192,7 @@ __chunkcache_metadata_work(WT_SESSION_IMPL *session)
             WT_STAT_CONN_INCR(session, chunkcache_metadata_removed);
         } else {
             __wt_verbose_error(
-              session, WT_VERB_CHUNKCACHE, "got invalid event type %d\n", entry->type);
+              session, 1172302, WT_VERB_CHUNKCACHE, "got invalid event type %d\n", entry->type);
             ret = -1;
             goto err;
         }
@@ -240,7 +240,7 @@ __chunkcache_metadata_server(void *arg)
 
     if (0) {
 err:
-        WT_IGNORE_RET(__wt_panic(session, ret, "%s", "chunk cache metadata server error"));
+        WT_IGNORE_RET(__wt_panic(session, 1172303, ret, "%s", "chunk cache metadata server error"));
     }
 
     return (WT_THREAD_RET_VALUE);
@@ -269,12 +269,14 @@ __wti_chunkcache_metadata_create(WT_SESSION_IMPL *session)
     if (ret == WT_NOTFOUND) {
         WT_ERR(__chunkcache_create_metadata_file(
           session, chunkcache->capacity, chunkcache->hashtable_size, chunkcache->chunk_size));
-        __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "created chunk cache metadata file");
+        __wt_verbose(
+          session, 1143300, WT_VERB_CHUNKCACHE, "%s", "created chunk cache metadata file");
         ret = 0;
     } else if (ret == 0) {
         WT_ERR(__chunkcache_verify_metadata_config(session, metadata_config, chunkcache->capacity,
           chunkcache->hashtable_size, chunkcache->chunk_size));
-        __wt_verbose(session, WT_VERB_CHUNKCACHE, "%s", "reused chunk cache metadata file");
+        __wt_verbose(
+          session, 1143301, WT_VERB_CHUNKCACHE, "%s", "reused chunk cache metadata file");
     }
     WT_ERR(ret);
 

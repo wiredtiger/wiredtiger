@@ -262,11 +262,12 @@ check_configuration_result(
  */
 static int
 handle_wiredtiger_error(
-  WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *message)
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, int error, const char *message)
 {
     CUSTOM_EVENT_HANDLER *custom;
 
     (void)session;
+    (void)(id);
 
     /* Cast the handler back to our custom handler. */
     custom = (CUSTOM_EVENT_HANDLER *)handler;
@@ -283,12 +284,14 @@ handle_wiredtiger_error(
  *     Handle message callbacks from WiredTiger.
  */
 static int
-handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handle_wiredtiger_message(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     CUSTOM_EVENT_HANDLER *custom;
     char *output, *p;
 
     (void)session;
+    (void)id;
 
     /* Cast the handler back to our custom handler. */
     custom = (CUSTOM_EVENT_HANDLER *)handler;

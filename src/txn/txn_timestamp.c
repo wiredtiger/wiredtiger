@@ -468,7 +468,7 @@ set:
       __wt_atomic_loadbool(&txn_global->has_oldest_timestamp) &&
       txn_global->oldest_timestamp > txn_global->stable_timestamp) {
         WT_STAT_CONN_INCR(session, txn_set_ts_out_of_order);
-        __wt_verbose_debug1(session, WT_VERB_TIMESTAMP,
+        __wt_verbose_debug1(session, 1225600, WT_VERB_TIMESTAMP,
           "set_timestamp: oldest timestamp %s must not be later than stable timestamp %s",
           __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string[1]));
@@ -827,7 +827,7 @@ __txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
         if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED)) {
             oldest_ts = txn_global->oldest_timestamp;
             if (prepare_ts < oldest_ts) {
-                __wt_verbose(session, WT_VERB_TIMESTAMP,
+                __wt_verbose(session, 874500, WT_VERB_TIMESTAMP,
                   "prepare timestamp %s rounded to oldest timestamp %s",
                   __wt_timestamp_to_string(prepare_ts, ts_string[0]),
                   __wt_timestamp_to_string(oldest_ts, ts_string[1]));
@@ -913,7 +913,7 @@ __wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
              * too noisy for applications that don't track the read timestamp against the oldest
              * timestamp and simply expect the set to fail.
              */
-            __wt_verbose_notice(session, WT_VERB_TIMESTAMP,
+            __wt_verbose_notice(session, 839720, WT_VERB_TIMESTAMP,
               "read timestamp %s less than the oldest timestamp %s",
               __wt_timestamp_to_string(read_ts, ts_string[0]),
               __wt_timestamp_to_string(ts_oldest, ts_string[1]));
@@ -930,7 +930,7 @@ __wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
      * This message is generated here to reduce the span of critical section.
      */
     if (did_roundup_to_oldest)
-        __wt_verbose(session, WT_VERB_TIMESTAMP,
+        __wt_verbose(session, 465200, WT_VERB_TIMESTAMP,
           "read timestamp %s : rounded to oldest timestamp %s",
           __wt_timestamp_to_string(read_ts, ts_string[0]),
           __wt_timestamp_to_string(ts_oldest, ts_string[1]));

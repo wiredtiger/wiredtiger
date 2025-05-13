@@ -132,7 +132,7 @@ __curtable_set_key(WT_CURSOR *cursor, ...)
 
     va_start(ap, cursor);
     if ((ret = __wti_cursor_set_keyv(primary, cursor->flags, ap)) != 0)
-        WT_IGNORE_RET(__wt_panic(CUR2S(cursor), ret, "failed to set key"));
+        WT_IGNORE_RET(__wt_panic(CUR2S(cursor), 864702, ret, "failed to set key"));
     va_end(ap);
 
     if (!F_ISSET(primary, WT_CURSTD_KEY_SET))

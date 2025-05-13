@@ -32,17 +32,19 @@
 
 static const char *home;
 
-int handle_wiredtiger_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
+int handle_wiredtiger_message(WT_EVENT_HANDLER *, WT_SESSION *, int32_t, const char *);
 
 /*
  * handle_wiredtiger_message --
  *     Function to handle message callbacks from WiredTiger.
  */
 int
-handle_wiredtiger_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
+handle_wiredtiger_message(
+  WT_EVENT_HANDLER *handler, WT_SESSION *session, int32_t id, const char *message)
 {
     /* Unused parameters */
     (void)handler;
+    (void)id;
     printf("WiredTiger Message - Session: %p, Message: %s\n", (void *)session, message);
 
     return (0);

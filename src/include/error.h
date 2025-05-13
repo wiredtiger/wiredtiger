@@ -35,9 +35,9 @@
       session, error, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
 #define __wt_errx(session, ...) \
     __wt_errx_func(session, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
-#define __wt_panic(session, error, ...) \
-    __wt_panic_func(                    \
-      session, error, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
+#define __wt_panic(session, id, error, ...) \
+    __wt_panic_func(                        \
+      session, id, error, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
 #define __wt_set_return(session, error) \
     __wt_set_return_func(session, __PRETTY_FUNCTION__, __LINE__, error, #error)
 
@@ -72,7 +72,7 @@
 #define WT_ERR_NOTFOUND_OK(a, keep) WT_ERR_ERROR_OK(a, WT_NOTFOUND, keep)
 
 /* Return WT_PANIC regardless of earlier return codes. */
-#define WT_ERR_PANIC(session, v, ...) WT_ERR(__wt_panic(session, v, __VA_ARGS__))
+#define WT_ERR_PANIC(session, id, v, ...) WT_ERR(__wt_panic(session, id, v, __VA_ARGS__))
 
 /* Return tests. */
 #define WT_RET(a)               \
@@ -173,11 +173,11 @@ __wt_tret_error_ok(int *pret, int a, int e)
 #define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
 /* Return WT_PANIC regardless of earlier return codes. */
-#define WT_RET_PANIC(session, v, ...) return (__wt_panic(session, v, __VA_ARGS__))
+#define WT_RET_PANIC(session, id, v, ...) return (__wt_panic(session, id, v, __VA_ARGS__))
 
 /* Called on unexpected code path: locate the failure. */
-#define __wt_illegal_value(session, v)             \
-    __wt_panic(session, EINVAL, "%s: 0x%" PRIxMAX, \
+#define __wt_illegal_value(session, v)                     \
+    __wt_panic(session, 571014, EINVAL, "%s: 0x%" PRIxMAX, \
       "encountered an illegal file format or internal value", (uintmax_t)(v))
 
 /*
@@ -319,14 +319,14 @@ __wt_tret_error_ok(int *pret, int a, int e)
  *  Assert an expression. If the relevant assertion category is enabled
  *  abort the program, otherwise return WT_PANIC.
  */
-#define WT_RET_PANIC_ASSERT(session, category, exp, v, ...)   \
-    do {                                                      \
-        if (WT_UNLIKELY(!(exp))) {                            \
-            if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
-                TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
-            else                                              \
-                WT_RET_PANIC(session, v, __VA_ARGS__);        \
-        }                                                     \
+#define WT_RET_PANIC_ASSERT(session, id, category, exp, v, ...) \
+    do {                                                        \
+        if (WT_UNLIKELY(!(exp))) {                              \
+            if (EXTRA_DIAGNOSTICS_ENABLED(session, category))   \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);       \
+            else                                                \
+                WT_RET_PANIC(session, id, v, __VA_ARGS__);      \
+        }                                                       \
     } while (0)
 
 /*
