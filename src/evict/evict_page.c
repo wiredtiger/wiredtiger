@@ -238,7 +238,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /* After this spot, the only recoverable failure is EBUSY. */
     ebusy_only = true;
 
-    /* Check we are not evicting an accessible internal page with an active split generation. */
+    /*
+     * Check we are not evicting an accessible internal page with an active split generation. We
+     * should be able to evict anything if we are closing the dhandle and when the dhandle is
+     * already dead.
+     */
     WT_ASSERT(session,
       closing || !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
