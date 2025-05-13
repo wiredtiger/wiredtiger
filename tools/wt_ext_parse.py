@@ -5,6 +5,7 @@ import time
 import subprocess
 import sys
 import tempfile
+import json # Added import
 
 # Global variable to control debug printing
 DEBUG_MODE = False
@@ -115,7 +116,7 @@ def process_and_decode_dump(dump_info, byte_list, decoder_script_path, output_di
     except subprocess.SubprocessError as e:  # More specific for subprocess issues
         print(f"An unexpected subprocess error occurred for {dump_info['timestamp']}: {type(e).__name__} - {e}")
 
-def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps", decoder_script_path="wt_binary_decode.py", stream_mode=False):
+def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps", decoder_script_path="wt_binary_decode.py", stream_mode=False, is_mongo_log=False):
     """
     Parses a log file to extract byte dumps, decodes them using an external script via stdin,
     and saves the decoded output. Optionally monitors the log file continuously.
@@ -125,9 +126,10 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
         output_dir (str): Directory where extracted AND DECODED byte dump files will be saved.
         decoder_script_path (str): Path to the wt_binary_decode.py script.
         stream_mode (bool): If True, continuously monitor the log file. Otherwise, read once.
+        is_mongo_log (bool): If True, parse the log as mongo log (JSON format).
     """
 
-    # Regex to identify the "header" line of a byte dump
+    # Regex to identify the "header" line of a standard byte dump
     # Captures: 1=timestamp, 2=file_name, 3=raw_extent_name, 4=size
     header_regex = re.compile(
         r"^(?:0x[0-9a-fA-F]+[:\s]\s*)?"  # Optional hex address (e.g., 0x...) followed by ':' or space, and optional spaces
@@ -138,27 +140,28 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
         r".*?size:\s*(\d+)\s*\]"         # Group 4: Size (e.g., from "[...size: 36864]")
     )
 
-    # Regex to identify a data line of a byte dump
+    # Regex to identify a data line of a standard byte dump
     # Captures: 1=block_identifier, 2=hex_bytes
-    # The block_identifier ensures we are collecting chunks for the same block
     data_regex = re.compile(
-        # Optional hex address (e.g., 0x...) followed by ':' or space, and optional spaces.
-        # This matches prefixes like "0x140028040:"
         r"^(?:0x[0-9a-fA-F]+[:\s]\s*)?"
-        # Timestamp in square brackets (e.g., [1747020001:639030])
         r"\[\d+:\d+\]"
-        # Optional PID/ThreadID (e.g., [69153:0x20466cc80])
         r"(?:\[\d+:0x[0-9a-fA-F]+\])?"
-        # Non-greedy match for any intervening text before the block identifier.
-        # This can include various log prefixes like ", t, file:...", "WT_SESSION...", etc.
         r".*?"
-        # Group 1: Block identifier.
-        # Example: {0: 36864, 4096, 0xeceecc3c}:
         r"(\{0: \d+, \d+, 0x[0-9a-fA-F]+\}):"
-        # Chunk information (e.g., (chunk 1 of 2): )
         r" \(chunk \d+ of \d+\):\s*"
-        # Group 2: Hex bytes (e.g., 00 00 ... FF)
         r"([0-9a-fA-F\s]+)$"
+    )
+
+    # Regex for mongo log "header" from extracted "msg" field
+    # Captures: 1=raw_extent_name, 2=file_name, 3=size
+    mongo_header_regex = re.compile(
+        r"^([\w.-]+): byte dump \[file: ([^,]+), size:\s*(\d+)\s*\]"
+    )
+
+    # Regex for mongo log "data" from extracted "msg" field
+    # Captures: 1=block_identifier, 2=hex_bytes
+    mongo_data_regex = re.compile(
+        r"(\{0: \d+, \d+, 0x[0-9a-fA-F]+\}): \(chunk \d+ of \d+\):\s*([0-9a-fA-F\s]+)$"
     )
 
     if not os.path.exists(output_dir):  # This is now for decoded files
@@ -171,8 +174,8 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
     processed_log_filepath = log_filepath
     temp_file_created_path = None
 
-    if not stream_mode:
-        print_debug(f"Preprocessing log file: {log_filepath} to filter for 'WT_VERB_BLOCK_EXT'")
+    if not stream_mode: # Grep only if not streaming
+        print_debug(f"Standard log format. Preprocessing log file: {log_filepath} to filter for 'WT_VERB_BLOCK_EXT'")
         try:
             with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding="utf-8") as temp_f:
                 temp_file_created_path = temp_f.name
@@ -228,41 +231,96 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
                     else:
                         break # End of file in read-once mode
 
-                line = line.strip()
+                stripped_line_original = line.strip()
+                stripped_line_for_regex = None # Will hold the part of the line to match regex against
                 
-                header_match = header_regex.match(line)
-                data_match = data_regex.match(line)
+                active_header_match = None
+                active_data_match = None
+                timestamp_for_mongo_header = None # To store timestamp for mongo log header
 
-                if header_match:
+                if is_mongo_log:
+                    try:
+                        # Remove optional prefix like "[j0] " or "[conn123] "
+                        line_to_parse = re.sub(r'^\[[^\]]+\]\s*', '', stripped_line_original)
+                        log_entry = json.loads(line_to_parse)
+                        
+                        # Verify it's a WT_VERB_BLOCK_EXT message before trying to access deep keys
+                        msg_attr = log_entry.get("attr", {}).get("message", {})
+                        if log_entry.get("c") == "WT" and msg_attr.get("category") == "WT_VERB_BLOCK_EXT":
+                            extracted_msg = msg_attr.get("msg")
+                            if extracted_msg:
+                                stripped_line_for_regex = extracted_msg # Use this for regex matching
+                                
+                                ts_sec = msg_attr.get("ts_sec")
+                                ts_usec = msg_attr.get("ts_usec")
+                                if ts_sec is not None and ts_usec is not None:
+                                    timestamp_for_mongo_header = f"{ts_sec}:{ts_usec}"
+                                else:
+                                    print_debug(f"DEBUG: Mongo log WT_VERB_BLOCK_EXT message missing ts_sec/ts_usec: {stripped_line_original[:100]}")
+                                
+                                active_header_match = mongo_header_regex.match(stripped_line_for_regex)
+                                if not active_header_match: # If not a header, try data
+                                    active_data_match = mongo_data_regex.match(stripped_line_for_regex)
+                            else:
+                                print_debug(f"DEBUG: Mongo log line did not contain 'msg' field: {stripped_line_original[:100]}")
+                                continue # Skip this line if 'msg' is not found
+                        else:
+                            # Not a relevant mongo log line, skip to next line
+                            print_debug(f"DEBUG: Skipping non-WT_VERB_BLOCK_EXT mongo log line: {stripped_line_original[:100]}")
+                            continue
+                    except json.JSONDecodeError:
+                        print_debug(f"DEBUG: Failed to parse mongo log line as JSON: {stripped_line_original[:100]}")
+                        continue # Skip if it's not valid JSON
+                else: # Not mongo_log
+                    stripped_line_for_regex = stripped_line_original
+                    active_header_match = header_regex.match(stripped_line_for_regex)
+                    if not active_header_match:
+                        active_data_match = data_regex.match(stripped_line_for_regex)
+                
+                if active_header_match:
                     if current_dump_info and collected_bytes:
                         process_and_decode_dump(current_dump_info, collected_bytes, decoder_script_path, output_dir)
                     
-                    current_dump_info = {
-                        'timestamp': header_match.group(1),
-                        'file_name_raw': header_match.group(2),
-                        'raw_extent_name': header_match.group(3),
-                        'size': header_match.group(4),
-                        'expected_block_id': None
-                    }
+                    if is_mongo_log:
+                        if timestamp_for_mongo_header is None:
+                            print_debug(f"DEBUG: Mongo header matched but timestamp_for_mongo_header is None. Skipping. Line: {stripped_line_original[:100]}")
+                            current_dump_info = None
+                            collected_bytes = []
+                            continue
+
+                        current_dump_info = {
+                            'timestamp': timestamp_for_mongo_header,
+                            'file_name_raw': active_header_match.group(2), # mongo_header_regex group 2
+                            'raw_extent_name': active_header_match.group(1), # mongo_header_regex group 1
+                            'size': active_header_match.group(3), # mongo_header_regex group 3
+                            'expected_block_id': None
+                        }
+                    else: # Not mongo_log (standard header_regex)
+                        current_dump_info = {
+                            'timestamp': active_header_match.group(1),
+                            'file_name_raw': active_header_match.group(2),
+                            'raw_extent_name': active_header_match.group(3),
+                            'size': active_header_match.group(4),
+                            'expected_block_id': None
+                        }
                     collected_bytes = []
                     print_debug(f"DEBUG: New header found: {current_dump_info}")
 
-                elif data_match and current_dump_info:
-                    block_id = data_match.group(1)
-                    hex_data = data_match.group(2).strip()
+                elif active_data_match and current_dump_info:
+                    block_id = active_data_match.group(1) # Group 1 for both data_regex and mongo_data_regex
+                    hex_data = active_data_match.group(2).strip() # Group 2 for both
 
                     if not isinstance(current_dump_info, dict):
                         print_debug(f"DEBUG: current_dump_info is not a dict (value: {current_dump_info}), skipping data line. Waiting for new header.")
+                        current_dump_info = None 
                         collected_bytes = [] 
                         continue
                     else:
-                        # Explicitly type hint for the linter, though it should be a dict.
                         current_dump_info_dict = dict(current_dump_info)
                         if current_dump_info_dict.get('expected_block_id') is None:
                             current_dump_info_dict['expected_block_id'] = block_id
                             print_debug(f"DEBUG: Set expected_block_id to {block_id} for {current_dump_info_dict.get('timestamp')}")
                         
-                        # Update current_dump_info with the (potentially) modified dictionary
                         current_dump_info = current_dump_info_dict
 
                         if current_dump_info.get('expected_block_id') == block_id:
@@ -274,9 +332,15 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
                                 process_and_decode_dump(current_dump_info, collected_bytes, decoder_script_path, output_dir)
                             current_dump_info = None 
                             collected_bytes = []
-
-                elif current_dump_info and collected_bytes and line: 
-                    print_debug(f"DEBUG: Non-dump line encountered. Processing previous dump for ts {current_dump_info.get('timestamp')}.")
+                
+                elif current_dump_info and collected_bytes and \
+                     ((is_mongo_log and stripped_line_for_regex is not None) or \
+                      (not is_mongo_log and stripped_line_original)): 
+                    # This condition means:
+                    # - We have a current dump being collected.
+                    # - The current line (either extracted_msg for mongo, or original line for non-mongo) was processed but was not a header or data.
+                    # - This implies an interruption or an unrelated log line that should finalize the pending dump.
+                    print_debug(f"DEBUG: Non-dump line encountered after processing. Processing previous dump for ts {current_dump_info.get('timestamp') if isinstance(current_dump_info, dict) else 'N/A'}.")
                     process_and_decode_dump(current_dump_info, collected_bytes, decoder_script_path, output_dir)
                     current_dump_info = None
                     collected_bytes = []
@@ -309,6 +373,7 @@ if __name__ == "__main__":
     parser.add_argument("--decoder_script", default="wt_binary_decode.py", help="Path to the wt_binary_decode.py script (default: wt_binary_decode.py). Assumes it's in PATH, same dir, or an absolute path is given.")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug printing.")
     parser.add_argument("--stream", action="store_true", help="Continuously monitor the log file for new entries. If not set, reads the entire file once.")
+    parser.add_argument("--mongo_log", action="store_true", help="Indicate that the input log file is in mongo log (JSON) format.") # Added mongo_log argument
     args = parser.parse_args()
 
     if args.debug:
@@ -329,4 +394,4 @@ if __name__ == "__main__":
          # A more robust check if it's not an absolute/relative file and not in PATH
         print(f"Warning: Decoder script '{resolved_decoder_path}' not found as a direct file. Will try to run assuming it's in PATH.")
 
-    parse_log_for_byte_dumps(args.log_file, args.output_dir, resolved_decoder_path, args.stream)
+    parse_log_for_byte_dumps(args.log_file, args.output_dir, resolved_decoder_path, args.stream, args.mongo_log) # Pass args.mongo_log
