@@ -91,6 +91,8 @@
 struct __wt_blkincr {
     const char *id_str;   /* User's name for this backup. */
     uint64_t granularity; /* Granularity of this backup. */
+    size_t incr_size_bytes;
+    size_t dirty_size_bytes;
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BLKINCR_FULL 0x1u  /* There is no checkpoint, always do full file */
 #define WT_BLKINCR_INUSE 0x2u /* This entry is active */

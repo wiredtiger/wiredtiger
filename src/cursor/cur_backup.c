@@ -924,8 +924,15 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     /* If it's not a dup backup cursor, make sure one isn't open. */
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_BACKUP_DUP));
     WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_list = NULL);
-    if (cb->incr_src != NULL)
+    if (cb->incr_src != NULL) {
+        double multi = 0;
+        if (cb->incr_src->dirty_size_bytes != 0)
+            multi = (1.0*cb->incr_src->incr_size_bytes) / cb->incr_src->dirty_size_bytes;
+        printf("Total size for incremental backup is: %"PRIu64" bytes, dirty_size: %"PRIu64" bytes, multiplier: %.1lf\n", cb->incr_src->incr_size_bytes, cb->incr_src->dirty_size_bytes, multi);
+        cb->incr_src->incr_size_bytes = 0;
+        cb->incr_src->dirty_size_bytes = 0;
         F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
+    }
     WT_TRET(__backup_free(session, cb));
 
     /* Remove any backup specific file. */
@@ -961,9 +968,13 @@ static int
 __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
 {
     WT_CURSOR_BACKUP *cb;
+    WT_CURSOR *cursor;
+    WT_SESSION *wt_session;
+    WT_BTREE *btree;
     WT_DECL_RET;
     char *value;
-
+    cursor = NULL;
+    wt_session = (WT_SESSION*)session;
     cb = session->bkp_cursor;
     WT_UNUSED(skip);
 
@@ -993,8 +1004,19 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
         goto err;
 
     /* Add file type objects to the list of files to be copied. */
-    if (WT_PREFIX_MATCH(name, "file:"))
+    if (WT_PREFIX_MATCH(name, "file:")) {
+        /*
+         * If this isn't a subsequent incremental backup open a cursor so we can reset the dirty
+         * size on the btree. This is a super duper hack.
+         */
+        if (cb->incr_src == NULL) {
+            WT_ERR(wt_session->open_cursor(wt_session, name, NULL, NULL, &cursor));
+            btree = CUR2BT(cursor);
+            btree->bm->block->bytes_dirtied = 0;
+            cursor->close(cursor);
+        }
         WT_ERR(__backup_list_append(session, cb, name, value));
+    }
 
 err:
     __wt_free(session, value);

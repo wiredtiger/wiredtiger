@@ -284,7 +284,7 @@ struct __wt_block {
     size_t os_cache;               /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
-
+    uint32_t bytes_dirtied;
     u_int block_header; /* Header length */
 
     /*
