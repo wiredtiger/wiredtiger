@@ -1,4 +1,5 @@
 import argparse, sys, subprocess, os
+import json
 
 def last_commit_from_dev():
     # Find the commit from develop at which point the current branch diverged.
@@ -50,14 +51,58 @@ def get_changed_modules():
 # def run_tests(list):
 #     #Run listed tests locally
 
+# Build the smart_test.json file used to generate tests in evergreen
+def build_evergreen_generate_file(changed_modules, buildvariant):
+
+    my_json = {
+        "functions": {
+            "run-smart-test-component": {
+                "command": "shell.exec",
+                # FIXME - make this run ./smart_test.sh for the specific component instead of printing
+                "params": { "script": "echo TESTING ${component}" }
+            }
+        },
+        "tasks": [],  # Filled in the loop below
+        "buildvariants": [
+            {
+                "tasks": [],  # Filled in the loop below
+                "name": buildvariant
+            }
+        ]
+    }
+
+    for component in changed_modules:
+        task_json = {
+                "commands": [
+                    {
+                        "func": "run-smart-test-component",
+                        "vars": { "component": component }
+                    }
+                ],
+                "name": f"run_smart_{component}"
+            }
+        my_json["tasks"].append(task_json)
+
+        my_json["buildvariants"][0]["tasks"].append({ "name": f"run_smart_{component}" })
+
+    json.dump(my_json, open("smart_test.json", "w"), indent=4)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test runner based on changed files.")
     parser.add_argument("--list_only", help="Only list the test files without running them.")
+    # This takes the buildvariant as an argument
+    # FIXME - determine if we can extract the buildvariant from the environment. It's an evergreen expansion.
+    parser.add_argument("--generate-tests", help="Generate a smart_test.json file to be used by generate.tasks in evergreen.")
     parser.add_argument("-t", help="Run all test relevant to the tag (module) given.")
     args = parser.parse_args()
 
     changed_modules = get_changed_modules()
+
+    if args.generate_tests:
+        # Generate the smart_test.json file
+        build_evergreen_generate_file(changed_modules, args.generate_tests)
+        print("smart_test.json file generated. Pass it into generate.tasks in evergreen to generate dedicated tests for each modified component.")
+        sys.exit(0)
 
     print(changed_modules)
 

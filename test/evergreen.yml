@@ -5392,6 +5392,23 @@ tasks:
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=1
       - func: "build and push antithesis container"
 
+  - name: smart-testing
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          shell: bash
+          working_dir: wiredtiger
+          script: |
+            set -o errexit
+            set -o verbose
+            ${python_binary|python3} test/smart/smart_test.py --generate-tests ${build_variant}
+      - command: generate.tasks
+        # FIXME - handle when there's no components to test
+        params:
+          files:
+            - wiredtiger/smart_test.json
+
 #######################################
 #            Buildvariants            #
 #######################################
@@ -5411,6 +5428,7 @@ buildvariants:
     - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
+    - name: "smart-testing"
     - name: compile
     - name: doc-compile
     - name: make-check-test
