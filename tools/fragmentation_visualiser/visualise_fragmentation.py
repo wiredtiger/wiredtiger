@@ -38,45 +38,56 @@ def create_fragmentation_image(input_file_path, output_folder):
 
     def generate_image(image_path, blocks, color):
         shapes = []
-        GRID_WIDTH = 1000
-        SQUARE_BYTES = file_size / (GRID_WIDTH * GRID_WIDTH)
-        print("Each square represents ", SQUARE_BYTES, " bytes")
-        
-        def add_span(offset, size):
-            start_block = offset / SQUARE_BYTES
-            end_block = (offset + size) / SQUARE_BYTES
 
-            start_row = int(start_block) // GRID_WIDTH
-            start_col = int(start_block) % GRID_WIDTH
-            end_row = int(end_block) // GRID_WIDTH
-            end_col = int(end_block) % GRID_WIDTH
+        SQUARE_BYTES = 4096  # 4KB
+        total_blocks = file_size // SQUARE_BYTES
+        GRID_WIDTH = math.ceil(math.sqrt(total_blocks))
 
-            if start_row == end_row:
-                x0, x1 = start_col, end_col
-                y0, y1 = -start_row - 1, -start_row
-                shapes.append(dict(type="rect", x0=x0, y0=y0, x1=x1, y1=y1,
-                                    line=dict(width=0, color='black'),
-                                    fillcolor=color))
-            else:
-                for row in range(start_row, end_row + 1):
-                    row_start_block = row * GRID_WIDTH
-                    row_end_block = row_start_block + GRID_WIDTH
-                    seg_start = max(start_block, row_start_block)
-                    seg_end = min(end_block, row_end_block)
+        print(f"Each square = {SQUARE_BYTES} bytes (4KB)")
+        print(f"Total blocks = {total_blocks}, Grid width = {GRID_WIDTH}")
 
-                    x0 = int(seg_start) % GRID_WIDTH
-                    x1 = int(seg_end) % GRID_WIDTH if row != end_row else int(seg_end - row * GRID_WIDTH)
-                    if x1 <= x0:
-                        x1 = GRID_WIDTH
-
-                    y0, y1 = -row - 1, -row
-                    shapes.append(dict(type="rect", x0=x0, y0=y0, x1=x1, y1=y1,
-                                        line=dict(width=0, color='black'),
-                                        fillcolor=color))
-
+        # Convert all blocks to block indexes
+        block_indexes = set()
         for offset, size in blocks:
-            add_span(offset, size)
+            start = offset // SQUARE_BYTES
+            end = (offset + size) // SQUARE_BYTES
+            for i in range(start, end):
+                block_indexes.add(i)
 
+        # Sort block indexes so we can group them
+        block_indexes = sorted(block_indexes)
+
+        current_row = -1
+        row_start = None
+        last_col = None
+
+        for index in block_indexes:
+            row = index // GRID_WIDTH
+            col = index % GRID_WIDTH
+
+            if row != current_row or (last_col is not None and col != last_col + 1):
+                # Flush the previous segment if any
+                if row_start is not None:
+                    x0 = row_start
+                    x1 = last_col + 1
+                    y0, y1 = -current_row - 1, -current_row
+                    shapes.append(dict(type="rect", x0=x0, x1=x1, y0=y0, y1=y1,
+                                    line=dict(width=0), fillcolor=color))
+                # Start new segment
+                row_start = col
+                current_row = row
+
+            last_col = col
+
+        # Flush last group
+        if row_start is not None:
+            x0 = row_start
+            x1 = last_col + 1
+            y0, y1 = -current_row - 1, -current_row
+            shapes.append(dict(type="rect", x0=x0, x1=x1, y0=y0, y1=y1,
+                            line=dict(width=0), fillcolor=color))
+
+        # Render figure
         fig = go.Figure()
         fig.update_layout(
             title=None,
@@ -89,12 +100,13 @@ def create_fragmentation_image(input_file_path, output_folder):
         )
         fig.write_image(image_path, format="png", scale=5)
 
+
     base = os.path.splitext(os.path.basename(input_file_path))[0]
     os.makedirs(output_folder, exist_ok=True)
     img_alloc = os.path.join(output_folder, f"{base}_allocated.png")
     img_free = os.path.join(output_folder, f"{base}_free.png")
-    generate_image(img_alloc, allocated_blocks, "#000000")
-    generate_image(img_free, free_blocks, "#000000")
+    generate_image(img_alloc, allocated_blocks, "#007acc")  # blue for allocated
+    generate_image(img_free, free_blocks, "#00aa55")        # green for free
     return base
 
 def generate_html_viewer(output_folder, image_bases):
