@@ -27,21 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 # test_hs13.py
 # Verify reverse modify traversal after eviction.
 class test_hs13(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,eviction=(threads_max=1)'
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer-row', dict(key_format='i'))
-    ]
-    scenarios = make_scenarios(key_format_values)
 
     def test_reverse_modifies_constructed_after_eviction(self):
         uri = "table:test_hs13"
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format=S,key_format=i'
         value1 = 'a' * 10000
         value2 = 'b' * 10000
         value3 = 'e' * 10000

@@ -37,8 +37,6 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
     format_values = [
         ('row-string', dict(keyfmt='S', valfmt='S')),
         ('row-int', dict(keyfmt='i', valfmt='S')),
-        ('column', dict(keyfmt='r', valfmt='S')),
-        ('column-fix', dict(keyfmt='r', valfmt='8t')),
     ]
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
@@ -51,10 +49,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         ('isolation_snapshot', dict(isolation='snapshot'))
     ]
 
-    def keep(name, d):
-        return d['keyfmt'] != 'r'
-
-    scenarios = make_scenarios(types, format_values, iso_types, include=keep)
+    scenarios = make_scenarios(types, format_values, iso_types)
 
     # Test durable timestamp.
     def test_durable_ts03(self):

@@ -37,7 +37,6 @@ from wtbound import bound_base
 class test_cursor_bound21(bound_base):
     key_formats = [
         ('string', dict(key_format='S')),
-        ('var', dict(key_format='r')),
         ('int', dict(key_format='i')),
         ('bytes', dict(key_format='u')),
     ]

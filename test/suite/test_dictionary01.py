@@ -33,7 +33,6 @@
 # test_dictionary01.py
 #       Smoke test dictionary compression.
 
-from wtscenario import make_scenarios
 from wtdataset import simple_key
 from wiredtiger import stat
 import wttest
@@ -41,10 +40,6 @@ import wttest
 # Smoke test dictionary compression.
 class test_dictionary01(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
-    scenarios = make_scenarios([
-        ('row', dict(key_format='S')),
-        ('var', dict(key_format='r')),
-    ])
 
     # Smoke test dictionary compression.
     def test_dictionary01(self):
@@ -54,8 +49,8 @@ class test_dictionary01(wttest.WiredTigerTestCase):
         # Create the object, open the cursor, insert some records with identical values. Use
         # a reasonably large page size so most of the items fit on a page. Use alternating
         # values, otherwise column-store will RLE compress them into a single item.
-        config='leaf_page_max=64K,dictionary=100,value_format=S,key_format='
-        self.session.create(uri, config + self.key_format)
+        config='leaf_page_max=64K,dictionary=100,value_format=S,key_format=S'
+        self.session.create(uri, config)
         cursor = self.session.open_cursor(uri, None)
         i = 0
         while i < nentries:

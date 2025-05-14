@@ -73,7 +73,6 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
 
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S'))
     ]
     types = [
@@ -136,8 +135,6 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['dump', '-j', uri], outfilename='jsondump.out')
 
         loadcmd = ['load', '-jf', 'jsondump.out', '-r', self.name2]
-        if self.keyfmt == 'r':
-            loadcmd.append('-a')
         self.runWt(loadcmd)
 
         # Check the contents of the data we read.

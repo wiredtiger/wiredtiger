@@ -28,21 +28,12 @@
 
 import wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_prepare_hs01.py
 # test to ensure history store eviction is working for prepared transactions.
 class test_prepare_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='u')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('string-row', dict(key_format='S', value_format='u')),
-    ]
-
-    scenarios = make_scenarios(format_values)
 
     def check(self, uri, ds, nrows, nsessions, nkeys, read_ts, expected_value, not_expected_value):
         cursor = self.session.open_cursor(uri)
@@ -73,13 +64,8 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
 
         # Start with setting a stable timestamp to pin history in cache
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-
-        if self.value_format == '8t':
-            bigvalue1 = 98
-            bigvalue2 = 99
-        else:
-            bigvalue1 = b"bbbbb" * 100
-            bigvalue2 = b"ccccc" * 100
+        bigvalue1 = b"bbbbb" * 100
+        bigvalue2 = b"ccccc" * 100
 
         # Commit some updates to get eviction and history store fired up
         cursor = self.session.open_cursor(uri)
@@ -127,14 +113,10 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         # Create a small table.
         uri = "table:test_prepare_hs01"
         nrows = 100
-        ds = SimpleDataSet(
-            self, uri, nrows, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, nrows, value_format='u')
         ds.populate()
 
-        if self.value_format == '8t':
-            bigvalue = 97
-        else:
-            bigvalue = b"aaaaa" * 100
+        bigvalue = b"aaaaa" * 100
 
         # Initially load huge data
         cursor = self.session.open_cursor(uri)

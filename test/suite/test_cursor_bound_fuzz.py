@@ -126,12 +126,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
         ('file', dict(uri='file:')),
         ('table', dict(uri='table:'))
     ]
-
-    data_format = [
-        ('row', dict(key_format='i')),
-        ('column', dict(key_format='r'))
-    ]
-    scenarios = make_scenarios(types, data_format)
+    scenarios = make_scenarios(types)
 
     # Iterates valid keys from min_key to max_key, the maximum key is defined as max_key - 1.
     # Python doesn't consider the end of the range as inclusive.
@@ -511,7 +506,7 @@ class test_cursor_bound_fuzz(wttest.WiredTigerTestCase):
     # The primary test loop is contained here.
     def test_bound_fuzz(self):
         uri = self.uri + self.file_name
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format=S,key_format=i'
         # Reset the key range for every scenario.
         self.key_range = {}
         # Setup a reproducible random seed.

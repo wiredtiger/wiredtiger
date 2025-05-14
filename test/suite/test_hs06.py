@@ -43,8 +43,6 @@ class test_hs06(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
         ('integer-row', dict(key_format='i', value_format='S')),
         ('string-row', dict(key_format='S', value_format='S'))
     ]
@@ -71,12 +69,8 @@ class test_hs06(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
 
         # Load 1Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
@@ -153,10 +147,6 @@ class test_hs06(wttest.WiredTigerTestCase):
 
     # WT-5336 causing the read at timestamp 4 returning the value committed at timestamp 5 or 3
     def test_hs_modify_reads(self):
-        # FLCS doesn't support modify, so just skip over this test.
-        if self.value_format == '8t':
-            return
-
         # Create a small table.
         uri = "table:test_hs06"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -237,13 +227,8 @@ class test_hs06(wttest.WiredTigerTestCase):
         uri = "table:test_hs06"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
-
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
 
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)
@@ -300,17 +285,10 @@ class test_hs06(wttest.WiredTigerTestCase):
         uri = "table:test_hs06"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
-
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-            value3 = 99
-            value4 = 100
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
-            value3 = 'c' * 500
-            value4 = 'd' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+        value3 = 'c' * 500
+        value4 = 'd' * 500
 
         # Load 1Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
@@ -341,10 +319,6 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_hs_multiple_modifies(self):
-        # FLCS doesn't support modify, so just skip over this test.
-        if self.value_format == '8t':
-            return
-
         # Create a small table.
         uri = "table:test_hs06"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -390,10 +364,6 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_hs_instantiated_modify(self):
-        # FLCS doesn't support modify, so just skip over this test.
-        if self.value_format == '8t':
-            return
-
         # Create a small table.
         uri = "table:test_hs06"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -455,10 +425,6 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_hs_modify_stable_is_base_update(self):
-        # FLCS doesn't support modify, so just skip over this test.
-        if self.value_format == '8t':
-            return
-
         # Create a small table.
         uri = "table:test_hs06"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -522,10 +488,6 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_hs_rec_modify(self):
-        # FLCS doesn't support modify, so just skip over this test.
-        if self.value_format == '8t':
-            return
-
         # Create a small table.
         uri = "table:test_hs06"
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)

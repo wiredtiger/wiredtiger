@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 # test_hs28.py
 # Test that we insert a full update instead of a reverse modify to the
@@ -36,20 +35,13 @@ from wtscenario import make_scenarios
 class test_hs28(wttest.WiredTigerTestCase):
     conn_config = ''
 
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('row_integer', dict(key_format='i')),
-    ]
-
-    scenarios = make_scenarios(key_format_values)
-
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
         return config
 
     def test_insert_hs_full_update(self):
         uri = 'table:test_hs28'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(uri, 'key_format=i,value_format=S'.format(self.key_format))
 
         value1 = "a"
         value2 = "b"

@@ -33,16 +33,11 @@
 # test_dictionary02.py
 #       Test cells with same values are reused through the dictionary despite RLE information.
 
-from wtscenario import make_scenarios
 from wtdataset import simple_key
 from wiredtiger import stat
 import wttest
 
 class test_dictionary02(wttest.WiredTigerTestCase):
-    scenarios = make_scenarios([
-        ('row', dict(key_format='S')),
-        ('var', dict(key_format='r')),
-    ])
 
     value_a = "aaa" * 100
     value_b = "bbb" * 100
@@ -51,7 +46,7 @@ class test_dictionary02(wttest.WiredTigerTestCase):
         uri = 'file:test_dictionary02'
 
         # Use a reasonably large page size so all of the items fit on a page.
-        config=f'leaf_page_max=64K,dictionary=100,value_format=S,key_format={self.key_format}'
+        config=f'leaf_page_max=64K,dictionary=100,value_format=S,key_format=S'
         self.session.create(uri, config)
         cursor = self.session.open_cursor(uri, None)
 
@@ -75,11 +70,5 @@ class test_dictionary02(wttest.WiredTigerTestCase):
         # Confirm the dictionary was effective.
         cursor = self.session.open_cursor('statistics:' + uri, None, None)
         dict_value = cursor[stat.dsrc.rec_dictionary][2]
-        if self.key_format == 'S':
-            # Each cell is written for row-store and each will reuse the existing dictionary
-            # entry.
-            self.assertEqual(dict_value, 7)
-        else:
-            # For VLCS, we will benefit from the RLE, only one cell will be written and reuse
-            # the dictionary entry.
-            self.assertEqual(dict_value, 1)
+        self.assertEqual(dict_value, 7)
+

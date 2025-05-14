@@ -39,8 +39,6 @@ class test_cursor05(wttest.WiredTigerTestCase):
 
     type_values = [
         ('row', dict(usecolumns=False, usefixed=False)),
-        ('col', dict(usecolumns=True, usefixed=False)),
-        ('fix', dict(usecolumns=True, usefixed=True)),
     ]
 
     nentries_values = [

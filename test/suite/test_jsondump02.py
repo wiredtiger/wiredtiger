@@ -36,7 +36,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
 
     table_uri1 = 'table:jsondump02a.wt'
     table_uri2 = 'table:jsondump02b.wt'
-    table_uri3 = 'table:jsondump02c.wt'
     basename_uri4 = 'jsondump02d.wt'
     table_uri4 = 'table:' + basename_uri4
     table_uri5 = 'table:jsondump02e.wt'
@@ -102,8 +101,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
             'key_format=S,value_format=S' + extra_params)
         self.session.create(self.table_uri2,
             'key_format=S,value_format=8tS' + extra_params)
-        self.session.create(self.table_uri3,
-            'key_format=r,value_format=u' + extra_params)
         self.session.create(self.table_uri4,
                             "key_format=iS,value_format=SiSi,"
                             "columns=(ikey,Skey,S1,i2,S3,i4),colgroups=(c1,c2)")
@@ -125,8 +122,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         self.set_kv(self.table_uri1, 'KEY003', u'\u0abc')
         self.set_kv2(self.table_uri2, 'KEY000', 123, 'str0')
         self.set_kv2(self.table_uri2, 'KEY001', 234, 'str1')
-        self.set_kv(self.table_uri3, 1, b'\x01\x02\x03')
-        self.set_kv(self.table_uri3, 2, b'\x77\x88\x99\x00\x66\x55')
         self.populate_squarecube(self.table_uri4)
 
         table1_json =  (
@@ -222,11 +217,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
             ('"key0" : "KEY002"', '"value0" : 34,\n"value1" : "str2"'),
             ('"key0" : "KEY003"', '"value0" : 45,\n"value1" : "str3"'))
 
-        table3_json =  (
-            ('"key0" : 1', '"value0" : "\\u0001\\u0002\\u0003"'),
-            ('"key0" : 2',
-             '"value0" : "\\u0077\\u0088\\u0099\\u0000\\u0066\\u0055"'))
-        self.check_json(self.table_uri3, table3_json)
         table4_json = (
                 ('"ikey" : 1,\n"Skey" : "key1"',
                  '"S1" : "val1",\n"i2" : 1,\n"S3" : "val1",\n"i4" : 1'),
@@ -272,30 +262,24 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['dump', '-j',
                     self.table_uri1,
                     self.table_uri2,
-                    self.table_uri3,
                     self.table_uri4],
                    outfilename='jsondump-all.out')
         self.runWt(['dump', '-j', self.table_uri1], outfilename='jsondump1.out')
         self.runWt(['dump', '-j', self.table_uri2], outfilename='jsondump2.out')
-        self.runWt(['dump', '-j', self.table_uri3], outfilename='jsondump3.out')
         self.runWt(['dump', '-j', self.table_uri4], outfilename='jsondump4.out')
         self.session.drop(self.table_uri1)
         self.session.drop(self.table_uri2)
-        self.session.drop(self.table_uri3)
         self.session.drop(self.table_uri4)
         self.runWt(['load', '-jf', 'jsondump1.out'])
         self.session.drop(self.table_uri1)
         self.runWt(['load', '-jf', 'jsondump2.out'])
         self.session.drop(self.table_uri2)
-        self.runWt(['load', '-jf', 'jsondump3.out'])
-        self.session.drop(self.table_uri3)
         self.runWt(['load', '-jf', 'jsondump4.out'])
         self.session.drop(self.table_uri4)
 
         self.runWt(['load', '-jf', 'jsondump-all.out'])
         self.check_json(self.table_uri1, table1_json)
         self.check_json(self.table_uri2, table2_json)
-        self.check_json(self.table_uri3, table3_json)
         self.check_json(self.table_uri4, table4_json)
 
     # Generate two byte keys that cover some range of byte values.

@@ -45,12 +45,11 @@ class test_cursor_bound19(bound_base):
 
     key_formats = [
         ('string', dict(key_format='S')),
-        ('var', dict(key_format='r')),
         ('int', dict(key_format='i')),
         ('bytes', dict(key_format='u')),
         ('composite_string', dict(key_format='SSS')),
         ('composite_int_string', dict(key_format='iS')),
-        ('composite_complex', dict(key_format='iSru')),
+        ('composite_complex', dict(key_format='iSu')),
     ]
 
     value_formats = [
@@ -59,7 +58,7 @@ class test_cursor_bound19(bound_base):
         ('bytes', dict(value_format='u')),
         ('composite_string', dict(value_format='SSS')),
         ('composite_int_string', dict(value_format='iS')),
-        ('composite_complex', dict(value_format='iSru')),
+        ('composite_complex', dict(value_format='iSu')),
     ]
 
     config = [

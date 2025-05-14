@@ -29,7 +29,6 @@
 import os
 import helper, wiredtiger, wttest
 from suite_subprocess import suite_subprocess
-from wtscenario import make_scenarios
 
 # test_prefetch02.py
 #    Run multiple scenarios which are expected to benefit from pre-fetching and ensure that
@@ -41,12 +40,6 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
     new_dir = 'new.dir'
     nrows = 100000
     uri = 'file:test_prefetch02'
-
-    format_values = [
-        ('col_var', dict(key_format='r', value_format='i')),
-        ('col_fix', dict(key_format='r', value_format='8t')),
-        ('row_int', dict(key_format='i', value_format='i')),
-    ]
 
     config_options = [
         ('config_a', dict(conn_cfg='prefetch=(available=true,default=true),statistics=(all)',
@@ -106,15 +99,11 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
 
         new_conn = self.wiredtiger_open(self.new_dir, self.conn_cfg)
         s = new_conn.open_session(self.session_cfg)
-        s.create(self.uri, 'allocation_size=512,leaf_page_max=512,'
-                        'key_format={},value_format={}'.format(self.key_format, self.value_format))
+        s.create(self.uri, 'allocation_size=512,leaf_page_max=512,key_format=i,value_format=i')
         c1 = s.open_cursor(self.uri)
         s.begin_transaction()
         for i in range(1, self.nrows):
-            if self.value_format == '8t':
-                c1[i] = 100
-            else:
-                c1[i] = i
+            c1[i] = i
         c1.close()
         s.commit_transaction()
         s.checkpoint()

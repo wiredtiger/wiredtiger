@@ -37,9 +37,7 @@ class test_empty(wttest.WiredTigerTestCase):
     name = 'test_empty'
 
     scenarios = make_scenarios([
-        ('file-r', dict(type='file:', fmt='r')),
         ('file-S', dict(type='file:', fmt='S')),
-        ('table-r', dict(type='table:', fmt='r')),
         ('table-S', dict(type='table:', fmt='S'))
     ])
 

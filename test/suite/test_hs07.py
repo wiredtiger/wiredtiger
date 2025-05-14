@@ -29,20 +29,12 @@
 import time
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_hs07.py
 # Test history store sweep cleans the obsolete history store entries and gives expected results.
 class test_hs07(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80')
-
-    format_values = (
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('integer-row', dict(key_format='i', value_format='S'))
-    )
-    scenarios = make_scenarios(format_values)
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records, we'll hang if the history store table isn't working.
@@ -70,20 +62,15 @@ class test_hs07(wttest.WiredTigerTestCase):
 
         # Create a table.
         uri = "table:hs07_main"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
         uri2 = "table:hs07_extra"
-        ds2 = SimpleDataSet(
-            self, uri2, 0, key_format=self.key_format, value_format=self.value_format)
+        ds2 = SimpleDataSet(self, uri2, 0, key_format='i')
         ds2.populate()
 
-        if self.value_format == '8t':
-            bigvalue = 97
-            bigvalue2 = 100
-        else:
-            bigvalue = "aaaaa" * 100
-            bigvalue2 = "ddddd" * 100
+        bigvalue = "aaaaa" * 100
+        bigvalue2 = "ddddd" * 100
 
         # Commit at timestamp 1.
         self.large_updates(uri, bigvalue, ds, nrows, 1)
@@ -116,36 +103,24 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            if self.value_format == '8t':
-                cursor.set_value(105)
-                cursor.update()
-            else:
-                mods = [wiredtiger.Modify('A', 10, 1)]
-                self.assertEqual(cursor.modify(mods), 0)
+            mods = [wiredtiger.Modify('A', 10, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(110))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            if self.value_format == '8t':
-                cursor.set_value(106)
-                cursor.update()
-            else:
-               mods = [wiredtiger.Modify('B', 20, 1)]
-               self.assertEqual(cursor.modify(mods), 0)
+            mods = [wiredtiger.Modify('B', 20, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(120))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            if self.value_format == '8t':
-                cursor.set_value(107)
-                cursor.update()
-            else:
-                mods = [wiredtiger.Modify('C', 30, 1)]
-                self.assertEqual(cursor.modify(mods), 0)
+            mods = [wiredtiger.Modify('C', 30, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(130))
         cursor.close()
 
@@ -173,36 +148,24 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            if self.value_format == '8t':
-                cursor.set_value(105)
-                cursor.update()
-            else:
-                mods = [wiredtiger.Modify('A', 10, 1)]
-                self.assertEqual(cursor.modify(mods), 0)
+            mods = [wiredtiger.Modify('A', 10, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(210))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            if self.value_format == '8t':
-                cursor.set_value(106)
-                cursor.update()
-            else:
-                mods = [wiredtiger.Modify('B', 20, 1)]
-                self.assertEqual(cursor.modify(mods), 0)
+            mods = [wiredtiger.Modify('B', 20, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(220))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            if self.value_format == '8t':
-                cursor.set_value(107)
-                cursor.update()
-            else:
-                mods = [wiredtiger.Modify('C', 30, 1)]
-                self.assertEqual(cursor.modify(mods), 0)
+            mods = [wiredtiger.Modify('C', 30, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(230))
         cursor.close()
 

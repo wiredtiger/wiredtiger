@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wtscenario import make_scenarios
 
 # test_hs25.py
 # Ensure updates structure is correct when processing each key.
@@ -35,29 +34,16 @@ class test_hs25(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     uri = 'table:test_hs25'
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def test_insert_updates_hs(self):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=i,value_format=S'
         self.session.create(self.uri, format)
         s = self.conn.open_session()
 
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-            valuec = 99
-        else:
-            valuea = 'a'
-            valueb = 'b'
-            valuec = 'c'
+        valuea = 'a'
+        valueb = 'b'
+        valuec = 'c'
 
         # Update the first key.
         cursor1 = self.session.open_cursor(self.uri)

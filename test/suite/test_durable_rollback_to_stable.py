@@ -39,18 +39,13 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
     format_values = [
         ('row-string', dict(keyfmt='S', valfmt='S')),
         ('row-int', dict(keyfmt='i', valfmt='S')),
-        ('column', dict(keyfmt='r', valfmt='S')),
-        ('column-fix', dict(keyfmt='r', valfmt='8t')),
     ]
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
     ]
 
-    def keep(name, d):
-        return d['keyfmt'] != 'r'
-
-    scenarios = make_scenarios(types, format_values, include=keep)
+    scenarios = make_scenarios(types, format_values)
 
     # Test durable timestamp.
     def test_durable_rollback_to_stable(self):

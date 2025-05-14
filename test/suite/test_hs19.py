@@ -27,29 +27,21 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 # test_hs19.py
 # Ensure eviction doesn't clear the history store again after checkpoint has done so because of the same update without timestamp.
 class test_hs19(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,eviction=(threads_max=1)'
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('string-row', dict(key_format='S'))
-    ]
-    scenarios = make_scenarios(key_format_values)
 
     def create_key(self, i):
-        if self.key_format == 'S':
-            return str(i)
-        return i
+        return str(i)
 
     def test_hs19(self):
         uri = 'table:test_hs19'
         junk_uri = 'table:junk'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(uri, 'key_format=S,value_format=S')
         session2 = self.conn.open_session()
-        session2.create(junk_uri, 'key_format={},value_format=S'.format(self.key_format))
+        session2.create(junk_uri, 'key_format=S,value_format=S')
         cursor2 = session2.open_cursor(junk_uri)
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
@@ -57,7 +49,6 @@ class test_hs19(wttest.WiredTigerTestCase):
             ',stable_timestamp=' + self.timestamp_str(1))
 
         value1 = 'a' * 500
-        value2 = 'b' * 500
         value3 = 'c' * 50000
 
         # Insert an update without timestamp.

@@ -37,12 +37,6 @@ from wtscenario import make_scenarios
 # test_prepare_cursor01.py
 #    WT_CURSOR navigation (next/prev) tests with prepared transactions
 class test_prepare_cursor01(wttest.WiredTigerTestCase):
-
-    fmt = [
-        ('row-store', dict(keyfmt='i', valfmt='S')),
-        ('column-store', dict(keyfmt='r', valfmt='S')),
-        ('fixed-length-column-store', dict(keyfmt='r', valfmt='8t')),
-    ]
     types = [
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
     ]
@@ -52,10 +46,7 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         ('isolation_snapshot', dict(isolation='snapshot'))
     ]
 
-    def keep(name, d):
-        return d['keyfmt'] != 'r'
-
-    scenarios = make_scenarios(types, fmt, iso_types, include=keep)
+    scenarios = make_scenarios(types, iso_types)
 
     # Test cursor navigate (next/prev) with prepared transactions.
     # Cursor navigate with timestamp reads and non-timestamped reads.
@@ -69,7 +60,7 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
 
         # Build an object.
         uri = self.uri + ':test_prepare_cursor01'
-        ds = self.ds(self, uri, 50, key_format=self.keyfmt)
+        ds = self.ds(self, uri, 50, 'i')
         ds.populate()
 
         # Session for non-timestamped reads.

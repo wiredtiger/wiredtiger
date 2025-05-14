@@ -31,23 +31,14 @@
 #
 import wttest
 import wiredtiger
-from wtscenario import make_scenarios
 
 WT_TS_MAX = 2**64-1
 
 class test_cursor18(wttest.WiredTigerTestCase):
     uri = 'file:test_cursor18.wt'
 
-    types = [
-        ('row', dict(keyformat='i', valueformat='i')),
-        ('var', dict(keyformat='r', valueformat='i')),
-        ('fix', dict(keyformat='r', valueformat='8t')),
-    ]
-
-    scenarios = make_scenarios(types)
-
     def create(self):
-        self.session.create(self.uri, 'key_format={},value_format={}'.format(self.keyformat, self.valueformat))
+        self.session.create(self.uri, 'key_format=i,value_format=i')
 
     # Don't verify the location and flags as we are not able to reliably evict the page and control where the update is
     def verify_value(self, version_cursor, expected_start_ts, expected_start_durable_ts, expected_stop_ts,
@@ -130,10 +121,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
         evict_cursor = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
         self.session.begin_transaction()
         evict_cursor.set_key(1)
-        if self.valueformat == '8t':
-            self.assertEqual(evict_cursor.search(), 0)
-        else:
-            self.assertEqual(evict_cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(evict_cursor.search(), wiredtiger.WT_NOTFOUND)
         evict_cursor.reset()
         self.session.rollback_transaction()
 

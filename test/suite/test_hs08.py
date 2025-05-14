@@ -28,17 +28,11 @@
 
 import wiredtiger, wttest
 from wiredtiger import stat
-from wtscenario import make_scenarios
-
+;
 # test_hs08.py
 # Verify modify insert into history store logic.
 class test_hs08(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=100MB,statistics=(all)'
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer-row', dict(key_format='i')),
-    ]
-    scenarios = make_scenarios(key_format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -48,7 +42,7 @@ class test_hs08(wttest.WiredTigerTestCase):
 
     def test_modify_insert_to_hs(self):
         uri = "table:test_hs08"
-        create_params = 'value_format=S,key_format={}'.format(self.key_format)
+        create_params = 'value_format=S,key_format=i'
         value1 = 'a' * 1000
         self.session.create(uri, create_params)
 

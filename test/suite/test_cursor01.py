@@ -42,11 +42,7 @@ class test_cursor01(wttest.WiredTigerTestCase):
     nentries = 10
 
     scenarios = make_scenarios([
-        ('file-col', dict(tablekind='col',uri='file')),
-        ('file-fix', dict(tablekind='fix',uri='file')),
         ('file-row', dict(tablekind='row',uri='file')),
-        ('table-col', dict(tablekind='col',uri='table')),
-        ('table-fix', dict(tablekind='fix',uri='table')),
         ('table-row', dict(tablekind='row',uri='table'))
     ])
 
@@ -83,14 +79,8 @@ class test_cursor01(wttest.WiredTigerTestCase):
     # Create and populate the object, returning an open cursor.
     def create_session_and_cursor(self):
         tablearg = self.uri + ':' + self.table_name1
-        if self.tablekind == 'row':
-            keyformat = 'key_format=S'
-        else:
-            keyformat = 'key_format=r'  # record format
-        if self.tablekind == 'fix':
-            valformat = 'value_format=8t'
-        else:
-            valformat = 'value_format=S'
+        keyformat = 'key_format=S'
+        valformat = 'value_format=S'
         create_args = keyformat + ',' + valformat
 
         self.pr('creating session: ' + create_args)

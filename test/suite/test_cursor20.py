@@ -35,21 +35,15 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_cursor20(wttest.WiredTigerTestCase, suite_subprocess):
-    format_values = [
-        ('row', dict(key_format = 'S', value_format='S')),
-        ('var', dict(key_format = 'r', value_format='S')),
-        ('fix', dict(key_format = 'r', value_format='8t')),
-    ]
     reopen = [
         ('in-memory', dict(reopen=False)),
         ('on-disk', dict(reopen=True)),
     ]
-    scenarios = make_scenarios(format_values, reopen)
+    scenarios = make_scenarios(reopen)
 
     def test_dup_key(self):
         uri = 'table:dup_key'
-        ds = SimpleDataSet(self, uri, 100,
-            key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 100)
         ds.populate()
 
         if self.reopen:

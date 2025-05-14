@@ -35,16 +35,11 @@ from wtdataset import SimpleDataSet
 class test_log04(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled)'
 
-    types = [
-        ('col', dict(key_format='r',value_format='S')),
-        ('fix', dict(key_format='r',value_format='8t')),
-        ('row', dict(key_format='S',value_format='S')),
-    ]
     ckpt = [
         ('ckpt', dict(ckpt=True)),
         ('no-ckpt', dict(ckpt=False)),
     ]
-    scenarios = make_scenarios(types, ckpt)
+    scenarios = make_scenarios(ckpt)
 
     def check(self, cursor, read_ts, key, value):
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
@@ -59,22 +54,17 @@ class test_log04(wttest.WiredTigerTestCase):
         # the non-logged object. Update the non-logged, non-timestamp table in a transaction without
         # a commit timestamp, and confirm timestamps are ignored.
         uri_log = 'table:test_logts.log'
-        ds_log = SimpleDataSet(self, uri_log, 100,
-            key_format=self.key_format, value_format=self.value_format)
+        ds_log = SimpleDataSet(self, uri_log, 100)
         ds_log.populate()
         c_log = self.session.open_cursor(uri_log)
 
         uri_ts = 'table:test_logts.ts'
-        ds_ts = SimpleDataSet(self, uri_ts, 100,
-            key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds_ts = SimpleDataSet(self, uri_ts, 100, config='log=(enabled=false)')
         ds_ts.populate()
         c_ts = self.session.open_cursor(uri_ts)
 
         uri_nots = 'table:test_log04.nots'
-        ds_nots = SimpleDataSet(self, uri_nots, 100,
-            key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds_nots = SimpleDataSet(self, uri_nots, 100, config='log=(enabled=false)')
         ds_nots.populate()
         c_nots = self.session.open_cursor(uri_nots)
 

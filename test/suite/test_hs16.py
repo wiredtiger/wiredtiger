@@ -27,40 +27,24 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wtscenario import make_scenarios
 
 # test_hs16.py
 # Ensure that we don't panic when inserting an update without timestamp to the history store.
 class test_hs16(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB'
-    format_values = (
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('string-row', dict(key_format='S', value_format='S'))
-    )
-    scenarios = make_scenarios(format_values)
 
     def create_key(self,i):
-        if self.key_format == 'S':
-            return str(i)
-        return i
+        return str(i)
 
     def test_hs16(self):
         uri = 'table:test_hs16'
-        create_params = 'key_format={}, value_format={}'.format(self.key_format, self.value_format)
+        create_params = 'key_format=S, value_format=S'
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
-
-        if self.value_format == '8t':
-            valuea = 97 # 'a'
-            valueb = 98 # 'b'
-            valuec = 99 # 'c'
-            valued = 100 # 'd'
-        else:
-            valuea = 'a'
-            valueb = 'b'
-            valuec = 'c'
-            valued = 'd'
+        valuea = 'a'
+        valueb = 'b'
+        valuec = 'c'
+        valued = 'd'
 
         # Insert an update without timestamp
         self.session.begin_transaction()

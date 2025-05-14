@@ -31,22 +31,13 @@
 #
 import wttest
 import wiredtiger
-from wtscenario import make_scenarios
 
 WT_TS_MAX = 2**64-1
 
 class test_cursor19(wttest.WiredTigerTestCase):
     uri = 'file:test_cursor19.wt'
-
-    types = [
-        ('row', dict(keyformat='i')),
-        ('var', dict(keyformat='r'))
-    ]
-
-    scenarios = make_scenarios(types)
-
     def create(self):
-        self.session.create(self.uri, 'key_format={},value_format=S'.format(self.keyformat))
+        self.session.create(self.uri, 'key_format=i,value_format=S')
 
     def verify_value(self, version_cursor, expected_start_ts, expected_start_durable_ts, expected_stop_ts, expected_stop_durable_ts, expected_type, expected_prepare_state, expected_flags, expected_location, expected_value):
         values = version_cursor.get_values()

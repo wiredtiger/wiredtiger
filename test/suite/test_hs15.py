@@ -32,38 +32,24 @@
 #
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 # test_hs15.py
 # Ensure eviction doesn't clear the history store again after checkpoint has done so because of the same update without timestamp.
 class test_hs15(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB'
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('string-row', dict(key_format='S', value_format='S'))
-    ]
-    scenarios = make_scenarios(format_values)
 
     def create_key(self, i):
-        if self.key_format == 'S':
-            return str(i)
-        return i
+        return str(i)
 
     def test_hs15(self):
         uri = 'table:test_hs15'
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=S,value_format=S'
         self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
 
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-            value3 = 99
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
-            value3 = 'c' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+        value3 = 'c' * 500
 
         # Insert an update without timestamp
         self.session.begin_transaction()
@@ -79,12 +65,8 @@ class test_hs15(wttest.WiredTigerTestCase):
         # Do a modify and an update with timestamps (for FLCS, just modifies)
         self.session.begin_transaction()
         cursor.set_key(self.create_key(1))
-        if self.value_format == '8t':
-           cursor.set_value(66)
-           self.assertEqual(cursor.update(), 0)
-        else:
-           mods = [wiredtiger.Modify('B', 100, 1)]
-           self.assertEqual(cursor.modify(mods), 0)
+        mods = [wiredtiger.Modify('B', 100, 1)]
+        self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
 
         self.session.begin_transaction()
@@ -107,12 +89,9 @@ class test_hs15(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value3
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
-        if self.value_format == '8t':
-            expected = 66 # 'B'
-        else:
-            expected = list(value1)
-            expected[100] = 'B'
-            expected = str().join(expected)
+        expected = list(value1)
+        expected[100] = 'B'
+        expected = str().join(expected)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(1))
         self.assertEqual(cursor[self.create_key(1)], expected)
         self.session.rollback_transaction()

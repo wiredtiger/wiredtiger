@@ -42,12 +42,12 @@ class test_import03(test_import_base):
         ('simple_table', dict(
             keys = [k for k in range(1, nrows+1)],
             values = random.sample(range(1000000), k=nrows),
-            config = 'key_format=r,value_format=i')),
+            config = 'key_format=i,value_format=i')),
         ('table_with_named_columns', dict(
             keys = [k for k in range(1, 7)],
             values = [('Australia', 'Canberra', 1),('Japan', 'Tokyo', 2),('Italy', 'Rome', 3),
               ('China', 'Beijing', 4),('Germany', 'Berlin', 5),('South Korea', 'Seoul', 6)],
-            config = 'columns=(id,country,capital,population),key_format=r,value_format=SSi')),
+            config = 'columns=(id,country,capital,population),key_format=i,value_format=SSi')),
     ])
 
     def test_table_import(self):

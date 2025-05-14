@@ -42,20 +42,10 @@ class test_cursor16(wttest.WiredTigerTestCase):
 
     conn_config = 'cache_cursors=true,statistics=(fast),in_memory=true'
 
-    scenarios = make_scenarios([
-        ('fix', dict(keyfmt='r',valfmt='8t')),
-        ('var', dict(keyfmt='r',valfmt='S')),
-        ('row', dict(keyfmt='S',valfmt='S')),
-    ])
-
     def getkey(self, n):
-        if self.keyfmt == 'r':
-            return n + 1
         return str(n)
 
     def getval(self, n):
-        if self.valfmt == '8t':
-            return n
         return str(n)
 
     # Returns the number of cursors cached
@@ -72,7 +62,7 @@ class test_cursor16(wttest.WiredTigerTestCase):
         for i in range(0, self.uri_count):
             uri = self.uri_prefix + '-' + str(i)
             uris.append(uri)
-            config = 'key_format={},value_format={}'.format(self.keyfmt, self.valfmt)
+            config = 'key_format=S,value_format=S'
             self.session.create(uri, config)
             cursor = self.session.open_cursor(uri)
             # We keep the cursors open in the main session, so there

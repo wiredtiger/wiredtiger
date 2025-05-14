@@ -34,16 +34,11 @@
 #       Test cells with same values are reused through the dictionary despite time window
 #       information.
 
-from wtscenario import make_scenarios
 from wtdataset import simple_key
 from wiredtiger import stat
 import wttest
 
 class test_dictionary03(wttest.WiredTigerTestCase):
-    scenarios = make_scenarios([
-        ('row', dict(key_format='S')),
-        ('var', dict(key_format='r')),
-    ])
 
     value_a = "aaa" * 100
     value_b = "bbb" * 100
@@ -52,7 +47,7 @@ class test_dictionary03(wttest.WiredTigerTestCase):
         uri = 'file:test_dictionary03'
 
         # Use a reasonably large page size so all of the items fit on a page.
-        config=f'leaf_page_max=64K,dictionary=100,value_format=S,key_format={self.key_format}'
+        config=f'leaf_page_max=64K,dictionary=100,value_format=S,key_format=S'
         self.session.create(uri, config)
         cursor = self.session.open_cursor(uri, None)
 

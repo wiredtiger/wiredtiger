@@ -35,16 +35,11 @@ from wiredtiger import stat
 
 class test_cursor21(wttest.WiredTigerTestCase):
     uri = "table:test_cursor21"
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='i')),
-        ('row_integer', dict(key_format='i', value_format='i')),
-    ]
     reposition_values = [
         ('no_reposition', dict(reposition=False)),
         ('reposition', dict(reposition=True))
     ]
-    scenarios = make_scenarios(format_values, reposition_values)
+    scenarios = make_scenarios(reposition_values)
 
     def conn_config(self):
         config='cache_size=100MB,statistics=(all)'
@@ -72,7 +67,7 @@ class test_cursor21(wttest.WiredTigerTestCase):
         return reposition_count
 
     def test_cursor21(self):
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=i,value_format=i'
         reposition_count = 0
         self.session.create(self.uri, format)
         cursor = self.session.open_cursor(self.uri)

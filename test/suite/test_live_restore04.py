@@ -28,7 +28,6 @@
 
 import filecmp, os, glob, wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 from wtbackup import backup_base
 
 
@@ -36,11 +35,6 @@ from wtbackup import backup_base
 # Test using the wt utility with live restore.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore04(backup_base):
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-    scenarios = make_scenarios(format_values)
     nrows = 10000
     ntables = 3
     conn_config = 'log=(enabled)'
@@ -64,8 +58,7 @@ class test_live_restore04(backup_base):
         for i in range(self.ntables):
             uri = f'file:collection-{i}'
             uris.append(uri)
-            ds = SimpleDataSet(self, uri, self.nrows, key_format=self.key_format,
-                               value_format=self.value_format)
+            ds = SimpleDataSet(self, uri, self.nrows, key_format='i')
             ds.populate()
 
         self.session.checkpoint()

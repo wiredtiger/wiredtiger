@@ -57,7 +57,7 @@ class test_index02(wttest.WiredTigerTestCase):
 
     def test_search_near_exists(self):
         '''Create a table, look for an existing key'''
-        self.session.create(self.tablename, 'key_format=r,value_format=Q,columns=(k,v)')
+        self.session.create(self.tablename, 'key_format=i,value_format=Q,columns=(k,v)')
         self.session.create(self.indexname, self.indexconfig)
         cur = self.session.open_cursor(self.tablename, None, "append")
         cur.set_value(1)

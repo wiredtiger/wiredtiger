@@ -36,7 +36,6 @@ from wtscenario import filter_scenarios, make_scenarios
 #    Test cursor modify call
 class test_cursor12(wttest.WiredTigerTestCase):
     keyfmt = [
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
     valuefmt = [

@@ -44,10 +44,9 @@ class test_cursor_bound10(bound_base):
     ]
 
     key_format_values = [
-        ('var', dict(key_format='r')),
         ('int', dict(key_format='i')),
         ('composite_int_string', dict(key_format='iS')),
-        ('composite_complex', dict(key_format='iSru')),
+        ('composite_complex', dict(key_format='iSu')),
     ]
 
     config = [

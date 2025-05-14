@@ -28,7 +28,6 @@
 
 import os, glob, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 from wtbackup import backup_base
 
 
@@ -36,11 +35,6 @@ from wtbackup import backup_base
 # Reproduce a live restore edge case that resulted in duplicate metadata entries.
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore05(backup_base):
-    format_values = [
-        ('row_integer', dict(key_format='i', value_format='S')),
-        ('column_store', dict(key_format='r', value_format='S'))
-    ]
-    scenarios = make_scenarios(format_values)
     nrows = 10
     ntables = 1
 
@@ -57,8 +51,7 @@ class test_live_restore05(backup_base):
         for i in range(self.ntables):
             uri = f'file:collection-{i}'
             uris.append(uri)
-            ds = SimpleDataSet(self, uri, self.nrows, key_format=self.key_format,
-                               value_format=self.value_format)
+            ds = SimpleDataSet(self, uri, self.nrows, key_format='i')
             ds.populate()
 
         self.session.checkpoint()

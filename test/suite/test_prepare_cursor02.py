@@ -33,12 +33,6 @@ from wtscenario import make_scenarios
 # test_prepare_cursor02.py
 #    WT_CURSOR navigation (next/prev) tests with prepared transactions
 class test_prepare_cursor02(wttest.WiredTigerTestCase):
-
-    keyfmt = [
-        ('row-store', dict(keyfmt='i', valfmt='S')),
-        ('column-store', dict(keyfmt='r', valfmt='S')),
-        ('fixed-length-column-store', dict(keyfmt='r', valfmt='8t')),
-    ]
     types = [
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
     ]
@@ -50,7 +44,7 @@ class test_prepare_cursor02(wttest.WiredTigerTestCase):
 
         # Build an object.
         uri = self.uri + ':test_prepare_cursor02'
-        ds = self.ds(self, uri, 0, key_format=self.keyfmt, value_format=self.valfmt)
+        ds = self.ds(self, uri, 0, key_format='i')
         ds.populate()
 
         session = self.session

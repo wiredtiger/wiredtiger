@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
-from wtscenario import make_scenarios
 
 # test_durable_ts03.py
 #    Check that the checkpoint honors the durable timestamp of updates.
@@ -35,26 +34,14 @@ from wtscenario import make_scenarios
 class test_durable_ts03(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=10MB'
 
-    format_values = [
-        ('integer-row', dict(key_format='i', value_format='u')),
-        ('column', dict(key_format='r', value_format='u')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def test_durable_ts03(self):
         # Create a table.
         uri = 'table:test_durable_ts03'
         nrows = 3000
-        self.session.create(uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
-        if self.value_format == '8t':
-            valueA = 97
-            valueB = 98
-            valueC = 99
-        else:
-            valueA = b"aaaaa" * 100
-            valueB = b"bbbbb" * 100
-            valueC = b"ccccc" * 100
+        self.session.create(uri, 'key_format=i,value_format=u')
+        valueA = b"aaaaa" * 100
+        valueB = b"bbbbb" * 100
+        valueC = b"ccccc" * 100
 
         # Start with setting a stable and oldest timestamp.
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) + \

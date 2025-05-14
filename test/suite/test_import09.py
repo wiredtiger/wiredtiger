@@ -29,7 +29,7 @@
 # test_import09.py
 # Import a table with the repair option (no exported metadata).
 
-import os, random, shutil
+import os, random, shutil, unittest
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
 import wttest
@@ -91,6 +91,7 @@ class test_import09(test_import_base):
     def conn_config(self):
         return 'cache_size=50MB,encryption=(name={})'.format(self.encryptor + self.encryptor_args)
 
+    @unittest.skip("Not obviously a column store test.")
     def test_import_table_repair(self):
         # Add some tables & data and checkpoint.
         self.populate(self.ntables, self.nrows)

@@ -211,24 +211,6 @@ class test_cursor_random(wttest.WiredTigerTestCase):
         if (sys.platform.startswith('darwin')):
             self.ignoreStdoutPatternIfExists(self.expected_warning_msg)
 
-# Check that opening a random cursor on column-store returns not-supported.
-class test_cursor_random_column(wttest.WiredTigerTestCase):
-    type_values = [
-        ('file', dict(uri='file:random')),
-        ('table', dict(uri='table:random'))
-    ]
-    valfmt_values = [
-        ('string', dict(valfmt='S')),
-        ('fix', dict(valfmt='8t')),
-    ]
-    scenarios = make_scenarios(type_values, valfmt_values)
-
-    def test_cursor_random_column(self):
-        self.session.create(self.uri, 'key_format=r,value_format={}'.format(self.valfmt))
-        msg = '/next_random .* not supported/'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.session.open_cursor(self.uri, None, "next_random=true"), msg)
-
 # Check next_random works in the presence a set of updates, some or all of
 # which are invisible to the cursor.
 class test_cursor_random_invisible(wttest.WiredTigerTestCase):

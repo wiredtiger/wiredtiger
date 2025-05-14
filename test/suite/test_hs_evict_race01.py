@@ -29,7 +29,6 @@
 from time import sleep
 import wttest, threading
 from helper import simulate_crash_restart
-from wtscenario import make_scenarios
 
 # Test a bug that can occur when an update without a timestamp gets inserted after a checkpoint
 # begins but before the checkpoint processes the btree. Evict that update before checkpoint but
@@ -48,19 +47,13 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=(checkpoint_slow)'
     uri = 'table:hs_evict_race01'
     numrows = 1
-
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('row_integer', dict(key_format='i')),
-    ]
-    scenarios = make_scenarios(key_format_values)
     value1 = 'aaaaa'
     value2 = 'bbbbb'
     value3 = 'ccccc'
     value4 = 'ddddd'
 
     def test_mm_ts(self):
-        self.session.create(self.uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(self.uri, 'key_format=i,value_format=S')
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         # Insert a value at timestamp 4

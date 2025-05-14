@@ -54,7 +54,6 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S'))
     ]
     types = [

@@ -62,12 +62,6 @@ from wtscenario import make_scenarios
 
 class test_hs30(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('integer_row', dict(key_format='i', value_format='S')),
-    ]
     logging_values = [
         ('nolog', dict(logging=False, conn_config='statistics=(all)')),
         ('log', dict(logging=True, conn_config='statistics=(all),log=(enabled)')),
@@ -85,8 +79,7 @@ class test_hs30(wttest.WiredTigerTestCase):
         ('no_evict', dict(do_evict=False)),
     ]
 
-    scenarios = make_scenarios(format_values, logging_values,
-        early_ckpt_values, middle_ckpt_values, evict_values)
+    scenarios = make_scenarios(logging_values, early_ckpt_values, middle_ckpt_values, evict_values)
 
     def large_updates(self, uri, nrows, value):
         cursor = self.session.open_cursor(uri)
@@ -109,24 +102,17 @@ class test_hs30(wttest.WiredTigerTestCase):
 
     def test_insert_updates_hs(self):
         uri = 'table:test_hs30'
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=i,value_format=S'
         logging = 'log=(enabled={})'.format('true' if self.logging else 'false')
         self.session.create(uri, format + ',' + logging)
 
         nrows = 100
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-            value_e = 101
-        else:
-            value_a = 'aaaaa' * 10
-            value_b = 'bbbbb' * 10
-            value_c = 'ccccc' * 10
-            value_d = 'ddddd' * 10
-            value_e = 'eeeee' * 10
+        value_a = 'aaaaa' * 10
+        value_b = 'bbbbb' * 10
+        value_c = 'ccccc' * 10
+        value_d = 'ddddd' * 10
+        value_e = 'eeeee' * 10
 
         session2 = self.conn.open_session()
         cursor2 = session2.open_cursor(uri)
