@@ -95,27 +95,41 @@ struct __wti_ckpt_timer {
 };
 
 /*
-+ * WTI_CKPT_WORK_UNIT --
-+ *	A definition of maintenance that a Checkpoint tree needs done.
-+ */
-struct __wti_ckpt_work_unit {
+ * WTI_CKPT_WORK_UNIT --
+ *     A definition of maintenance that a Checkpoint tree needs done.
+ */
+struct __wti_ckpt_work_unit { // cache line alignment ??? make to process/result data union or split
+                              // to two different queues ???
+    /* Common data */
     TAILQ_ENTRY(__wti_ckpt_work_unit) q; /* Worker unit queue */
     WT_DATA_HANDLE *handle;
+
+    /* To process data */
     const char **config;
     WT_TXN_SNAPSHOT *snapshot;
+
+    /* Result data */
+    char lsn_str[32]; // WT_MAX_LSN_STRING - think how to store LSN data properly ???
+};
+
+/*
+ * WTI_CKPT_SAFE_WORK_QUEUE --
+ *     Thread-safe queue for a parrallel checkpointing for processing both work and result units.
+ */
+struct __wti_ckpt_safe_work_queue {
+    WT_CONDVAR *cond;
+    WT_SPINLOCK lock;
+    TAILQ_HEAD(__wti_ckpt_safe_work_queue_qh, __wti_ckpt_work_unit) qh;
 };
 
 /* Checkpoint threads information. */
 struct __wti_ckpt_workers {
-    WT_CONDVAR *cond; /* Checkpoint thread condition */
     WT_THREAD_GROUP thread_group;
     uint32_t threads; /* Checkpoint threads */
-    uint32_t push;
-    uint32_t pop;
 
-    /* Locked: checkpoint system work queue. */
-    TAILQ_HEAD(__wti_ckpt_qh, __wti_ckpt_work_unit) qh;
-    WT_SPINLOCK lock; /* Checkpoint work queue spinlock */
+    /* Separate thread-safe queues for both processing dhandles and submitting results. */
+    WTI_CKPT_SAFE_WORK_QUEUE to_process_queue;
+    WTI_CKPT_SAFE_WORK_QUEUE result_queue;
 };
 
 /* DO NOT EDIT: automatically built by prototypes.py: BEGIN */

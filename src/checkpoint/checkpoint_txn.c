@@ -20,12 +20,17 @@ static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct times
 static int __checkpoint_workers_run(WT_SESSION_IMPL *session, WT_THREAD *thread);
 static int __checkpoint_workers_stop(WT_SESSION_IMPL *session, WT_THREAD *thread);
 static bool __checkpoint_workers_chk(WT_SESSION_IMPL *session);
-static void __checkpoint_pop_work(WT_SESSION_IMPL *session, WTI_CKPT_WORK_UNIT **entryp);
-static int __checkpoint_push_work(
-  WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle, WT_TXN_SNAPSHOT *snapshot, const char *cfg[]);
+static int __checkpoint_init_work_queue(WT_SESSION_IMPL *session, WTI_CKPT_SAFE_WORK_QUEUE *queue);
+static void __checkpoint_destroy_work_queue(
+  WT_SESSION_IMPL *session, WTI_CKPT_SAFE_WORK_QUEUE *queue);
+static void __checkpoint_pop_work(
+  WT_SESSION_IMPL *session, WTI_CKPT_SAFE_WORK_QUEUE *queue, WTI_CKPT_WORK_UNIT **entryp);
 static void __checkpoint_free_work(WT_SESSION_IMPL *session, WTI_CKPT_WORK_UNIT *entry);
-static int __checkpoint_push_dhandles(WT_SESSION_IMPL *session, const char *cfg[]);
-static bool __checkpoint_workers_finish(WT_SESSION_IMPL *session);
+static int __checkpoint_push_dhandles(
+  WT_SESSION_IMPL *session, const char *cfg[], int *dhandles_countp);
+static int __checkpoint_result_meta_ckptlist_set(WT_SESSION_IMPL *session, int *dhandles_donep);
+static int __checkpoint_push_result(
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, const char *ckptlsn_str);
 
 /*
  * __checkpoint_flush_tier_wait --
@@ -1317,9 +1322,16 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_verbose_track(session, "checkpointing individual trees");
 
     time_start_ckpt_tree = __wt_clock(session);
-    WT_ERR(__checkpoint_push_dhandles(session, cfg));
-    while (!__checkpoint_workers_finish(session))
-        __wt_yield_no_barrier();
+
+    int dhandles_count, dhandles_done = 0;
+    WT_ERR(__checkpoint_push_dhandles(session, cfg, &dhandles_count));
+
+    while (dhandles_done != dhandles_count) {
+        __wt_cond_wait(session, S2C(session)->ckpt.workers->result_queue.cond, WT_MILLION, NULL);
+
+        __checkpoint_result_meta_ckptlist_set(session, &dhandles_done);
+    }
+
     time_stop_ckpt_tree = __wt_clock(session);
     ckpt_tree_duration_usecs = WT_CLOCKDIFF_US(time_stop_ckpt_tree, time_start_ckpt_tree);
     WT_STAT_CONN_SET(session, checkpoint_tree_duration, ckpt_tree_duration_usecs);
@@ -2377,7 +2389,7 @@ err:
  *     Checkpoint a single tree. Assumes all necessary locks have been acquired by the caller.
  */
 static int
-__checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[])
+__checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[], bool is_mt)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2490,7 +2502,11 @@ fake:
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
     WT_ERR(__wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), (char *)ckptlsn_str));
-    WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, ckptlsn_str));
+
+    if (is_mt)
+        WT_ERR(__checkpoint_push_result(session, dhandle, ckptlsn_str));
+    else
+        WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, ckptlsn_str));
 
     /*
      * If we wrote a checkpoint (rather than faking one), we have to resolve it. Normally, tracking
@@ -2595,7 +2611,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(btree, WT_BTREE_LOGGED))
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
 
-    ret = __checkpoint_tree(session, true, cfg);
+    ret = __checkpoint_tree(session, true, cfg, /*is_mt = */ true);
 
     /* Restore the use of the timestamp for other tables. */
     if (with_timestamp)
@@ -2652,7 +2668,7 @@ __wt_checkpoint_file(WT_SESSION_IMPL *session, const char *cfg[])
     WT_SAVE_DHANDLE(session, ret = __checkpoint_lock_dirty_tree(session, true, force, true, cfg));
     if (ret != 0 || F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT))
         goto done;
-    ret = __checkpoint_tree(session, true, cfg);
+    ret = __checkpoint_tree(session, true, cfg, /*is_mt = */ false);
 
 done:
     if (standalone)
@@ -2752,7 +2768,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
       session, ret = __checkpoint_lock_dirty_tree(session, false, false, need_tracking, NULL));
     WT_ASSERT(session, ret == 0);
     if (ret == 0 && !F_ISSET(btree, WT_BTREE_SKIP_CKPT))
-        ret = __checkpoint_tree(session, false, NULL);
+        ret = __checkpoint_tree(session, false, NULL, /*is_mt = */ false);
 
     __checkpoint_clear_time(session);
 
@@ -2822,17 +2838,22 @@ __checkpoint_workers_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
     WTI_CKPT_WORK_UNIT *entry;
     WT_DECL_RET;
-    bool signalled;
+
+    WTI_CKPT_SAFE_WORK_QUEUE *to_process = &S2C(session)->ckpt.workers->to_process_queue;
 
     WT_UNUSED(thread);
 
     /* Wait until the next event. */
-    __wt_cond_wait_signal(
-      session, S2C(session)->ckpt.workers->cond, WT_MILLION, __checkpoint_workers_chk, &signalled);
+    __wt_cond_wait(session, to_process->cond, WT_MILLION, __checkpoint_workers_chk);
 
-    __checkpoint_pop_work(session, &entry);
+    __checkpoint_pop_work(session, to_process, &entry);
     if (entry == NULL)
         return (0);
+
+    WT_ASSERT(session, strlen(entry->lsn_str) == 0);
+    WT_ASSERT(session, entry->handle != NULL);
+    WT_ASSERT(session, entry->config != NULL);
+    WT_ASSERT(session, entry->snapshot != NULL);
 
     memcpy(&session->txn->snapshot_data, entry->snapshot, sizeof(WT_TXN_SNAPSHOT));
     F_SET(session, WT_SESSION_CHECKPOINT);
@@ -2843,7 +2864,6 @@ __checkpoint_workers_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_WITH_DHANDLE(session, entry->handle, ret = __checkpoint_tree_helper(session, entry->config));
     WT_ERR(ret);
     __checkpoint_free_work(session, entry);
-    S2C(session)->ckpt.workers->pop++;
     session->txn->flags = 0;
     F_CLR(session, WT_SESSION_CHECKPOINT);
 
@@ -2875,11 +2895,10 @@ __checkpoint_workers_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 int
 __wt_checkpoint_workers_create(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     uint32_t session_flags;
 
-    WTI_CKPT_WORKERS *workers = &S2C(session)->ckpt._workers;
-    conn = S2C(session);
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WTI_CKPT_WORKERS *workers = &conn->ckpt._workers;
 
     conn->ckpt.workers = workers;
     workers->threads = 4;
@@ -2887,10 +2906,8 @@ __wt_checkpoint_workers_create(WT_SESSION_IMPL *session)
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_THREADS);
 
-    TAILQ_INIT(&workers->qh); /* Checkpoint work unit list */
-    WT_RET(__wt_spin_init(session, &workers->lock, "checkpoint work unit list"));
-    WT_RET(__wt_cond_auto_alloc(
-      session, "checkpoint threads", 10 * WT_THOUSAND, WT_MILLION, &workers->cond));
+    WT_RET(__checkpoint_init_work_queue(session, &workers->to_process_queue));
+    WT_RET(__checkpoint_init_work_queue(session, &workers->result_queue));
 
     /*
      * Create a checkpoint thread group. Set the group size to the maximum allowed sessions.
@@ -2899,6 +2916,8 @@ __wt_checkpoint_workers_create(WT_SESSION_IMPL *session)
     WT_RET(__wt_thread_group_create(session, &workers->thread_group, "checkpoint-threads",
       workers->threads, workers->threads, session_flags, __checkpoint_workers_chk,
       __checkpoint_workers_run, __checkpoint_workers_stop));
+
+    // do proper cleanup in case of error ???
 
     return (0);
 }
@@ -2910,12 +2929,10 @@ __wt_checkpoint_workers_create(WT_SESSION_IMPL *session)
 int
 __wt_checkpoint_workers_destroy(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
-    WTI_CKPT_WORKERS *workers = S2C(session)->ckpt.workers;
-
-    conn = S2C(session);
+    WT_CONNECTION_IMPL *conn = S2C(session);
+    WTI_CKPT_WORKERS *workers = conn->ckpt.workers;
 
     /* Wait for any checkpoint thread group changes to stabilize. */
     __wt_writelock(session, &workers->thread_group.lock);
@@ -2924,7 +2941,7 @@ __wt_checkpoint_workers_destroy(WT_SESSION_IMPL *session)
      * Signal the threads to finish and stop populating the queue.
      */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT_THREADS);
-    __wt_cond_signal(session, workers->cond);
+    __wt_cond_signal(session, workers->to_process_queue.cond);
 
     __wt_verbose(session, WT_VERB_CHECKPOINT, "%s", "waiting for helper threads");
 
@@ -2932,10 +2949,38 @@ __wt_checkpoint_workers_destroy(WT_SESSION_IMPL *session)
      * We call the destroy function still holding the write lock. It assumes it is called locked.
      */
     WT_TRET(__wt_thread_group_destroy(session, &workers->thread_group));
-    __wt_spin_destroy(session, &workers->lock);
-    __wt_cond_destroy(session, &workers->cond);
+    __checkpoint_destroy_work_queue(session, &workers->to_process_queue);
+    __checkpoint_destroy_work_queue(session, &workers->result_queue);
+
+    S2C(session)->ckpt.workers = NULL;
 
     return (ret);
+}
+
+/*
+ * __checkpoint_init_work_queue --
+ *     Initialize the work queue.
+ */
+static int
+__checkpoint_init_work_queue(WT_SESSION_IMPL *session, WTI_CKPT_SAFE_WORK_QUEUE *queue)
+{
+    TAILQ_INIT(&queue->qh);
+    WT_RET(__wt_spin_init(session, &queue->lock, "checkpoint work unit queue lock"));
+    WT_RET(__wt_cond_auto_alloc(
+      session, "checkpoint work queue condition", 10 * WT_THOUSAND, WT_MILLION, &queue->cond));
+
+    return (0);
+}
+
+/*
+ * __checkpoint_destroy_work_queue --
+ *     Destroy the work queue related objects.
+ */
+static void
+__checkpoint_destroy_work_queue(WT_SESSION_IMPL *session, WTI_CKPT_SAFE_WORK_QUEUE *queue)
+{
+    __wt_spin_destroy(session, &queue->lock);
+    __wt_cond_destroy(session, &queue->cond);
 }
 
 /*
@@ -2953,54 +2998,49 @@ __checkpoint_free_work(WT_SESSION_IMPL *session, WTI_CKPT_WORK_UNIT *entry)
  *     Pop a work unit from the queue.
  */
 static void
-__checkpoint_pop_work(WT_SESSION_IMPL *session, WTI_CKPT_WORK_UNIT **entryp)
+__checkpoint_pop_work(
+  WT_SESSION_IMPL *session, WTI_CKPT_SAFE_WORK_QUEUE *queue, WTI_CKPT_WORK_UNIT **entryp)
 {
     WTI_CKPT_WORK_UNIT *entry;
 
-    WTI_CKPT_WORKERS *workers = S2C(session)->ckpt.workers;
-
     *entryp = entry = NULL;
 
-    if (TAILQ_EMPTY(&workers->qh))
+    if (TAILQ_EMPTY(&queue->qh)) // good optimization but seem to be not thread safe ??? need
+                                 // read/write barriers ???
         return;
 
-    __wt_spin_lock(session, &workers->lock);
+    __wt_spin_lock(session, &queue->lock);
 
     /* Recheck again to confirm whether the queue is empty or not? */
-    if (TAILQ_EMPTY(&workers->qh)) {
-        __wt_spin_unlock(session, &workers->lock);
+    if (TAILQ_EMPTY(&queue->qh)) {
+        __wt_spin_unlock(session, &queue->lock);
         return;
     }
 
-    entry = TAILQ_FIRST(&workers->qh);
-    TAILQ_REMOVE(&workers->qh, entry, q);
+    entry = TAILQ_FIRST(&queue->qh);
+    TAILQ_REMOVE(&queue->qh, entry, q);
     *entryp = entry;
 
-    __wt_spin_unlock(session, &workers->lock);
+    __wt_spin_unlock(session, &queue->lock);
     return;
 }
 
 /*
- * __checkpoint_push_work --
- *     Push a work unit to the queue.
+ * __checkpoint_push_work_to_process --
+ *     Push a work unit to the checkpoint thread for processing. Thread unsafe.
  */
 static int
-__checkpoint_push_work(
-  WT_SESSION_IMPL *session, WT_DATA_HANDLE *handle, WT_TXN_SNAPSHOT *snapshot, const char *cfg[])
+__checkpoint_push_work_to_process(WT_SESSION_IMPL *session, WTI_CKPT_SAFE_WORK_QUEUE *queue,
+  WT_DATA_HANDLE *handle, WT_TXN_SNAPSHOT *snapshot, const char *cfg[])
 {
     WTI_CKPT_WORK_UNIT *entry;
-
-    WTI_CKPT_WORKERS *workers = S2C(session)->ckpt.workers;
 
     WT_RET(__wt_calloc_one(session, &entry));
     entry->config = cfg;
     entry->snapshot = snapshot;
     entry->handle = handle;
 
-    __wt_spin_lock(session, &workers->lock);
-    TAILQ_INSERT_TAIL(&workers->qh, entry, q);
-    __wt_spin_unlock(session, &workers->lock);
-    __wt_cond_signal(session, workers->cond);
+    TAILQ_INSERT_TAIL(&queue->qh, entry, q);
 
     return (0);
 }
@@ -3010,34 +3050,83 @@ __checkpoint_push_work(
  *     Push all handles to the checkpoint threads for checkpoint operation.
  */
 static int
-__checkpoint_push_dhandles(WT_SESSION_IMPL *session, const char *cfg[])
+__checkpoint_push_dhandles(WT_SESSION_IMPL *session, const char *cfg[], int *dhandles_countp)
 {
-    u_int i;
+    WT_DECL_RET;
+    WTI_CKPT_WORKERS *workers = S2C(session)->ckpt.workers;
+
+    (*dhandles_countp) = 0;
 
     /* If we have already locked the handles, apply the operation. */
-    for (i = 0; i < session->ckpt.handle_next; ++i) {
+    __wt_spin_lock(session, &workers->to_process_queue.lock);
+    for (u_int i = 0; i < session->ckpt.handle_next; ++i) {
         if (session->ckpt.handle[i] == NULL)
             continue;
-        WT_RET(__checkpoint_push_work(
-          session, session->ckpt.handle[i], &session->txn->snapshot_data, cfg));
-        S2C(session)->ckpt.workers->push++;
+        WT_ERR(__checkpoint_push_work_to_process(session, &workers->to_process_queue,
+          session->ckpt.handle[i], &session->txn->snapshot_data, cfg));
+        (*dhandles_countp)++;
     }
+
+err:
+    __wt_spin_unlock(session, &workers->to_process_queue.lock);
+
+    /* If no errors reported, signal all the workers to start the job. */
+    if (ret == 0)
+        __wt_cond_signal(session, workers->to_process_queue.cond);
+
+    return (ret);
+}
+
+/*
+ * __checkpoint_push_work_result --
+ *     Push a work unit to the the main thread to update metadata.
+ */
+static int
+__checkpoint_push_result(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, const char *ckptlsn_str)
+{
+    WTI_CKPT_WORK_UNIT *entry;
+
+    WTI_CKPT_SAFE_WORK_QUEUE *result_queue = &S2C(session)->ckpt.workers->result_queue;
+
+    WT_ASSERT(session, session->dhandle == dhandle);
+    WT_ASSERT(session, ckptlsn_str != NULL);
+    WT_RET(__wt_calloc_one(session, &entry));
+    entry->handle = dhandle;
+    memcpy(entry->lsn_str, ckptlsn_str, WT_MAX_LSN_STRING);
+
+    __wt_spin_lock(session, &result_queue->lock);
+    TAILQ_INSERT_TAIL(&result_queue->qh, entry, q);
+    __wt_spin_unlock(session, &result_queue->lock);
+    __wt_cond_signal(session, result_queue->cond);
 
     return (0);
 }
 
-/*
- * __checkpoint_workers_finish --
- *     Check whether the checkpoint workers finish all handles.
- */
-static bool
-__checkpoint_workers_finish(WT_SESSION_IMPL *session)
+static int
+__checkpoint_result_meta_ckptlist_set(WT_SESSION_IMPL *session, int *dhandles_donep)
 {
-    WTI_CKPT_WORKERS *workers = S2C(session)->ckpt.workers;
+    WT_BTREE *btree;
+    WTI_CKPT_WORK_UNIT *entry;
+    WT_DECL_RET;
 
-    // Should we make at least accesses to `pop` atomic with acquire here ???
-    if (workers->push == workers->pop)
-        return (true);
+    WTI_CKPT_SAFE_WORK_QUEUE *result_queue = &S2C(session)->ckpt.workers->result_queue;
 
-    return (false);
+    __checkpoint_pop_work(session, result_queue, &entry);
+    if (entry == NULL)
+        return (0);
+
+    WT_ASSERT(session, entry->config == NULL);
+    WT_ASSERT(session, entry->snapshot == NULL);
+    WT_ASSERT(session, strlen(entry->lsn_str) != 0);
+    WT_ASSERT(session, entry->handle != NULL);
+
+    btree = entry->handle->handle;
+    WT_ERR(__wt_meta_ckptlist_set(session, entry->handle, btree->ckpt, entry->lsn_str));
+
+    (*dhandles_donep)++;
+
+err:
+    __checkpoint_free_work(session, entry);
+
+    return (ret);
 }
