@@ -804,7 +804,7 @@ append:
     if (block->block_groups_file != NULL) {
         uint64_t start = ((uint64_t)*offp) / BLOCK_GROUP_SIZE_BYTES;
         uint64_t end =
-          ((uint64_t)*offp + (uint64_t)size + BLOCK_GROUP_SIZE_BYTES - 1) / BLOCK_GROUP_SIZE_BYTES;
+          ((uint64_t)*offp + (uint64_t)size) / BLOCK_GROUP_SIZE_BYTES;
         __bit_nset(block->block_groups_file, start, end);
     }
     /* Add the newly allocated extent to the list of allocations. */
