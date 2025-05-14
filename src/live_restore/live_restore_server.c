@@ -55,7 +55,7 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_SESSION_IMPL *checkpoint_se
         uint64_t time_diff_ms;
         __wt_timer_evaluate_ms(session, &server->start_timer, &time_diff_ms);
         __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
-          "Completed restoring %" PRIu64 " files in %" PRIu64 " seconds",
+          "Live restore finished restoring %" PRIu64 " files in %" PRIu64 " seconds",
           S2C(session)->live_restore_server->work_count, time_diff_ms / WT_THOUSAND);
 
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_CLEAN_UP));
