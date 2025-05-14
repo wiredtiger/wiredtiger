@@ -40,7 +40,8 @@ def create_fragmentation_image(input_file_path, output_folder):
         shapes = []
         GRID_WIDTH = 1000
         SQUARE_BYTES = file_size / (GRID_WIDTH * GRID_WIDTH)
-
+        print("Each square represents ", SQUARE_BYTES, " bytes")
+        
         def add_span(offset, size):
             start_block = offset / SQUARE_BYTES
             end_block = (offset + size) / SQUARE_BYTES
@@ -86,7 +87,7 @@ def create_fragmentation_image(input_file_path, output_folder):
             plot_bgcolor='white',
             hovermode=False
         )
-        fig.write_image(image_path, format="png", scale=3)
+        fig.write_image(image_path, format="png", scale=5)
 
     base = os.path.splitext(os.path.basename(input_file_path))[0]
     os.makedirs(output_folder, exist_ok=True)
@@ -153,7 +154,7 @@ def generate_html_viewer(output_folder, image_bases):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize fragmentation with linear or hilbert layout")
     parser.add_argument("input_folder", help="Folder containing .txt files with offset,size lines")
-    parser.add_argument("--output", default="fragmentation_svgs", help="Output folder")
+    parser.add_argument("--output", default="fragmentation_pngs", help="Output folder")
 
     args = parser.parse_args()
     image_bases = []
