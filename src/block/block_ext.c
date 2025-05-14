@@ -805,7 +805,10 @@ append:
         uint64_t start = ((uint64_t)*offp) / BLOCK_GROUP_SIZE_BYTES;
         uint64_t end =
           ((uint64_t)*offp + (uint64_t)size) / BLOCK_GROUP_SIZE_BYTES;
-        __bit_nset(block->block_groups_file, start, end);
+          if(start >= block->block_groups_cnt || end >= block->block_groups_cnt) {
+          __wt_verbose(session, WT_VERB_BLOCK, "indexing out of bitset range %llu-%llu for max: %llu ", start, end,block->block_groups_cnt-1);
+          }
+        __bit_nset(block->block_groups_file, start >= block->block_groups_cnt ? (block->block_groups_cnt-1) : start, end >= block->block_groups_cnt ? (block->block_groups_cnt-1) : end );
     }
     /* Add the newly allocated extent to the list of allocations. */
     WT_RET(__block_merge(session, block, &block->live.alloc, *offp, (wt_off_t)size));
