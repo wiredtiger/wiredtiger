@@ -2794,9 +2794,9 @@ struct __wt_connection {
      * Get a page log service implementation.
      *
      * Look up a page log service by name and return it. The returned page log service
-     * must be released by calling WT_STORAGE_SOURCE::terminate.
+     * must be released by calling WT_PAGE_LOG::terminate.
      *
-     * @snippet ex_storage_source.c WT_STORAGE_SOURCE register
+     * @snippet ex_storage_source.c WT_PAGE_LOG register
      *
      * @param connection the connection handle
      * @param name the name of the page log service implementation
