@@ -6,7 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-#include "wiredtiger.h"
 #include "wt_internal.h"
 
 #define WT_DHANDLE_CAN_DISCARD(dhandle)                           \
@@ -83,9 +82,10 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 
         /* For table dhandles, skip expiration if associated file dhandles exist. */
         if (dhandle->type == WT_DHANDLE_TYPE_TABLE) {
-            WT_WITHOUT_DHANDLE(session,
-              WT_WITH_HANDLE_LIST_READ_LOCK(
-                session, (ret = __sweep_check_file_handle_exists(session, dhandle))));
+            WT_WITH_TABLE_READ_LOCK(session,
+              WT_WITHOUT_DHANDLE(session,
+                WT_WITH_HANDLE_LIST_READ_LOCK(
+                  session, (ret = __sweep_check_file_handle_exists(session, dhandle)))));
 
             /* Continue if the file dhandle exists for the associated table dhandle. */
             if (ret == 0)

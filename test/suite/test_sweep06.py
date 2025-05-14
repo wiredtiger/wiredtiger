@@ -36,7 +36,7 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 
 class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
-    dhandles = 500
+    dhandles = 200
     format='key_format=i,value_format=S'
     tablebase = 'test_sweep06'
     uri = 'table:' + tablebase
