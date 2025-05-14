@@ -105,7 +105,7 @@ class test_live_restore02(backup_base):
                 self.expectedStderrPattern(r".*Live restore has completed.")
                 break
             time.sleep(1)
-            self.ignoreStdoutPatternIfExists(r".*Completed restoring \d+ files in \d+ seconds.*")
+            self.ignoreStdoutPatternIfExists(r".*Live restore finished restoring \d+ files in \d+ seconds.*")
             iteration_count += 1
         self.assertEqual(state, wiredtiger.WT_LIVE_RESTORE_COMPLETE)
 
