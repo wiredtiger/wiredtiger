@@ -7,6 +7,7 @@ import plotly.io as pio
 import imageio.v2 as imageio
 
 BLOCK_SIZE = 4096  # 4KB
+
 def hilbert_curve(index, order):
     x = y = 0
     t = index
@@ -37,20 +38,19 @@ def create_fragmentation_image(input_file_path, output_folder, mode):
         print(f"No allocated blocks found in {input_file_path}")
         return
 
-    #delte the first item of the list
     allocated_blocks.pop(0)
     allocated_blocks.pop()
     last_offset, last_size = allocated_blocks[-1]
     file_size = last_offset + last_size
     print(f"[{input_file_path}] File size: {file_size} bytes")
 
-    shapes, hover_x, hover_y, hover_texts = [], [], [], []
+    shapes = []
 
     if mode == "linear":
         GRID_WIDTH = 1000
         SQUARE_BYTES = file_size / (GRID_WIDTH * GRID_WIDTH)
 
-        def add_span(offset, size, color, label):
+        def add_span(offset, size, color):
             start_block = offset / SQUARE_BYTES
             end_block = (offset + size) / SQUARE_BYTES
 
@@ -65,9 +65,6 @@ def create_fragmentation_image(input_file_path, output_folder, mode):
                 shapes.append(dict(type="rect", x0=x0, y0=y0, x1=x1, y1=y1,
                                    line=dict(width=0.2, color='black'),
                                    fillcolor=color))
-                hover_x.append((x0 + x1) / 2)
-                hover_y.append((y0 + y1) / 2)
-                hover_texts.append(f"Offset: {offset} bytes<br>Size: {size} bytes<br>{label}")
             else:
                 for row in range(start_row, end_row + 1):
                     row_start_block = row * GRID_WIDTH
@@ -84,12 +81,9 @@ def create_fragmentation_image(input_file_path, output_folder, mode):
                     shapes.append(dict(type="rect", x0=x0, y0=y0, x1=x1, y1=y1,
                                        line=dict(width=0.2, color='black'),
                                        fillcolor=color))
-                    hover_x.append((x0 + x1) / 2)
-                    hover_y.append((y0 + y1) / 2)
-                    hover_texts.append(f"Offset: {offset} bytes<br>Size: {size} bytes<br>{label}")
 
         for offset, size in allocated_blocks:
-            add_span(offset, size, "#5e60ce", "Allocated")
+            add_span(offset, size, "#5e60ce")
 
         title = "WT Fragmentation Viewer (Linear)"
 
@@ -120,9 +114,6 @@ def create_fragmentation_image(input_file_path, output_folder, mode):
                     line=dict(width=0.2, color='black'),
                     fillcolor="#5e60ce"
                 ))
-                hover_x.append(x + 0.5)
-                hover_y.append(-y - 0.5)
-                hover_texts.append(f"Offset: {offset} bytes<br>Size: {size} bytes")
 
         title = f"WT Fragmentation Viewer (Hilbert Order {order})"
 
@@ -131,20 +122,14 @@ def create_fragmentation_image(input_file_path, output_folder, mode):
         return
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=hover_x, y=hover_y, mode='markers',
-        marker=dict(size=0.1, opacity=0),
-        text=hover_texts, hoverinfo='text'
-    ))
-
     fig.update_layout(
         title=title,
         shapes=shapes,
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False, scaleanchor="x"),
+        xaxis=dict(showticklabels=False, range=[0, GRID_WIDTH]),
+        yaxis=dict(showticklabels=False, scaleanchor="x", range=[-GRID_WIDTH, 0]),
         margin=dict(t=40, l=0, r=0, b=0),
         plot_bgcolor='white',
-        hovermode='closest'
+        hovermode=False
     )
 
     base = os.path.splitext(os.path.basename(input_file_path))[0]
@@ -173,7 +158,6 @@ if __name__ == "__main__":
                 print(f"Skipping non-txt file: {filename}")
 
     if args.gif or args.only_gif:
-        # Get sorted PNGs
         images = []
         for file in os.listdir(args.output):
             if file.endswith(".png"):
@@ -182,6 +166,5 @@ if __name__ == "__main__":
             else:
                 print(f"Skipping non-png file: {file}")
         output_gif = "fragmentation.gif"
-        # Save as animated GIF
         imageio.mimsave(output_gif, images, duration=2)
         print(f"✅ GIF saved: {output_gif}")
