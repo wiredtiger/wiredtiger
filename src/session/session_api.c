@@ -677,15 +677,6 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     if (*cursorp == NULL)
         return (__wt_bad_object_type(session, uri));
 
-    if (owner != NULL) {
-        /*
-         * We support caching simple cursors that have no children. If this cursor is a child, we're
-         * not going to cache this child or its parent.
-         */
-        F_CLR(owner, WT_CURSTD_CACHEABLE);
-        F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
-    }
-
     /*
      * When opening simple tables, the table code calls this function on the underlying data source,
      * in which case the application's URI has been copied.
@@ -741,11 +732,9 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
     /* We do not cache any subordinate tables/files cursors. */
-    if (owner == NULL) {
-        __wt_cursor_get_hash(session, uri, NULL, &hash_value);
-        WT_ERR_NOTFOUND_OK(
-          __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
-    }
+    __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+    WT_ERR_NOTFOUND_OK(
+      __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
 
     /* Open a new cursor if no cached cursor was found. */
     if (*cursorp == NULL)
@@ -757,7 +746,7 @@ err:
         session->cursor_open_timer_running = false;
         __wt_epoch(session, &end_time);
         time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
-        WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
     }
     return (ret);
 }
@@ -857,9 +846,9 @@ err:
          * the session incidentally (even if that was within the purview of a user thread.
          */
         if (API_USER_ENTRY(session))
-            WT_STAT_CONN_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
+            WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
         else
-            WT_STAT_CONN_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+            WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
     }
     /*
      * Opening a cursor on a non-existent data source will set ret to either of ENOENT or
