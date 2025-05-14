@@ -8,9 +8,8 @@
 
 #include "wt_internal.h"
 
-
 #define BLOCK_GROUP_SIZE_BYTES (512 * 1024ULL)
-// #define BLOCK_GROUP_MIN_FILE_BYTES (0)
+/* #define BLOCK_GROUP_MIN_FILE_BYTES (0) */
 #define BLOCK_GROUP_MAX_EXTRA_GROUPS (4ULL * 1024ULL)
 #define BLOCK_GROUP_DENSITY_WEIGHT 3
 #define BLOCK_GROUP_WASTE_WEIGHT 1
@@ -20,17 +19,18 @@
 #define BLOCK_GROUP_DIRTY_SCAN_CAP 32
 #define BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET 32
 
-// #define BLOCK_GROUP_SIZE_BYTES (16ULL * 1024ULL * 1024ULL)
-// #define BLOCK_GROUP_MIN_FILE_BYTES (BLOCK_GROUP_SIZE_BYTES * 8)
-// #define BLOCK_GROUP_MAX_EXTRA_GROUPS (4ULL * 1024ULL)
-// #define BLOCK_GROUP_DENSITY_WEIGHT 3
-// #define BLOCK_GROUP_WASTE_WEIGHT 1
-// #define BLOCK_GROUP_PROXIMITY_WEIGHT 2
-// #define BLOCK_GROUP_MAX_SCORE DBL_MAX
-// #define BLOCK_GROUP_SEARCH_BUDGET 32
-// #define BLOCK_GROUP_DIRTY_SCAN_CAP 8
-// #define BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET 16
-
+/*
+#define BLOCK_GROUP_SIZE_BYTES (16ULL * 1024ULL * 1024ULL)
+#define BLOCK_GROUP_MIN_FILE_BYTES (BLOCK_GROUP_SIZE_BYTES * 8)
+#define BLOCK_GROUP_MAX_EXTRA_GROUPS (4ULL * 1024ULL)
+#define BLOCK_GROUP_DENSITY_WEIGHT 3
+#define BLOCK_GROUP_WASTE_WEIGHT 1
+#define BLOCK_GROUP_PROXIMITY_WEIGHT 2
+#define BLOCK_GROUP_MAX_SCORE DBL_MAX
+#define BLOCK_GROUP_SEARCH_BUDGET 32
+#define BLOCK_GROUP_DIRTY_SCAN_CAP 8
+#define BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET 16
+*/
 /*
  * WT_BLOCK_RET --
  *	Handle extension list errors that would normally panic the system but
@@ -188,9 +188,9 @@ __next_power_of_two(uint64_t x)
 static WT_INLINE int
 __block_dirty_srch_init(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    // if ((uint64_t)block->size < BLOCK_GROUP_MIN_FILE_BYTES) {
-    //     return (0);
-    // }
+    /* if ((uint64_t)block->size < BLOCK_GROUP_MIN_FILE_BYTES) {
+         return (0);
+    } */
 
     /* Round up to nearest block group */
     uint64_t exact_groups =
@@ -210,7 +210,7 @@ __block_dirty_srch_init(WT_SESSION_IMPL *session, WT_BLOCK *block)
         return (0);
     }
 
-    /* Grow the bitset */
+    /* Grow the bit set. */
     uint8_t *old_block_groups_file = block->block_groups_file;
     uint64_t old_block_groups_cnt = block->block_groups_cnt;
 
@@ -229,14 +229,14 @@ __block_dirty_srch_init(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
 /*
  * __block_score_extent --
- *     computes a normalized score for a WT_EXT extent in WiredTiger to help choose the “best” block
- *     for allocation. Here’s a detailed explanation of what it does and why:
+ *     computes a normalized score for a WT_EXT extent in WiredTiger to help choose the best block
+ *     for allocation. Here's a detailed explanation of what it does and why:
  *
- * It assigns a “badness score” to an extent based on: 1. How much larger it is than needed (waste)
- *     2. How far into the file it is (proximity) 3. How clean (non-dirty) it is (density)
+ * It assigns a badness score to an extent based on: 1. How much larger it is than needed (waste) 2.
+ *     How far into the file it is (proximity) 3. How clean (non-dirty) it is (density)
  *
- * The function returns a double score — lower is better — so the allocation logic can compare
- *     extents and pick the best one.
+ * The function returns a double score lower is better so the allocation logic can compare extents
+ *     and pick the best one.
  *
  */
 static WT_INLINE double
@@ -272,13 +272,13 @@ __block_score_extent(WT_EXT *ext, WT_SIZE *bucket, wt_off_t size, WT_BLOCK *bloc
 /*
  * __block_dirty_srch --
  *     custom block allocation search heuristic used in the block manager to find the best reusable
- *     block for a given size — but only within “dirty” block groups (regions of the file previously
+ *     block for a given size but only within dirty block groups (regions of the file previously
  *     freed).
  *
  * It enhances the __block_size_srch with scoring logic that balances: - Dirty block group density
  *     (how much of the region is dirty) - Allocation waste (how oversized the candidate is) -
  *     Introduces search budget to avoid excessive scanning after a promising match is found. If
- *     block_groups_file not set will only do a proxi
+ *     block_groups_file not set will only do a proximity lookup.
  */
 static WT_INLINE WT_EXT *
 __block_dirty_srch(WT_BLOCK *block, wt_off_t size)
@@ -292,18 +292,16 @@ __block_dirty_srch(WT_BLOCK *block, wt_off_t size)
     /*find first bucket that has enough size for our write*/
     WT_SIZE **s = &head[0];
     while (*s != NULL && (*s)->size < size)
-      s = &(*s)->next[0]; //TODO: optimize
+        s = &(*s)->next[0]; /* TODO: optimize */
 
     /*score and search extents for the best, continue into the next bucket until budget reached*/
     while ((*s) != NULL && (*s)->size >= size) {
         int extents_checked_in_bucket = 0;
         for (WT_EXT *ext = (*s)->off[0];
-          ext != NULL && extents_checked_in_bucket < BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET;
-          ext = ext->next[0], extents_checked_in_bucket++, remaining_budget--) {
-
-            if(ext->size < size) {
-              continue;
-            }
+             ext != NULL && extents_checked_in_bucket < BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET;
+             ext = ext->next[0], extents_checked_in_bucket++, remaining_budget--) {
+            if (ext->size < size)
+                continue;
 
             double score = __block_score_extent(ext, *s, size, block);
             if (score < best_score) {
@@ -311,12 +309,8 @@ __block_dirty_srch(WT_BLOCK *block, wt_off_t size)
                 best_ext = ext;
             }
 
-            if (best_ext != NULL) {
-                if (remaining_budget <= 0) {
-                    return (best_ext);
-                }
-            } else {
-            }
+            if (remaining_budget <= 0)
+                return (best_ext);
         }
         s = &(*s)->next[0];
     }
