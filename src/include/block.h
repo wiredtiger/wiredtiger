@@ -332,6 +332,10 @@ struct __wt_block {
     uint8_t *fragfile;       /* Per-file frag tracking list */
     uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
 
+    /* Dirty block tracking for allocation */
+    uint64_t block_groups_cnt;  /* Block groups count */
+    uint8_t *block_groups_file; /* Blocks group dirty tracking */
+
     /* Multi-file support */
     wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
 };
