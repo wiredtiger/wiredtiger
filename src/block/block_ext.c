@@ -214,14 +214,27 @@ __block_dirty_srch_init(WT_SESSION_IMPL *session, WT_BLOCK *block)
     uint8_t *old_block_groups_file = block->block_groups_file;
     uint64_t old_block_groups_cnt = block->block_groups_cnt;
 
+    /* TODO remove prints*/
+    printf(
+      "growing the bitset %" PRIu64 "->%" PRIu64 "\n", block->block_groups_cnt, estimated_groups);
+    printf("old bitset: ");
+    for (uint64_t i = 0; i < block->block_groups_cnt; i++) {
+        printf("%d", __bit_test(block->block_groups_file, i));
+    }
+    printf("\n");
+
     WT_RET(__bit_alloc(session, estimated_groups, &block->block_groups_file));
     block->block_groups_cnt = estimated_groups;
 
     size_t old_bytes = __bitstr_size(old_block_groups_cnt);
-    size_t new_bytes = __bitstr_size(estimated_groups);
-    /* TODO verify byte ranges correct */
     memcpy(block->block_groups_file, old_block_groups_file, old_bytes);
-    memset(block->block_groups_file + old_bytes, 0, new_bytes - old_bytes);
+
+    printf("new bitset: ");
+    for (uint64_t i = 0; i < block->block_groups_cnt; i++) {
+        printf("%d", __bit_test(block->block_groups_file, i));
+    }
+    printf("\n");
+
     __wt_free(session, old_block_groups_file);
 
     return (0);
@@ -806,8 +819,8 @@ append:
         uint64_t end = ((uint64_t)*offp + (uint64_t)size) / BLOCK_GROUP_SIZE_BYTES;
         if (start >= block->block_groups_cnt || end >= block->block_groups_cnt) {
             /* TODO remove*/
-            printf("indexing out of bitset range %" PRIu64 "-%" PRIu64 " for max: %" PRIu64, start,
-              end, block->block_groups_cnt - 1);
+            printf("indexing out of bitset range %" PRIu64 "-%" PRIu64 " for max: %" PRIu64 "\n",
+              start, end, block->block_groups_cnt - 1);
         }
         __bit_nset(block->block_groups_file, start, end);
     }
