@@ -927,8 +927,10 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     if (cb->incr_src != NULL) {
         double multi = 0;
         if (cb->incr_src->dirty_size_bytes != 0)
-            multi = (1.0*cb->incr_src->incr_size_bytes) / cb->incr_src->dirty_size_bytes;
-        printf("Total size for incremental backup is: %"PRIu64" bytes, dirty_size: %"PRIu64" bytes, multiplier: %.1lf\n", cb->incr_src->incr_size_bytes, cb->incr_src->dirty_size_bytes, multi);
+            multi = (1.0 * cb->incr_src->incr_size_bytes) / cb->incr_src->dirty_size_bytes;
+        printf("Total size for incremental backup is: %" PRIuMAX " bytes, dirty_size: %" PRIuMAX
+               " bytes, multiplier: %.1lf\n",
+          cb->incr_src->incr_size_bytes, cb->incr_src->dirty_size_bytes, multi);
         cb->incr_src->incr_size_bytes = 0;
         cb->incr_src->dirty_size_bytes = 0;
         F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
@@ -967,14 +969,14 @@ __backup_all(WT_SESSION_IMPL *session)
 static int
 __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
 {
-    WT_CURSOR_BACKUP *cb;
-    WT_CURSOR *cursor;
-    WT_SESSION *wt_session;
     WT_BTREE *btree;
+    WT_CURSOR *cursor;
+    WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
+    WT_SESSION *wt_session;
     char *value;
     cursor = NULL;
-    wt_session = (WT_SESSION*)session;
+    wt_session = (WT_SESSION *)session;
     cb = session->bkp_cursor;
     WT_UNUSED(skip);
 

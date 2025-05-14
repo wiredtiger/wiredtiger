@@ -25,15 +25,16 @@ __wt_backup_load_incr(
 
 /* For all non zero bits in the bitstring add the icremental size. */
 static size_t
-__compute_incr_size(WT_ITEM *bitstring, uint64_t nbits, uint64_t granularity) {
+__compute_incr_size(WT_ITEM *bitstring, uint64_t nbits, uint64_t granularity)
+{
     uint64_t bytes = nbits >> 3;
     uint64_t total_count = 0;
     for (uint64_t i = 0; i < bytes; i++) {
-        char byte = ((char*)bitstring->data)[i];
+        char byte = ((char *)bitstring->data)[i];
         uint8_t set_count = 0;
         while (byte) {
             if (byte & 1)
-                set_count ++;
+                set_count++;
             byte >>= 1;
         }
         total_count += set_count;
@@ -127,7 +128,8 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
         cb->incr_src->incr_size_bytes += incr_size;
         cb->incr_src->dirty_size_bytes += btree->bm->block->bytes_dirtied;
         btree->bm->block->bytes_dirtied = 0;
-        // printf("Computed incr size of %"PRIu64" with dirty size %"PRIu32" for bitstring %s\n", incr_size, btree->bm->block->bytes_dirtied, b.str);
+        // printf("Computed incr size of %"PRIu64" with dirty size %"PRIu32" for bitstring %s\n",
+        // incr_size, btree->bm->block->bytes_dirtied, b.str);
         break;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
