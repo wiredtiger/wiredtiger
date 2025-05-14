@@ -54,6 +54,7 @@ endif()
 # FIXME-WT-14051: Live restore is not supported on Windows
 if(NOT WT_WIN)
     set(unittests live_restore/api/test_live_restore_fh_lock_close_sync.cpp ${unittests})
+    set(unittests live_restore/api/test_live_restore_fh_read_write.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fh_size.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fh_truncate.cpp ${unittests})
     set(unittests live_restore/api/test_live_restore_fs_directory_list.cpp ${unittests})
@@ -63,6 +64,8 @@ if(NOT WT_WIN)
     set(unittests live_restore/api/test_live_restore_fs_size.cpp ${unittests})
     set(unittests live_restore/unit/test_live_restore_bitmap_encode_decode.cpp ${unittests})
     set(unittests live_restore/unit/test_live_restore_bitmap_filling_bit_range.cpp ${unittests})
+    set(unittests live_restore/unit/test_live_restore_compute_read_end_bit.cpp ${unittests})
+    set(unittests live_restore/unit/test_live_restore_fill_hole.cpp ${unittests})
     set(unittests sub_level_error/unit/test_sub_level_error_live_restore_conflict.cpp ${unittests})
 endif()
 
@@ -109,6 +112,10 @@ target_compile_options(
 )
 
 target_link_libraries(catch2-unittests Catch2::Catch2)
+
+if(WT_POSIX)
+    add_dependencies(catch2-unittests wiredtiger_dir_store)
+endif()
 
 add_test(NAME unittest COMMAND ${CMAKE_CURRENT_BINARY_DIR}/catch2-unittests)
 set_tests_properties(unittest PROPERTIES LABELS "check;unittest")
