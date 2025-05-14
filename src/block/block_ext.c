@@ -214,26 +214,11 @@ __block_dirty_srch_init(WT_SESSION_IMPL *session, WT_BLOCK *block)
     uint8_t *old_block_groups_file = block->block_groups_file;
     uint64_t old_block_groups_cnt = block->block_groups_cnt;
 
-    /* TODO remove prints*/
-    printf(
-      "growing the bitset %" PRIu64 "->%" PRIu64 "\n", block->block_groups_cnt, estimated_groups);
-    printf("old bitset: ");
-    for (uint64_t i = 0; i < block->block_groups_cnt; i++) {
-        printf("%d", __bit_test(block->block_groups_file, i));
-    }
-    printf("\n");
-
     WT_RET(__bit_alloc(session, estimated_groups, &block->block_groups_file));
     block->block_groups_cnt = estimated_groups;
 
     size_t old_bytes = __bitstr_size(old_block_groups_cnt);
     memcpy(block->block_groups_file, old_block_groups_file, old_bytes);
-
-    printf("new bitset: ");
-    for (uint64_t i = 0; i < block->block_groups_cnt; i++) {
-        printf("%d", __bit_test(block->block_groups_file, i));
-    }
-    printf("\n");
 
     __wt_free(session, old_block_groups_file);
 
