@@ -86,6 +86,9 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     /* The default session is used to access data handles during close. */
     F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
 
+    /* Shut down the page history tracker. */
+    WT_TRET(__wti_conn_page_history_destroy(session));
+
     /*
      * Shut down server threads. Some of these threads access btree handles and eviction, shut them
      * down before the eviction server, and shut all servers down before closing open data handles.
@@ -237,6 +240,9 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_statlog_create(session, cfg));
     WT_RET(__wti_tiered_storage_create(session));
     WT_RET(__wt_logmgr_create(session));
+
+    /* Initialize the page history tracker. */
+    WT_RET(__wti_conn_page_history_config(session, cfg, false));
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.

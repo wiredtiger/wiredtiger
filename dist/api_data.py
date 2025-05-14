@@ -629,6 +629,10 @@ connection_runtime_config = [
             and one that will never checkpoint, it might discard log files before any checkpoint is
             done.) Ignored if set to 0''',
             min='0', max='1024'),
+        Config('page_history', 'false', r'''
+            if true, keep track of per-page usage statistics for all pages and periodically print a
+            report. Currently this works only for disaggregated storage.''',
+            type='boolean', undoc=True),
         Config('realloc_exact', 'false', r'''
             if true, reallocation of memory will only provide the exact amount requested. This
             will help with spotting memory allocation issues more easily.''',

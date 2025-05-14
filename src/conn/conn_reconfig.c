@@ -454,6 +454,7 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wt_blkcache_setup(session, cfg, true));
     WT_ERR(__wt_chunkcache_reconfig(session, cfg));
     WT_ERR(__wti_conn_optrack_setup(session, cfg, true));
+    WT_ERR(__wti_conn_page_history_config(session, cfg, true));
     WT_ERR(__wti_conn_statistics_config(session, cfg));
     WT_ERR(__wt_cache_config(session, cfg, true));
     WT_ERR(__wt_evict_config(session, cfg, true));
