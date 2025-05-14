@@ -80,7 +80,7 @@ __live_restore_clean_up(WT_SESSION_IMPL *session, WT_SESSION_IMPL *checkpoint_se
         WT_RET(__wt_checkpoint_db(checkpoint_session, force_ckpt_cfg, true));
         WT_RET(__wti_live_restore_set_state(session, lr_fs, WTI_LIVE_RESTORE_STATE_COMPLETE));
 
-        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS, "%s", "Live restore has completed.");
+        __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS, "%s", "Live restore has finished.");
 
         /* FALLTHROUGH */
     case WTI_LIVE_RESTORE_STATE_COMPLETE:
