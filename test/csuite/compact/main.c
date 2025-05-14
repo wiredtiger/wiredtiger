@@ -248,7 +248,7 @@ thread_func_checkpoint(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+    __wt_random_init_seed(&rnd, 1);
 
     /* Wait until both checkpoint and compact threads are ready to go. */
     printf("Waiting for other threads before starting checkpoint.\n");
@@ -306,7 +306,7 @@ populate(WT_SESSION *session, const char *uri)
     uint64_t i;
     char *val_str;
 
-    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+    __wt_random_init_seed(&rnd, 1);
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
     for (i = 0; i < NUM_RECORDS; i++) {
@@ -363,7 +363,7 @@ update_records(WT_SESSION *session, const char *uri)
     uint64_t key;
     char *val_str;
 
-    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+    __wt_random_init_seed(&rnd, 1);
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
     while (!compact_finished) {
@@ -412,7 +412,7 @@ remove_records(WT_SESSION *session, const char *uri)
     WT_RAND_STATE rnd;
     uint64_t i;
 
-    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
+    __wt_random_init_seed(&rnd, 1);
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
     // Remove 1/3 of the keys.
