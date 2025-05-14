@@ -1,0 +1,2 @@
+plotly>=5.0.0
+imageio>=2.9.0
