@@ -7,6 +7,7 @@ This tool visualizes WiredTiger file fragmentation using either a linear grid la
 ## `Setup Instructions`
 
 ```
+cd tools/fragmentation_visualiser
 virtualenv -p python3 venv
 source venv/bin/activate
 pip install -r requirements.txt
