@@ -65,7 +65,7 @@ class test_rollback_to_stable23(test_rollback_to_stable_base):
 
         # Create a table without logging.
         uri = "table:rollback_to_stable23"
-        ds = SimpleDataSet(self, uri, 0, key_format='i'S)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
