@@ -47,7 +47,7 @@
 
 #define URI_MAX_LEN 32
 #define URI_FORMAT "table:t%d-%d"
-#define KEY_FORMAT "key-%d-%d"
+#define KEY_FORMAT "key-%llu_%llu"
 #define TABLE_FORMAT "key_format=S,value_format=u"
 
 #define CONN_CONFIG_COMMON                                                                        \
@@ -190,7 +190,7 @@ key_value(uint64_t change_count, WT_ITEM *item, OPERATION_TYPE op_type)
 }
 
 static void
-perform_table_operation(WT_CURSOR *cur, TABLE *table, uint64_t change_count,
+perform_table_operation(WT_CURSOR *cur, TABLE *table, uint64_t i,
   OPERATION_TYPE op_type, u_char *value, char *key)
 {
     WT_ITEM item;
@@ -198,7 +198,7 @@ perform_table_operation(WT_CURSOR *cur, TABLE *table, uint64_t change_count,
     item.data = value;
     item.size = table->max_value_size;
 
-    key_value(change_count, &item, op_type);
+    key_value(i, &item, op_type);
     cur->set_key(cur, key);
 
     switch (op_type) {
@@ -222,62 +222,85 @@ perform_table_operation(WT_CURSOR *cur, TABLE *table, uint64_t change_count,
 }
 
 /*
- * table_changes --
+ * table_inserts --
  *     Potentially make changes to a single table.
  */
 static void
-table_changes(WT_SESSION *session, TABLE *table)
+table_inserts(WT_SESSION *session, TABLE *table)
 {
     WT_CURSOR *cur;
-    uint64_t change_count = 0, insert_count = 0, update_count = 0, delete_count = 0;
-    int i;
-    u_char *value, *value2;
+    uint64_t insert_count = 0;
+    uint64_t i;
+    u_char *value;
     char key[MAX_KEY_SIZE];
-
-    /*
-     * We change each table in use about half the time.
-     */
-    if (__wt_random(&table->rand) % 2 == 0) {
-        value = dcalloc(1, table->max_value_size);
-        value2 = dcalloc(1, table->max_value_size);
-        VERBOSE(4, "inserting %d records in %s\n", KEYS_PER_TABLE, table->name);
-        testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
-        for (i = 0; i < KEYS_PER_TABLE; i++) {
-          change_count = table->change_count++;
-          sprintf(key, KEY_FORMAT, i, (int)(i / 100));
-          perform_table_operation(cur, table, change_count, INSERT, value, key);
-          insert_count++;
-        }
-
-        VERBOSE(4, "inserting %d records in %s\n", KEYS_PER_TABLE, table->name);
-        testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
-        for (i = 0; i < KEYS_PER_TABLE; i++) {
-          if (__wt_random(&table->rand) % 4 != 0) {
-            //only update 25%
-            continue;
-          }
-          change_count = table->change_count++;
-          sprintf(key, KEY_FORMAT, i, (int)(i / 100));
-          perform_table_operation(cur, table, change_count, UPDATE, value, key);
-          update_count++;
-        }
-        for (i = 0; i < KEYS_PER_TABLE; i++) {
-          if (__wt_random(&table->rand) % 4 != 0) {
-            //only delete 25%
-            continue;
-          }
-          change_count = table->change_count++;
-          sprintf(key, KEY_FORMAT, i, (int)(i / 100));
-          perform_table_operation(cur, table, change_count, REMOVE, value, key);
-          delete_count++;
-        }
-
-        printf("changes: %" PRIu64 ", insert: %" PRIu64 ", updates: %" PRIu64 ", deletes: %" PRIu64 "\n",
-               change_count, insert_count, update_count, delete_count);
-        free(value);
-        free(value2);
-        testutil_check(cur->close(cur));
+    value = dcalloc(1, table->max_value_size);
+    VERBOSE(4, "inserting %d records in %s\n", KEYS_PER_TABLE, table->name);
+    testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
+    for (i = 0; i < KEYS_PER_TABLE; i++) {
+      table->change_count++;
+      sprintf(key, KEY_FORMAT, i, (i / 100));
+      perform_table_operation(cur, table, i, INSERT, value, key);
+      insert_count++;
     }
+    printf("inserts: %llu\n", insert_count);
+    free(value);
+    testutil_check(cur->close(cur));
+}
+
+static void
+table_updates(WT_SESSION *session, TABLE *table)
+{
+    WT_CURSOR *cur;
+    uint64_t update_count = 0;
+    uint64_t i;
+    u_char *value;
+    char key[MAX_KEY_SIZE];
+    value = dcalloc(1, table->max_value_size);
+
+    VERBOSE(4, "updating 25 percent of %d records in %s\n", KEYS_PER_TABLE, table->name);
+    testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
+    for (i = 0; i < KEYS_PER_TABLE; i++) {
+      if (__wt_random(&table->rand) % 4 != 0) {
+        //only update 25%
+        continue;
+      }
+      table->change_count++;
+      sprintf(key, KEY_FORMAT, i, (i / 100));
+      perform_table_operation(cur, table, i, UPDATE, value, key);
+      update_count++;
+    }
+
+    printf("updates: %llu\n", update_count);
+    free(value);
+    testutil_check(cur->close(cur));
+}
+
+static void
+table_deletes(WT_SESSION *session, TABLE *table)
+{
+    WT_CURSOR *cur;
+    uint64_t delete_count = 0;
+    uint64_t i;
+    u_char *value;
+    char key[MAX_KEY_SIZE];
+    value = dcalloc(1, table->max_value_size);
+
+    VERBOSE(4, "deleting 25 percent of %d records in %s\n", KEYS_PER_TABLE, table->name);
+    testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
+    for (i = 0; i < KEYS_PER_TABLE; i++) {
+      if (__wt_random(&table->rand) % 4 != 0) {
+        //only delete 25%
+        continue;
+      }
+      table->change_count++;
+      sprintf(key, KEY_FORMAT, i, (i / 100));
+      perform_table_operation(cur, table, i, REMOVE, value, key);
+      delete_count++;
+    }
+
+    printf("deletes: %llu\n", delete_count);
+    free(value);
+    testutil_check(cur->close(cur));
 }
 
 /*
@@ -522,8 +545,16 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
             }
         }
         for (slot = 0; slot < tinfo.table_count; slot++) {
-            if (TABLE_VALID(&tinfo.table[slot]))
-                table_changes(session, &tinfo.table[slot]);
+            if (TABLE_VALID(&tinfo.table[slot])) {
+              /*
+               * We change each table in use about half the time.
+               */
+              if (__wt_random(&tinfo.table[slot].rand) % 2 == 0) {
+                 table_inserts(session, &tinfo.table[slot]);
+                 table_updates(session, &tinfo.table[slot]);
+                 table_deletes(session, &tinfo.table[slot]);
+              }
+            }
             if (next_checkpoint-- == 0) {
                 VERBOSE(2, "Checkpoint %d\n", ncheckpoints);
                 testutil_check(session->checkpoint(session, NULL));
