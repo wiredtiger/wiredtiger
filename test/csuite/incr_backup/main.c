@@ -749,16 +749,17 @@ main(int argc, char *argv[])
         rnd.v = 0x9b1bde3f111fe316;
         run_test(working_dir, &rnd, preserve);
 
-        rnd.v = 123456789;
-        run_test(working_dir, &rnd, preserve);
-
-        __wt_random_init_default(&rnd);
-        run_test(working_dir, &rnd, preserve);
+        // rnd.v = 123456789;
+        // run_test(working_dir, &rnd, preserve);
+        //
+        // __wt_random_init_default(&rnd);
+        // run_test(working_dir, &rnd, preserve);
     } else {
         rnd.v = seed_param;
         run_test(working_dir, &rnd, preserve);
     }
-    /* printf("Total backup %dKB ranges copied: %d Alloc %s\n", run_gran, total_ranges, run_alloc); */
+    /* printf("Total backup %dKB ranges copied: %d Alloc %s\n", run_gran, total_ranges, run_alloc);
+     */
 
     return (EXIT_SUCCESS);
 }

@@ -30,7 +30,7 @@ __compute_incr_size(WT_ITEM *bitstring, uint64_t nbits, uint64_t granularity)
     uint64_t bytes = nbits >> 3;
     uint64_t total_count = 0;
     for (uint64_t i = 0; i < bytes; i++) {
-        char byte = ((char *)bitstring->data)[i];
+        uint8_t byte = ((uint8_t *)bitstring->data)[i];
         uint8_t set_count = 0;
         while (byte) {
             if (byte & 1)
