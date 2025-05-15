@@ -36,7 +36,7 @@ class test_truncate05(wttest.WiredTigerTestCase):
     def test_truncate_read_older_than_newest(self):
         uri = 'table:test_truncate05'
         format = 'key_format=i,value_format=S'
-        self.session.create(uri, format + self.extraconfig)
+        self.session.create(uri, format)
         cursor = self.session.open_cursor(uri)
         value1 = 'a' * 500
         value2 = 'b' * 500

@@ -68,14 +68,9 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
         ds = SimpleDataSet(self, uri, 0, key_format='i', config=ds_config)
         ds.populate()
 
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-            valuec = 99
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
-            valuec = "ccccc" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
+        valuec = "ccccc" * 100
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +

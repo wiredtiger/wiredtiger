@@ -41,7 +41,7 @@ class test_hs28(wttest.WiredTigerTestCase):
 
     def test_insert_hs_full_update(self):
         uri = 'table:test_hs28'
-        self.session.create(uri, 'key_format=i,value_format=S'.format(self.key_format))
+        self.session.create(uri, 'key_format=i,value_format=S')
 
         value1 = "a"
         value2 = "b"

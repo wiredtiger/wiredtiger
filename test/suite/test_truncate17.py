@@ -48,31 +48,18 @@ class test_truncate17(wttest.WiredTigerTestCase):
         ('truncate', dict(trunc_with_remove=False)),
         #('remove', dict(trunc_with_remove=True)),
     ]
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
     checkpoint_values = [
         ('no_checkpoint', dict(do_checkpoint=False)),
         ('checkpoint', dict(do_checkpoint=True)),
     ]
-    scenarios = make_scenarios(trunc_values, format_values, checkpoint_values)
+    scenarios = make_scenarios(trunc_values, checkpoint_values)
 
     def stat_tree(self, uri):
         statscursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(all)')
 
         entries = statscursor[stat.dsrc.btree_entries][2]
-        if self.value_format == '8t':
-            leaf_pages = statscursor[stat.dsrc.btree_column_fix][2]
-            internal_pages = statscursor[stat.dsrc.btree_column_internal][2]
-        elif self.key_format == 'r':
-            leaf_pages = statscursor[stat.dsrc.btree_column_variable][2]
-            internal_pages = statscursor[stat.dsrc.btree_column_internal][2]
-        else:
-            leaf_pages = statscursor[stat.dsrc.btree_row_leaf][2]
-            internal_pages = statscursor[stat.dsrc.btree_row_internal][2]
+        leaf_pages = statscursor[stat.dsrc.btree_row_leaf][2]
+        internal_pages = statscursor[stat.dsrc.btree_row_internal][2]
 
         return (entries, (leaf_pages, internal_pages))
 
@@ -113,17 +100,9 @@ class test_truncate17(wttest.WiredTigerTestCase):
 
         # Create a table.
         uri = "table:truncate17"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
 
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -172,7 +151,7 @@ class test_truncate17(wttest.WiredTigerTestCase):
             # There's no way the test can guess whether fast delete is possible when
             # flush_tier calls are "randomly" inserted.
             pass
-        elif self.value_format == '8t' or self.trunc_with_remove:
+        elif or self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)
@@ -188,10 +167,7 @@ class test_truncate17(wttest.WiredTigerTestCase):
         # However, the truncated pages aren't actually gone yet, so the page counts
         # shouldn't change.
         (entries, pages) = self.stat_tree(uri)
-        if self.value_format == '8t':
-            self.assertEqual(entries, nrows)
-        else:
-            self.assertEqual(entries, nrows // 2)
+        self.assertEqual(entries, nrows // 2)
         self.assertEqual(pages, base_pages)
 
         # This should instantiate all the deleted pages.

@@ -54,7 +54,7 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
         ('4', dict(threads=4))
     ]
 
-    scenarios = make_scenarios(format_values, in_memory_values, dryrun_values, worker_thread_values)
+    scenarios = make_scenarios(in_memory_values, dryrun_values, worker_thread_values)
 
     def conn_config(self):
         config = 'cache_size=100MB,statistics=(all),verbose=(rts:5)'
@@ -69,8 +69,7 @@ class test_rollback_to_stable43(test_rollback_to_stable_base):
         # Create a tables.
         for i in range(1, ntables + 1):
             uri = "table:rollback_to_stable43" + str(i)
-            ds_config = self.extraconfig
-            ds_config += ',log=(enabled=false)' if self.in_memory else ''
+            ds_config = ',log=(enabled=false)' if self.in_memory else ''
             ds = SimpleDataSet(self, uri, 0, key_format='i', config=ds_config)
             ds.populate()
 

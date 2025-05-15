@@ -55,7 +55,7 @@ class test_truncate27(wttest.WiredTigerTestCase):
     def test_truncate27(self):
         nrows = 100000
         uri = 'table:test_truncate27'
-        self.session.create(uri, 'key_format=r,value_format=S')
+        self.session.create(uri, 'key_format=i,value_format=S')
 
         value = 'a' * 5
 

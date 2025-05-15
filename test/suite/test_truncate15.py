@@ -148,8 +148,6 @@ class test_truncate15(wttest.WiredTigerTestCase):
             # There's no way the test can guess whether fast delete is possible when
             # flush_tier calls are "randomly" inserted.
             pass
-        elif self.value_format == '8t':
-            self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)
 

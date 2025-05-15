@@ -124,7 +124,7 @@ class test_truncate06(wttest.WiredTigerTestCase):
         nrows = 10000
 
         table_uri = 'table:truncate06'
-        ds = SimpleDataSet(self, table_uri, 0, key_format='i', config=self.extraconfig)
+        ds = SimpleDataSet(self, table_uri, 0, key_format='i')
         ds.populate()
         self.session.checkpoint()
         value_a = 'a' * 500
