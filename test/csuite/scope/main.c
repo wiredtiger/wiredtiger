@@ -379,13 +379,8 @@ main(int argc, char *argv[])
 
     run(opts->conn, "file:file.SS", "key_format=S,value_format=S");
     run(opts->conn, "file:file.Su", "key_format=S,value_format=u");
-    run(opts->conn, "file:file.rS", "key_format=r,value_format=S");
-    run(opts->conn, "file:file.ru", "key_format=r,value_format=u");
-
     run(opts->conn, "table:table.SS", "key_format=S,value_format=S");
     run(opts->conn, "table:table.Su", "key_format=S,value_format=u");
-    run(opts->conn, "table:table.rS", "key_format=r,value_format=S");
-    run(opts->conn, "table:table.ru", "key_format=r,value_format=u");
 
     testutil_cleanup(opts);
 

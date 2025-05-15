@@ -52,13 +52,10 @@ static const char conn_config[] =
   "create,cache_size=2GB,statistics=(all),statistics_log=(json,on_close,wait=1)";
 static const char table_config_row[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=" WT_UNCHECKED_STRING(QS);
-static const char table_config_col[] =
-  "allocation_size=4KB,leaf_page_max=4KB,key_format=r,value_format=" WT_UNCHECKED_STRING(QS);
 static char data_str[1024] = "";
 
 static const char ckpt_file[] = "checkpoint_done";
 static const char working_dir_row[] = "WT_TEST.compact-stress-row";
-static const char working_dir_col[] = "WT_TEST.compact-stress-col";
 static const char uri1[] = "table:compact1";
 static const char uri2[] = "table:compact2";
 
@@ -114,7 +111,7 @@ static WT_EVENT_HANDLER event_handler = {
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /* Forward declarations. */
-static void run_test(bool, bool);
+static void run_test(bool);
 static void workload_compact(const char *, const char *);
 static void populate(WT_SESSION *, uint64_t, uint64_t);
 static void remove_records(WT_SESSION *, const char *, uint64_t, uint64_t);
@@ -155,10 +152,7 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
 
-    run_test(false, opts->preserve);
-
-    run_test(true, opts->preserve);
-
+    run_test(opts->preserve);
     testutil_cleanup(opts);
 
     return (EXIT_SUCCESS);
@@ -169,7 +163,7 @@ main(int argc, char *argv[])
  *     TODO: Add a comment describing this function.
  */
 static void
-run_test(bool column_store, bool preserve)
+run_test(bool preserve)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -179,8 +173,7 @@ run_test(bool column_store, bool preserve)
     pid_t pid;
     struct sigaction sa;
 
-    testutil_work_dir_from_path(
-      home, sizeof(home), column_store ? working_dir_col : working_dir_row);
+    testutil_work_dir_from_path(home, sizeof(home), working_dir_row);
 
     printf("\n");
     printf("Work directory: %s\n", home);
@@ -194,7 +187,7 @@ run_test(bool column_store, bool preserve)
 
     if (pid == 0) { /* child */
 
-        workload_compact(home, column_store ? table_config_col : table_config_row);
+        workload_compact(home, table_config_row);
         /*
          * We do not expect the test to reach here. The child process should have been killed by the
          * parent process.

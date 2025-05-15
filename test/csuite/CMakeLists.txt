@@ -136,23 +136,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt1965_col_efficiency
-    SOURCES wt1965_col_efficiency/main.c
-    DIR_NAME wt1965_col_efficiency
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt1965_col_efficiency>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
-
-define_c_test(
-    TARGET test_wt2246_col_append
-    SOURCES wt2246_col_append/main.c
-    DIR_NAME wt2246_col_append
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt2246_col_append>/WT_HOME>
-    # This test takes over 15 minutes under TSan testing
-    LABEL "long_running"
-)
-
-define_c_test(
     TARGET test_wt2535_insert_race
     SOURCES wt2535_insert_race/main.c
     DIR_NAME wt2535_insert_race
