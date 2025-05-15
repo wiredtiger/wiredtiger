@@ -39,11 +39,11 @@
 #define BACKUP_RETAIN 4
 #define BACKUP_SRC "backup.src."
 
-#define ITERATIONS 9
-#define MAX_NTABLES 20
+#define ITERATIONS 10
+#define MAX_NTABLES 100
 
-#define MAX_KEY_SIZE 1000
-#define MAX_VALUE_SIZE (100 * WT_THOUSAND)
+#define MAX_KEY_SIZE 100
+#define MAX_VALUE_SIZE (10 * WT_THOUSAND)
 #define MAX_MODIFY_ENTRIES 10
 #define MAX_MODIFY_DIFF 500
 
@@ -55,9 +55,6 @@
 #define CONN_CONFIG_COMMON                                                                        \
     "timing_stress_for_test=[backup_rename],statistics=(all),statistics_log=(json,on_close,wait=" \
     "1)"
-
-#define NUM_ALLOC 5
-static const char *alloc_sizes[] = {"512B", "8K", "64K", "1M", "16M"};
 
 static const char *run_alloc;
 static int run_gran = 0;
@@ -121,7 +118,7 @@ typedef enum { INSERT, MODIFY, REMOVE, UPDATE, _OPERATION_TYPE_COUNT } OPERATION
  * Having a predictable cycle makes it easy on the checking side (knowing how many total changes
  * have been made) to check the state of the table.
  */
-#define KEYS_PER_TABLE (300 * WT_THOUSAND)
+#define KEYS_PER_TABLE (10 * WT_THOUSAND)
 #define CHANGES_PER_CYCLE (KEYS_PER_TABLE * _OPERATION_TYPE_COUNT)
 
 /*
@@ -236,51 +233,56 @@ table_changes(WT_SESSION *session, TABLE *table)
     /*
      * We change each table in use about half the time.
      */
+    if (__wt_random(&table->rand) % 2 == 0) {
+        value = dcalloc(1, table->max_value_size);
+        value2 = dcalloc(1, table->max_value_size);
+        nrecords = __wt_random(&table->rand) % WT_THOUSAND;
+        VERBOSE(4, "changing %" PRIu32 " records in %s\n", nrecords, table->name);
+        testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
+        for (i = 0; i < nrecords; i++) {
+            change_count = table->change_count++;
+            item.data = value;
+            item.size = table->max_value_size;
+            key_value(change_count, key, sizeof(key), &item, &op_type);
+            cur->set_key(cur, key);
 
-    value = dcalloc(1, table->max_value_size);
-    value2 = dcalloc(1, table->max_value_size);
-    nrecords = WT_MAX(10000, __wt_random(&table->rand) % (KEYS_PER_TABLE / 5));
-    VERBOSE(4, "changing %" PRIu32 " records in %s\n", nrecords, table->name);
-    testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
-    for (i = 0; i < nrecords; i++) {
-        change_count = table->change_count++;
-        item.data = value;
-        item.size = table->max_value_size;
-        key_value(change_count, key, sizeof(key), &item, &op_type);
-        cur->set_key(cur, key);
-
-        /*
-         * To satisfy code analysis checks, we must handle all elements of the enum in the switch
-         * statement.
-         */
-        switch (op_type) {
-        case INSERT:
-            cur->set_value(cur, &item);
-            testutil_check(cur->insert(cur));
-            break;
-        case MODIFY:
-            item2.data = value2;
-            item2.size = table->max_value_size;
-            key_value(change_count - KEYS_PER_TABLE, NULL, 0, &item2, &op_type);
-            modify_count = MAX_MODIFY_ENTRIES;
-            testutil_check(wiredtiger_calc_modify(
-              session, &item2, &item, MAX_MODIFY_DIFF, modify_entries, &modify_count));
-            testutil_check(cur->modify(cur, modify_entries, modify_count));
-            break;
-        case REMOVE:
-            testutil_check(cur->remove(cur));
-            break;
-        case UPDATE:
-            cur->set_value(cur, &item);
-            testutil_check(cur->update(cur));
-            break;
-        case _OPERATION_TYPE_COUNT:
-            testutil_die(0, "Unexpected OPERATION_TYPE: _OPERATION_TYPE_COUNT");
+            /*
+             * To satisfy code analysis checks, we must handle all elements of the enum in the
+             * switch statement.
+             */
+            switch (op_type) {
+            case INSERT:
+                // printf("insert\n");
+                cur->set_value(cur, &item);
+                testutil_check(cur->insert(cur));
+                break;
+            case MODIFY:
+                // printf("modify\n");
+                item2.data = value2;
+                item2.size = table->max_value_size;
+                key_value(change_count - KEYS_PER_TABLE, NULL, 0, &item2, &op_type);
+                modify_count = MAX_MODIFY_ENTRIES;
+                testutil_check(wiredtiger_calc_modify(
+                  session, &item2, &item, MAX_MODIFY_DIFF, modify_entries, &modify_count));
+                testutil_check(cur->modify(cur, modify_entries, modify_count));
+                break;
+            case REMOVE:
+                // printf("remove\n");
+                testutil_check(cur->remove(cur));
+                break;
+            case UPDATE:
+                // printf("update\n");
+                cur->set_value(cur, &item);
+                testutil_check(cur->update(cur));
+                break;
+            case _OPERATION_TYPE_COUNT:
+                testutil_die(0, "Unexpected OPERATION_TYPE: _OPERATION_TYPE_COUNT");
+            }
         }
+        free(value);
+        free(value2);
+        testutil_check(cur->close(cur));
     }
-    free(value);
-    free(value2);
-    testutil_check(cur->close(cur));
 }
 
 /*
@@ -288,30 +290,16 @@ table_changes(WT_SESSION *session, TABLE *table)
  *     Create a table for the given slot.
  */
 static void
-create_table(WT_SESSION *session, WT_RAND_STATE *rand, TABLE_INFO *tinfo, uint32_t slot)
+create_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 {
-    uint32_t alloc;
     char buf[4096], *uri;
-    const char *allocstr;
 
     testutil_assert(!TABLE_VALID(&tinfo->table[slot]));
     uri = dcalloc(1, URI_MAX_LEN);
     testutil_snprintf(
       uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++);
 
-    /*
-     * A quarter of the time use a non-default allocation size on the table. This is set
-     * independently of the granularity to stress mismatched values.
-     */
-    if (/* DISABLES CODE */ (false) && __wt_random(rand) % 4 == 0) {
-        alloc = __wt_random(rand) % NUM_ALLOC;
-        allocstr = alloc_sizes[alloc];
-        run_alloc = allocstr;
-        testutil_snprintf(buf, sizeof(buf),
-          "%s,allocation_size=%s,internal_page_max=%s,leaf_page_max=%s", TABLE_FORMAT, allocstr,
-          allocstr, allocstr);
-    } else
-        testutil_snprintf(buf, sizeof(buf), "%s", TABLE_FORMAT);
+    testutil_snprintf(buf, sizeof(buf), "%s", TABLE_FORMAT);
     VERBOSE(3, "create %s: %s\n", uri, buf);
     testutil_check(session->create(session, uri, buf));
     tinfo->table[slot].name = uri;
@@ -364,16 +352,16 @@ tables_free(TABLE_INFO *tinfo)
 static void
 base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, TABLE_INFO *tinfo)
 {
-    uint32_t granularity_kb = 16384;
-    // uint32_t granularity_kb = 1024;
-    int id, nfiles;
+   uint32_t granularity_kb = 16384;
+   //uint32_t granularity_kb = 1024;
+   int id, nfiles;
 
-    nfiles = 0;
-    id = (int)tinfo->full_backup_number;
-    run_gran = (int)granularity_kb;
-    WT_UNUSED(rand);
-    testutil_backup_create_full(conn, home, id, false, granularity_kb, &nfiles);
-    VERBOSE(2, " finished base backup: %d files\n", nfiles);
+   nfiles = 0;
+   id = (int)tinfo->full_backup_number;
+   run_gran = (int)granularity_kb;
+   WT_UNUSED(rand);
+   testutil_backup_create_full(conn, home, id, false, granularity_kb, &nfiles);
+   VERBOSE(2, " finished base backup: %d files\n", nfiles);
 }
 
 /*
@@ -614,7 +602,7 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
                  */
                 slot = __wt_random(rnd) % tinfo.table_count;
                 if (!TABLE_VALID(&tinfo.table[slot]))
-                    create_table(session, rnd, &tinfo, slot);
+                    create_table(session, &tinfo, slot);
                 else if (do_drop)
                     drop_table(session, &tinfo, slot);
             }
@@ -749,17 +737,16 @@ main(int argc, char *argv[])
         rnd.v = 0x9b1bde3f111fe316;
         run_test(working_dir, &rnd, preserve);
 
-        // rnd.v = 123456789;
-        // run_test(working_dir, &rnd, preserve);
-        //
-        // __wt_random_init_default(&rnd);
-        // run_test(working_dir, &rnd, preserve);
+        rnd.v = 123456789;
+        run_test(working_dir, &rnd, preserve);
+
+        __wt_random_init_default(&rnd);
+        run_test(working_dir, &rnd, preserve);
     } else {
         rnd.v = seed_param;
         run_test(working_dir, &rnd, preserve);
     }
-    /* printf("Total backup %dKB ranges copied: %d Alloc %s\n", run_gran, total_ranges, run_alloc);
-     */
+    printf("Total backup %dKB ranges copied: %d Alloc %s\n", run_gran, total_ranges, run_alloc);
 
     return (EXIT_SUCCESS);
 }
