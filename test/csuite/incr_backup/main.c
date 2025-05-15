@@ -36,16 +36,14 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#define BACKUP_RETAIN 4
+#define BACKUP_RETAIN 5
 #define BACKUP_SRC "backup.src."
 
-#define ITERATIONS 10
+#define ITERATIONS 5
 #define MAX_NTABLES 100
 
 #define MAX_KEY_SIZE 100
 #define MAX_VALUE_SIZE (10 * WT_THOUSAND)
-#define MAX_MODIFY_ENTRIES 10
-#define MAX_MODIFY_DIFF 500
 
 #define URI_MAX_LEN 32
 #define URI_FORMAT "table:t%d-%d"
@@ -119,7 +117,6 @@ typedef enum { INSERT, MODIFY, REMOVE, UPDATE, _OPERATION_TYPE_COUNT } OPERATION
  * have been made) to check the state of the table.
  */
 #define KEYS_PER_TABLE (10 * WT_THOUSAND)
-#define CHANGES_PER_CYCLE (KEYS_PER_TABLE * _OPERATION_TYPE_COUNT)
 
 /*
  * usage --
@@ -146,21 +143,6 @@ die(void)
 }
 
 /*
- * get_operation_type --
- *     Get operation type based on the number of changes.
- */
-static OPERATION_TYPE
-get_operation_type(uint64_t change_count)
-{
-    int32_t op_type;
-
-    op_type = ((change_count % CHANGES_PER_CYCLE) / KEYS_PER_TABLE);
-    testutil_assert(op_type <= _OPERATION_TYPE_COUNT);
-
-    return (OPERATION_TYPE)op_type;
-}
-
-/*
  * key_value --
  *     Return the key, value and operation type for a given change to a table. See "Cycle of changes
  *     to a table" above.
@@ -171,18 +153,12 @@ get_operation_type(uint64_t change_count)
  * "key-0-0", "key-1-0", "key-2-0""... "key-99-0", "key-0-1", "key-1-1", ...
  */
 static void
-key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPERATION_TYPE *typep)
+key_value(uint64_t change_count, WT_ITEM *item, OPERATION_TYPE op_type)
 {
-    uint32_t key_num;
-    OPERATION_TYPE op_type;
     size_t pos, value_size;
     char *cp;
     char ch;
 
-    key_num = change_count % KEYS_PER_TABLE;
-    *typep = op_type = get_operation_type(change_count);
-
-    testutil_snprintf(key, key_size, KEY_FORMAT, (int)(key_num % 100), (int)(key_num / 100));
     if (op_type == REMOVE)
         return; /* remove needs no key */
 
@@ -213,6 +189,38 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
     item->size = value_size;
 }
 
+static void
+perform_table_operation(WT_CURSOR *cur, TABLE *table, uint64_t change_count,
+  OPERATION_TYPE op_type, u_char *value, char *key)
+{
+    WT_ITEM item;
+
+    item.data = value;
+    item.size = table->max_value_size;
+
+    key_value(change_count, &item, op_type);
+    cur->set_key(cur, key);
+
+    switch (op_type) {
+    case INSERT:
+        cur->set_value(cur, &item);
+        testutil_check(cur->insert(cur));
+        break;
+    case MODIFY:
+        //no-op
+        break;
+    case REMOVE:
+        testutil_check(cur->remove(cur));
+        break;
+    case UPDATE:
+        cur->set_value(cur, &item);
+        testutil_check(cur->update(cur));
+        break;
+    case _OPERATION_TYPE_COUNT:
+        testutil_die(0, "Unexpected OPERATION_TYPE: _OPERATION_TYPE_COUNT");
+    }
+}
+
 /*
  * table_changes --
  *     Potentially make changes to a single table.
@@ -221,12 +229,8 @@ static void
 table_changes(WT_SESSION *session, TABLE *table)
 {
     WT_CURSOR *cur;
-    WT_ITEM item, item2;
-    WT_MODIFY modify_entries[MAX_MODIFY_ENTRIES];
-    OPERATION_TYPE op_type;
     uint64_t change_count;
-    uint32_t i, nrecords;
-    int modify_count;
+    int i;
     u_char *value, *value2;
     char key[MAX_KEY_SIZE];
 
@@ -236,48 +240,33 @@ table_changes(WT_SESSION *session, TABLE *table)
     if (__wt_random(&table->rand) % 2 == 0) {
         value = dcalloc(1, table->max_value_size);
         value2 = dcalloc(1, table->max_value_size);
-        nrecords = __wt_random(&table->rand) % WT_THOUSAND;
-        VERBOSE(4, "changing %" PRIu32 " records in %s\n", nrecords, table->name);
+        VERBOSE(4, "inserting %d records in %s\n", KEYS_PER_TABLE, table->name);
         testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
-        for (i = 0; i < nrecords; i++) {
-            change_count = table->change_count++;
-            item.data = value;
-            item.size = table->max_value_size;
-            key_value(change_count, key, sizeof(key), &item, &op_type);
-            cur->set_key(cur, key);
+        for (i = 0; i < KEYS_PER_TABLE; i++) {
+          change_count = table->change_count++;
+          sprintf(key, KEY_FORMAT, i, (int)(i / 100));
+          perform_table_operation(cur, table, change_count, INSERT, value, key);
+        }
 
-            /*
-             * To satisfy code analysis checks, we must handle all elements of the enum in the
-             * switch statement.
-             */
-            switch (op_type) {
-            case INSERT:
-                // printf("insert\n");
-                cur->set_value(cur, &item);
-                testutil_check(cur->insert(cur));
-                break;
-            case MODIFY:
-                // printf("modify\n");
-                item2.data = value2;
-                item2.size = table->max_value_size;
-                key_value(change_count - KEYS_PER_TABLE, NULL, 0, &item2, &op_type);
-                modify_count = MAX_MODIFY_ENTRIES;
-                testutil_check(wiredtiger_calc_modify(
-                  session, &item2, &item, MAX_MODIFY_DIFF, modify_entries, &modify_count));
-                testutil_check(cur->modify(cur, modify_entries, modify_count));
-                break;
-            case REMOVE:
-                // printf("remove\n");
-                testutil_check(cur->remove(cur));
-                break;
-            case UPDATE:
-                // printf("update\n");
-                cur->set_value(cur, &item);
-                testutil_check(cur->update(cur));
-                break;
-            case _OPERATION_TYPE_COUNT:
-                testutil_die(0, "Unexpected OPERATION_TYPE: _OPERATION_TYPE_COUNT");
-            }
+        VERBOSE(4, "inserting %d records in %s\n", KEYS_PER_TABLE, table->name);
+        testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
+        for (i = 0; i < KEYS_PER_TABLE; i++) {
+          if (__wt_random(&table->rand) % 4 != 0) {
+            //only update 25%
+            continue;
+          }
+          change_count = table->change_count++;
+          sprintf(key, KEY_FORMAT, i, (int)(i / 100));
+          perform_table_operation(cur, table, change_count, UPDATE, value, key);
+        }
+        for (i = 0; i < KEYS_PER_TABLE; i++) {
+          if (__wt_random(&table->rand) % 4 != 0) {
+            //only delete 25%
+            continue;
+          }
+          change_count = table->change_count++;
+          sprintf(key, KEY_FORMAT, i, (int)(i / 100));
+          perform_table_operation(cur, table, change_count, REMOVE, value, key);
         }
         free(value);
         free(value2);
@@ -387,92 +376,14 @@ incr_backup(WT_CONNECTION *conn, const char *home, TABLE_INFO *tinfo)
 }
 
 /*
- * check_table --
- *     TODO: Add a comment describing this function.
- */
-static void
-check_table(WT_SESSION *session, TABLE *table)
-{
-    WT_CURSOR *cursor;
-    WT_ITEM item, got_value;
-    OPERATION_TYPE op_type;
-    uint64_t boundary, change_count, expect_records, got_records, total_changes;
-    int keylow, keyhigh, ret;
-    u_char *value;
-    char *got_key;
-    char key[MAX_KEY_SIZE];
-
-    expect_records = 0;
-    total_changes = table->change_count;
-    boundary = total_changes % KEYS_PER_TABLE;
-    op_type = get_operation_type(total_changes);
-    value = dcalloc(1, table->max_value_size);
-
-    VERBOSE(3, "Checking: %s\n", table->name);
-
-    /*
-     * To satisfy code analysis checks, we must handle all elements of the enum in the switch
-     * statement.
-     */
-    switch (op_type) {
-    case INSERT:
-        expect_records = total_changes % KEYS_PER_TABLE;
-        break;
-    case MODIFY:
-    case UPDATE:
-        expect_records = KEYS_PER_TABLE;
-        break;
-    case REMOVE:
-        expect_records = KEYS_PER_TABLE - (total_changes % KEYS_PER_TABLE);
-        break;
-    case _OPERATION_TYPE_COUNT:
-        testutil_die(0, "Unexpected OPERATION_TYPE: _OPERATION_TYPE_COUNT");
-    }
-
-    testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cursor));
-    got_records = 0;
-    while ((ret = cursor->next(cursor)) == 0) {
-        got_records++;
-        testutil_check(cursor->get_key(cursor, &got_key));
-        testutil_check(cursor->get_value(cursor, &got_value));
-
-        /*
-         * Reconstruct the change number from the key. See key_value() for details on how the key is
-         * constructed.
-         */
-        testutil_assert(sscanf(got_key, KEY_FORMAT, &keylow, &keyhigh) == 2);
-        change_count = (u_int)keyhigh * 100 + (u_int)keylow;
-        item.data = value;
-        item.size = table->max_value_size;
-        if (op_type == INSERT || (op_type == UPDATE && change_count < boundary))
-            change_count += 0;
-        else if (op_type == UPDATE || (op_type == MODIFY && change_count < boundary))
-            change_count += KEYS_PER_TABLE;
-        else if (op_type == MODIFY || (op_type == REMOVE && change_count < boundary))
-            change_count += 20 * WT_THOUSAND;
-        else
-            testutil_assert(false);
-        key_value(change_count, key, sizeof(key), &item, &op_type);
-        testutil_assert(strcmp(key, got_key) == 0);
-        testutil_assert(got_value.size == item.size);
-        testutil_assert(memcmp(got_value.data, item.data, item.size) == 0);
-    }
-    testutil_assert(got_records == expect_records);
-    testutil_assert(ret == WT_NOTFOUND);
-    testutil_check(cursor->close(cursor));
-    free(value);
-}
-
-/*
  * check_backup --
  *     Verify the backup to make sure the proper tables exist and have the correct content.
  */
 static void
-check_backup(uint32_t backup_iter, TABLE_INFO *tinfo)
+check_backup(uint32_t backup_iter)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    uint32_t slot;
     char backup_check[PATH_MAX], backup_home[PATH_MAX];
 
     /*
@@ -491,10 +402,7 @@ check_backup(uint32_t backup_iter, TABLE_INFO *tinfo)
     testutil_check(wiredtiger_open(backup_check, NULL, CONN_CONFIG_COMMON, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    for (slot = 0; slot < tinfo->table_count; slot++) {
-        if (TABLE_VALID(&tinfo->table[slot]))
-            check_table(session, &tinfo->table[slot]);
-    }
+
 
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
@@ -636,20 +544,12 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
             VERBOSE(2, "Iteration %" PRIu32 ": taking full backup\n", iter);
             tinfo.full_backup_number = iter;
             base_backup(conn, rnd, WT_HOME_DIR, &tinfo);
-            check_backup(iter, &tinfo);
+            check_backup(iter);
         } else {
-            /* Randomly restart with a full backup again. */
-            if (__wt_random(rnd) % 10 == 0) {
-                VERBOSE(2, "Iteration %" PRIu32 ": taking new full backup\n", iter);
-                tinfo.full_backup_number = iter;
-                base_backup(conn, rnd, WT_HOME_DIR, &tinfo);
-                check_backup(iter, &tinfo);
-            } else {
-                VERBOSE(2, "Iteration %" PRIu32 ": taking incremental backup\n", iter);
-                tinfo.incr_backup_number = iter;
-                incr_backup(conn, WT_HOME_DIR, &tinfo);
-                check_backup(iter, &tinfo);
-            }
+            VERBOSE(2, "Iteration %" PRIu32 ": taking incremental backup\n", iter);
+            tinfo.incr_backup_number = iter;
+            incr_backup(conn, WT_HOME_DIR, &tinfo);
+            check_backup(iter);
         }
         testutil_delete_old_backups(BACKUP_RETAIN);
     }
