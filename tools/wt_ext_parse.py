@@ -377,12 +377,12 @@ def parse_log_for_byte_dumps(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse byte dumps from a log file and decode them.")
     parser.add_argument("log_file", help="Path to the log file to parse.")
-    parser.add_argument("-o", "--output_dir", default="decoded_dumps", help="Directory to save DECODED byte dumps (default: decoded_dumps)")
     parser.add_argument("--decoder_script", default="wt_binary_decode.py", help="Path to the wt_binary_decode.py script (default: wt_binary_decode.py). Assumes it's in PATH, same dir, or an absolute path is given.")
-    parser.add_argument("-e", "--ext", choices=["all", "avail", "alloc"], default="all", help="Specify the type of extents to process: 'all', 'avail', or 'alloc' (default: all).")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug printing.")
+    parser.add_argument("-e", "--ext", choices=["all", "avail", "alloc"], default="all", help="Specify the type of extents to process: 'all', 'avail', or 'alloc' (default: all).")
+    parser.add_argument("--mongo_log", action="store_true", help="Indicate that the input log file is in mongo log (JSON) format.") 
+    parser.add_argument("-o", "--output_dir", default="decoded_dumps", help="Directory to save DECODED byte dumps (default: decoded_dumps)")
     parser.add_argument("--stream", action="store_true", help="Continuously monitor the log file for new entries. If not set, reads the entire file once.")
-    parser.add_argument("--mongo_log", action="store_true", help="Indicate that the input log file is in mongo log (JSON) format.") # Added mongo_log argument
     args = parser.parse_args()
 
     if args.debug:
