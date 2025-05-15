@@ -108,7 +108,9 @@ main(int argc, char *argv[])
 
     /* Populate the customers table with some data. */
     error_check(session->open_cursor(session, "table:customers", NULL, "append", &cursor));
-    for (custp = cust_sample; custp->name != NULL; custp++) {
+    int i = 1;
+    for (custp = cust_sample; custp->name != NULL; custp++, i++) {
+        cursor->set_key(cursor, i);
         cursor->set_value(cursor, custp->name, custp->address, custp->phone);
         error_check(cursor->insert(cursor));
     }
@@ -128,7 +130,8 @@ main(int argc, char *argv[])
 
     /* Populate the calls table with some data. */
     error_check(session->open_cursor(session, "table:calls", NULL, "append", &cursor));
-    for (callp = call_sample; callp->call_type != NULL; callp++) {
+    for (i = 1, callp = call_sample; callp->call_type != NULL; callp++, i++) {
+        cursor->set_key(cursor, i);
         cursor->set_value(
           cursor, callp->call_date, callp->cust_id, callp->emp_id, callp->call_type, callp->notes);
         error_check(cursor->insert(cursor));

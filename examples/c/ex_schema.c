@@ -103,7 +103,9 @@ main(int argc, char *argv[])
 
     /* Insert the records into the table. */
     error_check(session->open_cursor(session, "table:poptable", NULL, "append", &cursor));
-    for (p = pop_data; p->year != 0; p++) {
+    int i = 1;
+    for (p = pop_data; p->year != 0; p++, i++) {
+        cursor->set_key(cursor, i);
         cursor->set_value(cursor, p->country, p->year, p->population);
         error_check(cursor->insert(cursor));
     }
