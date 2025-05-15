@@ -1576,6 +1576,7 @@ __cursor_equals(WT_CURSOR_BTREE *a, WT_CURSOR_BTREE *b)
     if (a->ins != NULL || b->ins != NULL) {
         if (a->ins == b->ins)
             return (true);
+        return (false);
     }
     if (a->slot == b->slot)
         return (true);
