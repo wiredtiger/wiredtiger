@@ -449,6 +449,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
     btree->prefix_compression = cval.val != 0;
     WT_RET(__wt_config_gets(session, cfg, "prefix_compression_min", &cval));
     btree->prefix_compression_min = (u_int)cval.val;
+    WT_RET(__wt_config_gets(session, cfg, "dictionary", &cval));
+    btree->dictionary = (u_int)cval.val;
 
     WT_RET(__wt_config_gets_none(session, cfg, "block_compressor", &cval));
     WT_RET(__wt_compressor_config(session, &cval, &btree->compressor));
