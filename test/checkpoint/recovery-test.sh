@@ -42,7 +42,7 @@ while kill -STOP $pid ; do
 	cp $home/* $backup
 	kill -CONT $pid
 	cp $backup/* $recovery
-	./${bin} -t r -D -v -h $recovery || exit 1
+	./${bin} -D -v -h $recovery || exit 1
 done
 
 # Clean the home directory once the test is completed. Note that once we fail to send the signal to

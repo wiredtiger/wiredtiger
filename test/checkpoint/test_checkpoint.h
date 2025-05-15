@@ -37,16 +37,6 @@
 #define ERR_KEY_MISMATCH 0x200001
 #define ERR_DATA_MISMATCH 0x200002
 
-/* Magic value to store in FLCS if we have lost track of the corresponding string value. */
-#define FLCS_UNKNOWN 255
-
-/*
- * There are three different table types in the test, and a 'special' type of mixed (i.e a mixture
- * of the other three types.
- */
-#define MAX_TABLE_TYPE 3
-typedef enum { MIX = 0, COL, FIX, ROW } table_type; /* File type */
-
 /*
  * For a predictable run we reserve timestamps for each thread for the entire run. The timestamp for
  * the i-th key that a thread writes is given by the macro below. In a given iteration for each
@@ -64,7 +54,6 @@ typedef enum { MIX = 0, COL, FIX, ROW } table_type; /* File type */
  */
 typedef struct {
     int id;
-    table_type type; /* Type for table. */
     char uri[128];
 } COOKIE;
 
@@ -126,5 +115,4 @@ int log_print_err_worker(const char *, int, const char *, int, int);
 void set_flush_tier_delay(WT_RAND_STATE *);
 void start_threads(void);
 int start_workers(void);
-const char *type_to_string(table_type);
 int verify_consistency(WT_SESSION *, wt_timestamp_t, bool);
