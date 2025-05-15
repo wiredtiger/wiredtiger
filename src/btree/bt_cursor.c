@@ -222,7 +222,9 @@ __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool chec
             tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
             WT_RET(__btcur_bounds_contains_key(
               session, &cbt->iface, &tmp_key, &key_out_of_bounds, NULL));
-        }
+        } else
+            WT_RET(__btcur_bounds_contains_key(
+                session, &cbt->iface, key, &key_out_of_bounds, NULL));
         /* The key we found is out of bounds. */
         if (key_out_of_bounds)
             return (0);
