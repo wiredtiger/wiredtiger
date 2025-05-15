@@ -20,8 +20,6 @@ def create_fragmentation_image(input_file_path, output_folder):
         return
 
 
-    allocated_blocks.pop(0)
-    allocated_blocks.pop()
     last_offset, last_size = allocated_blocks[-1]
     file_size = last_offset + last_size
     print(f"[{input_file_path}] File size: {file_size} bytes")

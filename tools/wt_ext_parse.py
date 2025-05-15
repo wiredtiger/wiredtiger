@@ -89,9 +89,9 @@ def process_and_decode_dump(dump_info, byte_list, ext_type, filename_filter, dec
                     if match:
                         # If the line matches the pattern, append only the captured group
                         output_lines.append(match.group(1))
-                    else:
+                    elif line.strip():
                         # If the line doesn't match the pattern, append it as is
-                        output_lines.append(line)
+                        output_lines.append(line.strip())
                 elif "extent list follows:" in line:
                     found_marker = True
                 
@@ -102,12 +102,23 @@ def process_and_decode_dump(dump_info, byte_list, ext_type, filename_filter, dec
                     print_debug(f"DEBUG: 'extent list follows:' found, but no subsequent lines for {dump_info['timestamp']}. Writing empty.")
                     output_to_write = ""
                 else:
+                    # Default construction of output_to_write from collected lines
                     output_to_write = "\n".join(output_lines)
 
-            with open(decoded_filepath, 'w', encoding="utf-8") as f_out:
-                f_out.write(output_to_write)
-            print(f"Successfully decoded and saved to: {decoded_filepath}")
-            print_debug(f"DEBUG: Decoder stdout (first 100 chars of processed output): {output_to_write[:100]}")
+            if not output_to_write:
+                print_debug(f"DEBUG: No output to write for {dump_info['timestamp']}.")
+                return
+
+            # Before writing, process output_to_write to remove the first and last lines as they are not useful per se.
+            lines_list = output_to_write.splitlines()
+            if len(lines_list) < 2:
+                print(f"Error: Decoded output for {dump_info['timestamp']} (intended for {decoded_filepath}) has {len(lines_list)} line(s), but at least 2 are expected for trimming. The file will be empty.")
+            else:
+                output_to_write = "\n".join(lines_list[1:-1])
+                with open(decoded_filepath, 'w', encoding="utf-8") as f_out:
+                    f_out.write(output_to_write)
+                print(f"Successfully decoded and saved to: {decoded_filepath}")
+                print_debug(f"DEBUG: Decoder stdout (first 100 chars of processed output): {output_to_write[:100]}")
         else:
             print(f"Error decoding byte dump for {dump_info['timestamp']} (file: {dump_info['file_name_raw']}):")
             print(f"  Command: {' '.join(command)}")
