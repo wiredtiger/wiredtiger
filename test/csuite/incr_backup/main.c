@@ -42,8 +42,8 @@
 #define ITERATIONS 5
 #define MAX_NTABLES 100
 
-#define MAX_KEY_SIZE 100
-#define MAX_VALUE_SIZE (10 * WT_THOUSAND)
+#define MAX_KEY_SIZE 10000
+#define MAX_VALUE_SIZE (100 * WT_THOUSAND)
 
 #define URI_MAX_LEN 32
 #define URI_FORMAT "table:t%d-%d"
@@ -229,7 +229,7 @@ static void
 table_changes(WT_SESSION *session, TABLE *table)
 {
     WT_CURSOR *cur;
-    uint64_t change_count;
+    uint64_t change_count = 0, insert_count = 0, update_count = 0, delete_count = 0;
     int i;
     u_char *value, *value2;
     char key[MAX_KEY_SIZE];
@@ -246,6 +246,7 @@ table_changes(WT_SESSION *session, TABLE *table)
           change_count = table->change_count++;
           sprintf(key, KEY_FORMAT, i, (int)(i / 100));
           perform_table_operation(cur, table, change_count, INSERT, value, key);
+          insert_count++;
         }
 
         VERBOSE(4, "inserting %d records in %s\n", KEYS_PER_TABLE, table->name);
@@ -258,6 +259,7 @@ table_changes(WT_SESSION *session, TABLE *table)
           change_count = table->change_count++;
           sprintf(key, KEY_FORMAT, i, (int)(i / 100));
           perform_table_operation(cur, table, change_count, UPDATE, value, key);
+          update_count++;
         }
         for (i = 0; i < KEYS_PER_TABLE; i++) {
           if (__wt_random(&table->rand) % 4 != 0) {
@@ -267,7 +269,11 @@ table_changes(WT_SESSION *session, TABLE *table)
           change_count = table->change_count++;
           sprintf(key, KEY_FORMAT, i, (int)(i / 100));
           perform_table_operation(cur, table, change_count, REMOVE, value, key);
+          delete_count++;
         }
+
+        printf("changes: %" PRIu64 ", insert: %" PRIu64 ", updates: %" PRIu64 ", deletes: %" PRIu64 "\n",
+               change_count, insert_count, update_count, delete_count);
         free(value);
         free(value2);
         testutil_check(cur->close(cur));
