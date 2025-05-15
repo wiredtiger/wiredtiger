@@ -39,11 +39,11 @@
 #define BACKUP_RETAIN 4
 #define BACKUP_SRC "backup.src."
 
-#define ITERATIONS 10
-#define MAX_NTABLES 100
+#define ITERATIONS 9
+#define MAX_NTABLES 20
 
-#define MAX_KEY_SIZE 100
-#define MAX_VALUE_SIZE (10 * WT_THOUSAND)
+#define MAX_KEY_SIZE 1000
+#define MAX_VALUE_SIZE (100 * WT_THOUSAND)
 #define MAX_MODIFY_ENTRIES 10
 #define MAX_MODIFY_DIFF 500
 
