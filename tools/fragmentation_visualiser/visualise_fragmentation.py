@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import math
 import argparse
@@ -135,11 +136,19 @@ def generate_html_viewer(output_folder: str,
     button{all:unset;cursor:pointer;font-weight:600;font-size:1rem;position:relative;}
     button::after{content:'';position:absolute;left:0;bottom:-2px;width:0;height:2px;background:#2563eb;transition:width .2s ease;}
     button:hover::after{width:100%}
+    .legend{display:flex;align-items:center;gap:.5rem;font-size:.9rem;margin-bottom:1rem}
+    .swatch{width:.9rem;height:.9rem;border:1px solid #ccc;border-radius:2px;display:inline-block}
+    .blue {background:#007acc}
+    .green{background:#00aa55}
   </style>
 </head>
 <body>
   <h1>WT Fragmentation Viewer</h1>
-  <p id="meta" style="margin-bottom:1rem;font-size:.95rem;color:#555"></p>
+  <p id="meta" style="margin-bottom:.5rem;font-size:.95rem;color:#555"></p>
+  <div class="legend">
+    <span class="swatch blue"></span> allocated
+    <span class="swatch green"></span> free
+  </div>
   <div class='viewer'><img id='viewer-img' alt='fragment map'></div>
   <div class='ctr'>
     <button id='prev'>Prev</button>
@@ -177,7 +186,9 @@ function update(){
   img.onload=()=>img.style.opacity=1;
   img.src=bases[idx]+suf;
   document.getElementById('meta').textContent =
-    `${bases[idx]}.txt  |  ${sizes[idx].toLocaleString()} bytes  |  grid ${grids[idx]}×${grids[idx]} (4 KB squares)`;
+  `Image ${idx + 1} of ${bases.length}  |  ${bases[idx]}.txt  |  ` +
+  `${sizes[idx].toLocaleString()} bytes  |  ` +
+  `grid ${grids[idx]}×${grids[idx]} (4 KB squares)`;
 
   resetZoom();
 }
@@ -213,19 +224,23 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="fragmentation_pngs", help="Output folder")
 
     args = parser.parse_args()
-    image_bases, file_sizes, grid_sizes = [], [], []
+        
+    if os.path.isdir(args.output):          # delete any old copy
+        shutil.rmtree(args.output)
+
+    
+    records = []
     for filename in os.listdir(args.input_folder):
         if filename.endswith(".txt"):
             path = os.path.join(args.input_folder, filename)    
             res = create_fragmentation_image(path, args.output)
             if res:
-                base, size, grid = res            
-                image_bases.append(base)
-                file_sizes.append(size)
-                grid_sizes.append(grid)
+                records.append(res)
         else:
             print(f"Skipping non-txt file: {filename}")
 
-    if image_bases:
+    if records:
+        records.sort(key=lambda t: t[0])      # alphabetical by base name
+        image_bases, file_sizes, grid_sizes = map(list, zip(*records))
         generate_html_viewer(args.output, image_bases,
                              file_sizes, grid_sizes)
