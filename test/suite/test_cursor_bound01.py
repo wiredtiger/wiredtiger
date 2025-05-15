@@ -46,6 +46,8 @@ class test_cursor_bound01(bound_base):
 
     def test_bound_api(self):
         uri = self.uri + self.file_name
+        self.value_format='S'
+        self.key_format='S'
         create_params = 'value_format=S,key_format=S'
         if self.use_index or self.use_colgroup:
             create_params += ",columns=(k,v)"

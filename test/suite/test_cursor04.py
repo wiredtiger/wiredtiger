@@ -55,7 +55,7 @@ class test_cursor04(wttest.WiredTigerTestCase):
             raise
 
     def create_session_and_cursor(self):
-        tablearg = self.uri + ":" + self.table_name1
+        tablearg = "table:" + self.table_name1
         keyformat = 'key_format=S'
         valformat = 'value_format=S'
         create_args = keyformat + ',' + valformat + self.config_string()
@@ -65,30 +65,17 @@ class test_cursor04(wttest.WiredTigerTestCase):
         return self.session.open_cursor(tablearg, None, None)
 
     def genkey(self, i):
-        if self.tablekind == 'row':
-            return 'key' + str(i).zfill(5)  # return key00001, key00002, etc.
-        else:
-            return self.recno(i+1)
+        return 'key' + str(i).zfill(5)  # return key00001, key00002, etc.
 
     def genvalue(self, i):
-        if self.tablekind == 'fix':
-            return int(i & 0xff)
-        else:
-            return 'value' + str(i)
+        return 'value' + str(i)
 
     def expect_either(self, cursor, lt, gt):
         origkey = cursor.get_key()
         direction = cursor.search_near()
         self.assertNotEqual(direction, wiredtiger.WT_NOTFOUND)
 
-        # Deletions for 'fix' clear the value, they
-        # do not remove the key, so we expect '0' direction
-        # (that is key found) for fix.
-        if self.tablekind != 'fix':
-            self.assertTrue(direction == 1 or direction == -1)
-        else:
-            self.assertEqual(direction, 0)
-
+        self.assertTrue(direction == 1 or direction == -1)
         if direction == 1:
             self.assertEqual(cursor.get_key(), self.genkey(gt))
             self.assertEqual(cursor.get_value(), self.genvalue(gt))
@@ -152,14 +139,9 @@ class test_cursor04(wttest.WiredTigerTestCase):
 
         cursor.set_key(self.genkey(0))
         cmp = cursor.search_near()
-        if self.tablekind != 'fix':
-            self.assertEqual(cmp, 1)
-            self.assertEqual(cursor.get_key(), self.genkey(1))
-            self.assertEqual(cursor.get_value(), self.genvalue(1))
-        else:
-            self.assertEqual(cmp, 0)
-            self.assertEqual(cursor.get_key(), self.genkey(0))
-            self.assertEqual(cursor.get_value(), 0)
+        self.assertEqual(cmp, 1)
+        self.assertEqual(cursor.get_key(), self.genkey(1))
+        self.assertEqual(cursor.get_value(), self.genvalue(1))
 
         cursor.set_key(self.genkey(5))
         self.expect_either(cursor, 4, 6)

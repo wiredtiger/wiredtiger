@@ -90,7 +90,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         # Verify the largest key changed.
         self.session.begin_transaction()
         self.assertEqual(cursor.largest_key(), 0)
-        self.assertEqual(cursor.get_key(), 99)
+        self.assertEqual(cursor.get_key(), 100)
         self.session.rollback_transaction()
 
     def test_uncommitted_insert(self):

@@ -69,8 +69,7 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:rollback_to_stable02"
-        ds_config = self.extraconfig
-        ds_config += ',log=(enabled=false)' if self.in_memory else ''
+        ds_config = ',log=(enabled=false)' if self.in_memory else ''
         ds = SimpleDataSet(self, uri, 0, key_format='i', value_format='S', config=ds_config)
         ds.populate()
 

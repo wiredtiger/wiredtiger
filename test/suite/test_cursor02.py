@@ -39,6 +39,9 @@ class test_cursor02(TestCursorTracker):
     key/value content and to track/verify content
     after inserts and removes.
     """
+    scenarios = make_scenarios([
+        ('row', dict(tablekind='row', uri='table')),
+    ])
 
     def create_session_and_cursor(self, ninitialentries):
         tablearg = self.uri + ":" + self.table_name1
