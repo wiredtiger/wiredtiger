@@ -11,7 +11,6 @@ endif()
 add_subdirectory(utility)
 
 # Compile our tests.
-add_subdirectory(bloom)
 add_subdirectory(checkpoint)
 add_subdirectory(cursor_order)
 add_subdirectory(fops)
