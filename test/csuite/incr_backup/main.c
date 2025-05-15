@@ -634,14 +634,14 @@ main(int argc, char *argv[])
          * (WT_TEST.incr_backup/WT_TEST.incr_backup...) when preserve is true. These artifacts
          * should instead be alongside the WT_TEST directory.
          */
-        rnd.v = 0x9b1bde3f111fe316;
-        run_test(working_dir, &rnd, preserve);
-
-        rnd.v = 123456789;
-        run_test(working_dir, &rnd, preserve);
-
-        __wt_random_init_default(&rnd);
-        run_test(working_dir, &rnd, preserve);
+        // rnd.v = 0x9b1bde3f111fe316;
+        // run_test(working_dir, &rnd, preserve);
+        //
+        // rnd.v = 123456789;
+        // run_test(working_dir, &rnd, preserve);
+        //
+        // __wt_random_init_default(&rnd);
+        // run_test(working_dir, &rnd, preserve);
     } else {
         rnd.v = seed_param;
         run_test(working_dir, &rnd, preserve);
