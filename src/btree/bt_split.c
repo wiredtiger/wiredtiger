@@ -684,7 +684,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             WT_ASSERT(session, WT_REF_GET_STATE(next_ref) != WT_REF_SPLIT);
 
             /* Protect against including the replaced WT_REF in the list of deleted items. */
-            if (next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED && i != 0 &&
+            if (next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
               __wti_delete_page_skip(session, next_ref, true) &&
               WT_REF_CAS_STATE(session, next_ref, WT_REF_DELETED, WT_REF_LOCKED)) {

@@ -37,8 +37,6 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
     uripfx = 'table:test_stat04.'
 
     keyfmt = [
-        ('col', dict(keyfmt='r', valuefmt='S', storekind='col')),
-        ('fix', dict(keyfmt='r', valuefmt='8t', storekind='fix')),
         ('row', dict(keyfmt='S', valuefmt='S', storekind='row')),
     ]
     nentries = [

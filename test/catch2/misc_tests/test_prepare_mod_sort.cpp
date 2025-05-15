@@ -86,7 +86,7 @@ init_btree(WT_BTREE *btree, WT_BTREE_TYPE type, uint32_t id)
 
 /* Initialize a mod operation. */
 void
-init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, uint64_t recno, WT_ITEM *key)
+init_op(WT_TXN_OP *op, WT_BTREE *btree, WT_TXN_TYPE type, WT_ITEM *key)
 {
     op->btree = btree;
     op->type = type;
@@ -134,21 +134,21 @@ allocate_key_space(WT_SESSION_IMPL *session, int key_count, WT_ITEM *keys[])
     }
 }
 
-// Test sorting with column and non-key'd operations.
-TEST_CASE("Basic cols and non key'd op", "[mod_compare]")
-{
-    WT_BTREE btrees[2];
-    WT_TXN_OP ops[2];
+// // Test sorting with column and non-key'd operations.
+// TEST_CASE("Basic cols and non key'd op", "[mod_compare]")
+// {
+//     WT_BTREE btrees[2];
+//     WT_TXN_OP ops[2];
 
-    init_btree(&btrees[0], BTREE_ROW, 1);
-    init_btree(&btrees[1], BTREE_ROW, 2);
+//     init_btree(&btrees[0], BTREE_ROW, 1);
+//     init_btree(&btrees[1], BTREE_ROW, 2);
 
-    init_op(&ops[0], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
-    init_op(&ops[1], &btrees[1], WT_TXN_OP_BASIC_ROW, 54, NULL);
+//     init_op(&ops[0], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
+//     init_op(&ops[1], &btrees[1], WT_TXN_OP_BASIC_ROW, 54, NULL);
 
-    __wt_qsort(&ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
-    REQUIRE(__mod_ops_sorted(ops, 2, 0) == true);
-}
+//     __wt_qsort(&ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
+//     REQUIRE(__mod_ops_sorted(ops, 2, 0) == true);
+// }
 
 // Test sorting with row and non-key'd operations.
 TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
@@ -173,9 +173,9 @@ TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
 
     // Initialize row ops with different keys.
     for (int i = 0; i < key_count; i++)
-        init_op(&ops[i], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[i]);
+        init_op(&ops[i], &btrees[1], WT_TXN_OP_BASIC_ROW, keys[i]);
 
-    init_op(&ops[3], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
+    init_op(&ops[3], &btrees[0], WT_TXN_OP_NONE, NULL);
 
     __wt_qsort(&ops, 4, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
     ret = __mod_ops_sorted(ops, 4, key_size);
@@ -207,24 +207,20 @@ TEST_CASE("Row, column, and non key'd operations", "[mod_compare]")
     init_btree(&btrees[0], BTREE_ROW, 1);
     init_btree(&btrees[1], BTREE_ROW, 2);
 
-    // Column operations.
-    init_op(&ops[0], &btrees[0], WT_TXN_OP_BASIC_ROW, 12, NULL);
-    init_op(&ops[1], &btrees[0], WT_TXN_OP_BASIC_ROW, 45, NULL);
-
     // Row operations.
-    init_op(&ops[2], &btrees[1], WT_TXN_OP_REF_DELETE, WT_RECNO_OOB, keys[0]);
-    init_op(&ops[3], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[1]);
-    init_op(&ops[4], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[2]);
-    init_op(&ops[5], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[3]);
-    init_op(&ops[6], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[4]);
-    init_op(&ops[7], &btrees[1], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[5]);
+    init_op(&ops[0], &btrees[1], WT_TXN_OP_REF_DELETE, keys[0]);
+    init_op(&ops[1], &btrees[1], WT_TXN_OP_BASIC_ROW, keys[1]);
+    init_op(&ops[2], &btrees[1], WT_TXN_OP_BASIC_ROW, keys[2]);
+    init_op(&ops[3], &btrees[1], WT_TXN_OP_BASIC_ROW, keys[3]);
+    init_op(&ops[4], &btrees[1], WT_TXN_OP_BASIC_ROW, keys[4]);
+    init_op(&ops[5], &btrees[1], WT_TXN_OP_BASIC_ROW, keys[5]);
 
     // Non key'd operations.
-    init_op(&ops[8], &btrees[0], WT_TXN_OP_TRUNCATE_ROW, WT_RECNO_OOB, NULL);
-    init_op(&ops[9], &btrees[1], WT_TXN_OP_REF_DELETE, WT_RECNO_OOB, NULL);
+    init_op(&ops[6], &btrees[0], WT_TXN_OP_TRUNCATE_ROW, NULL);
+    init_op(&ops[7], &btrees[1], WT_TXN_OP_REF_DELETE, NULL);
 
-    __wt_qsort(&ops, 10, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
-    ret = __mod_ops_sorted(ops, 10, key_size);
+    __wt_qsort(&ops, 8, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
+    ret = __mod_ops_sorted(ops, 8, key_size);
 
     // Free the allocated scratch buffers.
     for (int i = 0; i < key_count; i++)
@@ -254,7 +250,7 @@ TEST_CASE("B-tree ID sort test", "[mod_compare]")
         init_btree(&btrees[i], BTREE_ROW, rand() % 400);
 
     for (int i = 0; i < 6; i++)
-        init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
+        init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, keys[0]);
 
     __wt_qsort(&ops, 6, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
     ret = __mod_ops_sorted(ops, 6, key_size);
@@ -289,13 +285,10 @@ TEST_CASE("Keyedness sort test", "[mod_compare]")
         init_btree(&btrees[i], BTREE_ROW, i);
 
     for (int i = 0; i < 6; i++)
-        init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
+        init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, keys[0]);
 
-    for (int i = 6; i < 9; i++)
-        init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, 54, NULL);
-
-    for (int i = 9; i < 12; i++)
-        init_op(&ops[i], &btrees[i], rand_non_keyd_type(), WT_RECNO_OOB, NULL);
+    for (int i = 6; i < 12; i++)
+        init_op(&ops[i], &btrees[i], rand_non_keyd_type(), NULL);
 
     __wt_qsort(&ops, 12, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
     ret = __mod_ops_sorted(ops, 12, key_size);
@@ -330,33 +323,13 @@ TEST_CASE("Many different row-store keys", "[mod_compare]")
 
     // Operations will have randomly chosen btrees and randomly generated keys.
     for (int i = 0; i < 12; i++)
-        init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, WT_RECNO_OOB, keys[0]);
+        init_op(&ops[i], &btrees[i], WT_TXN_OP_BASIC_ROW, keys[0]);
 
     __wt_qsort(&ops, 12, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
     ret = __mod_ops_sorted(ops, 12, key_size);
 
     for (int i = 0; i < key_count; i++)
         __wt_scr_free(session, &keys[i]);
-
-    REQUIRE(ret == true);
-}
-
-// Test sorting on column store keys.
-TEST_CASE("Different column store keys test", "[mod_compare]")
-{
-    WT_BTREE btrees[6];
-    WT_TXN_OP ops[8];
-    bool ret;
-
-    for (int i = 0; i < 6; i++)
-        init_btree(&btrees[i], BTREE_ROW, i);
-
-    // Randomly choose btrees and assign random recnos to the ops.
-    for (int i = 0; i < 8; i++)
-        init_op(&ops[i], &btrees[rand() % 6], WT_TXN_OP_BASIC_ROW, rand() % 200 + 1, NULL);
-
-    __wt_qsort(&ops, 8, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
-    ret = __mod_ops_sorted(ops, 8, 0);
 
     REQUIRE(ret == true);
 }

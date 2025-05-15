@@ -17,7 +17,7 @@ static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *
 static int __rec_hs_wrapup(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
-static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *);
+static int __rec_split_row_promote(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_ITEM *, uint8_t type);
 static int __rec_split_write(WT_SESSION_IMPL *, WTI_RECONCILE *, WTI_REC_CHUNK *, bool);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WTI_RECONCILE *);
 static int __rec_write_err(WT_SESSION_IMPL *, WTI_RECONCILE *, WT_PAGE *);
@@ -1174,7 +1174,7 @@ __rec_is_checkpoint(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
  *     Key promotion for a row-store.
  */
 static int
-__rec_split_row_promote(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key)
+__rec_split_row_promote(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key, uint8_t type)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(update);
@@ -1186,7 +1186,7 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ITEM *key
     const uint8_t *pa, *pb;
     int cmp;
 
-    if (!r->key_sfx_compress)
+    if (type != WT_PAGE_ROW_LEAF || !r->key_sfx_compress)
         return (__wt_buf_set(session, key, r->cur->data, r->cur->size));
 
     btree = S2BT(session);
@@ -1355,7 +1355,7 @@ __wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 
     /* Initialize the next chunk, including the key. */
     WT_RET(__rec_split_chunk_init(session, r, r->cur_ptr));
-    WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key));
+    WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key, r->page->type));
 
     /* Reset tracking information. */
     r->entries = 0;
@@ -1413,7 +1413,7 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t 
             return (0);
 
         r->cur_ptr->entries_before_split_boundary = r->entries;
-        WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key_at_split_boundary));
+        WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key_at_split_boundary, r->page->type));
         WT_TIME_AGGREGATE_COPY(&r->cur_ptr->ta_before_split_boundary, &r->cur_ptr->ta);
         /* Reset the "next" time aggregate which may be used in certain split scenarios. */
         WT_TIME_AGGREGATE_INIT_MERGE(&r->cur_ptr->ta_after_split_boundary);
