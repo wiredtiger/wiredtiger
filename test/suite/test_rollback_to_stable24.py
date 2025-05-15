@@ -69,7 +69,7 @@ class test_rollback_to_stable24(wttest.WiredTigerTestCase):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(key_format_values, worker_thread_values)
+    scenarios = make_scenarios(worker_thread_values)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

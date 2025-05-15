@@ -44,7 +44,7 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, prepare_values, worker_thread_values)
+    scenarios = make_scenarios(prepare_values, worker_thread_values)
 
     def conn_config(self):
         config = 'cache_size=100MB,statistics=(all),verbose=(rts:5)'

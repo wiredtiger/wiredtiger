@@ -29,6 +29,7 @@
 import os
 import helper, wiredtiger, wttest
 from suite_subprocess import suite_subprocess
+from wtscenario import make_scenarios
 
 # test_prefetch02.py
 #    Run multiple scenarios which are expected to benefit from pre-fetching and ensure that
@@ -56,7 +57,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
         ('verify', dict(prefetch_scenario='verify', scenario_type='verify')),
     ]
 
-    scenarios = make_scenarios(format_values, config_options, prefetch_scenarios)
+    scenarios = make_scenarios(config_options, prefetch_scenarios)
 
     def get_stat(self, stat, session_name):
         stat_cursor = session_name.open_cursor('statistics:')

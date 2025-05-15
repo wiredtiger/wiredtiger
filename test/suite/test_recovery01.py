@@ -40,7 +40,7 @@ class test_recovery01(wttest.WiredTigerTestCase):
         ('shutdown', dict(crash=False))
     ]
 
-    scenarios = make_scenarios(format_values, restart_values)
+    scenarios = make_scenarios(restart_values)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

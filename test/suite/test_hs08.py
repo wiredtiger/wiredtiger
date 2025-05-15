@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 from wiredtiger import stat
-;
+
 # test_hs08.py
 # Verify modify insert into history store logic.
 class test_hs08(wttest.WiredTigerTestCase):
