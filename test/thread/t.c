@@ -29,7 +29,6 @@
 #include "thread.h"
 
 WT_CONNECTION *conn;   /* WiredTiger connection */
-__ftype ftype;         /* File type */
 u_int nkeys, max_nops; /* Keys, Operations */
 int vary_nops;         /* Vary operations by thread */
 int log_print;         /* Log print per operation */
@@ -65,7 +64,6 @@ main(int argc, char *argv[])
 
     config_open = NULL;
     working_dir = NULL;
-    ftype = ROW;
     log_print = 0;
     multiple_files = 0;
     nkeys = WT_THOUSAND;
@@ -112,19 +110,6 @@ main(int argc, char *argv[])
             session_per_op = 1;
             break;
         case 't':
-            switch (__wt_optarg[0]) {
-            case 'f':
-                ftype = FIX;
-                break;
-            case 'r':
-                ftype = ROW;
-                break;
-            case 'v':
-                ftype = VAR;
-                break;
-            default:
-                return (usage());
-            }
             break;
         case 'v': /* vary operation count */
             vary_nops = 1;

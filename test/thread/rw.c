@@ -158,13 +158,10 @@ reader_op(WT_SESSION *session, WT_CURSOR *cursor, INFO *s)
     key = &_key;
 
     keyno = __wt_random(&s->rnd) % nkeys + 1;
-    if (ftype == ROW) {
-        testutil_snprintf_len_set(keybuf, sizeof(keybuf), &len, "%017" PRIu64, keyno);
-        key->data = keybuf;
-        key->size = (uint32_t)len;
-        cursor->set_key(cursor, key);
-    } else
-        cursor->set_key(cursor, keyno);
+    testutil_snprintf_len_set(keybuf, sizeof(keybuf), &len, "%017" PRIu64, keyno);
+    key->data = keybuf;
+    key->size = (uint32_t)len;
+    cursor->set_key(cursor, key);
     if ((ret = cursor->search(cursor)) != 0 && ret != WT_NOTFOUND)
         testutil_die(ret, "cursor.search");
     if (log_print)
@@ -232,13 +229,10 @@ writer_op(WT_SESSION *session, WT_CURSOR *cursor, INFO *s)
     value = &_value;
 
     keyno = __wt_random(&s->rnd) % nkeys + 1;
-    if (ftype == ROW) {
-        testutil_snprintf_len_set(keybuf, sizeof(keybuf), &len, "%017" PRIu64, keyno);
-        key->data = keybuf;
-        key->size = (uint32_t)len;
-        cursor->set_key(cursor, key);
-    } else
-        cursor->set_key(cursor, keyno);
+    testutil_snprintf_len_set(keybuf, sizeof(keybuf), &len, "%017" PRIu64, keyno);
+    key->data = keybuf;
+    key->size = (uint32_t)len;
+    cursor->set_key(cursor, key);
     if (keyno % 5 == 0) {
         ++s->remove;
         if ((ret = cursor->remove(cursor)) != 0 && ret != WT_NOTFOUND)
@@ -246,13 +240,9 @@ writer_op(WT_SESSION *session, WT_CURSOR *cursor, INFO *s)
     } else {
         ++s->update;
         value->data = valuebuf;
-        if (ftype == FIX)
-            cursor->set_value(cursor, 0x10);
-        else {
-            testutil_snprintf_len_set(valuebuf, sizeof(valuebuf), &len, "XXX %37" PRIu64, keyno);
-            value->size = (uint32_t)len;
-            cursor->set_value(cursor, value);
-        }
+        testutil_snprintf_len_set(valuebuf, sizeof(valuebuf), &len, "XXX %37" PRIu64, keyno);
+        value->size = (uint32_t)len;
+        cursor->set_value(cursor, value);
         testutil_check(cursor->update(cursor));
     }
     if (log_print)

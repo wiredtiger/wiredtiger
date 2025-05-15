@@ -36,10 +36,6 @@
 #define FNAME_STAT "__stats" /* File name for statistics */
 
 extern WT_CONNECTION *conn; /* WiredTiger connection */
-
-typedef enum { FIX, ROW, VAR } __ftype; /* File type */
-extern __ftype ftype;
-
 extern int log_print;      /* Log print per operation */
 extern int multiple_files; /* File per thread */
 extern u_int nkeys;        /* Keys to load */
