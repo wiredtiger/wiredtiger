@@ -1158,6 +1158,8 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     idle = tracking = use_timestamp = false;
     ckpt_crash_before_metadata_sync = ckpt_crash_before_metadata_update = false;
 
+    int dhandles_count, dhandles_done = 0;
+
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_ESTABLISH);
     WT_ASSERT_SPINLOCK_OWNED(session, &conn->checkpoint_lock);
 
@@ -1323,11 +1325,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
 
     time_start_ckpt_tree = __wt_clock(session);
 
-    int dhandles_count, dhandles_done = 0;
     WT_ERR(__checkpoint_push_dhandles(session, cfg, &dhandles_count));
-
     while (dhandles_done != dhandles_count) {
-        __wt_cond_wait(session, S2C(session)->ckpt.workers->result_queue.cond, WT_MILLION, NULL);
+        __wt_cond_wait(session, conn->ckpt.workers->result_queue.cond, WT_MILLION, NULL);
 
         __checkpoint_result_meta_ckptlist_set(session, &dhandles_done);
     }
@@ -2503,9 +2503,7 @@ fake:
 
     WT_ERR(__wt_lsn_string(&ckptlsn, sizeof(ckptlsn_str), (char *)ckptlsn_str));
 
-    if (is_mt)
-        WT_ERR(__checkpoint_push_result(session, dhandle, ckptlsn_str));
-    else
+    if (!is_mt)
         WT_ERR(__wt_meta_ckptlist_set(session, dhandle, btree->ckpt, ckptlsn_str));
 
     /*
@@ -2528,6 +2526,9 @@ fake:
     if (F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
         WT_ERR(__wt_checkpoint_log(session, false, WT_TXN_LOG_CKPT_STOP, NULL));
 
+    if (is_mt)
+        WT_ERR(__checkpoint_push_result(session, dhandle, ckptlsn_str));
+
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
     if (resolve_bm)
@@ -2546,7 +2547,8 @@ err:
         WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_POSTPROCESS);
     if (ret != 0 || WT_IS_METADATA(session->dhandle) || F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING))
         __wt_ckptlist_saved_free(session);
-    else {
+    /* Save ckptlist would be performed by main thread in case of multithreaded checkpoint. */
+    else if (!is_mt) {
         ret = __checkpoint_save_ckptlist(session, btree->ckpt);
         /* Discard the saved checkpoint list if processing the list did not work. */
         if (ret != 0)
@@ -2952,7 +2954,7 @@ __wt_checkpoint_workers_destroy(WT_SESSION_IMPL *session)
     __checkpoint_destroy_work_queue(session, &workers->to_process_queue);
     __checkpoint_destroy_work_queue(session, &workers->result_queue);
 
-    S2C(session)->ckpt.workers = NULL;
+    conn->ckpt.workers = NULL;
 
     return (ret);
 }
@@ -3078,8 +3080,8 @@ err:
 }
 
 /*
- * __checkpoint_push_work_result --
- *     Push a work unit to the the main thread to update metadata.
+ * __checkpoint_push_result --
+ *     Push a work unit to the main thread to update metadata.
  */
 static int
 __checkpoint_push_result(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, const char *ckptlsn_str)
@@ -3102,6 +3104,10 @@ __checkpoint_push_result(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, cons
     return (0);
 }
 
+/*
+ * __checkpoint_result_meta_ckptlist_set --
+ *     Poll result queue and update metadata.
+ */
 static int
 __checkpoint_result_meta_ckptlist_set(WT_SESSION_IMPL *session, int *dhandles_donep)
 {
@@ -3121,7 +3127,15 @@ __checkpoint_result_meta_ckptlist_set(WT_SESSION_IMPL *session, int *dhandles_do
     WT_ASSERT(session, entry->handle != NULL);
 
     btree = entry->handle->handle;
-    WT_ERR(__wt_meta_ckptlist_set(session, entry->handle, btree->ckpt, entry->lsn_str));
+    WT_WITH_DHANDLE(session, entry->handle,
+      ret = __wt_meta_ckptlist_set(session, entry->handle, btree->ckpt, entry->lsn_str));
+    WT_ERR(ret);
+
+    ret = __checkpoint_save_ckptlist(session, btree->ckpt);
+    /* Discard the saved checkpoint list if processing the list did not work. */
+    if (ret != 0)
+        __wt_ckptlist_saved_free(session);
+    WT_ERR(ret);
 
     (*dhandles_donep)++;
 

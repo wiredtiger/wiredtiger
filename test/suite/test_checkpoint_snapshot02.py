@@ -250,6 +250,8 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         self.assertGreater(inconsistent_ckpt, 0)
         self.assertGreaterEqual(keys_removed, 0)
 
+        print("Test end body ------------------------------------")
+
     @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_checkpoint_snapshot_with_txnid_and_timestamp(self):
         self.moresetup()

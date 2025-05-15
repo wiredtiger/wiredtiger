@@ -104,6 +104,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wt_evict_threads_destroy(session));
     /* The capacity server can only be shut down after all I/O is complete. */
     WT_TRET(__wti_capacity_server_destroy(session));
+    WT_TRET(__wt_checkpoint_workers_destroy(session));
 
     /* There should be no more file opens after this point. */
     F_SET_ATOMIC_32(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
@@ -128,7 +129,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
       F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DONE))
         WT_TRET(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
-    WT_TRET(__wt_checkpoint_workers_destroy(session));
 
     /* Free memory for collators, compressors, data sources. */
     WT_TRET(__wti_conn_remove_collator(session));

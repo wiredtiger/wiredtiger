@@ -114,7 +114,7 @@ struct __wti_ckpt_work_unit { // cache line alignment ??? make to process/result
 
 /*
  * WTI_CKPT_SAFE_WORK_QUEUE --
- *     Thread-safe queue for a parrallel checkpointing for processing both work and result units.
+ *     Thread-safe queue for a parallel checkpointing for processing both work and result units.
  */
 struct __wti_ckpt_safe_work_queue {
     WT_CONDVAR *cond;
