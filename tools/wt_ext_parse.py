@@ -385,7 +385,7 @@ if __name__ == "__main__":
     parser.add_argument("log_file", help="Path to the log file to parse.")
     parser.add_argument("--decoder_script", default="wt_binary_decode.py", help="Path to the wt_binary_decode.py script (default: wt_binary_decode.py). Assumes it's in PATH, same dir, or an absolute path is given.")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug printing.")
-    parser.add_argument("-e", "--ext", choices=["all", "avail", "alloc"], default="all", help="Specify the type of extents to process: 'all', 'avail', or 'alloc' (default: all).")
+    parser.add_argument("-e", "--ext", choices=["all", "avail", "alloc"], default="alloc", help="Specify the type of extents to process: 'all', 'avail', or 'alloc' (default: all).")
     parser.add_argument("-f", "--filename", default=None, help="Filter dumps by a specific filename (e.g., 'WiredTiger', 'collection-0-123'). Do not include .wt extension.")
     parser.add_argument("--mongo_log", action="store_true", help="Indicate that the input log file is in mongo log (JSON) format.") 
     parser.add_argument("-o", "--output_dir", default="decoded_dumps", help="Directory to save DECODED byte dumps (default: decoded_dumps)")
