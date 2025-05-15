@@ -146,11 +146,7 @@ class test_inmem01(wttest.WiredTigerTestCase):
         self.pr('Checking ' + str(last_key) + ' keys')
         ds = SimpleDataSet(self, self.uri, last_key, config=self.table_config)
 
-        # This test is *much* slower for fixed-length column stores: we fit
-        # many more records into the cache, so don't do as many passes through
-        # the data.
-        checks = 10 if self.valuefmt.endswith('t') else 100
-        for run in range(checks):
+        for run in range(100):
             ds.check()
             self.pr('Finished check ' + str(run))
             sleep(1)

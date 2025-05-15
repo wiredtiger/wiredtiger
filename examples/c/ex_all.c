@@ -129,27 +129,9 @@ cursor_ops(WT_SESSION *session)
         /*! [Get the cursor's string key] */
     }
 
-    /* Switch to a recno table. */
-    error_check(session->create(session, "table:recno", "key_format=r,value_format=S"));
-    error_check(session->open_cursor(session, "table:recno", NULL, NULL, &cursor));
-
-    {
-        /*! [Set the cursor's record number key] */
-        uint64_t recno = 37; /* Set the cursor's record number key. */
-        cursor->set_key(cursor, recno);
-        /*! [Set the cursor's record number key] */
-    }
-
-    {
-        /*! [Get the cursor's record number key] */
-        uint64_t recno; /* Get the cursor's record number key. */
-        error_check(cursor->get_key(cursor, &recno));
-        /*! [Get the cursor's record number key] */
-    }
-
     /* Switch to a composite table. */
     error_check(session->create(session, "table:composite", "key_format=SiH,value_format=S"));
-    error_check(session->open_cursor(session, "table:recno", NULL, NULL, &cursor));
+    error_check(session->open_cursor(session, "table:composite", NULL, NULL, &cursor));
 
     {
         /*! [Set the cursor's composite key] */
@@ -221,6 +203,8 @@ cursor_ops(WT_SESSION *session)
     error_check(cursor->prev(cursor));
     /*! [Return the previous record] */
 
+    error_check(cursor->close(cursor));
+    error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
     {
         /*! [Get the table's largest key] */
         const char *largest_key;
@@ -289,19 +273,6 @@ cursor_ops(WT_SESSION *session)
         cursor->set_value(cursor, value);
         error_check(cursor->insert(cursor));
         /*! [Insert a new record and fail if the record exists] */
-    }
-
-    error_check(session->open_cursor(session, "table:recno", NULL, "append", &cursor));
-
-    {
-        /*! [Insert a new record and assign a record number] */
-        /* Insert a new record and assign a record number. */
-        uint64_t recno;
-        const char *value = "some value";
-        cursor->set_value(cursor, value);
-        error_check(cursor->insert(cursor));
-        error_check(cursor->get_key(cursor, &recno));
-        /*! [Insert a new record and assign a record number] */
     }
 
     error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
@@ -563,21 +534,6 @@ session_ops_create(WT_SESSION *session)
     /*! [Create a table] */
     error_check(session->drop(session, "table:mytable", NULL));
 
-    /*! [Create a column-store table] */
-    error_check(session->create(session, "table:mytable", "key_format=r,value_format=S"));
-    /*! [Create a column-store table] */
-    error_check(session->drop(session, "table:mytable", NULL));
-
-    /*! [Create a table with columns] */
-    /*
-     * Create a table with columns: keys are record numbers, values are (string, signed 32-bit
-     * integer, unsigned 16-bit integer).
-     */
-    error_check(session->create(session, "table:mytable",
-      "key_format=r,value_format=SiH,columns=(id,department,salary,year-started)"));
-    /*! [Create a table with columns] */
-    error_check(session->drop(session, "table:mytable", NULL));
-
     /*! [Create a table and configure the page size] */
     error_check(session->create(session, "table:mytable",
       "key_format=S,value_format=S,internal_page_max=16KB,leaf_page_max=1MB,leaf_value_max=64KB"));
@@ -666,8 +622,8 @@ session_ops_create(WT_SESSION *session)
 
     /*! [Create a cache-resident object] */
     error_check(
-      session->create(session, "table:mytable", "key_format=r,value_format=S,cache_resident=true"));
-    /*! [Create a cache-resident object] */
+      session->create(session, "table:mytable", "key_format=i,value_format=S,cache_resident=true"));
+    /*! [Drop a cache-resident object] */
     error_check(session->drop(session, "table:mytable", NULL));
 }
 

@@ -71,7 +71,7 @@ main(int argc, char *argv[])
      * string, uint16_t, uint64_t). See ::wiredtiger_struct_pack for details of the format strings.
      */
     error_check(session->create(session, "table:poptable",
-      "key_format=r,value_format=5sHQ,columns=(id,country,year,population),colgroups=(main,"
+      "key_format=i,value_format=5sHQ,columns=(id,country,year,population),colgroups=(main,"
       "population)"));
 
     /*
