@@ -85,15 +85,27 @@ def create_fragmentation_image(input_file_path, output_folder):
             shapes.append(dict(type="rect", x0=x0, x1=x1, y0=y0, y1=y1,
                             line=dict(width=0), fillcolor=color))
 
-        # Render figure
+        extra_start = total_blocks                    
+        if extra_start < GRID_WIDTH * GRID_WIDTH:
+            for index in range(extra_start, GRID_WIDTH * GRID_WIDTH):
+                r, c = divmod(index, GRID_WIDTH)
+                shapes.append(dict(type="rect",
+                                   x0=c,  x1=c+1,
+                                   y0=-r-1, y1=-r,
+                                   line=dict(width=0), fillcolor="#000000"))
+
         fig = go.Figure()
+
+        # keep ranges, hide everything else → no padding, shapes visible
+        fig.update_xaxes(visible=False, range=[0, GRID_WIDTH], fixedrange=True)
+        fig.update_yaxes(visible=False, range=[-GRID_WIDTH, 0],
+                         scaleanchor='x', fixedrange=True)
+
         fig.update_layout(
-            title=None,
             shapes=shapes,
-            xaxis=dict(showticklabels=False, range=[0, GRID_WIDTH]),
-            yaxis=dict(showticklabels=False, scaleanchor="x", range=[-GRID_WIDTH, 0]),
-            margin=dict(t=0, l=0, r=0, b=0),
-            plot_bgcolor='white',
+            width=GRID_WIDTH, height=GRID_WIDTH,
+            margin=dict(t=0, l=0, r=0, b=0, pad=0),
+            plot_bgcolor='white', paper_bgcolor='white',
             hovermode=False
         )
         fig.write_image(image_path, format="png", scale=5)
@@ -131,7 +143,14 @@ def generate_html_viewer(output_folder: str,
     h1{font-size:1.25rem;font-weight:600;margin-bottom:1.25rem;letter-spacing:.03em}
     /*  Compact frame: 82vmin square, up to 820px */
     .viewer{width:82vmin;max-width:820px;aspect-ratio:1/1;overflow:hidden;}
-    #viewer-img{width:100%;height:100%;object-fit:contain;transition:transform .25s ease,opacity .25s;cursor:zoom-in;}
+    #viewer-img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    transition:transform .25s ease,opacity .25s;
+    cursor:zoom-in;
+    border:2px solid #000000;
+    }
     .ctr{display:flex;gap:1.5rem;margin-top:1.25rem}
     button{all:unset;cursor:pointer;font-weight:600;font-size:1rem;position:relative;}
     button::after{content:'';position:absolute;left:0;bottom:-2px;width:0;height:2px;background:#2563eb;transition:width .2s ease;}
