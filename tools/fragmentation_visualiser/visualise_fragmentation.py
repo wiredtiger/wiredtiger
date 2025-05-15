@@ -9,27 +9,27 @@ import imageio.v2 as imageio
 import time 
 
 def create_fragmentation_image(input_file_path, output_folder):
-    blocks = []
+    allocated_blocks = []
     with open(input_file_path, "r") as file:
         for line in file:
             line = line.strip()
             if line:
                 offset_str, size_str = line.split(",")
-                blocks.append((int(offset_str), int(size_str)))
+                allocated_blocks.append((int(offset_str), int(size_str)))
 
-    if not blocks:
-        print(f"No blocks found in {input_file_path}")
+    if len(allocated_blocks) <= 2:
+        print(f"No allocated blocks found in {input_file_path}")
         return
 
 
-    last_offset, last_size = blocks[-1]
+    last_offset, last_size = allocated_blocks[-1]
     file_size = last_offset + last_size
     print(f"[{input_file_path}] File size: {file_size} bytes")
 
     # Calculate free blocks
     free_blocks = []
     last_end = 0
-    for offset, size in blocks:
+    for offset, size in allocated_blocks:
         if offset > last_end:
             free_blocks.append((last_end, offset - last_end))
         last_end = max(last_end, offset + size)
@@ -116,7 +116,7 @@ def create_fragmentation_image(input_file_path, output_folder):
     os.makedirs(output_folder, exist_ok=True)
     img_alloc = os.path.join(output_folder, f"{base}_allocated.png")
     img_free = os.path.join(output_folder, f"{base}_free.png")
-    generate_image(img_alloc, blocks, "#007acc")  # blue for allocated
+    generate_image(img_alloc, allocated_blocks, "#007acc")  # blue for allocated
     generate_image(img_free, free_blocks, "#00aa55")        # green for free
     return base, file_size, GRID_WIDTH
 
