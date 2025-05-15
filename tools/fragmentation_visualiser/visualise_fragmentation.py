@@ -6,7 +6,9 @@ import argparse
 import plotly.graph_objs as go
 import plotly.io as pio
 import imageio.v2 as imageio
-import time 
+import time
+print("", flush=True)  
+from tqdm import tqdm 
 
 def create_fragmentation_image(input_file_path, output_folder):
     allocated_blocks = []
@@ -18,13 +20,13 @@ def create_fragmentation_image(input_file_path, output_folder):
                 allocated_blocks.append((int(offset_str), int(size_str)))
 
     if not allocated_blocks:
-        print(f"No allocated blocks found in {input_file_path}")
+        tqdm.write(f"No allocated blocks found in {input_file_path}")
         return
 
 
     last_offset, last_size = allocated_blocks[-1]
     file_size = last_offset + last_size
-    print(f"[{input_file_path}] File size: {file_size} bytes")
+    tqdm.write(f"[{input_file_path}] File size: {file_size} bytes")
 
     # Calculate free blocks
     free_blocks = []
@@ -39,8 +41,8 @@ def create_fragmentation_image(input_file_path, output_folder):
     SQUARE_BYTES = 4096  # 4KB
     total_blocks = file_size // SQUARE_BYTES
     GRID_WIDTH = math.ceil(math.sqrt(total_blocks))
-    print(f"Each square = {SQUARE_BYTES} bytes (4KB)")
-    print(f"Total blocks = {total_blocks}, Grid width = {GRID_WIDTH}")
+    tqdm.write(f"Each square = {SQUARE_BYTES} bytes (4KB)")
+    tqdm.write(f"Total blocks = {total_blocks}, Grid width = {GRID_WIDTH}")
 
     def generate_image(image_path, blocks, color):
         shapes = []
@@ -237,7 +239,7 @@ update();
     out_path = os.path.join(output_folder, "viewer.html")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write(html)
-    print(f"✅ HTML viewer written → {out_path}")
+    tqdm.write(f"✅ HTML viewer written → {out_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize fragmentation with linear or hilbert layout")
@@ -245,27 +247,22 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="fragmentation_pngs", help="Output folder")
 
     args = parser.parse_args()
-
-    start_time = time.time()
     if os.path.isdir(args.output):          # delete any old copy
         shutil.rmtree(args.output)
 
-    
     records = []
-    for filename in os.listdir(args.input_folder):
+    for filename in tqdm(os.listdir(args.input_folder), desc="Processing files", unit="file", leave=False):
         if filename.endswith(".txt"):
             path = os.path.join(args.input_folder, filename)    
             res = create_fragmentation_image(path, args.output)
             if res:
                 records.append(res)
         else:
-            print(f"Skipping non-txt file: {filename}")
+            tqdm.write(f"Skipping non-txt file: {filename}")
 
     if records:
         records.sort(key=lambda t: t[0])      # alphabetical by base name
         image_bases, file_sizes, grid_sizes = map(list, zip(*records))
         generate_html_viewer(args.output, image_bases,
                              file_sizes, grid_sizes)
-    
-    end_time = time.time()
-    print(f"Time taken: {end_time - start_time:.2f} seconds")
+
