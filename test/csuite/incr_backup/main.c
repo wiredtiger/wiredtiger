@@ -39,11 +39,11 @@
 #define BACKUP_RETAIN 4
 #define BACKUP_SRC "backup.src."
 
-#define ITERATIONS 3
-#define MAX_NTABLES 20
+#define ITERATIONS 10
+#define MAX_NTABLES 100
 
-#define MAX_KEY_SIZE 1000
-#define MAX_VALUE_SIZE (100 * WT_THOUSAND)
+#define MAX_KEY_SIZE 100
+#define MAX_VALUE_SIZE (10 * WT_THOUSAND)
 #define MAX_MODIFY_ENTRIES 10
 #define MAX_MODIFY_DIFF 500
 
@@ -62,7 +62,7 @@ static const char *alloc_sizes[] = {"512B", "8K", "64K", "1M", "16M"};
 static const char *run_alloc;
 static int run_gran = 0;
 static int total_ranges = 0;
-static int verbose_level = -1;
+static int verbose_level = 0;
 static uint64_t seed = 0;
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -758,7 +758,7 @@ main(int argc, char *argv[])
         rnd.v = seed_param;
         run_test(working_dir, &rnd, preserve);
     }
-    printf("Total backup %dKB ranges copied: %d Alloc %s\n", run_gran, total_ranges, run_alloc);
+    /* printf("Total backup %dKB ranges copied: %d Alloc %s\n", run_gran, total_ranges, run_alloc); */
 
     return (EXIT_SUCCESS);
 }
