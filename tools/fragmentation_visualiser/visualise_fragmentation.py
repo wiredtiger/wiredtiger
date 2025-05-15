@@ -15,16 +15,13 @@ def create_fragmentation_image(input_file_path, output_folder):
                 offset_str, size_str = line.split(",")
                 allocated_blocks.append((int(offset_str), int(size_str)))
 
-    # We expect the first and last lines to be the header and footer, respectively. We will ignore them.
     if len(allocated_blocks) <= 2:
         print(f"No allocated blocks found in {input_file_path}")
         return
 
-    # Discard the first and last lines (header and footer)
+
     allocated_blocks.pop(0)
     allocated_blocks.pop()
-
-    # Derive the file size from the last allocated block
     last_offset, last_size = allocated_blocks[-1]
     file_size = last_offset + last_size
     print(f"[{input_file_path}] File size: {file_size} bytes")
@@ -39,15 +36,14 @@ def create_fragmentation_image(input_file_path, output_folder):
     if last_end < file_size:
         free_blocks.append((last_end, file_size - last_end))
 
+    SQUARE_BYTES = 4096  # 4KB
+    total_blocks = file_size // SQUARE_BYTES
+    GRID_WIDTH = math.ceil(math.sqrt(total_blocks))
+    print(f"Each square = {SQUARE_BYTES} bytes (4KB)")
+    print(f"Total blocks = {total_blocks}, Grid width = {GRID_WIDTH}")
+
     def generate_image(image_path, blocks, color):
         shapes = []
-
-        SQUARE_BYTES = 4096  # 4KB
-        total_blocks = file_size // SQUARE_BYTES
-        GRID_WIDTH = math.ceil(math.sqrt(total_blocks))
-
-        print(f"Each square = {SQUARE_BYTES} bytes (4KB)")
-        print(f"Total blocks = {total_blocks}, Grid width = {GRID_WIDTH}")
 
         # Convert all blocks to block indexes
         block_indexes = set()
@@ -110,61 +106,108 @@ def create_fragmentation_image(input_file_path, output_folder):
     img_free = os.path.join(output_folder, f"{base}_free.png")
     generate_image(img_alloc, allocated_blocks, "#007acc")  # blue for allocated
     generate_image(img_free, free_blocks, "#00aa55")        # green for free
-    return base
+    return base, file_size, GRID_WIDTH
 
-def generate_html_viewer(output_folder, image_bases):
-    html_path = os.path.join(output_folder, "viewer.html")
-    with open(html_path, "w") as f:
-        f.write("<!DOCTYPE html>\n")
-        f.write("<html>\n<head>\n")
-        f.write("  <meta charset='UTF-8'>\n")
-        f.write("  <title>Fragmentation Viewer</title>\n")
-        f.write("  <style>\n")
-        f.write("    body {\n")
-        f.write("      font-family: sans-serif;\n")
-        f.write("      text-align: center;\n")
-        f.write("      background: #f8f8f8;\n")
-        f.write("      margin: 0;\n")
-        f.write("      padding: 0;\n")
-        f.write("      overflow: hidden;\n")
-        f.write("    }\n")
-        f.write("    #viewer {\n")
-        f.write("      max-height: 80vh;\n")
-        f.write("      max-width: 100%;\n")
-        f.write("      height: auto;\n")
-        f.write("      border: 2px solid #333;\n")
-        f.write("      margin-top: 10px;\n")
-        f.write("    }\n")
-        f.write("    button {\n")
-        f.write("      padding: 8px 16px;\n")
-        f.write("      margin: 10px;\n")
-        f.write("      font-size: 16px;\n")
-        f.write("      cursor: pointer;\n")
-        f.write("    }\n")
-        f.write("  </style>\n</head>\n<body>\n")
-        f.write("  <h2>WT Fragmentation Viewer</h2>\n")
-        f.write("  <button onclick='prev()'>⬅️ Previous</button>\n")
-        f.write("  <button onclick='toggle()'>🔁 Toggle View</button>\n")
-        f.write("  <button onclick='next()'>➡️ Next</button>\n")
-        f.write("  <br>\n")
-        f.write("  <img id='viewer' src='' alt='Fragmentation Image'>\n")
-        f.write("  <script>\n")
-        f.write("    const imageBases = [\n")
-        f.write(",\n".join(f"      '{base}'" for base in image_bases))
-        f.write("\n    ];\n")
-        f.write("    let index = 0;\n")
-        f.write("    let mode = 0;\n")
-        f.write("    function updateImage() {\n")
-        f.write("      const suffix = mode === 0 ? '_allocated.png' : '_free.png';\n")
-        f.write("      document.getElementById('viewer').src = imageBases[index] + suffix;\n")
-        f.write("    }\n")
-        f.write("    function toggle() { mode = 1 - mode; updateImage(); }\n")
-        f.write("    function next() { index = (index + 1) % imageBases.length; updateImage(); }\n")
-        f.write("    function prev() { index = (index - 1 + imageBases.length) % imageBases.length; updateImage(); }\n")
-        f.write("    updateImage();\n")
-        f.write("  </script>\n</body>\n</html>\n")
+def generate_html_viewer(output_folder: str,
+                         bases: list[str],
+                         sizes: list[int],
+                         grids: list[int]) -> None:
+    """Write viewer.html into *output_folder* with simple JS navigation + toggle‑zoom."""
 
-    print(f"✅ HTML viewer created: {html_path}")
+    img_list = ",\n      ".join(f"'{b}'" for b in bases)
+
+    html = (
+        """<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width,initial-scale=1'>
+  <title>Fragmentation Viewer</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+      background:#ffffff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#111;
+    }
+    h1{font-size:1.25rem;font-weight:600;margin-bottom:1.25rem;letter-spacing:.03em}
+    /*  Compact frame: 82vmin square, up to 820px */
+    .viewer{width:82vmin;max-width:820px;aspect-ratio:1/1;overflow:hidden;}
+    #viewer-img{width:100%;height:100%;object-fit:contain;transition:transform .25s ease,opacity .25s;cursor:zoom-in;}
+    .ctr{display:flex;gap:1.5rem;margin-top:1.25rem}
+    button{all:unset;cursor:pointer;font-weight:600;font-size:1rem;position:relative;}
+    button::after{content:'';position:absolute;left:0;bottom:-2px;width:0;height:2px;background:#2563eb;transition:width .2s ease;}
+    button:hover::after{width:100%}
+  </style>
+</head>
+<body>
+  <h1>WT Fragmentation Viewer</h1>
+  <p id="meta" style="margin-bottom:1rem;font-size:.95rem;color:#555"></p>
+  <div class='viewer'><img id='viewer-img' alt='fragment map'></div>
+  <div class='ctr'>
+    <button id='prev'>Prev</button>
+    <button id='toggle'>Toggle</button>
+    <button id='next'>Next</button>
+  </div>
+<script>
+const bases=[
+      """ + img_list + """
+];
+const sizes = [ 
+      """ + ",\n      ".join(str(s) for s in sizes) + """
+];
+const grids = [
+      """ + ",\n      ".join(str(g) for g in grids) + """
+];
+let idx=0,mode=0;const scale=2.5;let zoomed=false;const img=document.getElementById('viewer-img');
+
+
+function resetZoom(){zoomed=false;img.style.transform='scale(1)';img.style.cursor='zoom-in';}
+function zoomToggle(ev){
+  const r=img.getBoundingClientRect();
+  const ox=((ev.clientX-r.left)/r.width)*100;
+  const oy=((ev.clientY-r.top)/r.height)*100;
+  if(zoomed){resetZoom();return;}
+  img.style.transformOrigin=`${ox}% ${oy}%`;
+  img.style.transform=`scale(${scale})`;
+  img.style.cursor='zoom-out';
+  zoomed=true;
+}
+
+function update(){
+  img.style.opacity=0;
+  const suf=mode? '_free.png':'_allocated.png';
+  img.onload=()=>img.style.opacity=1;
+  img.src=bases[idx]+suf;
+  document.getElementById('meta').textContent =
+    `${bases[idx]}.txt  |  ${sizes[idx].toLocaleString()} bytes  |  grid ${grids[idx]}×${grids[idx]} (4 KB squares)`;
+
+  resetZoom();
+}
+function next(){idx=(idx+1)%bases.length;update();}
+function prev(){idx=(idx-1+bases.length)%bases.length;update();}
+function tog(){mode^=1;update();}
+
+document.getElementById('next').onclick=next;
+document.getElementById('prev').onclick=prev;
+document.getElementById('toggle').onclick=tog;
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight')next();
+  else if(e.key==='ArrowLeft')prev();
+  else if(e.code==='Space'){e.preventDefault();tog();}
+});
+
+img.addEventListener('click',zoomToggle);
+update();
+</script>
+</body>
+</html>"""
+    )
+
+    out_path = os.path.join(output_folder, "viewer.html")
+    with open(out_path, "w", encoding="utf-8") as fh:
+        fh.write(html)
+    print(f"✅ HTML viewer written → {out_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize fragmentation with linear or hilbert layout")
@@ -172,15 +215,19 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="fragmentation_pngs", help="Output folder")
 
     args = parser.parse_args()
-    image_bases = []
+    image_bases, file_sizes, grid_sizes = [], [], []
     for filename in os.listdir(args.input_folder):
         if filename.endswith(".txt"):
-            path = os.path.join(args.input_folder, filename)
-            base = create_fragmentation_image(path, args.output)
-            if base:
+            path = os.path.join(args.input_folder, filename)    
+            res = create_fragmentation_image(path, args.output)
+            if res:
+                base, size, grid = res            
                 image_bases.append(base)
+                file_sizes.append(size)
+                grid_sizes.append(grid)
         else:
             print(f"Skipping non-txt file: {filename}")
 
     if image_bases:
-        generate_html_viewer(args.output, image_bases)
+        generate_html_viewer(args.output, image_bases,
+                             file_sizes, grid_sizes)
