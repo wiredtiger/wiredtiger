@@ -33,13 +33,9 @@
 #include "test_util.h"
 
 #define FNAME "file:cursor_order.%03d" /* File name */
-
-typedef enum { FIX, ROW, VAR } __ftype; /* File type */
-
 typedef struct {
     uint64_t append_inserters; /* Number of append threads */
     WT_CONNECTION *conn;       /* WiredTiger connection */
-    __ftype ftype;
     uint64_t key_range;        /* Current key range */
     uint64_t max_nops;         /* Operations per thread */
     bool multiple_files;       /* File per thread */

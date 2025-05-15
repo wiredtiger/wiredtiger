@@ -45,13 +45,10 @@ file_create(SHARED_CONFIG *cfg, const char *name)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     testutil_snprintf(config, sizeof(config),
-      "key_format=%s,"
+      "key_format=S,"
       "internal_page_max=%d,"
       "split_deepen_min_child=200,"
-      "leaf_page_max=%d,"
-      "%s",
-      cfg->ftype == ROW ? "S" : "r", 16 * 1024, 128 * 1024,
-      cfg->ftype == FIX ? ",value_format=3t" : "");
+      "leaf_page_max=%d,", 16 * 1024, 128 * 1024);
 
     if ((ret = session->create(session, name, config)) != 0)
         if (ret != EEXIST)
@@ -85,19 +82,12 @@ load(SHARED_CONFIG *cfg, const char *name)
 
     value = &_value;
     for (keyno = 1; keyno <= cfg->nkeys; ++keyno) {
-        if (cfg->ftype == ROW) {
-            testutil_snprintf(keybuf, sizeof(keybuf), "%016" PRIu64, keyno);
-            cursor->set_key(cursor, keybuf);
-        } else
-            cursor->set_key(cursor, (uint32_t)keyno);
+        testutil_snprintf(keybuf, sizeof(keybuf), "%016" PRIu64, keyno);
+        cursor->set_key(cursor, keybuf);
         value->data = valuebuf;
-        if (cfg->ftype == FIX)
-            cursor->set_value(cursor, 0x01);
-        else {
-            testutil_snprintf_len_set(valuebuf, sizeof(valuebuf), &len, "%37" PRIu64, keyno);
-            value->size = (uint32_t)len;
-            cursor->set_value(cursor, value);
-        }
+        testutil_snprintf_len_set(valuebuf, sizeof(valuebuf), &len, "%37" PRIu64, keyno);
+        value->size = (uint32_t)len;
+        cursor->set_value(cursor, value);
         testutil_check(cursor->insert(cursor));
     }
 

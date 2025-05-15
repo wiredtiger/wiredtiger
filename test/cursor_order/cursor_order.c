@@ -65,7 +65,6 @@ main(int argc, char *argv[])
      */
     cfg->append_inserters = 1;
     cfg->conn = NULL;
-    cfg->ftype = ROW;
     cfg->max_nops = WT_MILLION;
     cfg->multiple_files = false;
     cfg->nkeys = WT_THOUSAND;
@@ -102,21 +101,6 @@ main(int argc, char *argv[])
             break;
         case 'r': /* runs */
             runs = atoi(__wt_optarg);
-            break;
-        case 't':
-            switch (__wt_optarg[0]) {
-            case 'f':
-                cfg->ftype = FIX;
-                break;
-            case 'r':
-                cfg->ftype = ROW;
-                break;
-            case 'v':
-                cfg->ftype = VAR;
-                break;
-            default:
-                return (usage());
-            }
             break;
         case 'v': /* vary operation count */
             cfg->vary_nops = true;
@@ -276,7 +260,6 @@ usage(void)
       "\t-n set number of operations each thread does\n"
       "\t-R set number of reverse scanner threads\n"
       "\t-r set number of runs (0 for continuous)\n"
-      "\t-t set a file type (fix | row | var)\n"
       "\t-v do a different number of operations on different tables\n"
       "\t-w set number of items to walk in a reverse scan\n"
       "\t-W set number of threads doing append inserts\n");

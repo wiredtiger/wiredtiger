@@ -174,11 +174,8 @@ reverse_scan_op(SHARED_CONFIG *cfg, WT_SESSION *session, WT_CURSOR *cursor, INFO
             testutil_die(ret, "cursor.prev");
         }
 
-        if (cfg->ftype == ROW) {
-            testutil_check(cursor->get_key(cursor, &strkey));
-            this_key = (uint64_t)atol(strkey);
-        } else
-            testutil_check(cursor->get_key(cursor, (uint64_t *)&this_key));
+        testutil_check(cursor->get_key(cursor, &strkey));
+        this_key = (uint64_t)atol(strkey);
 
         if (i == 0 && this_key < initial_key_range)
             testutil_die(ret,
@@ -247,21 +244,14 @@ append_insert_op(SHARED_CONFIG *cfg, WT_SESSION *session, WT_CURSOR *cursor, INF
     value = &_value;
 
     keyno = __wt_atomic_add64(&cfg->key_range, 1);
-    if (cfg->ftype == ROW) {
-        testutil_snprintf(keybuf, sizeof(keybuf), "%016" PRIu64, keyno);
-        cursor->set_key(cursor, keybuf);
-    } else
-        cursor->set_key(cursor, (uint32_t)keyno);
-
+    testutil_snprintf(keybuf, sizeof(keybuf), "%016" PRIu64, keyno);
+    cursor->set_key(cursor, keybuf);
     ++s->append_insert;
+
     value->data = valuebuf;
-    if (cfg->ftype == FIX)
-        cursor->set_value(cursor, 0x10);
-    else {
-        testutil_snprintf_len_set(valuebuf, sizeof(valuebuf), &len, "XXX %37" PRIu64, keyno);
-        value->size = (uint32_t)len;
-        cursor->set_value(cursor, value);
-    }
+    testutil_snprintf_len_set(valuebuf, sizeof(valuebuf), &len, "XXX %37" PRIu64, keyno);
+    value->size = (uint32_t)len;
+    cursor->set_value(cursor, value);
     testutil_check(cursor->insert(cursor));
 }
 
