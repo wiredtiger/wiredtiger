@@ -14,7 +14,7 @@ def print_debug(message):
     if DEBUG_MODE:
         print(message)
 
-def process_and_decode_dump(dump_info, byte_list, decoder_script_path, output_dir_for_decoded_files):
+def process_and_decode_dump(dump_info, byte_list, ext_type, decoder_script_path, output_dir_for_decoded_files):
     """
     Processes collected byte dump, runs wt_binary_decode.py with bytes as stdin,
     and saves the decoder's output to a file.
@@ -29,6 +29,10 @@ def process_and_decode_dump(dump_info, byte_list, decoder_script_path, output_di
         extent_name = dump_info['raw_extent_name'].split('.')[-1]
     else:
         extent_name = dump_info['raw_extent_name']
+
+    if ext_type != "all" and ext_type != extent_name:
+        print(f"Skipping extent type '{extent_name}' as it does not match the specified type '{ext_type}'.")
+        return
             
     timestamp_formatted = dump_info['timestamp'].replace(':', '-')
     
@@ -116,18 +120,22 @@ def process_and_decode_dump(dump_info, byte_list, decoder_script_path, output_di
     except subprocess.SubprocessError as e:  # More specific for subprocess issues
         print(f"An unexpected subprocess error occurred for {dump_info['timestamp']}: {type(e).__name__} - {e}")
 
-def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps", decoder_script_path="wt_binary_decode.py", stream_mode=False, is_mongo_log=False):
+def parse_log_for_byte_dumps(args):
     """
     Parses a log file to extract byte dumps, decodes them using an external script via stdin,
     and saves the decoded output. Optionally monitors the log file continuously.
 
     Args:
-        log_filepath (str): Path to the log file.
-        output_dir (str): Directory where extracted AND DECODED byte dump files will be saved.
-        decoder_script_path (str): Path to the wt_binary_decode.py script.
-        stream_mode (bool): If True, continuously monitor the log file. Otherwise, read once.
-        is_mongo_log (bool): If True, parse the log as mongo log (JSON format).
+        args (argparse.Namespace): Command-line arguments.
+                                   Expected attributes: log_file, output_dir,
+                                   resolved_decoder_path, stream, mongo_log, ext.
     """
+    log_filepath = args.log_file
+    output_dir = args.output_dir
+    decoder_script_path = args.resolved_decoder_path
+    stream_mode = args.stream
+    is_mongo_log = args.mongo_log
+    ext_type = args.ext # Available for use if filtering logic is added based on extent type
 
     # Regex to identify the "header" line of a standard byte dump
     # Captures: 1=timestamp, 2=file_name, 3=raw_extent_name, 4=size
@@ -279,7 +287,7 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
                 
                 if active_header_match:
                     if current_dump_info and collected_bytes:
-                        process_and_decode_dump(current_dump_info, collected_bytes, decoder_script_path, output_dir)
+                        process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
                     
                     if is_mongo_log:
                         if timestamp_for_mongo_header is None:
@@ -329,7 +337,7 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
                         else:
                             print_debug(f"DEBUG: Mismatched block_id. Expected {current_dump_info.get('expected_block_id')}, got {block_id}. Processing previous dump.")
                             if collected_bytes:
-                                process_and_decode_dump(current_dump_info, collected_bytes, decoder_script_path, output_dir)
+                                process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
                             current_dump_info = None 
                             collected_bytes = []
                 
@@ -341,14 +349,14 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
                     # - The current line (either extracted_msg for mongo, or original line for non-mongo) was processed but was not a header or data.
                     # - This implies an interruption or an unrelated log line that should finalize the pending dump.
                     print_debug(f"DEBUG: Non-dump line encountered after processing. Processing previous dump for ts {current_dump_info.get('timestamp') if isinstance(current_dump_info, dict) else 'N/A'}.")
-                    process_and_decode_dump(current_dump_info, collected_bytes, decoder_script_path, output_dir)
+                    process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
                     current_dump_info = None
                     collected_bytes = []
             
             # Process any remaining dump after the loop (e.g., end of file in non-stream mode)
             if current_dump_info and collected_bytes:
                 print_debug(f"DEBUG: End of file or stream. Processing final dump for ts {current_dump_info.get('timestamp')}.")
-                process_and_decode_dump(current_dump_info, collected_bytes, decoder_script_path, output_dir)
+                process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
 
     except FileNotFoundError:
         print(f"Error: Log file '{processed_log_filepath}' not found.")
@@ -356,7 +364,7 @@ def parse_log_for_byte_dumps(log_filepath="stdout.txt", output_dir="byte_dumps",
         print("\nMonitoring stopped by user.")
         if current_dump_info and collected_bytes and isinstance(current_dump_info, dict):
             print_debug(f"DEBUG: Interrupted. Processing final dump for ts {current_dump_info.get('timestamp', 'N/A')}.")
-            process_and_decode_dump(current_dump_info, collected_bytes, decoder_script_path, output_dir)
+            process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
     except IOError as ioe:
         print(f"An I/O error occurred: {ioe}")
     except RuntimeError as e:  # More specific for runtime issues in main loop
@@ -371,6 +379,7 @@ if __name__ == "__main__":
     parser.add_argument("log_file", help="Path to the log file to parse.")
     parser.add_argument("-o", "--output_dir", default="decoded_dumps", help="Directory to save DECODED byte dumps (default: decoded_dumps)")
     parser.add_argument("--decoder_script", default="wt_binary_decode.py", help="Path to the wt_binary_decode.py script (default: wt_binary_decode.py). Assumes it's in PATH, same dir, or an absolute path is given.")
+    parser.add_argument("-e", "--ext", choices=["all", "avail", "alloc"], default="all", help="Specify the type of extents to process: 'all', 'avail', or 'alloc' (default: all).")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug printing.")
     parser.add_argument("--stream", action="store_true", help="Continuously monitor the log file for new entries. If not set, reads the entire file once.")
     parser.add_argument("--mongo_log", action="store_true", help="Indicate that the input log file is in mongo log (JSON) format.") # Added mongo_log argument
@@ -389,9 +398,11 @@ if __name__ == "__main__":
             resolved_decoder_path = potential_path
         # Else, assume it's in PATH or CWD (subprocess will find it or fail)
     
-    print(f"Using decoder script: {resolved_decoder_path}")
-    if not os.path.isfile(resolved_decoder_path) and not any(os.access(os.path.join(path, resolved_decoder_path), os.X_OK) for path in os.environ["PATH"].split(os.pathsep)):
-         # A more robust check if it's not an absolute/relative file and not in PATH
-        print(f"Warning: Decoder script '{resolved_decoder_path}' not found as a direct file. Will try to run assuming it's in PATH.")
+    args.resolved_decoder_path = resolved_decoder_path # Add to args object
 
-    parse_log_for_byte_dumps(args.log_file, args.output_dir, resolved_decoder_path, args.stream, args.mongo_log) # Pass args.mongo_log
+    print(f"Using decoder script: {args.resolved_decoder_path}")
+    if not os.path.isfile(args.resolved_decoder_path) and not any(os.access(os.path.join(path, args.resolved_decoder_path), os.X_OK) for path in os.environ["PATH"].split(os.pathsep)):
+         # A more robust check if it's not an absolute/relative file and not in PATH
+        print(f"Warning: Decoder script '{args.resolved_decoder_path}' not found as a direct file. Will try to run assuming it's in PATH.")
+
+    parse_log_for_byte_dumps(args)
