@@ -362,11 +362,7 @@ run_test_checkpoint()
     for am in $2; do
         dir="RUNDIR.$am"
         echo "./t running $am access method..."
-        if [ "$am" == "fix" ]; then
-            ./$test_bin -t f $flags -h $dir
-        elif [ "$am" == "var" ]; then
-            ./$test_bin -t c $flags -h $dir
-        else
+        if [ "$am" == "row" ]; then
             ./$test_bin -t r $flags -h $dir
         fi
     done

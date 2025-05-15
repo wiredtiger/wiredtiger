@@ -2960,13 +2960,7 @@ tasks:
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
       - func: "checkpoint test"
         vars:
-          checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
-      - func: "checkpoint test"
-        vars:
-          checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
-      - func: "checkpoint test"
-        vars:
-          checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
+          checkpoint_args: -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: coverage-report-python
     # The coverage report tests are split into the two buckets, python and any other tests. The concept
@@ -4079,22 +4073,9 @@ tasks:
         vars:
           # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
           HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
-      # FIXME-WT-10936: Enable once predictable replay supports column store
-      #- func: "checkpoint test predictable"
-      #  vars:
-      #    checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
-      #    times: 5
-      #- func: "checkpoint test predictable"
-      #  vars:
-      #    checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
-      #    times: 5
-      #- func: "checkpoint test predictable"
-      #  vars:
-      #    checkpoint_args: -n 1000000 -k 5000000 -C cache_size=100MB
-      #    times: 5
       - func: "checkpoint test predictable"
         vars:
-          checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
+          checkpoint_args: -n 1000000 -k 5000000 -C cache_size=100MB
           times: 5
 
   - name: many-collection-test
@@ -5516,7 +5497,7 @@ buildvariants:
     CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_stable_clang.cmake
     CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=TSan
     ENABLE_TCMALLOC: 0
-    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
+    data_validation_stress_test_args: -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     additional_env_vars: |
       # We intentionally suppress all TSan warnings.
       export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
@@ -6015,7 +5996,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: 1
-    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
+    data_validation_stress_test_args: -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"

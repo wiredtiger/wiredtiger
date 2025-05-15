@@ -181,6 +181,8 @@ main(int argc, char *argv[])
             if (*end_number)
                 return (usage());
             break;
+        case 't':
+            break;
         case 'T':
             g.ntables = atoi(__wt_optarg);
             break;
@@ -520,6 +522,7 @@ usage(void)
       "\t\t5: checkpoint_slow_timing_stress\n"
       "\t\t6: evict_reposition_timing_stress\n"
       "\t\t7: failpoint_eviction_split\n"
+      "\t-t deprecated, retained for backwards compatibilit\n"
       "\t-T specify a table configuration\n"
       "\t-v verify only\n"
       "\t-W set number of worker threads\n"
