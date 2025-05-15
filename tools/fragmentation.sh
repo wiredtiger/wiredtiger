@@ -4,6 +4,7 @@ input_logs=$1
 output_folder=$2
 output_folder_imgs=$3
 extent_type=$4
+filename_filter=$5
 
 if [ -z "$input_logs" ]; then
     echo "Error: input_logs argument is missing."
@@ -30,7 +31,12 @@ if [[ "$extent_type" != "all" && "$extent_type" != "avail" && "$extent_type" != 
     exit 1
 fi
 
-python3 wt_ext_parse.py "$input_logs" -o "$output_folder" -e "$extent_type"
+if [ -z "$filename_filter" ]; then
+    echo "Error: filename_filter argument is missing."
+    exit 1
+fi
+
+python3 wt_ext_parse.py "$input_logs" -o "$output_folder" -e "$extent_type" -f "$filename_filter"
 if [ $? -ne 0 ]; then
     echo "Error: wt_ext_parse.py failed."
     exit 1

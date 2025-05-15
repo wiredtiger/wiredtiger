@@ -14,7 +14,7 @@ def print_debug(message):
     if DEBUG_MODE:
         print(message)
 
-def process_and_decode_dump(dump_info, byte_list, ext_type, decoder_script_path, output_dir_for_decoded_files):
+def process_and_decode_dump(dump_info, byte_list, ext_type, filename_filter, decoder_script_path, output_dir_for_decoded_files):
     """
     Processes collected byte dump, runs wt_binary_decode.py with bytes as stdin,
     and saves the decoder's output to a file.
@@ -24,6 +24,10 @@ def process_and_decode_dump(dump_info, byte_list, ext_type, decoder_script_path,
 
     # Construct filename for the DECODED output
     file_base = dump_info['file_name_raw'].replace('.wt', '')
+
+    if filename_filter and file_base != filename_filter:
+        print_debug(f"Skipping dump for file '{file_base}' as it does not match the specified filename filter '{filename_filter}'.")
+        return
     
     if '.' in dump_info['raw_extent_name']:
         extent_name = dump_info['raw_extent_name'].split('.')[-1]
@@ -31,7 +35,7 @@ def process_and_decode_dump(dump_info, byte_list, ext_type, decoder_script_path,
         extent_name = dump_info['raw_extent_name']
 
     if ext_type != "all" and ext_type != extent_name:
-        print(f"Skipping extent type '{extent_name}' as it does not match the specified type '{ext_type}'.")
+        print_debug(f"Skipping extent type '{extent_name}' as it does not match the specified type '{ext_type}'.")
         return
             
     timestamp_formatted = dump_info['timestamp'].replace(':', '-')
@@ -128,14 +132,16 @@ def parse_log_for_byte_dumps(args):
     Args:
         args (argparse.Namespace): Command-line arguments.
                                    Expected attributes: log_file, output_dir,
-                                   resolved_decoder_path, stream, mongo_log, ext.
+                                   resolved_decoder_path, stream, mongo_log, ext,
+                                   filename.
     """
     log_filepath = args.log_file
     output_dir = args.output_dir
     decoder_script_path = args.resolved_decoder_path
     stream_mode = args.stream
     is_mongo_log = args.mongo_log
-    ext_type = args.ext # Available for use if filtering logic is added based on extent type
+    ext_type = args.ext
+    filename_filter = args.filename # Retrieve filename filter
 
     # Regex to identify the "header" line of a standard byte dump
     # Captures: 1=timestamp, 2=file_name, 3=raw_extent_name, 4=size
@@ -287,7 +293,7 @@ def parse_log_for_byte_dumps(args):
                 
                 if active_header_match:
                     if current_dump_info and collected_bytes:
-                        process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
+                        process_and_decode_dump(current_dump_info, collected_bytes, ext_type, filename_filter, decoder_script_path, output_dir)
                     
                     if is_mongo_log:
                         if timestamp_for_mongo_header is None:
@@ -337,7 +343,7 @@ def parse_log_for_byte_dumps(args):
                         else:
                             print_debug(f"DEBUG: Mismatched block_id. Expected {current_dump_info.get('expected_block_id')}, got {block_id}. Processing previous dump.")
                             if collected_bytes:
-                                process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
+                                process_and_decode_dump(current_dump_info, collected_bytes, ext_type, filename_filter, decoder_script_path, output_dir)
                             current_dump_info = None 
                             collected_bytes = []
                 
@@ -349,14 +355,14 @@ def parse_log_for_byte_dumps(args):
                     # - The current line (either extracted_msg for mongo, or original line for non-mongo) was processed but was not a header or data.
                     # - This implies an interruption or an unrelated log line that should finalize the pending dump.
                     print_debug(f"DEBUG: Non-dump line encountered after processing. Processing previous dump for ts {current_dump_info.get('timestamp') if isinstance(current_dump_info, dict) else 'N/A'}.")
-                    process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
+                    process_and_decode_dump(current_dump_info, collected_bytes, ext_type, filename_filter, decoder_script_path, output_dir)
                     current_dump_info = None
                     collected_bytes = []
             
             # Process any remaining dump after the loop (e.g., end of file in non-stream mode)
             if current_dump_info and collected_bytes:
                 print_debug(f"DEBUG: End of file or stream. Processing final dump for ts {current_dump_info.get('timestamp')}.")
-                process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
+                process_and_decode_dump(current_dump_info, collected_bytes, ext_type, filename_filter, decoder_script_path, output_dir)
 
     except FileNotFoundError:
         print(f"Error: Log file '{processed_log_filepath}' not found.")
@@ -364,7 +370,7 @@ def parse_log_for_byte_dumps(args):
         print("\nMonitoring stopped by user.")
         if current_dump_info and collected_bytes and isinstance(current_dump_info, dict):
             print_debug(f"DEBUG: Interrupted. Processing final dump for ts {current_dump_info.get('timestamp', 'N/A')}.")
-            process_and_decode_dump(current_dump_info, collected_bytes, ext_type, decoder_script_path, output_dir)
+            process_and_decode_dump(current_dump_info, collected_bytes, ext_type, filename_filter, decoder_script_path, output_dir)
     except IOError as ioe:
         print(f"An I/O error occurred: {ioe}")
     except RuntimeError as e:  # More specific for runtime issues in main loop
@@ -380,6 +386,7 @@ if __name__ == "__main__":
     parser.add_argument("--decoder_script", default="wt_binary_decode.py", help="Path to the wt_binary_decode.py script (default: wt_binary_decode.py). Assumes it's in PATH, same dir, or an absolute path is given.")
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug printing.")
     parser.add_argument("-e", "--ext", choices=["all", "avail", "alloc"], default="all", help="Specify the type of extents to process: 'all', 'avail', or 'alloc' (default: all).")
+    parser.add_argument("-f", "--filename", default=None, help="Filter dumps by a specific filename (e.g., 'WiredTiger', 'collection-0-123'). Do not include .wt extension.")
     parser.add_argument("--mongo_log", action="store_true", help="Indicate that the input log file is in mongo log (JSON) format.") 
     parser.add_argument("-o", "--output_dir", default="decoded_dumps", help="Directory to save DECODED byte dumps (default: decoded_dumps)")
     parser.add_argument("--stream", action="store_true", help="Continuously monitor the log file for new entries. If not set, reads the entire file once.")
