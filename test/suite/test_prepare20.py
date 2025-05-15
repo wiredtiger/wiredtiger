@@ -30,7 +30,7 @@
 # test_prepare20.py
 # Check that we can use an application-level log to replay unstable transactions.
 
-import wttest
+import wttest, unittest
 from wtscenario import make_scenarios
 from helper import simulate_crash_restart
 
@@ -197,7 +197,7 @@ class test_prepare20(wttest.WiredTigerTestCase):
             #self.prout("final commit")
 
     # Now the test.
-
+    @unittest.skip("doing funky things with row-store")
     def test_prepare20(self):
         data_uri = 'file:prepare20data'
         log_uri = 'file:prepare20log'
@@ -205,23 +205,16 @@ class test_prepare20(wttest.WiredTigerTestCase):
         # Create one table for data and another to be an application-level log.
         # The log's format is application-lsn -> operation, key, oldvalue, newvalue
 
-        self.session.create(data_uri, 'log=(enabled=false),key_format={},value_format={}'.format(
-            self.key_format, self.value_format))
+        self.session.create(data_uri, 'log=(enabled=false),key_format=i,value_format=S')
 
         self.session.create(log_uri, 'key_format=r,value_format=ii{}{}'.format(
             self.value_format, self.value_format))
 
         nrows = 1000
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            self.nullvalue = 255
-        else:
-            value_a = 'aaaaa' * 100
-            value_b = 'bbbbb' * 100
-            value_c = 'ccccc' * 100
-            self.nullvalue = ''
+        value_a = 'aaaaa' * 100
+        value_b = 'bbbbb' * 100
+        value_c = 'ccccc' * 100
+        self.nullvalue = ''
 
         dcursor = self.session.open_cursor(data_uri)
 

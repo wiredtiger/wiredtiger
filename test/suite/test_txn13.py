@@ -43,11 +43,6 @@ class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
     # a transaction is blocking or not.
     nops = 8
 
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
-    ]
-
     # The 1gb, 2gb and 4gb scenario names refer to the valuesize * nops.
     size_values = [
         ('1gb', dict(expect_err=False, valuesize=134217728)),
@@ -64,7 +59,7 @@ class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
 
     @wttest.longtest('txn tests with huge values')
     def test_large_values(self):
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        create_params = 'key_format=i,value_format=S'
 
         # print "Creating %s with config '%s'" % (self.uri, create_params)
         # print "Running with %d" % (self.valuesize)

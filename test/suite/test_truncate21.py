@@ -29,7 +29,6 @@
 import wiredtiger, wttest
 import os
 from helper import copy_wiredtiger_home
-from wtscenario import make_scenarios
 from wiredtiger import WT_NOTFOUND
 
 # test_truncate21.py
@@ -41,7 +40,6 @@ class test_truncate21(wttest.WiredTigerTestCase):
 
     uri_fix = 'table:trunc_fix'
     uri_row = 'table:trunc_row'
-    create_fix = 'key_format=r,value_format=8t'
     create_row = 'key_format=i,value_format=S'
 
     start_key = nentries // 4
@@ -53,37 +51,23 @@ class test_truncate21(wttest.WiredTigerTestCase):
         # In a transaction, truncate the same range from all three tables.
         # Then truncate the same range again, also inserting one key into the range for
         # the row-store table. Delete a range from the middle of the table.
-        cfix_start = self.session.open_cursor(self.uri_fix)
         crow_start = self.session.open_cursor(self.uri_row)
-        cfix_end = self.session.open_cursor(self.uri_fix)
         crow_end = self.session.open_cursor(self.uri_row)
-        cfix_start.set_key(self.start_key)
         crow_start.set_key(self.start_key)
-        cfix_end.set_key(self.end_key)
         crow_end.set_key(self.end_key)
         # Do the truncate on teach table.
-        self.session.truncate(None, cfix_start, cfix_end, None)
         self.session.truncate(None, crow_start, crow_end, None)
-        cfix_start.close()
         crow_start.close()
-        cfix_end.close()
         crow_end.close()
 
     def test_truncate21(self):
 
-        # Create one table of each type: FLCS, row-store and VLCS.
-        # Put the same data into each (per allowed by type).
-        self.session.create(self.uri_fix, self.create_fix)
         self.session.create(self.uri_row, self.create_row)
-
-        cfix = self.session.open_cursor(self.uri_fix)
         crow = self.session.open_cursor(self.uri_row)
         for i in range(1, self.nentries):
             self.session.begin_transaction()
-            cfix[i] = 97
             crow[i] = 'rowval'
             self.session.commit_transaction()
-        cfix.close()
         crow.close()
         self.session.checkpoint()
 
@@ -105,16 +89,13 @@ class test_truncate21(wttest.WiredTigerTestCase):
         self.trunc_range()
         # Commit the insert.
         # With overlapping transactions, insert into the key range for FLCS and row.
-        cfix = session2.open_cursor(self.uri_fix)
         crow = session2.open_cursor(self.uri_row)
-        cfix[self.insert_key] = 98
         crow[self.insert_key] = 'newval'
 
         session2.commit_transaction()
         # Commit the truncate.
         self.session.commit_transaction()
 
-        cfix.close()
         crow.close()
         session2.close()
 
@@ -128,19 +109,12 @@ class test_truncate21(wttest.WiredTigerTestCase):
 
         new_conn = self.wiredtiger_open(self.dir, self.conn_config)
         new_sess = self.setUpSessionOpen(new_conn)
-        cfix = new_sess.open_cursor(self.uri_fix)
         crow = new_sess.open_cursor(self.uri_row)
-        cfix.set_key(self.insert_key)
         crow.set_key(self.insert_key)
-        ret_fix = cfix.search()
         ret_row = crow.search()
         # The key should not exist in both. In FLCS the record number always exists but the value
         # should be zero.
-        val_fix = cfix.get_value()
         self.pr('ret_row ' + str(ret_row))
-        self.pr('val_fix ' + str(val_fix))
         self.assertEqual(ret_row, wiredtiger.WT_NOTFOUND)
-        self.assertEqual(val_fix, 0)
-        cfix.close()
         crow.close()
         new_conn.close()

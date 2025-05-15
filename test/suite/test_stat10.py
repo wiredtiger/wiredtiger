@@ -37,24 +37,11 @@ from wiredtiger import stat
 # For rows:
 #    btree_row_empty_values
 #    btree_overflow
-# For VLCS:
-#    btree_column_deleted
-#    btree_column_rle
-#    btree_overflow
-# For FLCS:
-#    btree_column_tws
-#
 # The other types' stats should remain zero.
 
 class test_stat10(wttest.WiredTigerTestCase):
     uri = 'table:test_stat10'
     conn_config = 'statistics=(all)'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='u')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_string', dict(key_format='S', value_format='u')),
-    ]
 
     oldest_values = [
         ('15', dict(oldest=15)),
@@ -71,12 +58,10 @@ class test_stat10(wttest.WiredTigerTestCase):
     def keep(name, d):
         return d['oldest'] <= d['stable']
 
-    scenarios = make_scenarios(format_values, oldest_values, stable_values, include=keep)
+    scenarios = make_scenarios(oldest_values, stable_values, include=keep)
 
     # Get a key.
     def make_key(self, i):
-        if self.key_format == 'r':
-            return i
         key = 'k' + str(i)
         # Make a few keys overflow keys.
         if i % 47 == 0:
@@ -85,14 +70,10 @@ class test_stat10(wttest.WiredTigerTestCase):
 
     # Make an invariant value.
     def make_base_value(self):
-        if self.value_format == '8t':
-            return 170
         return 'abcde' * 100
 
     # Make a varying value.
     def make_compound_value(self, i):
-        if self.value_format == '8t':
-            return i
         val = str(i) + 'abcde'
         if i % 61 == 0:
             # Make an overflow value.
@@ -112,7 +93,7 @@ class test_stat10(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_tree_stats(self):
-        format = "key_format={},value_format={}".format(self.key_format, self.value_format)
+        format = "key_format=S,value_format=u"
         self.session.create(self.uri, format)
 
         nrows = 50
@@ -175,56 +156,25 @@ class test_stat10(wttest.WiredTigerTestCase):
 
         # entries: always 100 for FLCS; for RS and VLCS, when oldest passes 30 the two
         # deleted values show up in the count.
-        if self.value_format == '8t':
-            self.assertEqual(entries, nrows * 2)
+        if self.oldest > 30:
+            self.assertEqual(entries, nrows * 2 - 2)
         else:
-            if self.oldest > 30:
-                self.assertEqual(entries, nrows * 2 - 2)
-            else:
-                self.assertEqual(entries, nrows * 2)
+            self.assertEqual(entries, nrows * 2)
 
         # row_empty_values: 1 for RS, otherwise 0; only appears when oldest passes 20
-        if self.key_format == 'S':
-            if self.oldest > 20:
-                self.assertEqual(row_empty_values, 1)
-            else:
-                self.assertEqual(row_empty_values, 0)
+        if self.oldest > 20:
+            self.assertEqual(row_empty_values, 1)
         else:
             self.assertEqual(row_empty_values, 0)
 
         # column_deleted: for VLCS only; only appears when oldest passes 30.
-        if self.key_format == 'r' and self.value_format != '8t':
-            if self.oldest > 30:
-                self.assertEqual(column_deleted, 2)
-            else:
-                self.assertEqual(column_deleted, 0)
-        else:
-            self.assertEqual(column_deleted, 0)
+        self.assertEqual(column_deleted, 0)
 
         # column_rle: for VLCS only.
-        if self.key_format == 'r' and self.value_format != '8t':
-            # We deleted a key, so two RLE cells adding to nrows - 1 total.
-            self.assertEqual(column_rle, nrows - 3)
-        else:
-            self.assertEqual(column_rle, 0)
+        self.assertEqual(column_rle, 0)
 
         # column_tws: for FLCS only.
-        if self.key_format == 'r' and self.value_format == '8t':
-            if self.oldest > 30:
-                # Everything should be stable.
-                self.assertEqual(column_tws, 0)
-            elif self.oldest > 20:
-                # Only the deletions show.
-                self.assertEqual(column_tws, 2)
-            else:
-                self.assertEqual(column_tws, nrows * 2)
-        else:
-            self.assertEqual(column_tws, 0)
+        self.assertEqual(column_tws, 0)
 
         # overflow: two keys and one value, so 3 for rows, 1 for VLCS, 0 for FLCS.
-        if self.key_format == 'S':
-            self.assertEqual(overflow, 3)
-        elif self.value_format == '8t':
-            self.assertEqual(overflow, 0)
-        else:
-            self.assertEqual(overflow, 1)
+        self.assertEqual(overflow, 3)

@@ -44,26 +44,18 @@ class test_timestamp26_wtu_never(wttest.WiredTigerTestCase):
         ('yes', dict(with_ts=True)),
         ('no', dict(with_ts=False)),
     ]
-    types = [
-        ('fix', dict(key_format='r', value_format='8t')),
-        ('row', dict(key_format='S', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-    ]
-    scenarios = make_scenarios(types, commit_ts, with_ts)
+    scenarios = make_scenarios(commit_ts, with_ts)
 
     def test_wtu_never(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10)
 
         # Open the object, configuring write_timestamp usage.
         uri = 'table:ts'
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=never')
+        self.session.create(uri, 'key_format=S,value_format=S,write_timestamp_usage=never')
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -92,26 +84,19 @@ class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
         ('never', dict(read_ts='never')),
         ('none', dict(read_ts='none')),
     ]
-    types = [
-        ('fix', dict(key_format='r', value_format='8t')),
-        ('row', dict(key_format='S', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-    ]
-    scenarios = make_scenarios(types, read_ts)
+    scenarios = make_scenarios(read_ts)
 
     def test_read_timestamp(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10)
 
         # Open the object, configuring read timestamp usage.
         uri = 'table:ts'
         self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',assert=(read_timestamp=' + self.read_ts + ')')
+            'key_format=S,value_format=S,assert=(read_timestamp=' + self.read_ts + ')')
 
         c = self.session.open_cursor(uri)
         key = ds.key(10)
@@ -150,29 +135,19 @@ class test_timestamp26_read_timestamp(wttest.WiredTigerTestCase):
 
 # Test alter of timestamp settings.
 class test_timestamp26_alter(wttest.WiredTigerTestCase):
-    types = [
-        ('fix', dict(key_format='r', value_format='8t')),
-        ('row', dict(key_format='S', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-    ]
-    scenarios = make_scenarios(types)
-
     def test_alter(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10)
 
         # Open the object, configuring "never" timestamp usage.
         # Check it.
         # Switch the object to "ordered" usage.
         # Check it.
         uri = 'table:ts'
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=never')
+        self.session.create(uri, 'key_format=S,value_format=S,write_timestamp_usage=never')
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -197,26 +172,17 @@ class test_timestamp26_alter(wttest.WiredTigerTestCase):
 
 # Test timestamp settings with alter and inconsistent updates.
 class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
-    types = [
-        ('fix', dict(key_format='r', value_format='8t')),
-        ('row', dict(key_format='S', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-    ]
-    scenarios = make_scenarios(types)
-
     def test_alter_inconsistent_update(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10)
 
         # Create the table and create a few items with and without timestamps. Then alter the
         # setting and verify the inconsistent usage is detected.
         uri = 'table:ts'
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format))
+        self.session.create(uri,'key_format=S,value_format=S')
 
         c = self.session.open_cursor(uri)
         key = ds.key(10)
@@ -277,28 +243,19 @@ class test_timestamp26_alter_inconsistent_update(wttest.WiredTigerTestCase):
 
 # Test timestamp settings with inconsistent updates.
 class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
-    types = [
-        ('fix', dict(key_format='r', value_format='8t')),
-        ('row', dict(key_format='S', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-    ]
-    scenarios = make_scenarios(types)
 
     def test_timestamp_inconsistent_update(self):
         if wiredtiger.diagnostic_build():
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10)
 
         # Create the table with the key consistency checking turned on. That checking will verify
         # any individual key is always or never used with a timestamp. And if it is used with a
         # timestamp that the timestamps are in increasing order for that key.
         uri = 'table:ts'
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered')
+        self.session.create(uri,'key_format=S,value_format=S,write_timestamp_usage=ordered')
 
         c = self.session.open_cursor(uri)
         key = ds.key(1)
@@ -349,16 +306,13 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10)
 
         # Create the table with the key consistency checking turned on. That checking will verify
         # any individual key is always or never used with a timestamp. And if it is used with a
         # timestamp that the timestamps are in increasing order for that key.
         uri = 'table:ts'
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered')
+        self.session.create(uri, 'key_format=S,value_format=S,write_timestamp_usage=ordered')
 
         c = self.session.open_cursor(uri)
         key = ds.key(5)
@@ -378,16 +332,13 @@ class test_timestamp26_inconsistent_update(wttest.WiredTigerTestCase):
     # Smoke test setting the timestamp at various points in the transaction.
     def test_timestamp_ts_order(self):
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10)
 
         # Create the table with the key consistency checking turned on. That checking will verify
         # any individual key is always or never used with a timestamp. And if it is used with a
         # timestamp that the timestamps are in increasing order for that key.
         uri = 'table:ts'
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) +
-            ',write_timestamp_usage=ordered')
+        self.session.create(uri,'key_format=S,value_format=S,write_timestamp_usage=ordered')
 
         c = self.session.open_cursor(uri)
         key1 = ds.key(6)
@@ -469,12 +420,6 @@ class test_timestamp26_log_ts(wttest.WiredTigerTestCase):
 # Test that timestamps are ignored in in-memory configurations and that object configurations always
 # override.
 class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
-    types = [
-        ('fix', dict(key_format='r', value_format='8t')),
-        ('row', dict(key_format='S', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-    ]
-
     # The two connection configurations that default to ignoring timestamps.
     conn = [
         ('true', dict(conn_config='in_memory=true')),
@@ -492,7 +437,7 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
         ('always', dict(always=True)),
         ('never', dict(always=False)),
     ]
-    scenarios = make_scenarios(types, conn, object, always)
+    scenarios = make_scenarios(conn, object, always)
 
     # Test that timestamps are ignored in in-memory configurations and that object configurations
     # always override.
@@ -501,8 +446,7 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
             self.skipTest('requires a non-diagnostic build')
 
         # Create an object that's never written, it's just used to generate valid k/v pairs.
-        ds = SimpleDataSet(
-            self, 'file:notused', 10, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, 'file:notused', 10)
 
         # Open the object, configuring write_timestamp usage.
         uri = 'table:ts'
@@ -510,8 +454,7 @@ class test_timestamp26_in_memory_ts(wttest.WiredTigerTestCase):
         config += ',write_timestamp_usage='
         config += 'ordered' if self.always else 'never'
         self.session.breakpoint()
-        self.session.create(uri,
-            'key_format={},value_format={}'.format(self.key_format, self.value_format) + config)
+        self.session.create(uri,'key_format=,value_format=S' + config)
 
         c = self.session.open_cursor(uri)
 

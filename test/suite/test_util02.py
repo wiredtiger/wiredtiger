@@ -46,8 +46,6 @@ class test_util02(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios([
         ('SS', dict(key_format='S',value_format='S')),
-        ('rS', dict(key_format='r',value_format='S')),
-        ('ri', dict(key_format='r',value_format='i')),
         ('ii', dict(key_format='i',value_format='i')),
     ])
 

@@ -39,20 +39,11 @@ from wtthread import checkpoint_thread
 # the database which will trigger eviction to insert the same record from data store to history store.
 class test_rollback_to_stable39(test_rollback_to_stable_base):
     restart_config = False
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', prepare_extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            prepare_extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('row_integer', dict(key_format='i', value_format='S', prepare_extraconfig='')),
-    ]
-
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
     ]
-
-    scenarios = make_scenarios(format_values, prepare_values)
+    scenarios = make_scenarios(prepare_values)
 
     def conn_config(self):
         config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=(rts:5)'
@@ -67,18 +58,12 @@ class test_rollback_to_stable39(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:rollback_to_stable39"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

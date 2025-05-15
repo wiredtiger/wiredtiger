@@ -32,38 +32,19 @@
 
 from suite_subprocess import suite_subprocess
 import wttest
-from wtscenario import make_scenarios
 
 class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
-
-    format_values = [
-        ('string-row', dict(key_format='S', value_format='S')),
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def test_timestamp_range(self):
         base = 'timestamp11'
         uri = 'file:' + base
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=S,value_format=S'
         self.session.create(uri, format)
 
-        if self.key_format == 'r':
-            key = 1
-            key2 = 2
-        else:
-            key = 'key'
-            key2 = 'key2'
-
-        if self.value_format == '8t':
-            value2 = 200
-            value5 = 50
-            valueNOTS = 111
-        else:
-            value2 = 'value2'
-            value5 = 'value5'
-            valueNOTS = 'valueNOTS'
+        key = 'key'
+        key2 = 'key2'
+        value2 = 'value2'
+        value5 = 'value5'
+        valueNOTS = 'valueNOTS'
 
         # Test that mixing transactions with and without timestamps behaves as expected.
 

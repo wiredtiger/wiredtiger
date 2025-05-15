@@ -51,12 +51,6 @@ class test_truncate06(wttest.WiredTigerTestCase):
         #('remove', dict(trunc_with_remove=True)),
     ]
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
     munge_values = [
         ('update', dict(munge_with_update=True)),
         ('remove', dict(munge_with_update=False)),
@@ -79,7 +73,7 @@ class test_truncate06(wttest.WiredTigerTestCase):
     ]
 
     scenarios = make_scenarios(trunc_values,
-        format_values, munge_values, eviction_values, checkpoint_values, trunctime_values)
+        munge_values, eviction_values, checkpoint_values, trunctime_values)
 
     def evict(self, uri, key, value):
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
@@ -130,18 +124,11 @@ class test_truncate06(wttest.WiredTigerTestCase):
         nrows = 10000
 
         table_uri = 'table:truncate06'
-        ds = SimpleDataSet(
-            self, table_uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, table_uri, 0, key_format='i', config=self.extraconfig)
         ds.populate()
         self.session.checkpoint()
-
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = 'a' * 500
-            value_b = 'b' * 500
+        value_a = 'a' * 500
+        value_b = 'b' * 500
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +

@@ -38,17 +38,12 @@ class test_timestamp12(wttest.WiredTigerTestCase):
     ckpt_uri = 'table:ckpt_table'
     logged_uri = 'table:logged_table'
 
-    format_values = [
-        ('integer-row', dict(key_format='i', value_format='i')),
-        ('column', dict(key_format='r', value_format='i')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-    ]
     closecfg = [
         ('dfl', dict(close_cfg='', all_expected=False)),
         ('use_stable', dict(close_cfg='use_timestamp=true', all_expected=False)),
         ('all_dirty', dict(close_cfg='use_timestamp=false', all_expected=True)),
     ]
-    scenarios = make_scenarios(format_values, closecfg)
+    scenarios = make_scenarios(closecfg)
 
     def verify_expected(self, logged_exp, ckpt_exp):
         c_logged = self.session.open_cursor(self.logged_uri)
@@ -72,7 +67,7 @@ class test_timestamp12(wttest.WiredTigerTestCase):
         # turned off), and an oplog-like table that is commit-level durability. Add data to each
         # of them separately and checkpoint so each one has a different stable timestamp.
         #
-        basecfg = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        basecfg = 'key_format=i,value_format=i'
         self.session.create(self.logged_uri, basecfg)
         self.session.create(self.ckpt_uri, basecfg + ',log=(enabled=false)')
         c_logged = self.session.open_cursor(self.logged_uri)

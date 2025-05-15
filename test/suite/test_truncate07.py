@@ -46,13 +46,6 @@ class test_truncate07(wttest.WiredTigerTestCase):
         ('truncate', dict(trunc_with_remove=False)),
         #('remove', dict(trunc_with_remove=True)),
     ]
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
     munge_values = [
         ('update', dict(munge_with_update=True)),
         ('remove', dict(munge_with_update=False)),
@@ -69,13 +62,10 @@ class test_truncate07(wttest.WiredTigerTestCase):
         ('no-checkpoint', dict(do_checkpoint=False)),
     ]
 
-    scenarios = make_scenarios(trunc_values,
-        format_values, munge_values, eviction_values, checkpoint_values)
+    scenarios = make_scenarios(trunc_values, munge_values, eviction_values, checkpoint_values)
 
     # Make all the values different so it's easier to see what happens if ranges go missing.
     def mkdata(self, basevalue, i):
-        if self.value_format == '8t':
-            return basevalue
         return basevalue + str(i)
 
     def evict(self, uri, key, value):
@@ -126,17 +116,11 @@ class test_truncate07(wttest.WiredTigerTestCase):
         nrows = 10000
 
         uri = "table:truncate07"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +

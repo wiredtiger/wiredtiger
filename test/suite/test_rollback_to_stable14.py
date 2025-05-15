@@ -42,22 +42,14 @@ def append_val(value, char):
 
 # test_rollback_to_stable14.py
 # Test the rollback to stable operation uses proper base update while restoring modifies from
-# history store. Since FLCS inherently doesn't support modify, there's no need to run this on
-# FLCS. (Note that self.value_format needs to exist anyway for the base class to use.)
+# history store.
 class test_rollback_to_stable14(test_rollback_to_stable_base):
-
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('row_integer', dict(key_format='i')),
-    ]
-    value_format='S'
-
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(key_format_values, prepare_values)
+    scenarios = make_scenarios(prepare_values)
 
     def conn_config(self):
         config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[history_store_checkpoint_delay],verbose=(rts:5)'
@@ -69,7 +61,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         # Create a table.
         self.pr("create/populate table")
         uri = "table:rollback_to_stable14"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
@@ -181,7 +173,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         # Create a table.
         self.pr("create/populate table")
         uri = "table:rollback_to_stable14"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
@@ -291,7 +283,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         # Create a table.
         self.pr("create/populate table")
         uri = "table:rollback_to_stable14"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.

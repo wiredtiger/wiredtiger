@@ -35,13 +35,6 @@ from wtscenario import make_scenarios
 # test_rollback_to_stable17.py
 # Test that rollback to stable handles updates present on history store and data store.
 class test_rollback_to_stable17(wttest.WiredTigerTestCase):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
         ('inmem', dict(in_memory=True))
@@ -53,7 +46,7 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, in_memory_values, worker_thread_values)
+    scenarios = make_scenarios(in_memory_values, worker_thread_values)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -94,13 +87,10 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         nrows = 200
         start_row = 1
         ts = [2,5,7,9]
-        if self.value_format == '8t':
-            values = [97, 98, 99, 100]
-        else:
-            values = ["aaaa", "bbbb", "cccc", "dddd"]
+        values = ["aaaa", "bbbb", "cccc", "dddd"]
 
         # Create a table.
-        config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        config = 'key_format=i,value_format=S'
         config += ',log=(enabled=false)' if self.in_memory else ''
         self.session.create(uri, config)
 

@@ -53,7 +53,6 @@ class test_truncate_fast_delete(wttest.WiredTigerTestCase):
     # files and ignore tables.
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
         ]
 

@@ -32,22 +32,13 @@
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_prepare06'
     uri = 'table:' + tablename
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='i')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='i')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def test_timestamp_api(self):
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=i,value_format=i'
         self.session.create(self.uri, format)
         c = self.session.open_cursor(self.uri)
 

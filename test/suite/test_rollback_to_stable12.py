@@ -42,18 +42,12 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
     # being correct, which _is_ dependent on access method, so running all three versions is
     # probably still worthwhile. However, if cutting back on test time becomes desirable it
     # is probably reasonable to run only one of these unless -l is given.
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(format_values, prepare_values)
+    scenarios = make_scenarios(prepare_values)
 
     def conn_config(self):
         config = 'cache_size=500MB,statistics=(all),verbose=(rts:5)'
@@ -64,16 +58,11 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:rollback_to_stable12"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='split_pct=50')
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config='split_pct=50')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

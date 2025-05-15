@@ -39,19 +39,13 @@ class test_prepare_hs02(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_prepare_cursor'
     uri = 'table:' + tablename
 
-    types = [
-        ('col', dict(s_config='key_format=r,value_format=i')),
-        ('col-fix', dict(s_config='key_format=r,value_format=8t')),
-        ('row', dict(s_config='key_format=i,value_format=i')),
-    ]
-
     # Transaction end types
     txn_end = [
         ('txn_commit', dict(txn_commit=True)),
         ('txn_rollback', dict(txn_commit=False)),
     ]
 
-    scenarios = make_scenarios(types, txn_end)
+    scenarios = make_scenarios(txn_end)
 
     def test_prepare_conflict(self):
         self.session.create(self.uri, self.s_config)

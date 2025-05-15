@@ -46,12 +46,6 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
     prepare_ts = timestamp_str(200)
     after_ts = timestamp_str(250)
 
-    types = [
-        ('col', dict(extra_config=',key_format=r')),
-        ('col-fix', dict(extra_config=',key_format=r,value_format=8t')),
-        ('row', dict(extra_config='')),
-    ]
-
     # Various begin_transaction config
     txncfg = [
         ('before_ts', dict(txn_config='read_timestamp=' + before_ts, after_ts=False)),
@@ -64,11 +58,11 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         ('ignore_true', dict(ignore_config=',ignore_prepare=true', ignore=True)),
     ]
 
-    scenarios = make_scenarios(types, txncfg, preparecfg)
+    scenarios = make_scenarios(txncfg, preparecfg)
 
     def test_prepare_conflict(self):
         self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
+            'key_format=i,value_format=i')
         c = self.session.open_cursor(self.uri)
 
         # Insert keys 1..100 each with timestamp=key, in some order

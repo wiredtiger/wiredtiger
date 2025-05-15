@@ -36,10 +36,7 @@ from wtscenario import make_scenarios
 class test_rollback_to_stable30(wttest.WiredTigerTestCase):
 
     format_values = [
-        ('table-f', dict(keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
-        ('table-r', dict(keyfmt='r', valfmt='S', dataset=SimpleDataSet)),
         ('table-S', dict(keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
-        ('table-r-complex', dict(keyfmt='r', valfmt=None, dataset=ComplexDataSet)),
         ('table-S-complex', dict(keyfmt='S', valfmt=None, dataset=ComplexDataSet)),
     ]
 

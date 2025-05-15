@@ -39,7 +39,6 @@ class test_truncate20(test_cc_base):
     conn_config = 'statistics=(all),log=(enabled=true)'
 
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
         ('row_integer', dict(key_format='i', value_format='S')),
         ('row_string', dict(key_format='S', value_format='S')),
     ]

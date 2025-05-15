@@ -51,13 +51,7 @@ class test_truncate12(wttest.WiredTigerTestCase):
         ('truncate', dict(trunc_with_remove=False)),
         #('remove', dict(trunc_with_remove=True)),
     ]
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
-    scenarios = make_scenarios(trunc_values, format_values)
+    scenarios = make_scenarios(trunc_values)
 
     def truncate(self, uri, make_key, keynum1, keynum2):
         if self.trunc_with_remove:
@@ -98,12 +92,7 @@ class test_truncate12(wttest.WiredTigerTestCase):
         def expectNone(lo, hi):
             for i in range(lo, hi):
                 cursor.set_key(ds.key(i))
-                if self.value_format == '8t' and i <= nrows:
-                    # In FLCS, deleted values read back as zero. Except past end-of-table.
-                    self.assertEqual(cursor.search(), 0)
-                    self.assertEqual(cursor.get_value(), 0)
-                else:
-                    self.assertEqual(cursor.search(), WT_NOTFOUND)
+                self.assertEqual(cursor.search(), WT_NOTFOUND)
 
         # Expect 1..keep+1 to have values, and the rest not.
         expect(1, keep + 1)
@@ -116,23 +105,14 @@ class test_truncate12(wttest.WiredTigerTestCase):
         # Create two tables.
         uri1 = "table:truncate12a"
         uri2 = "table:truncate12b"
-        ds1 = SimpleDataSet(
-            self, uri1, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
-        ds2 = SimpleDataSet(
-            self, uri2, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds1 = SimpleDataSet(self, uri1, 0, key_format='i')
+        ds2 = SimpleDataSet(self, uri2, 0, key_format='i')
         ds1.populate()
         ds2.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_small = 42
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_small = "***"
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_small = "***"
 
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -178,7 +158,7 @@ class test_truncate12(wttest.WiredTigerTestCase):
             # There's no way the test can guess whether fast delete is possible when
             # flush_tier calls are "randomly" inserted.
             pass
-        elif self.value_format == '8t' or self.trunc_with_remove:
+        elif self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)

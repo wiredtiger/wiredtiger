@@ -31,33 +31,18 @@
 # [END_TAGS]
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 # test_prepare09.py
 # Validate scenarios involving inserting tombstones when rolling back prepares
 class test_prepare09(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB'
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def test_prepared_update_is_aborted_correctly_with_on_disk_value(self):
         uri = "table:test_prepare09"
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
-
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-            value3 = 99
-        else:
-            value1 = 'a' * 10000
-            value2 = 'b' * 10000
-            value3 = 'c' * 10000
+        create_params = 'key_format=i,value_format=S'
+        value1 = 'a' * 10000
+        value2 = 'b' * 10000
+        value3 = 'c' * 10000
 
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
         ',stable_timestamp=' + self.timestamp_str(1))
@@ -96,18 +81,11 @@ class test_prepare09(wttest.WiredTigerTestCase):
 
     def test_prepared_update_is_aborted_correctly(self):
         uri = "table:test_prepare09"
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
-
-        if self.value_format == '8t':
-            value1 = 97
-            value2 = 98
-            value3 = 99
-            value4 = 100
-        else:
-            value1 = 'a' * 10000
-            value2 = 'b' * 10000
-            value3 = 'e' * 10000
-            value4 = 'd' * 10000
+        create_params = 'key_format=i,value_format=S'
+        value1 = 'a' * 10000
+        value2 = 'b' * 10000
+        value3 = 'e' * 10000
+        value4 = 'd' * 10000
 
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
         ',stable_timestamp=' + self.timestamp_str(1))
@@ -133,11 +111,5 @@ class test_prepare09(wttest.WiredTigerTestCase):
         self.assertEqual(self.session.rollback_transaction(), 0)
 
         # Search for key one, we should get not found.
-        # (Except for FLCS, where for now at least the table extends itself under uncommitted
-        # updates, so we expect to see 0.)
         cursor.set_key(1)
-        if self.value_format == '8t':
-            self.assertEqual(cursor.search(), 0)
-            self.assertEqual(cursor.get_value(), 0)
-        else:
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)

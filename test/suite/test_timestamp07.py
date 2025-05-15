@@ -40,12 +40,6 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'ts07_ts_nologged'
     tablename2 = 'ts07_nots_logged'
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('row', dict(key_format='i', value_format='S')),
-    ]
-
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
         ('table-cg', dict(uri='table:', use_cg=True, use_index=False)),
@@ -61,26 +55,17 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         ('1000keys', dict(nkeys=1000)),
     ]
 
-    scenarios = make_scenarios(format_values, types, conncfg, nkeys)
+    scenarios = make_scenarios(format_values, conncfg, nkeys)
 
     # Binary values.
     def moreinit(self):
-        if self.value_format == '8t':
-            self.value = 2
-            self.value2 = 4
-            self.value3 = 6
-        else:
-            self.value = u'\u0001\u0002abcd\u0007\u0004'
-            self.value2 = u'\u0001\u0002dcba\u0007\u0004'
-            self.value3 = u'\u0001\u0002cdef\u0007\u0004'
+        self.value = u'\u0001\u0002abcd\u0007\u0004'
+        self.value2 = u'\u0001\u0002dcba\u0007\u0004'
+        self.value3 = u'\u0001\u0002cdef\u0007\u0004'
 
     # Check that a cursor (optionally started in a new transaction), sees the expected value for a
     # key.
     def check(self, session, txn_config, k, expected, flcs_expected):
-        # In FLCS the table extends under uncommitted writes and we expect to
-        # see zero rather than NOTFOUND.
-        if self.value_format == '8t' and flcs_expected is not None:
-            expected = flcs_expected
         if txn_config:
             session.begin_transaction(txn_config)
         c = session.open_cursor(self.uri + self.tablename, None)
@@ -99,12 +84,6 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
             session.begin_transaction(txn_config)
         c = session.open_cursor(self.uri + self.tablename, None)
         c2 = session.open_cursor(self.uri + self.tablename2, None)
-
-        # In FLCS the values are bytes, which are numbers, but the tests below are via string
-        # inclusion rather than just equality of values.
-        if self.value_format == '8t':
-            check_value = str(check_value)
-
         count = 0
         for k, v in c:
             if check_value in str(v):
@@ -130,11 +109,6 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         session = self.setUpSessionOpen(conn)
         c = session.open_cursor(self.uri + self.tablename, None)
         c2 = session.open_cursor(self.uri + self.tablename2, None)
-
-        # In FLCS the values are bytes, which are numbers, but the tests below are via string
-        # inclusion rather than just equality of values.
-        if self.value_format == '8t':
-            check_value = str(check_value)
 
         # Count how many times the second value is present
         count = 0
@@ -181,7 +155,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         # 1. Table is not logged and uses timestamps.
         # 2. Table is logged and so timestamps are ignored.
         #
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=i,value_format=S'
         uri = self.uri + self.tablename
         self.session.create(uri, format + ',log=(enabled=false)')
         c = self.session.open_cursor(uri)

@@ -38,10 +38,6 @@ from wtscenario import make_scenarios
 class test_txn01(wttest.WiredTigerTestCase):
     nentries = 1000
     scenarios = make_scenarios([
-        ('col-f', dict(uri='file:text_txn01',key_format='r',value_format='S')),
-        ('col-t', dict(uri='table:text_txn01',key_format='r',value_format='S')),
-        ('fix-f', dict(uri='file:text_txn01',key_format='r',value_format='8t')),
-        ('fix-t', dict(uri='table:text_txn01',key_format='r',value_format='8t')),
         ('row-f', dict(uri='file:text_txn01',key_format='S',value_format='S')),
         ('row-t', dict(uri='table:text_txn01',key_format='S',value_format='S')),
     ])

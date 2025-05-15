@@ -34,7 +34,6 @@ import time
 from suite_subprocess import suite_subprocess
 import wiredtiger
 from wiredtiger import stat
-from wtscenario import make_scenarios
 import wttest
 
 class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
@@ -45,18 +44,6 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'file_manager=(close_handle_minimum=10,' + \
                   'close_idle_time=0,close_scan_interval=1),' + \
                   'statistics=(fast),'
-
-    types = [
-        ('row', dict(tabletype='row',
-                    create_params = 'key_format=i,value_format=i')),
-        ('var', dict(tabletype='var',
-                    create_params = 'key_format=r,value_format=i')),
-        ('fix', dict(tabletype='fix',
-                    create_params = 'key_format=r,value_format=8t')),
-    ]
-
-    scenarios = make_scenarios(types)
-
     # Wait for the sweep server to run - let it run twice, since the statistic
     # is incremented at the start of a sweep and the test relies on sweep
     # completing it's work.
@@ -83,7 +70,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         for f in range(self.numfiles):
             uri = '%s.%d' % (self.uri, f)
             # print "Creating %s with config '%s'" % (uri, self.create_params)
-            self.session.create(uri, self.create_params)
+            self.session.create(uri, 'key_format=i,value_format=i')
             c = self.session.open_cursor(uri, None)
             for k in range(self.numkv):
                 c[k+1] = 1
@@ -108,7 +95,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         # Create a table to drop. A drop should close its associated handle
         drop_uri = '%s.%s' % (self.uri, "force_drop_test")
 
-        self.session.create(drop_uri, self.create_params)
+        self.session.create(drop_uri, 'key_format=i,value_format=i')
 
         c = self.session.open_cursor(drop_uri, None)
         for k in range(self.numkv):
@@ -142,7 +129,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
     def test_disable_idle_timeout_drop(self):
         # Create a table to drop. A drop should close its associated handles
         drop_uri = '%s.%s' % (self.uri, "drop_test")
-        self.session.create(drop_uri, self.create_params)
+        self.session.create(drop_uri, 'key_format=i,value_format=i')
 
         c = self.session.open_cursor(drop_uri, None)
         for k in range(self.numkv):

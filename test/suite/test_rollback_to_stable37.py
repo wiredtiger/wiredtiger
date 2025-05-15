@@ -37,12 +37,6 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 class test_rollback_to_stable37(test_rollback_to_stable_base):
     conn_config = 'cache_size=1GB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=false),verbose=(rts:5)'
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     dryrun_values = [
         ('no_dryrun', dict(dryrun=False)),
         ('dryrun', dict(dryrun=True))
@@ -54,25 +48,19 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, dryrun_values, worker_thread_values)
+    scenarios = make_scenarios(dryrun_values, worker_thread_values)
 
     def test_rollback_to_stable(self):
         uri = 'table:test_rollback_to_stable37'
         nrows = 1000
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-        else:
-            value_a = 'a' * 10
-            value_b = 'b' * 10
-            value_c = 'c' * 10
-            value_d = 'd' * 10
+        value_a = 'a' * 10
+        value_b = 'b' * 10
+        value_c = 'c' * 10
+        value_d = 'd' * 10
 
         # Create our table.
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.
@@ -81,10 +69,7 @@ class test_rollback_to_stable37(test_rollback_to_stable_base):
 
         # Insert 300 updates to the same key.
         for i in range (20, 320):
-            if self.value_format == '8t':
-                self.large_updates(uri, value_a, ds, nrows, False, i)
-            else:
-                self.large_updates(uri, value_a + str(i), ds, nrows, False, i)
+            self.large_updates(uri, value_a + str(i), ds, nrows, False, i)
 
         old_reader_session = self.conn.open_session()
         old_reader_session.begin_transaction('read_timestamp=' + self.timestamp_str(10))

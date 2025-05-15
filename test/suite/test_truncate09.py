@@ -32,21 +32,13 @@
 import wttest
 from helper import simulate_crash_restart
 from wtdataset import simple_key, simple_value
-from wtscenario import make_scenarios
 
 @wttest.skip_for_hook("nonstandalone", "timestamped truncate not supported for nonstandalone")
 class test_truncate09(wttest.WiredTigerTestCase):
-    # We don't test FLCS, missing records return as 0 values.
-    format_values = [
-        ('column', dict(key_format='r')),
-        ('row_integer', dict(key_format='i')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def test_truncate09(self):
         # Create a large table with lots of pages.
         uri = "table:test_truncate09"
-        format = 'key_format={},value_format=S'.format(self.key_format)
+        format = 'key_format=i,value_format=S'
         self.session.create(uri, 'allocation_size=512,leaf_page_max=512,' + format)
 
         cursor = self.session.open_cursor(uri)

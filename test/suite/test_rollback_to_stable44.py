@@ -29,21 +29,11 @@
 from rollback_to_stable_util import test_rollback_to_stable_base
 from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_rollback_to_stable44.py
 # Check that RTS backs out prepared transactions on recover if the stable timestamp is not set.
 
 class test_rollback_to_stable44(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def conn_config(self):
         return 'verbose=(rts:5)'
 
@@ -60,15 +50,10 @@ class test_rollback_to_stable44(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:rollback_to_stable44"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 10
-            value_b = "bbbbb" * 10
+        value_a = "aaaaa" * 10
+        value_b = "bbbbb" * 10
 
         # Do not set the stable and the oldest timestamps.
 

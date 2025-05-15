@@ -119,7 +119,6 @@ class test_truncate_cursor_order(wttest.WiredTigerTestCase):
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
     scenarios = make_scenarios(types, keyfmt)
@@ -151,7 +150,6 @@ class test_truncate_cursor_end(wttest.WiredTigerTestCase):
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
     scenarios = make_scenarios(types, keyfmt)
@@ -194,7 +192,6 @@ class test_truncate_empty(wttest.WiredTigerTestCase):
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
     scenarios = make_scenarios(types, keyfmt)
@@ -260,14 +257,11 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
     types = [
         ('file', dict(type='file:', valuefmt='S',
             config='allocation_size=512,leaf_page_max=512', P=0.25)),
-        ('file8t', dict(type='file:', valuefmt='8t',
-            config='allocation_size=512,leaf_page_max=512', P=0.25)),
         ('table', dict(type='table:', valuefmt='S',
             config='allocation_size=512,leaf_page_max=512', P=0.5)),
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
     reopen = [
@@ -316,11 +310,7 @@ class test_truncate_cursor(wttest.WiredTigerTestCase):
             expected[ds.key(i)] = [0]
         for k, v in expected.items():
             cursor.set_key(k)
-            if v == [0] and \
-              cursor.key_format == 'r' and cursor.value_format == '8t':
-                cursor.search()
-                self.assertEqual(cursor.get_values(), [0])
-            elif v == [0]:
+            if v == [0]:
                 self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
                 cursor.search()

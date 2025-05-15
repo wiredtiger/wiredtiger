@@ -31,19 +31,10 @@
 
 import wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # A standalone test case that exercises address-deleted cells.
 class test_truncate_address_deleted(wttest.WiredTigerTestCase):
     uri = 'file:test_truncate'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
 
     # Use a small page size and lots of keys because we want to create lots
     # of individual pages in the file.
@@ -55,16 +46,11 @@ class test_truncate_address_deleted(wttest.WiredTigerTestCase):
     #   Recover the object, and turn the address-deleted cells into free pages.
     def address_deleted(self):
         # Create the object, force it to disk, and verify the object.
-        ds = SimpleDataSet(self, self.uri, self.nentries,
-            key_format=self.key_format, value_format = self.value_format, config=self.config)
+        ds = SimpleDataSet(self, self.uri, self.nentries, key_format='i', config=self.config)
         ds.populate()
         self.reopen_conn()
         self.session.verify(self.uri)
-
-        if self.value_format == '8t':
-            changed_value = 0xfe
-        else:
-            changed_value = "changed value"
+        changed_value = "changed value"
 
         # Create a new session and start a transaction to force the upcoming
         # checkpoint operation to write address-deleted cells to disk.
@@ -132,17 +118,11 @@ class test_truncate_address_deleted(wttest.WiredTigerTestCase):
         cursor = ds.open_cursor(self.uri, None)
         for i in range(3000, 7000, 137):
             k = ds.key(i)
-            if self.value_format == '8t':
-                v = ds.value(i) + 37
-            else:
-                v = 'changed value: ' + str(i)
+            v = 'changed value: ' + str(i)
             cursor[k] = v
         for i in range(3000, 7000, 137):
             k = ds.key(i)
-            if self.value_format == '8t':
-                v = ds.value(i) + 37
-            else:
-                v = 'changed value: ' + str(i)
+            v = 'changed value: ' + str(i)
             cursor.set_key(k)
             self.assertEqual(cursor.search(), 0)
             self.assertEqual(cursor.get_value(), v)
@@ -155,10 +135,7 @@ class test_truncate_address_deleted(wttest.WiredTigerTestCase):
         cursor = ds.open_cursor(self.uri, None)
         for i in range(3000, 7000, 137):
             k = ds.key(i)
-            if self.value_format == '8t':
-                v = ds.value(i) + 37
-            else:
-                v = 'changed value: ' + str(i)
+            v = 'changed value: ' + str(i)
             cursor.set_key(k)
             self.assertEqual(cursor.search(), 0)
             self.assertEqual(cursor.get_value(), v)

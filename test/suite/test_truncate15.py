@@ -48,17 +48,7 @@ class test_truncate15(wttest.WiredTigerTestCase):
         ('truncate', dict(trunc_with_remove=False)),
         #('remove', dict(trunc_with_remove=True)),
     ]
-
-    format_values = [
-        # Do not run against FLCS until/unless it gets fast-truncate support.
-        # The issue at hand is specific to fast-truncate pages and is not relevant to slow-truncate.
-        #('column_fix', dict(key_format='r', value_format='8t',
-        #    extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
-
-    scenarios = make_scenarios(trunc_values, format_values)
+    scenarios = make_scenarios(trunc_values)
 
     def truncate(self, uri, make_key, keynum1, keynum2):
         if self.trunc_with_remove:
@@ -96,15 +86,10 @@ class test_truncate15(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
         seen = 0
-        zseen = 0
         for k, v in cursor:
-            if self.value_format == '8t' and v == 0:
-                zseen += 1
-            else:
-                self.assertEqual(v, value)
-                seen += 1
+            self.assertEqual(v, value)
+            seen += 1
         self.assertEqual(seen, nrows)
-        self.assertEqual(zseen, nzeros if self.value_format == '8t' else 0)
         self.session.rollback_transaction()
         cursor.close()
 
@@ -125,15 +110,10 @@ class test_truncate15(wttest.WiredTigerTestCase):
         nrows = 100000
 
         uri = "table:truncate15"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)' + self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config='log=(enabled=false)')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-        else:
-            value_a = "aaaaa" * 500
+        value_a = "aaaaa" * 500
 
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +

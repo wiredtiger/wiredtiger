@@ -33,19 +33,13 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 # test_rollback_to_stable41.py
 # Test that the dry-run config for RTS only applies to a single call.
 class test_rollback_to_stable41(test_rollback_to_stable_base):
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     worker_thread_values = [
         ('0', dict(threads=0)),
         ('4', dict(threads=4)),
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, worker_thread_values)
+    scenarios = make_scenarios(worker_thread_values)
 
     def conn_config(self):
         return 'verbose=(rts:5)'
@@ -53,16 +47,11 @@ class test_rollback_to_stable41(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         uri = 'table:test_rollback_to_stable41'
         nrows = 1000
-
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = 'a' * 10
-            value_b = 'b' * 10
+        value_a = 'a' * 10
+        value_b = 'b' * 10
 
         # Create our table.
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
         # Insert some data either side of the stable timestamp we set below.

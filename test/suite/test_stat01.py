@@ -45,12 +45,7 @@ class test_stat01(wttest.WiredTigerTestCase):
         ('file', dict(uri='file:test_stat01.wt')),
         ('table', dict(uri='table:test_stat01.wt'))
     ]
-    keyfmt = [
-        ('column', dict(keyfmt='r', valfmt='S')),
-        ('column-fix', dict(keyfmt='r', valfmt='8t')),
-        ('string-row', dict(keyfmt='S', valfmt='S')),
-    ]
-    scenarios = make_scenarios(types, keyfmt)
+    scenarios = make_scenarios(types)
 
     conn_config = 'statistics=(all)'
 
@@ -90,8 +85,7 @@ class test_stat01(wttest.WiredTigerTestCase):
     # Test simple connection statistics.
     def test_basic_conn_stats(self):
         # Build an object and force some writes.
-        ds = SimpleDataSet(self, self.uri, 1000,
-                      config=self.config, key_format=self.keyfmt, value_format = self.valfmt)
+        ds = SimpleDataSet(self, self.uri, 1000, config=self.config)
         ds.populate()
         self.session.checkpoint(None)
 
@@ -109,8 +103,7 @@ class test_stat01(wttest.WiredTigerTestCase):
     # Test simple object statistics.
     def test_basic_data_source_stats(self):
         # Build an object.
-        config = self.config + ',key_format=' + self.keyfmt + \
-            ',value_format=S'
+        config = self.config + ',key_format=S,value_format=S'
         self.session.create(self.uri, config)
         cursor = self.session.open_cursor(self.uri, None, None)
         value = ""
@@ -152,8 +145,7 @@ class test_stat01(wttest.WiredTigerTestCase):
     # Test simple per-checkpoint statistics.
     @wttest.skip_for_hook("timestamp", "__txn_visible_all_id assertion hit")
     def test_checkpoint_stats(self):
-        ds = SimpleDataSet(self, self.uri, self.nentries,
-            config=self.config, key_format=self.keyfmt)
+        ds = SimpleDataSet(self, self.uri, self.nentries, config=self.config)
         for name in ('first', 'second', 'third'):
             ds.populate()
             self.session.checkpoint('name=' + name)

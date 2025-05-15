@@ -28,21 +28,11 @@
 
 import wttest
 from helper import simulate_crash_restart
-from wtscenario import make_scenarios
 
 # test_prepare29.py
 # Test that updates preceding an unstable prepared tombstone are restored with the correct
 # transaction IDs.
 class test_prepare29(wttest.WiredTigerTestCase):
-
-    format_values = [
-        ('column', dict(key_format='r', key=1, value_format='S')),
-        ('column-fix', dict(key_format='r', key=1, value_format='8t')),
-        ('string-row', dict(key_format='S', key=str(1), value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def evict_cursor(self, uri, key):
         session_evict = self.conn.open_session("debug=(release_evict_page=true)")
         session_evict.begin_transaction("ignore_prepare=true")
@@ -55,13 +45,8 @@ class test_prepare29(wttest.WiredTigerTestCase):
 
     def test_prepare29(self):
         uri = 'table:test_prepare29'
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params = 'key_format=S,value_format=S'
         self.session.create(uri, create_params)
-
-        if self.value_format == '8t':
-            value1 = 97
-        else:
-            value1 = 'a' * 5
 
         # Pin oldest timestamp.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))

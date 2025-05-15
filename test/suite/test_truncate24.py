@@ -35,22 +35,17 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 class test_truncate24(wttest.WiredTigerTestCase):
-    key_format_values = [
-        ('row', dict(key_format='i', value_format='i')),
-        ('var', dict(key_format='r', value_format='i')),
-    ]
-
     set_ts = [
         ('set_ts', dict(set_ts = True)),
         ('not_set_ts', dict(set_ts = False)),
     ]
 
-    scenarios = make_scenarios(key_format_values, set_ts)
+    scenarios = make_scenarios(set_ts)
 
     @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")
     def test_truncate24(self):
         uri = 'table:truncate24'
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', value_format='i')
         ds.populate()
 
         cursor = self.session.open_cursor(uri)

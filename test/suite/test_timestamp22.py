@@ -31,7 +31,6 @@
 import wttest, re, suite_random
 from wtdataset import SimpleDataSet
 from contextlib import contextmanager
-from wtscenario import make_scenarios
 
 class test_timestamp22(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
@@ -47,13 +46,6 @@ class test_timestamp22(wttest.WiredTigerTestCase):
     last_durable = 0
     SUCCESS = 'success'
     FAILURE = 'failure'
-
-    format_values = [
-        ('integer-row', dict(key_format='i', value_format='S')),
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-    ]
-    scenarios = make_scenarios(format_values)
 
     # Control execution of an operation, looking for exceptions and error messages.
     # Usage:
@@ -99,8 +91,6 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
     # Create a predictable value based on the iteration number and timestamp.
     def gen_value(self, iternum, ts):
-        if self.value_format == '8t':
-            return (iternum * 7 + ts * 13) % 255
         return str(iternum) + '_' + str(ts) + '_' + 'x' * 1000
 
     # Given a number representing an "approximate timestamp", generate a timestamp
@@ -392,14 +382,13 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         else:
             iterations = 1000
 
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params = 'key_format=i,value_format=S'
         self.session.create(self.uri, create_params)
 
         self.set_global_timestamps(1, 1, -1)
 
         # Create tables with no entries
-        ds = SimpleDataSet(
-            self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 0, key_format='i')
 
         # We do a bunch of iterations, doing transactions, prepare, and global timestamp calls
         # with timestamps that are sometimes valid, sometimes not. We use the iteration number

@@ -35,21 +35,12 @@
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-from wtscenario import make_scenarios
-
 class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp17'
     uri = 'table:' + tablename
 
-    format_values = [
-        ('integer-row', dict(key_format='i', value_format='i')),
-        ('column', dict(key_format='r', value_format='i')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def test_inconsistent_timestamping(self):
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=i,value_format=i'
         self.session.create(self.uri, format)
         self.session.begin_transaction()
         cur1 = self.session.open_cursor(self.uri)
@@ -69,11 +60,7 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction('read_timestamp=20')
         cur1.set_key(1)
         search_success = cur1.search()
-        if self.value_format == '8t':
-            self.assertEqual(search_success, 0)
-            self.assertEqual(cur1.get_value(), 0)
-        else:
-            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
         # Add a tombstone without a timestamp
@@ -88,22 +75,14 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
             cur1.set_key(1)
             search_success = cur1.search()
-            if self.value_format == '8t':
-                self.assertEqual(search_success, 0)
-                self.assertEqual(cur1.get_value(), 0)
-            else:
-                self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
             self.session.commit_transaction()
 
         # Read at 300 for further validation.
         self.session.begin_transaction('read_timestamp=300')
         cur1.set_key(1)
         search_success = cur1.search()
-        if self.value_format == '8t':
-            self.assertEqual(search_success, 0)
-            self.assertEqual(cur1.get_value(), 0)
-        else:
-            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
         # Move oldest timestamp forward and
@@ -114,11 +93,7 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction('read_timestamp=49')
         cur1.set_key(1)
         search_success = cur1.search()
-        if self.value_format == '8t':
-            self.assertEqual(search_success, 0)
-            self.assertEqual(cur1.get_value(), 0)
-        else:
-            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
         self.conn.set_timestamp('oldest_timestamp=99')
@@ -127,11 +102,7 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction('read_timestamp=99')
         cur1.set_key(1)
         search_success = cur1.search()
-        if self.value_format == '8t':
-            self.assertEqual(search_success, 0)
-            self.assertEqual(cur1.get_value(), 0)
-        else:
-            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
         # Move oldest to the point at which we deleted.
@@ -142,22 +113,14 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction('read_timestamp=100')
         cur1.set_key(1)
         search_success = cur1.search()
-        if self.value_format == '8t':
-            self.assertEqual(search_success, 0)
-            self.assertEqual(cur1.get_value(), 0)
-        else:
-            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
         # Read at 200 and we should not find anything.
         self.session.begin_transaction('read_timestamp=200')
         cur1.set_key(1)
         search_success = cur1.search()
-        if self.value_format == '8t':
-            self.assertEqual(search_success, 0)
-            self.assertEqual(cur1.get_value(), 0)
-        else:
-            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
         # Move oldest timestamp to 200 to ensure history
@@ -167,19 +130,11 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction('read_timestamp=200')
         cur1.set_key(1)
         search_success = cur1.search()
-        if self.value_format == '8t':
-            self.assertEqual(search_success, 0)
-            self.assertEqual(cur1.get_value(), 0)
-        else:
-            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
         self.session.begin_transaction('read_timestamp=250')
         cur1.set_key(1)
         search_success = cur1.search()
-        if self.value_format == '8t':
-            self.assertEqual(search_success, 0)
-            self.assertEqual(cur1.get_value(), 0)
-        else:
-            self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
+        self.assertEqual(search_success, wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()

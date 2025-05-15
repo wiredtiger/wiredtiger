@@ -83,8 +83,6 @@ class tabconfig:
                 keys.append(str(rev))
             elif format == 'i':
                 keys.append(rev)
-            elif format == 'r':
-                keys.append(self.recno(i+1))
         return keys
 
     def gen_values(self, i):

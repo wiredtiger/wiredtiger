@@ -28,40 +28,24 @@
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
-
 # test_timestamp23.py
 #
 # delete keys repeatedly at successive timestamps
 class test_timestamp23(wttest.WiredTigerTestCase):
     conn_config = ''
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def test_timestamp(self):
 
         # Create a file that contains active history (content newer than the oldest timestamp).
         table_uri = 'table:timestamp23'
-        ds = SimpleDataSet(
-            self, table_uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, table_uri, 0, key_format='i')
         ds.populate()
         self.session.checkpoint()
 
         key = 5
-        if self.value_format == '8t':
-            value_1 = 97
-            value_2 = 98
-            value_3 = 99
-        else:
-            value_1 = 'a' * 500
-            value_2 = 'b' * 500
-            value_3 = 'c' * 500
+        value_1 = 'a' * 500
+        value_2 = 'b' * 500
+        value_3 = 'c' * 500
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +

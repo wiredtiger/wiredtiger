@@ -32,21 +32,12 @@
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-from wtscenario import make_scenarios
-
 class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp13'
     uri = 'table:' + tablename
 
-    scenarios = make_scenarios([
-        ('col', dict(extra_config=',key_format=r')),
-        ('col-fix', dict(extra_config=',key_format=r,value_format=8t')),
-        ('row', dict(extra_config='')),
-    ])
-
     def test_degenerate_timestamps(self):
-        self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
+        self.session.create(self.uri, 'key_format=i,value_format=i')
 
         query_choices = ['commit', 'first_commit', 'prepare', 'read']
         # Querying a session's timestamps when not in a transaction returns not-set values.
@@ -70,8 +61,7 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(self.session.query_timestamp('get=' + query), '0')
 
     def test_query_read_commit_timestamps(self):
-        self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
+        self.session.create(self.uri, 'key_format=i,value_format=i')
 
         self.session.begin_transaction()
         self.session.timestamp_transaction('read_timestamp=10')
@@ -96,8 +86,7 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction()
 
     def test_query_round_read_timestamp(self):
-        self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
+        self.session.create(self.uri, 'key_format=i,value_format=i')
 
         self.conn.set_timestamp('oldest_timestamp=10')
         # Rounding to the oldest timestamp will allow the stale read_timestamp
@@ -116,8 +105,7 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction()
 
     def test_query_prepare_timestamp(self):
-        self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
+        self.session.create(self.uri, 'key_format=i,value_format=i')
 
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=10')

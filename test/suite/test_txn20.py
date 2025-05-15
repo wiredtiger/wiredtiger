@@ -39,10 +39,6 @@ class test_txn20(wttest.WiredTigerTestCase):
     format_values = [
         ('string-row', dict(key_format='S', key='key', \
                             value_format='S', old_value='value:old', new_value='value:new')),
-        ('column', dict(key_format='r', key=12, \
-                            value_format='S', old_value='value:old', new_value='value:new')),
-        ('column-fix', dict(key_format='r', key=12, \
-                            value_format='8t', old_value=89, new_value=167)),
     ]
     iso_types = [
         ('isolation_read_uncommitted', dict(isolation='read-uncommitted')),

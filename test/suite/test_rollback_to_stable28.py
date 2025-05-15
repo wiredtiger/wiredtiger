@@ -29,7 +29,6 @@
 import re
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 from helper import simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
 import wttest
@@ -48,23 +47,6 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
     # This means setting eviction target low and cache size low.
     conn_recon = ',eviction_updates_trigger=10,eviction_dirty_trigger=5,eviction_dirty_target=1,' \
             'cache_size=1MB,debug_mode=(update_restore_evict=true)'
-
-    # In principle this test should be run on VLCS and FLCS; but it doesn't run reliably, in that
-    # while it always works in the sense of producing the right values, it doesn't always trigger
-    # update restore eviction, and then the assertions about that fail. For FLCS, using small
-    # pages and twice as many rows makes it work most of the time, but not always (especially on
-    # the test machines...) and it also apparently fails some of the time on VLCS. For the moment
-    # we've concluded that the marginal benefit of running on VLCS and particularly FLCS is small
-    # so disabling these scenarios seems like the best strategy.
-    format_values = [
-        #('column', dict(key_format='r', value_format='S', extraconfig='')),
-        #('column_fix', dict(key_format='r', value_format='8t',
-        #    extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def parse_write_gen(self, uri):
         meta_cursor = self.session.open_cursor('metadata:')
         config = meta_cursor[uri]
@@ -94,21 +76,13 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
         nrows = 10000
 
         # Create our table.
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
-        if self.value_format == '8t':
-            nrows *= 2
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-        else:
-            value_a = 'a' * 500
-            value_b = 'b' * 500
-            value_c = 'c' * 500
-            value_d = 'd' * 500
+        value_a = 'a' * 500
+        value_b = 'b' * 500
+        value_c = 'c' * 500
+        value_d = 'd' * 500
 
         # Perform several updates.
         self.large_updates(uri, value_a, ds, nrows, False, 20)

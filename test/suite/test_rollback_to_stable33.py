@@ -33,11 +33,6 @@ from wtscenario import make_scenarios
 
 # Smoke test RTS on in-memory databases.
 class test_rollback_to_stable33(wttest.WiredTigerTestCase):
-    format_values = [
-        ('fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-        ('var', dict(key_format='r', value_format='S')),
-    ]
     logged = [
         ('no', dict(logged=False)),
         ('yes', dict(logged=True))
@@ -47,7 +42,7 @@ class test_rollback_to_stable33(wttest.WiredTigerTestCase):
         ('4', dict(threads=4)),
         ('8', dict(threads=8))
     ]
-    scenarios = make_scenarios(format_values, logged, worker_thread_values)
+    scenarios = make_scenarios(logged, worker_thread_values)
 
     # Configure an in-memory database.
     conn_config = 'in_memory=true,verbose=(rts:5)'
@@ -63,8 +58,7 @@ class test_rollback_to_stable33(wttest.WiredTigerTestCase):
     def test_rollback_to_stable33(self):
         uri = "table:rollback_to_stable33"
         ds_config = ',log=(enabled=true)' if self.logged else ',log=(enabled=false)'
-        ds = SimpleDataSet(self, uri, 500,
-            key_format=self.key_format, value_format=self.value_format, config=ds_config)
+        ds = SimpleDataSet(self, uri, 500, key_format='i', config=ds_config)
         ds.populate()
 
         # Make changes at timestamp 30.

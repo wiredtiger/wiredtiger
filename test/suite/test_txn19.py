@@ -99,11 +99,6 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     nrecords = [('nrecords=10', dict(nrecords=10)),
                 ('nrecords=11', dict(nrecords=11))]
 
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
-    ]
-
     # This function prunes out unnecessary or problematic test cases
     # from the list of scenarios.
     def includeFunc(name, dictarg):
@@ -122,7 +117,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         return True
 
     scenarios = make_scenarios(
-        key_format_values, corruption_type, corruption_pos, nrecords,
+        corruption_type, corruption_pos, nrecords,
         include=includeFunc, prune=20, prunelong=1000)
 
     uri = 'table:test_txn19'
@@ -272,7 +267,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         # Then does a restart with recovery, then starts again with salvage,
         # and finally starts again with recovery (adding new records).
 
-        create_params = 'key_format=i,value_format=S'.format(self.key_format)
+        create_params = 'key_format=i,value_format=S'
         self.session.create(self.uri, create_params)
         self.inserts([x for x in range(0, self.nrecords)])
         newdir = "RESTART"
@@ -376,11 +371,6 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         ('WiredTiger.wt', dict(filename='WiredTiger.wt')),
         ('WiredTigerHS.wt', dict(filename='WiredTigerHS.wt')),
     ]
-    # Configure the database type.
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
-    ]
 
     # In many cases, wiredtiger_open without any salvage options will
     # just work.  We list those cases here.
@@ -428,7 +418,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         "garbage-end:WiredTiger.basecfg",
     ]
 
-    scenarios = make_scenarios(key_format_values, corruption_scenarios, filename_scenarios)
+    scenarios = make_scenarios(corruption_scenarios, filename_scenarios)
     uri = 'table:test_txn19_meta_'
     ntables = 5
     nrecords = 1000                                  # records per table.
@@ -507,7 +497,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         expect = list(range(1, self.nrecords + 1))
         salvage_config = self.base_config + ',salvage=true'
 
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        create_params = 'key_format=i,value_format=S'
         for suffix in self.suffixes:
             self.session.create(self.uri + suffix, create_params)
         self.inserts(expect)

@@ -71,15 +71,11 @@ class test_truncate18(wttest.WiredTigerTestCase):
         ('truncate', dict(trunc_with_remove=False)),
         #('remove', dict(trunc_with_remove=True)),
     ]
-    format_values = [
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-    ]
     trunc_range_values = [
         ('front', dict(truncate_front=True)),
         ('back', dict(truncate_front=False)),
     ]
-    scenarios = make_scenarios(trunc_values, format_values, trunc_range_values)
+    scenarios = make_scenarios(trunc_values, trunc_range_values)
 
     # Truncate, from keynum1 to keynum2, inclusive.
     def truncate(self, uri, make_key, keynum1, keynum2, read_ts, commit_ts):
@@ -122,17 +118,10 @@ class test_truncate18(wttest.WiredTigerTestCase):
 
         # Create a table.
         uri = "table:truncate18"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='internal_page_max=4096' + self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config='internal_page_max=4096')
         ds.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
 
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -173,7 +162,7 @@ class test_truncate18(wttest.WiredTigerTestCase):
             # There's no way the test can guess whether fast delete is possible when
             # flush_tier calls are "randomly" inserted.
             pass
-        elif self.value_format == '8t' or self.trunc_with_remove:
+        elif self.trunc_with_remove:
             self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)

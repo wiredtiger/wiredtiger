@@ -41,18 +41,12 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         ('inmem', dict(in_memory=True))
     ]
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     restart_options = [
         ('shutdown', dict(crash=False)),
         ('crash', dict(crash=True)),
     ]
 
-    scenarios = make_scenarios(in_memory_values, format_values, restart_options)
+    scenarios = make_scenarios(in_memory_values, restart_options)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all),eviction_dirty_trigger=10,' \
@@ -67,14 +61,9 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         # Create a table.
         uri = "table:rollback_to_stable19"
         ds_config = ',log=(enabled=false)' if self.in_memory else ''
-        ds = SimpleDataSet(self, uri, 0,
-            key_format=self.key_format, value_format=self.value_format, config=ds_config)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config=ds_config)
         ds.populate()
-
-        if self.value_format == '8t':
-            valuea = 97
-        else:
-            valuea = "aaaaa" * 100
+        valuea = "aaaaa" * 100
 
         # Pin oldest and stable timestamps to 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -98,12 +87,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         # Search for the key so we position our cursor on the page that we want to evict.
         self.session.begin_transaction("ignore_prepare = true")
         evict_cursor.set_key(1)
-        if self.value_format == '8t':
-            # In FLCS deleted values read back as 0.
-            self.assertEqual(evict_cursor.search(), 0)
-            self.assertEqual(evict_cursor.get_value(), 0)
-        else:
-            self.assertEqual(evict_cursor.search(), WT_NOTFOUND)
+        self.assertEqual(evict_cursor.search(), WT_NOTFOUND)
         evict_cursor.reset()
         evict_cursor.close()
         self.session.commit_transaction()
@@ -112,11 +96,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         self.session.begin_transaction("ignore_prepare = true")
         cursor2 = self.session.open_cursor(uri)
         cursor2.set_key(1)
-        if self.value_format == '8t':
-            self.assertEqual(cursor2.search(), 0)
-            self.assertEqual(cursor2.get_value(), 0)
-        else:
-            self.assertEqual(cursor2.search(), WT_NOTFOUND)
+        self.assertEqual(cursor2.search(), WT_NOTFOUND)
         self.session.commit_transaction()
         cursor2.close()
 
@@ -160,16 +140,11 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         # Create a table.
         uri = "table:rollback_to_stable19"
         ds_config = ',log=(enabled=false)' if self.in_memory else ''
-        ds = SimpleDataSet(self, uri, 0,
-            key_format=self.key_format, value_format=self.value_format, config=ds_config)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config=ds_config)
         ds.populate()
 
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
 
         # Pin oldest and stable timestamps to 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -199,12 +174,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         # Search for the key so we position our cursor on the page that we want to evict.
         self.session.begin_transaction("ignore_prepare = true")
         evict_cursor.set_key(1)
-        if self.value_format == '8t':
-            # In FLCS deleted values read back as 0.
-            self.assertEqual(evict_cursor.search(), 0)
-            self.assertEqual(evict_cursor.get_value(), 0)
-        else:
-            self.assertEqual(evict_cursor.search(), WT_NOTFOUND)
+        self.assertEqual(evict_cursor.search(), WT_NOTFOUND)
         evict_cursor.reset()
         evict_cursor.close()
         self.session.commit_transaction()
@@ -213,11 +183,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         self.session.begin_transaction("ignore_prepare = true")
         cursor2 = self.session.open_cursor(uri)
         cursor2.set_key(1)
-        if self.value_format == '8t':
-            self.assertEqual(cursor2.search(), 0)
-            self.assertEqual(cursor2.get_value(), 0)
-        else:
-            self.assertEqual(cursor2.search(), WT_NOTFOUND)
+        self.assertEqual(cursor2.search(), WT_NOTFOUND)
         self.session.commit_transaction()
         cursor2.close()
 

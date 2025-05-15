@@ -33,7 +33,6 @@
 
 import time
 from suite_subprocess import suite_subprocess
-from wtscenario import make_scenarios
 from wiredtiger import stat
 import wttest
 
@@ -45,17 +44,6 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'file_manager=(close_handle_minimum=0,' + \
                   'close_idle_time=3,close_scan_interval=1),' + \
                   'statistics=(fast),operation_tracking=(enabled=false),'
-
-    types = [
-        ('row', dict(tabletype='row',
-                    create_params = 'key_format=i,value_format=i')),
-        ('var', dict(tabletype='var',
-                    create_params = 'key_format=r,value_format=i')),
-        ('fix', dict(tabletype='fix',
-                    create_params = 'key_format=r,value_format=8t')),
-    ]
-
-    scenarios = make_scenarios(types)
 
     def test_ops(self):
         # FIXME-WT-11367
@@ -89,7 +77,7 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor.close()
 
         uri = '%s.test' % self.uri
-        self.session.create(uri, self.create_params)
+        self.session.create(uri, 'key_format=i,value_format=i')
 
         #
         # Keep inserting data to keep one handle active and give checkpoint

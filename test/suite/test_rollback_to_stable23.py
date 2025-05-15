@@ -37,23 +37,14 @@ def mod_val(value, char, location, nbytes=1):
 
 # test_rollback_to_stable23.py
 # Test to verify that search operation uses proper base update while returning modifies from
-# the history store after the on-disk update is removed by the rollback to stable. Since FLCS
-# inherently doesn't support modify, there's no need to run this on FLCS. (Note that
-# self.value_format needs to exist anyway for the base class to use.)
+# the history store after the on-disk update is removed by the rollback to stable.
 class test_rollback_to_stable23(test_rollback_to_stable_base):
-
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('row_integer', dict(key_format='i')),
-    ]
-    value_format='S'
-
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(key_format_values, prepare_values)
+    scenarios = make_scenarios(prepare_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all),statistics_log=(json,on_close,wait=1),verbose=(rts:5)'
@@ -74,7 +65,7 @@ class test_rollback_to_stable23(test_rollback_to_stable_base):
 
         # Create a table without logging.
         uri = "table:rollback_to_stable23"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i'S)
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.

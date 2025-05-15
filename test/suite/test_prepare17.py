@@ -40,17 +40,9 @@ class test_prepare17(wttest.WiredTigerTestCase):
         f'eviction_trigger={trigger}, eviction_target={target},' + \
         f'eviction_dirty_trigger={trigger}, eviction_dirty_target={target},' + \
         f'eviction_updates_trigger={trigger}, eviction_updates_target={target},'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('int-row', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def test_prepare_cache_stuck_trigger(self):
         uri = 'table:cache_stuck_on_prepared_update'
-        config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        config = 'key_format=i,value_format=S'
         self.session.create(uri, config)
 
         cursor = self.session.open_cursor(uri, None)

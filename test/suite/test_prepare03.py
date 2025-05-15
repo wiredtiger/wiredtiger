@@ -43,25 +43,15 @@ class test_prepare03(wttest.WiredTigerTestCase):
     nentries = 10
 
     scenarios = make_scenarios([
-        ('file-col', dict(tablekind='col',uri='file', format='key_format=r,value_format=S')),
-        ('file-fix', dict(tablekind='fix',uri='file', format='key_format=r,value_format=8t')),
         ('file-row', dict(tablekind='row',uri='file', format='key_format=S,value_format=S')),
-        ('table-col', dict(tablekind='col',uri='table', format='key_format=r,value_format=S')),
-        ('table-fix', dict(tablekind='fix',uri='table', format='key_format=r,value_format=8t')),
         ('table-row', dict(tablekind='row',uri='table', format='key_format=S,value_format=S'))
     ])
 
     def genkey(self, i):
-        if self.tablekind == 'row':
-            return 'key' + str(i)
-        else:
-            return self.recno(i+1)
+        return 'key' + str(i)
 
     def genvalue(self, i):
-        if self.tablekind == 'fix':
-            return int(i & 0xff)
-        else:
-            return 'value' + str(i)
+        return 'value' + str(i)
 
     def assertCursorHasNoKeyValue(self, cursor):
         keymsg = '/requires key be set/'

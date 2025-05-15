@@ -38,13 +38,6 @@ from wtthread import checkpoint_thread
 # Test the rollback to stable does properly restore the prepare rollback entry
 # from the history store.
 class test_rollback_to_stable26(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     hs_remove_values = [
         ('no_hs_remove', dict(hs_remove=False)),
         ('hs_remove', dict(hs_remove=True))
@@ -82,21 +75,14 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:rollback_to_stable26"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
-        if self.value_format == '8t':
-             value_a = 97
-             value_b = 98
-             value_c = 99
-             value_d = 100
-             value_e = 101
-        else:
-             value_a = "aaaaa" * 100
-             value_b = "bbbbb" * 100
-             value_c = "ccccc" * 100
-             value_d = "ddddd" * 100
-             value_e = "eeeee" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
+        value_e = "eeeee" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

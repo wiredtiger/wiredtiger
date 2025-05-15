@@ -35,12 +35,6 @@ from wtscenario import make_scenarios
 # test_rollback_to_stable01.py
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
         ('inmem', dict(in_memory=True))
@@ -62,7 +56,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, dryrun_values, worker_thread_values)
+    scenarios = make_scenarios(in_memory_values, prepare_values, dryrun_values, worker_thread_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all),verbose=(rts:5)'
@@ -76,14 +70,9 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Create a table.
         uri = "table:rollback_to_stable01"
         ds_config = 'log=(enabled=false)' if self.in_memory else ''
-        ds = SimpleDataSet(self, uri, 0,
-            key_format=self.key_format, value_format=self.value_format, config=ds_config)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config=ds_config)
         ds.populate()
-
-        if self.value_format == '8t':
-            valuea = 97
-        else:
-            valuea = "aaaaa" * 100
+        valuea = "aaaaa" * 100
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
@@ -111,7 +100,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Check that the new updates are only seen after the update timestamp.
         self.session.breakpoint()
         if self.dryrun:
-            self.check(0, uri, nrows if self.value_format == '8t' else 0, None, 20)
+            self.check(0, uri, 0, None, 20)
         else:
             self.check(valuea, uri, nrows, None, 20)
 

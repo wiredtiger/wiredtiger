@@ -40,12 +40,6 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp02'
     uri = 'table:' + tablename
 
-    scenarios = make_scenarios([
-        ('col', dict(extra_config=',key_format=r')),
-        ('col_fix', dict(extra_config=',key_format=r,value_format=8t')),
-        ('row', dict(extra_config='')),
-    ])
-
     def get_stat(self, stat_name):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         value = stat_cursor[stat_name][2]
@@ -68,8 +62,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             session.commit_transaction()
 
     def test_basic(self):
-        self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
+        self.session.create(self.uri, 'key_format=i,value_format=i')
         c = self.session.open_cursor(self.uri)
 
         # Insert keys 1..100 each with timestamp=key, in some order
@@ -232,8 +225,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('force,oldest_timestamp=' + self.timestamp_str(302))
 
     def test_read_your_writes(self):
-        self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
+        self.session.create(self.uri, 'key_format=i,value_format=i')
         c = self.session.open_cursor(self.uri)
 
         k = 10

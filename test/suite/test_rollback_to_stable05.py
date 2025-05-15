@@ -35,13 +35,6 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 # test_rollback_to_stable05.py
 # Test that rollback to stable cleans history store for non-timestamp tables.
 class test_rollback_to_stable05(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
         ('inmem', dict(in_memory=True))
@@ -58,7 +51,7 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, worker_thread_values)
+    scenarios = make_scenarios(in_memory_values, prepare_values, worker_thread_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all),verbose=(rts:5)'
@@ -71,25 +64,16 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
 
         # Create two tables.
         uri_1 = "table:rollback_to_stable05_1"
-        ds_1 = SimpleDataSet(
-            self, uri_1, 0, key_format=self.key_format, value_format=self.value_format)
+        ds_1 = SimpleDataSet(self, uri_1, 0, key_format='i')
         ds_1.populate()
 
         uri_2 = "table:rollback_to_stable05_2"
-        ds_2 = SimpleDataSet(
-            self, uri_2, 0, key_format=self.key_format, value_format=self.value_format)
+        ds_2 = SimpleDataSet(self, uri_2, 0, key_format='i')
         ds_2.populate()
-
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-            valuec = 99
-            valued = 100
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
-            valuec = "ccccc" * 100
-            valued = "ddddd" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
+        valuec = "ccccc" * 100
+        valued = "ddddd" * 100
 
         self.large_updates(uri_1, valuea, ds_1, nrows, self.prepare, 0)
         self.check(valuea, uri_1, nrows, None, 0)

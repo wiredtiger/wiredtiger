@@ -31,21 +31,12 @@ from wtdataset import SimpleDataSet
 from wtthread import checkpoint_thread
 from wiredtiger import stat
 from helper import copy_wiredtiger_home
-from wtscenario import make_scenarios
 from rollback_to_stable_util import test_rollback_to_stable_base
 
 # test_rollback_to_stable35.py
 # Test that log is flushed for all writes that occurred in the checkpoint.
 @wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_rollback_to_stable35(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
 
     def large_updates(self, uri_1, uri_2, value, ds_1, ds_2, nrows):
         # Update a large number of records.
@@ -88,23 +79,16 @@ class test_rollback_to_stable35(test_rollback_to_stable_base):
 
         # Create two tables.
         uri_1 = "table:rollback_to_stable35_1"
-        ds_1 = SimpleDataSet(
-            self, uri_1, 0, key_format=self.key_format, value_format=self.value_format)
+        ds_1 = SimpleDataSet(self, uri_1, 0, key_format='i')
         ds_1.populate()
 
         uri_2 = "table:rollback_to_stable35_2"
-        ds_2 = SimpleDataSet(
-            self, uri_2, 0, key_format=self.key_format, value_format=self.value_format)
+        ds_2 = SimpleDataSet(self, uri_2, 0, key_format='i')
         ds_2.populate()
 
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-            valuec = 99
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
-            valuec = "ccccc" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
+        valuec = "ccccc" * 100
 
         self.large_updates(uri_1, uri_2, valuea, ds_1, ds_2, nrows)
         self.check(valuea, uri_1, uri_2, nrows)

@@ -33,18 +33,11 @@
 from suite_subprocess import suite_subprocess
 import json
 import wttest
-from wtscenario import make_scenarios
 
 class test_txn08(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
     tablename = 'test_txn08'
     uri = 'table:' + tablename
-
-    key_format_values = [
-        ('col', dict(key_format='r')),
-        ('row', dict(key_format='i'))
-    ]
-    scenarios = make_scenarios(key_format_values)
 
     # Turn on logging for this test.
     def conn_config(self):
@@ -52,7 +45,7 @@ class test_txn08(wttest.WiredTigerTestCase, suite_subprocess):
             'transaction_sync="(method=dsync,enabled)"'
 
     def test_printlog_unicode(self):
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        create_params = 'key_format=i,value_format=S'
         # print "Creating %s with config '%s'" % (self.uri, create_params)
         self.session.create(self.uri, create_params)
         c = self.session.open_cursor(self.uri, None)

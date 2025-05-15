@@ -35,13 +35,6 @@ from rollback_to_stable_util import test_rollback_to_stable_base
 # test_rollback_to_stable03.py
 # Test that rollback to stable clears the history store updates from reconciled pages.
 class test_rollback_to_stable03(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
         ('inmem', dict(in_memory=True))
@@ -58,7 +51,7 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, worker_thread_values)
+    scenarios = make_scenarios(in_memory_values, prepare_values, worker_thread_values)
 
     def conn_config(self):
         config = 'cache_size=4GB,statistics=(all),verbose=(rts:5)'
@@ -72,8 +65,7 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
         # Create a table.
         uri = "table:rollback_to_stable03"
         ds_config = ',log=(enabled=false)' if self.in_memory else ''
-        ds = SimpleDataSet(self, uri, 0,
-            key_format=self.key_format, value_format=self.value_format, config=ds_config)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config=ds_config)
         ds.populate()
 
         if self.value_format == '8t':

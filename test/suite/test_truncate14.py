@@ -47,25 +47,15 @@ class test_truncate14(wttest.WiredTigerTestCase):
         ('truncate', dict(trunc_with_remove=False)),
         #('remove', dict(trunc_with_remove=True)),
     ]
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        # Do not run this test on FLCS. It would need to materialize the entire key space,
-        # which would be extremely slow and use extremely large amounts of memory.
-        #('column_fix', dict(key_format='r', value_format='8t',
-        #    extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
     action_values = [
         ('instantiate', dict(action='instantiate')),
         ('checkpoint', dict(action='checkpoint')),
         ('checkpoint-visible', dict(action='checkpoint-visible')),
     ]
-    scenarios = make_scenarios(trunc_values, format_values, action_values)
+    scenarios = make_scenarios(trunc_values, action_values)
 
     # Make all the values different to avoid having VLCS RLE condense the table.
     def mkdata(self, basevalue, i):
-        if self.value_format == '8t':
-            return basevalue
         return basevalue + str(i)
 
     def truncate(self, uri, key1, key2):
@@ -129,15 +119,10 @@ class test_truncate14(wttest.WiredTigerTestCase):
 
         # Create a table without logging.
         uri = "table:truncate14"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)' + self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config='log=(enabled=false)')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-        else:
-            value_a = "aaaaa" * 100
+        value_a = "aaaaa" * 100
 
         # Pin oldest and stable timestamps to 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

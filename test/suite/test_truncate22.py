@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
 # test_truncate22.py
@@ -35,18 +34,11 @@ from wtdataset import SimpleDataSet
 class test_truncate22(wttest.WiredTigerTestCase):
     uri = 'table:test_truncate22'
     conn_config = 'statistics=(all)'
-    key_format_values = (
-        ('column', dict(key_format='r', value_format='S')),
-        ('integer-row', dict(key_format='i', value_format='S'))
-    )
-    scenarios = make_scenarios(key_format_values)
     nrows = 10000
 
     def test_truncate22(self):
         # Create a table.
-        ds = SimpleDataSet(self, self.uri, 0,
-                        key_format=self.key_format,
-                        value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 0, key_format='i')
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.

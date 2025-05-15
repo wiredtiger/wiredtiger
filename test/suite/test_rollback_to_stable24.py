@@ -63,11 +63,6 @@ from wtscenario import make_scenarios
 class test_rollback_to_stable24(wttest.WiredTigerTestCase):
     conn_config = 'in_memory=false'
 
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('row_integer', dict(key_format='i')),
-    ]
-
     worker_thread_values = [
         ('0', dict(threads=0)),
         ('4', dict(threads=4)),
@@ -87,7 +82,7 @@ class test_rollback_to_stable24(wttest.WiredTigerTestCase):
     def test_rollback_to_stable24(self):
         # Create a table without logging.
         uri = "table:rollback_to_stable24"
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(uri, 'key_format=i,value_format=S')
 
         # Pin oldest timestamp to 5.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(5))

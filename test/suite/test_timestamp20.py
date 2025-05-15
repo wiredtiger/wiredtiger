@@ -27,22 +27,12 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
-
 # test_timestamp20.py
 # Exercise fixing up of updates without timestamps in the history store.
 class test_timestamp20(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
-
-    format_values = [
-        ('string-row', dict(key_format='S', value_format='S')),
-        ('column', dict(key_format='r', value_format='S')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def get_key(self, i):
-        return str(i) if self.key_format == 'S' else i
+        return str(i)
 
     def evict(self, uri):
         s = self.conn.open_session()
@@ -60,23 +50,15 @@ class test_timestamp20(wttest.WiredTigerTestCase):
 
     def test_timestamp20_standard(self):
         uri = 'table:test_timestamp20'
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=S,value_format=S'
         self.session.create(uri, format)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)
-
-        if self.value_format == '8t':
-            value1 = 97 # 'a'
-            value2 = 98 # 'b'
-            value3 = 99 # 'c'
-            value4 = 100 # 'd'
-            value5 = 101 # 'e'
-        else:
-            value1 = 'a' * 500
-            value2 = 'b' * 500
-            value3 = 'c' * 500
-            value4 = 'd' * 500
-            value5 = 'e' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+        value3 = 'c' * 500
+        value4 = 'd' * 500
+        value5 = 'e' * 500
 
         for i in range(1, 10000):
             self.session.begin_transaction()
@@ -125,13 +107,8 @@ class test_timestamp20(wttest.WiredTigerTestCase):
     # Corruptions to string types may go undetected since non-ASCII characters won't be included in
     # the conversion to a Python string.
     def test_timestamp20_modify(self):
-        # FLCS does not support modifies, so skip this test.
-        # Just return instead of using self.skipTest to avoid generating noise.
-        if self.value_format == '8t':
-            return
-
         uri = 'table:test_timestamp20'
-        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        format = 'key_format=S,value_format=S'
         self.session.create(uri, format)
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)

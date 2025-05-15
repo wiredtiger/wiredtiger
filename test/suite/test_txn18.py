@@ -32,7 +32,6 @@
 
 from suite_subprocess import suite_subprocess
 import helper, wiredtiger, wttest
-from wtscenario import make_scenarios
 
 class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
     t1 = 'table:test_txn18'
@@ -41,16 +40,7 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
     conn_recerror = conn_config + ',log=(recover=error)'
     conn_recon = conn_config + ',log=(recover=on)'
 
-    format_values = [
-        ('integer-row', dict(key_format='i', value_format='i')),
-        ('column', dict(key_format='r', value_format='i')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-    ]
-    scenarios = make_scenarios(format_values)
-
     def mkvalue(self, i):
-        if self.value_format == '8t':
-            return i % 256
         return i
 
     def test_recovery(self):
@@ -68,7 +58,7 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
         #
         # If we aren't tracking file IDs properly, it's possible that
         # we'd end up apply the log records for t2 to table t1.
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params = 'key_format=i,value_format=i'
         self.session.create(self.t1, create_params)
         #
         # Since we're logging, we need to flush out the meta-data file

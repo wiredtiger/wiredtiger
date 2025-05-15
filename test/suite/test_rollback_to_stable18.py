@@ -39,13 +39,6 @@ from wtscenario import make_scenarios
 # test_rollback_to_stable18.py
 # Test the rollback to stable shouldn't skip any pages that don't have aggregated time window.
 class test_rollback_to_stable18(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
@@ -57,7 +50,7 @@ class test_rollback_to_stable18(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, prepare_values, worker_thread_values)
+    scenarios = make_scenarios(prepare_values, worker_thread_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,in_memory=true,statistics=(all),' \
@@ -70,14 +63,9 @@ class test_rollback_to_stable18(test_rollback_to_stable_base):
         # Create a table.
         uri = "table:rollback_to_stable18"
         ds_config = ',log=(enabled=false)'
-        ds = SimpleDataSet(self, uri, 0,
-            key_format=self.key_format, value_format=self.value_format, config=ds_config)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config=ds_config)
         ds.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-        else:
-            value_a = "aaaaa" * 100
+        value_a = "aaaaa" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

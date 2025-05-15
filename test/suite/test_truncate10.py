@@ -47,13 +47,6 @@ class test_truncate10(wttest.WiredTigerTestCase):
         ('truncate', dict(trunc_with_remove=False)),
         #('remove', dict(trunc_with_remove=True)),
     ]
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
     # Try various stable times.
     stable_values = [
         ('10', dict(stable_timestamp=10)),
@@ -67,7 +60,7 @@ class test_truncate10(wttest.WiredTigerTestCase):
         ('no-checkpoint', dict(do_checkpoint=False)),
     ]
 
-    scenarios = make_scenarios(trunc_values, format_values, stable_values, checkpoint_values)
+    scenarios = make_scenarios(trunc_values, stable_values, checkpoint_values)
 
     def truncate(self, uri, make_key, keynum1, keynum2):
         if self.trunc_with_remove:
@@ -105,15 +98,10 @@ class test_truncate10(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
         seen = 0
-        zseen = 0
         for k, v in cursor:
-            if self.value_format == '8t' and v == 0:
-                zseen += 1
-            else:
-                self.assertEqual(v, value)
-                seen += 1
+            self.assertEqual(v, value)
+            seen += 1
         self.assertEqual(seen, nrows)
-        self.assertEqual(zseen, nzeros if self.value_format == '8t' else 0)
         self.session.rollback_transaction()
         cursor.close()
 
@@ -121,18 +109,10 @@ class test_truncate10(wttest.WiredTigerTestCase):
         nrows = 10000
 
         uri = "table:truncate10"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)' + self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config='log=(enabled=false)')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-
+        value_a = "aaaaa" * 100
         # Pin oldest and stable timestamps to 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
@@ -158,16 +138,13 @@ class test_truncate10(wttest.WiredTigerTestCase):
         self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(25))
         self.session.commit_transaction('durable_timestamp=' + self.timestamp_str(30))
 
-        # Make sure we did at least one fast-delete. (Unless we specifically didn't want to,
-        # or running on FLCS where it isn't supported.)
+        # Make sure we did at least one fast-delete.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         if self.runningHook('tiered'):
             # There's no way the test can guess whether fast delete is possible when
             # flush_tier calls are "randomly" inserted.
             pass
-        elif self.value_format == '8t' or self.trunc_with_remove:
-            self.assertEqual(fastdelete_pages, 0)
         else:
             self.assertGreater(fastdelete_pages, 0)
 

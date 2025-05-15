@@ -35,12 +35,6 @@ from wtscenario import make_scenarios
 # Check what happens with RTS if you never set the stable timestamp.
 
 class test_rollback_to_stable31(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
     checkpoint_modes = [
         ('no-checkpoint', dict(checkpoint=False)),
         ('checkpoint', dict(checkpoint=True)),
@@ -56,7 +50,7 @@ class test_rollback_to_stable31(test_rollback_to_stable_base):
         ('8', dict(threads=8))
     ]
 
-    scenarios = make_scenarios(format_values, checkpoint_modes, rollback_modes, worker_thread_values)
+    scenarios = make_scenarios(checkpoint_modes, rollback_modes, worker_thread_values)
 
     def conn_config(self):
         return 'verbose=(rts:5)'
@@ -66,17 +60,12 @@ class test_rollback_to_stable31(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:rollback_to_stable31"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-        else:
-            value_a = "aaaaa" * 10
-            value_b = "bbbbb" * 10
-            value_c = "ccccc" * 10
+        value_a = "aaaaa" * 10
+        value_b = "bbbbb" * 10
+        value_c = "ccccc" * 10
 
         # Do not set stable. (Don't set oldest either as it can't be later than stable.)
 

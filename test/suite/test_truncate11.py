@@ -32,26 +32,17 @@
 
 import threading, time, wttest
 from wtdataset import simple_key, simple_value
-from wtscenario import make_scenarios
 from wiredtiger import stat
 from wtthread import checkpoint_thread
 
 class test_truncate11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[checkpoint_slow]'
 
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     @wttest.skip_for_hook("tiered", "test depends on regular checkpoints running")
     def test_truncate11(self):
         # Create a large table with lots of pages.
         uri = "table:test_truncate11"
-        format = 'key_format={},value_format=S'.format(self.key_format)
+        format = 'key_format=i,value_format=S'
         self.session.create(uri, 'allocation_size=512,leaf_page_max=512,' + format)
 
         cursor = self.session.open_cursor(uri)

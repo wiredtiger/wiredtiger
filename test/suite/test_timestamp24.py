@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_timestamp24.py
 #
@@ -36,14 +35,6 @@ from wtscenario import make_scenarios
 
 class test_timestamp24(wttest.WiredTigerTestCase):
     conn_config = ''
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
 
     def evict(self, uri, session, key, value):
         evict_cursor = session.open_cursor(uri, None, "debug=(release_evict)")
@@ -56,22 +47,15 @@ class test_timestamp24(wttest.WiredTigerTestCase):
     def test_timestamp(self):
 
         table_uri = 'table:timestamp24'
-        ds = SimpleDataSet(self,
-            table_uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, table_uri, 0, key_format='i')
         ds.populate()
         self.session.checkpoint()
 
         key = 5
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-        else:
-            value_a = 'a' * 500
-            value_b = 'b' * 500
-            value_c = 'c' * 500
-            value_d = 'd' * 500
+        value_a = 'a' * 500
+        value_b = 'b' * 500
+        value_c = 'c' * 500
+        value_d = 'd' * 500
 
         # Pin oldest and stable to timestamp 1.
         #self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +

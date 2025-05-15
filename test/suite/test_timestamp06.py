@@ -40,11 +40,6 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
     table_ts_log     = 'table:ts06_ts_logged'
     table_ts_nolog   = 'table:ts06_ts_nologged'
 
-    types = [
-        ('col_fix', dict(empty=1, extra_config=',key_format=r,value_format=8t')),
-        ('col_var', dict(empty=0, extra_config=',key_format=r')),
-        ('row', dict(empty=0, extra_config='',)),
-    ]
     ckpt = [
         ('ckpt_ts_def', dict(ckptcfg='', ckpt_ts=True)),
         ('ckpt_ts_false', dict(ckptcfg='use_timestamp=false', ckpt_ts=False)),
@@ -57,7 +52,7 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         ('V2', dict(conn_config='create,log=(enabled,remove=false)')),
     ]
 
-    scenarios = make_scenarios(conncfg, types, ckpt)
+    scenarios = make_scenarios(conncfg, ckpt)
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.

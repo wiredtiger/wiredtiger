@@ -33,8 +33,6 @@ from helper import simulate_crash_restart
 from rollback_to_stable_util import verify_rts_logs
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
-
 # test_rollback_to_stable38.py
 #
 # Test using fast truncate to delete the whole tree of records from the history store
@@ -42,14 +40,6 @@ from wtscenario import make_scenarios
 class test_rollback_to_stable38(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),cache_size=50MB,verbose=(rts:5)'
     session_config = 'isolation=snapshot'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            extraconfig='')),
-        ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
-    ]
-    scenarios = make_scenarios(format_values)
 
     # Don't raise errors for these, the expectation is that the RTS verifier will
     # run on the test output.
@@ -80,15 +70,9 @@ class test_rollback_to_stable38(wttest.WiredTigerTestCase):
         # Create a table.
         uri = "table:rollback_to_stable38"
 
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.extraconfig)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
-
-        if self.value_format == '8t':
-            value_a = 97
-        else:
-            value_a = "aaaaa" * 100
+        value_a = "aaaaa" * 100
 
         # Pin a transaction
         session2 = self.conn.open_session()

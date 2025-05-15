@@ -38,19 +38,10 @@ class test_stat_cursor_config(wttest.WiredTigerTestCase):
 
     uri = [
         ('file-row',  dict(uri='file:' + pfx, dataset=SimpleDataSet, type='row', cfg='')),
-        ('file-var',  dict(uri='file:' + pfx, dataset=SimpleDataSet, type='var', cfg='')),
-        ('file-fix',  dict(uri='file:' + pfx, dataset=SimpleDataSet, type='fix', cfg='')),
         ('table-row', dict(uri='table:' + pfx, dataset=SimpleDataSet, type='row', cfg='')),
-        ('table-var', dict(uri='table:' + pfx, dataset=SimpleDataSet, type='var', cfg='')),
-        ('table-fix', dict(uri='table:' + pfx, dataset=SimpleDataSet, type='fix', cfg='')),
         ('inmem-row', dict(uri='table:' + pfx, dataset=SimpleDataSet, type='row', cfg='',
             conn_config = 'in_memory,statistics=(fast)')),
-        ('inmem-var', dict(uri='table:' + pfx, dataset=SimpleDataSet, type='var', cfg='',
-            conn_config = 'in_memory,statistics=(fast)')),
-        ('inmem-fix', dict(uri='table:' + pfx, dataset=SimpleDataSet, type='fix', cfg='',
-            conn_config = 'in_memory,statistics=(fast)')),
         ('complex-row', dict(uri='table:' + pfx, dataset=ComplexDataSet, type='row', cfg='')),
-        ('complex-var', dict(uri='table:' + pfx, dataset=ComplexDataSet, type='fix', cfg='')),
     ]
 
     scenarios = make_scenarios(uri)
@@ -66,16 +57,9 @@ class test_stat_cursor_config(wttest.WiredTigerTestCase):
     # Open a size-only statistics cursor on various table types. Ensure that
     # the cursor open succeeds.
     def test_stat_cursor_size(self):
-        if self.type == 'var':
-            key_format = 'r'
-            value_format = 'S'
-        elif self.type == 'fix':
-            key_format = 'r'
-            value_format = '8t'
-        else:
-            self.assertEqual(self.type, 'row')
-            key_format = 'S'
-            value_format = 'S'
+        self.assertEqual(self.type, 'row')
+        key_format = 'S'
+        value_format = 'S'
 
         ds = self.dataset(
            self, self.uri, 100, key_format=key_format, value_format=value_format, config=self.cfg)

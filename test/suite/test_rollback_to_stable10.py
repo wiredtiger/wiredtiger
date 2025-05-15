@@ -37,20 +37,12 @@ from wtthread import checkpoint_thread
 # test_rollback_to_stable10.py
 # Test the rollback to stable operation performs sweeping history store.
 class test_rollback_to_stable10(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S', prepare_extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t',
-            prepare_extraconfig=',allocation_size=512,leaf_page_max=512')),
-        ('row_integer', dict(key_format='i', value_format='S', prepare_extraconfig='')),
-    ]
-
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(format_values, prepare_values)
+    scenarios = make_scenarios(prepare_values)
 
     def conn_config(self):
         config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),timing_stress_for_test=[history_store_checkpoint_delay],verbose=(rts:5)'
@@ -87,30 +79,20 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         # Create a table.
         self.pr("create/populate tables")
         uri_1 = "table:rollback_to_stable10_1"
-        ds_1 = SimpleDataSet(
-            self, uri_1, 0, key_format=self.key_format, value_format=self.value_format)
+        ds_1 = SimpleDataSet(self, uri_1, 0, key_format='i')
         ds_1.populate()
 
         # Create another table.
         uri_2 = "table:rollback_to_stable10_2"
-        ds_2 = SimpleDataSet(
-            self, uri_2, 0, key_format=self.key_format, value_format=self.value_format)
+        ds_2 = SimpleDataSet(self, uri_2, 0, key_format='i')
         ds_2.populate()
 
-        if self.value_format == '8t':
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-            value_e = 101
-            value_f = 102
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
-            value_d = "ddddd" * 100
-            value_e = "eeeee" * 100
-            value_f = "fffff" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
+        value_e = "eeeee" * 100
+        value_f = "fffff" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
@@ -200,31 +182,19 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         # Create a table.
         self.pr("create/populate tables")
         uri_1 = "table:rollback_to_stable10_1"
-        ds_1 = SimpleDataSet(
-            self, uri_1, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.prepare_extraconfig)
+        ds_1 = SimpleDataSet(self, uri_1, 0, key_format='i')
         ds_1.populate()
 
         # Create another table.
         uri_2 = "table:rollback_to_stable10_2"
-        ds_2 = SimpleDataSet(
-            self, uri_2, 0, key_format=self.key_format, value_format=self.value_format,
-            config=self.prepare_extraconfig)
+        ds_2 = SimpleDataSet(self, uri_2, 0, key_format='i')
         ds_2.populate()
 
-        if self.value_format == '8t':
-            nrows *= 2
-            value_a = 97
-            value_b = 98
-            value_c = 99
-            value_d = 100
-            value_e = 101
-        else:
-            value_a = "aaaaa" * 100
-            value_b = "bbbbb" * 100
-            value_c = "ccccc" * 100
-            value_d = "ddddd" * 100
-            value_e = "eeeee" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
+        value_e = "eeeee" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

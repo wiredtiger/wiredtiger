@@ -35,13 +35,6 @@ from wtscenario import make_scenarios
 # test_recovery01.py
 # Test WiredTiger logs time spent during recovery and shutdown.
 class test_recovery01(wttest.WiredTigerTestCase):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
     restart_values = [
         ('crash', dict(crash=True)),
         ('shutdown', dict(crash=False))
@@ -89,23 +82,14 @@ class test_recovery01(wttest.WiredTigerTestCase):
 
         # Create two tables. One logged and another one non-logged.
         uri_1 = "table:recovery01_1"
-        ds_1 = SimpleDataSet(
-            self, uri_1, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=true)')
+        ds_1 = SimpleDataSet(self, uri_1, 0, key_format='i', config='log=(enabled=true)')
         ds_1.populate()
 
         uri_2 = "table:recovery01_2"
-        ds_2 = SimpleDataSet(
-            self, uri_2, 0, key_format=self.key_format, value_format=self.value_format,
-            config='log=(enabled=false)')
+        ds_2 = SimpleDataSet(self, uri_2, 0, key_format='i', config='log=(enabled=false)')
         ds_2.populate()
-
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +

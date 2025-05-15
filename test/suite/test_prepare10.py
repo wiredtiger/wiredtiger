@@ -28,7 +28,6 @@
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_prepare10.py
 # Test to ensure prepared tombstones are properly aborted even when they are written
@@ -36,14 +35,6 @@ from wtscenario import make_scenarios
 class test_prepare10(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=10MB,eviction_dirty_trigger=80,eviction_updates_trigger=80'
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='u')),
-        ('column-fix', dict(key_format='r', value_format='8t')),
-        ('string-row', dict(key_format='S', value_format='u')),
-    ]
-
-    scenarios = make_scenarios(format_values)
 
     def updates(self, ds, uri, nrows, value, ts):
         cursor = self.session.open_cursor(uri)
@@ -79,12 +70,7 @@ class test_prepare10(wttest.WiredTigerTestCase):
         self.session.begin_transaction('ignore_prepare=true,read_timestamp=' + self.timestamp_str(ts))
         for i in range(1, nrows):
             cursor.set_key(ds.key(i))
-            if self.value_format == '8t':
-                # In FLCS, deleted values read back as 0.
-                self.assertEqual(cursor.search(), 0)
-                self.assertEqual(cursor.get_value(), 0)
-            else:
-                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
         cursor.close()
 
@@ -92,17 +78,11 @@ class test_prepare10(wttest.WiredTigerTestCase):
         # Create a small table.
         uri = "table:test_prepare10"
         nrows = 1000
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, value_format='u')
         ds.populate()
-
-        if self.value_format == '8t':
-           value_a = 97
-           value_b = 98
-           value_c = 99
-        else:
-            value_a = b"aaaaa" * 100
-            value_b = b"bbbbb" * 100
-            value_c = b"ccccc" * 100
+        value_a = b"aaaaa" * 100
+        value_b = b"bbbbb" * 100
+        value_c = b"ccccc" * 100
 
         # Commit some updates along with a prepared update, which is not resolved.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10))
@@ -139,12 +119,7 @@ class test_prepare10(wttest.WiredTigerTestCase):
         session3.begin_transaction()
         for i in range(1, nrows):
             cursor3.set_key(ds.key(i))
-            if self.value_format == '8t':
-                # In FLCS deleted records read back as 0.
-                self.assertEqual(cursor3.search(), 0)
-                self.assertEqual(cursor3.get_value(), 0)
-            else:
-                self.assertEqual(cursor3.search(), wiredtiger.WT_NOTFOUND)
+            self.assertEqual(cursor3.search(), wiredtiger.WT_NOTFOUND)
         session3.commit_transaction()
 
         # Reset the cursor.
@@ -182,12 +157,7 @@ class test_prepare10(wttest.WiredTigerTestCase):
         # session3 still can't see a value
         for i in range(1, nrows):
             cursor3.set_key(ds.key(i))
-            if self.value_format == '8t':
-                # In FLCS, deleted records read back as 0.
-                self.assertEqual(cursor3.search(), 0)
-                self.assertEqual(cursor3.get_value(), 0)
-            else:
-                self.assertEqual(cursor3.search(), wiredtiger.WT_NOTFOUND)
+            self.assertEqual(cursor3.search(), wiredtiger.WT_NOTFOUND)
         session3.commit_transaction()
 
         # close sessions.

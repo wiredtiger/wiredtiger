@@ -43,9 +43,6 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     # smaller page size.
     format_values = [
         ('integer-row', dict(key_format='i', value_format='S', extraconfig='', nrecords=1000)),
-        ('column', dict(key_format='r', value_format='S', extraconfig='', nrecords=1000)),
-        ('column-fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096',
-            nrecords=10000)),
     ]
 
     # File to be corrupted
@@ -75,8 +72,6 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:test_txn22'
 
     def valuegen(self, i):
-        if self.value_format == '8t':
-            return i % 256
         return str(i) + 'A' * 1024
 
     # Insert a list of keys

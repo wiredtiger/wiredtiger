@@ -30,21 +30,11 @@ import threading
 from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 from wtthread import checkpoint_thread
 
 # test_prepare21.py
 # Test prepare rollback doesn't crash because of triggering out of order fix.
 class test_prepare21(test_rollback_to_stable_base):
-
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
-
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),timing_stress_for_test=[history_store_checkpoint_delay]'
         return config
@@ -65,19 +55,12 @@ class test_prepare21(test_rollback_to_stable_base):
 
         # Create a table.
         uri = "table:prepare21"
-        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, uri, 0, key_format='i')
         ds.populate()
-
-        if self.value_format == '8t':
-             value_a = 97
-             value_b = 98
-             value_c = 99
-             value_d = 100
-        else:
-             value_a = "aaaaa" * 100
-             value_b = "bbbbb" * 100
-             value_c = "ccccc" * 100
-             value_d = "ddddd" * 100
+        value_a = "aaaaa" * 100
+        value_b = "bbbbb" * 100
+        value_c = "ccccc" * 100
+        value_d = "ddddd" * 100
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +

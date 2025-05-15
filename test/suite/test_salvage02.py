@@ -33,16 +33,8 @@ import wttest
 
 from wiredtiger import wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 class test_salvage02(wttest.WiredTigerTestCase):
-    format_values = [
-        ('column', dict(key_format='r', value_format='S')),
-        ('column_fix', dict(key_format='r', value_format='8t')),
-        ('row_integer', dict(key_format='i', value_format='S')),
-    ]
-
-    scenarios = make_scenarios(format_values)
 
     uri = "table:salvage02"
 
@@ -70,23 +62,18 @@ class test_salvage02(wttest.WiredTigerTestCase):
 
     def test_hs_removed(self):
         nrows = 1000
-
-        if self.value_format == '8t':
-            valuea = 97
-            valueb = 98
-        else:
-            valuea = "aaaaa" * 100
-            valueb = "bbbbb" * 100
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
 
         # Start normally, insert data
-        ds = SimpleDataSet(self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds = SimpleDataSet(self, self.uri, 0, key_format='i')
         ds.populate()
         self.large_updates(valuea, ds, nrows, 1)
 
         # Put some content in the history store
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
-        ds2 = SimpleDataSet(self, self.uri, 0, key_format=self.key_format, value_format=self.value_format)
+        ds2 = SimpleDataSet(self, self.uri, 0, key_format='i')
         ds2.populate()
         self.large_updates(valueb, ds2, nrows, 2)
 

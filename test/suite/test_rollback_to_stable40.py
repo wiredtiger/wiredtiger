@@ -30,7 +30,6 @@ from helper import simulate_crash_restart
 from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-from wtscenario import make_scenarios
 
 # test_rollback_to_stable40.py
 # Test the rollback to stable operation performs as expected following a server crash
@@ -38,13 +37,6 @@ from wtscenario import make_scenarios
 # the history store.
 class test_rollback_to_stable40(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
-
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
-    ]
-
-    scenarios = make_scenarios(key_format_values)
 
     def conn_config(self):
         config = 'cache_size=1MB,statistics=(all),log=(enabled=true),verbose=(rts:5)'
@@ -55,8 +47,7 @@ class test_rollback_to_stable40(test_rollback_to_stable_base):
 
         # Create a table without logging.
         uri = "table:rollback_to_stable40"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format='i', config='log=(enabled=false)')
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
