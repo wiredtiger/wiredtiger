@@ -17,7 +17,7 @@ def create_fragmentation_image(input_file_path, output_folder):
                 offset_str, size_str = line.split(",")
                 allocated_blocks.append((int(offset_str), int(size_str)))
 
-    if len(allocated_blocks) <= 2:
+    if not allocated_blocks:
         print(f"No allocated blocks found in {input_file_path}")
         return
 
@@ -102,9 +102,10 @@ def create_fragmentation_image(input_file_path, output_folder):
         fig.update_yaxes(visible=False, range=[-GRID_WIDTH, 0],
                          scaleanchor='x', fixedrange=True)
 
+        safe_grid_width = max(GRID_WIDTH, 10)
         fig.update_layout(
             shapes=shapes,
-            width=GRID_WIDTH, height=GRID_WIDTH,
+            width=safe_grid_width, height=safe_grid_width,
             margin=dict(t=0, l=0, r=0, b=0, pad=0),
             plot_bgcolor='white', paper_bgcolor='white',
             hovermode=False
