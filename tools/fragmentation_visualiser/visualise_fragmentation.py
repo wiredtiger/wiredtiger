@@ -15,13 +15,16 @@ def create_fragmentation_image(input_file_path, output_folder):
                 offset_str, size_str = line.split(",")
                 allocated_blocks.append((int(offset_str), int(size_str)))
 
-    if not allocated_blocks:
+    # We expect the first and last lines to be the header and footer, respectively. We will ignore them.
+    if len(allocated_blocks) <= 2:
         print(f"No allocated blocks found in {input_file_path}")
         return
 
+    # Discard the first and last lines (header and footer)
     allocated_blocks.pop(0)
     allocated_blocks.pop()
-    allocated_blocks.sort()
+
+    # Derive the file size from the last allocated block
     last_offset, last_size = allocated_blocks[-1]
     file_size = last_offset + last_size
     print(f"[{input_file_path}] File size: {file_size} bytes")
