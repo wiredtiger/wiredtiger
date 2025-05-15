@@ -6,6 +6,7 @@ import argparse
 import plotly.graph_objs as go
 import plotly.io as pio
 import imageio.v2 as imageio
+import time 
 
 def create_fragmentation_image(input_file_path, output_folder):
     allocated_blocks = []
@@ -243,7 +244,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="fragmentation_pngs", help="Output folder")
 
     args = parser.parse_args()
-        
+
+    start_time = time.time()
     if os.path.isdir(args.output):          # delete any old copy
         shutil.rmtree(args.output)
 
@@ -263,3 +265,6 @@ if __name__ == "__main__":
         image_bases, file_sizes, grid_sizes = map(list, zip(*records))
         generate_html_viewer(args.output, image_bases,
                              file_sizes, grid_sizes)
+    
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time:.2f} seconds")
