@@ -50,11 +50,11 @@ class test_prepare29(wttest.WiredTigerTestCase):
 
         # Pin oldest timestamp.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-
+        value1 = 'a' * 5
         # Insert some data.
         ts = 100
         cursor = self.session.open_cursor(uri)
-        key = self.key
+        key = str(1)
         self.session.begin_transaction()
         cursor[key] = value1
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))

@@ -55,7 +55,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         ('1000keys', dict(nkeys=1000)),
     ]
 
-    scenarios = make_scenarios(format_values, conncfg, nkeys)
+    scenarios = make_scenarios(types, conncfg, nkeys)
 
     # Binary values.
     def moreinit(self):

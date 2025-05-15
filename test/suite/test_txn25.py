@@ -31,6 +31,8 @@
 #
 
 import wttest
+from wtscenario import make_scenarios
+
 
 class test_txn25(wttest.WiredTigerTestCase):
     base_config = 'create,cache_size=50MB'
@@ -42,7 +44,7 @@ class test_txn25(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(log_config)
 
     def getkey(self, i):
-        return str(i) if self.usestrings else i
+        return str(i)
 
     def test_txn25(self):
         uri = 'file:test_txn25'

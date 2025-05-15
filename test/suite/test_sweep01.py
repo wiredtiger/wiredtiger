@@ -57,7 +57,7 @@ class test_sweep01(wttest.WiredTigerTestCase, suite_subprocess):
         for f in range(self.numfiles):
             uri = '%s.%d' % (self.uri, f)
             # print "Creating %s with config '%s'" % (uri, self.create_params)
-            self.session.create(uri, self.create_params)
+            self.session.create(uri, 'key_format=i,value_format=i')
             c = self.session.open_cursor(uri, None)
             for k in range(self.numkv):
                 c[k+1] = 1

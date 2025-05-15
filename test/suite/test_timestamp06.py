@@ -115,10 +115,11 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         # Open two tables:
         # 1. Table is logged and so timestamps are ignored.
         # 2. Table is not logged and uses timestamps.
-        self.session.create(self.table_ts_log, 'key_format=i,value_format=i' + self.extra_config)
+        self.session.create(self.table_ts_log, 'key_format=i,value_format=i')
         cur_ts_log = self.session.open_cursor(self.table_ts_log)
         self.session.create(self.table_ts_nolog,
-            'key_format=i,value_format=i,log=(enabled=false)' + self.extra_config)
+            'key_format=i,value_format=i,log=(enabled=false)')
+
         cur_ts_nolog = self.session.open_cursor(self.table_ts_nolog)
 
         # Insert keys 1..100

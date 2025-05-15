@@ -42,23 +42,18 @@ class test_bulkload_checkpoint(wttest.WiredTigerTestCase, suite_subprocess):
         ('file', dict(uri='file:data')),
         ('table', dict(uri='table:data')),
     ]
-    configs = [
-        ('fix', dict(keyfmt='r', valfmt='8t')),
-        ('var', dict(keyfmt='r', valfmt='S')),
-        ('row', dict(keyfmt='S', valfmt='S')),
-    ]
     ckpt_type = [
         ('named', dict(ckpt_type='named')),
         ('unnamed', dict(ckpt_type='unnamed')),
     ]
 
-    scenarios = make_scenarios(types, configs, ckpt_type)
+    scenarios = make_scenarios(types, ckpt_type)
 
     # Bulk-load handles are skipped by checkpoints.
     # Named and unnamed checkpoint versions.
     def test_bulkload_checkpoint(self):
         # Open a bulk cursor and insert a few records.
-        config = 'key_format={},value_format={}'.format(self.keyfmt, self.valfmt)
+        config = 'key_format=S,value_format=S'
         self.session.create(self.uri, config)
         cursor = self.session.open_cursor(self.uri, None, 'bulk')
         for i in range(1, 10):
@@ -87,11 +82,6 @@ class test_bulkload_backup(wttest.WiredTigerTestCase, suite_subprocess):
         ('file', dict(uri='file:data')),
         ('table', dict(uri='table:data')),
     ]
-    configs = [
-        ('fix', dict(keyfmt='r', valfmt='8t')),
-        ('var', dict(keyfmt='r', valfmt='S')),
-        ('row', dict(keyfmt='S', valfmt='S')),
-    ]
     ckpt_type = [
         ('named', dict(ckpt_type='named')),
         ('none', dict(ckpt_type='none')),
@@ -101,7 +91,7 @@ class test_bulkload_backup(wttest.WiredTigerTestCase, suite_subprocess):
         ('different', dict(session_type='different')),
         ('same', dict(session_type='same')),
     ]
-    scenarios = make_scenarios(types, configs, ckpt_type, session_type)
+    scenarios = make_scenarios(types, ckpt_type, session_type)
 
     # Backup a set of chosen tables/files using the wt backup command.
     # The only files are bulk-load files, so they shouldn't be copied.
@@ -118,7 +108,7 @@ class test_bulkload_backup(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_bulk_backup(self):
         # Open a bulk cursor and insert a few records.
-        config = 'key_format={},value_format={}'.format(self.keyfmt, self.valfmt)
+        config = 'key_format=S,value_format=S'
         self.session.create(self.uri, config)
         cursor = self.session.open_cursor(self.uri, None, 'bulk')
         for i in range(1, 10):

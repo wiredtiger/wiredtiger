@@ -29,6 +29,7 @@
 import wttest
 from wiredtiger import WT_NOTFOUND
 from wtdataset import simple_key
+from wtscenario import make_scenarios
 
 # test_prepare14.py
 # Test that the transaction visibility of an on-disk update that has both the start and the stop

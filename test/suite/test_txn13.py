@@ -50,7 +50,7 @@ class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
         ('4gb', dict(expect_err=True, valuesize=536870912))
     ]
 
-    scenarios = make_scenarios(key_format_values, size_values)
+    scenarios = make_scenarios(size_values)
 
     # Turn on logging for this test.
     def conn_config(self):

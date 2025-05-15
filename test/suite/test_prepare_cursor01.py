@@ -60,7 +60,7 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
 
         # Build an object.
         uri = self.uri + ':test_prepare_cursor01'
-        ds = self.ds(self, uri, 50, 'i')
+        ds = self.ds(self, uri, 50, key_format='i')
         ds.populate()
 
         # Session for non-timestamped reads.

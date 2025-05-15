@@ -38,7 +38,7 @@ class test_prepare23(wttest.WiredTigerTestCase):
         ('non-delete', dict(delete=False)),
     ]
 
-    scenarios = make_scenarios(format_values, delete)
+    scenarios = make_scenarios(delete)
 
     def test_prepare23(self):
         uri = "table:test_prepare23"

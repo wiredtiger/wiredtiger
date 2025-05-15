@@ -46,7 +46,7 @@ class test_prepare_hs05(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)
 
-        key = self.key
+        key = str(1)
 
         self.session.begin_transaction()
         cursor[key] = value1

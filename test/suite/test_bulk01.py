@@ -45,11 +45,9 @@ class test_bulk_load(wttest.WiredTigerTestCase):
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
         ('string', dict(keyfmt='S')),
     ]
     valfmt = [
-        ('fixed', dict(valfmt='8t')),
         ('integer', dict(valfmt='i')),
         ('string', dict(valfmt='S')),
     ]
@@ -76,94 +74,6 @@ class test_bulk_load(wttest.WiredTigerTestCase):
         cursor.close()
 
         self.assertEqual(self.get_stat(stat.conn.cursor_bulk_count), 0)
-
-    # Test a bulk-load triggers variable-length column-store RLE correctly.
-    def test_bulk_load_var_rle(self):
-        if self.keyfmt != 'r' or self.valfmt == '8t':
-                return
-
-        # We can't directly test RLE, it's internal to WiredTiger. However,
-        # diagnostic builds catch records that should have been RLE compressed,
-        # but weren't, so setting matching values should be sufficient.
-        uri = self.type + self.name
-        self.session.create(uri,
-            'key_format=' + self.keyfmt + ',value_format=' + self.valfmt)
-        cursor = self.session.open_cursor(uri, None, "bulk")
-        for i in range(1, 1000):
-            cursor[simple_key(cursor, i)] = simple_value(cursor, i//7)
-
-    # Test a bulk-load variable-length column-store append ignores any key.
-    def test_bulk_load_var_append(self):
-        if self.keyfmt != 'r':
-                return
-
-        uri = self.type + self.name
-        self.session.create(uri,
-            'key_format=' + self.keyfmt + ',value_format=' + self.valfmt)
-        cursor = self.session.open_cursor(uri, None, "bulk,append")
-        for i in range(1, 1000):
-            cursor[simple_key(cursor, 37)] = simple_value(cursor, i)
-        cursor.close()
-        cursor = self.session.open_cursor(uri, None, None)
-        for i in range(1, 1000):
-            cursor.set_key(simple_key(cursor, i))
-            cursor.search()
-            self.assertEqual(cursor.get_value(), simple_value(cursor, i))
-
-    # Test that column-store bulk-load handles skipped records correctly.
-    def test_bulk_load_col_delete(self):
-        if self.keyfmt != 'r':
-                return
-
-        uri = self.type + self.name
-        self.session.create(uri,
-            'key_format=' + self.keyfmt + ',value_format=' + self.valfmt)
-        cursor = self.session.open_cursor(uri, None, "bulk")
-        for i in range(1, 1000):
-            if i % 7 == 0:
-                cursor[simple_key(cursor, i)] = simple_value(cursor, i)
-
-        # Ensure we create all the missing records.
-        i = i + 1
-        cursor[simple_key(cursor, i)] = simple_value(cursor, i)
-
-        cursor.close()
-        cursor = self.session.open_cursor(uri, None, None)
-
-        # Verify all the records are there, in their proper state.
-        for i in range(1, 1000):
-            cursor.set_key(simple_key(cursor, i))
-            if i % 7 == 0:
-                cursor.search()
-                self.assertEqual(cursor.get_value(), simple_value(cursor, i))
-            elif cursor.value_format == '8t':
-                cursor.search()
-                self.assertEqual(cursor.get_value(), 0)
-            else:
-                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-
-    # Test that variable-length column-store bulk-load efficiently creates big
-    # records.
-    def test_bulk_load_col_big(self):
-        if self.keyfmt != 'r' or self.valfmt == '8t':
-                return
-
-        uri = self.type + self.name
-        self.session.create(uri,
-            'key_format=' + self.keyfmt + ',value_format=' + self.valfmt)
-        cursor = self.session.open_cursor(uri, None, "bulk")
-        for i in range(1, 10):
-            cursor[simple_key(cursor, i)] = simple_value(cursor, i)
-
-        # A big record -- if it's not efficient, we'll just hang.
-        big = 18446744073709551606
-        cursor[simple_key(cursor, big)] = simple_value(cursor, big)
-
-        cursor.close()
-        cursor = self.session.open_cursor(uri, None, None)
-        cursor.set_key(simple_key(cursor, big))
-        cursor.search()
-        self.assertEqual(cursor.get_value(), simple_value(cursor, big))
 
     # Test that bulk-load out-of-order fails.
     def test_bulk_load_order_check(self):

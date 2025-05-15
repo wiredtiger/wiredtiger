@@ -37,7 +37,7 @@ class test_prepare_cursor02(wttest.WiredTigerTestCase):
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
     ]
 
-    scenarios = make_scenarios(types, keyfmt)
+    scenarios = make_scenarios(types)
 
     # Test cursor navigate (next/prev) with prepared transactions.
     def test_cursor_navigate_prepare_transaction(self):

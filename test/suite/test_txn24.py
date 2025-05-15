@@ -57,7 +57,7 @@ class test_txn24(wttest.WiredTigerTestCase):
         n_rows = 480000
 
         # Populate
-        self.session.create(uri, table_params + self.extraconfig)
+        self.session.create(uri, table_params)
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, n_rows + 1):
             cursor[i] = default_val

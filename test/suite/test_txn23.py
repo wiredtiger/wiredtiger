@@ -55,12 +55,12 @@ class test_txn23(wttest.WiredTigerTestCase):
 
         # Create a table.
         uri_1 = "table:txn23_1"
-        ds_1 = SimpleDataSet(self, uri_1, 0, 'i')
+        ds_1 = SimpleDataSet(self, uri_1, 0, key_format='i')
         ds_1.populate()
 
         # Create another table.
         uri_2 = "table:txn23_2"
-        ds_2 = SimpleDataSet(self, uri_2, 0, 'i')
+        ds_2 = SimpleDataSet(self, uri_2, 0, key_format='i')
         ds_2.populate()
 
         # Pin oldest and stable to timestamp 10.

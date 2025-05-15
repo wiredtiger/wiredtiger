@@ -48,7 +48,7 @@ class test_prepare_hs02(wttest.WiredTigerTestCase, suite_subprocess):
     scenarios = make_scenarios(txn_end)
 
     def test_prepare_conflict(self):
-        self.session.create(self.uri, self.s_config)
+        self.session.create(self.uri, 'key_format=i,value_format=i')
         c = self.session.open_cursor(self.uri)
 
         # Insert keys 1..100 each with timestamp=key, in some order
@@ -140,7 +140,7 @@ class test_prepare_hs02(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(350))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(350))
 
-        self.session.create(self.uri, self.s_config)
+        self.session.create(self.uri, 'key_format=i,value_format=i')
         cur = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         cur[1] = 2
