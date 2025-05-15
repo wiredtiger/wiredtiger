@@ -135,6 +135,7 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_TRET(__wt_close(session, &block->fh));
 
     __wt_free(session, block->block_groups_file);
+    block->block_groups_file = NULL; 
     block->block_groups_cnt = 0;
 
     __wt_spin_destroy(session, &block->live_lock);

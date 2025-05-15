@@ -12,12 +12,12 @@
 /* #define BLOCK_GROUP_MIN_FILE_BYTES (0) */
 #define BLOCK_GROUP_MAX_EXTRA_GROUPS (4ULL * 1024ULL)
 #define BLOCK_GROUP_DENSITY_WEIGHT 3
-#define BLOCK_GROUP_WASTE_WEIGHT 1
-#define BLOCK_GROUP_PROXIMITY_WEIGHT 2
-#define BLOCK_GROUP_MAX_SCORE DBL_MAX
-#define BLOCK_GROUP_SEARCH_BUDGET 256
-#define BLOCK_GROUP_DIRTY_SCAN_CAP 32
-#define BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET 32
+#define BLOCK_GROUP_WASTE_WEIGHT 0
+#define BLOCK_GROUP_PROXIMITY_WEIGHT 0
+// #define BLOCK_GROUP_MAX_SCORE DBL_MAX
+#define BLOCK_GROUP_SEARCH_BUDGET 1024
+#define BLOCK_GROUP_DIRTY_SCAN_CAP 128
+#define BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET 128
 
 /*
 #define BLOCK_GROUP_SIZE_BYTES (16ULL * 1024ULL * 1024ULL)
@@ -240,7 +240,7 @@ __block_dirty_srch_init(WT_SESSION_IMPL *session, WT_BLOCK *block)
 static WT_INLINE double
 __block_score_extent(WT_EXT *ext, WT_SIZE *bucket, wt_off_t size, WT_BLOCK *block)
 {
-    uint64_t checked_span = 0, dirty_span = 0;
+    uint64_t dirty_span = 0;
 
     if (block->block_groups_file != NULL) {
         uint64_t start = ((uint64_t)ext->off) / BLOCK_GROUP_SIZE_BYTES;
@@ -248,7 +248,6 @@ __block_score_extent(WT_EXT *ext, WT_SIZE *bucket, wt_off_t size, WT_BLOCK *bloc
           BLOCK_GROUP_SIZE_BYTES;
 
         for (uint64_t b = start; b < end && dirty_span < BLOCK_GROUP_DIRTY_SCAN_CAP; b++) {
-            checked_span++;
             if (__bit_test(block->block_groups_file, b))
                 dirty_span++;
         }
@@ -256,13 +255,13 @@ __block_score_extent(WT_EXT *ext, WT_SIZE *bucket, wt_off_t size, WT_BLOCK *bloc
 
     /* TODO: could consider using alloc list in the scoring */
     double waste_ratio = bucket->size > 0 ? (double)(bucket->size - size) / bucket->size : 1.0;
-    double clean_ratio =
-      checked_span > 0 ? (double)(checked_span - dirty_span) / checked_span : 1.0;
+    // double clean_ratio =
+    //   checked_span > 0 ? (double)(checked_span - dirty_span) / checked_span : 1.0;
     double proximity_ratio = block->size > 0 ? (double)ext->off / block->size : 1.0;
 
-    /* Lower score = better */
+    /* higher score = better */
     double score = (BLOCK_GROUP_WASTE_WEIGHT * waste_ratio) +
-      (BLOCK_GROUP_PROXIMITY_WEIGHT * proximity_ratio) + (BLOCK_GROUP_DENSITY_WEIGHT * clean_ratio);
+      (BLOCK_GROUP_PROXIMITY_WEIGHT * proximity_ratio) + (BLOCK_GROUP_DENSITY_WEIGHT * dirty_span);
 
     return (score);
 }
@@ -284,7 +283,7 @@ __block_dirty_srch(WT_BLOCK *block, wt_off_t size)
     WT_SIZE **head = block->live.avail.sz;
     WT_EXT *best_ext = NULL;
 
-    double best_score = BLOCK_GROUP_MAX_SCORE;
+    double best_score = 0;
     int remaining_budget = BLOCK_GROUP_SEARCH_BUDGET;
 
     /*find first bucket that has enough size for our write*/
@@ -302,7 +301,7 @@ __block_dirty_srch(WT_BLOCK *block, wt_off_t size)
                 continue;
 
             double score = __block_score_extent(ext, *s, size, block);
-            if (score < best_score) {
+            if (score > best_score) {
                 best_score = score;
                 best_ext = ext;
             }
@@ -724,7 +723,7 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
-
+    ext = NULL;
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -760,8 +759,10 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
             goto append;
         ext = *estack[0];
     } else {
-        WT_RET(__block_dirty_srch_init(session, block));
-        ext = __block_dirty_srch(block, size);
+        // if(/* DISABLES CODE */ (false) && true) {
+          WT_RET(__block_dirty_srch_init(session, block));
+          ext = __block_dirty_srch(block, size);
+        // }
         if (ext == NULL) {
             __block_size_srch(block->live.avail.sz, size, sstack);
             if ((szp = *sstack[0]) == NULL) {

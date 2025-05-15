@@ -934,6 +934,22 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
         cb->incr_src->incr_size_bytes = 0;
         cb->incr_src->dirty_size_bytes = 0;
         F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
+
+        WT_DATA_HANDLE *dhandle;
+        TAILQ_FOREACH(dhandle, &S2C(session)->dhqh, q) {
+          WT_BTREE *btree = (WT_BTREE *)dhandle->handle;
+          if (btree != NULL && dhandle->type == WT_DHANDLE_TYPE_BTREE) {
+              if (btree->bm != NULL) {
+                  WT_BLOCK *block = (WT_BLOCK *)btree->bm->block;
+                  if (block != NULL) {
+                    //TODO: lock? might not matter for short test to prove things out
+                    __wt_free(session, block->block_groups_file);
+                    block->block_groups_file = NULL;
+                    block->block_groups_cnt = 0;
+                  }
+              }
+          }
+        }
     }
     WT_TRET(__backup_free(session, cb));
 
