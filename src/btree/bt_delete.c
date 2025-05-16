@@ -19,10 +19,10 @@
  * the range and instead just marks them as deleted, by changing their WT_REF state to
  * WT_REF_DELETED. Pages ineligible for this fast path ("fast-truncate" or "fast-delete") include
  * pages that are already in the cache and can not be evicted, records in the pages that are not
- * visible to the transaction, pages containing overflow items, pages containing prepared values, or
- * pages that belong to FLCS trees. Ineligible pages are read and have their rows updated/deleted
- * individually ("slow-truncate"). The transaction for the delete operation is stored in memory
- * referenced by the WT_REF.page_del field.
+ * visible to the transaction, pages containing overflow items, pages containing prepared values.
+ * Ineligible pages are read and have their rows updated/deleted individually ("slow-truncate").
+ * The transaction for the delete operation is stored in memory referenced by the WT_REF.page_del
+ * field.
  *
  * Future cursor walks of the tree will skip the deleted page based on the transaction stored for
  * the delete, but it gets more complicated if a read is done using a random key, or a cursor walk
@@ -46,14 +46,12 @@
  *
  * There are two other ways pages can be marked deleted: if they reconcile empty, or if they are
  * found to be eligible for deletion and contain only obsolete items. (The latter is known as
- * "checkpoint cleanup" and happens in bt_sync.c.) There are also two cases in which deleted pages
- * are manufactured out of thin air: in VLCS, if a key-space gap exists between the start recno of
- * an internal page and the start recno of its first child, a deleted page is created to cover this
- * space; and, when new trees are created they are created with a single deleted leaf page. In these
- * cases, the WT_REF state will be set to WT_REF_DELETED but there will not be any associated
- * WT_REF.page_del field since the page contains no data. These pages are always skipped during
- * cursor traversal, and if read is forced to instantiate such a page, it creates an empty page from
- * scratch.
+ * "checkpoint cleanup" and happens in bt_sync.c.) There is also one case in which deleted pages
+ * are manufactured out of thin air when new trees are created they are created with a single
+ * deleted leaf page. In these cases, the WT_REF state will be set to WT_REF_DELETED but there will
+ * not be any associated WT_REF.page_del field since the page contains no data. These pages are
+ * always skipped during cursor traversal, and if read is forced to instantiate such a page, it
+ * creates an empty page from scratch.
  */
 
 /*
@@ -555,10 +553,7 @@ __wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * Give the page a modify structure. We need it to remember that the page has been instantiated.
      * We do not need to mark the page dirty here. (It used to be necessary because evicting a clean
-     * instantiated page would lose the delete information; but that is no longer the case.) Note
-     * though that because VLCS instantiation goes through col_modify it will mark the page dirty
-     * regardless, except in read-only trees where attempts to mark things dirty are ignored. (Row-
-     * store instantiation adds the tombstones by hand and so does not need to mark the page dirty.)
+     * instantiated page would lose the delete information; but that is no longer the case.)
      *
      * Note that partially visible truncates that may need instantiation can appear in read-only
      * trees (whether a read-only open of the live database or via a checkpoint cursor) if they were

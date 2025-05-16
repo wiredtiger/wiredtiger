@@ -8,8 +8,6 @@ There are also four other ways deleted pages can appear in a database.
 The checkpoint cleanup code (found in \c bt_sync.c) discards pages it finds to contain
 only obsolete values.
 Pages that reconcile completely empty turn into deleted pages.
-In VLCS, an empty deleted page is inserted when loading an internal page whose start recno
-is less than the start recno of its first child.
 Finally, new trees are created with a single empty deleted leaf page.
 These circumstances are all discussed further below.
 
@@ -192,9 +190,6 @@ cell.
 If it is discarded because it is also unmodified, the deletion information must have
 already been written to disk and can be read in again later.)
 
-However, VLCS pages end up marked dirty anyway because the instantiation logic uses \c
-col_modify to post the tombstones and that always marks its page dirty.
-
 Note that in two cases the instantiation code is skipped: verify, and salvage are concerned only
 with the on-disk state. These cases also skip the optimization that generates blank pages instead of
 reading pages that contain only obsolete values (those with a globally visible truncation) -- verify
@@ -214,8 +209,8 @@ the deletion information into the child page's address cell.
 it is written to disk as part of the parent page, not the child page.)
 See @ref ft_on_disk_format.
 
-The code that supports this lives in \c rec_child.c and is used by both VLCS and row-store
-internal page reconciliation.
+The code that supports this lives in \c rec_child.c and is used by row-store internal page
+reconciliation.
 
 If the child page is deleted (that is, the state is \c WT_REF_DELETED) we must lock the
 ref to examine the deletion information.
@@ -391,9 +386,6 @@ The ref state becomes \c WT_REF_DELETED and no \c page_del is generated.
 (Also note that \c WT_REF_MEM pages with \c WT_PM_REC_EMPTY reconciliation results are
 explicitly skipped during internal page reconciliation.)
 
-In VLCS, empty deleted pages are inserted during certain internal page reads; see @ref
-ft_vlcs.
-
 Finally, new trees are created with a single empty deleted leaf page, because creating the
 tree with no leaves at all causes problems.
 
@@ -439,82 +431,6 @@ it may be that the additional time aggregate check in \c __wt_btcur_skip_page sh
 deployed for all tree walks.
 (If not, the reason should be discovered and documented.)
 <!-- FIXME-WT-9859: WT-9859 is the ticket for cleaning this up. -->
-
-@section ft_vlcs VLCS considerations
-
-In row-store, discarding a chunk of the namespace has no particular effect.
-Leaf pages support insertion at the beginning and at the end (as well as in the middle),
-so if the internal page structure directs a search to a particular leaf page there's
-always a place to put any updates that might be generated.
-
-In VLCS this is different; insertions are supported only at the ends of pages, in the
-append list.
-Historically this was furthermore only allowed on the last page of the tree; the namespace
-begins at 1 and all keys between 1 and the last key in the tree existed on some particular
-leaf page, possibly in a deleted-value cell.
-
-Extending fast-truncate and deleted support to VLCS requires allowing chunks of the
-namespace to be discarded.
-In most cases this is harmless; searches into that portion of the namespace will be
-directed by the internal page structure to the next page to the left and any updates will
-appear on its append list.
-
-However, if the leftmost child of an internal page is discarded, a problem arises:
-searches for that portion of the namespace still go to that internal page, because its
-start key hasn't changed (and can't change), but now the leftmost child begins at some
-later key.
-There's now nowhere for the search to go, and things go downhill from there.
-
-One possible solution to this problem is to use the split code to reinsert an empty page
-in the leftmost slot on demand.
-This was rejected as dangerous (violates previous assumptions, extremely difficult to test
-or verify) so instead steps were put in place to avoid ever discarding the leftmost child.
-
-These steps are:
-1. Insert an empty deleted leaf page at internal page inmem time if the first child begins
-after the internal page itself.
-2. Don't allow eviction to trigger a reverse split going upwards from the leftmost child,
-because that discards the page.
-(Note that in most cases the same reverse split will then promptly happen anyway, coming
-from the next child.)
-3. When doing a split, don't discard the leftmost child even if it's deleted.
-
-Note that this extra page never appears on disk.
-
-There is one other consideration, which is that normally VLCS leaf pages never reconcile
-empty; instead they reconcile with a single deleted-value cell, possibly with a large RLE
-count.
-These pages are detected at the end of leaf reconciliation and converted to empty pages.
-
-@section ft_flcs FLCS and deleted pages
-
-Fast-truncate and deleted pages in general are not supported in FLCS.
-Most of the code is in place (since deleted and instantiated page handling mostly occurs in
-the internal page code and this is shared with VLCS) but there's a showstopper problem:
-because there are no deleted values (deleted values read back as zero) there are also no
-gaps in the namespace.
-In particular, if we truncate a range, discard the pages, and then read through the gap we
-need to read back the entire truncated namespace as zero one entry at a time.
-That requires knowing how big the gaps are; and while that information is encoded in the
-internal page structure, it is not <i>available</i> from the internal page structure.
-Currently this looks infeasible to support, though it's possible that there's some clever
-solution nobody's thought of yet.
-
-This is perhaps unfortunate because slow-truncating FLCS pages (which contain large
-numbers of rows with very small values) is particularly expensive.
-
-For FLCS, fast-truncate is inhibited by checking for it and clearing \c WT_READ_TRUNCATE
-in the page-walk code; similarly, checkpoint cleanup avoids discarding FLCS pages.
-Because values are never deleted, pages never become empty; no special handling is needed
-to prevent deleted pages appearing via that mechanism.
-However, there is still a bit of FLCS-specific code there to avoid examining pages that
-are not in memory (unlike in row-store and VLCS) because this is not useful.
-
-The empty deleted page attached to a new tree is still created; it will turn into an empty
-in-memory page on the first search, and in principle can change back to a deleted page if
-then evicted immediately.
-However, once an update is posted to it (even if later rolled back) it will not reconcile
-empty.
 
 @section ft_visibility Notes on visibility
 
@@ -701,8 +617,6 @@ Allocate a tombstone for instantiation.}
 @row{bt_delete.c, Function, \c __instantiate_tombstone,
 Allocate and remember a tombstone during instantiation.
 (Possibly this and \c __tombstone_update_alloc should be folded together eventually.)}
-@row{bt_delete.c, Function, \c __instantiate_col_var,
-Instantiate a VLCS page.}
 @row{bt_delete.c, Function, \c __instantiate_row,
 Instantiate a row-store page.}
 @row{bt_delete.c, Function, \c __wt_delete_page_instantiate,
@@ -734,14 +648,10 @@ Return \c WT_NOTFOUND instead of reading the page if we are skipping deleted pag
 
 @row{bt_split.c, Hook, in \c __split_parent_discard_ref,
 Discard the \c page_del field of the }\c WT_REF.
-@row{bt_split.c, Hook, in \c __split_parent,
-For VLCS trees\, avoid discarding the leftmost child even if it's deleted.}
 
 @row{bt_vrfy.c, Hook, in \c __verify_tree,
 Allow for deleted-address cells when checking the cell type in the address against the
 page type.}
-@row{bt_vrfy.c, Hook, in \c __verify_tree,
-Allow namespace gaps in VLCS but not in FLCS.}
 @row{bt_vrfy.c, Hook, in \c __verify_page_content_int,
 Handle deleted-address cells.}
 

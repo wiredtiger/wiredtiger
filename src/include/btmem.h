@@ -362,7 +362,7 @@ struct __wt_page_modify {
 
     /*
      * Internal pages need to be able to chain root-page splits and have a special transactional
-     * eviction requirement. Column-store leaf pages need update and append lists.
+     * eviction requirement.
      *
      * Ugly union/struct layout to conserve memory, a page is either a leaf page or an internal
      * page.
@@ -1442,19 +1442,6 @@ struct __wt_update_vector {
  * The additional slot is because it's possible to insert items smaller than any existing key on the
  * page: for that reason, the first slot of the insert array holds keys smaller than any other key
  * on the page.
- *
- * In column-store variable-length run-length encoded pages, a single indx entry may reference a
- * large number of records, because there's a single on-page entry representing many identical
- * records. (We don't expand those entries when the page comes into memory, as that would require
- * resources as pages are moved to/from the cache, including read-only files.) Instead, a single
- * indx entry represents all of the identical records originally found on the page.
- *
- * Modifying (or deleting) run-length encoded column-store records is hard because the page's entry
- * no longer references a set of identical items. We handle this by "inserting" a new entry into the
- * insert array, with its own record number. (This is the only case where it's possible to insert
- * into a column-store: only appends are allowed, as insert requires re-numbering subsequent
- * records. Berkeley DB did support mutable records, but it won't scale and it isn't useful enough
- * to re-implement, IMNSHO.)
  */
 struct __wt_insert {
     wt_shared WT_UPDATE *upd; /* value */
