@@ -26,12 +26,6 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree expected number of compact pages rewritten",
   "btree: btree number of pages reconciled during checkpoint",
   "btree: btree skipped by compaction as process would not reduce size",
-  "btree: column-store fixed-size leaf pages",
-  "btree: column-store fixed-size time windows",
-  "btree: column-store internal pages",
-  "btree: column-store variable-size RLE encoded values",
-  "btree: column-store variable-size deleted values",
-  "btree: column-store variable-size leaf pages",
   "btree: fixed-record size",
   "btree: maximum internal page size",
   "btree: maximum leaf page key size",
@@ -117,7 +111,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages written requiring in-memory restoration",
   "cache: recent modification of a page blocked its eviction",
   "cache: reverse splits performed",
-  "cache: reverse splits skipped because of VLCS namespace gap restrictions",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
   "cache: tracked dirty bytes in the cache",
@@ -247,7 +240,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls",
   "cursor: update key and value bytes",
   "cursor: update value size change",
-  "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: dictionary matches",
@@ -372,12 +364,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_compact_pages_rewritten_expected */
     /* not clearing btree_checkpoint_pages_reconciled */
     /* not clearing btree_compact_skipped */
-    stats->btree_column_fix = 0;
-    stats->btree_column_tws = 0;
-    stats->btree_column_internal = 0;
-    stats->btree_column_rle = 0;
-    stats->btree_column_deleted = 0;
-    stats->btree_column_variable = 0;
     stats->btree_fixed_len = 0;
     stats->btree_maxintlpage = 0;
     stats->btree_maxleafkey = 0;
@@ -452,7 +438,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_write_restore = 0;
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_reverse_splits = 0;
-    stats->cache_reverse_splits_skipped_vlcs = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_bytes_dirty */
@@ -578,7 +563,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
-    stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_dictionary = 0;
@@ -676,12 +660,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_compact_pages_rewritten_expected += from->btree_compact_pages_rewritten_expected;
     to->btree_checkpoint_pages_reconciled += from->btree_checkpoint_pages_reconciled;
     to->btree_compact_skipped += from->btree_compact_skipped;
-    to->btree_column_fix += from->btree_column_fix;
-    to->btree_column_tws += from->btree_column_tws;
-    to->btree_column_internal += from->btree_column_internal;
-    to->btree_column_rle += from->btree_column_rle;
-    to->btree_column_deleted += from->btree_column_deleted;
-    to->btree_column_variable += from->btree_column_variable;
     if (from->btree_fixed_len > to->btree_fixed_len)
         to->btree_fixed_len = from->btree_fixed_len;
     if (from->btree_maxintlpage > to->btree_maxintlpage)
@@ -770,7 +748,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_write_restore += from->cache_write_restore;
     to->cache_eviction_blocked_recently_modified += from->cache_eviction_blocked_recently_modified;
     to->cache_reverse_splits += from->cache_reverse_splits;
-    to->cache_reverse_splits_skipped_vlcs += from->cache_reverse_splits_skipped_vlcs;
     to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
     to->cache_hs_insert_reverse_modify += from->cache_hs_insert_reverse_modify;
     to->cache_bytes_dirty += from->cache_bytes_dirty;
@@ -900,7 +877,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
-    to->rec_vlcs_emptied_pages += from->rec_vlcs_emptied_pages;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
     to->rec_dictionary += from->rec_dictionary;
@@ -995,12 +971,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_checkpoint_pages_reconciled +=
       WT_STAT_DSRC_READ(from, btree_checkpoint_pages_reconciled);
     to->btree_compact_skipped += WT_STAT_DSRC_READ(from, btree_compact_skipped);
-    to->btree_column_fix += WT_STAT_DSRC_READ(from, btree_column_fix);
-    to->btree_column_tws += WT_STAT_DSRC_READ(from, btree_column_tws);
-    to->btree_column_internal += WT_STAT_DSRC_READ(from, btree_column_internal);
-    to->btree_column_rle += WT_STAT_DSRC_READ(from, btree_column_rle);
-    to->btree_column_deleted += WT_STAT_DSRC_READ(from, btree_column_deleted);
-    to->btree_column_variable += WT_STAT_DSRC_READ(from, btree_column_variable);
     if ((v = WT_STAT_DSRC_READ(from, btree_fixed_len)) > to->btree_fixed_len)
         to->btree_fixed_len = v;
     if ((v = WT_STAT_DSRC_READ(from, btree_maxintlpage)) > to->btree_maxintlpage)
@@ -1103,8 +1073,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_recently_modified);
     to->cache_reverse_splits += WT_STAT_DSRC_READ(from, cache_reverse_splits);
-    to->cache_reverse_splits_skipped_vlcs +=
-      WT_STAT_DSRC_READ(from, cache_reverse_splits_skipped_vlcs);
     to->cache_hs_insert_full_update += WT_STAT_DSRC_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_DSRC_READ(from, cache_hs_insert_reverse_modify);
     to->cache_bytes_dirty += WT_STAT_DSRC_READ(from, cache_bytes_dirty);
@@ -1243,7 +1211,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_DSRC_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_DSRC_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_DSRC_READ(from, cursor_update_bytes_changed);
-    to->rec_vlcs_emptied_pages += WT_STAT_DSRC_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_DSRC_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_DSRC_READ(from, rec_time_window_bytes_txn);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
@@ -1560,7 +1527,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: percentage overhead",
   "cache: recent modification of a page blocked its eviction",
   "cache: reverse splits performed",
-  "cache: reverse splits skipped because of VLCS namespace gap restrictions",
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
   "cache: total milliseconds spent inside reentrant history store evictions in a reconciliation",
@@ -1904,7 +1870,6 @@ static const char *const __stats_connection_desc[] = {
   "prefetch: pre-fetch pages read in background",
   "prefetch: pre-fetch skipped reading in a page due to harmless error",
   "prefetch: pre-fetch triggered by page read",
-  "reconciliation: VLCS pages explicitly reconciled as empty",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: fast-path pages deleted",
@@ -2337,7 +2302,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_overhead */
     stats->cache_eviction_blocked_recently_modified = 0;
     stats->cache_reverse_splits = 0;
-    stats->cache_reverse_splits_skipped_vlcs = 0;
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing eviction_reentry_hs_eviction_milliseconds */
@@ -2679,7 +2643,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->prefetch_pages_read = 0;
     stats->prefetch_skipped_error_ok = 0;
     stats->prefetch_attempts = 0;
-    stats->rec_vlcs_emptied_pages = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_page_delete_fast = 0;
@@ -3130,8 +3093,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_recently_modified +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_recently_modified);
     to->cache_reverse_splits += WT_STAT_CONN_READ(from, cache_reverse_splits);
-    to->cache_reverse_splits_skipped_vlcs +=
-      WT_STAT_CONN_READ(from, cache_reverse_splits_skipped_vlcs);
     to->cache_hs_insert_full_update += WT_STAT_CONN_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_CONN_READ(from, cache_hs_insert_reverse_modify);
     to->eviction_reentry_hs_eviction_milliseconds +=
@@ -3524,7 +3485,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->prefetch_pages_read += WT_STAT_CONN_READ(from, prefetch_pages_read);
     to->prefetch_skipped_error_ok += WT_STAT_CONN_READ(from, prefetch_skipped_error_ok);
     to->prefetch_attempts += WT_STAT_CONN_READ(from, prefetch_attempts);
-    to->rec_vlcs_emptied_pages += WT_STAT_CONN_READ(from, rec_vlcs_emptied_pages);
     to->rec_time_window_bytes_ts += WT_STAT_CONN_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_CONN_READ(from, rec_time_window_bytes_txn);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);

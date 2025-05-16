@@ -573,7 +573,7 @@ create_object(TABLE *table, void *arg)
         CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
     CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
-        TV(BTREE_PREFIX_COMPRESSION) == 0 ? "false" : "true", TV(BTREE_PREFIX_COMPRESSION_MIN));
+      TV(BTREE_PREFIX_COMPRESSION) == 0 ? "false" : "true", TV(BTREE_PREFIX_COMPRESSION_MIN));
     if (TV(BTREE_REVERSE))
         CONFIG_APPEND(p, ",collator=reverse");
     if (TV(BTREE_DICTIONARY))

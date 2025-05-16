@@ -646,7 +646,6 @@ struct __wt_connection_stats {
     int64_t cache_overhead;
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_reverse_splits;
-    int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t eviction_reentry_hs_eviction_milliseconds;
@@ -988,7 +987,6 @@ struct __wt_connection_stats {
     int64_t prefetch_pages_read;
     int64_t prefetch_skipped_error_ok;
     int64_t prefetch_attempts;
-    int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
     int64_t rec_page_delete_fast;
@@ -1174,12 +1172,6 @@ struct __wt_dsrc_stats {
     int64_t btree_compact_pages_rewritten_expected;
     int64_t btree_checkpoint_pages_reconciled;
     int64_t btree_compact_skipped;
-    int64_t btree_column_fix;
-    int64_t btree_column_tws;
-    int64_t btree_column_internal;
-    int64_t btree_column_rle;
-    int64_t btree_column_deleted;
-    int64_t btree_column_variable;
     int64_t btree_fixed_len;
     int64_t btree_maxintlpage;
     int64_t btree_maxleafkey;
@@ -1254,7 +1246,6 @@ struct __wt_dsrc_stats {
     int64_t cache_write_restore;
     int64_t cache_eviction_blocked_recently_modified;
     int64_t cache_reverse_splits;
-    int64_t cache_reverse_splits_skipped_vlcs;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
     int64_t cache_bytes_dirty;
@@ -1380,7 +1371,6 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
-    int64_t rec_vlcs_emptied_pages;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
     int64_t rec_dictionary;

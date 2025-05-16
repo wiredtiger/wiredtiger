@@ -553,8 +553,8 @@ compare_cursors(WT_CURSOR *cursor1, WT_CURSOR *cursor2)
     return (0);
 
 mismatch:
-    printf("Key/value mismatch: %"PRIu64" (%s) from a row table is not %"PRIu64
-        "(%s) from a row table\n",
+    printf("Key/value mismatch: %" PRIu64 " (%s) from a row table is not %" PRIu64
+           "(%s) from a row table\n",
       key1, strval1, key2, strval2);
     fflush(stdout);
 

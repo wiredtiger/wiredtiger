@@ -134,22 +134,6 @@ allocate_key_space(WT_SESSION_IMPL *session, int key_count, WT_ITEM *keys[])
     }
 }
 
-// // Test sorting with column and non-key'd operations.
-// TEST_CASE("Basic cols and non key'd op", "[mod_compare]")
-// {
-//     WT_BTREE btrees[2];
-//     WT_TXN_OP ops[2];
-
-//     init_btree(&btrees[0], BTREE_ROW, 1);
-//     init_btree(&btrees[1], BTREE_ROW, 2);
-
-//     init_op(&ops[0], &btrees[0], WT_TXN_OP_NONE, WT_RECNO_OOB, NULL);
-//     init_op(&ops[1], &btrees[1], WT_TXN_OP_BASIC_ROW, 54, NULL);
-
-//     __wt_qsort(&ops, 2, sizeof(WT_TXN_OP), __ut_txn_mod_compare);
-//     REQUIRE(__mod_ops_sorted(ops, 2, 0) == true);
-// }
-
 // Test sorting with row and non-key'd operations.
 TEST_CASE("Basic rows and non key'd op", "[mod_compare]")
 {

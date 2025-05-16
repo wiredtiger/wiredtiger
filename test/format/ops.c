@@ -1372,10 +1372,10 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
         return (0);
     if (tinfo == NULL)
         trace_msg(cursor->session, "read %" PRIu64 " {%.*s}, {%.*s}", keyno, (int)key->size,
-            (char *)key->data, (int)value->size, (char *)value->data);
+          (char *)key->data, (int)value->size, (char *)value->data);
     else
-        trace_op(tinfo, "read %" PRIu64 " {%.*s}, {%.*s}", keyno, (int)key->size,
-            (char *)key->data, (int)value->size, (char *)value->data);
+        trace_op(tinfo, "read %" PRIu64 " {%.*s}, {%.*s}", keyno, (int)key->size, (char *)key->data,
+          (int)value->size, (char *)value->data);
     return (0);
 }
 
@@ -1512,7 +1512,8 @@ static int
 read_row(TINFO *tinfo)
 {
     /* 25% of the time we call search-near. */
-    return (read_row_worker(tinfo, NULL, tinfo->cursor, tinfo->keyno, tinfo->key, tinfo->value, mmrand(&tinfo->extra_rnd, 0, 3) == 1));
+    return (read_row_worker(tinfo, NULL, tinfo->cursor, tinfo->keyno, tinfo->key, tinfo->value,
+      mmrand(&tinfo->extra_rnd, 0, 3) == 1));
 }
 
 /*
@@ -1537,7 +1538,7 @@ nextprev(TINFO *tinfo, bool next)
     if (FLD_ISSET(g.trace_flags, TRACE_CURSOR)) {
         which = next ? "next" : "prev";
         trace_op(tinfo, "%s {%.*s}, {%.*s}", which, (int)key.size, (char *)key.data,
-        (int)value.size, (char *)value.data);
+          (int)value.size, (char *)value.data);
     }
     return (0);
 }

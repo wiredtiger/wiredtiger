@@ -1252,11 +1252,11 @@ err:
 }
 
 /*
- * __wti_rec_split_grow --
+ * __rec_split_grow --
  *     Grow the split buffer.
  */
-int
-__wti_rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
+static int
+__rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -1288,12 +1288,12 @@ __wti_rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
 #define WT_PAGE_INTL_MINIMUM_ENTRIES 20
 
 /*
- * __wti_rec_split --
+ * __rec_split --
  *     Handle the page reconciliation bookkeeping. (Did you know "bookkeeper" has 3 doubled letters
  *     in a row? Sweet-tooth does, too.)
  */
-int
-__wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
+static int
+__rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 {
     WT_BTREE *btree;
     WTI_REC_CHUNK *tmp;
@@ -1385,7 +1385,7 @@ done:
      * won't necessarily happen that way.
      */
     if (r->space_avail < next_len)
-        WT_RET(__wti_rec_split_grow(session, r, next_len));
+        WT_RET(__rec_split_grow(session, r, next_len));
 
     return (0);
 }
@@ -1413,7 +1413,8 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t 
             return (0);
 
         r->cur_ptr->entries_before_split_boundary = r->entries;
-        WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->key_at_split_boundary, r->page->type));
+        WT_RET(
+          __rec_split_row_promote(session, r, &r->cur_ptr->key_at_split_boundary, r->page->type));
         WT_TIME_AGGREGATE_COPY(&r->cur_ptr->ta_before_split_boundary, &r->cur_ptr->ta);
         /* Reset the "next" time aggregate which may be used in certain split scenarios. */
         WT_TIME_AGGREGATE_INIT_MERGE(&r->cur_ptr->ta_after_split_boundary);
@@ -1428,7 +1429,7 @@ __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t 
     }
 
     /* We are crossing a split boundary */
-    return (__wti_rec_split(session, r, next_len));
+    return (__rec_split(session, r, next_len));
 }
 
 /*
@@ -1491,7 +1492,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
          */
         len_to_move = prev_ptr->image.size - prev_ptr->min_offset;
         if (r->space_avail < len_to_move)
-            WT_RET(__wti_rec_split_grow(session, r, len_to_move));
+            WT_RET(__rec_split_grow(session, r, len_to_move));
         cur_dsk_start = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
         /*

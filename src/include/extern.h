@@ -940,8 +940,6 @@ extern int __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_strndup(WT_SESSION_IMPL *session, const void *str, size_t len, void *retp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_struct_check(WT_SESSION_IMPL *session, const char *fmt, size_t len, bool *fixedp,
-  uint32_t *fixed_lenp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_struct_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *v)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_struct_pack(WT_SESSION_IMPL *session, void *buffer, size_t len, const char *fmt,
@@ -1429,9 +1427,6 @@ extern void __wt_block_compact_get_progress_stats(
   WT_SESSION_IMPL *session, WT_BM *bm, uint64_t *pages_reviewedp);
 extern void __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block);
 extern void __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats);
-extern void __wt_bloom_hash(WT_BLOOM *bloom, WT_ITEM *key, WT_BLOOM_HASH *bhash);
-extern void __wt_bloom_insert(WT_BLOOM *bloom, WT_ITEM *key)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_bm_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
 extern void __wt_btcur_free_cached_memory(WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt);

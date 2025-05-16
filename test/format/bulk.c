@@ -131,7 +131,7 @@ table_load(TABLE *base, TABLE *table)
         cursor->set_value(cursor, &value);
         if (FLD_ISSET(g.trace_flags, TRACE_BULK))
             trace_msg(session, "bulk %" PRIu32 " {%.*s}, {%.*s}", keyno, (int)key.size,
-                (char *)key.data, (int)value.size, (char *)value.data);
+              (char *)key.data, (int)value.size, (char *)value.data);
 
         /*
          * We don't want to size the cache to ensure the initial data set can load in the in-memory

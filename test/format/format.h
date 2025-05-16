@@ -238,7 +238,7 @@ typedef struct {
 
     char *config_open; /* Command-line configuration */
 
-    TABLE *base_mirror;    /* First mirrored table */
+    TABLE *base_mirror; /* First mirrored table */
 
     bool background_compaction_running; /* Background compaction running */
 

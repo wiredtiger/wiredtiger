@@ -164,7 +164,7 @@ table_verify_mirror(
     uint64_t range_begin, range_end;
     char buf[256], tagbuf[128];
 
-    base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
+    base_keyno = table_keyno = 0; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
     last_match = 0;
     failures = 0;
@@ -269,43 +269,40 @@ table_verify_mirror(
         testutil_check(table_cursor->get_value(table_cursor, &table_value));
 
         if (base_keyno != table_keyno || base_value.size != table_value.size ||
-            (table_value.size != 0 &&
+          (table_value.size != 0 &&
             memcmp(base_value.data, table_value.data, base_value.size) != 0)) {
             table_mirror_fail_msg(session, checkpoint, base, base_keyno, &base_key, &base_value,
-                table, table_keyno, &table_key, &table_value, last_match);
+              table, table_keyno, &table_key, &table_value, last_match);
             /* Dump the cursor pages for the first failure. */
             if (++failures == 1) {
                 testutil_snprintf(
-                    tagbuf, sizeof(tagbuf), "mirror error: base cursor (table %u)", base->id);
+                  tagbuf, sizeof(tagbuf), "mirror error: base cursor (table %u)", base->id);
                 cursor_dump_page(base_cursor, tagbuf);
                 testutil_snprintf(
-                    tagbuf, sizeof(tagbuf), "mirror error: table cursor (table %u)", table->id);
+                  tagbuf, sizeof(tagbuf), "mirror error: table cursor (table %u)", table->id);
                 cursor_dump_page(table_cursor, tagbuf);
                 for (i = 1; i <= ntables; ++i) {
                     if (!tables[i]->mirror)
                         continue;
-                    if (tables[i] != base &&
-                        (tables[i] != table || table_keyno != base_keyno)) {
+                    if (tables[i] != base && (tables[i] != table || table_keyno != base_keyno)) {
                         testutil_snprintf(tagbuf, sizeof(tagbuf),
-                            "mirror error: base key number %" PRIu64 " in table %u", base_keyno,
-                            i);
+                          "mirror error: base key number %" PRIu64 " in table %u", base_keyno, i);
                         table_dump_page(session, checkpoint, tables[i], base_keyno, tagbuf);
                     }
                     if (tables[i] != table && table_keyno != base_keyno) {
                         testutil_snprintf(tagbuf, sizeof(tagbuf),
-                            "mirror error: table key number %" PRIu64 " in table %u", table_keyno,
-                            i);
+                          "mirror error: table key number %" PRIu64 " in table %u", table_keyno, i);
                         table_dump_page(session, checkpoint, tables[i], table_keyno, tagbuf);
                     }
                 }
             }
 
             /*
-                * We can't continue if the keys don't match, otherwise, optionally continue showing
-                * failures, up to 20.
-                */
+             * We can't continue if the keys don't match, otherwise, optionally continue showing
+             * failures, up to 20.
+             */
             testutil_assert(base_keyno == table_keyno ||
-                (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
+              (FLD_ISSET(g.trace_flags, TRACE_MIRROR_FAIL) && failures < 20));
         }
 
         /* Report progress (unless verifying checkpoints which happens during live operations). */

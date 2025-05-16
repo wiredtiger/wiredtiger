@@ -1,8 +1,12 @@
 # List of functions that aren't found by s_funcs, but that's OK.
 WT_CRC32_ENTRY
 WT_CURDUMP_PASS
+__bit_clear_end
+__bit_end_is_clear
 __bit_ffs
+__bit_getv
 __bit_nclr
+__bit_setv
 __ovfl_discard_dump
 __ovfl_reuse_dump
 __wt_bulk_insert_row
@@ -22,6 +26,7 @@ __wt_debug_tree_shape
 # FIXME-13125 should be used by waitable_atomic
 __wt_futex_wake
 __wt_futex_wait
+__wt_hash_fnv64
 __wt_lex_compare
 __wt_lex_compare_skip
 __wt_log_scan

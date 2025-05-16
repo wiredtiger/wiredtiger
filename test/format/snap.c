@@ -241,7 +241,7 @@ snap_verify_callback(WT_CURSOR *cursor, int ret, void *arg)
     if (ret == 0) {
         testutil_check(cursor->get_value(cursor, value));
         if (snap->op != REMOVE && value->size == snap->value.size &&
-            (value->size == 0 || memcmp(value->data, snap->value.data, snap->value.size) == 0))
+          (value->size == 0 || memcmp(value->data, snap->value.data, snap->value.size) == 0))
             return;
     }
 
@@ -256,8 +256,7 @@ snap_verify_callback(WT_CURSOR *cursor, int ret, void *arg)
      */
     fprintf(stderr, "%s: WiredTiger trace ID: %u\n", table->uri,
       (u_int)((WT_BTREE *)((WT_CURSOR_BTREE *)cursor)->dhandle->handle)->id);
-    fprintf(
-        stderr, "snapshot-isolation %.*s search mismatch\n", (int)key->size, (char *)key->data);
+    fprintf(stderr, "snapshot-isolation %.*s search mismatch\n", (int)key->size, (char *)key->data);
 
     if (snap->op == REMOVE)
         fprintf(stderr, "expected {deleted}\n");

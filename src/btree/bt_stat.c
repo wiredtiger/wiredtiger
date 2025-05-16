@@ -79,11 +79,6 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
     /*
      * Clear the statistics we're about to count.
      */
-    WT_STATP_DSRC_SET(session, stats, btree_column_deleted, 0);
-    WT_STATP_DSRC_SET(session, stats, btree_column_fix, 0);
-    WT_STATP_DSRC_SET(session, stats, btree_column_internal, 0);
-    WT_STATP_DSRC_SET(session, stats, btree_column_rle, 0);
-    WT_STATP_DSRC_SET(session, stats, btree_column_variable, 0);
     WT_STATP_DSRC_SET(session, stats, btree_entries, 0);
     WT_STATP_DSRC_SET(session, stats, btree_overflow, 0);
     WT_STATP_DSRC_SET(session, stats, btree_row_internal, 0);

@@ -179,11 +179,11 @@ __wti_rec_need_split(WTI_RECONCILE *r, size_t len)
 }
 
 /*
- * __wti_rec_incr --
+ * __rec_incr --
  *     Update the memory tracking structure for a set of new entries.
  */
 static WT_INLINE void
-__wti_rec_incr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t size)
+__rec_incr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t size)
 {
     /*
      * The buffer code is fragile and prone to off-by-one errors -- check for overflow in diagnostic
@@ -234,7 +234,7 @@ __wti_rec_image_copy(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv)
         memcpy(p, kv->buf.data, kv->buf.size);
 
     WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
-    __wti_rec_incr(session, r, 1, kv->len);
+    __rec_incr(session, r, 1, kv->len);
 }
 
 /*

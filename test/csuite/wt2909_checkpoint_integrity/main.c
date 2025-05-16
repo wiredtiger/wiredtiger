@@ -519,8 +519,8 @@ subtest_main(int argc, char *argv[], bool close_test)
     testutil_check(wiredtiger_open(opts->home, &event_handler, config, &opts->conn));
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_snprintf(tableconf, sizeof(tableconf),
-      "key_format=i,value_format=iiiS,columns=(id,v0,v1,v2,big)");
+    testutil_snprintf(
+      tableconf, sizeof(tableconf), "key_format=i,value_format=iiiS,columns=(id,v0,v1,v2,big)");
     testutil_check(session->create(session, "table:subtest", tableconf));
 
     testutil_snprintf(tableconf, sizeof(tableconf), "key_format=i,value_format=i");

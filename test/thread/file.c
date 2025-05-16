@@ -41,8 +41,8 @@ file_create(const char *name)
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    testutil_snprintf(config, sizeof(config),
-      "key_format=u,internal_page_max=%d,leaf_page_max=%d", 16 * 1024, 128 * 1024);
+    testutil_snprintf(config, sizeof(config), "key_format=u,internal_page_max=%d,leaf_page_max=%d",
+      16 * 1024, 128 * 1024);
 
     if ((ret = session->create(session, name, config)) != 0)
         if (ret != EEXIST)

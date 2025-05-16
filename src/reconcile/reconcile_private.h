@@ -451,13 +451,9 @@ extern int __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_row_leaf(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *pageref,
   WT_SALVAGE_COOKIE *salvage) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_split_finish(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_rec_split_grow(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t add_len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t primary_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -478,8 +474,6 @@ static WT_INLINE void __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RE
   WT_ADDR *addr, WT_CELL_UNPACK_ADDR *vpack, WT_PAGE_DELETED *page_del);
 static WT_INLINE void __wti_rec_image_copy(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_KV *kv);
-static WT_INLINE void __wti_rec_incr(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t size);
 static WT_INLINE void __wti_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session,
   WTI_UPDATE_SELECT *upd_select, WT_CELL_UNPACK_KV *vpack, WTI_RECONCILE *r);
 

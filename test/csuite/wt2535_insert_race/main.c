@@ -80,8 +80,8 @@ main(int argc, char *argv[])
       "close,wait=1)",
       &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_snprintf(tableconf, sizeof(tableconf),
-      "key_format=Q,value_format=Q,leaf_page_max=32k,");
+    testutil_snprintf(
+      tableconf, sizeof(tableconf), "key_format=Q,value_format=Q,leaf_page_max=32k,");
     testutil_check(session->create(session, opts->uri, tableconf));
 
     /* Create the single record. */

@@ -15,7 +15,6 @@ ARG
 ARGS
 ASAN
 ASM
-AUS
 AWS
 AWS's
 Addr
@@ -51,7 +50,6 @@ Buf
 Bxxx
 CACHEABLE
 CAS
-CBT
 CCCCCCCCCCCCCCCCCC
 CELLs
 CHUNKCACHE
@@ -93,7 +91,6 @@ DHANDLE
 DNE
 DONTNEED
 DS
-DUPLICATEV
 Decrypt
 DeleteFileW
 Deterministically
@@ -154,7 +151,6 @@ FreeLibrary
 Fsync
 Fuerst
 Futex
-GBR
 GC
 GCP
 GCP's
@@ -243,10 +239,8 @@ MSan
 MUTEX
 MacOS
 MapViewOfFile
-Marsaglia
 Marsaglia's
 Mellor
-Mitzenmacher
 MongoDB
 MoveFileExW
 MultiByteToWideChar
@@ -267,14 +261,12 @@ NOWAIT
 NUL
 NUM
 NVRAM
-NZD
 NetBSD
 NoAddr
 Noll
 Nul
 OBJECTID
 ONDISK
-OOB
 OPLOG
 OPTRACK
 OVFL
@@ -294,7 +286,6 @@ PRIu
 PRNG
 PSD
 PSE
-PTR
 Pe
 Phong
 PlatformSDK
@@ -321,20 +312,17 @@ RDNOLOCK
 READGEN
 READONLY
 REALLOC
-RECNO
 REF's
 REFs
 RET
 RETRYABLE
 RHEL
 RLE
-RLEs
 RNG
 RNGs
 RPC
 RTS
 RUNDIR
-RUS
 RWLOCK
 RXB
 ReadFile
@@ -466,7 +454,6 @@ Wuninitialized
 Wunused
 XP
 XXXXXX
-Xorshift
 YCSB
 ZSTD
 Zlib
@@ -480,7 +467,6 @@ ackSstu
 acqrel
 addr
 addrs
-addtw
 agc
 ajn
 alloc
@@ -503,9 +489,6 @@ atou
 auth
 autocommit
 autoconf
-auxheader
-auximage
-auxincr
 aws
 bInheritHandle
 backoff
@@ -570,11 +553,9 @@ ccc
 ccr
 cd
 ce
-celsius
 centric
 cerr
 cfg
-cfko
 chacha
 charset
 chdir
@@ -589,7 +570,6 @@ chk
 chmod
 chongo
 chunkcache
-cip
 ciphertext
 ckpt
 ckptfrag
@@ -648,7 +628,6 @@ curlog
 curmetadata
 cursoring
 cursorp
-curstartrecno
 curstat
 curtable
 curversion
@@ -751,7 +730,6 @@ existp
 extern
 extlist
 fadvise
-fahrenheit
 failpoint
 fallocate
 fallthrough
@@ -779,7 +757,6 @@ filesystem
 filesystems
 firstfit
 fixup
-flcs
 floatnum
 fmt
 fmterr
@@ -949,7 +926,6 @@ llvm
 loadbool
 loadtext
 loadvbool
-loc
 localTime
 localkey
 localtime
@@ -996,7 +972,6 @@ memdup
 memkind
 memmove
 memsize
-mergeable
 metaconf
 metadata's
 metafile
@@ -1025,7 +1000,6 @@ mutex
 mutexes
 mux
 mytable
-nTemp
 namespace
 namespaces
 nbits
@@ -1054,18 +1028,15 @@ nolock
 nonces
 nonliteral
 nonoverlapping
-nontransactionally
 noop
 nop
 noraw
 noreturn
-notfound
 notsup
 novalue
 nowait
 np
 npos
-nrecs
 nsec
 nset
 nul
@@ -1081,7 +1052,6 @@ oldv
 ondisk
 onint
 onpage
-onsig
 oo
 openat
 opendir
@@ -1092,16 +1062,13 @@ optrack
 optwt
 optype
 ori
-origstartrecno
 os
 ostream
-oversized
 ovfl
 ownp
 pR
 pT
 packv
-pageref
 pagesize
 param
 pareto
@@ -1343,7 +1310,6 @@ toolchain
 totalsec
 transactional
 transactionally
-trecno
 trk
 trk's
 trun
@@ -1353,7 +1319,6 @@ trylock
 tryrdlock
 trywrlock
 tsc
-tupdate
 tw
 txn
 txnid

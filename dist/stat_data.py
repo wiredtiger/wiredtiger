@@ -841,12 +841,6 @@ dsrc_stats = [
     BtreeStat('btree_checkpoint_generation', 'btree checkpoint generation', 'no_clear,no_scale'),
     BtreeStat('btree_checkpoint_pages_reconciled', 'btree number of pages reconciled during checkpoint', 'no_clear,no_scale'),
     BtreeStat('btree_clean_checkpoint_timer', 'btree clean tree checkpoint expiration time', 'no_clear,no_scale'),
-    BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale,tree_walk'),
-    BtreeStat('btree_column_fix', 'column-store fixed-size leaf pages', 'no_scale,tree_walk'),
-    BtreeStat('btree_column_internal', 'column-store internal pages', 'no_scale,tree_walk'),
-    BtreeStat('btree_column_rle', 'column-store variable-size RLE encoded values', 'no_scale,tree_walk'),
-    BtreeStat('btree_column_tws', 'column-store fixed-size time windows', 'no_scale,tree_walk'),
-    BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,tree_walk'),
     BtreeStat('btree_compact_bytes_rewritten_expected', 'btree expected number of compact bytes rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten', 'btree compact pages rewritten', 'no_clear,no_scale'),
@@ -1053,7 +1047,6 @@ conn_dsrc_stats = [
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_reverse_splits', 'reverse splits performed'),
-    CacheStat('cache_reverse_splits_skipped_vlcs', 'reverse splits skipped because of VLCS namespace gap restrictions'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
@@ -1153,7 +1146,6 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_start_txn', 'records written including a start transaction ID'),
     RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
     RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
-    RecStat('rec_vlcs_emptied_pages', 'VLCS pages explicitly reconciled as empty'),
 
     ##########################################
     # Transaction statistics

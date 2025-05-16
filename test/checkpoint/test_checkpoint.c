@@ -81,8 +81,8 @@ int
 main(int argc, char *argv[])
 {
     int base, ch, cnt, i, ret, runs;
-    const char *config_open;
     char *end_number, *stop_arg;
+    const char *config_open;
     bool verify_only;
 
     (void)testutil_set_progname(argv);
@@ -522,7 +522,7 @@ usage(void)
       "\t\t5: checkpoint_slow_timing_stress\n"
       "\t\t6: evict_reposition_timing_stress\n"
       "\t\t7: failpoint_eviction_split\n"
-      "\t-t deprecated, retained for backwards compatibilit\n"
+      "\t-t deprecated, retained for backwards compatibility\n"
       "\t-T specify a table configuration\n"
       "\t-v verify only\n"
       "\t-W set number of worker threads\n"
