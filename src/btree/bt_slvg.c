@@ -262,13 +262,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * we let the availability of an overflow value inform our choices as to the key ranges we
      * select, ideally on a per-key basis.
      *
-     * A complicating problem is found in variable-length column-store objects, where we
-     * potentially split key ranges within RLE units.  For example, if there's a page with rows
-     * 15-20 and we later find row 17 with a larger LSN, the range splits into 3 chunks, 15-16,
-     * 17, and 18-20.  If rows 15-20 were originally a single value (an RLE of 6), and that
-     * record is an overflow record, we end up with two chunks, both of which want to reference
-     * the same overflow value.
-     *
      * Instead of the approach just described, we're first discarding any pages referencing
      * non-existent overflow pages, then we're reviewing our key ranges and discarding any
      * that overlap.  We're doing it that way for a few reasons: absent corruption, missing
@@ -292,15 +285,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * modification.
      *
      * This requires sorting the page list by key, and secondarily by LSN.
-     *
-     * !!!
-     * It's vanishingly unlikely and probably impossible for fixed-length column-store files
-     * to have overlapping key ranges.  It's possible for an entire key range to go missing (if
-     * a page is corrupted and lost), but because pages can't split, it shouldn't be possible to
-     * find pages where the key ranges overlap.  That said, we check for it and clean up after
-     * it in reconciliation because it doesn't cost much and future column-store formats or
-     * operations might allow for fixed-length format ranges to overlap during salvage, and I
-     * don't want to have to retrofit the code later.
      */
     __wt_qsort(ss->pages, (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_key);
     if (ss->page_type == WT_PAGE_ROW_LEAF)

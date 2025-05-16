@@ -39,8 +39,6 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'cache_size=1GB'
     conn_config = base_config
 
-    # Generate more rows for FLCS because otherwise it all fits on one page even with the
-    # smaller page size.
     format_values = [
         ('integer-row', dict(key_format='i', value_format='S', extraconfig='', nrecords=1000)),
     ]

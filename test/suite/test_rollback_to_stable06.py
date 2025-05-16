@@ -98,8 +98,6 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         # Check that all keys are removed.
-        # (For FLCS, at least for now, they will read back as 0, meaning deleted, rather
-        # than disappear.)
         self.check(value_a, uri, 0, nrows, 20)
         self.check(value_b, uri, 0, nrows, 30)
         self.check(value_c, uri, 0, nrows, 40)

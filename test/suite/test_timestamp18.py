@@ -95,7 +95,7 @@ class test_timestamp18(wttest.WiredTigerTestCase):
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
             for i in range(1, 10000):
                 # The non-timestamped delete should cover all the previous writes and make them
-                # effectively invisible. (For FLCS, this means they read back as zero.)
+                # effectively invisible.
                 if i % 2 == 0:
                     if self.delete:
                         cursor.set_key(self.get_key(i))

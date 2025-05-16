@@ -198,8 +198,6 @@ class test_truncate13(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(35))
 
         # Check stats to make sure we fast-deleted at least one page.
-        # (Except for FLCS, where it's not supported and we should fast-delete zero pages.)
-        # (Or if we are running with trunc_with_remove.)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         if self.runningHook('tiered'):

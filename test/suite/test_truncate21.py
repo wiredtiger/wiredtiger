@@ -79,8 +79,7 @@ class test_truncate21(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
         # Open a second session and transaction. In one we truncate the same range again.
-        # In the other we insert into the FLCS and row-store tables. (The VLCS table will be
-        # used in a later test.)
+        # In the other we insert into the row-store tables.
         session2 = self.conn.open_session()
 
         self.session.begin_transaction()
@@ -88,7 +87,7 @@ class test_truncate21(wttest.WiredTigerTestCase):
         # In the other session, truncate the same range again.
         self.trunc_range()
         # Commit the insert.
-        # With overlapping transactions, insert into the key range for FLCS and row.
+        # With overlapping transactions, insert into the key range for row.
         crow = session2.open_cursor(self.uri_row)
         crow[self.insert_key] = 'newval'
 
@@ -112,8 +111,7 @@ class test_truncate21(wttest.WiredTigerTestCase):
         crow = new_sess.open_cursor(self.uri_row)
         crow.set_key(self.insert_key)
         ret_row = crow.search()
-        # The key should not exist in both. In FLCS the record number always exists but the value
-        # should be zero.
+        # The key should not exist in both.
         self.pr('ret_row ' + str(ret_row))
         self.assertEqual(ret_row, wiredtiger.WT_NOTFOUND)
         crow.close()

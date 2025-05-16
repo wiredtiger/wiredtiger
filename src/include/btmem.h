@@ -860,8 +860,8 @@ typedef uint8_t WT_REF_STATE;
  *
  * WT_REF_DELETED:
  *	The page is on disk, but has been deleted from the tree; we can delete
- *	row-store and VLCS leaf pages without reading them if they don't
- *	reference overflow items.
+ *	row-store pages without reading them if they don't reference overflow
+ *	items.
  *
  * WT_REF_LOCKED:
  *	Locked for exclusive access.  In eviction, this page or a parent has
@@ -1118,7 +1118,7 @@ struct __wt_ref {
      *
      * 1. The WT_REF state is WT_REF_DELETED. This means the page is deleted and not in memory.
      *    - If the page has no disk address, the ref is a placeholder in the key space and may in
-     *      general be discarded at the next opportunity. (Some restrictions apply in VLCS.)
+     *      general be discarded at the next opportunity.
      *    - If the page has a disk address, page_del may be NULL. In this case, the deletion of the
      *      page is globally visible and the on-disk page can be discarded at the next opportunity.
      *    - If the page has a disk address and page_del is not NULL, page_del contains information

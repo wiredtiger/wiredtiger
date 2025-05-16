@@ -92,7 +92,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         evict_cursor.close()
         self.session.commit_transaction()
 
-        # Search to make sure the data is not visible (or, in FLCS, that it's zero)
+        # Search to make sure the data is not visible.
         self.session.begin_transaction("ignore_prepare = true")
         cursor2 = self.session.open_cursor(uri)
         cursor2.set_key(1)
@@ -179,7 +179,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         evict_cursor.close()
         self.session.commit_transaction()
 
-        # Search to make sure the data is not visible (or, in FLCS, that it's zero)
+        # Search to make sure the data is not visible.
         self.session.begin_transaction("ignore_prepare = true")
         cursor2 = self.session.open_cursor(uri)
         cursor2.set_key(1)

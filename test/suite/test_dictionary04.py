@@ -60,7 +60,6 @@ class test_dictionary04(wttest.WiredTigerTestCase):
 
         # The next cells will reuse an existing dictionary entry and have:
         # - time window information,
-        # - RLE information for VLCS only.
         self.session.begin_transaction()
         for i in range(3, 10):
             cursor[simple_key(cursor, i)] = self.value_a

@@ -150,11 +150,6 @@ values would be created as follows:
 
 @snippet ex_all.c Create a table
 
-A simple column-store table with strings for values would be created as
-follows:
-
-@snippet ex_all.c Create a column-store table
-
 @section schema_cursor_formats Cursor formats
 
 Cursors for a table have the same key format as the table itself.
@@ -169,11 +164,6 @@ would be done as follows:
 
 @snippet ex_all.c Set the cursor's string key
 
-For example, setting the key for a column-store table would be done as
-follows:
-
-@snippet ex_all.c Set the cursor's record number key
-
 A more complex example, setting a composite key for a row-store table where
 the key_format was \c "SiH", would be done as follows:
 
@@ -184,7 +174,6 @@ WT_CURSOR::get_key, which is analogous
 to \c scanf, and takes a list of pointers to values in the same order:
 
 @snippet ex_all.c Get the cursor's string key
-@snippet ex_all.c Get the cursor's record number key
 @snippet ex_all.c Get the cursor's composite key
 
 Cursors for a table have the same value format as the table.
@@ -199,12 +188,6 @@ The columns in a table can be assigned names by passing a \c columns key to
 WT_SESSION::create.  The column names are assigned first to the columns in
 the \c key_format, and then to the columns in \c value_format.  There must be
 a name for every column, and no column names may be repeated.
-
-For example, a column-store table with an employee ID as the key and
-three columns (department, salary and first year of employment), might
-be created as follows:
-
-@snippet ex_all.c Create a table with columns
 
 In this example, the key's column name is \c id, and the value's column
 names are \c department, \c salary, and \c year-started (where \c id maps to
@@ -260,21 +243,6 @@ Key columns may not be included in the list of columns for a column
 group.  Because column groups always have the same key as the table, key
 columns for column groups are retrieved using WT_CURSOR::get_key, not
 WT_CURSOR::get_value.
-
-Another example of using column groups is in @ex_ref{ex_col_store.c}:
-
-@snippet ex_col_store.c col-store decl
-@snippet ex_col_store.c col-store create columns
-
-In this example the hour and day columns are grouped together in one
-columns group and the temperature column stored in another. This allows
-a cursor to be opened on a either of these column groups instead of the
-entire table.
-
-@snippet ex_col_store.c col-store temperature
-
-An operation can then be completed on the values of this column without
-having to bring the other columns into memory.
 
 @section schema_indices Indices
 
@@ -337,10 +305,5 @@ Here are other example programs, @ex_ref{ex_call_center.c},
 
 @snippet ex_call_center.c call-center decl
 @snippet ex_call_center.c call-center work
-
-and @ex_ref{ex_col_store.c}.
-
-@snippet ex_col_store.c col-store decl
-@snippet ex_col_store.c col-store main
 
  */

@@ -407,7 +407,6 @@ UnmapViewOfFile
 Unmount
 Uryyb
 VARCHAR
-VLCS
 VPM
 VR
 VRFY
@@ -844,7 +843,6 @@ impl
 incr
 incrementals
 incrementing
-indx
 inflateInit
 infmt
 informations
@@ -1382,7 +1380,6 @@ va
 validator
 valuep
 valuev
-vanishingly
 variadic
 vd
 vdata

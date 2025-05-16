@@ -90,7 +90,6 @@ class test_prepare16(wttest.WiredTigerTestCase):
 
         for i in range(1, nrows + 1):
             evict_cursor.set_key(self.make_key(i))
-            # In FLCS (at least for now) uncommitted values extend the table with zeros.
             self.assertEqual(evict_cursor.search(), WT_NOTFOUND)
             evict_cursor.reset()
 

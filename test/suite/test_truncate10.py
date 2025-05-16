@@ -163,12 +163,12 @@ class test_truncate10(wttest.WiredTigerTestCase):
         # At time 20 we should still see all value_a.
         self.check(ds.uri, ds.key, nrows, 0, value_a, 20)
 
-        # At time 25 we should still see half value_a, and for FLCS, half zeros.
+        # At time 25 we should still see half value_a.
         # (Note that reading between commit and durable can be problematic, but for
         # now at least it remains permitted.)
         self.check(ds.uri, ds.key, nrows // 2, nrows // 2, value_a, 25)
 
-        # At time 30 we should also see half value_a, and for FLCS, half zeros.
+        # At time 30 we should also see half value_a.
         self.check(ds.uri, ds.key, nrows // 2, nrows // 2, value_a, 30)
 
         # Move the stable timestamp forward before exiting so we don't waste time rolling

@@ -72,28 +72,12 @@ pages contain keys that point to other pages.
 - The row-store internal page \c WT_PAGE_ROW_INT is made up of a key cell
 (\c WT_CELL_KEY or \c WT_CELL_KEY_OVFL) followed by an off-page reference
 (\c WT_CELL_ADDR_XXX).
-- The column-store internal page \c WT_PAGE_COL_INT simply contains an
-off-page reference.
 
 (2) Leaf Pages - leaf pages consist of a page header, followed by keys,
 values or addresses (these reference overflow pages).
 - The row-store leaf page \c WT_PAGE_ROW_LEAF is made up of a key cell
 (\c WT_CELL_KEY or \c WT_CELL_KEY_OVFL) followed by a value
 (\c WT_CELL_VALUE/VALUE_COPY/VALUE_OVFL).
-- The variable-length column-store leaf page \c WT_PAGE_COL_VAR
-is made up of data cells (\c WT_CELL_VALUE/VALUE_COPY/VALUE_OVFL) or
-deleted cells (\c WT_CELL_DEL). The page header has a starting record
-number, so the associated keys for all column store values is deduced by
-their position in the page.
-- The fixed-length column store leaf page \c WT_PAGE_COL_FIX is made
-up of, first, a block of bitmap data, and then an auxiliary header
-followed by key cells (\c WT_CELL_KEY) alternating with value cells
-(\c WT_CELL_VALUE). The keys hold record number offsets from the page
-start; the value cells are always empty values, but include validity
-window information for values in the bitmap data. Cells for items with
-no validity window information are not written. Pages needing no
-validity window information at all do not contain the auxiliary header
-either.
 
 (3) Overflow Pages - overflow pages are needed when keys/values that are
 too large must be stored separately in the file, apart from where the item

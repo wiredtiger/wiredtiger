@@ -143,8 +143,7 @@ class test_truncate17(wttest.WiredTigerTestCase):
         self.assertEqual(err, 0)
         session2.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
 
-        # Make sure we did at least one fast-delete. (Unless we specifically didn't want to,
-        # or running on FLCS where it isn't supported.)
+        # Make sure we did at least one fast-delete.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         if self.runningHook('tiered'):

@@ -545,11 +545,7 @@ insert(WT_CURSOR *cursor, const char *name)
 
     /* Read key/value pairs and insert them into the file. */
     for (insert_count = 0;;) {
-        /*
-         * Three modes: in row-store, we always read a key and use it, in column-store, we might
-         * read it (a dump), we might read and ignore it (a dump with "append" set), or not read it
-         * at all (flat-text load).
-         */
+        /* In row-store, we always read a key and use it. */
         if ((ret = util_read_line(session, &key, true, &eof)) != 0)
             goto err;
         if (eof)

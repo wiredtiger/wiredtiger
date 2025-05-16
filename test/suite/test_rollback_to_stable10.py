@@ -232,10 +232,10 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         # Do an explicit checkpoint first, before starting the background checkpointer.
         # Otherwise (depending on timing and load) because there's a lot to write for the
         # first checkpoint there's a tendency for the background checkpointer to only
-        # manage to do the one checkpoint; and sometimes (especially on FLCS) it ends up
-        # not containing any of the concurrent updates, and then the test fails because
-        # RTS correctly notices it has no work to do and doesn't visit any of the pages
-        # or update anything in the history store.
+        # manage to do the one checkpoint; and sometimes it ends up not containing any of
+        # the concurrent updates, and then the test fails because RTS correctly notices
+        # it has no work to do and doesn't visit any of the pages or update anything in
+        # the history store.
         self.session.checkpoint()
 
         # Here's the update operations we'll perform, encapsulated so we can easily retry

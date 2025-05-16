@@ -31,8 +31,7 @@
 # handles the output and provides additional processing options on the output
 # such as pretty printed output and visualization options.
 
-# This script only supports Row store and Variable Length Column Store (VLCS).
-# Fixed Length Column Store (FLCS) is not supported.
+# This script only supports Row store.
 
 import argparse
 from operator import itemgetter

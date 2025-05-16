@@ -37,8 +37,7 @@ from wtscenario import make_scenarios
 # to stable.
 #
 # The machinery this tests is all underneath the access-method-specific parts of RTS (and the
-# history store itself is always row-store) so it doesn't seem necessary or worthwhile to run
-# this explicitly on VLCS or FLCS.
+# history store itself is always row-store).
 class test_rollback_to_stable22(test_rollback_to_stable_base):
     conn_config = 'cache_size=100MB,verbose=(rts:5)'
     prepare = False

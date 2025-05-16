@@ -196,9 +196,8 @@ config_table_am(TABLE *table)
     char buf[128];
 
     /*
-     * The runs.type configuration allows more than a single type, for example, choosing from either
-     * RS and VLCS but not FLCS. If there's no table value but there was a global value, re-evaluate
-     * the original global specification, not the choice set for the global table.
+     * If there's no table value but there was a global value, re-evaluate the original global
+     * specification, not the choice set for the global table.
      */
     if (!table->v[V_TABLE_RUNS_TYPE].set && tables[0]->v[V_TABLE_RUNS_TYPE].set) {
         testutil_snprintf(buf, sizeof(buf), "runs.type=%s", g.runs_type);
@@ -399,10 +398,6 @@ config_table(TABLE *table, void *arg)
     config_checksum(table);
     config_compression(table, "btree.compression");
     config_pct(table);
-
-    /* Column-store tables require special row insert resolution. */
-    if (table->type != ROW)
-        g.column_store_config = true;
 
     /* Only row-store tables support a collation order. */
     if (table->type != ROW)

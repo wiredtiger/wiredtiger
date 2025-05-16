@@ -767,11 +767,6 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     if (WT_CURSOR_BOUNDS_SET(cursor))
         WT_ERR(__btcur_bounds_search_near_reposition(session, cbt, &bounds_reposition_exact));
 
-    /*
-     * For row-store search the pinned page if there is one. Unlike WT_CURSOR.search, ignore pinned
-     * pages in the case of column-store, search-near isn't an interesting enough case for
-     * column-store to add the complexity needed to avoid the tree search.
-     */
     WT_ERR(__btcur_search_near_row_pinned_page(cbt, &valid));
 
     /* The general case is that valid is false here as we didn't have a pinned page. */
@@ -788,10 +783,6 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
     /*
      * If we find a valid key return the record.
-     *
-     * Else, creating a record past the end of the tree in a fixed-length column-store implicitly
-     * fills the gap with empty records. In this case, we instantiate the empty record, it's an
-     * exact match.
      *
      * Else, move to the next key in the tree (bias for prefix searches). Cursor next skips invalid
      * rows, so we don't have to test for them again.

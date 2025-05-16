@@ -56,7 +56,6 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction('commit_timestamp=200')
 
         # Read before any updates and ensure we cannot find the key or value.
-        # (For FLCS we expect to read zeros since the table extends nontransactionally.)
         self.session.begin_transaction('read_timestamp=20')
         cur1.set_key(1)
         search_success = cur1.search()
@@ -70,7 +69,6 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction()
 
         # Read at 25, 50, 100 and 200 we should not find anything.
-        # (For FLCS, deleted values read as zero.)
         for ts in 25, 50, 100, 200:
             self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
             cur1.set_key(1)
@@ -109,7 +107,6 @@ class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('oldest_timestamp=100')
 
         # Read at 100 and we should not find anything.
-        # (Again, in FLCS deleted values read back as 0.)
         self.session.begin_transaction('read_timestamp=100')
         cur1.set_key(1)
         search_success = cur1.search()

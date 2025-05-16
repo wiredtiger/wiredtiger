@@ -62,7 +62,7 @@ class test_hs15(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
-        # Do a modify and an update with timestamps (for FLCS, just modifies)
+        # Do a modify and an update with timestamps.
         self.session.begin_transaction()
         cursor.set_key(self.create_key(1))
         mods = [wiredtiger.Modify('B', 100, 1)]

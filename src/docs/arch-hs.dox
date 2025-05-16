@@ -15,7 +15,7 @@ perform operations on the history store table using a predefined cursor API.
 WiredTiger writes the history store on the disk as a standard row-store table. The key for
 the history store table is a combination of:
 - btree ID of user table this update belongs to
-- record key (byte-string for row-store, record number for column-store)
+- record key (byte-string for row-store)
 - start timestamp for the update
 - counter value
 

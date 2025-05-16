@@ -93,9 +93,7 @@ want all of the same messages as the old "DEBUG" level, you'll need to use "DEBU
 The WiredTiger 11.0 release is a complete refresh of the WiredTiger storage engine.
 Applications written to earlier versions of the WiredTiger API will require review
 (although the API structure is substantially the same as previous releases). Applications
-using row-store data objects can use those objects without change. Applications using
-fixed- or variable-length column-store data objects will require a dump and reload cycle
-to import those objects into a 11.0 release environment.
+using row-store data objects can use those objects without change.
 
 </dl> <hr>
 @section pre_1100 Upgrading to Version older than 11.0.0

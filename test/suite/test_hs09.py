@@ -200,7 +200,6 @@ class test_hs09(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
 
-        # For FLCS, the deleted records should read back as 0. For non-FLCS, no deleted
-        # records should be seen so none should be compared to 0, and if any are the
+        # No deleted records should be seen so none should be compared to 0, and if any are the
         # resulting Python type error means something's wrong.
         self.check_ckpt_hs(0, value1, 2, 3)

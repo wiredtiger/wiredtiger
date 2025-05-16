@@ -120,14 +120,6 @@ struct __wti_rec_chunk {
      * boundary. Merged with the "before" entry it will equal the full time aggregate for the chunk.
      */
     WT_TIME_AGGREGATE ta_after_split_boundary;
-
-    /*
-     * The recno and entries fields are the starting record number of the chunk (for column-store
-     * splits), and the number of entries in the chunk.
-     *
-     * The key for a row-store page; no column-store key is needed because the page's recno, stored
-     * in the recno field, is the column-store key.
-     */
     uint32_t entries;
     WT_ITEM key;
     WT_TIME_AGGREGATE ta;
@@ -226,8 +218,7 @@ struct __wti_reconcile {
      * Reconciliation gets tricky if we have to split a page, which happens when the disk image we
      * create exceeds the page type's maximum disk image size.
      *
-     * First, the target size of the page we're building. In FLCS, this is the size of both the
-     * primary and auxiliary portions.
+     * First, the target size of the page we're building.
      */
     uint32_t page_size; /* Page size */
 

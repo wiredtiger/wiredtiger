@@ -245,13 +245,10 @@ table_verify_mirror(
         table_ret = table_mirror_row_next(table, table_cursor, &table_key, &table_keyno);
 
         /*
-         * Tables run out of keys at different times as RS inserts between the initial table rows
-         * and VLCS/FLCS inserts after the initial table rows. There's not much to say about the
-         * relationships between them (especially as we skip deleted rows in RS and VLCS, so our
-         * last successful check can be before the end of the original rows). If we run out of keys,
-         * we're done. If both keys are past the end of the original keys, we're done. There are
-         * some potential problems we're not going to catch at the end of the original rows, but
-         * those problems should also appear in the middle of the tree.
+         * Tables run out of keys at different times as RS inserts between the initial table rows.
+         * If we run out of keys, we're done. If both keys are past the end of the original keys,
+         * we're done. There are some potential problems we're not going to catch at the end of the
+         * original rows, but those problems should also appear in the middle of the tree.
          *
          * If we have two key/value pairs from the original rows, assert the keys have the same key
          * number (the keys themselves won't match), and keys are larger than or equal to the

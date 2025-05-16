@@ -78,7 +78,6 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             else:
                 cur.set_key(k)
                 if self.empty:
-                    # Fixed-length column-store rows always exist.
                     self.assertEqual(cur.search(), 0)
                 else:
                     self.assertEqual(cur.search(), wiredtiger.WT_NOTFOUND)

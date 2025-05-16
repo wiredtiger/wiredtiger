@@ -1425,7 +1425,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             continue;
 
         if (supd->ins == NULL) {
-            /* Note: supd->ins is never null for column-store. */
             slot = WT_ROW_SLOT(orig, supd->rip);
             upd = orig->modify->mod_row_update[slot];
         } else
@@ -1558,7 +1557,6 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
             continue;
 
         if (supd->ins == NULL) {
-            /* Note: supd->ins is never null for column-store. */
             slot = WT_ROW_SLOT(orig, supd->rip);
             orig->modify->mod_row_update[slot] = NULL;
         } else
@@ -1601,7 +1599,6 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
                 continue;
 
             if (supd->ins == NULL) {
-                /* Note: supd->ins is never null for column-store. */
                 slot = WT_ROW_SLOT(orig, supd->rip);
                 upd = orig->modify->mod_row_update[slot];
             } else
@@ -1783,10 +1780,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     /* The second page in the split is a new WT_REF/page pair. */
     WT_ERR(__wt_page_alloc(session, type, 0, false, &right));
 
-    /*
-     * The new page is dirty by definition, plus column-store splits update the page-modify
-     * structure, so create it now.
-     */
+    /* The new page is dirty by definition. */
     WT_ERR(__wt_page_modify_init(session, right));
     __wt_page_modify_set(session, right);
 

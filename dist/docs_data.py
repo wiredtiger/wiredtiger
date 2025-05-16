@@ -65,7 +65,7 @@ arch_doc_pages = [
         ['WT_CELL'],
         ['src/include/block.h', 'src/include/btmem.h',
          'src/include/cell.h', 'src/include/cell_inline.h',
-         'src/reconcile/rec_col.c', 'src/reconcile/rec_row.c']),
+         'src/reconcile/rec_row.c']),
     ArchDocPage('arch-dhandle',
         ['WT_DHANDLE'],
         ['src/include/dhandle.h', 'src/conn/conn_dhandle.c',

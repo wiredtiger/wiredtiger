@@ -228,8 +228,6 @@ struct __wt_cursor {
      *
      * @snippet ex_all.c Get the cursor's string key
      *
-     * @snippet ex_all.c Get the cursor's record number key
-     *
      * @param cursor the cursor handle
      * @param ... pointers to hold key fields corresponding to
      * WT_CURSOR::key_format.
@@ -262,8 +260,6 @@ struct __wt_cursor {
      *
      * @snippet ex_all.c Get the raw key and value for the current record.
      *
-     * @snippet ex_all.c Set the cursor's record number key
-     *
      * @param cursor the cursor handle
      * @param key pointer to an item that will contains the current record's raw key
      * @param value pointer to an item that will contains the current record's raw value
@@ -282,8 +278,6 @@ struct __wt_cursor {
      * Set the key for the next operation.
      *
      * @snippet ex_all.c Set the cursor's string key
-     *
-     * @snippet ex_all.c Set the cursor's record number key
      *
      * @param cursor the cursor handle
      * @param ... key fields corresponding to WT_CURSOR::key_format.
@@ -459,22 +453,14 @@ struct __wt_cursor {
      *
      * @snippet ex_all.c Insert a new record and fail if the record exists
      *
-     * If a cursor with record number keys was configured with
-     * "append=true" (not the default), the value must be set; a new record
-     * will be appended and the new record number can be retrieved using
-     * WT_CURSOR::get_key.
-     *
-     * @snippet ex_all.c Insert a new record and assign a record number
-     *
      * The cursor ends with no position, and a subsequent call to the
      * WT_CURSOR::next (WT_CURSOR::prev) method will iterate from the
      * beginning (end) of the table.
      *
-     * If the cursor does not have record number keys or was not configured
-     * with "append=true", the cursor ends with no key set and a subsequent
-     * call to the WT_CURSOR::get_key method will fail. The cursor ends with
-     * no value set and a subsequent call to the WT_CURSOR::get_value method
-     * will fail, except for the ::WT_DUPLICATE_KEY error return, in which
+     * The cursor ends with no key set and a subsequent call to the
+     * WT_CURSOR::get_key method will fail. The cursor ends with no value
+     * set and a subsequent call to the WT_CURSOR::get_value method will
+     * fail, except for the ::WT_DUPLICATE_KEY error return, in which
      * case the value currently stored for the key can be retrieved.
      *
      * Inserting a new record after the current maximum record in a

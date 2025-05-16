@@ -143,15 +143,7 @@ __wti_curbulk_init(
     }
 
     cbulk->first_insert = true;
-    /*
-     * The bulk last buffer is used to detect out-of-order keys in row-store to avoid corruption,
-     * and to detect duplicate values in variable-length column-store, where we increment the RLE
-     * instead of storing another value. In variable-length column-store, if the first two values we
-     * load are zero-length, the first one will set the last buffer's data field to NULL, and the
-     * second will cause us to call the underlying memory comparison function with a NULL pointer,
-     * which triggers run-time analyzers. Give the buffer some memory to avoid the problem (h/t to
-     * C99 typos).
-     */
+    /* The bulk last buffer is used to detect out-of-order keys in row-store to avoid corruption. */
     WT_RET(__wt_scr_alloc(session, 100, &cbulk->last));
 
     return (__wt_bulk_init(session, cbulk));

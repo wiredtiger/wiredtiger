@@ -1168,10 +1168,9 @@ rollback_retry:
             modify_build(tinfo);
 
         /*
-         * For modify we haven't created the new value when we queue up the operation; we have to
-         * modify a RS or VLCS table first so we have a value from which we can set any FLCS values
-         * we need. In that case, do the modify on the base mirror table first. Then, do the
-         * operation on the selected table, then any remaining tables.
+         * For modify we haven't created the new value when we queue up the operation; In that case,
+         * do the modify on the base mirror table first. Then, do the operation on the selected
+         * table, then any remaining tables.
          */
         ret = 0;
         skip1 = skip2 = NULL;

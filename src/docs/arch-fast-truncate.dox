@@ -164,9 +164,6 @@ The instantiation code iterates the page and adds a tombstone for every item.
 have a stop time do not need to be deleted again.)
 The row-store version of this iterates the entries on the page and directly adds a tombstone
 to each update list.
-The column-store version uses a cursor and calls into \c col_modify.c to do it; this is
-because the data structures are considerably more complicated and updating them directly
-would require a lot of cut-and-paste code.
 
 The tombstones are tagged with \c WT_UPDATE_RESTORED_FAST_TRUNCATE.
 This is used by \c __wt_txn_prepare to avoid trying to coalesce these
@@ -394,7 +391,7 @@ tree with no leaves at all causes problems.
 There are two separate skip functions for skipping deleted pages during tree walks.
 The basic skip function is \c __wt_delete_page_skip in \c bt_delete.c; it is always called
 in tree walks when \c WT_READ_SEE_DELETED is not set, which is all tree walks except @ref
-arch-rts and column-store appends.
+arch-rts.
 It checks for whether the ref state is \c WT_REF_DELETED and the truncation is visible to
 the caller.
 
@@ -631,11 +628,6 @@ Discard the \c page_del field of \c WT_REF.}
 Change the ref type from \c WT_REF_FLAG_INTERNAL to \c WT_REF_FLAG_LEAF; if internal pages
 are deleted and later come back to life they come back to life as leaves.}
 
-@row{bt_page.c, Hook, in \c __wt_page_inmem,
-When counting how many refs to allocate on a column-store internal page\, figure out when
-we need to allocate an extra one to insert an empty page in the leftmost slot.}
-@row{bt_page.c, Hook, in \c __inmem_col_int,
-Load deleted-address cells as deleted \c WT_REF structures.}
 @row{bt_page.c, Hook, in \c __inmem_row_int,
 Load deleted-address cells as deleted \c WT_REF structures.}
 @row{bt_page.c, Hook, in \c __page_read,
@@ -659,8 +651,6 @@ Handle deleted-address cells.}
 Validate and crosscheck the page deletion information discovered in on-disk address
 cells.}
 
-@row{bt_walk.c, Hook, in \c __tree_walk_internal,
-Disable fast-truncate for FLCS.}
 @row{bt_walk.c, Hook, in \c __tree_walk_internal,
 Call \c __wt_delete_page_skip when \c WT_READ_SEE_DELETED is not set.}
 @row{bt_walk.c, Hook, in \c __tree_walk_internal,
@@ -687,11 +677,6 @@ Handle the processing for deleted and instantiated pages during internal page
 reconciliation.}
 @row{rec_child.c, Hook, in \c __wt_rec_child_modify,
 Call \c __rec_child_deleted when necessary.}
-
-@row{rec_col.c, Hook, in \c __wt_rec_col_int,
-Write out deleted address cells when needed.}
-@row{rec_col.c, Hook, in \c __wt_rec_col_var,
-Reconcile empty instead if we get one big deleted-value cell.}
 
 @row{rec_row.c, Hook, in \c __wt_rec_row_int,
 Write out deleted address cells when needed.}

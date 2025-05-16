@@ -95,7 +95,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSE
 
 /*
  * __wt_insert_serial --
- *     Insert a row or column-store entry.
+ *     Insert a row entry.
  */
 static WT_INLINE int
 __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
@@ -147,7 +147,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
 
 /*
  * __wt_update_serial --
- *     Update a row or column-store entry.
+ *     Update a row entry.
  */
 static WT_INLINE int
 __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,

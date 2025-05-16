@@ -53,13 +53,7 @@ structures that WiredTiger uses to access and update the page while it is cached
 When WiredTiger loads a page into the cache, it allocates an internal table with one entry
 for each entry on the page.  The type and content of these entries depends on the page type. An
 internal Btree page will have an array of \c WT_REF structures.  A row-store leaf page will have
-an array of \c WT_ROW structures representing the KV pairs stored on the page.  A variable-length
-column-store leaf page will have an array of \c WT_COL structures along with a parallel array
-of \c WT_COL_RLE structures indicating run lengths for items that are repeated more then once
-on the page.  Both of these leaf page formats support binary search to quickly find an entry.
-In a fixed-length column-store leaf page, values will be packed into a simple byte array, allowing
-WiredTiger to access entries using bit operations based on the value length; the time window
-information is indexed in a separate array.
+an array of \c WT_ROW structures representing the KV pairs stored on the page.
 
 The first time an entry on a leaf page is inserted or modified, WiredTiger adds a
 \c WT_PAGE_MODIFY structure to the corresponding \c WT_PAGE in the cache. For a row-store leaf
@@ -72,9 +66,6 @@ WiredTiger adds an update with a special tombstone value.  WiredTiger stores new
 elements in a similar array of skip lists represented by \c WT_INSERT structures.  There is a
 separate skiplist for the gap between each pair of keys on the page, as well as skiplists for
 the gaps between the beginning and end of the page and the first and last keys, respectively.
-
-For a column-store leaf page the \c WT_PAGE_MODIFY structure tracks changes using a pair of
-skip lists, one for appended items and one for updated items.
 
 Almost all operations on these data structures are lock-free, allowing a high level of
 concurrency in the cache.

@@ -455,7 +455,7 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
         }
     }
 
-    /* Pick a reference table: the first table that's not FLCS, if possible; else 0. */
+    /* Pick a reference table if possible. */
     reference_table = 0;
 
     while (ret == 0) {
@@ -526,10 +526,7 @@ compare_cursors(WT_CURSOR *cursor1, WT_CURSOR *cursor2)
     if (cursor1->get_key(cursor1, &key1) != 0 || cursor2->get_key(cursor2, &key2) != 0)
         return (log_print_err("Error getting keys", EINVAL, 1));
 
-    /*
-     * Get the values. For all table types set both the string value (so we can print) and the FLCS
-     * value.
-     */
+    /* Get the values. For all table types set both the string value (so we can print). */
     if (cursor1->get_value(cursor1, &strval1) != 0)
         goto valuefail;
     if (cursor2->get_value(cursor2, &strval2) != 0)
@@ -592,12 +589,6 @@ diagnose_key_error(WT_CURSOR *cursor1, int index1, WT_CURSOR *cursor2, int index
 
     if (key1_orig == key2_orig)
         goto live_check;
-
-    /*
-     * Note: for now the code below hasn't been adapted for FLCS (where it would need to skip zero
-     * values when searching forward and backward) because that's a fairly large nuisance and it's
-     * not, at least for the moment, all that helpful. FUTURE.
-     */
 
     /* See if previous values are still valid. */
     if (do_cursor_prev(cursor1) != 0 || do_cursor_prev(cursor2) != 0)

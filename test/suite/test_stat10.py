@@ -151,8 +151,7 @@ class test_stat10(wttest.WiredTigerTestCase):
         # I've kept the timestamp tests and the format tests separate to help clarify
         # this.
 
-        # entries: always 100 for FLCS; for RS and VLCS, when oldest passes 30 the two
-        # deleted values show up in the count.
+        # entries: for RS, when oldest passes 30 the two deleted values show up in the count.
         if self.oldest > 30:
             self.assertEqual(entries, nrows * 2 - 2)
         else:
@@ -164,5 +163,5 @@ class test_stat10(wttest.WiredTigerTestCase):
         else:
             self.assertEqual(row_empty_values, 0)
 
-        # overflow: two keys and one value, so 3 for rows, 1 for VLCS, 0 for FLCS.
+        # overflow: two keys and one value, so 3 for rows.
         self.assertEqual(overflow, 3)

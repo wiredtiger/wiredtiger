@@ -60,9 +60,6 @@ def verify_rts_logs():
 
 # rollback_to_stable_util.py
 # Shared base class used by rollback to stable tests.
-#
-# Note: this class now expects self.value_format to have been set for some of the
-# operations (those that need to specialize themselves for FLCS).
 class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
     # Don't raise errors for these, the expectation is that the RTS verifier will
     # run on the test output.
@@ -176,7 +173,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                 session.rollback_transaction()
             raise(e)
 
-    def check(self, check_value, uri, nrows, flcs_extrarows, read_ts):
+    def check(self, check_value, uri, nrows, read_ts):
         session = self.session
         if read_ts == 0:
             session.begin_transaction()

@@ -37,11 +37,6 @@ values:
 
 @snippet ex_all.c Create a table
 
-To handle more complex schema configuration, such as specifying multiple
-columns in a table, values are nested using parentheses.  For example:
-
-@snippet ex_all.c Create a table with columns
-
 All types of parentheses are treated equivalently by the parser.
 
 When an integer value is expected, the value may have multiplier characters

@@ -58,8 +58,7 @@ class test_dictionary02(wttest.WiredTigerTestCase):
         cursor[simple_key(cursor, 1)] = self.value_a
         cursor[simple_key(cursor, 2)] = self.value_b
 
-        # The next cells will reuse an existing dictionary entry and have RLE information for
-        # VLCS.
+        # The next cells will reuse an existing dictionary entry.
         for i in range(3, 10):
             cursor[simple_key(cursor, i)] = self.value_a
         cursor.close()

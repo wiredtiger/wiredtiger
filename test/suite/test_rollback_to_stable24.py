@@ -55,11 +55,6 @@ from wtscenario import make_scenarios
 # from timestamp 10 is in the history store, but under key 4; there's nothing in the history
 # store for key 2.) So it issues a tombstone, and issues it for key 2, so key 2 improperly
 # disappears.
-#
-# Run this test on rows as well as columns to help make sure the test itself is valid (and
-# stays so over time...)
-#
-# Don't run it on FLCS because FLCS doesn't do RLE encoding so there's no point.
 class test_rollback_to_stable24(wttest.WiredTigerTestCase):
     conn_config = 'in_memory=false'
 

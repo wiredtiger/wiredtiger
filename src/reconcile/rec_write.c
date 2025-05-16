@@ -1034,34 +1034,11 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t primar
      * pages; however, salvage can't be allowed to split, there's no parent page yet. If we're doing
      * salvage, override the caller's selection of a maximum page size, choosing a page size that
      * ensures we won't split.
-     *
-     * For FLCS, the salvage page size can get very large indeed if pieces of the namespace have
-     * vanished, so don't second-guess the caller, who's figured it out for us.
      */
     if (r->salvage != NULL)
         primary_size = __rec_leaf_page_max_slvg(session, r);
 
-    /*
-     * Set the page sizes.
-     *
-     * Only fixed-length column store pages use auxiliary space; this is where time windows are
-     * placed. r->page_size is the complete page size; we'll use r->space_avail to track how much
-     * more primary space is remaining, and r->aux_space_avail to track how much more auxiliary
-     * space there is.
-     *
-     * Because (for FLCS) we need to start writing time windows into the auxiliary space before we
-     * know for sure how much bitmap data there is, we always start the time window data at a fixed
-     * offset from the page start: the place where it goes naturally if the page is full. If the
-     * page is not full (and there was at least one timestamp to write), we waste the intervening
-     * unused space. Odd-sized pages are supposed to be rare (ideally only the last page in the
-     * tree, though currently there are some other ways they can appear) so only a few KB is wasted
-     * and not enough to be particularly concerned about.
-     *
-     * For FLCS, primary_size will always be the tree's configured maximum leaf page size, except
-     * for pages created or rewritten during salvage, which might be larger. (This is not ideal,
-     * because once created larger they cannot be split again later, but for the moment at least it
-     * isn't readily avoided.)
-     */
+    /* Set the page size. */
     r->page_size = (uint32_t)(primary_size);
 
     /*
@@ -1087,12 +1064,6 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint64_t primar
      * penultimate chunk and split at this minimum split size boundary. This moves some data from
      * the penultimate chunk to the last chunk, hence increasing the size of the last page written
      * without decreasing the penultimate page size beyond the minimum split size.
-     *
-     * FLCS pages are different, because they have two pieces: bitmap data ("primary") and time
-     * window data ("auxiliary"); the bitmap data is supposed to be a fixed amount per page. FLCS
-     * pages therefore split based on the bitmap size, and the time window data comes along for the
-     * ride no matter how large it is. If the time window data gets larger than expected (it can at
-     * least in theory get rather large), we have to realloc the page image.
      *
      * Finally, all this doesn't matter at all for salvage; as noted above, in salvage we can't
      * split at all.
@@ -1311,9 +1282,7 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
 
     /*
      * We can get here if the first key/value pair won't fit. Grow the buffer to contain the current
-     * item if we haven't already consumed a reasonable portion of a split chunk. This logic should
-     * not trigger for FLCS, because FLCS splits happen at very definite places; and if it does, the
-     * interaction between here and there will corrupt the database, so assert otherwise.
+     * item if we haven't already consumed a reasonable portion of a split chunk.
      *
      * If we're promoting huge keys into an internal page, we might be about to write an internal
      * page with too few items, which isn't good for tree depth or search. Grow the buffer to
@@ -1361,10 +1330,7 @@ __rec_split(WT_SESSION_IMPL *session, WTI_RECONCILE *r, size_t next_len)
     r->entries = 0;
     r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
-    /*
-     * Set the space available to another split-size and minimum split-size chunk. For FLCS,
-     * min_space_avail and min_split_size are both left as zero.
-     */
+    /* Set the space available to another split-size and minimum split-size chunk. */
     r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
     r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 

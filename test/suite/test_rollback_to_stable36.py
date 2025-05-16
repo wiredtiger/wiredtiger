@@ -126,8 +126,7 @@ class test_rollback_to_stable36(wttest.WiredTigerTestCase):
         self.assertEqual(err, 0)
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
 
-        # Make sure we did at least one fast-delete. (Unless we specifically didn't want to,
-        # or running on FLCS where it isn't supported.)
+        # Make sure we did at least one fast-delete.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         fastdelete_pages = stat_cursor[stat.conn.rec_page_delete_fast][2]
         self.assertGreater(fastdelete_pages, 0)
@@ -144,7 +143,6 @@ class test_rollback_to_stable36(wttest.WiredTigerTestCase):
 
         # Currently rolling back a fast-truncate works by instantiating the pages and
         # rolling back the instantiated updates, so we should see some page instantiations.
-        # (But not for FLCS.)
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         read_deleted = stat_cursor[stat.conn.cache_read_deleted][2]
         self.assertGreater(read_deleted, 0)

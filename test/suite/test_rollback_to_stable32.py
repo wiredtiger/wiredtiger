@@ -81,7 +81,6 @@ class test_rollback_to_stable32(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
         self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)

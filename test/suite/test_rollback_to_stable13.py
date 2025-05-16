@@ -84,7 +84,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.large_updates(uri, value_b, ds, nrows, self.prepare, 60)
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
         self.check(value_b, uri, nrows, None, 61 if self.prepare else 60)
@@ -153,7 +152,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.large_updates(uri, value_d, ds, nrows, self.prepare, 60)
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 31 if self.prepare else 30)
         self.check(value_d, uri, nrows, None, 61 if self.prepare else 60)
@@ -223,7 +221,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
         self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)
@@ -272,7 +269,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify data is visible and correct.
-        # (In FLCS, the removed rows should read back as zero.)
         self.check(value_a, uri, nrows, None, 21 if self.prepare else 20)
         self.check(None, uri, 0, nrows, 41 if self.prepare else 40)
         self.check(value_c, uri, nrows, None, 61 if self.prepare else 60)

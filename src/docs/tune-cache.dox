@@ -39,10 +39,6 @@ Configuring a cache resident object has several effects:
   size, then further operations will either return error or stall until
   space is made available by closing objects.
 
-An example of configuring a cache-resident object:
-
-@snippet ex_all.c Create a cache-resident object
-
 @section cache_eviction Eviction tuning
 
 When an application approaches the maximum cache size, WiredTiger begins
