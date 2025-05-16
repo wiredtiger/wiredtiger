@@ -135,9 +135,6 @@ class test_stat10(wttest.WiredTigerTestCase):
 
         entries = statscursor[stat.dsrc.btree_entries][2]
         row_empty_values = statscursor[stat.dsrc.btree_row_empty_values][2]
-        column_deleted = statscursor[stat.dsrc.btree_column_deleted][2]
-        column_rle = statscursor[stat.dsrc.btree_column_rle][2]
-        column_tws = statscursor[stat.dsrc.btree_column_tws][2]
         overflow = statscursor[stat.dsrc.btree_overflow][2]
         # Read backup stats even though backup isn't being used.
         self.assertEqual(0, statscursor[stat.dsrc.backup_blocks_compressed][2])
@@ -166,15 +163,6 @@ class test_stat10(wttest.WiredTigerTestCase):
             self.assertEqual(row_empty_values, 1)
         else:
             self.assertEqual(row_empty_values, 0)
-
-        # column_deleted: for VLCS only; only appears when oldest passes 30.
-        self.assertEqual(column_deleted, 0)
-
-        # column_rle: for VLCS only.
-        self.assertEqual(column_rle, 0)
-
-        # column_tws: for FLCS only.
-        self.assertEqual(column_tws, 0)
 
         # overflow: two keys and one value, so 3 for rows, 1 for VLCS, 0 for FLCS.
         self.assertEqual(overflow, 3)

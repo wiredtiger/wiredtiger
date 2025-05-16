@@ -848,7 +848,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_SESSION_IMPL *session;
     size_t insert_bytes;
     uint64_t sleep_usecs, yield_count;
-    bool append_key, key_out_of_bounds, valid;
+    bool key_out_of_bounds, valid;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
@@ -866,13 +866,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     /* It's no longer possible to bulk-load into the tree. */
     __wt_btree_disable_bulk(session);
 
-    /*
-     * Insert a new record if WT_CURSTD_APPEND configured, (ignoring any application set record
-     * number). Although append can't be configured for a row-store, this code would break if it
-     * were, and that's owned by the upper cursor layer, be cautious.
-     */
-    append_key = F_ISSET(cursor, WT_CURSTD_APPEND) && btree->type != BTREE_ROW;
-
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
 
@@ -888,12 +881,8 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      * If inserting with overwrite configured, and positioned to an on-page key, the update doesn't
      * require another search. Cursors configured for append aren't included, regardless of whether
      * or not they meet all other criteria.
-     *
-     * Fixed-length column store can never use a positioned cursor to update because the cursor may
-     * not be positioned to the correct record in the case of implicit records in the append list.
-     * FIXME: it appears that this is no longer true.
      */
-    if (__cursor_page_pinned(cbt, false) && F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
+    if (__cursor_page_pinned(cbt, false) && F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
         WT_ERR(__wt_txn_autocommit_check(session));
         /*
          * The cursor position may not be exact (the cursor's comparison value not equal to zero).
@@ -959,8 +948,6 @@ duplicate:
     if (ret == 0) {
 done:
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-        if (append_key)
-            F_SET(cursor, WT_CURSTD_KEY_EXT);
     }
     WT_TRET(__cursor_reset(cbt));
     if (ret != 0 && ret != WT_DUPLICATE_KEY)

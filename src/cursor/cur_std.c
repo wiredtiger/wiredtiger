@@ -387,7 +387,6 @@ __wti_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
     WT_DECL_RET;
     WT_ITEM *key;
     WT_SESSION_IMPL *session;
-    size_t size;
     const char *fmt;
 
     CURSOR_API_CALL(cursor, session, ret, get_key, NULL);
@@ -400,31 +399,18 @@ __wti_cursor_get_keyv(WT_CURSOR *cursor, uint64_t flags, va_list ap)
         F_SET(cursor, WT_CURSTD_DEBUG_COPY_KEY);
     }
 
-    if (WT_CURSOR_RECNO(cursor)) {
-        if (LF_ISSET(WT_CURSTD_RAW)) {
-            key = va_arg(ap, WT_ITEM *);
-            key->data = cursor->raw_recno_buf;
-            WT_ERR(__wt_struct_size(session, &size, "q", cursor->recno));
-            key->size = size;
-            ret = __wt_struct_pack(
-              session, cursor->raw_recno_buf, sizeof(cursor->raw_recno_buf), "q", cursor->recno);
-        } else
-            *va_arg(ap, uint64_t *) = cursor->recno;
-    } else {
-        /*
-         * Fast path some common cases. The case we care most about being fast is "u", check that
-         * first.
-         */
-        fmt = cursor->key_format;
-        if (WT_STREQ(fmt, "u") || LF_ISSET(WT_CURSOR_RAW_OK)) {
-            key = va_arg(ap, WT_ITEM *);
-            key->data = cursor->key.data;
-            key->size = cursor->key.size;
-        } else if (WT_STREQ(fmt, "S"))
-            *va_arg(ap, const char **) = cursor->key.data;
-        else
-            ret = __wt_struct_unpackv(session, cursor->key.data, cursor->key.size, fmt, ap);
-    }
+    /*
+     * Fast path some common cases. The case we care most about being fast is "u", check that first.
+     */
+    fmt = cursor->key_format;
+    if (WT_STREQ(fmt, "u") || LF_ISSET(WT_CURSOR_RAW_OK)) {
+        key = va_arg(ap, WT_ITEM *);
+        key->data = cursor->key.data;
+        key->size = cursor->key.size;
+    } else if (WT_STREQ(fmt, "S"))
+        *va_arg(ap, const char **) = cursor->key.data;
+    else
+        ret = __wt_struct_unpackv(session, cursor->key.data, cursor->key.size, fmt, ap);
 
 err:
     API_END_RET_STAT(session, ret, cursor_get_key);
@@ -943,17 +929,6 @@ __cursor_reuse_or_init(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const char *
     owner = ownerp ? *ownerp : NULL;
 
     if (cfg != NULL) {
-        /*
-         * WT_CURSTD_APPEND is only relevant to column stores.
-         */
-        if (WT_CURSOR_RECNO(cursor)) {
-            WT_RET(__wt_config_gets_def(session, cfg, "append", 0, &cval));
-            if (cval.val != 0)
-                F_SET(cursor, WT_CURSTD_APPEND);
-            else
-                F_CLR(cursor, WT_CURSTD_APPEND);
-        }
-
         /* WT_CURSTD_RAW */
         WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
         if (cval.val != 0)
@@ -1073,7 +1048,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
-            F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+            F_CLR(cursor, WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
             F_SET(cursor, overwrite_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
@@ -1241,20 +1216,6 @@ __wti_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 
     /* Reconfiguration resets the cursor. */
     WT_ERR(cursor->reset(cursor));
-
-    /*
-     * append Only relevant to column stores.
-     */
-    if (WT_CURSOR_RECNO(cursor)) {
-        if ((ret = __wt_config_getones(session, config, "append", &cval)) == 0) {
-            if (cval.val)
-                F_SET(cursor, WT_CURSTD_APPEND);
-            else
-                F_CLR(cursor, WT_CURSTD_APPEND);
-        } else
-            WT_ERR_NOTFOUND_OK(ret, false);
-    }
-
     /*
      * overwrite
      */

@@ -159,11 +159,8 @@ struct __wt_btree {
 
     WT_RWLOCK ovfl_lock; /* Overflow lock */
 
-    int maximum_depth;        /* Maximum tree depth during search */
-    u_int rec_multiblock_max; /* Maximum blocks written for a page */
-
-    uint64_t last_recno; /* Column-store last record number */
-
+    int maximum_depth;          /* Maximum tree depth during search */
+    u_int rec_multiblock_max;   /* Maximum blocks written for a page */
     WT_REF root;                /* Root page reference */
     wt_shared bool modified;    /* If the tree ever modified */
     wt_shared uint8_t original; /* Newly created: bulk-load possible

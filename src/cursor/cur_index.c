@@ -124,7 +124,6 @@ __curindex_move(WT_CURSOR_INDEX *cindex)
         } else {
             (*cp)->key.data = first->key.data;
             (*cp)->key.size = first->key.size;
-            (*cp)->recno = first->recno;
         }
         F_SET(*cp, WT_CURSTD_KEY_EXT);
         if (cindex->cg_needvalue[i])
@@ -629,15 +628,6 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     cursor->internal_uri = idx->name;
     cursor->key_format = idx->idxkey_format;
     cursor->value_format = table->value_format;
-
-    /*
-     * XXX A very odd corner case is an index with a recno key. The only way to get here is by
-     * creating an index on a column store using only the primary's recno as the index key. Disallow
-     * that for now.
-     */
-    if (WT_CURSOR_RECNO(cursor))
-        WT_ERR_MSG(session, WT_ERROR,
-          "Column store indexes based on a record number primary key are not supported");
 
     /* Handle projections. */
     if (columns != NULL) {

@@ -48,12 +48,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *pro
         switch (*proj) {
         case WT_PROJ_KEY:
             c = cp[arg];
-            if (WT_CURSOR_RECNO(c)) {
-                c->key.data = &c->recno;
-                c->key.size = sizeof(c->recno);
-                WT_RET(__pack_init(session, &pack, "R"));
-            } else
-                WT_RET(__pack_init(session, &pack, c->key_format));
+            WT_RET(__pack_init(session, &pack, c->key_format));
             buf = &c->key;
             end = p = (uint8_t *)buf->data;
             if (end != NULL)
@@ -158,12 +153,7 @@ __wt_schema_project_out(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *pr
         switch (*proj) {
         case WT_PROJ_KEY:
             c = cp[arg];
-            if (WT_CURSOR_RECNO(c)) {
-                c->key.data = &c->recno;
-                c->key.size = sizeof(c->recno);
-                WT_RET(__pack_init(session, &pack, "R"));
-            } else
-                WT_RET(__pack_init(session, &pack, c->key_format));
+            WT_RET(__pack_init(session, &pack, c->key_format));
             p = (uint8_t *)c->key.data;
             end = p + c->key.size;
             continue;
@@ -246,12 +236,7 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
         case WT_PROJ_KEY:
             skip = false;
             c = cp[arg];
-            if (WT_CURSOR_RECNO(c)) {
-                c->key.data = &c->recno;
-                c->key.size = sizeof(c->recno);
-                WT_RET(__pack_init(session, &pack, "R"));
-            } else
-                WT_RET(__pack_init(session, &pack, c->key_format));
+            WT_RET(__pack_init(session, &pack, c->key_format));
             buf = &c->key;
             end = p = (uint8_t *)buf->data;
             if (end != NULL)
@@ -398,12 +383,7 @@ __wt_schema_project_merge(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *
         switch (*proj) {
         case WT_PROJ_KEY:
             c = cp[arg];
-            if (WT_CURSOR_RECNO(c)) {
-                c->key.data = &c->recno;
-                c->key.size = sizeof(c->recno);
-                WT_RET(__pack_init(session, &pack, "R"));
-            } else
-                WT_RET(__pack_init(session, &pack, c->key_format));
+            WT_RET(__pack_init(session, &pack, c->key_format));
             buf = &c->key;
             p = buf->data;
             end = p + buf->size;

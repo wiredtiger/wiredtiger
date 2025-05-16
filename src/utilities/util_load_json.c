@@ -212,12 +212,10 @@ json_data(WT_SESSION *session, JSON_INPUT_STATE *ins, CONFIG_LIST *clp, uint32_t
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    size_t gotnolen, keystrlen;
-    uint64_t gotno, recno;
+    size_t keystrlen;
     int nfield, nkeys, toktype, tret;
-    char config[64], *endp, *uri;
+    char config[64], *uri;
     const char *keyformat;
-    bool isrec;
 
     cursor = NULL;
     uri = NULL;
@@ -246,12 +244,10 @@ json_data(WT_SESSION *session, JSON_INPUT_STATE *ins, CONFIG_LIST *clp, uint32_t
         goto err;
     }
     keyformat = cursor->key_format;
-    isrec = WT_STREQ(keyformat, "r");
     for (nkeys = 0; *keyformat; keyformat++)
         if (!__wt_isdigit((u_char)*keyformat))
             nkeys++;
 
-    recno = 0;
     while (json_peek(session, ins) == '{') {
         nfield = 0;
         JSON_EXPECT(session, ins, '{');
@@ -269,16 +265,6 @@ json_data(WT_SESSION *session, JSON_INPUT_STATE *ins, CONFIG_LIST *clp, uint32_t
             JSON_EXPECT(session, ins, ':');
             toktype = json_peek(session, ins);
             JSON_EXPECT(session, ins, toktype);
-            if (isrec && nfield == 0) {
-                /* Verify the dump has recnos in order. */
-                recno++;
-                gotno = __wt_strtouq(ins->tokstart, &endp, 0);
-                gotnolen = (size_t)(endp - ins->tokstart);
-                if (recno != gotno || ins->toklen != gotnolen) {
-                    ret = util_err(session, 0, "%s: recno out of order", uri);
-                    goto err;
-                }
-            }
             if (++nfield == nkeys) {
                 size_t curpos = JSON_INPUT_POS(ins);
                 if ((ret = json_kvraw_append(session, ins, (char *)ins->line.mem + ins->kvrawstart,

@@ -112,8 +112,7 @@ struct __wti_rec_chunk {
     uint32_t entries_before_split_boundary;
     WT_TIME_AGGREGATE ta_before_split_boundary;
 
-    /* These fields track the key or recno of the very first entry past the split boundary. */
-    uint64_t recno_at_split_boundary;
+    /* These fields track the key of the very first entry past the split boundary. */
     WT_ITEM key_at_split_boundary;
 
     /*

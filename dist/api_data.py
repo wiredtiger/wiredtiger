@@ -1322,8 +1322,7 @@ cursor_bound_config = [
 
 cursor_runtime_config = [
     Config('append', 'false', r'''
-        append written values as new records, giving each a new record number key; valid only for
-        cursors with record number keys''',
+        this option is no longer supported, retained for backward compatibility''',
         type='boolean'),
     Config('overwrite', 'true', r'''
         configures whether the cursor's insert and update methods check the existing state of

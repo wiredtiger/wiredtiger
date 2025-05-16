@@ -385,8 +385,7 @@ __curfile_insert(WT_CURSOR *cursor)
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, insert);
     WT_ERR(__cursor_copy_release(cursor));
 
-    if (!F_ISSET(cursor, WT_CURSTD_APPEND))
-        WT_ERR(__cursor_checkkey(cursor));
+    WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
 
     time_start = __wt_clock(session);
@@ -394,15 +393,8 @@ __curfile_insert(WT_CURSOR *cursor)
     time_stop = __wt_clock(session);
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
-    /*
-     * Insert maintains no position, key or value (except for column-store appends, where we are
-     * returning a key).
-     */
-    WT_ASSERT(session,
-      !F_ISSET(cbt, WT_CBT_ACTIVE) &&
-        ((F_ISSET(cursor, WT_CURSTD_APPEND) &&
-           F_MASK(cursor, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_EXT) ||
-          (!F_ISSET(cursor, WT_CURSTD_APPEND) && F_MASK(cursor, WT_CURSTD_KEY_SET) == 0)));
+    /* Insert maintains no position, key or value. */
+    WT_ASSERT(session, !F_ISSET(cbt, WT_CBT_ACTIVE) && F_MASK(cursor, WT_CURSTD_KEY_SET) == 0);
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
@@ -1039,11 +1031,6 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
             __wt_random_init_seed(&cbt->rnd, (uint64_t)cval.val);
         else
             __wt_random_init(session, &cbt->rnd);
-
-        if (WT_CURSOR_RECNO(cursor))
-            WT_ERR_MSG(
-              session, ENOTSUP, "next_random configuration not supported for column-store objects");
-
         __wti_cursor_set_notsup(cursor);
         cursor->next = __curfile_next_random;
         cursor->reset = __curfile_reset;

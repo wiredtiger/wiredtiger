@@ -118,8 +118,6 @@ __wt_session_dump(WT_SESSION_IMPL *session, WT_SESSION_IMPL *dump_session, bool 
                     WT_ERR(__wt_buf_catfmt(session, buf, ", POSITIONED"));
                 else
                     WT_ERR(__wt_buf_catfmt(session, buf, ", RESET"));
-                if (F_ISSET(cursor, WT_CURSTD_APPEND))
-                    WT_ERR(__wt_buf_catfmt(session, buf, ", APPEND"));
                 if (F_ISSET(cursor, WT_CURSTD_BULK))
                     WT_ERR(__wt_buf_catfmt(session, buf, ", BULK"));
                 if (F_ISSET(cursor, WT_CURSTD_META_INUSE))

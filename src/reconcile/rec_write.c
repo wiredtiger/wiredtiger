@@ -2099,8 +2099,8 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_RET(__wt_scr_alloc(session, 0, &tkey));
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         __wt_verbose_debug2(session, WT_VERB_SPLIT, "starting key %s",
-          __wt_buf_set_printable_format(session, WT_IKEY_DATA(multi->key),
-            multi->key->size, btree->key_format, false, tkey));
+          __wt_buf_set_printable_format(
+            session, WT_IKEY_DATA(multi->key), multi->key->size, btree->key_format, false, tkey));
     __wt_scr_free(session, &tkey);
     return (0);
 }

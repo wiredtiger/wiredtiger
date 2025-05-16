@@ -140,7 +140,6 @@ __curtable_set_key(WT_CURSOR *cursor, ...)
 
     /* Copy the primary key to the other cursors. */
     for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++) {
-        (*cp)->recno = primary->recno;
         (*cp)->key.data = primary->key.data;
         (*cp)->key.size = primary->key.size;
         F_SET(*cp, WT_CURSTD_KEY_EXT);
@@ -300,7 +299,6 @@ __curtable_next_random(WT_CURSOR *cursor)
     for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++) {
         (*cp)->key.data = primary->key.data;
         (*cp)->key.size = primary->key.size;
-        (*cp)->recno = primary->recno;
         F_SET(*cp, WT_CURSTD_KEY_EXT);
         WT_ERR((*cp)->search(*cp));
     }
@@ -414,7 +412,6 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
     for (i = 1, ++cp; i < WT_COLGROUPS(ctable->table); i++) {
         (*cp)->key.data = primary->key.data;
         (*cp)->key.size = primary->key.size;
-        (*cp)->recno = primary->recno;
         F_SET(*cp, WT_CURSTD_KEY_EXT);
         WT_ERR((*cp)->search(*cp));
     }
@@ -447,7 +444,7 @@ __curtable_insert(WT_CURSOR *cursor)
     primary = *cp++;
 
     /*
-     * Split out the first insert, it may be allocating a recno.
+     * Split out the first insert.
      *
      * If the table has indices, we also need to know whether this record is replacing an existing
      * record so that the existing index entries can be removed. We discover if this is an overwrite
@@ -480,10 +477,8 @@ __curtable_insert(WT_CURSOR *cursor)
     } else {
         WT_ERR(ret);
 
-        for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++) {
-            (*cp)->recno = primary->recno;
+        for (i = 1; i < WT_COLGROUPS(ctable->table); i++, cp++)
             WT_ERR((*cp)->insert(*cp));
-        }
 
         WT_ERR(__apply_idx(ctable, offsetof(WT_CURSOR, insert), false));
     }
@@ -497,8 +492,6 @@ __curtable_insert(WT_CURSOR *cursor)
      * continue on without risking subsequent core dumps.
      */
     F_CLR(primary, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
-    if (F_ISSET(primary, WT_CURSTD_APPEND))
-        F_SET(primary, WT_CURSTD_KEY_EXT);
 
 err:
     CURSOR_UPDATE_API_END(session, ret);

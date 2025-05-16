@@ -26,8 +26,6 @@
       reset, search, search_near, insert, modify, update, remove, reserve, checkpoint_id, close, \
       largest_key, reconfigure, bound, cache, reopen, 0, /* uri_hash */                          \
       {NULL, NULL},                                      /* TAILQ_ENTRY q */                     \
-      0,                                                 /* recno key */                         \
-      {0},                                               /* recno raw buffer */                  \
       NULL,                                              /* json_private */                      \
       NULL,                                              /* lang_private */                      \
       {NULL, 0, NULL, 0, 0},                             /* WT_ITEM key */                       \
@@ -438,8 +436,6 @@ struct __wt_cursor_version {
 };
 
 #define WT_CURSOR_PRIMARY(cursor) (((WT_CURSOR_TABLE *)(cursor))->cg_cursors[0])
-
-#define WT_CURSOR_RECNO(cursor) WT_STREQ((cursor)->key_format, "r")
 
 #define WT_CURSOR_RAW_OK \
     (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)

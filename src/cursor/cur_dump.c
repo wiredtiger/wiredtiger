@@ -52,7 +52,6 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
     WT_JSON *json;
     WT_SESSION_IMPL *session;
     size_t size;
-    uint64_t recno;
     const char *fmt;
     va_list ap;
     const void *buffer;
@@ -65,38 +64,25 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
     if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON)) {
         json = (WT_JSON *)cursor->json_private;
         WT_ASSERT(session, json != NULL);
-        if (WT_CURSOR_RECNO(cursor)) {
-            WT_ERR(child->get_key(child, &recno));
-            buffer = &recno;
-            size = sizeof(recno);
-            fmt = "R";
-        } else {
-            WT_ERR(__wt_cursor_get_raw_key(child, &item));
-            buffer = item.data;
-            size = item.size;
-            if (F_ISSET(cursor, WT_CURSTD_RAW))
-                fmt = "u";
-            else
-                fmt = cursor->key_format;
-        }
+        WT_ERR(__wt_cursor_get_raw_key(child, &item));
+        buffer = item.data;
+        size = item.size;
+        if (F_ISSET(cursor, WT_CURSTD_RAW))
+            fmt = "u";
+        else
+            fmt = cursor->key_format;
         va_start(ap, cursor);
         ret = __wt_json_alloc_unpack(session, buffer, size, fmt, json, true, ap);
         va_end(ap);
     } else {
-        if (WT_CURSOR_RECNO(cursor) && !F_ISSET(cursor, WT_CURSTD_RAW)) {
-            WT_ERR(child->get_key(child, &recno));
+        WT_ERR(child->get_key(child, &item));
 
-            WT_ERR(__wt_buf_fmt(session, &cursor->key, "%" PRIu64, recno));
-        } else {
-            WT_ERR(child->get_key(child, &item));
-
-            if (F_ISSET(cursor, WT_CURSTD_DUMP_PRETTY)) {
-                WT_IGNORE_RET(__wt_buf_set_printable_format(session, item.data, item.size,
-                  cursor->key_format, F_ISSET(cursor, WT_CURSTD_DUMP_HEX), &cursor->key));
-            } else
-                WT_ERR(
-                  __raw_to_dump(session, &item, &cursor->key, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
-        }
+        if (F_ISSET(cursor, WT_CURSTD_DUMP_PRETTY)) {
+            WT_IGNORE_RET(__wt_buf_set_printable_format(session, item.data, item.size,
+              cursor->key_format, F_ISSET(cursor, WT_CURSTD_DUMP_HEX), &cursor->key));
+        } else
+            WT_ERR(
+              __raw_to_dump(session, &item, &cursor->key, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
 
         va_start(ap, cursor);
         if (F_ISSET(cursor, WT_CURSTD_RAW)) {
@@ -113,35 +99,6 @@ err:
 }
 
 /*
- * str2recno --
- *     Convert a string to a record number.
- */
-static int
-str2recno(WT_SESSION_IMPL *session, const char *p, uint64_t *recnop)
-{
-    uint64_t recno;
-    char *endptr;
-
-    /*
-     * strtouq takes lots of things like hex values, signs and so on and so forth -- none of them
-     * are OK with us. Check the string starts with digit, that turns off the special processing.
-     */
-    if (!__wt_isdigit((u_char)p[0]))
-        goto format;
-
-    errno = 0;
-    recno = __wt_strtouq(p, &endptr, 0);
-    if (recno == ULLONG_MAX && errno == ERANGE)
-        WT_RET_MSG(session, ERANGE, "%s: invalid record number", p);
-    if (endptr[0] != '\0')
-format:
-        WT_RET_MSG(session, EINVAL, "%s: invalid record number", p);
-
-    *recnop = recno;
-    return (0);
-}
-
-/*
  * __curdump_set_keyv --
  *     WT_CURSOR->set_key for dump cursors.
  */
@@ -152,8 +109,6 @@ __curdump_set_keyv(WT_CURSOR *cursor, va_list ap)
     WT_CURSOR_DUMP *cdump;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t recno;
-    const uint8_t *up;
     const char *p;
     bool json;
 
@@ -170,21 +125,10 @@ __curdump_set_keyv(WT_CURSOR *cursor, va_list ap)
     if (json)
         WT_ERR(__wt_json_to_item(
           session, p, cursor->key_format, (WT_JSON *)cursor->json_private, true, &cursor->key));
+    if (!json)
+        WT_ERR(__dump_to_raw(session, p, &cursor->key, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
 
-    if (WT_CURSOR_RECNO(cursor) && !F_ISSET(cursor, WT_CURSTD_RAW)) {
-        if (json) {
-            up = (const uint8_t *)cursor->key.data;
-            WT_ERR(__wt_vunpack_uint(&up, cursor->key.size, &recno));
-        } else
-            WT_ERR(str2recno(session, p, &recno));
-
-        child->set_key(child, recno);
-    } else {
-        if (!json)
-            WT_ERR(__dump_to_raw(session, p, &cursor->key, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
-
-        child->set_key(child, &cursor->key);
-    }
+    child->set_key(child, &cursor->key);
 
     if (0) {
 err:

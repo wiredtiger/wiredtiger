@@ -20,8 +20,6 @@ __curds_key_set(WT_CURSOR *cursor)
     source = ((WT_CURSOR_DATA_SOURCE *)cursor)->source;
 
     WT_RET(__cursor_needkey(cursor));
-
-    source->recno = cursor->recno;
     source->key.data = cursor->key.data;
     source->key.size = cursor->key.size;
 
@@ -73,7 +71,6 @@ __curds_cursor_resolve(WT_CURSOR *cursor, int ret)
         cursor->key.size = source->key.size;
         cursor->value.data = source->value.data;
         cursor->value.size = source->value.size;
-        cursor->recno = source->recno;
 
         F_CLR(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -138,22 +135,13 @@ __curds_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     WT_ERR(__cursor_needkey(a));
     WT_ERR(__cursor_needkey(b));
 
-    if (WT_CURSOR_RECNO(a)) {
-        if (a->recno < b->recno)
-            *cmpp = -1;
-        else if (a->recno == b->recno)
-            *cmpp = 0;
-        else
-            *cmpp = 1;
-    } else {
-        /*
-         * The assumption is data-sources don't provide WiredTiger with WT_CURSOR.compare methods,
-         * instead, we'll copy the key/value out of the underlying data-source cursor and any
-         * comparison to be done can be done at this level.
-         */
-        collator = ((WT_CURSOR_DATA_SOURCE *)a)->collator;
-        WT_ERR(__wt_compare(session, collator, &a->key, &b->key, cmpp));
-    }
+    /*
+     * The assumption is data-sources don't provide WiredTiger with WT_CURSOR.compare methods,
+     * instead, we'll copy the key/value out of the underlying data-source cursor and any comparison
+     * to be done can be done at this level.
+     */
+    collator = ((WT_CURSOR_DATA_SOURCE *)a)->collator;
+    WT_ERR(__wt_compare(session, collator, &a->key, &b->key, cmpp));
 
 err:
     API_END_RET(session, ret);
@@ -298,8 +286,7 @@ __curds_insert(WT_CURSOR *cursor)
     WT_STAT_CONN_DSRC_INCR(session, cursor_insert);
     WT_STAT_DSRC_INCRV(session, cursor_insert_bytes, cursor->key.size + cursor->value.size);
 
-    if (!F_ISSET(cursor, WT_CURSTD_APPEND))
-        WT_ERR(__curds_key_set(cursor));
+    WT_ERR(__curds_key_set(cursor));
     WT_ERR(__curds_value_set(cursor));
     ret = __curds_cursor_resolve(cursor, source->insert(source));
 
@@ -498,7 +485,6 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
     source = data_source->source;
     source->session = (WT_SESSION *)session;
     memset(&source->q, 0, sizeof(source->q));
-    memset(source->raw_recno_buf, 0, sizeof(source->raw_recno_buf));
     memset(&source->key, 0, sizeof(source->key));
     memset(&source->value, 0, sizeof(source->value));
     source->saved_err = 0;
