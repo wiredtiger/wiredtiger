@@ -57,7 +57,7 @@ class test_truncate27(wttest.WiredTigerTestCase):
         uri = 'table:test_truncate27'
         self.session.create(uri, 'key_format=i,value_format=S')
 
-        value = 'a' * 5
+        value = 'a' * 5000
 
         # Pin oldest timestamp.
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))

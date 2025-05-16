@@ -3424,9 +3424,6 @@ tasks:
       # format test
       - func: "format test"
         vars:
-          test_format_extra_args: file_type=fix runs.rows=1000000:2500000
-      - func: "format test"
-        vars:
           test_format_extra_args: file_type=row runs.rows=1000000:2500000
 
       # format test for stressing compaction code path

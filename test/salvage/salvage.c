@@ -45,7 +45,7 @@ void copy(u_int, u_int);
 void print_res(int, int, int);
 void process(void);
 void run(int);
-void t(int, u_int, int);
+void t(int, int);
 int usage(void);
 
 static FILE *res_fp;     /* Results file */
@@ -63,13 +63,11 @@ extern char *__wt_optarg;
 int
 main(int argc, char *argv[])
 {
-    u_int ptype;
     int ch, r;
 
     (void)testutil_set_progname(argv);
 
     r = 0;
-    ptype = 0;
     while ((ch = __wt_getopt(progname, argc, argv, "r:t:v")) != EOF)
         switch (ch) {
         case 'r':
@@ -78,10 +76,6 @@ main(int argc, char *argv[])
                 return (usage());
             break;
         case 't':
-            if (strcmp(__wt_optarg, "row") == 0)
-                ptype = WT_PAGE_ROW_LEAF;
-            else
-                return (usage());
             break;
         case 'v':
             verbose = 1;
@@ -96,8 +90,8 @@ main(int argc, char *argv[])
 
     printf("salvage test run started\n");
 
-    t(r, ptype, 1);
-    t(r, ptype, 0);
+    t(r, 1);
+    t(r, 0);
 
     printf("salvage test run completed\n");
     return (EXIT_SUCCESS);
@@ -108,29 +102,18 @@ main(int argc, char *argv[])
  *     TODO: Add a comment describing this function.
  */
 void
-t(int r, u_int ptype, int unique)
+t(int r, int unique)
 {
     printf("%sunique values\n", unique ? "" : "non-");
     value_unique = unique;
+    page_type = WT_PAGE_ROW_LEAF;
 
-#define NTESTS 24
+#define NTESTS 22
     if (r == 0) {
-        if (ptype == 0) {
-            page_type = WT_PAGE_ROW_LEAF;
-            for (r = 1; r <= NTESTS; ++r)
-                run(r);
-        } else {
-            page_type = ptype;
-            for (r = 1; r <= NTESTS; ++r)
-                run(r);
-        }
-    } else if (ptype == 0) {
-        page_type = WT_PAGE_ROW_LEAF;
+        for (r = 1; r <= NTESTS; ++r)
+            run(r);
+    } else
         run(r);
-    } else {
-        page_type = ptype;
-        run(r);
-    }
 }
 
 /*
