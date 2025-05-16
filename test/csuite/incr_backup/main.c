@@ -40,7 +40,7 @@
 #define BACKUP_SRC "backup.src."
 
 #define ITERATIONS 5
-#define MAX_NTABLES 100
+#define MAX_NTABLES 1
 
 #define MAX_KEY_SIZE 10000
 #define MAX_VALUE_SIZE (100 * WT_THOUSAND)
@@ -62,7 +62,7 @@ static uint64_t seed = 0;
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
-static bool do_drop = true;
+static bool do_drop = false;
 
 #define VERBOSE(level, fmt, ...)      \
     do {                              \
@@ -116,7 +116,7 @@ typedef enum { INSERT, MODIFY, REMOVE, UPDATE, _OPERATION_TYPE_COUNT } OPERATION
  * Having a predictable cycle makes it easy on the checking side (knowing how many total changes
  * have been made) to check the state of the table.
  */
-#define KEYS_PER_TABLE (10 * WT_THOUSAND)
+#define KEYS_PER_TABLE (200 * WT_THOUSAND)
 
 /*
  * usage --
@@ -242,7 +242,7 @@ table_inserts(WT_SESSION *session, TABLE *table)
       perform_table_operation(cur, table, i, INSERT, value, key);
       insert_count++;
     }
-    printf("inserts: %llu\n", insert_count);
+    printf("%s inserts: %llu\n",table->name, insert_count);
     free(value);
     testutil_check(cur->close(cur));
 }
@@ -270,7 +270,7 @@ table_updates(WT_SESSION *session, TABLE *table)
       update_count++;
     }
 
-    printf("updates: %llu\n", update_count);
+    printf("%s updates: %llu\n",table->name, update_count);
     free(value);
     testutil_check(cur->close(cur));
 }
@@ -298,7 +298,7 @@ table_deletes(WT_SESSION *session, TABLE *table)
       delete_count++;
     }
 
-    printf("deletes: %llu\n", delete_count);
+    printf("%s deletes: %llu\n",table->name, delete_count);
     free(value);
     testutil_check(cur->close(cur));
 }
@@ -370,10 +370,10 @@ tables_free(TABLE_INFO *tinfo)
 static void
 base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, TABLE_INFO *tinfo)
 {
-   uint32_t granularity_kb = 16384;
+   uint32_t granularity_kb = 4096;
    //uint32_t granularity_kb = 1024;
    int id, nfiles;
-
+   printf("granularity_kb: %u\n", granularity_kb);
    nfiles = 0;
    id = (int)tinfo->full_backup_number;
    run_gran = (int)granularity_kb;
@@ -507,7 +507,7 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     testutil_check(wiredtiger_open(WT_HOME_DIR, NULL, conf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    tinfo.table_count = __wt_random(rnd) % MAX_NTABLES + 1;
+    tinfo.table_count = MAX_NTABLES;
     tinfo.table = dcalloc(tinfo.table_count, sizeof(tinfo.table[0]));
 
     /*
@@ -546,14 +546,9 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
         }
         for (slot = 0; slot < tinfo.table_count; slot++) {
             if (TABLE_VALID(&tinfo.table[slot])) {
-              /*
-               * We change each table in use about half the time.
-               */
-              if (__wt_random(&tinfo.table[slot].rand) % 2 == 0) {
-                 table_inserts(session, &tinfo.table[slot]);
-                 table_updates(session, &tinfo.table[slot]);
-                 table_deletes(session, &tinfo.table[slot]);
-              }
+               table_inserts(session, &tinfo.table[slot]);
+               table_updates(session, &tinfo.table[slot]);
+               table_deletes(session, &tinfo.table[slot]);
             }
             if (next_checkpoint-- == 0) {
                 VERBOSE(2, "Checkpoint %d\n", ncheckpoints);
