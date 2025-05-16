@@ -85,6 +85,7 @@ Crt
 Crummey
 CustomersPhone
 Cygwin
+DBI
 DESC
 DEST
 DHANDLE
@@ -202,6 +203,7 @@ LANGID
 LF
 LLVM
 LLVMFuzzerTestOneInput
+LMDB
 LOGOP
 LOGREC
 LOGSCAN
@@ -226,6 +228,7 @@ LogSink
 LogSystemInterface
 MADV
 MALLOC
+MDB
 MEM
 MERCHANTABILITY
 MONGODB
@@ -273,6 +276,7 @@ OVFL
 ObWgfvgw
 Optane
 Outfmt
+PALI
 PDEATHSIG
 PFX
 PID
@@ -330,6 +334,7 @@ Readonly
 Realloc
 RedHat
 Redistributions
+Reentrancy
 Reify
 Rogerio
 Runtime
@@ -490,6 +495,7 @@ autocommit
 autoconf
 aws
 bInheritHandle
+backlink
 backoff
 bal
 basecfg
@@ -679,6 +685,7 @@ difftime
 dir
 directio
 dirlist
+disaggregated
 disproportionally
 dlclose
 dlh
@@ -799,6 +806,7 @@ gettimeofday
 getv
 ggg
 github
+globals
 globfree
 gobare
 goesc
@@ -869,6 +877,7 @@ isalnum
 isalpha
 isascii
 isb
+isd
 isdigit
 ish
 ishld
@@ -945,6 +954,7 @@ lru
 lseek
 lsm
 lsn
+lsnp
 lt
 lte
 lu
@@ -1015,6 +1025,7 @@ nextprev
 nf
 nfilename
 nhex
+nilly
 nlohmann
 nlpo
 nocase
@@ -1078,6 +1089,7 @@ perf
 pfx
 pid
 pindexp
+plh
 pmem
 poptable
 popthreads

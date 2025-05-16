@@ -58,12 +58,11 @@ typedef enum __wt_background_compact_cleanup_stat_type {
  */
 struct __wt_background_compact_stat {
     const char *uri;
-    uint32_t id;                                /* File ID */
-    bool prev_compact_success;                  /* Last compact successfully reclaimed space */
-    uint64_t prev_compact_time;                 /* Start time for last compact attempt */
-    uint64_t skip_count;                        /* Number of times we've skipped this file */
-    uint64_t consecutive_unsuccessful_attempts; /* Number of failed attempts since last success */
-    uint64_t bytes_rewritten;                   /* Bytes rewritten during last compaction call */
+    uint32_t id;                /* File ID */
+    bool prev_compact_success;  /* Last compact successfully reclaimed space */
+    uint64_t prev_compact_time; /* Start time for last compact attempt */
+    uint64_t skip_count;        /* Number of times we've skipped this file */
+    uint64_t bytes_rewritten;   /* Bytes rewritten during last compaction call */
 
     wt_off_t start_size; /* File size before compact last started */
     wt_off_t end_size;   /* File size after compact last ended */
@@ -234,6 +233,17 @@ struct __wt_named_encryptor {
     TAILQ_HEAD(__wt_keyed_qh, __wt_keyed_encryptor) keyedqh;
     /* Linked list of encryptors */
     TAILQ_ENTRY(__wt_named_encryptor) q;
+};
+
+/*
+ * WT_NAMED_PAGE_LOG --
+ *	A page log list entry
+ */
+struct __wt_named_page_log {
+    const char *name;      /* Name of page log */
+    WT_PAGE_LOG *page_log; /* User supplied callbacks */
+    /* Linked list of page logs */
+    TAILQ_ENTRY(__wt_named_page_log) q;
 };
 
 /*
@@ -637,6 +647,10 @@ struct __wt_connection_impl {
     /* Locked: encryptor list */
     WT_SPINLOCK encryptor_lock; /* Encryptor list lock */
     TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
+
+    /* Locked: page log list */
+    WT_SPINLOCK page_log_lock; /* Page log list lock */
+    TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
 
     /* Locked: storage source list */
     WT_SPINLOCK storage_lock; /* Storage source list lock */
