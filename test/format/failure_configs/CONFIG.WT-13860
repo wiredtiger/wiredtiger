@@ -164,7 +164,7 @@ table2.ops.pct.write=11
 table2.ops.truncate=1
 table2.runs.mirror=0
 table2.runs.source=file
-table2.runs.type=variable-length column-store
+table2.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 3
 ############################################
@@ -190,7 +190,7 @@ table3.ops.pct.write=41
 table3.ops.truncate=1
 table3.runs.mirror=0
 table3.runs.source=table
-table3.runs.type=variable-length column-store
+table3.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 4
 ############################################
@@ -275,7 +275,7 @@ table6.ops.pct.write=30
 table6.ops.truncate=1
 table6.runs.mirror=0
 table6.runs.source=table
-table6.runs.type=fixed-length column-store
+table6.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 7
 ############################################
@@ -329,7 +329,7 @@ table8.ops.pct.write=98
 table8.ops.truncate=1
 table8.runs.mirror=0
 table8.runs.source=table
-table8.runs.type=fixed-length column-store
+table8.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 9
 ############################################

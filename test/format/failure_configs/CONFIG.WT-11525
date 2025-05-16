@@ -153,7 +153,7 @@ table2.ops.pct.write=0
 table2.ops.truncate=1
 table2.runs.mirror=0
 table2.runs.source=table
-table2.runs.type=variable-length column-store
+table2.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 3
 ############################################
@@ -179,5 +179,5 @@ table3.ops.pct.write=8
 table3.ops.truncate=1
 table3.runs.mirror=0
 table3.runs.source=table
-table3.runs.type=variable-length column-store
+table3.runs.type=row-store
 ############################################

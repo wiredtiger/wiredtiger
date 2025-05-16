@@ -91,7 +91,7 @@ table1.ops.pct.read=0
 table1.ops.pct.write=65
 table1.ops.truncate=0
 table1.runs.source=file
-table1.runs.type=variable-length column-store
+table1.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 2
 ############################################
@@ -114,7 +114,7 @@ table2.ops.pct.read=0
 table2.ops.pct.write=65
 table2.ops.truncate=0
 table2.runs.source=file
-table2.runs.type=variable-length column-store
+table2.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 3
 ############################################
@@ -137,7 +137,7 @@ table3.ops.pct.read=0
 table3.ops.pct.write=65
 table3.ops.truncate=0
 table3.runs.source=file
-table3.runs.type=variable-length column-store
+table3.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 4
 ############################################
@@ -160,7 +160,7 @@ table4.ops.pct.read=0
 table4.ops.pct.write=65
 table4.ops.truncate=0
 table4.runs.source=file
-table4.runs.type=variable-length column-store
+table4.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 5
 ############################################
@@ -183,7 +183,7 @@ table5.ops.pct.read=0
 table5.ops.pct.write=65
 table5.ops.truncate=0
 table5.runs.source=file
-table5.runs.type=variable-length column-store
+table5.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 6
 ############################################
@@ -206,7 +206,7 @@ table6.ops.pct.read=0
 table6.ops.pct.write=65
 table6.ops.truncate=0
 table6.runs.source=file
-table6.runs.type=variable-length column-store
+table6.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 7
 ############################################
@@ -229,7 +229,7 @@ table7.ops.pct.read=0
 table7.ops.pct.write=65
 table7.ops.truncate=0
 table7.runs.source=file
-table7.runs.type=variable-length column-store
+table7.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 8
 ############################################
@@ -252,7 +252,7 @@ table8.ops.pct.read=0
 table8.ops.pct.write=65
 table8.ops.truncate=0
 table8.runs.source=file
-table8.runs.type=variable-length column-store
+table8.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 9
 ############################################
@@ -275,7 +275,7 @@ table9.ops.pct.read=0
 table9.ops.pct.write=65
 table9.ops.truncate=0
 table9.runs.source=file
-table9.runs.type=variable-length column-store
+table9.runs.type=row-store
 ############################################
 #  TABLE PARAMETERS: table 10
 ############################################
@@ -298,5 +298,5 @@ table10.ops.pct.read=0
 table10.ops.pct.write=65
 table10.ops.truncate=0
 table10.runs.source=file
-table10.runs.type=variable-length column-store
+table10.runs.type=row-store
 ########################################

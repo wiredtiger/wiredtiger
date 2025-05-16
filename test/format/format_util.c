@@ -306,33 +306,16 @@ table_dump_page(
 
     wt_wrap_open_cursor(session, tbl->uri, checkpoint == NULL ? NULL : cfg, &cursor);
 
-    switch (tbl->type) {
-    case FIX:
-    case VAR:
-        cursor->set_key(cursor, keyno);
-        break;
-    case ROW:
-        key_gen_init(&key);
-        key_gen(tbl, &key, keyno);
-        cursor->set_key(cursor, &key);
-        break;
-    }
-
+    key_gen_init(&key);
+    key_gen(tbl, &key, keyno);
+    cursor->set_key(cursor, &key);
     ret = cursor->search_near(cursor, &exactp);
     if (ret == 0)
         cursor_dump_page(cursor, tag);
     else
         fprintf(stderr, "%s: Not dumping (error %d from search_near)\n", tag, ret);
 
-    switch (tbl->type) {
-    case FIX:
-    case VAR:
-        break;
-    case ROW:
-        key_gen_teardown(&key);
-        break;
-    }
-
+    key_gen_teardown(&key);
     testutil_check(cursor->close(cursor));
 }
 

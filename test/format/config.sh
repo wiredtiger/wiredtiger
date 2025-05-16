@@ -11,10 +11,9 @@ cat<<END_OF_HEADER_FILE_PREFIX>$fh
 
 #pragma once
 
-#define C_TYPE_MATCH(cp, type)                                                                    \\
-    (!F_ISSET(cp, (C_TYPE_FIX | C_TYPE_ROW | C_TYPE_VAR)) ||                                      \\
-      ((type) == FIX && F_ISSET(cp, C_TYPE_FIX)) || ((type) == ROW && F_ISSET(cp, C_TYPE_ROW)) || \\
-      ((type) == VAR && F_ISSET(cp, C_TYPE_VAR)))
+#define C_TYPE_MATCH(cp, type)                   \\
+    (!F_ISSET(cp, C_TYPE_ROW) ||                 \\
+      ((type) == ROW && F_ISSET(cp, C_TYPE_ROW)))
 
 typedef struct {
     const char *name; /* Configuration item */
@@ -25,9 +24,7 @@ typedef struct {
 #define C_POW2 0x004u        /* Value must be power of 2 */
 #define C_STRING 0x008u      /* String (rather than integral) */
 #define C_TABLE 0x010u       /* Value is per table, not global */
-#define C_TYPE_FIX 0x020u    /* Value is only relevant to FLCS */
 #define C_TYPE_ROW 0x040u    /* Value is only relevant to RS */
-#define C_TYPE_VAR 0x080u    /* Value is only relevant to VLCS */
 #define C_ZERO_NOTSET 0x100u /* Ignore zero values */
     uint32_t flags;
 
@@ -99,11 +96,9 @@ CONFIG configuration_list[] = {
 
 {"block_cache.size", "block cache size (MB)", 0x0, 1, 100, 100 * 1024}
 
-{"btree.bitcnt", "fixed-length column-store object size (number of bits)", C_TABLE | C_TYPE_FIX, 1, 8, 8}
-
 {"btree.compression", "data compression (off | lz4 | snappy | zlib | zstd)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
-{"btree.dictionary", "configure dictionary compressed values", C_BOOL | C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 20, 0, 0}
+{"btree.dictionary", "configure dictionary compressed values", C_BOOL | C_TABLE | C_TYPE_ROW, 20, 0, 0}
 
 {"btree.internal_key_truncation", "truncate internal keys", C_BOOL | C_TABLE, 95, 0, 0}
 
@@ -123,15 +118,15 @@ CONFIG configuration_list[] = {
 
 {"btree.prefix_compression_min", "minimum gain before prefix compression is used (bytes)", C_TABLE | C_TYPE_ROW, 0, 8, 256}
 
-{"btree.repeat_data_pct", "duplicate values (percentage)", C_TABLE | C_TYPE_VAR, 0, 90, 90}
+{"btree.repeat_data_pct", "duplicate values (percentage)", C_TABLE, 0, 90, 90}
 
 {"btree.reverse", "reverse order collation", C_BOOL | C_TABLE | C_TYPE_ROW, 20, 0, 0}
 
 {"btree.split_pct", "page split size as a percentage of the maximum page size", C_TABLE, 50, 100, 100}
 
-{"btree.value_max", "maximum value size", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 32, 4096, MEGABYTE(10)}
+{"btree.value_max", "maximum value size", C_TABLE | C_TYPE_ROW, 32, 4096, MEGABYTE(10)}
 
-{"btree.value_min", "minimum value size", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 0, 20, 4096}
+{"btree.value_min", "minimum value size", C_TABLE | C_TYPE_ROW, 0, 20, 4096}
 
 {"cache", "cache size (MB)", 0x0, 1, 100, 100 * 1024}
 

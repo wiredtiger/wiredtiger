@@ -38,14 +38,11 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
 
   {"block_cache.size", "block cache size (MB)", 0x0, 1, 100, 100 * 1024, V_GLOBAL_BLOCK_CACHE_SIZE},
 
-  {"btree.bitcnt", "fixed-length column-store object size (number of bits)", C_TABLE | C_TYPE_FIX,
-    1, 8, 8, V_TABLE_BTREE_BITCNT},
-
   {"btree.compression", "data compression (off | lz4 | snappy | zlib | zstd)",
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_BTREE_COMPRESSION},
 
-  {"btree.dictionary", "configure dictionary compressed values",
-    C_BOOL | C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 20, 0, 0, V_TABLE_BTREE_DICTIONARY},
+  {"btree.dictionary", "configure dictionary compressed values", C_BOOL | C_TABLE | C_TYPE_ROW, 20,
+    0, 0, V_TABLE_BTREE_DICTIONARY},
 
   {"btree.internal_key_truncation", "truncate internal keys", C_BOOL | C_TABLE, 95, 0, 0,
     V_TABLE_BTREE_INTERNAL_KEY_TRUNCATION},
@@ -74,7 +71,7 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"btree.prefix_compression_min", "minimum gain before prefix compression is used (bytes)",
     C_TABLE | C_TYPE_ROW, 0, 8, 256, V_TABLE_BTREE_PREFIX_COMPRESSION_MIN},
 
-  {"btree.repeat_data_pct", "duplicate values (percentage)", C_TABLE | C_TYPE_VAR, 0, 90, 90,
+  {"btree.repeat_data_pct", "duplicate values (percentage)", C_TABLE, 0, 90, 90,
     V_TABLE_BTREE_REPEAT_DATA_PCT},
 
   {"btree.reverse", "reverse order collation", C_BOOL | C_TABLE | C_TYPE_ROW, 20, 0, 0,
@@ -83,10 +80,10 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"btree.split_pct", "page split size as a percentage of the maximum page size", C_TABLE, 50, 100,
     100, V_TABLE_BTREE_SPLIT_PCT},
 
-  {"btree.value_max", "maximum value size", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 32, 4096,
-    MEGABYTE(10), V_TABLE_BTREE_VALUE_MAX},
+  {"btree.value_max", "maximum value size", C_TABLE | C_TYPE_ROW, 32, 4096, MEGABYTE(10),
+    V_TABLE_BTREE_VALUE_MAX},
 
-  {"btree.value_min", "minimum value size", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 0, 20, 4096,
+  {"btree.value_min", "minimum value size", C_TABLE | C_TYPE_ROW, 0, 20, 4096,
     V_TABLE_BTREE_VALUE_MIN},
 
   {"cache", "cache size (MB)", 0x0, 1, 100, 100 * 1024, V_GLOBAL_CACHE},

@@ -144,17 +144,7 @@ typedef struct {
     const char *track; /* Tag for tracking operation progress */
 } SAP;
 
-/*
- * Default fixed-length column-store value when there's no available base mirror value, something
- * with half the bits set.
- */
-#define FIX_MIRROR_DNE 0x55
-
-/* There's no out-of-band value for FLCS, use 0xff as the least likely to match any existing value.
- */
-#define FIX_VALUE_WRONG 0xff
-
-typedef enum { FIX, ROW, VAR } table_type;
+typedef enum { ROW } table_type;
 typedef struct {
     u_int id;              /* table ID */
     char uri[32];          /* table URI */
@@ -249,7 +239,6 @@ typedef struct {
     char *config_open; /* Command-line configuration */
 
     TABLE *base_mirror;    /* First mirrored table */
-    bool mirror_col_store; /* Special case if mirroring column store table */
 
     bool background_compaction_running; /* Background compaction running */
 
@@ -344,7 +333,6 @@ typedef struct {
 
     WT_ITEM key;   /* Generated key for row-store inserts */
     WT_ITEM value; /* If not a delete or truncate, the value. */
-    uint8_t bitv;  /* FLCS */
 } SNAP_OPS;
 
 typedef struct {
@@ -385,16 +373,10 @@ typedef struct {
     WT_CURSOR *cursor;   /* Current cursor */
     TABLE *table;        /* Current table */
 
-    struct col_insert {
-        uint32_t insert_list[256]; /* Inserted column-store records, maps one-to-one to tables */
-        u_int insert_list_cnt;
-    } * col_insert;
-
     uint64_t keyno;                 /* key */
     WT_ITEM *key, _key;             /* read key */
     WT_ITEM *value, _value;         /* read value */
     WT_ITEM *new_value, _new_value; /* insert, modify or update value */
-    uint8_t bitv;                   /* FLCS insert, modify or update value */
 
     uint64_t last; /* truncate range */
     WT_ITEM *lastkey, _lastkey;
@@ -494,11 +476,10 @@ void trace_ops_init(TINFO *);
 void trace_teardown(void);
 void track(const char *, uint64_t);
 void track_ops(TINFO *);
-void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint8_t *, uint64_t);
+void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(TABLE *, void *);
-void val_to_flcs(TABLE *, WT_ITEM *, uint8_t *);
 void wt_wrap_open_session(
   WT_CONNECTION *conn, SAP *sap, const char *track, const char *cfg, WT_SESSION **sessionp);
 void wt_wrap_close_session(WT_SESSION *session);

@@ -116,4 +116,4 @@ table1.ops.pct.write=6
 table1.ops.truncate=0
 table1.runs.mirror=1
 table1.runs.source=file
-table1.runs.type=variable-length column-store
+table1.runs.type=row-store

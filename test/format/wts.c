@@ -572,21 +572,12 @@ create_object(TABLE *table, void *arg)
     if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
         CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
-    switch (table->type) {
-    case FIX:
-        CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", TV(BTREE_BITCNT));
-        break;
-    case ROW:
-        CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
-          TV(BTREE_PREFIX_COMPRESSION) == 0 ? "false" : "true", TV(BTREE_PREFIX_COMPRESSION_MIN));
-        if (TV(BTREE_REVERSE))
-            CONFIG_APPEND(p, ",collator=reverse");
-    /* FALLTHROUGH */
-    case VAR:
-        if (TV(BTREE_DICTIONARY))
-            CONFIG_APPEND(p, ",dictionary=%" PRIu32, mmrand(&g.extra_rnd, 123, 517));
-        break;
-    }
+    CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
+        TV(BTREE_PREFIX_COMPRESSION) == 0 ? "false" : "true", TV(BTREE_PREFIX_COMPRESSION_MIN));
+    if (TV(BTREE_REVERSE))
+        CONFIG_APPEND(p, ",collator=reverse");
+    if (TV(BTREE_DICTIONARY))
+        CONFIG_APPEND(p, ",dictionary=%" PRIu32, mmrand(&g.extra_rnd, 123, 517));
 
     /* Configure checksums. */
     CONFIG_APPEND(p, ",checksum=\"%s\"", TVS(DISK_CHECKSUM));

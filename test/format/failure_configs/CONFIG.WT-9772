@@ -205,4 +205,4 @@ table5.ops.pct.write=64
 table5.ops.truncate=1
 table5.runs.mirror=0
 table5.runs.source=table
-table5.runs.type=variable-length column-store
+table5.runs.type=row-store
