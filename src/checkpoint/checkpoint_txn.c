@@ -1447,6 +1447,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_STAT_CONN_SET(session, checkpoint_state, WTI_CHECKPOINT_STATE_COMMIT);
     WT_ERR(__wt_txn_commit(session, NULL));
+    F_CLR(session, WT_SESSION_CHECKPOINT);
 
     /* Crash before updating the metadata if checkpoint crash point is configured. */
     if (ckpt_crash_before_metadata_update)
@@ -1602,7 +1603,6 @@ err:
         __wt_scr_free(session, &session->ckpt.drop_list);
 
     __checkpoint_clear_time(session);
-    F_CLR(session, WT_SESSION_CHECKPOINT);
 
     __wt_free(session, session->ckpt.handle);
     WT_ASSERT(session, session->ckpt.crash_point == 0);
@@ -2935,6 +2935,10 @@ __wt_checkpoint_workers_destroy(WT_SESSION_IMPL *session)
 
     WT_CONNECTION_IMPL *conn = S2C(session);
     WTI_CKPT_WORKERS *workers = conn->ckpt.workers;
+
+    /* Workers were not initialized. */
+    if (conn->ckpt.workers == NULL)
+        return (ret);
 
     /* Wait for any checkpoint thread group changes to stabilize. */
     __wt_writelock(session, &workers->thread_group.lock);

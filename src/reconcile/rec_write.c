@@ -204,8 +204,8 @@ __reconcile_post_wrapup(
             WT_RET(session->block_manager_cleanup(session));
         }
 
-        WT_RET(__rec_destroy_session(session));
     }
+    WT_RET(__rec_destroy_session(session));
 
     return (0);
 }
