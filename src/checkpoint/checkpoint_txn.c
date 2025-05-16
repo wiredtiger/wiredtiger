@@ -2418,6 +2418,10 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     WT_ERR(__wt_page_modify_init(session, btree->root.page));
     __wt_page_only_modify_set(session, btree->root.page);
 
+    if (btree->has_hs) {
+        WT_ERR(__wt_page_modify_init(session, btree->hs_root.page));
+        __wt_page_only_modify_set(session, btree->hs_root.page);
+    }
     /*
      * Clear the tree's modified flag; any changes before we clear the flag are guaranteed to be
      * part of this checkpoint (unless reconciliation skips updates for transactional reasons), and
@@ -2435,6 +2439,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     /* Tell the block manager that a file checkpoint is starting. */
     WT_ERR(bm->checkpoint_start(bm, session));
     resolve_bm = true;
+
+    btree->ckpt->ckpt_hs = btree->has_hs;
 
     /* Flush the file from the cache, creating the checkpoint. */
     if (is_checkpoint) {

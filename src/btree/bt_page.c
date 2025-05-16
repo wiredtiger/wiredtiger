@@ -32,8 +32,18 @@ __wt_page_alloc(
 
     *pagep = NULL;
     page = NULL;
-
     size = sizeof(WT_PAGE);
+
+    printf("Page size : %lu :  ----", size);
+    if (WT_IS_METADATA(session->dhandle)) {
+        printf("MEATADATA\n");
+    } else {
+        if (session->dhandle_hs)
+            printf("HISTORY STORE\n");
+        else
+            printf("DATA STORE \n");
+    }
+
     switch (type) {
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
@@ -112,6 +122,7 @@ err:
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size, false);
     (void)__wt_atomic_add64(&S2C(session)->cache->pages_inmem, 1);
+    printf("cache pages allocated %lu\n", (unsigned long)page);
     page->cache_create_gen = __wt_atomic_load64(&S2C(session)->evict->evict_pass_gen);
 
     *pagep = page;

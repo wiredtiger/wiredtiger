@@ -317,7 +317,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * then opens a different file (in this case, the HS file), it can deadlock with a thread
      * waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
-    WT_ERR(__wt_curhs_cache(session));
+    // WT_ERR(__wt_curhs_cache(session));
     if (__wt_atomic_loadbool(&conn->evict_server_running) &&
       __wt_spin_trylock(session, &evict->evict_pass_lock) == 0) {
         /*

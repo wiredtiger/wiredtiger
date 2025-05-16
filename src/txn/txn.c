@@ -2594,6 +2594,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s",
       "perform final checkpoint and shutting down the global transaction state");
 
+    printf("perform final checkpoint and shutting down the global transaction state\n");
+
     /*
      * Perform a system-wide checkpoint so that all tables are consistent with each other. All
      * transactions are resolved but ignore timestamps to make sure all data gets to disk. Do this

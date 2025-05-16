@@ -202,7 +202,10 @@ restart:
         }
 
         if ((ref = ref_orig) == NULL) {
-            ref = &btree->root;
+            if (session->dhandle_hs)
+                ref = &btree->hs_root;
+            else
+                ref = &btree->root;
             WT_INTL_INDEX_GET(session, ref->page, pindex);
             slot = prev ? pindex->entries - 1 : 0;
             goto descend;

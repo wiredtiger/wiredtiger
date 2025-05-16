@@ -660,6 +660,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     uint32_t i;
     int nentries;
     bool enable_reverse_modify, error_on_ts_ordering, hs_inserted, squashed, hs_flag_set;
+    bool org_dhandle_hs;
 
     hs_flag_set = false;
     r->cache_write_hs = false;
@@ -679,6 +680,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
     if (!btree->hs_entries)
         btree->hs_entries = true;
 
+    org_dhandle_hs = session->dhandle_hs;
+    session->dhandle_hs = true;
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
@@ -1077,7 +1080,7 @@ err:
     __wt_scr_free(session, &prev_full_value);
 
     WT_TRET(hs_cursor->close(hs_cursor));
-
+    session->dhandle_hs = org_dhandle_hs;
     /* Update the statistics. */
     WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert, insert_cnt);
     WT_STAT_CONN_DSRC_INCRV(session, cache_hs_insert_full_update, cache_hs_insert_full_update);

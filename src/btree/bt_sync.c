@@ -136,9 +136,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    WT_REF *hs_prev, *hs_walk;
     WT_REF *prev, *walk;
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
+    bool org_dhandle_hs;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
     bool dirty, is_hs, is_internal, tried_eviction;
@@ -146,8 +148,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     conn = S2C(session);
     btree = S2BT(session);
     prev = walk = NULL;
+    hs_prev = hs_walk = NULL;
     txn = session->txn;
-    tried_eviction = false;
+    tried_eviction = org_dhandle_hs = false;
 
     /* Don't bump page read generations. */
     flags = WT_READ_INTERNAL_OP;
@@ -268,6 +271,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
+        // Checkpoint data store
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
@@ -365,6 +369,110 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                   session, __wt_atomic_loadsize(&page->memory_footprint));
         }
 
+        // history store checkpoint.
+        if (btree->has_hs) {
+            session->dhandle_hs = true;
+            for (;;) {
+                WT_ERR(__sync_dup_walk(session, hs_walk, flags, &hs_prev));
+                WT_ERR(__wt_tree_walk_custom_skip(session, &hs_walk, NULL, NULL, flags));
+
+                if (hs_walk == NULL)
+                    break;
+
+                is_internal = F_ISSET(hs_walk, WT_REF_FLAG_INTERNAL);
+                page = hs_walk->page;
+
+                if (is_internal)
+                    WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
+                else
+                    WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
+
+                /*
+                 * Check if the page is dirty. Add a barrier between the check and taking a
+                 * reference to any page modify structure. (It needs to be ordered else a page could
+                 * be dirtied after taking the local reference.)
+                 */
+                dirty = __wt_page_is_modified(page);
+                WT_ACQUIRE_BARRIER();
+
+                /* Skip clean pages, but always update the maximum transaction ID and timestamp. */
+                if (!dirty) {
+                    mod = page->modify;
+                    if (mod != NULL && mod->rec_max_txn > btree->rec_max_txn)
+                        btree->rec_max_txn = mod->rec_max_txn;
+                    if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
+                        btree->rec_max_timestamp = mod->rec_max_timestamp;
+
+                    continue;
+                }
+
+                /*
+                 * Write dirty pages, if we can't skip them. If we skip a page, mark the tree dirty.
+                 * The checkpoint marked it clean and we can't skip future checkpoints until this
+                 * page is written.
+                 */
+                if (__sync_checkpoint_can_skip(session, hs_walk)) {
+                    __wt_tree_modify_set(session);
+                    continue;
+                }
+
+                if (is_internal) {
+                    internal_bytes += __wt_atomic_loadsize(&page->memory_footprint);
+                    ++internal_pages;
+                    /* Slow down checkpoints. */
+                    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_SLOW_CKPT))
+                        __wt_sleep(0, 10 * WT_THOUSAND);
+                } else {
+                    leaf_bytes += __wt_atomic_loadsize(&page->memory_footprint);
+                    ++leaf_pages;
+                }
+
+                /*
+                 * When the timing stress is enabled, perform the leaf page eviction by the
+                 * checkpoint.
+                 *
+                 * For eviction to have a chance, we first need to move the walk point to the next
+                 * page checkpoint will visit. We want to avoid this code being too special purpose,
+                 * so try to reuse the ordinary eviction path.
+                 *
+                 * Regardless of whether eviction succeeds or fails, the walk continues from the
+                 * previous location. We remember whether we tried eviction, and don't try again.
+                 * Even if eviction fails (the page may stay in cache clean), that is not a wasted
+                 * effort because checkpoint doesn't need to write the page again.
+                 *
+                 * Once the transaction has given up it's snapshot it is no longer safe to reconcile
+                 * pages. That happens prior to the final metadata checkpoint.
+                 */
+                if (!is_internal &&
+                  FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE) &&
+                  !tried_eviction && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
+                    ret = __wt_page_release_evict(session, hs_walk, 0);
+                    hs_walk = NULL;
+                    WT_ERR_ERROR_OK(ret, EBUSY, false);
+
+                    hs_walk = hs_prev;
+                    hs_prev = NULL;
+                    tried_eviction = true;
+                    continue;
+                }
+                tried_eviction = false;
+
+                WT_STAT_CONN_INCR(session, checkpoint_pages_reconciled);
+                WT_STATP_DSRC_INCR(
+                  session, btree->dhandle->stats, btree_checkpoint_pages_reconciled);
+                if (FLD_ISSET(rec_flags, WT_REC_HS))
+                    WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
+
+                WT_ERR(__wt_reconcile(session, hs_walk, NULL, rec_flags));
+
+                /* Update checkpoint IO tracking data. */
+                if (__wt_checkpoint_verbose_timer_started(session))
+                    __wt_checkpoint_progress_stats(
+                      session, __wt_atomic_loadsize(&page->memory_footprint));
+            }
+            session->dhandle_hs = false;
+        }
+
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are
          * not visible to the checkpoint. There is a drawback in this approach as we compare the
@@ -401,7 +509,8 @@ err:
     /* On error, clear any left-over tree walk. */
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
-
+    WT_TRET(__wt_page_release(session, hs_walk, flags));
+    WT_TRET(__wt_page_release(session, hs_prev, flags));
     /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
      * started, release it.

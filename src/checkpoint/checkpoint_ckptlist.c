@@ -62,6 +62,8 @@ __wt_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     __wt_free(session, ckpt->block_checkpoint);
     __wt_buf_free(session, &ckpt->addr);
     __wt_buf_free(session, &ckpt->raw);
+    __wt_buf_free(session, &ckpt->addr_hs);
+    __wt_buf_free(session, &ckpt->raw_hs);
     __wt_free(session, ckpt->bpriv);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];

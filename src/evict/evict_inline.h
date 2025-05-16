@@ -331,6 +331,7 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* Update bytes and pages evicted. */
     (void)__wt_atomic_add64(&cache->bytes_evict, __wt_atomic_loadsize(&page->memory_footprint));
     (void)__wt_atomic_addv64(&cache->pages_evicted, 1);
+    printf("cache pages evicted %lu\n", (unsigned long)page);
 
     /*
      * Track if eviction makes progress. This is used in various places to determine whether

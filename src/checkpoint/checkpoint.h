@@ -121,6 +121,10 @@ struct __wt_ckpt {
     WT_ITEM addr; /* Checkpoint cookie string */
     WT_ITEM raw;  /* Checkpoint cookie raw */
 
+    WT_ITEM addr_hs; /* Checkpoint hs cookie string */
+    WT_ITEM raw_hs;  /* Checkpoint hs cookie raw */
+
+    bool ckpt_hs;
     void *bpriv; /* Block manager private */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

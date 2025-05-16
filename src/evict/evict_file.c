@@ -32,9 +32,11 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_PAGE *page;
     WT_REF *next_ref, *ref;
     uint32_t rec_flags, walk_flags;
+    bool is_hs;
 
     dhandle = session->dhandle;
     btree = dhandle->handle;
+    is_hs = false;
 
     /*
      * We need exclusive access to the file, we're about to discard the root page. Assert eviction
@@ -58,6 +60,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     next_ref = NULL;
     WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
+restart_walk:
     while ((ref = next_ref) != NULL) {
         page = ref->page;
 
@@ -117,6 +120,14 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         case WT_SYNC_WRITE_LEAVES:
             WT_ERR(__wt_illegal_value(session, syncop));
             break;
+        }
+    }
+
+    if (next_ref == NULL && (!is_hs)) {
+        if (btree->hs_root.page != NULL) {
+            next_ref = &btree->hs_root;
+            is_hs = true;
+            goto restart_walk;
         }
     }
 

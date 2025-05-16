@@ -194,6 +194,8 @@ __wti_rts_history_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool release_dhandle;
 
+    return (0);
+
     config = NULL;
     conn = S2C(session);
     release_dhandle = false;

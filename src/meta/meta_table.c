@@ -194,9 +194,11 @@ __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *valu
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    __wt_verbose_debug3(session, WT_VERB_METADATA,
-      "Insert: key: %s, value: %s, tracking: %s, %s"
-      "turtle",
+    //__wt_verbose_debug3(session, WT_VERB_METADATA,
+
+    printf(
+      "\nInsert: key: %s, value: %s, tracking: %s, %s"
+      "turtle\n",
       key, value, WT_META_TRACKING(session) ? "true" : "false",
       __metadata_turtle(key) ? "" : "not ");
 

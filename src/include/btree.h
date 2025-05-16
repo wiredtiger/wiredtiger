@@ -171,7 +171,10 @@ struct __wt_btree {
     wt_shared uint8_t original; /* Newly created: bulk-load possible
                          (want a bool but needs atomic cas) */
 
-    bool hs_entries; /* Has entries in the history store table */
+    bool hs_entries;            /* Has entries in the history store table */
+    bool has_hs;                /* Does history store co-exist */
+    WT_REF hs_root;             /* Root page reference */
+    wt_shared bool hs_modified; /* If the tree ever modified */
 
     WT_BM *bm;          /* Block manager reference */
     u_int block_header; /* WT_PAGE_HEADER_BYTE_SIZE */

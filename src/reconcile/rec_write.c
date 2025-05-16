@@ -2513,6 +2513,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          */
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
+            printf("ckpt 1 update has_hs : %d, dhandle_hs : %d\n", btree->has_hs, session->dhandle_hs);
             __wt_checkpoint_tree_reconcile_update(session, &ta);
             WT_RET(bm->checkpoint(bm, session, NULL, btree->ckpt, false));
         }
@@ -2555,10 +2556,13 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             r->multi->disk_image = NULL;
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &mod->mod_replace.ta);
         } else {
+            printf("ckpt 2 update has_hs : %d, dhandle_hs : %d\n", btree->has_hs, session->dhandle_hs);
+            if ((1) || btree->has_hs == session->dhandle_hs) {
             __wt_checkpoint_tree_reconcile_update(session, &r->multi->addr.ta);
             WT_RET(__rec_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
               F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
             WT_TIME_AGGREGATE_MERGE_OBSOLETE_VISIBLE(session, &stop_ta, &r->multi->addr.ta);
+            }
         }
 
         mod->rec_result = WT_PM_REC_REPLACE;

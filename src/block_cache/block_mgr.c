@@ -160,7 +160,9 @@ static int
 __bm_checkpoint(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-    WT_BLOCK *block;
+    WT_BLOCK *block = NULL;
+
+    printf("CHECKPOINT create addr: %lu , addr_hs: %lu \n", ckptbase->addr.size, ckptbase->addr_hs.size);
 
     block = bm->block;
 

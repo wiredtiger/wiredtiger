@@ -550,6 +550,16 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     /* Assert we're maintaining the by-size skiplist. */
     WT_ASSERT(session, block->live.avail.track_size != 0);
 
+    printf("Block size : %lu :  ----", size);
+    if (WT_IS_METADATA(session->dhandle)) {
+        printf("MEATADATA\n");
+    } else {
+        if (session->dhandle_hs)
+            printf("HISTORY STORE\n");
+        else
+            printf("DATA STORE \n");
+    }
+
     WT_STAT_DSRC_INCR(session, block_alloc);
     if (size % block->allocsize != 0)
         WT_RET_MSG(session, EINVAL,

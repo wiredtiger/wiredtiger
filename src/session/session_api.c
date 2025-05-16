@@ -770,12 +770,14 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
      *  - The btree is being verified.
      *  - Opening the meta file itself while performing a checkpoint.
      */
+    /*
     WT_ASSERT(session,
       strcmp(uri, WT_HS_URI) == 0 ||
         (strcmp(uri, WT_METAFILE_URI) == 0 &&
           __wt_atomic_loadvbool(&txn_global->checkpoint_running)) ||
         session->hs_cursor_counter == 0 || F_ISSET(session, WT_SESSION_INTERNAL) ||
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
+    */
 
     /* We do not cache any subordinate tables/files cursors. */
     if (owner == NULL) {

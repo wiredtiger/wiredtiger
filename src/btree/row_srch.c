@@ -422,7 +422,11 @@ restart:
     }
 
     /* Search the internal pages of the tree. */
-    current = &btree->root;
+    if (!session->dhandle_hs)
+        current = &btree->root;
+    else
+        current = &btree->hs_root;
+    
     for (depth = 2, pindex = NULL;; ++depth) {
         parent_pindex = pindex;
         page = current->page;

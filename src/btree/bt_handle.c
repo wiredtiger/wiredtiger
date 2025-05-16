@@ -704,13 +704,13 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_PAGE *root;
+    WT_PAGE *root, *hs_root;
     WT_PAGE_INDEX *pindex;
-    WT_REF *ref;
+    WT_REF *ref, *hs_ref;
 
     btree = S2BT(session);
-    root = NULL;
-    ref = NULL;
+    root = hs_root = NULL;
+    ref = hs_ref = NULL;
 
     /*
      * Newly created objects can be used for cursor inserts or for bulk loads; set a flag that's
@@ -755,6 +755,24 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         WT_ERR(__wti_row_ikey_incr(session, root, 0, "", 1, ref));
+
+        if (!WT_IS_METADATA(btree->dhandle)) {
+            // Initialise history store tree as well.
+            WT_ERR(__wt_page_alloc(session, WT_PAGE_ROW_INT, 1, true, &hs_root));
+            btree->has_hs = true;
+            hs_root->pg_intl_parent_ref = &btree->hs_root;
+
+            WT_INTL_INDEX_GET_SAFE(hs_root, pindex);
+            hs_ref = pindex->index[0];
+            hs_ref->home = hs_root;
+            hs_ref->page = NULL;
+            hs_ref->addr = NULL;
+            F_SET(hs_ref, WT_REF_FLAG_LEAF);
+            WT_REF_SET_STATE(hs_ref, WT_REF_DELETED);
+            WT_ERR(__wti_row_ikey_incr(session, hs_root, 0, "", 1, hs_ref));
+        } else
+            btree->has_hs = false;
+
         break;
     }
 
@@ -769,6 +787,8 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
     /* Finish initializing the root, root reference links. */
     __wt_root_ref_init(session, &btree->root, root, btree->type != BTREE_ROW);
+    if (btree->has_hs)
+        __wt_root_ref_init(session, &btree->hs_root, hs_root, btree->type != BTREE_ROW);
 
     return (0);
 

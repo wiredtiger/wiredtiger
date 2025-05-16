@@ -288,23 +288,27 @@ __wt_block_checkpoint(
     if (buf == NULL) {
         ci->root_offset = WT_BLOCK_INVALID_OFFSET;
         ci->root_objectid = ci->root_size = ci->root_checksum = 0;
+        printf("CHECKPOINT of empty tree\n");
     } else {
         WT_ERR(__wti_block_write_off(session, block, buf, &ci->root_offset, &ci->root_size,
           &ci->root_checksum, data_checksum, true, false));
         ci->root_objectid = block->objectid;
+        printf("CHECKPOINT : %s : %u : %u \n", block->name, block->objectid, block->ref);
     }
 
-    /*
-     * Checkpoints are potentially reading/writing/merging lots of blocks, pre-allocate structures
-     * for this thread's use.
-     */
-    WT_ERR(__wti_block_ext_prealloc(session, 250));
+    //if (ckptbase->ckpt_hs && ckptbase->addr_hs.size != 0) {
+        /*
+        * Checkpoints are potentially reading/writing/merging lots of blocks, pre-allocate structures
+        * for this thread's use.
+        */
+        WT_ERR(__wti_block_ext_prealloc(session, 250));
 
-    /* Process the checkpoint list, deleting and updating as required. */
-    ret = __ckpt_process(session, block, ckptbase);
+        /* Process the checkpoint list, deleting and updating as required. */
+        ret = __ckpt_process(session, block, ckptbase);
 
-    /* Discard any excessive memory we've allocated. */
-    WT_TRET(__wti_block_ext_discard(session, 250));
+        /* Discard any excessive memory we've allocated. */
+        WT_TRET(__wti_block_ext_discard(session, 250));
+    //}
 
 /* Restore the original allocation plan. */
 err:

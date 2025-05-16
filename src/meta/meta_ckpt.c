@@ -155,6 +155,8 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *ch
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;
             ckpt->addr.size = ckpt->raw.size = 0;
+            ckpt->addr_hs.data = ckpt->raw_hs.data = NULL;
+            ckpt->addr_hs.size = ckpt->raw_hs.size = 0;
         }
     } else
         WT_ERR(__ckpt_named(session, checkpoint, config, ckpt));
@@ -949,6 +951,13 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     else
         WT_RET(__wt_nhex_to_raw(session, a.str, a.len, &ckpt->raw));
 
+    WT_RET(__wt_config_subgets(session, v, "addr_hs", &a));
+    WT_RET(__wt_buf_set(session, &ckpt->addr_hs, a.str, a.len));
+    if (a.len == 0)
+        F_SET(ckpt, WT_CKPT_FAKE);
+    else
+        WT_RET(__wt_nhex_to_raw(session, a.str, a.len, &ckpt->raw_hs));
+
     WT_RET(__wt_config_subgets(session, v, "order", &a));
     if (a.len == 0)
         WT_RET_MSG(session, WT_ERROR, "corrupted order value in checkpoint config");
@@ -1152,6 +1161,11 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
                 ckpt->addr.size = 0;
             else
                 WT_RET(__wt_raw_to_hex(session, ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
+
+            if (ckpt->raw_hs.size == 0)
+                ckpt->addr_hs.size = 0;
+            else
+                WT_RET(__wt_raw_to_hex(session, ckpt->raw_hs.data, ckpt->raw_hs.size, &ckpt->addr_hs));
         }
 
         WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
@@ -1164,16 +1178,30 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
 
         /* Use PRId64 formats: WiredTiger's configuration code handles signed 8B values. */
         WT_RET(__wt_buf_catfmt(session, buf,
-          "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
+          "=(addr=\"%.*s\",addr_hs=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",newest_txn=%" PRId64
           ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
           ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ")",
-          (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
+          (int)ckpt->addr.size, (char *)ckpt->addr.data,
+          (int)ckpt->addr_hs.size, (char *)ckpt->addr_hs.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
           (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
           (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
           (int64_t)ckpt->run_write_gen));
+
+          printf("CKPT_METADATA=(addr=\"%.*s\",addr_hs=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
+          ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",newest_txn=%" PRId64
+          ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
+          ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ")\n",
+          (int)ckpt->addr.size, (char *)ckpt->addr.data,
+          (int)ckpt->addr_hs.size, (char *)ckpt->addr_hs.data, ckpt->order, ckpt->sec,
+          (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
+          (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
+          (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
+          (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
+          (int64_t)ckpt->run_write_gen);
+        
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 

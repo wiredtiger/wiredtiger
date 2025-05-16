@@ -396,9 +396,27 @@ __wt_blkcache_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_
 
     /* Call the block manager to write the block. */
     timer = WT_STAT_ENABLED(session) && !F_ISSET(session, WT_SESSION_INTERNAL);
+    if (btree->ckpt->ckpt_hs)
+        printf("ckpt has hs\n");
+
+    printf("ckpt addr size : %lu , hs addr size : %lu \n", btree->ckpt->addr.size, btree->ckpt->addr_hs.size);
+
+    if (checkpoint)
+        printf("writing checkpoint block\n");
+    else
+        printf("writing non-checkpoint block\n");
     time_start = timer ? __wt_clock(session) : 0;
-    WT_ERR(checkpoint ? bm->checkpoint(bm, session, ip, btree->ckpt, data_checksum) :
-                        bm->write(bm, session, ip, addr, addr_sizep, data_checksum, checkpoint_io));
+    if (checkpoint) {
+        /*if (btree->ckpt->ckpt_hs && btree->ckpt->addr.size == 0) {
+            // copy the data store root address cookie to checkpoint
+            WT_ERR(bm->write(bm, session, ip, (uint8_t*)&btree->ckpt->addr, addr_sizep, data_checksum, checkpoint_io));
+            //btree->ckpt->addr.size = *addr_sizep;
+           //WT_RET(__wt_memdup(session, &btree->ckpt->addr, *addr_sizep, addr));
+        } else*/
+            WT_ERR(bm->checkpoint(bm, session, ip, btree->ckpt, data_checksum));
+    } else
+        WT_ERR(bm->write(bm, session, ip, addr, addr_sizep, data_checksum, checkpoint_io));
+
     if (timer) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
