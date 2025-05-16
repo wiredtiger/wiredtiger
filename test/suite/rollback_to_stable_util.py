@@ -173,7 +173,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                 session.rollback_transaction()
             raise(e)
 
-    def check(self, check_value, uri, nrows, read_ts):
+    def check(self, check_value, uri, nrows, flcs_extrarows, read_ts):
         session = self.session
         if read_ts == 0:
             session.begin_transaction()

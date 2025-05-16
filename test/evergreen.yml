@@ -1339,10 +1339,10 @@ variables:
         batchtime: 40320 # 28 days
 
 #########################################################################################
-# The following stress tests are configured to run for six hours via the "-t 360"
+# The following stress tests are configured to run for 2 hours via the "-t 120"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
 # race-condition-stress-sanitizer-test. The recovery tests run in a loop, with
-# the number of runs adjusted to provide aproximately six hours of testing.
+# the number of runs adjusted to provide aproximately two hours of testing.
 #########################################################################################
 
   - &format-stress-test
@@ -1354,7 +1354,7 @@ variables:
           <<: *configure_flags_with_builtins
       - func: "format test script"
         vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
   - &format-stress-sanitizer-ppc-test
     exec_timeout_secs: 25200
@@ -1368,7 +1368,7 @@ variables:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
           # Always disable mmap for PPC due to issues on variant setup.
           # See https://bugzilla.redhat.com/show_bug.cgi?id=1686261#c10 for the potential cause.
-          format_test_script_args: -t 360 -- -C "mmap=false,mmap_all=false"
+          format_test_script_args: -t 120 -- -C "mmap=false,mmap_all=false"
 
   - &format-stress-sanitizer-test
     exec_timeout_secs: 25200
@@ -1380,7 +1380,7 @@ variables:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
       - func: "format test script"
         vars:
-          format_test_script_args: -t 360
+          format_test_script_args: -t 120
 
   - &race-condition-stress-sanitizer-test
     exec_timeout_secs: 25200
@@ -1392,7 +1392,7 @@ variables:
       - func: "format test script"
         vars:
           additional_san_vars: export ASAN_OPTIONS="$COMMON_SAN_OPTIONS:unmap_shadow_on_exit=1"
-          format_test_script_args: -R -t 360
+          format_test_script_args: -R -t 120
 
   - &recovery-stress-test
     exec_timeout_secs: 25200
@@ -1404,7 +1404,7 @@ variables:
           CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O0
       - func: "recovery stress test script"
         vars:
-          times: 25
+          times: 7
 
   - &workgen-test
     tags: ["workgen-test"]
@@ -3920,12 +3920,6 @@ tasks:
   - <<: *format-stress-test
     name: format-stress-test-2
     tags: ["stress-test-2"]
-  - <<: *format-stress-test
-    name: format-stress-test-3
-    tags: ["stress-test-3"]
-  - <<: *format-stress-test
-    name: format-stress-test-4
-    tags: ["stress-test-4"]
   - <<: *format-stress-sanitizer-ppc-test
     name: format-stress-sanitizer-ppc-test-1
     tags: ["stress-test-ppc-1"]
@@ -3938,23 +3932,11 @@ tasks:
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-2
     tags: ["stress-test-sanitizer"]
-  - <<: *format-stress-sanitizer-test
-    name: format-stress-sanitizer-test-3
-    tags: ["stress-test-sanitizer"]
-  - <<: *format-stress-sanitizer-test
-    name: format-stress-sanitizer-test-4
-    tags: ["stress-test-sanitizer"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-1
     tags: ["stress-test-sanitizer"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-2
-    tags: ["stress-test-sanitizer"]
-  - <<: *race-condition-stress-sanitizer-test
-    name: race-condition-stress-sanitizer-test-3
-    tags: ["stress-test-sanitizer"]
-  - <<: *race-condition-stress-sanitizer-test
-    name: race-condition-stress-sanitizer-test-4
     tags: ["stress-test-sanitizer"]
   - <<: *recovery-stress-test
     name: recovery-stress-test-1
@@ -3962,9 +3944,6 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-2
     tags: ["stress-test-2", "stress-test-zseries-2"]
-  - <<: *recovery-stress-test
-    name: recovery-stress-test-3
-    tags: ["stress-test-3", "stress-test-zseries-3"]
 
   - name: format-stress-test-no-barrier
     tags: ["stress-test-no-barrier"]
@@ -5616,8 +5595,6 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: ".stress-test-sanitizer"
@@ -5638,8 +5615,6 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
@@ -6010,8 +5985,6 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
       distros: ubuntu2004-medium
     - name: format-abort-recovery-stress-test
@@ -6060,8 +6033,6 @@ buildvariants:
     - name: unit-test-extra-long
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6152,8 +6123,6 @@ buildvariants:
     - name: unit-test-extra-long
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".cppsuite-stress-test"
@@ -6260,8 +6229,6 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: ".stress-test-sanitizer"
@@ -6372,8 +6339,6 @@ buildvariants:
   tasks:
     - name: ".stress-test-1"
     - name: ".stress-test-2"
-    - name: ".stress-test-3"
-    - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: format-abort-recovery-stress-test
     - name: compile

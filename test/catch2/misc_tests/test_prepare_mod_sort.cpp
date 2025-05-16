@@ -72,7 +72,7 @@ WT_TXN_TYPE
 rand_non_keyd_type()
 {
     WT_TXN_TYPE types[3] = {WT_TXN_OP_NONE, WT_TXN_OP_REF_DELETE, WT_TXN_OP_TRUNCATE_ROW};
-    return (types[rand() % 4]);
+    return (types[rand() % 3]);
 }
 
 /* Initialize a b-tree with a given type and ID. */
