@@ -350,14 +350,6 @@ testutil_parse_single_opt(TEST_OPTS *opts, int ch)
         break;
     case 't': /* Table type */
         switch (__wt_optarg[0]) {
-        case 'C':
-        case 'c':
-            opts->table_type = TABLE_COL;
-            break;
-        case 'F':
-        case 'f':
-            opts->table_type = TABLE_FIX;
-            break;
         case 'R':
         case 'r':
             opts->table_type = TABLE_ROW;

@@ -42,9 +42,8 @@
 
 static void *thread_insert(void *);
 static void *thread_get(void *);
-static void create_perf_json(bool, int, int);
+static void create_perf_json(int, int);
 
-#define BLOOM false
 #define GAP_WARNINGS 3 /* Threshold for seconds of gap to be displayed */
 #define N_RECORDS (10 * WT_THOUSAND)
 #define N_INSERT WT_MILLION
@@ -57,8 +56,6 @@ typedef struct {
     char posturi[256];
     char baluri[256];
     char flaguri[256];
-    bool bloom;
-    bool usecolumns;
 } SHARED_OPTS;
 
 typedef struct {
@@ -98,11 +95,7 @@ main(int argc, char *argv[])
     memset(get_args, 0, sizeof(get_args));
     njoins = nwarnings = 0;
 
-    sharedopts->bloom = BLOOM;
     testutil_check(testutil_parse_opts(argc, argv, opts));
-    if (opts->table_type == TABLE_FIX)
-        testutil_die(ENOTSUP, "Fixed-length column store not supported");
-    sharedopts->usecolumns = (opts->table_type == TABLE_COL);
 
     testutil_recreate_dir(opts->home);
     testutil_progress(opts, "start");
@@ -119,8 +112,7 @@ main(int argc, char *argv[])
      * index files.
      */
     testutil_snprintf(tableconf, sizeof(tableconf),
-      "key_format=%s,value_format=iiSii,columns=(id,post,bal,extra,flag,id2)",
-      sharedopts->usecolumns ? "r" : "i");
+      "key_format=i,value_format=iiSii,columns=(id,post,bal,extra,flag,id2)");
     testutil_check(session->create(session, opts->uri, tableconf));
 
     tablename = strchr(opts->uri, ':');
@@ -145,10 +137,7 @@ main(int argc, char *argv[])
      * gives a spurious warning, and diagnostic builds fail.
      */
     key = N_RECORDS + 1;
-    if (sharedopts->usecolumns)
-        maincur->set_key(maincur, (uint64_t)key);
-    else
-        maincur->set_key(maincur, key);
+    maincur->set_key(maincur, key);
     maincur->set_value(maincur, 54321, 0, "", 0, N_RECORDS + 1);
     testutil_check(maincur->insert(maincur));
     testutil_check(maincur->close(maincur));
@@ -203,7 +192,7 @@ main(int argc, char *argv[])
           nwarnings, GAP_WARNINGS);
     fprintf(stderr, "All read threads executed %d cursor joins.\n", njoins);
     testutil_progress(opts, "cleanup starting");
-    create_perf_json(sharedopts->usecolumns, njoins, nwarnings);
+    create_perf_json(njoins, nwarnings);
     testutil_cleanup(opts);
     return (0);
 }
@@ -216,7 +205,6 @@ static void *
 thread_insert(void *arg)
 {
     WT_DECL_RET;
-    SHARED_OPTS *sharedopts;
     TEST_OPTS *opts;
     THREAD_ARGS *threadargs;
     WT_CURSOR *maincur;
@@ -228,7 +216,6 @@ thread_insert(void *arg)
 
     threadargs = (THREAD_ARGS *)arg;
     opts = threadargs->testopts;
-    sharedopts = threadargs->sharedopts;
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
@@ -244,10 +231,7 @@ thread_insert(void *arg)
          */
         key = (int)(__wt_random(&rnd) % N_RECORDS) + 1;
         testutil_check(session->begin_transaction(session, NULL));
-        if (sharedopts->usecolumns)
-            maincur->set_key(maincur, (uint64_t)key);
-        else
-            maincur->set_key(maincur, key);
+        maincur->set_key(maincur, key);
         if (__wt_random(&rnd) % 2 == 0)
             post = 54321;
         else
@@ -329,11 +313,7 @@ thread_get(void *arg)
             testutil_check(postcur->get_key(postcur, &post));
             testutil_check(postcur->get_value(postcur, &post2, &bal, &extra, &flag, &key));
             testutil_assert((flag > 0 && bal < 0) || (flag == 0 && bal >= 0));
-
-            if (sharedopts->usecolumns)
-                maincur->set_key(maincur, (uint64_t)key);
-            else
-                maincur->set_key(maincur, key);
+            maincur->set_key(maincur, key);
             fflush(stdout);
             testutil_check(maincur->search(maincur));
             testutil_check(maincur->get_value(maincur, &post2, &bal2, &extra, &flag2, &key2));
@@ -372,14 +352,14 @@ thread_get(void *arg)
  *     Construct the performance json which is used to generate the performance charts.
  */
 static void
-create_perf_json(bool usecolumns, int njoins, int nwarnings)
+create_perf_json(int njoins, int nwarnings)
 {
     FILE *fp;
     char testname[50];
 
     fp = NULL;
 
-    testutil_snprintf(testname, sizeof(testname), "wt2853_perf_%s", usecolumns ? "col" : "row");
+    testutil_snprintf(testname, sizeof(testname), "wt2853_perf_row");
     testutil_assert_errno((fp = fopen("wt2853_perf.json", "w")) != NULL);
     testutil_assert(fprintf(fp,
                       "[{\"info\":{\"test_name\": \"%s\"},"

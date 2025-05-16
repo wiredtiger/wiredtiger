@@ -104,7 +104,7 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
 {
     WT_CURSOR *maincur, *maincur2, *v0cur, *v1cur, *v2cur;
     WT_SESSION *session;
-    uint64_t count, idxcount, nrecords, key64;
+    uint64_t count, idxcount, nrecords;
     uint32_t rndint;
     int key, key_got, ret, v0, v1, v2;
     char *big, *bigref;

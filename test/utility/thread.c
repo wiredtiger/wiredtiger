@@ -53,12 +53,8 @@ thread_append(void *arg)
 
     buf[0] = '\2';
     for (recno = 1; opts->running; ++recno) {
-        if (opts->table_type == TABLE_FIX)
-            cursor->set_value(cursor, buf[0]);
-        else {
-            testutil_snprintf(buf, sizeof(buf), "%" PRIu64 " VALUE ------", recno);
-            cursor->set_value(cursor, buf);
-        }
+        testutil_snprintf(buf, sizeof(buf), "%" PRIu64 " VALUE ------", recno);
+        cursor->set_value(cursor, buf);
         testutil_check(cursor->insert(cursor));
         if (id == 0) {
             testutil_check(cursor->get_key(cursor, &opts->max_inserted_id));
