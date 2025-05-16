@@ -3096,6 +3096,26 @@ tasks:
             else
               test/evergreen/code_coverage/coverage-report-per-test.sh false ${num_jobs|1}
             fi
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          shell: bash
+          script: |
+            # Generate funcs_covered_by_test.json file. This can be uploaded to GDrive and then downloaded by smart_test_coverage.py
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+
+            cp coverage_report/metrixpp.csv test/smart/
+            sed -i 's/\bline start\b/line_start/g' test/smart/metrixpp.csv
+            sed -i 's/\bline end\b/line_end/g' test/smart/metrixpp.csv
+
+            ln -s coverage_data ./test/smart/coverage_data
+
+            ./test/smart/smart_test_coverage.py --generate-coverage
+
+            cp ./test/smart/funcs_covered_by_test.json coverage_report/
+
       - func: "code coverage publish report"
 
   - name: coverage-report-catch2

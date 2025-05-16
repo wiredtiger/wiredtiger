@@ -26,8 +26,9 @@ import test_util
 #     `./diff_smart_test.py --generate-coverage`
 # and then update the GDrive file. To generate the coverage data you need to have the metrixpp.csv file and untarred coverage_data in the same 
 # directory as this script. You also need to manually modify the metrixpp.csv file to change the "line start" and "line end" columns to be "line_start" and 
-# "line_end" because spaces break the csv parsing.
-# These files can be downloaded from a successful execution of coverage-report-per-test
+# "line_end" because spaces break the csv parsing. This is currently performed in the coverage-report-per-test task, and the 
+# resulting funcs_covered_by_test.json file can be uploaded to GDrive.
+
 
 # TODO
 # - If we call the --generate-coverage command as part of coverage-report-per-test I don't need to manually download the files
