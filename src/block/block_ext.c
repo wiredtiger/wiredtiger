@@ -86,6 +86,74 @@ __block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off)
             stack[i--] = extp--;
 }
 
+static WT_INLINE void
+printout_skiplist(WT_EXT **head, wt_off_t *max_size_head)
+{
+    WT_EXT **extp = &head[WT_SKIP_MAXDEPTH - 1];
+    int i;
+    for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--, extp--) {
+        printf("(%d)", (int)max_size_head[i]);
+        extp = &head[i];
+        while (*extp != NULL) {
+            printf("(%d %d %d)", (int)(*extp)->off, (int)(*extp)->size, (int)(*extp)->max_size[i]);
+            extp = &(*extp)->next[i];
+        }
+        printf(" NULL\n");
+    }
+}
+
+static WT_INLINE int
+update_max_size(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t *max_size_head, wt_off_t off)
+{
+    WT_EXT *fake;
+    WT_RET(__wt_calloc(session, 1, sizeof(WT_EXT) + WT_SKIP_MAXDEPTH * sizeof(WT_EXT *), &fake));
+    fake->depth = 10;
+    fake->size = 0;
+    fake->off = -1;
+    for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+        fake->next[i] = head[i];
+        fake->max_size[i] = max_size_head[i];
+        head[i] = fake;
+    }
+
+    WT_EXT *ext = head[WT_SKIP_MAXDEPTH - 1];
+    WT_EXT *stack[WT_SKIP_MAXDEPTH];
+    for (int i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
+        while (ext->next[i] != NULL && ext->next[i]->off < off) {
+            ext = ext->next[i];
+        }
+        stack[i] = ext;
+    }
+
+    stack[0]->max_size[0] = stack[0]->size;
+    for (int i = 1; i < WT_SKIP_MAXDEPTH; ++i) {
+        WT_EXT *pre = stack[i];
+        WT_EXT *bound = pre->next[i];
+        wt_off_t maxv = 0;
+        while (pre != bound) {
+            maxv = WT_MAX(pre->max_size[i - 1], maxv);
+            pre = pre->next[i - 1];
+        }
+        stack[i]->max_size[i] = maxv;
+    }
+
+    for (int i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+        head[i] = fake->next[i];
+        max_size_head[i] = fake->max_size[i];
+    }
+    __wt_free(session, fake);
+    return (0);
+}
+
+static WT_INLINE void
+update_max_size_clone(WT_EXT **head, wt_off_t *max_size_head, wt_off_t off)
+{
+    WT_UNUSED(head);
+    WT_UNUSED(max_size_head);
+    WT_UNUSED(off);
+    max_size_head[0] = -1;
+}
+
 /*
  * __block_first_srch --
  *     Search the skiplist for the first available slot.
@@ -111,6 +179,32 @@ __block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EX
     /* Build a stack for the offset we want. */
     __block_off_srch(head, ext->off, stack, false);
     return (true);
+}
+
+/*
+ * __block_first_srch --
+ *     Search the skiplist for the first available slot.
+ */
+static WT_INLINE void
+__block_first_srch_v2(
+  WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t *max_size_head, wt_off_t size, WT_EXT **retp)
+{
+    int j = 0;
+    WT_EXT *ext = NULL;
+    for (int i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
+        if (ext == NULL && max_size_head[i] >= size)
+            continue;
+        if (ext == NULL)
+            ext = head[i];
+        while (ext != NULL && ext->max_size[i] < size) {
+            j++;
+            ext = ext->next[i];
+        }
+        if (ext == NULL)
+            break;
+    }
+    WT_STAT_CONN_SET(session, block_ext_walked, j);
+    *retp = ext;
 }
 
 /*
@@ -204,7 +298,8 @@ __block_off_srch_pair(WT_EXTLIST *el, wt_off_t off, WT_EXT **beforep, WT_EXT **a
 static int
 __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
 {
-    WT_EXT **astack[WT_SKIP_MAXDEPTH];
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *bstack[WT_SKIP_MAXDEPTH];
+    WT_UNUSED(bstack);
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
     u_int i;
 
@@ -246,6 +341,27 @@ __block_ext_insert(WT_SESSION_IMPL *session, WT_EXTLIST *el, WT_EXT *ext)
         ext->next[i] = *astack[i];
         *astack[i] = ext;
     }
+
+    update_max_size(session, el->off, el->max_size_to_head, ext->off);
+    update_max_size(session, el->off, el->max_size_to_head, ext->off + 1);
+
+    // printf("Inserted ext: (%d %d %d)\n", (int)ext->off, (int)ext->size, (int)ext->max_size[0]);
+    // printout_skiplist(el->off, el->max_size_to_head);
+    // if ((int)ext->max_size[0] == 0) {
+    //     printf("damn!\n");
+    //     printout_skiplist(el->off, el->max_size_to_head);
+    //     printf("damn--end!\n");
+    //     printf("try fix using off %d\n", (int)ext->off);
+    //     update_max_size_clone(el->off, el->max_size_to_head, ext->off);
+    //     printout_skiplist(el->off, el->max_size_to_head);
+
+    //     // update_max_size(el->off, el->max_size_to_head, ext->off + 1);
+    //     // // printf("the stack looks like below: \n");
+    //     // // update_max_size(ext->off + 1, bstack);
+    //     // // printf("try fix end\n");
+    //     // printout_skiplist(el->off, el->max_size_to_head);
+    //     WT_ASSERT(session, false);
+    // }
 
     ++el->entries;
     el->bytes += (uint64_t)ext->size;
@@ -369,7 +485,8 @@ static int
 __block_off_remove(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, WT_EXT **extp)
 {
-    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext;
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *ext, *bstack[WT_SKIP_MAXDEPTH];
+    WT_UNUSED(bstack);
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
     u_int i;
 
@@ -380,6 +497,10 @@ __block_off_remove(
         goto corrupt;
     for (i = 0; i < ext->depth; ++i)
         *astack[i] = ext->next[i];
+    update_max_size(session, el->off, el->max_size_to_head, off);
+
+    // printf("Removed ext: (%d %d %d)\n", (int)ext->off, (int)ext->size, (int)ext->max_size[0]);
+    // printout_skiplist(el->off, el->max_size_to_head);
 
     /*
      * Find and remove the record from the size's offset skiplist; if that empties the by-size
@@ -567,7 +688,10 @@ int
 __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size)
 {
     WT_EXT **estack[WT_SKIP_MAXDEPTH];
-    WT_EXT *ext;
+    WT_UNUSED(estack);
+    WT_EXT *ext, *ext1 = NULL;
+    WT_UNUSED(ext);
+    WT_UNUSED(ext1);
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
 
@@ -600,9 +724,66 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
     if (block->allocfirst) {
-        if (!__block_first_srch(session, block->live.avail.off, size, estack))
+        // if (!__block_first_srch(session, block->live.avail.off, size, estack))
+        //     goto append;
+        // ext = *estack[0];
+        // if (block->live.avail.max_size_to_head[0] != -1) {
+        //     printout_skiplist(block->live.avail.off, block->live.avail.max_size_to_head);
+        // }
+        // WT_ASSERT(session, block->live.avail.max_size_to_head[0] == -1);
+        // bool v1 = __block_first_srch(session, block->live.avail.off, size, estack);
+        __block_first_srch_v2(
+          session, block->live.avail.off, block->live.avail.max_size_to_head, size, &ext);
+        bool v2 = ext != NULL;
+        // if (v1 != v2) {
+        //     printout_skiplist(block->live.avail.off, block->live.avail.max_size_to_head);
+        // }
+        // WT_ASSERT(session, v1 == v2);
+        // if (v1) {
+        //     ext = *estack[0];
+        //     WT_ASSERT(session, ext == ext1);
+        // }
+        if (!v2) {
             goto append;
-        ext = *estack[0];
+        }
+        // if (!v2) {
+        //     update_max_size(block->live.avail.off, block->live.avail.max_size_to_head, ext->off);
+        //     __block_first_srch_v2(
+        //       session, block->live.avail.off, block->live.avail.max_size_to_head, size, &ext);
+        //     v2 = ext != NULL;
+        // }
+        // if (!v1)
+        //     goto append;
+        // WT_ASSERT(session, v1 == v2);
+        // if (v1 != v2) {
+        //     printout_skiplist(block->live.avail.off, block->live.avail.max_size_to_head);
+        //     printf("size: %d\n", (int)size);
+        //     printf(v1 ? "v1 srch found\n" : "srch not found\n");
+        //     printf(v2 ? "v2 found\n" : "v2 not found\n");
+        //     if (v1) {
+        //         ext = *estack[0];
+        //         printf("damn!\n");
+        //         printf("v1 ext (%d %d %d)\n", (int)ext->off, (int)ext->size,
+        //         (int)ext->max_size[0]); printf("try fix using off %d\n", (int)ext->off);
+        //         update_max_size_clone(
+        //           block->live.avail.off, block->live.avail.max_size_to_head, ext->off);
+        //         printout_skiplist(block->live.avail.off, block->live.avail.max_size_to_head);
+        //     }
+        // }
+        // WT_ASSERT(session, v1 == v2);
+        // if (!v1)
+        //     goto append;
+        // ext = *estack[0];
+        // if (ext != ext1) {
+        //     printout_skiplist(block->live.avail.off, block->live.avail.max_size_to_head);
+        //     printf("size: %d\n", (int)size);
+        //     printf(v1 ? "v1 srch found\n" : "v1 srch not found\n");
+        //     printf(v2 ? "v2 found\n" : "v2 not found\n");
+        //     printf("v2 ext (%d %d %d)\n", (int)ext1->off, (int)ext1->size,
+        //     (int)ext1->max_size[0]); printf("v1 ext (%d %d %d)\n", (int)ext->off, (int)ext->size,
+        //     (int)ext->max_size[0]);
+        // }
+        // WT_ASSERT(session, ext1 == ext);
     } else {
         __block_size_srch(block->live.avail.sz, size, sstack);
         if ((szp = *sstack[0]) == NULL) {
@@ -983,7 +1164,8 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
     WT_EXT *ext;
     WT_EXTLIST tmp;
     u_int i;
-
+    WT_UNUSED(tmp);
+    WT_UNUSED(i);
     /*
      * We should hold the live lock here when running on the live checkpoint. But there is no easy
      * way to determine if the checkpoint is live so we cannot assert the locking here.
@@ -996,19 +1178,19 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
      * to reduce the amount of work we need to do during the merge. The size lists have to match as
      * well, so this is only possible if both lists are tracking sizes, or neither are.
      */
-    if (a->track_size == b->track_size && a->entries > b->entries) {
-        tmp = *a;
-        a->bytes = b->bytes;
-        b->bytes = tmp.bytes;
-        a->entries = b->entries;
-        b->entries = tmp.entries;
-        for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-            a->off[i] = b->off[i];
-            b->off[i] = tmp.off[i];
-            a->sz[i] = b->sz[i];
-            b->sz[i] = tmp.sz[i];
-        }
-    }
+    // if (a->track_size == b->track_size && a->entries > b->entries) {
+    //     tmp = *a;
+    //     a->bytes = b->bytes;
+    //     b->bytes = tmp.bytes;
+    //     a->entries = b->entries;
+    //     b->entries = tmp.entries;
+    //     for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+    //         a->off[i] = b->off[i];
+    //         b->off[i] = tmp.off[i];
+    //         a->sz[i] = b->sz[i];
+    //         b->sz[i] = tmp.sz[i];
+    //     }
+    // }
 
     WT_EXT_FOREACH (ext, a->off)
         WT_RET(__block_merge(session, block, b, ext->off, ext->size));
@@ -1024,8 +1206,9 @@ static int
 __block_append(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
-    WT_EXT **astack[WT_SKIP_MAXDEPTH], *last_ext;
+    WT_EXT **astack[WT_SKIP_MAXDEPTH], *last_ext, *bstack[WT_SKIP_MAXDEPTH];
     u_int i;
+    WT_UNUSED(bstack);
 
     WT_UNUSED(block);
     WT_ASSERT(session, el->track_size == 0);
@@ -1051,6 +1234,7 @@ __block_append(
             if (last_ext != NULL)
                 /* Assert that this is appending an extent after the last extent. */
                 WT_ASSERT(session, last_ext->off + last_ext->size < off);
+
             WT_RET(__wti_block_ext_alloc(session, &last_ext));
             last_ext->off = off;
             last_ext->size = size;
@@ -1063,6 +1247,14 @@ __block_append(
         /* Update the cached end-of-list */
         el->last = last_ext;
     }
+
+    for (i = 0; i < last_ext->depth; i++)
+        last_ext->max_size[i] = last_ext->size;
+    update_max_size(session, el->off, el->max_size_to_head, last_ext->off);
+
+    // printf("Appended ext: (%d %d %d)\n", (int)last_ext->off, (int)last_ext->size,
+    //   (int)last_ext->max_size[0]);
+    // printout_skiplist(el->off, el->max_size_to_head);
     el->bytes += (uint64_t)size;
 
     return (0);
@@ -1172,6 +1364,7 @@ int
 __wti_block_extlist_read_avail(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t ckpt_size)
 {
+    // printf("__wti_block_extlist_read_avail\n");
     WT_DECL_RET;
 
     /* If there isn't a list, we're done. */
@@ -1212,6 +1405,7 @@ int
 __wti_block_extlist_read(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t ckpt_size)
 {
+    // printf("__wti_block_extlist_read\n");
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     wt_off_t off, size;

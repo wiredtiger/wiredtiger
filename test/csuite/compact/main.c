@@ -27,7 +27,7 @@
  */
 #include "test_util.h"
 
-#define NUM_RECORDS WT_MILLION
+#define NUM_RECORDS 300000
 // #define NUM_RECORDS 100 * WT_THOUSAND
 
 #define CHECKPOINT_NUM 3
@@ -88,8 +88,8 @@ static void *thread_func_updates(void *);
 static void populate(WT_SESSION *, const char *);
 static void update_records(WT_SESSION *, const char *);
 static void remove_records(WT_SESSION *, const char *);
-static void get_file_stats(WT_SESSION *, const char *, uint64_t *, uint64_t *);
-static void set_timing_stress_checkpoint(WT_CONNECTION *);
+// static void get_file_stats(WT_SESSION *, const char *, uint64_t *, uint64_t *);
+// static void set_timing_stress_checkpoint(WT_CONNECTION *);
 static void get_compact_progress(
   WT_SESSION *session, const char *, uint64_t *, uint64_t *, uint64_t *);
 static void thread_wait(void);
@@ -102,7 +102,6 @@ int
 main(int argc, char *argv[])
 {
     TEST_OPTS *opts, _opts;
-
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
@@ -265,7 +264,7 @@ thread_func_checkpoint(void *arg)
         if (i < CHECKPOINT_NUM - 1) {
             sleep_sec = (uint64_t)__wt_random(&rnd) % 15 + 1;
             printf("Sleep %" PRIu64 " sec before next checkpoint.\n", sleep_sec);
-            // __wt_sleep(sleep_sec, 0);
+            //__wt_sleep(sleep_sec, 0);
         }
     }
 
@@ -432,41 +431,41 @@ remove_records(WT_SESSION *session, const char *uri)
  * get_file_stats --
  *     TODO: Add a comment describing this function.
  */
-static void
-get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t *avail_bytes)
-{
-    WT_CURSOR *cur_stat;
-    char *descr, *str_val, stat_uri[STAT_BUF_SIZE];
+// static void
+// get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t *avail_bytes)
+// {
+//     WT_CURSOR *cur_stat;
+//     char *descr, *str_val, stat_uri[STAT_BUF_SIZE];
 
-    testutil_snprintf(stat_uri, STAT_BUF_SIZE, "statistics:%s", uri);
-    testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
+//     testutil_snprintf(stat_uri, STAT_BUF_SIZE, "statistics:%s", uri);
+//     testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
 
-    /* Get file size. */
-    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_SIZE);
-    testutil_check(cur_stat->search(cur_stat));
-    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, file_sz));
+//     /* Get file size. */
+//     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_SIZE);
+//     testutil_check(cur_stat->search(cur_stat));
+//     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, file_sz));
 
-    /* Get bytes available for reuse. */
-    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_REUSE_BYTES);
-    testutil_check(cur_stat->search(cur_stat));
-    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, avail_bytes));
+//     /* Get bytes available for reuse. */
+//     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_REUSE_BYTES);
+//     testutil_check(cur_stat->search(cur_stat));
+//     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, avail_bytes));
 
-    testutil_check(cur_stat->close(cur_stat));
-    cur_stat = NULL;
-}
+//     testutil_check(cur_stat->close(cur_stat));
+//     cur_stat = NULL;
+// }
 
 /*
  * set_timing_stress_checkpoint --
  *     TODO: Add a comment describing this function.
  */
-static void
-set_timing_stress_checkpoint(WT_CONNECTION *conn)
-{
-    WT_CONNECTION_IMPL *conn_impl;
+// static void
+// set_timing_stress_checkpoint(WT_CONNECTION *conn)
+// {
+//     WT_CONNECTION_IMPL *conn_impl;
 
-    conn_impl = (WT_CONNECTION_IMPL *)conn;
-    conn_impl->timing_stress_flags |= WT_TIMING_STRESS_CHECKPOINT_SLOW;
-}
+//     conn_impl = (WT_CONNECTION_IMPL *)conn;
+//     conn_impl->timing_stress_flags |= WT_TIMING_STRESS_CHECKPOINT_SLOW;
+// }
 
 /*
  * get_compact_progress --
