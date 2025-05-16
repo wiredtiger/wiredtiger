@@ -125,7 +125,7 @@ if __name__ == "__main__":
     os.chdir(working_dir)
 
     parser = argparse.ArgumentParser(description="Test runner based on changed files.")
-    parser.add_argument("--list_only", help="Only list the test files without running them.")
+    parser.add_argument("--list_only", action="store_true", help="Only list the test files without running them.")
     # This takes the buildvariant as an argument
     # FIXME - determine if we can extract the buildvariant from the environment. It's an evergreen expansion.
     parser.add_argument("--generate-tests", help="Generate a smart_test.json file to be used by generate.tasks in evergreen.")
@@ -136,7 +136,10 @@ if __name__ == "__main__":
     changed_modules = get_changed_modules()
 
     if args.list_only:
-        print(changed_modules)
+        if changed_modules:
+            print(changed_modules)
+        else:
+            print("No changes made in src/")
         sys.exit(0)
     elif args.generate_tests:
         # Generate the smart_test.json file
