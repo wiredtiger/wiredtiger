@@ -36,7 +36,6 @@ static char home[PATH_MAX]; /* Program working dir */
 /*
  * These two names for the URI and file system must be maintained in tandem.
  */
-static const char *const col_uri = "table:col_main";
 static const char *const uri = "table:main";
 static bool compaction;
 static bool compat;
@@ -134,7 +133,6 @@ thread_run(void *arg)
     char buf[MAX_VAL], fname[MAX_RECORD_FILES][64], new_buf[MAX_VAL];
     char kname[64], lgbuf[8];
     char large[128 * 1024];
-    bool columnar_table;
 
     __wt_random_init_default(&rnd);
     for (i = 0; i < MAX_RECORD_FILES; i++)
@@ -145,7 +143,6 @@ thread_run(void *arg)
     lsize = sizeof(large);
     memset(large, 0, lsize);
     nentries = MAX_MODIFY_ENTRIES;
-    columnar_table = false;
 
     td = (WT_THREAD_DATA *)arg;
 
@@ -178,15 +175,7 @@ thread_run(void *arg)
     }
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-
-    /* Make alternate threads operate on the column-store table. */
-    if (td->id % 2 != 0)
-        columnar_table = true;
-
-    if (columnar_table)
-        testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &cursor));
-    else
-        testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
     /*
      * Write our portion of the key space until we're killed.
@@ -201,13 +190,8 @@ thread_run(void *arg)
          * The value is the insert- with key appended.
          */
         testutil_snprintf(buf, sizeof(buf), "insert-%" PRIu64, i);
-
-        if (columnar_table)
-            cursor->set_key(cursor, i);
-        else {
-            testutil_snprintf(kname, sizeof(kname), KEY_FORMAT, i);
-            cursor->set_key(cursor, kname);
-        }
+        testutil_snprintf(kname, sizeof(kname), KEY_FORMAT, i);
+        cursor->set_key(cursor, kname);
         /*
          * Every 30th record write a very large record that exceeds the log buffer size. This forces
          * us to use the unbuffered path.
@@ -235,10 +219,7 @@ thread_run(void *arg)
          */
         if (compaction && i >= (100 * WT_THOUSAND) && i % (100 * WT_THOUSAND) == 0) {
             printf("Running compaction in Thread %" PRIu32 "\n", td->id);
-            if (columnar_table)
-                ret = session->compact(session, col_uri, NULL);
-            else
-                ret = session->compact(session, uri, NULL);
+            ret = session->compact(session, uri, NULL);
             /*
              * We may have several sessions trying to compact the same URI, in this case, EBUSY is
              * returned.
@@ -250,10 +231,7 @@ thread_run(void *arg)
          * Decide what kind of operation can be performed on the already inserted data.
          */
         if (i % MAX_NUM_OPS == OP_TYPE_DELETE) {
-            if (columnar_table)
-                cursor->set_key(cursor, i);
-            else
-                cursor->set_key(cursor, kname);
+            cursor->set_key(cursor, kname);
 
             while ((ret = cursor->remove(cursor)) == WT_ROLLBACK)
                 ;
@@ -276,11 +254,7 @@ thread_run(void *arg)
              */
             do {
                 testutil_check(session->begin_transaction(session, NULL));
-
-                if (columnar_table)
-                    cursor->set_key(cursor, i);
-                else
-                    cursor->set_key(cursor, kname);
+                cursor->set_key(cursor, kname);
 
                 ret = wiredtiger_calc_modify(session, &data, &newv, maxdiff, entries, &nentries);
                 if (ret == 0)
@@ -342,7 +316,6 @@ fill_db(uint32_t nth)
 
     testutil_check(wiredtiger_open(WT_HOME_DIR, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->create(session, col_uri, "key_format=r,value_format=u"));
     testutil_check(session->create(session, uri, "key_format=S,value_format=u"));
     testutil_check(session->close(session, NULL));
 
@@ -400,7 +373,7 @@ recover_and_verify(uint32_t nthreads)
 {
     FILE *fp[MAX_RECORD_FILES];
     WT_CONNECTION *conn;
-    WT_CURSOR *col_cursor, *cursor, *row_cursor;
+    WT_CURSOR *cursor, *row_cursor;
     WT_DECL_RET;
     WT_ITEM search_value;
     WT_SESSION *session;
@@ -408,29 +381,17 @@ recover_and_verify(uint32_t nthreads)
     uint32_t i, j;
     char file_value[MAX_VAL];
     char fname[MAX_RECORD_FILES][64], kname[64];
-    bool columnar_table, fatal;
+    bool fatal;
 
     printf("Open database, run recovery and verify content\n");
     testutil_check(wiredtiger_open(WT_HOME_DIR, NULL, TESTUTIL_ENV_CONFIG_REC, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &col_cursor));
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &row_cursor));
 
     absent = count = 0;
     fatal = false;
     for (i = 0; i < nthreads; ++i) {
-
-        /*
-         * Every alternative thread is operated on column-store table. Make sure that proper cursor
-         * is used for verification of recovered records.
-         */
-        if (i % 2 != 0) {
-            columnar_table = true;
-            cursor = col_cursor;
-        } else {
-            columnar_table = false;
-            cursor = row_cursor;
-        }
+        cursor = row_cursor;
 
         middle = 0;
         testutil_snprintf(fname[DELETE_RECORD_FILE_ID], sizeof(fname[DELETE_RECORD_FILE_ID]),
@@ -494,13 +455,8 @@ recover_and_verify(uint32_t nthreads)
                       fname[DELETE_RECORD_FILE_ID], key, last_key);
                     break;
                 }
-
-                if (columnar_table)
-                    cursor->set_key(cursor, key);
-                else {
-                    testutil_snprintf(kname, sizeof(kname), KEY_FORMAT, key);
-                    cursor->set_key(cursor, kname);
-                }
+                testutil_snprintf(kname, sizeof(kname), KEY_FORMAT, key);
+                cursor->set_key(cursor, kname);
 
                 while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
                     ;
@@ -525,12 +481,8 @@ recover_and_verify(uint32_t nthreads)
                 /*
                  * If it is insert only operation, make sure the record exists
                  */
-                if (columnar_table)
-                    cursor->set_key(cursor, key);
-                else {
-                    testutil_snprintf(kname, sizeof(kname), KEY_FORMAT, key);
-                    cursor->set_key(cursor, kname);
-                }
+                testutil_snprintf(kname, sizeof(kname), KEY_FORMAT, key);
+                cursor->set_key(cursor, kname);
 
                 while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
                     ;
@@ -576,13 +528,8 @@ recover_and_verify(uint32_t nthreads)
                       fname[MODIFY_RECORD_FILE_ID], key, last_key);
                     break;
                 }
-
-                if (columnar_table)
-                    cursor->set_key(cursor, key);
-                else {
-                    testutil_snprintf(kname, sizeof(kname), KEY_FORMAT, key);
-                    cursor->set_key(cursor, kname);
-                }
+                testutil_snprintf(kname, sizeof(kname), KEY_FORMAT, key);
+                cursor->set_key(cursor, kname);
 
                 while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
                     ;

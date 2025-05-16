@@ -95,7 +95,7 @@ static const char *const uri_shadow = "shadow";
 static const char *const ckpt_file = "checkpoint_done";
 
 static bool backup_verify_immediately, backup_verify_quick;
-static bool columns, stress, use_backups, use_lazyfs, use_liverestore, use_ts, verify_model;
+static bool stress, use_backups, use_lazyfs, use_liverestore, use_ts, verify_model;
 static uint32_t backup_force_stop_interval, backup_full_interval, backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
@@ -716,19 +716,11 @@ thread_run(void *arg)
              */
             testutil_check(session->timestamp_transaction(session, tscfg));
         }
-
-        if (columns) {
-            cur_coll->set_key(cur_coll, i + 1);
-            cur_local->set_key(cur_local, i + 1);
-            cur_oplog->set_key(cur_oplog, i + 1);
-            cur_shadow->set_key(cur_shadow, i + 1);
-        } else {
-            testutil_snprintf(kname, sizeof(kname), KEY_STRINGFORMAT, i);
-            cur_coll->set_key(cur_coll, kname);
-            cur_local->set_key(cur_local, kname);
-            cur_oplog->set_key(cur_oplog, kname);
-            cur_shadow->set_key(cur_shadow, kname);
-        }
+        testutil_snprintf(kname, sizeof(kname), KEY_STRINGFORMAT, i);
+        cur_coll->set_key(cur_coll, kname);
+        cur_local->set_key(cur_local, kname);
+        cur_oplog->set_key(cur_oplog, kname);
+        cur_shadow->set_key(cur_shadow, kname);
         /*
          * Put an informative string into the value so that it can be viewed well in a binary dump.
          */
@@ -905,13 +897,8 @@ run_workload(uint32_t workload_iteration)
      * Create all the tables on the first iteration.
      */
     if (workload_iteration == 1) {
-        if (columns) {
-            table_config_nolog = "key_format=r,value_format=u,log=(enabled=false)";
-            table_config = "key_format=r,value_format=u";
-        } else {
-            table_config_nolog = "key_format=S,value_format=u,log=(enabled=false)";
-            table_config = "key_format=S,value_format=u";
-        }
+        table_config_nolog = "key_format=S,value_format=u,log=(enabled=false)";
+        table_config = "key_format=S,value_format=u";
         testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_collection);
         testutil_check(session->create(session, uri, table_config_nolog));
         testutil_snprintf(uri, sizeof(uri), "%s:%s", table_pfx, uri_shadow);
@@ -1203,19 +1190,11 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
             if (backup_index > 0 && durable_fp > stable_val)
                 continue;
 
-            if (columns) {
-                cur_coll->set_key(cur_coll, key + 1);
-                cur_local->set_key(cur_local, key + 1);
-                cur_oplog->set_key(cur_oplog, key + 1);
-                cur_shadow->set_key(cur_shadow, key + 1);
-            } else {
-                testutil_snprintf(kname, sizeof(kname), KEY_STRINGFORMAT, key);
-                cur_coll->set_key(cur_coll, kname);
-                cur_local->set_key(cur_local, kname);
-                cur_oplog->set_key(cur_oplog, kname);
-                cur_shadow->set_key(cur_shadow, kname);
-            }
-
+            testutil_snprintf(kname, sizeof(kname), KEY_STRINGFORMAT, key);
+            cur_coll->set_key(cur_coll, kname);
+            cur_local->set_key(cur_local, kname);
+            cur_oplog->set_key(cur_oplog, kname);
+            cur_shadow->set_key(cur_shadow, kname);
             /*
              * The collection table should always only have the data as of the checkpoint. The
              * shadow table should always have the exact same data (or not) as the collection table,
@@ -1403,7 +1382,7 @@ main(int argc, char *argv[])
     backup_granularity_kb = 1024;
     backup_verify_immediately = false;
     backup_verify_quick = false;
-    columns = stress = false;
+    stress = false;
     nth = MIN_TH;
     num_iterations = 1;
     rand_th = rand_time = true;
@@ -1425,8 +1404,6 @@ main(int argc, char *argv[])
             use_backups = true;
             break;
         case 'c':
-            /* Variable-length columns only (for now) */
-            columns = true;
             break;
         case 'F':
             backup_full_interval = (uint32_t)atoi(__wt_optarg);
@@ -1556,7 +1533,7 @@ main(int argc, char *argv[])
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
         printf("CONFIG: %s%s%s%s%s%s%s%s%s%s -F %" PRIu32 " -h %s -I %" PRIu32 " -T %" PRIu32
                " -t %" PRIu32 " " TESTUTIL_SEED_FORMAT "\n",
-          progname, use_backups ? " -B" : "", opts->compat ? " -C" : "", columns ? " -c" : "",
+          progname, use_backups ? " -B" : "", opts->compat ? " -C" : "", "",
           use_lazyfs ? " -l" : "", verify_model ? " -M" : "", opts->inmem ? " -m" : "",
           opts->tiered_storage ? " -PT" : "", stress ? " -s" : "", !use_ts ? " -z" : "",
           backup_full_interval, opts->home, num_iterations, nth, timeout, opts->data_seed,

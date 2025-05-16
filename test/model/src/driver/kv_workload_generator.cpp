@@ -371,21 +371,6 @@ kv_workload_generator::create_table()
     std::string value_format = "Q";
     kv_table_type type = kv_table_type::row;
 
-    probability_switch(_random.next_float())
-    {
-        probability_case(_spec.column_fix)
-        {
-            key_format = "r";
-            value_format = "8t";
-            type = kv_table_type::column_fix;
-        }
-        probability_case(_spec.column_var)
-        {
-            key_format = "r";
-            type = kv_table_type::column;
-        }
-    }
-
     table_context_ptr table =
       std::make_shared<table_context>(id, name, key_format, value_format, type);
     _tables_list.push_back(table);
@@ -472,24 +457,6 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             probability_case(_spec.truncate)
             {
                 table_context_ptr table = choose_table(txn_ptr);
-
-                /*
-                 * FIXME-WT-13232 Don't use truncate on FLCS tables, because a truncate on an FLCS
-                 * table can conflict with operations adjacent to the truncation range's key range.
-                 * For example, if a user wants to truncate range 10-12 on a table with keys [10,
-                 * 11, 12, 13, 14], a concurrent update to key 13 would result in a conflict (while
-                 * an update to 14 would be able proceed).
-                 *
-                 * FIXME-WT-13350 Similarly, truncating an implicitly created range of keys in an
-                 * FLCS table conflicts with a concurrent insert operation that caused this range of
-                 * keys to be created.
-                 *
-                 * The workload generator cannot currently account for this, so don't use truncate
-                 * with FLCS tables for now.
-                 */
-                if (table->type() == kv_table_type::column_fix)
-                    break;
-
                 data_value start = generate_key(table);
                 data_value stop = generate_key(table);
                 if (start > stop)

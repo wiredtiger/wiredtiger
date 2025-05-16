@@ -107,15 +107,9 @@ kv_database::create_checkpoint_nolock(const char *name, kv_transaction_snapshot_
     if (stable_timestamp == k_timestamp_none)
         oldest_timestamp = k_timestamp_none;
 
-    /* Get the highest recno for each FLCS table. */
-    std::map<std::string, uint64_t> highest_recnos;
-    for (auto &p : _tables)
-        if (p.second->type() == kv_table_type::column_fix)
-            highest_recnos[p.first] = p.second->highest_recno();
-
     /* Create the checkpoint. */
     kv_checkpoint_ptr ckpt = std::make_shared<kv_checkpoint>(
-      name, snapshot, oldest_timestamp, stable_timestamp, std::move(highest_recnos));
+      name, snapshot, oldest_timestamp, stable_timestamp);
 
     /* Remember it. */
     _checkpoints[ckpt_name] = ckpt;
@@ -325,11 +319,6 @@ kv_database::start_nolock()
     /* If the checkpoint does not have a stable timestamp, do not use it during RTS. */
     if (t == k_timestamp_none)
         t = k_timestamp_latest;
-
-    /* Restore highest recnos for each FLCS. */
-    for (auto &p : ckpt->highest_recnos())
-        table_nolock(p.first)->truncate_recnos_after(p.second);
-
     rollback_to_stable_nolock(t, ckpt->snapshot());
 }
 
