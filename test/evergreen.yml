@@ -253,7 +253,7 @@ functions:
           ${HAVE_BUILTIN_EXTENSION_SNAPPY|} \
           ${HAVE_BUILTIN_EXTENSION_ZLIB|} \
           ${HAVE_BUILTIN_EXTENSION_ZSTD|} \
-          ${HAVE_UNITTEST} \
+          ${HAVE_UNITTEST|-DHAVE_UNITTEST=1} \
           ${CODE_COVERAGE_FLAGS} \
           ${NON_BARRIER_DIAGNOSTIC_YIELDS|} \
           ${HAVE_DIAGNOSTIC|} \
@@ -5442,6 +5442,26 @@ tasks:
         params:
           files:
             - wiredtiger/test/smart/smart_test.json
+
+  - name: smart-testing-coverage
+    tags: ["pull_request"]
+    # This task will run an arbitrary subset of tests based on the changed code in the branch, and would confuse the BBUI when
+    # it searches for duplicate failures. As such we only want to run this in PR testing or user patches, not on mainline where
+    # errors will be piped to the BBUI.
+    patch_only: true
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          shell: bash
+          working_dir: wiredtiger
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            ${python_binary|python3} test/smart/smart_test_coverage.py
 
 #######################################
 #            Buildvariants            #
