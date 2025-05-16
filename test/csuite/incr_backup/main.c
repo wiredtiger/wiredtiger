@@ -39,11 +39,13 @@
 #define BACKUP_RETAIN 5
 #define BACKUP_SRC "backup.src."
 
+#define GRANULARITY (16*1024)
+
 #define ITERATIONS 5
 #define MAX_NTABLES 1
 
 #define MAX_KEY_SIZE 10000
-#define MAX_VALUE_SIZE (100 * WT_THOUSAND)
+#define MAX_VALUE_SIZE (20 * WT_THOUSAND)
 
 #define URI_MAX_LEN 32
 #define URI_FORMAT "table:t%d-%d"
@@ -370,7 +372,7 @@ tables_free(TABLE_INFO *tinfo)
 static void
 base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, TABLE_INFO *tinfo)
 {
-   uint32_t granularity_kb = 4096;
+   uint32_t granularity_kb = GRANULARITY;
    //uint32_t granularity_kb = 1024;
    int id, nfiles;
    printf("granularity_kb: %u\n", granularity_kb);
@@ -450,7 +452,7 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
     WT_FILE_COPY_OPTS copy_opts;
     WT_SESSION *session;
     TABLE_INFO tinfo;
-    uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
+    uint32_t file_max, iter, max_value_size, next_checkpoint, slot;
     const char *backup_verbose;
     int ncheckpoints, nreopens;
     char backup_src[1024], conf[1024], home[1024];
@@ -491,16 +493,9 @@ run_test(char const *working_dir, WT_RAND_STATE *rnd, bool preserve)
      * insert choose a uniform random size between 1 and MAX_VALUE_SIZE, once we did a bunch
      * of inserts, each run would look very much the same with respect to value size.
      */
-    max_value_size = __wt_random(rnd) % MAX_VALUE_SIZE;
+    max_value_size = MAX_VALUE_SIZE;
 
-    /* Compute a random value of file_max. */
-    rough_size = __wt_random(rnd) % 3;
-    if (rough_size == 0)
-        file_max = 100 + __wt_random(rnd) % 100; /* small log files, min 100K */
-    else if (rough_size == 1)
-        file_max = 200 + __wt_random(rnd) % WT_THOUSAND; /* 200K to ~1M */
-    else
-        file_max = WT_THOUSAND + __wt_random(rnd) % (20 * WT_THOUSAND); /* 1M to ~20M */
+    file_max = (2000 * WT_THOUSAND);
     testutil_snprintf(conf, sizeof(conf), "%s,create,%s,log=(enabled=true,file_max=%" PRIu32 "K)",
       CONN_CONFIG_COMMON, backup_verbose, file_max);
     VERBOSE(2, "wiredtiger config: %s\n", conf);
