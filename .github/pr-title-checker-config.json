@@ -1,0 +1,14 @@
+{
+    "LABEL": {
+      "name": "PR title need correcting",
+      "color": "EE0000"
+    },
+    "CHECKS": {
+      "regexp": "^(Revert \")?(WT-[0-9]+) .*"
+    },
+    "MESSAGES": {
+      "success": "All OK",
+      "failure": "Failing CI test",
+      "notice": ""
+    }
+  }
