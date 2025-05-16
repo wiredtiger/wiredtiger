@@ -778,7 +778,7 @@ __rec_cleanup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     if (btree->type == BTREE_ROW)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-            __wt_free(session, multi->key.ikey);
+            __wt_free(session, multi->key);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
@@ -1866,7 +1866,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         return (__wt_illegal_value(session, page->type));
     }
     multi->supd_restore = false;
-    WT_RET(__wt_row_ikey_alloc(session, 0, chunk->key.data, chunk->key.size, &multi->key.ikey));
+    WT_RET(__wt_row_ikey_alloc(session, 0, chunk->key.data, chunk->key.size, &multi->key));
 
     /* Check if there are saved updates that might belong to this block. */
     if (r->supd_next != 0)
@@ -2099,8 +2099,8 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     WT_RET(__wt_scr_alloc(session, 0, &tkey));
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         __wt_verbose_debug2(session, WT_VERB_SPLIT, "starting key %s",
-          __wt_buf_set_printable_format(session, WT_IKEY_DATA(multi->key.ikey),
-            multi->key.ikey->size, btree->key_format, false, tkey));
+          __wt_buf_set_printable_format(session, WT_IKEY_DATA(multi->key),
+            multi->key->size, btree->key_format, false, tkey));
     __wt_scr_free(session, &tkey);
     return (0);
 }

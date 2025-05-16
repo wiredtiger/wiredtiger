@@ -837,8 +837,8 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 
 /*
  * An internal page key is in one of two places: if we instantiated the
- * key (for example, when reading the page), WT_REF.ref_ikey references
- * a WT_IKEY structure, otherwise WT_REF.ref_ikey references an on-page
+ * key (for example, when reading the page), WT_REF.key references
+ * a WT_IKEY structure, otherwise WT_REF.key references an on-page
  * key offset/length pair.
  *
  * Now the magic: allocated memory must be aligned to store any standard
@@ -862,13 +862,13 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 #define WT_IK_DECODE_KEY_LEN(v) ((v) >> 32)
 #define WT_IK_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 1)
 #define WT_IK_DECODE_KEY_OFFSET(v) (((v)&0xFFFFFFFF) >> 1)
-    v = (uintptr_t)ref->ref_ikey;
+    v = (uintptr_t)ref->key;
     if (v & WT_IK_FLAG) {
         *(void **)keyp = WT_PAGE_REF_OFFSET(page, WT_IK_DECODE_KEY_OFFSET(v));
         *sizep = WT_IK_DECODE_KEY_LEN(v);
     } else {
-        *(void **)keyp = WT_IKEY_DATA(ref->ref_ikey);
-        *sizep = ((WT_IKEY *)ref->ref_ikey)->size;
+        *(void **)keyp = WT_IKEY_DATA(ref->key);
+        *sizep = ((WT_IKEY *)ref->key)->size;
     }
 }
 
@@ -886,7 +886,7 @@ __wt_ref_key_onpage_set(WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK_ADDR *unpack)
      */
     v = WT_IK_ENCODE_KEY_LEN(unpack->size) |
       WT_IK_ENCODE_KEY_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->data)) | WT_IK_FLAG;
-    ref->ref_ikey = (void *)v;
+    ref->key = (void *)v;
 }
 
 /*
@@ -901,8 +901,8 @@ __wt_ref_key_instantiated(WT_REF *ref)
     /*
      * See the comment in __wt_ref_key for an explanation of the magic.
      */
-    v = (uintptr_t)ref->ref_ikey;
-    return (v & WT_IK_FLAG ? NULL : (WT_IKEY *)ref->ref_ikey);
+    v = (uintptr_t)ref->key;
+    return (v & WT_IK_FLAG ? NULL : (WT_IKEY *)ref->key);
 }
 
 /*
@@ -912,7 +912,7 @@ __wt_ref_key_instantiated(WT_REF *ref)
 static WT_INLINE void
 __wt_ref_key_clear(WT_REF *ref)
 {
-    ref->ref_ikey = NULL;
+    ref->key = NULL;
 }
 
 /*

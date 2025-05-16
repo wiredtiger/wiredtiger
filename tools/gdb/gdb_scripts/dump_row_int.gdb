@@ -8,7 +8,7 @@ define dump_row_int_keys
   set $i = 0
   set $page = $arg0
   while $i < $page->u->intl->__index.entries
-    set $ikey = $page->u->intl->__index->index[$i].key.ikey
+    set $ikey = $page->u->intl->__index->index[$i].key
     set $v = (uintptr_t)$ikey
 
     set $keyp = 0

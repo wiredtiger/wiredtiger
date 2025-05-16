@@ -155,7 +155,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
             switch (page->type) {
             case WT_PAGE_ROW_INT:
             case WT_PAGE_ROW_LEAF:
-                __wt_free(session, multi->key.ikey);
+                __wt_free(session, multi->key);
                 break;
             }
             __wt_free(session, multi->supd);

@@ -411,7 +411,7 @@ __wti_row_ikey(
     {
         uintptr_t oldv;
 
-        oldv = (uintptr_t)ref->ref_ikey;
+        oldv = (uintptr_t)ref->key;
         WT_DIAGNOSTIC_YIELD;
 
         /*
@@ -420,11 +420,11 @@ __wti_row_ikey(
          */
         WT_ASSERT(session, oldv == 0 || (oldv & WT_IK_FLAG) != 0);
         WT_ASSERT(session, WT_REF_GET_STATE(ref) != WT_REF_SPLIT);
-        bool cas_success = __wt_atomic_cas_ptr(&ref->ref_ikey, (WT_IKEY *)oldv, ikey);
+        bool cas_success = __wt_atomic_cas_ptr(&ref->key, (WT_IKEY *)oldv, ikey);
         WT_ASSERT(session, cas_success);
     }
 #else
-    ref->ref_ikey = ikey;
+    ref->key = ikey;
 #endif
     return (0);
 }

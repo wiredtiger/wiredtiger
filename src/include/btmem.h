@@ -243,11 +243,9 @@ struct __wt_save_upd {
  */
 struct __wt_multi {
     /*
-     * Block's key: either a column-store record number or a row-store variable length byte string.
+     * Block's key: a row-store variable length byte string.
      */
-    union {
-        WT_IKEY *ikey;
-    } key;
+    WT_IKEY *key;
 
     /*
      * A disk image that may or may not have been written, used to re-instantiate the page in
@@ -1044,11 +1042,7 @@ struct __wt_ref {
      * The child page's key.  Do NOT change this union without reviewing
      * __wt_ref_key.
      */
-    union {
-        wt_shared void *ikey; /* Row-store: key */
-    } key;
-#undef ref_ikey
-#define ref_ikey key.ikey
+    wt_shared void *key; /* Row-store: key */
 
     /*
      * Page deletion information, written-to/read-from disk as necessary in the internal page's
@@ -1464,16 +1458,12 @@ struct __wt_update_vector {
  */
 struct __wt_insert {
     wt_shared WT_UPDATE *upd; /* value */
-
-    union {
-        struct {
-            uint32_t offset; /* row-store key data start */
-            uint32_t size;   /* row-store key data size */
-        } key;
-    } u;
-
-#define WT_INSERT_KEY_SIZE(ins) (((WT_INSERT *)(ins))->u.key.size)
-#define WT_INSERT_KEY(ins) ((void *)((uint8_t *)(ins) + ((WT_INSERT *)(ins))->u.key.offset))
+    struct {
+        uint32_t offset; /* row-store key data start */
+        uint32_t size;   /* row-store key data size */
+    } key;
+#define WT_INSERT_KEY_SIZE(ins) (((WT_INSERT *)(ins))->key.size)
+#define WT_INSERT_KEY(ins) ((void *)((uint8_t *)(ins) + ((WT_INSERT *)(ins))->key.offset))
 
     wt_shared WT_INSERT *next[0]; /* forward-linked skip list */
 };

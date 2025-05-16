@@ -254,7 +254,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
         /* Build the key and value cells. */
         WT_RET(__rec_cell_build_int_key(
-          session, r, WT_IKEY_DATA(multi->key.ikey), r->cell_zero ? 1 : multi->key.ikey->size));
+          session, r, WT_IKEY_DATA(multi->key), r->cell_zero ? 1 : multi->key->size));
         r->cell_zero = false;
 
         addr = &multi->addr;

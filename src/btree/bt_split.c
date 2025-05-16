@@ -216,7 +216,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if ((ikey = __wt_ref_key_instantiated(ref)) == NULL) {
             __wt_ref_key(from_home, ref, &key, &size);
             WT_RET(__wti_row_ikey(session, 0, key, size, ref));
-            ikey = ref->ref_ikey;
+            ikey = ref->key;
         } else {
             WT_RET(__split_ovfl_key_cleanup(session, from_home, ref));
             *decrp += sizeof(WT_IKEY) + ikey->size;
@@ -1673,7 +1673,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
      * Set the WT_REF key before (optionally) building the page, underlying column-store functions
      * need the page's key space to search it.
      */
-    ikey = multi->key.ikey;
+    ikey = multi->key;
     WT_RET(__wti_row_ikey(session, 0, WT_IKEY_DATA(ikey), ikey->size, ref));
     if (incrp)
         *incrp += sizeof(WT_IKEY) + ikey->size;
@@ -1953,12 +1953,12 @@ err:
         ref->addr = split_ref[0]->addr;
 
         if (type == WT_PAGE_ROW_LEAF)
-            __wt_free(session, split_ref[0]->ref_ikey);
+            __wt_free(session, split_ref[0]->key);
         __wt_free(session, split_ref[0]);
     }
     if (split_ref[1] != NULL) {
         if (type == WT_PAGE_ROW_LEAF)
-            __wt_free(session, split_ref[1]->ref_ikey);
+            __wt_free(session, split_ref[1]->key);
         __wt_free(session, split_ref[1]);
     }
     if (right != NULL) {
