@@ -28,4 +28,3 @@ else
 fi
 
 $TEST_WRAPPER $test_bin $builddir_arg -t r
-$TEST_WRAPPER $test_bin $builddir_arg -t c

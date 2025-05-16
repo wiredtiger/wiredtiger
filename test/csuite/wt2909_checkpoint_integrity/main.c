@@ -124,12 +124,7 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
     count = 0;
     while ((ret = maincur->next(maincur)) == 0) {
         testutil_check(maincur2->next(maincur2));
-        if (opts->table_type == TABLE_ROW)
-            testutil_check(maincur2->get_key(maincur2, &key_got));
-        else {
-            testutil_check(maincur2->get_key(maincur2, &key64));
-            key_got = (int)key64;
-        }
+        testutil_check(maincur2->get_key(maincur2, &key_got));
         testutil_check(maincur2->get_value(maincur2, &rndint));
 
         generate_key(count, &key);
@@ -137,12 +132,7 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
         testutil_assert(key == key_got);
 
         /* Check the key/values in main table. */
-        if (opts->table_type == TABLE_ROW)
-            testutil_check(maincur->get_key(maincur, &key_got));
-        else {
-            testutil_check(maincur->get_key(maincur, &key64));
-            key_got = (int)key64;
-        }
+        testutil_check(maincur->get_key(maincur, &key_got));
         testutil_assert(key == key_got);
         check_values(maincur, v0, v1, v2, big);
 
@@ -327,7 +317,7 @@ run_check_subtest(
     testutil_snprintf(rarg, sizeof(rarg), "%" PRIu64, opts->nrecords);
     subtest_args[narg++] = rarg; /* number of records */
     subtest_args[narg++] = (char *)"-t";
-    subtest_args[narg++] = (char *)(opts->table_type == TABLE_ROW ? "r" : "c");
+    subtest_args[narg++] = (char *)"r";
     subtest_args[narg++] = NULL;
     testutil_assert(narg <= MAX_ARGS);
     if (opts->verbose)
@@ -530,12 +520,10 @@ subtest_main(int argc, char *argv[], bool close_test)
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_snprintf(tableconf, sizeof(tableconf),
-      "key_format=%s,value_format=iiiS,columns=(id,v0,v1,v2,big)",
-      opts->table_type == TABLE_ROW ? "i" : "r");
+      "key_format=i,value_format=iiiS,columns=(id,v0,v1,v2,big)");
     testutil_check(session->create(session, "table:subtest", tableconf));
 
-    testutil_snprintf(tableconf, sizeof(tableconf), "key_format=%s,value_format=i",
-      opts->table_type == TABLE_ROW ? "i" : "r");
+    testutil_snprintf(tableconf, sizeof(tableconf), "key_format=i,value_format=i");
     testutil_check(session->create(session, "table:subtest2", tableconf));
 
     testutil_check(session->create(session, "index:subtest:v0", "columns=(v0)"));
@@ -599,17 +587,10 @@ subtest_populate(TEST_OPTS *opts, bool close_test)
         generate_key(i, &key);
         generate_value(rndint, i, bigref, &v0, &v1, &v2, &big);
         CHECK(session->begin_transaction(session, NULL), false);
-        if (opts->table_type == TABLE_ROW)
-            maincur->set_key(maincur, key);
-        else
-            maincur->set_key(maincur, (uint64_t)key);
+        maincur->set_key(maincur, key);
         maincur->set_value(maincur, v0, v1, v2, big);
         CHECK(maincur->insert(maincur), false);
-
-        if (opts->table_type == TABLE_ROW)
-            maincur2->set_key(maincur2, key);
-        else
-            maincur2->set_key(maincur2, (uint64_t)key);
+        maincur2->set_key(maincur2, key);
         maincur2->set_value(maincur2, rndint);
         CHECK(maincur2->insert(maincur2), false);
         CHECK(session->commit_transaction(session, NULL), false);
@@ -675,8 +656,6 @@ main(int argc, char *argv[])
     argv += __wt_optind;
     if (opts->nrecords == 0)
         opts->nrecords = 50 * WT_THOUSAND;
-    if (opts->table_type == TABLE_FIX)
-        testutil_die(ENOTSUP, "Fixed-length column store not supported");
 
     while (argc > 0) {
         if (strcmp(argv[0], "subtest") == 0) {
