@@ -227,8 +227,7 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
     if (item == nullptr)
         return WT_NOTFOUND;
 
-    std::shared_ptr<kv_update> update = fix_timestamps(
-      std::make_shared<kv_update>(NONE, txn));
+    std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(NONE, txn));
     try {
         item->add_update(update, true, false);
         txn->add_update(*this, key, std::move(update));
@@ -287,8 +286,8 @@ kv_table::truncate(kv_transaction_ptr txn, const data_value &start, const data_v
         }
 
         for (auto i = start_iter; i != stop_iter; i++) {
-            std::shared_ptr<kv_update> update = fix_timestamps(std::make_shared<kv_update>(
-              NONE, txn));
+            std::shared_ptr<kv_update> update =
+              fix_timestamps(std::make_shared<kv_update>(NONE, txn));
             i->second.add_update(update, false, false);
             txn->add_update(*this, i->first, std::move(update));
         }

@@ -95,6 +95,7 @@ public:
     {
         return _stable_timestamp;
     }
+
 private:
     kv_transaction_snapshot_ptr _snapshot;
     timestamp_t _oldest_timestamp, _stable_timestamp;

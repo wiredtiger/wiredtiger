@@ -108,8 +108,8 @@ kv_database::create_checkpoint_nolock(const char *name, kv_transaction_snapshot_
         oldest_timestamp = k_timestamp_none;
 
     /* Create the checkpoint. */
-    kv_checkpoint_ptr ckpt = std::make_shared<kv_checkpoint>(
-      name, snapshot, oldest_timestamp, stable_timestamp);
+    kv_checkpoint_ptr ckpt =
+      std::make_shared<kv_checkpoint>(name, snapshot, oldest_timestamp, stable_timestamp);
 
     /* Remember it. */
     _checkpoints[ckpt_name] = ckpt;

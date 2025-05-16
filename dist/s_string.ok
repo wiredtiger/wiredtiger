@@ -201,7 +201,6 @@ Keyedness
 Kounavis
 LANGID
 LF
-LLVM
 LLVMFuzzerTestOneInput
 LMDB
 LOGOP
@@ -451,7 +450,6 @@ WiredTigerLog
 WiredTigerPreplog
 WiredTigerTmplog
 WithSeeds
-Wl
 Wmissing
 WriteFile
 Wuninitialized
@@ -709,7 +707,6 @@ dstrndup
 dsync
 dup
 dv
-eee
 eg
 ejnprx
 el
@@ -804,7 +801,6 @@ getters
 gettime
 gettimeofday
 getv
-ggg
 github
 globals
 globfree
@@ -886,7 +882,6 @@ islocked
 ispo
 isprint
 isspace
-jjj
 js
 json
 kB
@@ -994,7 +989,6 @@ mn
 mnt
 mongod
 mrs
-msan
 msecs
 msg
 msvc
@@ -1155,7 +1149,6 @@ realloc
 reallocations
 recency
 recno
-recnos
 reconfig
 reconfigures
 reconfiguring
