@@ -821,7 +821,7 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_encrypt_qh, __wt_named_encryptor) encryptqh;
 
     /* Locked: page log list */
-    WT_SPINLOCK page_log_lock; /* Storage source list lock */
+    WT_SPINLOCK page_log_lock; /* Page log list lock */
     TAILQ_HEAD(__wt_page_log_qh, __wt_named_page_log) pagelogqh;
 
     /* Locked: storage source list */

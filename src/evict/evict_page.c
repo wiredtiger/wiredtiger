@@ -238,7 +238,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     /* After this spot, the only recoverable failure is EBUSY. */
     ebusy_only = true;
 
-    /* Check we are not evicting an accessible internal page with an active split generation. */
+    /*
+     * Check we are not evicting an accessible internal page with an active split generation. We
+     * should be able to evict anything if we are closing the dhandle and when the dhandle is
+     * already dead.
+     */
     WT_ASSERT(session,
       closing || !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
@@ -914,7 +918,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
      * cannot read.
      */
     if (closing)
-        LF_SET(WT_REC_VISIBILITY_ERR);
+        LF_SET(WT_REC_EVICT_CALL_CLOSING | WT_REC_VISIBILITY_ERR);
     /*
      * Don't set any other flags for internal pages: there are no update lists to be saved and
      * restored, changes can't be written into the history store table, nor can we re-create
@@ -992,7 +996,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * outside world.
          */
         if (F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT))
-            LF_SET(WT_REC_VISIBLE_ALL_TXNID);
+            LF_SET(WT_REC_VISIBLE_ALL);
         else
             __wt_txn_bump_snapshot(session);
     } else if (use_snapshot_for_app_thread) {
@@ -1010,10 +1014,9 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
 
         LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
-        LF_SET(WT_REC_VISIBLE_ALL_TXNID);
+        LF_SET(WT_REC_VISIBLE_ALL);
 
-    WT_ASSERT(
-      session, LF_ISSET(WT_REC_VISIBLE_ALL_TXNID) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+    WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* We should not be trying to evict using a checkpoint-cursor transaction. */
     WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT));

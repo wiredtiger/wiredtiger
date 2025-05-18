@@ -76,10 +76,16 @@ from packing import pack, unpack
 	$1 = &temp;
 }
 %typemap(in, numinputs=0) WT_FILE_HANDLE ** (WT_FILE_HANDLE *temp = NULL) {
-    $1 = &temp;
+	$1 = &temp;
  }
 %typemap(in, numinputs=0) WT_FILE_SYSTEM ** (WT_FILE_SYSTEM *temp = NULL) {
-    $1 = &temp;
+	$1 = &temp;
+ }
+%typemap(in, numinputs=0) WT_PAGE_LOG ** (WT_PAGE_LOG *temp = NULL) {
+	$1 = &temp;
+ }
+%typemap(in, numinputs=0) WT_PAGE_LOG_HANDLE ** (WT_PAGE_LOG_HANDLE *temp = NULL) {
+	$1 = &temp;
  }
 %typemap(in, numinputs=0) WT_PAGE_LOG ** (WT_PAGE_LOG *temp = NULL) {
     $1 = &temp;
@@ -202,10 +208,10 @@ from packing import pack, unpack
 
 /* Why do we need an explicit conversion for plh_put - doesn't the previous typemap cover this? */
 %typemap(in) struct __wt_item *buf (WT_ITEM item) {
-    if (unpackBytesOrString($input, &item.data, &item.size) != 0)
-        SWIG_exception_fail(SWIG_AttributeError,
-          "bad string value for WT_ITEM");
-    $1 = &item;
+	if (unpackBytesOrString($input, &item.data, &item.size) != 0)
+		SWIG_exception_fail(SWIG_AttributeError,
+		  "bad string value for WT_ITEM");
+	$1 = &item;
 }
 
 /*
@@ -215,11 +221,11 @@ from packing import pack, unpack
  */
 %typemap(in,numinputs=0) (WT_ITEM *results_array, u_int *results_count)
   (WT_ITEM results[32], u_int count) {
-    memset(&results, 0, sizeof(results));
-    count = 32;
-    $1 = results;
-    $2 = &count;
- }
+	memset(&results, 0, sizeof(results));
+	count = 32;
+	$1 = results;
+	$2 = &count;
+}
 
 /*
  * This typemap is for plh_get, and is used in conjunction with the previous typemap.
@@ -228,20 +234,20 @@ from packing import pack, unpack
  * now are converted to a python list of byte strings.
  */
 %typemap(argout) (WT_ITEM *results_array, u_int *results_count) {
-    int i;
-    u_int n;
-    WT_ITEM *results_array;
+	int i;
+	u_int n;
+	WT_ITEM *results_array;
 
-    results_array = $1;
-    $result = PyList_New(*$2);
-    for (n = 0; n < *$2; n++) {
-        PyBytesObject *pbo = PyBytes_FromStringAndSize(results_array[n].data, results_array[n].size);
-        PyList_SetItem($result, (int)n, pbo);
-    }
-    /* Free in reverse order, since the first item might hold all the memory used by other items. */
-    for (i = *$2 - 1; i >= 0; i--)
-        free(results_array[i].mem);
- }
+	results_array = $1;
+	$result = PyList_New(*$2);
+	for (n = 0; n < *$2; n++) {
+		PyBytesObject *pbo = PyBytes_FromStringAndSize(results_array[n].data, results_array[n].size);
+		PyList_SetItem($result, (int)n, pbo);
+	}
+	/* Free in reverse order, since the first item might hold all the memory used by other items. */
+	for (i = *$2 - 1; i >= 0; i--)
+		free(results_array[i].mem);
+}
 
 /*
  * This typemap removes the three last arguments for pl_get_complete_checkpoint_ext, and uses local
@@ -252,12 +258,12 @@ from packing import pack, unpack
 %typemap(in,numinputs=0) (uint64_t *checkpoint_lsn, uint64_t *checkpoint_id,
   uint64_t *checkpoint_timestamp, WT_ITEM *checkpoint_metadata)
   (uint64_t lsn, uint64_t id, uint64_t timestamp, WT_ITEM metadata) {
-    memset(&metadata, 0, sizeof(metadata));
-    $1 = &lsn;
-    $2 = &id;
-    $3 = &timestamp;
-    $4 = &metadata;
- }
+	memset(&metadata, 0, sizeof(metadata));
+	$1 = &lsn;
+	$2 = &id;
+	$3 = &timestamp;
+	$4 = &metadata;
+}
 
 /*
  * This typemap is for pl_get_complete_checkpoint_ext, and is used in conjunction with the previous
@@ -267,22 +273,22 @@ from packing import pack, unpack
  */
 %typemap(argout)(uint64_t *checkpoint_lsn, uint64_t *checkpoint_id, uint64_t *checkpoint_timestamp,
   WT_ITEM *checkpoint_metadata) {
-    PyBytesObject *pbo;
-    WT_ITEM *checkpoint_metadata;
+	PyBytesObject *pbo;
+	WT_ITEM *checkpoint_metadata;
 
-    checkpoint_metadata = $4;
+	checkpoint_metadata = $4;
 
-    if (checkpoint_metadata->data != NULL) {
-        pbo = PyUnicode_FromStringAndSize(checkpoint_metadata->data, checkpoint_metadata->size);
-        free(checkpoint_metadata->mem);
-    } else
-        pbo = PyUnicode_FromStringAndSize("", 0);
+	if (checkpoint_metadata->data != NULL) {
+		pbo = PyUnicode_FromStringAndSize(checkpoint_metadata->data, checkpoint_metadata->size);
+		free(checkpoint_metadata->mem);
+	} else
+		pbo = PyUnicode_FromStringAndSize("", 0);
 
-    $result = PyTuple_New(4);
-    PyTuple_SetItem($result, 0, PyLong_FromUnsignedLongLong(*$1));
-    PyTuple_SetItem($result, 1, PyLong_FromUnsignedLongLong(*$2));
-    PyTuple_SetItem($result, 2, PyLong_FromUnsignedLongLong(*$3));
-    PyTuple_SetItem($result, 3, pbo);
+	$result = PyTuple_New(4);
+	PyTuple_SetItem($result, 0, PyLong_FromUnsignedLongLong(*$1));
+	PyTuple_SetItem($result, 1, PyLong_FromUnsignedLongLong(*$2));
+	PyTuple_SetItem($result, 2, PyLong_FromUnsignedLongLong(*$3));
+	PyTuple_SetItem($result, 3, pbo);
 }
 
 %typemap(in,numinputs=0) (char ***dirlist, int *countp) (char **list, uint32_t nentries) {
@@ -319,12 +325,12 @@ from packing import pack, unpack
 }
 
 %typemap(argout) WT_PAGE_LOG ** {
-    $result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_page_log, 0);
- }
+	$result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_page_log, 0);
+}
 
 %typemap(argout) WT_PAGE_LOG_HANDLE ** {
-    $result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_page_log_handle, 0);
- }
+	$result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_page_log_handle, 0);
+}
 
 %typemap(argout) WT_STORAGE_SOURCE ** {
 	$result = SWIG_NewPointerObj(SWIG_as_voidptr(*$1), SWIGTYPE_p___wt_storage_source, 0);
@@ -757,7 +763,6 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_page_log_get_args::base_checkpoint_id;
 %ignore __wt_page_log_get_args::lsn_frontier;
 %ignore __wt_page_log_get_args::delta_count;
-
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
@@ -1197,11 +1202,6 @@ typedef int int_void;
 };
 %enddef
 
- /*
-SIDESTEP_METHOD(__wt_page_log, pl_add_reference,
-  (),
-  (self))
- */
 SIDESTEP_METHOD(__wt_page_log, pl_begin_checkpoint,
   (WT_SESSION *session, int checkpoint_id),
   (self, session, checkpoint_id))
