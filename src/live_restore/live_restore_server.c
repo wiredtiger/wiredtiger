@@ -394,6 +394,9 @@ __wt_live_restore_server_create(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_session_close_internal(checkpoint_session));
         return (0);
     }
+    /* Allow incremental backups to be taken, during a live restore. This hacks around the fact we
+     * won't have an incremental backup ID record in our history. */
+    WT_ASSERT(session, __wt_backup_set_blkincr(session, 0, 1024, "ID1", 3) == 0);
 
     /* Read the threads_max config, zero threads is valid in which case we don't do anything. */
     WT_CONFIG_ITEM cval;

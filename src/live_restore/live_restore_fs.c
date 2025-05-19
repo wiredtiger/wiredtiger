@@ -1403,8 +1403,13 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
     WT_CONFIG_ITEM v;
     WT_DECL_RET;
 
-    WT_ASSERT_ALWAYS(session, !__wt_live_restore_migration_in_progress(session),
-      "Cleaning the metadata string should only be called for non-live restore file systems");
+    /* While we don't like it, it is possible to take a backup during live restore, thus if the
+     * live restore is in progress we simply return.
+     */
+    if (__wt_live_restore_migration_in_progress(session))
+      return (0);
+    // WT_ASSERT_ALWAYS(session, !__wt_live_restore_migration_in_progress(session),
+    //   "Cleaning the metadata string should only be called for non-live restore file systems");
 
     ret = __wt_config_getones(session, value, "live_restore", &v);
     WT_RET_NOTFOUND_OK(ret);

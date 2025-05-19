@@ -699,12 +699,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
             WT_RET(__wt_curmetadata_open(session, uri, owner, cfg, cursorp));
         break;
     case 'b':
-        if (WT_PREFIX_MATCH(uri, "backup:")) {
-            if (__wt_live_restore_migration_in_progress(session))
-                WT_RET_SUB(session, EINVAL, WT_CONFLICT_LIVE_RESTORE,
-                  "backup cannot be taken when live restore is enabled");
+        if (WT_PREFIX_MATCH(uri, "backup:"))
             WT_RET(__wt_curbackup_open(session, uri, other, cfg, cursorp));
-        }
         break;
     case 's':
         if (WT_PREFIX_MATCH(uri, "statistics:")) {
