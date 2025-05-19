@@ -16,6 +16,50 @@ static int __layered_last_checkpoint_order(
   WT_SESSION_IMPL *session, const char *shared_uri, int64_t *ckpt_order);
 
 /*
+ * __layered_get_disagg_checkpoint --
+ *     Get existing checkpoint information from disaggregated storage.
+ */
+static int
+__layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
+  uint64_t *open_checkpoint_id, uint64_t *complete_checkpoint_lsn, uint64_t *complete_checkpoint_id,
+  uint64_t *complete_checkpoint_timestamp, WT_ITEM *complete_checkpoint_metadata)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_PAGE_LOG *page_log;
+    char *page_log_name;
+
+    conn = S2C(session);
+    page_log_name = NULL;
+
+    /*
+     * We need our own copy of the page log config string, it must be NULL terminated to look it up.
+     */
+    WT_ERR(__wt_config_gets(session, cfg, "disaggregated.page_log", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &page_log_name));
+    WT_ERR(conn->iface.get_page_log(&conn->iface, page_log_name, &page_log));
+
+    /*
+     * Getting the last opened checkpoint and the complete checkpoint from disaggregated storage are
+     * only supported in test implementations of the page log interface. This function will never be
+     * called in production.
+     */
+    if (page_log->pl_get_complete_checkpoint_ext == NULL ||
+      page_log->pl_get_open_checkpoint == NULL)
+        WT_ERR(ENOTSUP);
+
+    WT_ERR(page_log->pl_get_open_checkpoint(page_log, &session->iface, open_checkpoint_id));
+    WT_ERR(
+      page_log->pl_get_complete_checkpoint_ext(page_log, &session->iface, complete_checkpoint_lsn,
+        complete_checkpoint_id, complete_checkpoint_timestamp, complete_checkpoint_metadata));
+
+err:
+    __wt_free(session, page_log_name);
+    return (ret);
+}
+
+/*
  * __layered_create_missing_ingest_table --
  *     Create a missing ingest table from an existing layered table configuration.
  */
@@ -829,7 +873,7 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_PAGE_LOG *npage_log;
-    uint64_t checkpoint_id, next_checkpoint_id;
+    uint64_t checkpoint_id, complete_checkpoint, next_checkpoint_id, open_checkpoint;
     bool leader, was_leader;
 
     conn = S2C(session);
@@ -971,7 +1015,21 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
 
         /* If we are starting as primary (e.g., for internal testing), begin the checkpoint. */
         if (leader) {
-            if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
+            WT_ERR(__wt_config_gets(session, cfg, "create", &cval));
+            if (cval.val == 0) {
+                ret = __layered_get_disagg_checkpoint(
+                  session, cfg, &open_checkpoint, NULL, &complete_checkpoint, NULL, NULL);
+                if (ret == WT_NOTFOUND)
+                    WT_ERR_MSG(session, ret, "disaggregated checkpoint not found.");
+                WT_ERR(ret);
+                if (open_checkpoint == 0)
+                    next_checkpoint_id = complete_checkpoint + 1;
+                else
+                    next_checkpoint_id = open_checkpoint + 1;
+                WT_WITH_CHECKPOINT_LOCK(
+                  session, ret = __disagg_pick_up_checkpoint(session, 0, complete_checkpoint));
+                WT_ERR(ret);
+            } else if (next_checkpoint_id == WT_DISAGG_CHECKPOINT_ID_NONE)
                 next_checkpoint_id = checkpoint_id + 1;
             WT_WITH_CHECKPOINT_LOCK(
               session, ret = __wt_disagg_begin_checkpoint(session, next_checkpoint_id));

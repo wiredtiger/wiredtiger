@@ -37,6 +37,7 @@ static void config_checksum(TABLE *);
 static void config_chunk_cache(void);
 static void config_compact(void);
 static void config_compression(TABLE *, const char *);
+static void config_disagg_storage(void);
 static void config_encryption(void);
 static bool config_explicit(TABLE *, const char *);
 static const char *config_file_type(u_int);
@@ -208,7 +209,7 @@ config_table_am(TABLE *table)
     }
 
     if (!config_explicit(table, "runs.type")) {
-        if (config_explicit(table, "runs.source"))
+        if (config_explicit(table, "runs.source") && DATASOURCE(table, "layered"))
             config_single(table, "runs.type=row", false);
         else
             switch (mmrand(&g.data_rnd, 1, 10)) {
@@ -492,6 +493,7 @@ config_run(void)
 
     /* Order can be important, don't shuffle without careful consideration. */
     config_tiered_storage();                         /* Tiered storage */
+    config_disagg_storage();                         /* Disaggregated storage */
     config_chunk_cache();                            /* Chunk cache */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
@@ -1466,6 +1468,36 @@ config_tiered_storage(void)
 }
 
 /*
+ * config_disagg_storage --
+ *     Disaggregated storage configuration.
+ */
+static void
+config_disagg_storage(void)
+{
+    const char *page_log;
+
+    page_log = GVS(DISAGG_PAGE_LOG);
+
+    g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
+    if (g.disagg_storage_config) {
+        /* Disaggregated storage requires timestamps. */
+        config_off(NULL, "transaction.implicit");
+        config_single(NULL, "transaction.timestamps=on", true);
+
+        /* It makes sense to do checkpoints. */
+        config_single(NULL, "checkpoint=on", false);
+
+        /* TODO: Some operations are not yet supported for disaggregated storage. */
+        config_off(NULL, "ops.salvage");
+        config_off(NULL, "ops.verify");
+        config_off(NULL, "backup");
+        config_off(NULL, "backup.incremental");
+        config_off(NULL, "ops.compaction");
+        config_off(NULL, "background_compact");
+    }
+}
+
+/*
  * config_transaction --
  *     Transaction configuration.
  */
@@ -1955,6 +1987,7 @@ config_single(TABLE *table, const char *s, bool explicit)
             config_map_checkpoint(equalp, &g.checkpoint_config);
         else if (strncmp(s, "runs.source", strlen("runs.source")) == 0 &&
           strncmp("file", equalp, strlen("file")) != 0 &&
+          strncmp("layered", equalp, strlen("layered")) != 0 &&
           strncmp("table", equalp, strlen("table")) != 0) {
             testutil_die(EINVAL, "Invalid data source option: %s", equalp);
         } else if (strncmp(s, "runs.type", strlen("runs.type")) == 0) {
