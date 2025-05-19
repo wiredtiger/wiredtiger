@@ -10,9 +10,9 @@ function Find-VcVars {
         throw "vswhere.exe not found at $vswhere"
     }
 
-    # 17 is the version of Visual Studio 2022.
+    # 15 is the version of Visual Studio 2017.
     $installPath = & $vswhere `
-        -version "[17.0,)" `
+        -version "[15.0,)" `
         -products * `
         -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
         -property installationPath `
