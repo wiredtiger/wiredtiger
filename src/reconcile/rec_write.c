@@ -363,7 +363,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * in service of a checkpoint, it's cleared the tree's dirty flag, and we don't want to set it
      * again as part of that walk.
      */
-    WT_ERR(__wt_page_parent_modify_set(session, ref, true));
+    if (!LF_ISSET(WT_REC_REWRITE_DELTA))
+        WT_ERR(__wt_page_parent_modify_set(session, ref, true));
 
     /*
      * Track the longest reconciliation and time spent in each reconciliation stage, ignoring races
@@ -2552,8 +2553,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     /*
      * If configured for an in-memory database, we can't actually write it. Instead, we will
      * re-instantiate the page using the disk image and any list of updates we skipped.
+     *
+     * If we are rewriting a page restored from delta, no need to write it but directly instantiate
+     * it into memory.
      */
-    if (F_ISSET(r, WT_REC_IN_MEMORY))
+    if (F_ISSET(r, WT_REC_IN_MEMORY | WT_REC_REWRITE_DELTA))
         goto copy_image;
 
     /* Check the eviction flag as checkpoint also saves updates. */
@@ -2791,10 +2795,11 @@ copy_image:
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0);
 #endif
     /*
-     * If re-instantiating this page in memory (either because eviction wants to, or because we
-     * skipped updates to build the disk image), save a copy of the disk image.
+     * If re-instantiating this page in memory (because eviction wants to, or because we want to
+     * rewrite the pages with deltas, or because we skipped updates to build the disk image), save a
+     * copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || multi->supd_restore)
+    if (F_ISSET(r, WT_REC_SCRUB | WT_REC_REWRITE_DELTA) || multi->supd_restore)
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     /* Whether we wrote or not, clear the accumulated time statistics. */
@@ -3176,6 +3181,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * splits can.
          */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
+            WT_ASSERT(session, !F_ISSET(r, WT_REC_REWRITE_DELTA));
             r->ref->page->block_meta = r->multi->block_meta;
             WT_ASSERT_ALWAYS(session,
               F_ISSET(r, WT_REC_IN_MEMORY) ||
@@ -3189,7 +3195,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
          * leaving that work to us.)
          */
         if (r->wrapup_checkpoint == NULL) {
-            if (r->multi->addr.block_cookie != NULL) {
+            if (r->multi->addr.block_cookie != NULL || F_ISSET(r, WT_REC_REWRITE_DELTA)) {
                 __rec_set_updates_durable(btree, r->multi);
                 mod->mod_replace = r->multi->addr;
                 r->multi->addr.block_cookie = NULL;
@@ -3288,6 +3294,11 @@ split:
         WT_TIME_AGGREGATE_COPY(stop_tap, &stop_ta);
         WT_RELEASE_WRITE_WITH_BARRIER(mod->stop_ta, stop_tap);
     }
+
+    WT_ASSERT(session,
+      !F_ISSET(r, WT_REC_REWRITE_DELTA) ||
+        (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_disk_image != NULL &&
+          mod->mod_replace.block_cookie == NULL));
 
     return (0);
 }

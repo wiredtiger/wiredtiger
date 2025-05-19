@@ -109,6 +109,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: number of internal pages read that had deltas attached",
+  "cache: number of leaf pages flattened that had deltas attached",
   "cache: number of leaf pages read that had deltas attached",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -502,6 +503,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint = 0;
     stats->cache_read_internal_delta = 0;
+    stats->cache_read_flatten_leaf_delta = 0;
     stats->cache_read_leaf_delta = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -876,6 +878,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
     to->cache_read_internal_delta += from->cache_read_internal_delta;
+    to->cache_read_flatten_leaf_delta += from->cache_read_flatten_leaf_delta;
     to->cache_read_leaf_delta += from->cache_read_leaf_delta;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
@@ -1267,6 +1270,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
     to->cache_read_internal_delta += WT_STAT_DSRC_READ(from, cache_read_internal_delta);
+    to->cache_read_flatten_leaf_delta += WT_STAT_DSRC_READ(from, cache_read_flatten_leaf_delta);
     to->cache_read_leaf_delta += WT_STAT_DSRC_READ(from, cache_read_leaf_delta);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
@@ -1800,6 +1804,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: npos read - had to walk this many pages",
   "cache: number of internal pages read that had deltas attached",
+  "cache: number of leaf pages flattened that had deltas attached",
   "cache: number of leaf pages read that had deltas attached",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
@@ -2700,6 +2705,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint = 0;
     stats->npos_read_walk_max = 0;
     stats->cache_read_internal_delta = 0;
+    stats->cache_read_flatten_leaf_delta = 0;
     stats->cache_read_leaf_delta = 0;
     stats->eviction_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
@@ -3620,6 +3626,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     if ((v = WT_STAT_CONN_READ(from, npos_read_walk_max)) > to->npos_read_walk_max)
         to->npos_read_walk_max = v;
     to->cache_read_internal_delta += WT_STAT_CONN_READ(from, cache_read_internal_delta);
+    to->cache_read_flatten_leaf_delta += WT_STAT_CONN_READ(from, cache_read_flatten_leaf_delta);
     to->cache_read_leaf_delta += WT_STAT_CONN_READ(from, cache_read_leaf_delta);
     to->eviction_timed_out_ops += WT_STAT_CONN_READ(from, eviction_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=

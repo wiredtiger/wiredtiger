@@ -978,6 +978,10 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_ERR(ret);
         }
 
+        WT_ERR(__wt_config_gets(session, cfg, "disaggregated.flatten_leaf_page_delta", &cval));
+        if (cval.val != 0)
+            F_SET(&conn->disaggregated_storage, WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA);
+
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.internal_page_delta", &cval));
         if (cval.val != 0)
             F_SET(&conn->disaggregated_storage, WT_DISAGG_INTERNAL_PAGE_DELTA);

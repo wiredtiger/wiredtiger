@@ -440,11 +440,6 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     }
     WT_CELL_FOREACH_END;
 
-    /*
-     * The data is written to the disk so we can mark the page clean after re-instantiating prepared
-     * updates to avoid reconciling the page every time.
-     */
-    __wt_page_modify_clear(session, page);
     __wt_cache_page_inmem_incr_delta_updates(session, page, total_size);
     WT_STAT_CONN_DSRC_INCRV(session, cache_read_delta_updates, total_size);
 
@@ -465,8 +460,12 @@ int
 __wti_page_reconstruct_deltas(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *deltas, size_t delta_size)
 {
+    WT_DECL_RET;
+    WT_MULTI multi;
+    WT_PAGE_MODIFY *mod;
     uint64_t time_start, time_stop;
     int i;
+    void *tmp;
 
     WT_ASSERT(session, delta_size != 0);
 
@@ -474,14 +473,48 @@ __wti_page_reconstruct_deltas(
     case WT_PAGE_ROW_LEAF:
 
         /*
-         * We apply the order in reverse order because we only care about the latest change of a
-         * key. The older changes are ignore.
-         *
-         * TODO: this is not the optimal algorithm. We can optimize this by using a min heap.
+         * We apply the deltas in reverse order because we only care about the latest change of a
+         * key. The older changes are ignored.
          */
         time_start = __wt_clock(session);
         for (i = (int)delta_size - 1; i >= 0; --i)
             WT_RET(__page_reconstruct_leaf_delta(session, ref, &deltas[i]));
+
+        /*
+         * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
+         * not reentrant.
+         *
+         * TODO: this should go away when we use an algorithm to directly rewrite delta.
+         */
+        if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA) &&
+          !__wt_rec_in_progress(session)) {
+            ret = __wt_reconcile(session, ref, false, WT_REC_REWRITE_DELTA);
+            if (ret == 0) {
+                mod = ref->page->modify;
+                WT_ASSERT(
+                  session, mod->mod_disk_image != NULL && mod->mod_replace.block_cookie == NULL);
+
+                /* The split code works with WT_MULTI structures, build one for the disk image. */
+                memset(&multi, 0, sizeof(multi));
+                multi.disk_image = mod->mod_disk_image;
+                multi.block_meta = ref->page->block_meta;
+
+                /*
+                 * Store the disk image to a temporary pointer in case we fail to rewrite the page
+                 * and we need to link the new disk image back to the old disk image.
+                 */
+                tmp = mod->mod_disk_image;
+                mod->mod_disk_image = NULL;
+                ret = __wt_split_rewrite(session, ref, &multi, false);
+                if (ret != 0) {
+                    mod->mod_disk_image = tmp;
+                    WT_RET(ret);
+                }
+
+                WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta);
+            } else if (ret != EBUSY)
+                WT_RET(ret);
+        }
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));
         WT_STAT_CONN_DSRC_INCR(session, cache_read_leaf_delta);
@@ -497,6 +530,9 @@ __wti_page_reconstruct_deltas(
     default:
         WT_RET(__wt_illegal_value(session, ref->page->type));
     }
+
+    /* The data is written to the disk so we can mark the page clean. */
+    __wt_page_modify_clear(session, ref->page);
 
     return (0);
 }
