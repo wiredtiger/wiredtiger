@@ -1128,7 +1128,7 @@ conn_dsrc_stats = [
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_delta_updates', 'size of delta updates reconstructed on the base page'),
     CacheStat('cache_read_flatten_leaf_delta', 'number of leaf pages flattened that had deltas attached'),
-    CacheStat('cache_read_flatten_leaf_delta_fail_ebusy', 'number of leaf pages not flattened that had deltas attached due to ebusy'),
+    CacheStat('cache_read_flatten_leaf_delta_fail', 'number of leaf pages not flattened that had deltas attached due to failure'),
     CacheStat('cache_read_internal_delta', 'number of internal pages read that had deltas attached'),
     CacheStat('cache_read_leaf_delta', 'number of leaf pages read that had deltas attached'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),

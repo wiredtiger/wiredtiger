@@ -508,14 +508,15 @@ __wti_page_reconstruct_deltas(
                 ret = __wt_split_rewrite(session, ref, &multi, false);
                 if (ret != 0) {
                     mod->mod_disk_image = tmp;
+                    WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta_fail);
                     WT_RET(ret);
                 }
 
                 WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta);
-            } else if (ret == EBUSY)
-                WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta_fail_ebusy);
-            else
+            } else {
+                WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta_fail);
                 WT_RET(ret);
+            }
         }
         time_stop = __wt_clock(session);
         __wt_stat_usecs_hist_incr_leaf_reconstruct(session, WT_CLOCKDIFF_US(time_stop, time_start));

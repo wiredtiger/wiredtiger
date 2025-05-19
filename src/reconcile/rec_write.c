@@ -1218,7 +1218,10 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, 
         r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
     } else {
         r->split_size = __wt_split_page_size(btree->split_pct, r->page_size, btree->allocsize);
-        r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
+        /* TODO: Temporary hack to ensure we don't run out of space when rewriting deltas. */
+        r->space_avail = F_ISSET(r, WT_REC_REWRITE_DELTA) ?
+          2 * r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree) :
+          r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
         r->min_split_size =
           __wt_split_page_size(WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->allocsize);
         r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
@@ -1236,7 +1239,10 @@ __wti_rec_split_init(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, 
      */
     corrected_page_size = r->page_size;
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
-    r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
+    /* TODO: Temporary hack to ensure we don't run out of space when rewriting deltas. */
+    r->disk_img_buf_size = F_ISSET(r, WT_REC_REWRITE_DELTA) ?
+      2 * WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize) :
+      WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
 
     /* Initialize the first split chunk. */
     WT_RET(__rec_split_chunk_init(session, r, &r->chunk_A));
