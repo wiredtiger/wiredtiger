@@ -512,7 +512,9 @@ __wti_page_reconstruct_deltas(
                 }
 
                 WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta);
-            } else if (ret != EBUSY)
+            } else if (ret == EBUSY)
+                WT_STAT_CONN_DSRC_INCR(session, cache_read_flatten_leaf_delta_fail_ebusy);
+            else
                 WT_RET(ret);
         }
         time_stop = __wt_clock(session);
