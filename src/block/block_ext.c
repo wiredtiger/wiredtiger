@@ -727,25 +727,30 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
         // if (!__block_first_srch(session, block->live.avail.off, size, estack))
         //     goto append;
         // ext = *estack[0];
-        // if (block->live.avail.max_size_to_head[0] != -1) {
-        //     printout_skiplist(block->live.avail.off, block->live.avail.max_size_to_head);
-        // }
-        // WT_ASSERT(session, block->live.avail.max_size_to_head[0] == -1);
-        // bool v1 = __block_first_srch(session, block->live.avail.off, size, estack);
+
         __block_first_srch_v2(
           session, block->live.avail.off, block->live.avail.max_size_to_head, size, &ext);
         bool v2 = ext != NULL;
-        // if (v1 != v2) {
-        //     printout_skiplist(block->live.avail.off, block->live.avail.max_size_to_head);
-        // }
+        if (!v2)
+            goto append;
+
+        // bool v1 = __block_first_srch(session, block->live.avail.off, size, estack);
+        // __block_first_srch_v2(
+        //   session, block->live.avail.off, block->live.avail.max_size_to_head, size, &ext1);
+        // bool v2 = ext1 != NULL;
         // WT_ASSERT(session, v1 == v2);
         // if (v1) {
         //     ext = *estack[0];
         //     WT_ASSERT(session, ext == ext1);
+        // } else {
+        //     goto append;
         // }
-        if (!v2) {
-            goto append;
-        }
+
+        // if (block->live.avail.max_size_to_head[0] != -1) {
+        //     printout_skiplist(block->live.avail.off, block->live.avail.max_size_to_head);
+        // }
+        // WT_ASSERT(session, block->live.avail.max_size_to_head[0] == -1);
+
         // if (!v2) {
         //     update_max_size(block->live.avail.off, block->live.avail.max_size_to_head, ext->off);
         //     __block_first_srch_v2(

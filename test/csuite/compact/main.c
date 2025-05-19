@@ -27,7 +27,7 @@
  */
 #include "test_util.h"
 
-#define NUM_RECORDS 300000
+#define NUM_RECORDS WT_MILLION
 // #define NUM_RECORDS 100 * WT_THOUSAND
 
 #define CHECKPOINT_NUM 3
