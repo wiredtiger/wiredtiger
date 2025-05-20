@@ -478,7 +478,7 @@ process if one of the tables is damaged. Currently, the verify operation is not 
 tiered tables and the history store file.
 
 @subsection util_verify_synopsis Synopsis
-`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] verify [-acSstu] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages ] [-v checkpoint-name] [uri]`
+`wt [-BLmRrSVv] [-C config] [-E secretkey ] [-h directory] verify [-acSstu] [-C checkpoint-name] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages ] [uri]`
 
 @subsection util_verify_options Options
 The following are command-specific options for the \c verify command:
@@ -486,6 +486,10 @@ The following are command-specific options for the \c verify command:
 \c -a
 Abort immediately if verify encounters a damaged table instead of continuing to
 verify the rest of the tables in the database.
+
+\c -C
+Verify only the specified checkpoint. If the checkpoint does not exist in any of
+the verified files, return an error.
 
 \c -c
 Continue to the next page after encountering error during verification.
@@ -512,9 +516,6 @@ Do not clear transaction IDs during verification.
 Display the application data when dumping with configuration \c dump_blocks
 or \c dump_page.
 
-\c -v
-Verify only the specified checkpoint. If the checkpoint does not exist in any of
-the verified files, return an error.
 
 <hr>
 @section util_write wt write
