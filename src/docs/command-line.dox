@@ -516,7 +516,6 @@ Do not clear transaction IDs during verification.
 Display the application data when dumping with configuration \c dump_blocks
 or \c dump_page.
 
-
 <hr>
 @section util_write wt write
 Write records to a table.
