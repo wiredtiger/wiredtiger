@@ -16,6 +16,8 @@ static bool __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HAN
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref);
 
+//#define PRINT 1
+
 /*
  * __evict_log_cache_stuck --
  *     Output log messages if the cache is stuck.
@@ -242,8 +244,8 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
       conn->evict_threads_min, conn->evict_threads_max, session_flags, __evict_thread_chk,
       __evict_thread_run, __evict_thread_stop));
 
-	WT_RET(__wt_cond_auto_alloc(
-			 session, "evict cond", 10 * WT_THOUSAND, WT_MILLION, &conn->evict_threads.wait_cond));
+//	WT_RET(__wt_cond_auto_alloc(
+//			 session, "evict cond", 10 * WT_THOUSAND, WT_MILLION, &conn->evict_threads.wait_cond));
 
 /*
  * Ensure the cache stuck timer is initialized when starting eviction.
@@ -694,6 +696,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
+	uint32_t tmp_evict_aggressive_score;
     uint64_t eviction_progress, oldest_id, prev_oldest_id;
     uint64_t time_now, time_prev;
     u_int loop;
@@ -741,7 +744,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
 		}
 
         if (!__evict_update_work(session)) {
-			__wt_cond_auto_wait(session, conn->evict_threads.wait_cond, false, NULL);
+			__wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
             break;
 		}
 
@@ -768,13 +771,17 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
          */
         if (eviction_progress == __wt_atomic_loadv64(&evict->eviction_progress)) {
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(evict, WT_EVICT_CACHE_HARD)) {
-                if (__wt_atomic_load32(&evict->evict_aggressive_score) < WT_EVICT_SCORE_MAX)
-                    (void)__wt_atomic_addv32(&evict->evict_aggressive_score, 1);
+                if ((tmp_evict_aggressive_score =__wt_atomic_load32(&evict->evict_aggressive_score))
+					< WT_EVICT_SCORE_MAX)
+					WT_IGNORE_RET(__wt_atomic_cas32(&evict->evict_aggressive_score, tmp_evict_aggressive_score,
+													tmp_evict_aggressive_score + 1));
                 oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
                 if (prev_oldest_id == oldest_id &&
-                  __wt_atomic_loadv64(&txn_global->current) != oldest_id &&
-                  __wt_atomic_load32(&evict->evict_aggressive_score) < WT_EVICT_SCORE_MAX)
-                    (void)__wt_atomic_addv32(&evict->evict_aggressive_score, 1);
+					__wt_atomic_loadv64(&txn_global->current) != oldest_id &&
+					(tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score))
+					< WT_EVICT_SCORE_MAX)
+					WT_IGNORE_RET(__wt_atomic_cas32(&evict->evict_aggressive_score, tmp_evict_aggressive_score,
+													tmp_evict_aggressive_score + 1));
                 time_prev = time_now;
                 prev_oldest_id = oldest_id;
             }
@@ -796,8 +803,10 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
             __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "unable making slow progress");
             break;
         }
-        if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
-            (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
+        if ((tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score)) > 0) {
+			WT_IGNORE_RET(__wt_atomic_cas32(&evict->evict_aggressive_score, tmp_evict_aggressive_score,
+											tmp_evict_aggressive_score - 1));
+		}
         loop = 0;
         eviction_progress = __wt_atomic_loadv64(&evict->eviction_progress);
     }
@@ -1180,6 +1189,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
+	uint32_t tmp_evict_aggressive_score;
     uint64_t cache_max_wait_us, initial_progress, max_progress;
     uint64_t elapsed, time_start, time_stop;
     bool app_thread;
@@ -1236,8 +1246,9 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_evict_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
-                if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
-                    (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
+                if ((tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score)) > 0)
+					WT_IGNORE_RET(__wt_atomic_cas32(&evict->evict_aggressive_score, tmp_evict_aggressive_score,
+													tmp_evict_aggressive_score - 1));
                 WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
                 __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
                   session->txn->rollback_reason);
@@ -1311,8 +1322,10 @@ err:
          */
         if (ret == 0 && cache_max_wait_us != 0 && session->cache_wait_us > cache_max_wait_us) {
             ret = __wt_txn_rollback_required(session, WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW);
-            if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
-                (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
+            if ((tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score)) > 0) {
+				WT_IGNORE_RET(__wt_atomic_cas32(&evict->evict_aggressive_score, tmp_evict_aggressive_score,
+												tmp_evict_aggressive_score - 1));
+			}
             WT_STAT_CONN_INCR(session, eviction_timed_out_ops);
             __wt_verbose_notice(
               session, WT_VERB_TRANSACTION, "rollback reason: %s", session->txn->rollback_reason);
@@ -1646,7 +1659,7 @@ __evict_bucket_range(WT_SESSION_IMPL *session, WT_EVICT_BUCKET *bucket,
 void
 __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 {
-    WT_PAGE *page, *iter_page;
+    WT_PAGE *page;
     WT_REF_STATE previous_state;
 	WT_SPINLOCK *before, *after;
     bool must_unlock_ref;
@@ -1692,17 +1705,6 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 			   (void*)(page->evict_data.evict_q.tqe_next), (void*)(page->evict_data.evict_q.tqe_prev));
 		fflush(stdout);
 
-#define DEBUG_QUEUE
-#ifdef DEBUG_QUEUE
-		TAILQ_FOREACH (iter_page, &page->evict_data.bucket->evict_queue, evict_data.evict_q) {
-			if (iter_page == page) {
-				while(1) {
-					printf("page %p not removed by session %d\n", (void*)page, (int)session->id);
-					fflush(stdout);
-				}
-			}
-		}
-#endif
 		after = &page->evict_data.bucket->evict_queue_lock;
 
 #define SAME_LOCK_BUG
@@ -1862,7 +1864,7 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
  *    We use try lock for buckets and the page we are trying to move, so we don't worsen
  *    contention if it is already heavy.
  */
-#if 0
+#if 1
 static void
 __evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 							  WT_EVICT_BUCKET *bucket)
@@ -1932,6 +1934,7 @@ __evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
 	__wt_spin_unlock(session, &bucket->evict_queue_lock);
 }
 #endif
+
 /*
  * __wt_evict_enqueue_page --
  *     Put the page into the evict bucket corresponding to its read generation.
@@ -1972,8 +1975,8 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 	 * Help ordering the buckets by opportunistically moving pages to the right buckets if they
 	 * end up in a bucket that's too young for them.
 	 */
-	//__evict_help_organize_buckets(session, dhandle,
-	//							  __wt_atomic_load_pointer(&page->evict_data.bucket));
+	__evict_help_organize_buckets(session, dhandle,
+								  __wt_atomic_load_pointer(&page->evict_data.bucket));
 
     /*
      * Lock the page so it doesn't disappear. We aren't evicting the page, so we don't need to check
