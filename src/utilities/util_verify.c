@@ -128,7 +128,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         }
 
     if (dump_all_data && dump_key_data)
-        WT_RET_MSG(session_impl, ENOTSUP, "%s",
+        WT_ERR_MSG(session_impl, ENOTSUP, "%s",
           "-u (unredact all data), should not be set to true simultaneously with -k (unredact only "
           "keys)");
 
