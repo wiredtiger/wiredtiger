@@ -619,13 +619,31 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             continue;
         }
 
-        /* Ignore prepared updates if it is checkpoint. */
-        if (upd->prepare_state == WT_PREPARE_LOCKED ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        /*
+         * Only checkpoint should ever encounter resolving prepared transactions. If it does, then
+         * it needs to wait to see whether they should be included or not.
+         */
+        while (upd->prepare_state == WT_PREPARE_LOCKED) {
+            WT_ASSERT_ALWAYS(session, F_ISSET(r, WT_REC_CHECKPOINT),
+              "Eviction should never occur on a page that has resolving prepared records.");
+            /*
+             * TODO: This is horrible - it would be nice to figure it out and skip the record if
+             * that is safe. I'm not sure how to do that. If the transaction was prepared at a time
+             * that needs to be included in this checkpoint, but committed at a time that should be
+             * excluded (which it must be if we are here). How to know what needs to be included?
+             */
+            __wt_sleep(0, 100);
+        }
+
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT_ALWAYS(session,
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
-            if (F_ISSET(r, WT_REC_CHECKPOINT)) {
+            /*
+             * Don't save the record if it's prepare time is greater than the checkpoint timestamp.
+             */
+            if (F_ISSET(r, WT_REC_CHECKPOINT) &&
+              upd->start_ts > S2C(session)->txn_global.checkpoint_timestamp) {
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
                 seen_prepare = true;
@@ -639,7 +657,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                  * back to the data store later. Otherwise, it removes the key.
                  */
                 WT_ASSERT_ALWAYS(session,
-                  F_ISSET(r, WT_REC_EVICT) ||
+                  F_ISSET(r, WT_REC_CHECKPOINT) || F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                       F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
                   "Should never salvage a prepared update not from disk.");
