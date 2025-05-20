@@ -124,6 +124,12 @@ __wt_cursor_prepared_txn_open(WT_SESSION_IMPL *session, const char *uri, WT_CURS
     WT_UNUSED(other);
     WT_UNUSED(cfg);
 
+    /*
+     * TODO: This should acquire a prepared transaction discovery lock RW lock in write mode.
+     * Any thread wanting to commit a prepared transaction should acquire that lock in read mode
+     * (or return an error).
+     * If the write lock is already held, this should exit immediately.
+     */
     WT_RET(__wt_calloc_one(session, &cursor_prepare));
     cursor = (WT_CURSOR *)cursor_prepare;
     *cursor = iface;
