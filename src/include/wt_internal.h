@@ -199,6 +199,8 @@ struct __wt_cursor_index;
 typedef struct __wt_cursor_index WT_CURSOR_INDEX;
 struct __wt_cursor_metadata;
 typedef struct __wt_cursor_metadata WT_CURSOR_METADATA;
+struct __wt_cursor_prepare_txn;
+typedef struct __wt_cursor_prepare_txn WT_CURSOR_PREPARE_TXN;
 struct __wt_cursor_stat;
 typedef struct __wt_cursor_stat WT_CURSOR_STAT;
 struct __wt_cursor_table;

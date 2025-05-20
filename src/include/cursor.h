@@ -103,6 +103,16 @@ struct __wt_cursor_backup {
     uint32_t flags;
 };
 
+struct __wt_cursor_prepare_txn {
+    WT_CURSOR iface;
+
+    size_t next; /* Cursor position */
+
+    uint64_t *list; /* List of prepared transactions available to be claimed. */
+    size_t list_allocated;
+    size_t list_next;
+};
+
 struct __wt_cursor_btree {
     WT_CURSOR iface;
 
