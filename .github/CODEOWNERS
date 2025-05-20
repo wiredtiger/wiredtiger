@@ -1,2 +1,3 @@
 # Entire team are code-owners for the time being
-* @wiredtiger/storage-engines
+# The bot account is here so we can autoassign and supress notifications
+* @svc-bot-sebb @wiredtiger/storage-engines
