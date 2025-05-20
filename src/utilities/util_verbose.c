@@ -47,7 +47,7 @@ __handle_progress_verbose(
     WT_UNUSED(handler);
     WT_UNUSED(session);
 
-    return (printf("\r\t%s %-20" PRIu64, operation, progress) < 0 ? EIO : 0);
+    return (printf("\r\t%s %-20" PRIu64 "\n", operation, progress) < 0 ? EIO : 0);
 }
 
 static WT_EVENT_HANDLER __event_handler_verbose = {

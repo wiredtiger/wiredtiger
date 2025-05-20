@@ -16,7 +16,11 @@ static int
 usage(void)
 {
     static const char *options[] = {"-a", "abort on error during verification of all tables", "-c",
-      "continue to the next page after encountering error during verification", "-d config",
+      "continue to the next page after encountering error during verification",
+      "-C checkpoint-name",
+      "verify only the specified checkpoint. If the checkpoint does not exist in any of "
+      "the verified files, return an error"
+      "-d config",
       "display underlying information during verification", "-S",
       "Treat any verification problem as an error by default"
       "-s",
@@ -25,15 +29,11 @@ usage(void)
       "display only the keys in the application data with configuration dump_blocks or dump_pages",
       "-u",
       "display all the application data when dumping with configuration dump_blocks or dump_pages",
-      "-v",
-      "verify only the specified checkpoint. If the checkpoint does not exist in any of "
-      "the verified files, return an error ",
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "verify [-ackSstu] [-d dump_address | dump_blocks | dump_layout | dump_tree_shape | "
-      "dump_offsets=#,# "
-      "| dump_pages] [-v checkpoint-name] [uri]",
+      "verify [-ackSstu] [-C checkpoint-name] [-d dump_address | dump_blocks | dump_layout | "
+      "dump_tree_shape | dump_offsets=#,# | dump_pages] [uri]",
       "options:", options);
 
     return (1);
@@ -58,9 +58,9 @@ verify_one(WT_SESSION *session, char *config, char *uri)
         return (ret);
     }
 
-    if (ret == 0)
+    if (ret == 0 && verbose)
         printf("%s - done\n", uri);
-    else
+    if (ret != 0)
         ret = util_err(session, ret, "session.verify: %s", uri);
 
     return (ret);
@@ -86,13 +86,16 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         strict = false;
     config = dump_offsets = uri = ckpt = NULL;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "acd:kSstuv:?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "aC:cd:kSstu?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
             break;
         case 'c':
             read_corrupt = true;
+            break;
+        case 'C':
+            ckpt = __wt_optarg;
             break;
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
@@ -129,9 +132,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             break;
         case 'u':
             dump_all_data = true;
-            break;
-        case 'v':
-            ckpt = __wt_optarg;
             break;
         case '?':
             usage();

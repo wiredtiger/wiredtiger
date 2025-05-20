@@ -228,10 +228,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Check configuration strings. */
     WT_ERR(__verify_config(session, cfg, vs));
-    WT_RET(__wt_config_gets(session, cfg, "checkpoint", &cfg_ckpt));
-    WT_RET(__wt_config_gets(session, cfg, "dump_offsets", &cfg_dump_offsets));
+    WT_ERR(__wt_config_gets(session, cfg, "checkpoint", &cfg_ckpt));
+    WT_ERR(__wt_config_gets(session, cfg, "dump_offsets", &cfg_dump_offsets));
     if (cfg_dump_offsets.len > 0 && cfg_ckpt.len > 0) {
-        WT_RET_MSG(
+        WT_ERR_MSG(
           session, ENOTSUP, "Providing both \'checkpoint\' and \'dump_offsets\' is not supported");
     }
 

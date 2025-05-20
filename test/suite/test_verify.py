@@ -120,18 +120,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(offset)
         return fp
 
-    def check_output_tables(self, outfile, expected_tables):
-        """
-        Check that only expected tables were verified.
-        """
-        expected_tables = ['table:' + table + ' - done\n' for table in expected_tables]
-
-        with open(outfile, 'r') as f:
-            got_lines = f.readlines()
-            self.assertEqual(sorted(got_lines), sorted(expected_tables), outfile +
-                             ': does not match expected:\n\'' + "\n".join(expected_tables) +
-                             '\', but contains:\n\'' + "\n".join(got_lines) + '\'.')
-
     def extract_checkpoint_names(self, tablename):
         metafile = "metadata.out"
         self.runWt(["list", "-v"], outfilename=metafile)
@@ -167,8 +155,9 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         """
         self.session.create('table:' + self.tablename, self.params)
         # Run verify with an empty table
-        self.runWt(["verify", "table:" + self.tablename], outfilename=self.outfile)
-        self.check_output_tables(self.outfile, [self.tablename])
+        self.runWt(["-v", "verify", "table:" + self.tablename], outfilename=self.outfile)
+        self.assertEqual(self.count_file_contains(self.outfile,
+            "table:" + self.tablename + " - done"), 1)
 
     def test_verify_process(self):
         """
@@ -176,8 +165,9 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         """
         self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
-        self.runWt(["verify", "table:" + self.tablename], outfilename=self.outfile)
-        self.check_output_tables(self.outfile, [self.tablename])
+        self.runWt(["-v", "verify", "table:" + self.tablename], outfilename=self.outfile)
+        self.assertEqual(self.count_file_contains(self.outfile,
+            "table:" + self.tablename + " - done"), 1)
 
     def test_verify_api_empty(self):
         """
@@ -394,8 +384,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
             self.populate(self.tablename + str(i))
         self.session.checkpoint()
 
-        self.runWt(["verify"], outfilename=self.outfile)
-        self.check_output_tables(self.outfile, [self.tablename + str(i) for i in range(ntables)])
+        self.runWt(["-v", "verify"], outfilename=self.outfile)
+        for i in range(ntables):
+            self.assertEqual(self.count_file_contains(self.outfile,
+                "table:" +  self.tablename + str(i) + " - done"), 1)
 
         # Purposely corrupt the last two tables. Test that verifying the database
         # with the abort option stops after seeing the first corrupted table.
@@ -404,9 +396,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
                 for i in range(0, 4096):
                     f.write(struct.pack('B', 0))
 
-        self.runWt(["-p", "verify", "-a"], outfilename=self.outfile, errfilename="verifyerr.out",
-                   failure=True)
-        self.check_output_tables(self.outfile, ["test_verify.a0"])
+        self.runWt(["-v", "-p", "verify", "-a"], outfilename=self.outfile,
+            errfilename="verifyerr.out", failure=True)
+
+        self.assertEqual(self.count_file_contains(self.outfile, "table:test_verify.a0 - done"), 1)
         self.assertEqual(self.count_file_contains("verifyerr.out",
             "table:test_verify.a1: WT_ERROR"), 1)
         self.assertEqual(self.count_file_contains("verifyerr.out",
@@ -429,10 +422,13 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + tables[-1], self.params)
         self.populate(tables[-1])
 
-        self.runWt(["verify", "-v", ckptname], outfilename=self.outfile)
+        self.runWt(["-v", "verify", "-C", ckptname], outfilename=self.outfile)
 
         # The last table shouldn't be verified since it doesn't contain the specified checkpoint
-        self.check_output_tables(self.outfile, tables[: -1])
+        for tablename in tables[: -1]:
+            self.assertEqual(self.count_file_contains(self.outfile,
+                "table:" + tablename + " - done") , 1)
+        self.check_file_not_contains(self.outfile, "table:" + tables[-1] + " - done")
 
     def test_verify_missing_ckpt(self):
         """
@@ -442,7 +438,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
 
-        self.runWt(["verify", "-v", "NonexistentCkpt"], errfilename=self.errfile, failure=True)
+        self.runWt(["-v", "verify", "-C", "NonexistentCkpt"],
+            errfilename=self.errfile, failure=True)
 
     def test_verify_wt_ckpt(self):
         """
@@ -456,5 +453,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         wt_checkpoints = self.extract_checkpoint_names(self.tablename)
         self.assertNotEqual([], wt_checkpoints)
 
-        self.runWt(["verify", "-v", wt_checkpoints[0]], outfilename=self.outfile)
-        self.check_output_tables(self.outfile, [self.tablename])
+        self.runWt(["-v", "verify", "-C", wt_checkpoints[0]], outfilename=self.outfile)
+        self.assertEqual(self.count_file_contains(self.outfile,
+            "table:" + self.tablename + " - done"), 1)
