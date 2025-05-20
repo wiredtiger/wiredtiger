@@ -870,6 +870,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     WT_DECL_RET;
     WT_EVICT *evict;
     uint32_t flags;
+    
     bool closing, is_application_thread_snapshot_refreshed, is_eviction_thread,
       use_snapshot_for_app_thread;
 
@@ -914,12 +915,22 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * Scrub and we're supposed to or toss it in sometimes if we are in debugging mode.
          *
          * Note that don't scrub if checkpoint is running on the tree.
+         * 
+         * Scrub only if the page is under the clean eviction target or the page has high read generation.
          */
+        uint64_t bytes_inuse = __wt_cache_bytes_inuse(conn->cache);
+        uint64_t bytes_max = conn->cache_size + 1;
+        WT_PAGE *page = ref->page;
+
         if (!WT_SESSION_BTREE_SYNC(session) &&
           (F_ISSET(evict, WT_EVICT_CACHE_SCRUB) ||
             (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
-              __wt_random(&session->rnd_random) % 3 == 0)))
-            LF_SET(WT_REC_SCRUB);
+              __wt_random(&session->rnd_random) % 3 == 0))) {
+                if (bytes_inuse <= (uint64_t)(evict->eviction_target * bytes_max) / 100 || 
+                    page->read_gen > evict->read_gen) {
+                        LF_SET(WT_REC_SCRUB);
+                }
+              }
     }
 
     /*
