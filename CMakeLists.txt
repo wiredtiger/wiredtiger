@@ -229,6 +229,7 @@ if(ENABLE_STATIC)
             PRIVATE_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
         )
     endif()
+    target_link_libraries(wiredtiger_shared PRIVATE m)
 endif()
 
 if(ENABLE_SHARED)
@@ -239,7 +240,7 @@ if(ENABLE_SHARED)
     )
     # Set the SOVERSION property of the wiredtiger library, so we can export the appropriately versioned symlinks.
     set_target_properties(wiredtiger_shared PROPERTIES SOVERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
-
+    target_link_libraries(wiredtiger_shared PRIVATE m)
     setup_gdb_autoloader()
 
     # For MacOS builds we need to generate a dSYM bundle that contains the debug symbols for the 
