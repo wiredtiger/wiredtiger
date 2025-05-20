@@ -61,8 +61,10 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     page = *pagep;
     *pagep = NULL;
 
+#if EVICT_DEBUG_PRINT
 	printf("DISCARDING PAGE %p\n", (void*)page);
 	fflush(stdout);
+#endif
 
     /*
      * Unless we have a dead handle or we're closing the database, we should never discard a dirty

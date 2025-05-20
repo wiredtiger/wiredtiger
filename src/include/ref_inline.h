@@ -87,13 +87,7 @@ __ref_track_state(
 
 static WT_INLINE void
 __wt_ref_make_visible(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref) {
-	printf("session %d BEFORE make_visible for page %p, bucket %p\n", (int)session->id,
-		   (void*)ref->page, (void*)ref->page->evict_data.bucket);
-	fflush(stdout);
 	__wt_evict_touch_page(session, dhandle, ref, false, false);
-	printf("session %d AFTER make_visible for page %p, bucket %p\n", (int)session->id,
-		   (void*)ref->page, (void*)ref->page->evict_data.bucket);
-	fflush(stdout);
 	/*
 	 * It is absolutely essential that we reset the owner before making the page
 	 * visible. Failing to do so will lead to bad race conditions where the

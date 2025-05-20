@@ -210,10 +210,12 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
 		WT_ASSERT(session,
 				  (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
 				   && WT_REF_OWNER(ref) == (uint64_t)session));
+#if EVICT_DEBUG_PRINT
 		printf("to evict page %p read_gen %llu from bucket %d by session %d\n",
 			   (void*)ref->page, ref->page->evict_data.read_gen,
 			   (int)ref->page->evict_data.bucket->id, session->id);
 		fflush(stdout);
+#endif
         __wt_evict_remove(session, ref, false);
 
 		WT_ERR_FUNC("evict_exclusive", __evict_exclusive(session, ref));
@@ -297,9 +299,11 @@ err:
             __wt_atomic_storebool(&ref->page->evict_data.evict_skip, true);
 
 			if (WT_EVICT_PAGE_CLEARED(page)) {
+#if EVICT_DEBUG_PRINT
 				printf("EVICTION FAILED ON page %p by session %d. Current bucket is %p PUT BACK, previous state is %d\n",
 					   (void*)ref->page, session->id, (void*)ref->page->evict_data.bucket, previous_state);
 				fflush(stdout);
+#endif
 				/* Put the page back into the list it belongs */
 				__wt_evict_enqueue_page(session, session->dhandle, ref, false);
 				/* Release the page */

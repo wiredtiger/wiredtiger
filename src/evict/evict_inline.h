@@ -8,6 +8,8 @@
 
 #pragma once
 
+#define EVICT_DEBUG_PRINT 0
+
 /*
  * __wt_ref_assign_page --
  *     Must be called every time we associate a new page with a ref. A page must have a back pointer
@@ -87,7 +89,9 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
 	target = (double)read_gen;
 
 	n = ceil(log(1 - (target / e1) * (1 - c)) / log(c));
+#if EVICT_DEBUG_PRINT
 	printf("e1 = %.2f, c =  %.2f, target =  %.2f, n =  %.2f\n", e1, c, target, n);
+#endif
 
 	/*
 	 * This can happen if we fail to renumber the buckets for a very long time -- i.e.,
@@ -111,10 +115,11 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
 		blast_value =
 			((int)session->id % WT_EVICT_BLAST_RADIUS) * (((int)session->id % 2 == 0) ? 1 : (-1));
 	}
+#if EVICT_DEBUG_PRINT
 	printf("read_gen = %llu, unblasted bucket is %lld, bv is %lld (blast is %s), session %d, blast radius %d\n",
 		   read_gen, (int64_t)n, blast_value, blast?"true":"false", (int)session->id, WT_EVICT_BLAST_RADIUS);
 	fflush(stdout);
-
+#endif
 	return (uint64_t)WT_MAX(0, ((int64_t)n + blast_value));
 }
 
@@ -232,9 +237,11 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
 
 	if ((int64_t)cur_bucket_id >= WT_MAX(0, (int64_t)new_bucket_id - WT_EVICT_BLAST_RADIUS) &&
 		cur_bucket_id <=  new_bucket_id + WT_EVICT_BLAST_RADIUS) {
+#if EVICT_DEBUG_PRINT
 		printf("read_gen %llu, current bucket = %d, new bucket = %d, no need to move\n", read_gen,
 			   (int)cur_bucket_id, (int)new_bucket_id);
 		fflush(stdout);
+#endif
 		return false;
 	}
 	return true;

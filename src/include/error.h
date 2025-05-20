@@ -51,8 +51,6 @@
 #define WT_ERR_FUNC(func, a)					\
 	do {										\
 	if ((ret = (a)) != 0)	{								\
-	printf("GOT ERROR at FUNC %s\n", func);					\
-	fflush(stdout);											\
 	goto err;												\
 	}}														\
 	while(0)
