@@ -254,9 +254,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         if (!F_ISSET(txn, WT_READ_VISIBLE_ALL))
             LF_SET(WT_READ_VISIBLE_ALL);
 
+        // XXX
+        __wt_session_gen_enter(session, WT_GEN_SPLIT);
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-            WT_ERR(__wt_tree_walk_custom_skip(session, &walk, NULL, NULL, flags));
+            WT_ERR(__wt_tree_walk_custom_skip(
+              session, &walk, NULL, NULL, flags | WT_READ_NO_PAGE_RELEASE));
 
             if (walk == NULL)
                 break;
@@ -268,6 +272,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_internal);
             else
                 WT_STAT_CONN_INCR(session, checkpoint_pages_visited_leaf);
+
+            /*
+             * Wait for the leaf pages to finish reconciling before checking whether the internal
+             * page is dirty, as reconciling the leaf pages could have made the internal page dirty.
+             */
+            if (WT_SESSION_IS_CHECKPOINT(session) && is_internal)
+                WT_ERR(__wt_checkpoint_reconcile_finish(session));
 
             /*
              * Check if the page is dirty. Add a barrier between the check and taking a reference to
@@ -285,6 +296,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
 
+                WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
 
@@ -295,6 +307,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              */
             if (__sync_checkpoint_can_skip(session, walk)) {
                 __wt_tree_modify_set(session);
+                WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
 
@@ -334,6 +347,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 walk = prev;
                 prev = NULL;
                 tried_eviction = true;
+                WT_ERR(__wt_page_release(session, walk, flags));
                 continue;
             }
             tried_eviction = false;
@@ -344,7 +358,14 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (FLD_ISSET(rec_flags, WT_REC_HS))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
 
-            WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+            /* Reconcile leaf pages in parallel, waiting at each internal page. */
+            if (WT_SESSION_IS_CHECKPOINT(session) && !is_internal)
+                WT_ERR(__wt_checkpoint_reconcile_push_page(session, walk, rec_flags, flags));
+            else {
+                /* It's not an error if we make no progress. */
+                WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
+                WT_ERR(__wt_page_release(session, walk, flags));
+            }
 
             /*
              * Update checkpoint IO tracking data if configured to log verbose progress messages.
@@ -358,6 +379,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     __wt_checkpoint_progress(session, false);
             }
         }
+
+        /* Wait for the workers to finish; we need this if the root page is also a leaf page. */
+        if (WT_SESSION_IS_CHECKPOINT(session))
+            WT_ERR(__wt_checkpoint_reconcile_finish(session));
+
+        // XXX
+        __wt_session_gen_leave(session, WT_GEN_SPLIT);
 
         /*
          * During normal checkpoints, mark the tree dirty if the btree has modifications that are

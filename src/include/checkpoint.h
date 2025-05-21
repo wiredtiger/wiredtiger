@@ -41,3 +41,44 @@ struct __wt_checkpoint_cleanup {
     WT_CONDVAR *cond;         /* checkpoint cleanup wait mutex */
     uint64_t interval;        /* Checkpoint cleanup interval */
 };
+
+/*
+ * WT_CHECKPOINT_PAGE_TO_RECONCILE --
+ *     A work item for reconciling a page.
+ */
+struct __wt_checkpoint_page_to_reconcile {
+    TAILQ_ENTRY(__wt_checkpoint_page_to_reconcile) q; /* Worker unit queue */
+
+    WT_DATA_HANDLE *dhandle;
+    // WT_TXN_ISOLATION isolation;
+    WT_TXN_SNAPSHOT *snapshot;
+
+    WT_REF *ref;
+    uint32_t reconcile_flags;
+    uint32_t release_flags;
+
+    int ret; /* Result - will be filled out later. */
+};
+
+// XXX
+#include <semaphore.h>
+
+/*
+ * WT_CHECKPOINT_RECONCILE_THREADS --
+ *     Information about threads for parallel page reconciliation during a checkpoint.
+ */
+struct __wt_checkpoint_reconcile_threads {
+    WT_THREAD_GROUP thread_group;
+    uint32_t num_threads;
+
+    TAILQ_HEAD(__wt_checkpoint_reconcile_work_qh, __wt_checkpoint_page_to_reconcile) work_qh;
+    WT_CONDVAR *work_cond; /* Signal that work is available. */
+    WT_SPINLOCK work_lock;
+    wt_shared uint64_t work_pushed;
+    sem_t work_sem;
+
+    TAILQ_HEAD(__wt_checkpoint_reconcile_done_qh, __wt_checkpoint_page_to_reconcile) done_qh;
+    WT_CONDVAR *done_cond; /* Signal that the work is done (not just that the queue has stuff). */
+    WT_SPINLOCK done_lock;
+    wt_shared uint64_t done_pushed;
+};

@@ -535,7 +535,9 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* If a sync is running, no other sessions can allocate blocks. */
-    WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
+    // XXX CKPT
+    WT_ASSERT(session,
+      WT_SESSION_IS_CHECKPOINT(session) || WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
 
     /* Assert we're maintaining the by-size skiplist. */
     WT_ASSERT(session, block->live.avail.track_size != 0);
@@ -665,7 +667,9 @@ __wti_block_off_free(
         WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
     /* If a sync is running, no other sessions can free blocks. */
-    WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
+    // XXX CKPT
+    WT_ASSERT(session,
+      WT_SESSION_IS_CHECKPOINT(session) || WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
 
     /* We can't reuse free space in an object. */
     if (objectid != block->objectid)

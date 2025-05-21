@@ -101,9 +101,11 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wt_chunkcache_teardown(session));
     WT_TRET(__wti_chunkcache_metadata_destroy(session));
     WT_TRET(__wti_prefetch_destroy(session));
+    WT_TRET(__wt_checkpoint_reconcile_thread_destroy(session));
 
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_destroy(session));
+
     /* The capacity server can only be shut down after all I/O is complete. */
     WT_TRET(__wti_capacity_server_destroy(session));
 
@@ -238,6 +240,12 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Initialize the page history tracker. */
     WT_RET(__wti_conn_page_history_config(session, cfg, false));
+
+    /*
+     * Start the checkpoint page reconciliation threads. This must be done before any metadata
+     * operations, because they often require checkpoints.
+     */
+    WT_RET(__wt_checkpoint_reconcile_thread_create(session));
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
