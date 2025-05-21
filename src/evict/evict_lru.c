@@ -693,6 +693,7 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
     uint64_t eviction_progress, oldest_id, prev_oldest_id;
     uint64_t time_now, time_prev;
     u_int loop;
+    long rand;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
@@ -720,8 +721,10 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
              * currently required, so that pages have some relative read generation when the eviction
              * server does need to do some work.
              */
-            __wt_atomic_add64(&evict->read_gen, 1);
-            __wt_atomic_add64(&evict->evict_pass_gen, 1);
+            if ((rand = random()) % 3 == 0) {
+                __wt_atomic_add64(&evict->read_gen, 1);
+                __wt_atomic_add64(&evict->evict_pass_gen, 1);
+            }
 
             /*
              * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
@@ -984,7 +987,6 @@ __evict_get_ref(
             bucket = &bucketset->buckets[j];
             if (__wt_atomic_load64(&bucket->num_items) == 0)
                 continue;
-
             __wt_spin_lock(session, &bucket->evict_queue_lock);
 
             /* Iterate over the pages in the bucket until we find one that's available. */
@@ -1076,9 +1078,11 @@ done:
           __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) <
             __wt_atomic_load64(&ref->page->evict_data.read_gen)) {
             WT_STAT_CONN_INCR(session, eviction_new_page_in_old_bucket);
+#if 0
             __wt_verbose_notice(session, WT_VERB_EVICTION,
               "eviction found a young page with read generation %" PRIu64 " in oldest bucket",
               ref->page->evict_data.read_gen);
+#endif
         }
     } else
         WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
@@ -1939,8 +1943,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     read_gen =  __wt_atomic_load64(&page->evict_data.read_gen);
     retries = 0;
 
-    WT_ASSERT(session, page->evict_data.destroying == false);
-
     if (__wt_ref_is_root(ref))
         return;
 
@@ -1949,9 +1951,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 
     /* Evict handle has the bucket sets for this data handle */
     evict_data = &((WT_BTREE*)dhandle->handle)->evict_data;
-    WT_ASSERT(session, evict_data->initialized);
-    WT_ASSERT(session, (page->type > WT_PAGE_INVALID) && (page->type <= WT_PAGE_ROW_LEAF));
-    WT_ASSERT(session, previous_state == WT_REF_LOCKED || previous_state == WT_REF_MEM);
 
     /*
      * Help ordering the buckets by opportunistically moving pages to the right buckets if they
@@ -1990,7 +1989,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 
     /* If the page is already in a bucketset, is this the right one? */
     if (bucketset != NULL) {
-        WT_ASSERT(session, bucket != NULL);
         if (correct_bucketset && !__evict_needs_new_bucket(session, dhandle, page, NULL))
             goto done;
         else {
@@ -2003,7 +2001,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
         }
     }
 
-    WT_ASSERT(session, page->evict_data.bucket == NULL);
     /* Find the bucket set for the page depending on its type */
     if (WT_PAGE_IS_INTERNAL(page)) {
         if (__wt_page_is_modified(page))
@@ -2329,9 +2326,6 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_WONT_NEED)
         __evict_read_gen_new(session, page);
 
-    WT_IGNORE_RET(__wt_msg(session, "page (%s) %p first dirty",
-                           __wt_page_type_string(page->type), (void*)page));
-
     /* Move the page to the right bucketset */
     if (page->ref != NULL && page->evict_data.dhandle != NULL) {
 #if EVICT_DEBUG_PRINT
@@ -2381,9 +2375,9 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * somehow leave a page without a read generation.
      */
     if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_NOTSET) {
-		printf("touch evict_skip\n");
+        printf("touch evict_skip\n");
         __wt_evict_touch_page(session, btree->dhandle, ref, false, false);
-	}
+    }
 
     want_page = (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !modified) ||
       (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||

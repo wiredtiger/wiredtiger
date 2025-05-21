@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -19,7 +19,7 @@ static WT_INLINE void
 __wt_ref_assign_page(WT_REF *ref, WT_PAGE *page)
 {
     ref->page = page;
-	page->ref = ref;
+    page->ref = ref;
 }
 
 /* !!!
@@ -78,49 +78,49 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
  */
 static WT_INLINE uint64_t
 __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t first_bucket,
-							bool blast)
+                            bool blast)
 {
-	double e1, target, c, n;
-	int64_t blast_value;
+    double e1, target, c, n;
+    int64_t blast_value;
 
-	blast_value = 0;
-	c = WT_EVICT_COMMON_RATIO;
-	e1 = (double) first_bucket;
-	target = (double)read_gen;
+    blast_value = 0;
+    c = WT_EVICT_COMMON_RATIO;
+    e1 = (double) first_bucket;
+    target = (double)read_gen;
 
-	n = ceil(log(1 - (target / e1) * (1 - c)) / log(c));
+    n = ceil(log(1 - (target / e1) * (1 - c)) / log(c));
 #if EVICT_DEBUG_PRINT
-	printf("e1 = %.2f, c =  %.2f, target =  %.2f, n =  %.2f\n", e1, c, target, n);
+    printf("e1 = %.2f, c =  %.2f, target =  %.2f, n =  %.2f\n", e1, c, target, n);
 #endif
 
-	/*
-	 * This can happen if we fail to renumber the buckets for a very long time -- i.e.,
-	 * the read generation is too large to find a valid bucket within this diminishing
-	 * geometric sequence. This shouldn't happen, but we have a safeguard here to set us
-	 * back on track. Returning the largest bucket value will force the caller to renumber
-	 * the buckets.
-	 */
-	if (isnan(n))
-		return WT_EVICT_NUM_BUCKETS;
+    /*
+     * This can happen if we fail to renumber the buckets for a very long time -- i.e.,
+     * the read generation is too large to find a valid bucket within this diminishing
+     * geometric sequence. This shouldn't happen, but we have a safeguard here to set us
+     * back on track. Returning the largest bucket value will force the caller to renumber
+     * the buckets.
+     */
+    if (isnan(n))
+        return WT_EVICT_NUM_BUCKETS;
 
-	if (blast) {
-		/*
-		 * Read generations tend to cluster together, so during each given time window all pages
-		 * go into the same bucket. To prevent this (and hence avoid bucket contention), we add
-		 * or subtract a small delta from the computed bucket. We "blast" the page away from the
-		 * mathematically computed bucket. The delta correlates with the session id,
-		 * so same session is likely to land in the same bucket during each small time window.
-		 * If the session has an odd id, we subtract, if it has an even id we add.
-		 */
-		blast_value =
-			((int)session->id % WT_EVICT_BLAST_RADIUS) * (((int)session->id % 2 == 0) ? 1 : (-1));
-	}
+    if (blast) {
+        /*
+         * Read generations tend to cluster together, so during each given time window all pages
+         * go into the same bucket. To prevent this (and hence avoid bucket contention), we add
+         * or subtract a small delta from the computed bucket. We "blast" the page away from the
+         * mathematically computed bucket. The delta correlates with the session id,
+         * so same session is likely to land in the same bucket during each small time window.
+         * If the session has an odd id, we subtract, if it has an even id we add.
+         */
+        blast_value =
+            ((int)session->id % (WT_EVICT_BLAST_RADIUS + 1)) * (((int)session->id % 2 == 0) ? 1 : (-1));
+    }
 #if EVICT_DEBUG_PRINT
-	printf("read_gen = %llu, unblasted bucket is %lld, bv is %lld (blast is %s), session %d, blast radius %d\n",
-		   read_gen, (int64_t)n, blast_value, blast?"true":"false", (int)session->id, WT_EVICT_BLAST_RADIUS);
-	fflush(stdout);
+    printf("read_gen = %llu, unblasted bucket is %lld, bv is %lld (blast is %s), session %d, blast radius %d\n",
+           read_gen, (int64_t)n, blast_value, blast?"true":"false", (int)session->id, WT_EVICT_BLAST_RADIUS);
+    fflush(stdout);
 #endif
-	return (uint64_t)WT_MAX(0, ((int64_t)n + blast_value));
+    return (uint64_t)WT_MAX(0, ((int64_t)n + blast_value));
 }
 
 /*
@@ -128,7 +128,7 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
  *      Compute the sum of the first elements of a geometric progression given the first element
  *      and the common ratio. Used to calculate the range of read generations for eviction buckets.
  *
- * 	    The sum of the first N elements in the progression is:
+ *      The sum of the first N elements in the progression is:
  *
  *      S_n = e1 * (1 - c ^ n) / (1 - c)
  *
@@ -138,7 +138,7 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
 static WT_INLINE uint64_t
 __evict_geo_sum(uint64_t e1, uint64_t n, double c)
 {
-	return (uint64_t)((double)e1 * (1.0 - pow(c, (double)n)) / (1.0 - c));
+    return (uint64_t)((double)e1 * (1.0 - pow(c, (double)n)) / (1.0 - c));
 }
 
 /*
@@ -147,61 +147,61 @@ __evict_geo_sum(uint64_t e1, uint64_t n, double c)
  */
 static WT_INLINE bool
 __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
-						   WT_EVICT_BUCKETSET **bucketset, int *bucketset_level)
+                           WT_EVICT_BUCKETSET **bucketset, int *bucketset_level)
 {
-	WT_EVICT_BUCKET *bucket;
-	WT_EVICT_HANDLE_DATA *evict_handle_data;
-	bool correct_bucketset;
+    WT_EVICT_BUCKET *bucket;
+    WT_EVICT_HANDLE_DATA *evict_handle_data;
+    bool correct_bucketset;
 
-	*bucketset = NULL;
-	*bucketset_level = 0;
-	correct_bucketset = false;
+    *bucketset = NULL;
+    *bucketset_level = 0;
+    correct_bucketset = false;
 
-	if (!WT_DHANDLE_BTREE(dhandle)) {
+    if (!WT_DHANDLE_BTREE(dhandle)) {
 #ifdef HAVE_DIAGNOSTIC
-		WT_IGNORE_RET(__wt_msg(session,
-		  "page (%s) %p: dhandle is not btree, should not be in eviction",
-							   __wt_page_type_string(page->type), (void*)page));
+        WT_IGNORE_RET(__wt_msg(session,
+          "page (%s) %p: dhandle is not btree, should not be in eviction",
+                               __wt_page_type_string(page->type), (void*)page));
 #endif
-		return false;
-	}
-	evict_handle_data = &((WT_BTREE*)dhandle->handle)->evict_data;
-	if (!evict_handle_data->initialized) {
+        return false;
+    }
+    evict_handle_data = &((WT_BTREE*)dhandle->handle)->evict_data;
+    if (!evict_handle_data->initialized) {
 #ifdef HAVE_DIAGNOSTIC
-		WT_IGNORE_RET(__wt_msg(session,
-							   "page (%s) %p: dhandle evict data is not initialized",
-							   __wt_page_type_string(page->type), (void*)page));
+        WT_IGNORE_RET(__wt_msg(session,
+                               "page (%s) %p: dhandle evict data is not initialized",
+                               __wt_page_type_string(page->type), (void*)page));
 #endif
-		return false;
-	}
+        return false;
+    }
 
-	bucket = __wt_atomic_load_pointer(&page->evict_data.bucket);
-	if (bucket == NULL)
-		return false;
+    bucket = __wt_atomic_load_pointer(&page->evict_data.bucket);
+    if (bucket == NULL)
+        return false;
 
-	*bucketset =  WT_BUCKET_TO_BUCKETSET(bucket);
+    *bucketset =  WT_BUCKET_TO_BUCKETSET(bucket);
 
-	if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset) {
-		*bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-		if (!WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
-			correct_bucketset = true;
-	}
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == *bucketset) {
-		*bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
-		if (WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
-			correct_bucketset = true;
-	}
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == *bucketset) {
-		*bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
-		if (!WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
-			correct_bucketset = true;
-	}
-	else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == *bucketset) {
-		*bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
-		if (WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
-			correct_bucketset = true;
-	}
-	return correct_bucketset;
+    if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset) {
+        *bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
+        if (!WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
+            correct_bucketset = true;
+    }
+    else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == *bucketset) {
+        *bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
+        if (WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
+            correct_bucketset = true;
+    }
+    else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == *bucketset) {
+        *bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
+        if (!WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
+            correct_bucketset = true;
+    }
+    else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == *bucketset) {
+        *bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
+        if (WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
+            correct_bucketset = true;
+    }
+    return correct_bucketset;
 }
 
 /*
@@ -210,41 +210,41 @@ __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT
  */
 static WT_INLINE bool
 __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
-						 uint64_t *ret_id)
+                         uint64_t *ret_id)
 {
-	WT_EVICT_BUCKETSET *bucketset;
-	int bucketset_level;
-	uint64_t cur_bucket_id, new_bucket_id, read_gen;
+    WT_EVICT_BUCKETSET *bucketset;
+    int bucketset_level;
+    uint64_t cur_bucket_id, new_bucket_id, read_gen;
 
-	if (page == NULL)
-		return false;
+    if (page == NULL)
+        return false;
 
-	if (__wt_atomic_load_pointer(&page->evict_data.bucket) == NULL)
-		return true;
+    if (__wt_atomic_load_pointer(&page->evict_data.bucket) == NULL)
+        return true;
 
-	read_gen = __wt_atomic_load64(&page->evict_data.read_gen);
-	cur_bucket_id = __wt_atomic_load64(&page->evict_data.bucket->id);
-	if (__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level) == false)
-		return true;
+    read_gen = __wt_atomic_load64(&page->evict_data.read_gen);
+    cur_bucket_id = __wt_atomic_load64(&page->evict_data.bucket->id);
+    if (__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level) == false)
+        return true;
 
-	new_bucket_id = __evict_destination_bucket(session, read_gen,
-								__wt_atomic_load64(&bucketset->lowest_bucket_upper_range), false);
-	if (ret_id != NULL)
-		*ret_id = new_bucket_id;
+    new_bucket_id = __evict_destination_bucket(session, read_gen,
+                                __wt_atomic_load64(&bucketset->lowest_bucket_upper_range), false);
+    if (ret_id != NULL)
+        *ret_id = new_bucket_id;
 
-	if (new_bucket_id >= WT_EVICT_NUM_BUCKETS)
-		return true;
+    if (new_bucket_id >= WT_EVICT_NUM_BUCKETS)
+        return true;
 
-	if ((int64_t)cur_bucket_id >= WT_MAX(0, (int64_t)new_bucket_id - WT_EVICT_BLAST_RADIUS) &&
-		cur_bucket_id <=  new_bucket_id + WT_EVICT_BLAST_RADIUS) {
+    if ((int64_t)cur_bucket_id >= WT_MAX(0, (int64_t)new_bucket_id - WT_EVICT_BLAST_RADIUS) &&
+        cur_bucket_id <=  new_bucket_id + WT_EVICT_BLAST_RADIUS) {
 #if EVICT_DEBUG_PRINT
-		printf("read_gen %llu, current bucket = %d, new bucket = %d, no need to move\n", read_gen,
-			   (int)cur_bucket_id, (int)new_bucket_id);
-		fflush(stdout);
+        printf("read_gen %llu, current bucket = %d, new bucket = %d, no need to move\n", read_gen,
+               (int)cur_bucket_id, (int)new_bucket_id);
+        fflush(stdout);
 #endif
-		return false;
-	}
-	return true;
+        return false;
+    }
+    return true;
 }
 
 /*
@@ -264,6 +264,8 @@ __evict_read_gen(WT_SESSION_IMPL *session)
 static WT_INLINE void
 __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    static int times;
+
     /* Ignore pages set for forcible eviction. */
     if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_EVICT_SOON)
         return;
@@ -280,6 +282,8 @@ __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * avoid some number of updates immediately after each update we have to make.
      */
     __wt_atomic_store64(&page->evict_data.read_gen, __evict_read_gen(session) + WT_READGEN_STEP);
+    if (times++ % 1500000 == 0)
+        printf("read_gen = %" PRIu64 "\n", page->evict_data.read_gen);
 }
 
 /*
@@ -360,7 +364,7 @@ static WT_INLINE void
 __wt_evict_page_init(WT_PAGE *page, uint64_t evict_pass_gen)
 {
     __wt_atomic_store64(&page->evict_data.read_gen, WT_READGEN_NOTSET);
-	page->evict_data.cache_create_gen = evict_pass_gen;
+    page->evict_data.cache_create_gen = evict_pass_gen;
 }
 
 /* !!!

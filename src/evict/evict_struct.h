@@ -47,7 +47,7 @@
  *     more buckets, so there is less contention when incrementing current read generations.
  *     If we want to reduce contention for buckets even further, increase the number of buckets.
  */
-#define WT_EVICT_COMMON_RATIO 0.9
+#define WT_EVICT_COMMON_RATIO 0.95
 #define WT_EVICT_NUM_BUCKETS  50
 #define WT_EVICT_BUCKET_STARTING_RANGE 100 /* starting upper range for the first bucket */
 #define WT_EVICT_BLAST_RADIUS WT_EVICT_NUM_BUCKETS / 8
@@ -62,7 +62,7 @@ struct __wt_evict_bucket {
     WT_SPINLOCK evict_queue_lock;
     TAILQ_HEAD(__wt_evictbucket_qh, __wt_page) evict_queue;
     uint64_t id; /* index in the bucket set */
-	uint64_t num_items;
+    uint64_t num_items;
 };
 
 /*
@@ -97,29 +97,29 @@ struct __wt_evict_page_data {
     TAILQ_ENTRY(__wt_page) evict_q; /* Link to the next item in the evict queue */
     struct __wt_data_handle *dhandle;
     struct __wt_evict_bucket *bucket; /* Bucket containing this page */
-	/*
-	 * The page's read generation acts as an LRU value for each page in the
-	 * tree; it is used by the eviction server thread to select pages to be
-	 * discarded from the in-memory tree.
-	 *
-	 * The read generation is a 64-bit value, if incremented frequently, a
-	 * 32-bit value could overflow.
-	 *
-	 * The read generation is a piece of shared memory potentially read
-	 * by many threads.  We don't want to update page read generations for
-	 * in-cache workloads and suffer the cache misses, so we don't simply
-	 * increment the read generation value on every access.  Instead, the
-	 * read generation is incremented by the eviction server each time it
-	 * becomes active.  To avoid incrementing a page's read generation too
-	 * frequently, it is set to a future point.
-	 *
-	 * Because low read generation values have special meaning, and there
-	 * are places where we manipulate the value, use an initial value well
-	 * outside of the special range.
-	 */
+    /*
+     * The page's read generation acts as an LRU value for each page in the
+     * tree; it is used by the eviction server thread to select pages to be
+     * discarded from the in-memory tree.
+     *
+     * The read generation is a 64-bit value, if incremented frequently, a
+     * 32-bit value could overflow.
+     *
+     * The read generation is a piece of shared memory potentially read
+     * by many threads.  We don't want to update page read generations for
+     * in-cache workloads and suffer the cache misses, so we don't simply
+     * increment the read generation value on every access.  Instead, the
+     * read generation is incremented by the eviction server each time it
+     * becomes active.  To avoid incrementing a page's read generation too
+     * frequently, it is set to a future point.
+     *
+     * Because low read generation values have special meaning, and there
+     * are places where we manipulate the value, use an initial value well
+     * outside of the special range.
+     */
     uint64_t read_gen;
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
-	bool evict_skip;           /* Skip this page once for eviction */
-	bool destroying;           /* Sticky flag set once when the page is being destroyed */
+    bool evict_skip;           /* Skip this page once for eviction */
+    bool destroying;           /* Sticky flag set once when the page is being destroyed */
 };

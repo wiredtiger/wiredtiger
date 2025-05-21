@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -277,7 +277,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
-	__wt_ref_make_visible(session, ref);
+    __wt_ref_make_visible(session, ref);
 
     WT_ASSERT(session, ret == 0);
     return (0);
@@ -433,7 +433,7 @@ read:
              * making the problem better.
              */
             if (evict_skip || F_ISSET(session, WT_SESSION_RESOLVING_TXN) ||
-				LF_ISSET(WT_READ_NO_SPLIT) || WT_EVICT_DISABLED(btree) > 0 || btree->lsm_primary)
+                LF_ISSET(WT_READ_NO_SPLIT) || WT_EVICT_DISABLED(btree) > 0 || btree->lsm_primary)
                 goto skip_evict;
 
             /*
@@ -510,7 +510,6 @@ skip_evict:
                     session->pf.prefetch_disk_read_count = 0;
             }
 
-			printf("touch bt_read\n");
             __wt_evict_touch_page(
               session, session->dhandle, ref, LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
 
