@@ -277,7 +277,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
 skip_read:
     F_CLR_ATOMIC_8(ref, WT_REF_FLAG_READING);
-	__wt_ref_make_visible(session, S2BT(session)->dhandle, ref);
+	__wt_ref_make_visible(session, ref);
 
     WT_ASSERT(session, ret == 0);
     return (0);
@@ -510,6 +510,7 @@ skip_evict:
                     session->pf.prefetch_disk_read_count = 0;
             }
 
+			printf("touch bt_read\n");
             __wt_evict_touch_page(
               session, session->dhandle, ref, LF_ISSET(WT_READ_INTERNAL_OP), wont_need);
 

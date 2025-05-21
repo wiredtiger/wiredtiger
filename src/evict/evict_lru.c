@@ -1921,7 +1921,7 @@ __evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
  *     Put the page into the evict bucket corresponding to its read generation.
  */
 void
-__wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref, bool is_new)
+__wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF *ref)
 {
     WT_EVICT_BUCKET *bucket;
     WT_EVICT_BUCKETSET *bucketset;
@@ -1988,15 +1988,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     correct_bucketset =
         __evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level);
 
-    if (is_new) {
-        WT_ASSERT(session, bucketset == NULL && bucket == NULL);
-#if EVICT_DEBUG_PRINT
-        printf("page %p is new by session %d\n", (void*)page, (int)session->id);
-        fflush(stdout);
-#endif
-        goto new;
-    }
-
     /* If the page is already in a bucketset, is this the right one? */
     if (bucketset != NULL) {
         WT_ASSERT(session, bucket != NULL);
@@ -2012,7 +2003,6 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
         }
     }
 
-  new:
     WT_ASSERT(session, page->evict_data.bucket == NULL);
     /* Find the bucket set for the page depending on its type */
     if (WT_PAGE_IS_INTERNAL(page)) {
@@ -2123,10 +2113,10 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
             __wt_atomic_store64(&page->evict_data.read_gen, WT_READGEN_WONT_NEED);
         else
             __evict_read_gen_new(session, page);
-        __wt_evict_enqueue_page(session, dhandle, ref, true);
+        __wt_evict_enqueue_page(session, dhandle, ref);
     } else if (!internal_only) {
         __wti_evict_read_gen_bump(session, page);
-        __wt_evict_enqueue_page(session, dhandle, ref, false);
+        __wt_evict_enqueue_page(session, dhandle, ref);
     }
 }
 
@@ -2148,7 +2138,7 @@ void
 __wt_evict_page_soon(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     __wt_atomic_store64(&ref->page->evict_data.read_gen, WT_READGEN_EVICT_SOON);
-    __wt_evict_enqueue_page(session, session->dhandle, ref, false);
+    __wt_evict_enqueue_page(session, session->dhandle, ref);
 }
 
 /*
@@ -2355,7 +2345,7 @@ __wt_evict_page_first_dirty(WT_SESSION_IMPL *session, WT_PAGE *page)
             fflush(stdout);
         }
 #endif
-        __wt_evict_enqueue_page(session, page->evict_data.dhandle, page->ref, false);
+        __wt_evict_enqueue_page(session, page->evict_data.dhandle, page->ref);
     }
 }
 
@@ -2390,8 +2380,10 @@ __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * read instantiating the page. Set the page's read generation here to ensure a bug doesn't
      * somehow leave a page without a read generation.
      */
-    if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_NOTSET)
+    if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_NOTSET) {
+		printf("touch evict_skip\n");
         __wt_evict_touch_page(session, btree->dhandle, ref, false, false);
+	}
 
     want_page = (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !modified) ||
       (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||

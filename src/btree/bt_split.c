@@ -473,7 +473,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
             ref->ref_recno = (*root_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
 		/* Make the ref visible in cache */
-		__wt_ref_make_visible(session, btree->dhandle, ref);
+		__wt_ref_make_visible(session, ref);
 
         /*
          * Initialize the child page. Block eviction in newly created pages and mark them dirty.
@@ -1024,7 +1024,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
             ref->ref_recno = (*page_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
 		/* Make the page visible */
-		__wt_ref_make_visible(session, btree->dhandle, ref);
+		__wt_ref_make_visible(session, ref);
 
         /*
          * Initialize the child page. Block eviction in newly created pages and mark them dirty.
@@ -1766,7 +1766,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
      */
     if (multi->disk_image!= NULL && !closing) {
         WT_RET(__split_multi_inmem(session, page, multi, ref));
-		__wt_ref_make_visible(session, S2BT(session)->dhandle, ref);
+		__wt_ref_make_visible(session, ref);
     }
     __wt_free(session, multi->disk_image);
 
@@ -1826,7 +1826,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
 	/* Visible as soon as the split completes. */
-    __wt_ref_make_visible(session, S2BT(session)->dhandle, child);
+    __wt_ref_make_visible(session, child);
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
         __wt_ref_key(ref->home, ref, &key, &key_size);
@@ -1866,7 +1866,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     __wt_ref_assign_page(child, right);
     F_SET(child, WT_REF_FLAG_LEAF);
-	__wt_ref_make_visible(session, S2BT(session)->dhandle, child);
+	__wt_ref_make_visible(session, child);
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wti_row_ikey(
           session, 0, WT_INSERT_KEY(moved_ins), WT_INSERT_KEY_SIZE(moved_ins), child));
@@ -2318,7 +2318,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     /* Swap the new page into place. */
     __wt_ref_assign_page(ref, new->page);
-	__wt_ref_make_visible(session, S2BT(session)->dhandle, ref);
+	__wt_ref_make_visible(session, ref);
 
     __wt_free(session, new);
     return (0);

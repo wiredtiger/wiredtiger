@@ -305,7 +305,7 @@ err:
 				fflush(stdout);
 #endif
 				/* Put the page back into the list it belongs */
-				__wt_evict_enqueue_page(session, session->dhandle, ref, false);
+				__wt_evict_enqueue_page(session, session->dhandle, ref);
 				/* Release the page */
 			}
             __evict_exclusive_clear(session, ref, previous_state);

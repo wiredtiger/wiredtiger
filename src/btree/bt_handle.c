@@ -761,7 +761,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
         WT_ERR(__wt_page_modify_init(session, ref->page));
         __wt_page_only_modify_set(session, ref->page);
-		__wt_ref_make_visible(session, btree->dhandle, ref);
+		__wt_ref_make_visible(session, ref);
     }
 
     /* Finish initializing the root, root reference links. */
