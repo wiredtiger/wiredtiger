@@ -121,6 +121,8 @@ struct __wt_ckpt {
     WT_ITEM addr; /* Checkpoint cookie string */
     WT_ITEM raw;  /* Checkpoint cookie raw */
 
+    uint64_t next_page_id; /* Next page ID available for allocation */
+
     void *bpriv; /* Block manager private */
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
@@ -147,6 +149,9 @@ struct __wt_ckpt_snapshot {
     uint64_t *snapshot_txns;
     uint32_t snapshot_count;
 };
+
+#define WT_DISAGG_CHECKPOINT_ID_NONE 0
+#define WT_DISAGG_CHECKPOINT_ID_FIRST 1
 
 struct __wt_checkpoint_cleanup {
     WT_SESSION_IMPL *session; /* checkpoint cleanup session */

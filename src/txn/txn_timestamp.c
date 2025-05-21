@@ -453,9 +453,14 @@ set:
 
     if (has_stable &&
       (!txn_global->has_stable_timestamp || force || stable_ts > txn_global->stable_timestamp)) {
-        txn_global->stable_timestamp = stable_ts;
+        WT_RELEASE_WRITE(txn_global->stable_timestamp, stable_ts);
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
-        txn_global->has_stable_timestamp = true;
+        /*
+         * Release write requires the data and destination have exactly the same size. stdbool.h
+         * only defines true as `#define true 1` so we need a bool cast to provide proper type
+         * information.
+         */
+        WT_RELEASE_WRITE(txn_global->has_stable_timestamp, (bool)true);
         txn_global->stable_is_pinned = false;
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }
@@ -1025,7 +1030,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
 
     /* Timestamps are only logged in debugging mode. */
     if (set_ts && FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
-      F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+      F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING))
         WT_RET(__wti_txn_ts_log(session));
 
     return (0);
@@ -1084,7 +1089,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
 
     /* Timestamps are only logged in debugging mode. */
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&
-      F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+      F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) && !F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING))
         WT_RET(__wti_txn_ts_log(session));
 
     return (0);

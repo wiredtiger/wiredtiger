@@ -399,6 +399,58 @@ operator<<(std::ostream &out, const commit_transaction &op)
 }
 
 /*
+ * config --
+ *     A representation of this workload operation.
+ */
+struct config : public without_txn_id, public without_table_id {
+    std::string type;
+    std::string value;
+
+    /*
+     * config::config --
+     *     Create the operation.
+     */
+    inline config(const char *type, const char *value) : type(type), value(value) {}
+
+    /*
+     * config::config --
+     *     Create the operation.
+     */
+    inline config(const char *type, const std::string &value) : type(type), value(value) {}
+
+    /*
+     * config::operator== --
+     *     Compare for equality.
+     */
+    inline bool
+    operator==(const config &other) const noexcept
+    {
+        return type == other.type && value == other.value;
+    }
+
+    /*
+     * config::operator!= --
+     *     Compare for inequality.
+     */
+    inline bool
+    operator!=(const config &other) const noexcept
+    {
+        return !(*this == other);
+    }
+};
+
+/*
+ * operator<< --
+ *     Human-readable output.
+ */
+inline std::ostream &
+operator<<(std::ostream &out, const config &op)
+{
+    out << "config(" << quote(op.type) << ", " << quote(op.value) << ")";
+    return out;
+}
+
+/*
  * crash --
  *     A representation of this workload operation.
  */
@@ -1115,8 +1167,8 @@ operator<<(std::ostream &out, const wt_config &op)
  *     Any workload operation.
  */
 using any = std::variant<begin_transaction, breakpoint, checkpoint, checkpoint_crash,
-  commit_transaction, crash, create_table, evict, insert, nop, prepare_transaction, remove, restart,
-  rollback_to_stable, rollback_transaction, set_commit_timestamp, set_oldest_timestamp,
+  commit_transaction, config, crash, create_table, evict, insert, nop, prepare_transaction, remove,
+  restart, rollback_to_stable, rollback_transaction, set_commit_timestamp, set_oldest_timestamp,
   set_stable_timestamp, truncate, wt_config>;
 
 /*

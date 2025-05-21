@@ -91,6 +91,8 @@ DBI
 DESC
 DEST
 DHANDLE
+DISAGG
+DISAGGREGATED
 DNE
 DONTNEED
 DS
@@ -98,6 +100,7 @@ DUPLICATEV
 Decrypt
 DeleteFileW
 Deterministically
+Disaggregated
 Dk
 DmpRvXx
 Dxxx
@@ -352,6 +355,7 @@ Rogerio
 Runtime
 SDK
 SIMD
+SLS
 SLVG
 SMT
 SPINLOCK
@@ -462,6 +466,8 @@ WiredTigerHS
 WiredTigerLAS
 WiredTigerLog
 WiredTigerPreplog
+WiredTigerShared
+WiredTigerSharedHS
 WiredTigerTmplog
 WithSeeds
 Wl
@@ -539,6 +545,8 @@ blkincr
 blkmod
 blkmods
 bm
+bmd
+bmp
 bms
 bnd
 bool
@@ -601,6 +609,7 @@ ckpt
 ckptfrag
 ckptlist
 cksum
+clayered
 cloexec
 closedir
 cmd
@@ -680,6 +689,7 @@ ddd
 decile
 deciles
 decl
+decompressor
 decr
 decrementing
 decrypt
@@ -693,6 +703,7 @@ del
 dequeued
 der
 dereference
+dereferencing
 desc
 designator
 dest
@@ -707,6 +718,7 @@ difftime
 dir
 directio
 dirlist
+disagg
 disaggregated
 disproportionally
 dlclose
@@ -813,6 +825,7 @@ fuzzutil
 fvisibility
 fwrite
 gb
+gc
 gcc
 gcp
 gdb
@@ -885,6 +898,7 @@ initsize
 initval
 inlined
 inlining
+inlock
 inmem
 inmemory
 inserters
@@ -911,6 +925,7 @@ islocked
 ispo
 isprint
 isspace
+janky
 jjj
 js
 json
@@ -1046,6 +1061,7 @@ needvalue
 negint
 nentries
 nentriesp
+ness
 newbar
 newfile
 newv
@@ -1125,6 +1141,7 @@ pfx
 pid
 pindexp
 plh
+pluggable
 pmem
 poptable
 popthreads
@@ -1320,6 +1337,7 @@ sumv
 sunique
 sunused
 supd
+supercalafragalisticexpialadoshus
 superset
 sw
 syncop

@@ -832,6 +832,34 @@ functions:
             fi
         done
 
+  "unit test parallel":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        # no_run will contain a list of files we don't want to run,
+        # do_run will contain a list of files we want to run.
+        no_run=$(mktemp)
+        do_run=$(mktemp)
+        sed -e 's/ *#.*//' -e '/^$/d' < ${unit_test_parallel_ignore} > $no_run
+        (cd ./test/suite; ls test_*.py) | fgrep -vf $no_run > $do_run
+        cd cmake_build
+        threads_command="-j ${nproc}"
+        if [[ -n "${num_jobs}" ]]; then
+          threads_command="-j ${num_jobs}"
+        fi
+        py=${python_binary|python3}
+        echo "Using $threads_command for 'unit test parallel'"
+        if [ ${check_coverage|false} = true ]; then
+            ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1 || echo "Ignoring failed test as we are checking test coverage"
+        else
+            ../tools/pytest_parallel --python $py $threads_command ${unit_test_parallel_args|-v 2} ${unit_test_variant_args} -- $(cat $do_run) 2>&1
+        fi
+
   "code coverage analysis":
     command: shell.exec
     params:
@@ -941,6 +969,22 @@ functions:
         memory_max=$(( ($memory_max * 8) / (${num_jobs} * 1024 * 10) ))
         for i in $(seq ${times|1}); do
           ./format.sh -j ${num_jobs} ${format_test_script_args|} cache.maximum=$memory_max 2>&1
+        done
+  "format test disagg":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/cmake_build/test/format"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+        ${PREPARE_TEST_ENV}
+        format_args=""  # Generally, format arguments are in CONFIG.disagg.
+        for i in $(seq ${times}); do
+          echo Iteration $i/${times}
+          rm -rf RUNDIR
+          ./t -c ../../../test/format/CONFIG.disagg $format_args ${extra_args}
+          ./t -R $format_args ${extra_args}
         done
   "many dbs test":
     command: shell.exec
@@ -1109,7 +1153,7 @@ functions:
         set -o errexit
         set -o verbose
         ${PREPARE_TEST_ENV}
-        ../../../test/evergreen/checkpoint_stress_test.sh ${tiered|0} ${times|1} ${no_of_procs|1}
+        ../../../test/evergreen/checkpoint_stress_test.sh ${tiered|0} ${times|1} ${no_of_procs|1} "${wt_config|cache_size=100M}" "${timestamp_config|}"
 
   "compatibility test":
     - command: shell.exec
@@ -2138,6 +2182,29 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -R cursor13 schema03 timestamp22
+
+  - name: unit-test-hook-disagg-leader
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test parallel"
+        vars:
+          # As leader, run the set of tests that are not in the fail list.
+          unit_test_parallel_ignore: test/suite/hook_disagg.fail
+          unit_test_parallel_args: -v 2 --timeout 60 --hook "disagg=(role=leader)"
+
+  - name: unit-test-hook-disagg-follower
+    tags: ["pull_request", "python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          # As follower, run a minimal functionality test
+          unit_test_args: -v 2 --timeout 60 --hook "disagg=(role=follower)" base01
 
   - name: unit-test-hook-tiered
     tags: ["python"]
@@ -3581,7 +3648,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x
+          run_test_checkpoint_args: -x -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3589,6 +3656,8 @@ tasks:
     - name: compile
     commands:
       - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
     tags: ["data-validation-stress-test"]
@@ -3597,7 +3666,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 1
+          run_test_checkpoint_args: -x -s 1 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3606,7 +3675,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -s 1
+          run_test_checkpoint_args: -s 1 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
     tags: ["data-validation-stress-test"]
@@ -3615,7 +3684,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 2
+          run_test_checkpoint_args: -x -s 2 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
     tags: ["data-validation-stress-test"]
@@ -3624,7 +3693,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 3
+          run_test_checkpoint_args: -x -s 3 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3633,7 +3702,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -s 3
+          run_test_checkpoint_args: -s 3 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
     tags: ["data-validation-stress-test"]
@@ -3642,7 +3711,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 4
+          run_test_checkpoint_args: -x -s 4 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     tags: ["data-validation-stress-test"]
@@ -3651,7 +3720,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 5
+          run_test_checkpoint_args: -x -s 5 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5-no-timestamp
     tags: ["data-validation-stress-test"]
@@ -3660,7 +3729,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -s 5
+          run_test_checkpoint_args: -s 5 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
     tags: ["data-validation-stress-test"]
@@ -3669,7 +3738,7 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 6
+          run_test_checkpoint_args: -x -s 6 -C cache_size=100MB
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
     tags: ["data-validation-stress-test"]
@@ -3678,7 +3747,79 @@ tasks:
     commands:
       - func: "run data validation stress test checkpoint"
         vars:
-          run_test_checkpoint_args: -x -s 7
+          run_test_checkpoint_args: -x -s 7 -C cache_size=100MB
+
+  - name: data-validation-stress-test-precise-checkpoint
+    tags: ["data-validation-stress-test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -C cache_size=1000MB,checkpoint=(precise=true)
+
+  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s1
+    tags: ["data-validation-stress-test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 1 -C cache_size=1000MB,checkpoint=(precise=true)
+
+  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s2
+    tags: ["data-validation-stress-test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 2 -C cache_size=1000MB,checkpoint=(precise=true)
+
+  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s3
+    tags: ["data-validation-stress-test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 3 -C cache_size=1000MB,checkpoint=(precise=true)
+
+  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s4
+    tags: ["data-validation-stress-test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 4 -C cache_size=1000MB,checkpoint=(precise=true)
+
+  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s5
+    tags: ["data-validation-stress-test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 5 -C cache_size=1000MB,checkpoint=(precise=true)
+
+  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s6
+    tags: ["data-validation-stress-test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 6 -C cache_size=1000MB,checkpoint=(precise=true)
+
+  - name: data-validation-stress-test-precise-checkpoint-fp-hs-insert-s7
+    tags: ["data-validation-stress-test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "run data validation stress test checkpoint"
+        vars:
+          run_test_checkpoint_args: -x -s 7 -C cache_size=1000MB,checkpoint=(precise=true)
 
   - name: format-failure-configs-test
     depends_on:
@@ -3754,6 +3895,43 @@ tasks:
           <<: *configure_flags_with_builtins
       - func: "checkpoint stress test"
         vars:
+          no_of_procs: 5  # Number of processes to run in the background
+          tiered: 1       # Enable tiered storage
+          times: 1        # Number of times to run the loop
+
+  - name: precise-checkpoint-stress-test
+    tags: ["stress-test-1"]
+    exec_timeout_secs: 86400
+    commands:
+      - command: timeout.update
+        params:
+          timeout_secs: 86400
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "checkpoint stress test"
+        vars:
+          timestamp_config: -x
+          wt_config: cache_size=1000M,checkpoint=(precise=true)
+          no_of_procs: 10 # Number of processes to run in the background
+          tiered: 0       # Don't enable tiered storage
+          times: 1        # Number of times to run the loop
+
+  - name: precise-checkpoint-stress-test-tiered
+    exec_timeout_secs: 86400
+    commands:
+      - command: timeout.update
+        params:
+          timeout_secs: 86400
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          <<: *configure_flags_with_builtins
+      - func: "checkpoint stress test"
+        vars:
+          timestamp_config: -x
+          wt_config: cache_size=1000M,checkpoint=(precise=true)
           no_of_procs: 5  # Number of processes to run in the background
           tiered: 1       # Enable tiered storage
           times: 1        # Number of times to run the loop
@@ -5404,8 +5582,8 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: 1
-    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
   tasks:
     - name: ".pull_request !.pull_request_compilers"
     - name: ".lint"
@@ -5419,6 +5597,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
+    - name: unit-test-hook-disagg-leader
+    - name: unit-test-hook-disagg-follower
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
@@ -5673,6 +5853,7 @@ buildvariants:
     - name: ".stress-test-4"
     - name: ".stress-test-no-barrier"
     - name: checkpoint-stress-test-tiered
+    - name: precise-checkpoint-stress-test-tiered
     - name: format-abort-recovery-stress-test
 
 - name: cppsuite-stress-tests-ubuntu
@@ -6018,7 +6199,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: 1
-    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
+    data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     NONSTANDALONE: -DWT_STANDALONE_BUILD=0
     unit_test_variant_args: "--hook nonstandalone"

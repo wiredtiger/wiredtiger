@@ -13,14 +13,16 @@
  *     Map or read address cookie referenced block into a buffer.
  */
 int
-__wt_bm_read(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+__wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size)
 {
     WT_BLOCK *block;
     WT_DECL_RET;
     wt_off_t offset;
     uint32_t checksum, objectid, size;
     bool last_release;
+
+    WT_UNUSED(block_meta);
 
     block = bm->block;
 
@@ -59,11 +61,11 @@ err:
 }
 
 /*
- * __bm_corrupt_dump --
+ * __wt_bm_corrupt_dump --
  *     Dump a block into the log in 1KB chunks.
  */
-static int
-__bm_corrupt_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t objectid, wt_off_t offset,
+int
+__wt_bm_corrupt_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t objectid, wt_off_t offset,
   uint32_t size, uint32_t checksum) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_DECL_ITEM(tmp);
@@ -112,12 +114,12 @@ __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t
 
     /* Read the block. */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_bm_read(bm, session, tmp, addr, addr_size));
+    WT_ERR(__wt_bm_read(bm, session, tmp, NULL, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
     WT_ERR(__wt_block_addr_unpack(
       session, bm->block, addr, addr_size, &objectid, &offset, &size, &checksum));
-    WT_ERR(__bm_corrupt_dump(session, tmp, objectid, offset, size, checksum));
+    WT_ERR(__wt_bm_corrupt_dump(session, tmp, objectid, offset, size, checksum));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -167,8 +169,11 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 {
     WT_BLOCK_HEADER *blk, swap;
     size_t bufsize, check_size;
+    uint64_t time_start, time_stop;
     int failures, max_failures;
     bool chunkcache_hit, full_checksum_mismatch;
+
+    time_start = __wt_clock(session);
 
     chunkcache_hit = full_checksum_mismatch = false;
     check_size = 0;
@@ -231,6 +236,9 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
              */
             blk->checksum = 0;
             if (__wt_checksum_match(buf->mem, check_size, checksum)) {
+                time_stop = __wt_clock(session);
+                __wt_stat_msecs_hist_incr_bmread(session, WT_CLOCKDIFF_MS(time_stop, time_start));
+
                 /*
                  * Swap the page-header as needed; this doesn't belong here, but it's the best place
                  * to catch all callers.
@@ -274,11 +282,11 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
               "B block at offset %" PRIuMAX ": block header checksum of %#" PRIx32
               " doesn't match expected checksum of %#" PRIx32,
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
-        WT_IGNORE_RET(__bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
+        WT_IGNORE_RET(__wt_bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
     }
 
     /* Panic if a checksum fails during an ordinary read. */
-    F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
+    F_SET_ATOMIC_64(S2C(session), WT_CONN_DATA_CORRUPTION);
     if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
         return (WT_ERROR);
     WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);

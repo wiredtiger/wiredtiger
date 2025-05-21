@@ -49,6 +49,7 @@ Datastore
 DbCursor
 DbEnv
 DbMultiple
+Disaggregated
 Durations
 EAGAIN
 EB
@@ -97,6 +98,7 @@ LLC
 LLVM
 LLVMFuzzerTestOneInput
 LOGREC
+LOGSCAN
 LRU
 LSB
 LSM
@@ -253,6 +255,7 @@ checksums
 chunkcache
 ckp
 ckpt
+clayered
 clickable
 cmake
 colgroup
@@ -260,6 +263,7 @@ colgroups
 colspan
 combinatorial
 command's
+commit's
 comparator
 compressibility
 cond
@@ -323,6 +327,8 @@ dhandle's
 dhandles
 dir
 dirstore
+disagg
+disaggregated
 disjunction
 disjunctions
 distclean
@@ -545,6 +551,7 @@ mygcc
 mytable
 namespace
 nav
+ncursors
 ndary
 ndbm
 newsite

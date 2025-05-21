@@ -31,11 +31,18 @@
 #define WT_METAFILE_SLVG "WiredTiger.wt.orig" /* Metadata copy */
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */
 
-#define WT_HS_FILE "WiredTigerHS.wt"     /* History store table */
-#define WT_HS_URI "file:WiredTigerHS.wt" /* History store table URI */
+#define WT_HS_FILE "WiredTigerHS.wt"                         /* History store table */
+#define WT_HS_FILE_SHARED "WiredTigerSharedHS.wt_stable"     /* Shared history store */
+#define WT_HS_URI "file:WiredTigerHS.wt"                     /* History store table URI */
+#define WT_HS_URI_SHARED "file:WiredTigerSharedHS.wt_stable" /* Shared history store URI */
 
 #define WT_CC_METAFILE "WiredTigerCC.wt"          /* Chunk cache metadata table */
 #define WT_CC_METAFILE_URI "file:WiredTigerCC.wt" /* Chunk cache metadata table URI */
+
+#define WT_DISAGG_METADATA_FILE "WiredTigerShared.wt_stable"     /* Shared metadata table */
+#define WT_DISAGG_METADATA_URI "file:WiredTigerShared.wt_stable" /* Shared metadata table URI */
+#define WT_DISAGG_METADATA_TABLE_ID 1                            /* Table ID for metadata strings */
+#define WT_DISAGG_METADATA_MAIN_PAGE_ID 1                        /* Page ID for the main metadata */
 
 #define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
 #define WT_SYSTEM_CKPT_TS "checkpoint_timestamp"                 /* Checkpoint timestamp name */
@@ -67,6 +74,14 @@
 #define WT_METADATA_LIVE_RESTORE "Live Restore"
 #define WT_METADATA_VERSION "WiredTiger version" /* Version keys */
 #define WT_METADATA_VERSION_STR "WiredTiger version string"
+
+/*
+ * Other useful comparisons.
+ */
+#define WT_IS_URI_HS(uri) (strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_HS_URI_SHARED) == 0)
+
+#define WT_IS_URI_METADATA(uri) \
+    (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_DISAGG_METADATA_URI) == 0)
 
 /*
  * As a result of a data format change WiredTiger is not able to start on versions below 3.2.0, as
