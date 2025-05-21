@@ -59,8 +59,8 @@ verify_one(WT_SESSION *session, char *config, char *uri)
 int
 util_verify(WT_SESSION *session, int argc, char *argv[])
 {
-    WT_DECL_ITEM(config);
     WT_CURSOR *cursor;
+    WT_DECL_ITEM(config);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
     int ch;
