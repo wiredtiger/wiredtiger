@@ -50,18 +50,19 @@ __drop_file(
 
     /* Remove the metadata entry (ignore missing items). */
     WT_TRET(__wt_metadata_remove(session, uri));
-    if (remove_files)
-        /*
-         * Schedule the remove of the underlying physical file when the drop completes.
-         */
-        WT_TRET(__wt_meta_track_drop(session, filename));
-    WT_ERR(ret);
+    if (!remove_files)
+        return (ret);
+    /*
+     * Schedule the remove of the underlying physical file when the drop completes.
+     */
+    WT_TRET(__wt_meta_track_drop(session, filename));
 
     /*
      * Truncate history store for the dropped file, this is a best-effort operation, as we don't
      * fail drop if truncate returns an error. There is no history store to truncate for in-memory
      * database.
      */
+    WT_ERR(ret);
     if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
         if (__wt_hs_btree_truncate(session, id, false) != 0)
             __wt_verbose_warning(
