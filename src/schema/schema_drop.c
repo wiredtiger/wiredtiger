@@ -64,7 +64,8 @@ __drop_file(
      */
     if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
         if (__wt_hs_btree_truncate(session, id, false) != 0)
-            __wt_verbose_warning(session, WT_VERB_HS, "Failed to truncate file: %s", uri);
+            __wt_verbose_warning(
+              session, WT_VERB_HS, "Failed to truncate history store for the file: %s", uri);
 err:
     __wt_free(session, metadata_cfg);
     return (ret);
