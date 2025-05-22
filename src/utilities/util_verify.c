@@ -97,7 +97,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                     return (usage());
                 }
                 dump_offsets = __wt_optarg + strlen("dump_offsets=");
-                WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_blocks=[%s],", dump_offsets));
+                WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_offsets=[%s],", dump_offsets));
             } else if (strcmp(__wt_optarg, "dump_pages") == 0)
                 WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_pages,"));
             else
