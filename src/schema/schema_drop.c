@@ -52,6 +52,7 @@ __drop_file(
     WT_TRET(__wt_metadata_remove(session, uri));
     if (!remove_files)
         return (ret);
+
     /*
      * Schedule the remove of the underlying physical file when the drop completes.
      */
