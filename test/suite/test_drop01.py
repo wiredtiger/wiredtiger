@@ -55,9 +55,6 @@ class test_drop01(wttest.WiredTigerTestCase):
         self.session.create("colgroup:" + self.name + ":cg1", "columns=(value1)")
         self.session.create("colgroup:" + self.name + ":cg2", "columns=(value2)")
 
-        # Create an index.
-        self.session.create("index:"+ self.name + ":idx1", "columns=(value1)")
-
         # Insert a record, then update it.
         self.add_timestamp_data(self.uri, "keyA", "v1t5", "v2t5", 5)
         self.add_timestamp_data(self.uri, "keyA", "v1t8", "v2t8", 8)
