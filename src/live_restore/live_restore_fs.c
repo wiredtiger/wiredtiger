@@ -796,14 +796,19 @@ __live_restore_fh_read(
             WT_ERR(__wt_malloc(session, dest_partial_read_len, &tmp_buf));
 
             /* Read the serviceable portion from the destination. */
-            if ((ret = __live_restore_fh_read_destination(
-                   session, lr_fh->destination, offset, dest_partial_read_len, tmp_buf)) != 0) {
-                __wt_free(session, tmp_buf);
-                goto err;
-            }
+            ret = __live_restore_fh_read_destination(
+              session, lr_fh->destination, offset, dest_partial_read_len, tmp_buf);
 
-            /* We only need to check the destination portion matches the portion in the source. */
-            WT_ASSERT(session, strncmp(read_data, tmp_buf, dest_partial_read_len) == 0);
+            if (ret == 0)
+                /*
+                 * We only need to check the destination portion matches the portion in the source.
+                 */
+                WT_ASSERT(session, strncmp(read_data, tmp_buf, dest_partial_read_len) == 0);
+
+            __wt_free(session, tmp_buf);
+
+            if (ret != 0)
+                goto err;
         }
 #endif
     }
@@ -885,15 +890,11 @@ __live_restore_compute_read_end_bit(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
     wt_off_t largest_possible_read = WT_MIN(file_size, read_start + buf_size);
     /* Subtract 1 as the read end is served from the nbits - 1th bit.*/
     uint64_t max_read_bit = WTI_OFFSET_TO_BIT(largest_possible_read) - 1;
-    uint64_t end_bit = first_clear_bit;
-    for (uint64_t current_bit = first_clear_bit + 1; current_bit <= max_read_bit; current_bit++) {
-        if (current_bit >= lr_fh->nbits)
-            break;
-        if (__bit_test(lr_fh->bitmap, current_bit))
-            break;
-        end_bit = current_bit;
-    }
-    *end_bitp = end_bit;
+    uint64_t current_bit;
+    for (current_bit = first_clear_bit;
+         current_bit < max_read_bit && !__bit_test(lr_fh->bitmap, current_bit + 1); current_bit++)
+        ;
+    *end_bitp = current_bit;
     return (0);
 }
 
@@ -999,7 +1000,7 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
     uint64_t msg_count = 0;
     bool finished = false;
     __wt_timer_start(session, &timer);
-    while (!finished) {
+    for (;;) {
         wt_off_t read_offset = 0;
         uint64_t time_diff_ms;
         WTI_WITH_LIVE_RESTORE_FH_WRITE_LOCK(session, lr_fh,
@@ -1007,6 +1008,18 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
             lr_fh, wt_session, buf, (wt_off_t)buf_size, &read_offset, &finished));
         WT_ERR(ret);
 
+        if (finished) {
+            __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
+              "%s: Finished background restoration, closing source file", fh->name);
+            WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
+
+            /*
+             * Dirty the tree again to ensure the live restore metadata is written out by the next
+             * checkpoint.
+             */
+            __wt_tree_modify_set(session);
+            break;
+        }
         __wt_timer_evaluate_ms(session, &timer, &time_diff_ms);
         if ((time_diff_ms / (WT_THOUSAND * WT_PROGRESS_MSG_PERIOD)) > msg_count) {
             __wt_verbose(session, WT_VERB_LIVE_RESTORE_PROGRESS,
@@ -1029,18 +1042,6 @@ __wti_live_restore_fs_restore_file(WT_FILE_HANDLE *fh, WT_SESSION *wt_session)
         WT_ERR(WT_SESSION_CHECK_PANIC(wt_session));
         if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
             break;
-    }
-
-    if (finished) {
-        __wt_verbose_debug1(session, WT_VERB_LIVE_RESTORE,
-          "%s: Finished background restoration, closing source file", fh->name);
-        WT_ERR(__live_restore_fh_close_source(session, lr_fh, true));
-
-        /*
-         * Dirty the tree again to ensure the live restore metadata is written out by the next
-         * checkpoint.
-         */
-        __wt_tree_modify_set(session);
     }
 err:
     __wt_free(session, buf);
@@ -1782,7 +1783,7 @@ __live_restore_setup_lr_fh_file(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FS *l
           session, EEXIST, "File %s already exist, cannot be created due to exclusive flag", name);
     if (!dest_exist && !source_exist && !create)
         WT_RET_MSG(session, ENOENT, "File %s doesn't exist but create flag not specified", name);
-    if (!dest_exist && have_stop && !LF_ISSET(WT_FS_OPEN_CREATE))
+    if (!dest_exist && have_stop && !create)
         WT_RET_MSG(session, ENOENT, "File %s has been deleted in the destination", name);
 
 #if defined(__APPLE__) || defined(__linux__)
@@ -2180,5 +2181,21 @@ __ut_live_restore_fh_fill_bit_range(
   WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION_IMPL *session, wt_off_t offset, size_t len)
 {
     __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
+}
+
+int
+__ut_live_restore_compute_read_end_bit(WT_SESSION_IMPL *session,
+  WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t buf_size, uint64_t first_clear_bit,
+  uint64_t *end_bitp)
+{
+    return (
+      __live_restore_compute_read_end_bit(session, lr_fh, buf_size, first_clear_bit, end_bitp));
+}
+
+int
+__ut_live_restore_fill_hole(WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, WT_SESSION *wt_session, char *buf,
+  wt_off_t buf_size, wt_off_t *read_offsetp, bool *finishedp)
+{
+    return (__live_restore_fill_hole(lr_fh, wt_session, buf, buf_size, read_offsetp, finishedp));
 }
 #endif
