@@ -17,11 +17,6 @@ __wti_block_disagg_addr_pack(uint8_t **pp, uint64_t page_id, uint64_t lsn, uint6
   uint64_t reconciliation_id, uint32_t size, uint32_t checksum)
 {
     uint64_t c, cp, l, p, r, s;
-    /*
-    uint8_t *orig;
-
-    orig = *pp;
-    */
 
     /* TODO: write extensible byte */
     /* See the comment above: this is the reverse operation. */

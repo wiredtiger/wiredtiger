@@ -129,11 +129,11 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  * WT_DELTA_HEADER --
  *	A delta is a durable record of changes to a page since the previous delta or full-page image
  * was recorded. It is composed of a WT_DELTA_HEADER, followed by a variable number of delta
- *entries. The number of entries does not explicitly appear, it is inferred by the size of the
- *overall delta. Each delta entry has a one header 'flags' byte (flags from WT_DELTA_CELL_UNPACK),
- *followed by up to 4 timestamps as indicated by the flags, followed by the key size and the key
- *bytes. If the WT_DELTA_LEAF_IS_DELETE flag is not set, the entry then includes the value size and
- *the value bytes.
+ * entries. The number of entries does not explicitly appear, it is inferred by the size of the
+ * overall delta. Each delta entry has a one header 'flags' byte (flags from WT_DELTA_CELL_UNPACK),
+ * followed by up to 4 timestamps as indicated by the flags, followed by the key size and the key
+ * bytes. If the WT_DELTA_LEAF_IS_DELETE flag is not set, the entry then includes the value size and
+ * the value bytes.
  */
 struct __wt_delta_header {
     uint64_t write_gen; /* 0-7: write generation */

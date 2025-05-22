@@ -201,6 +201,7 @@ __blkcache_eviction_thread(void *arg)
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item, *blkcache_item_tmp;
     WT_SESSION_IMPL *session;
+    uint32_t data_size, u;
     int i, reason;
     bool no_eviction_candidates;
 
@@ -244,10 +245,20 @@ __blkcache_eviction_thread(void *arg)
             {
                 if (__blkcache_should_evict(session, blkcache_item, &reason)) {
                     TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
+
+                    data_size = blkcache_item->data_size;
+                    for (u = 0; u < blkcache_item->num_deltas; u++) {
+                        data_size += blkcache_item->deltas[u].data_size;
+                        __blkcache_free(session, blkcache_item->deltas[u].data);
+                    }
+                    __wt_free(session, blkcache_item->deltas);
+
+                    __wt_free(session, blkcache_item->block_meta);
                     __blkcache_free(session, blkcache_item->data);
+
                     __blkcache_update_ref_histogram(
                       session, blkcache_item, WT_BLKCACHE_RM_EVICTION);
-                    (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
+                    (void)__wt_atomic_sub64(&blkcache->bytes_used, data_size);
 
                     /*
                      * Update the number of removals because it is used to estimate the overhead,
@@ -257,7 +268,7 @@ __blkcache_eviction_thread(void *arg)
                     blkcache->removals++;
 
                     WT_STAT_CONN_INCR(session, block_cache_blocks_evicted);
-                    WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->data_size);
+                    WT_STAT_CONN_DECRV(session, block_cache_bytes, data_size);
                     WT_STAT_CONN_DECR(session, block_cache_blocks);
                     __wt_free(session, blkcache_item);
                 } else {
@@ -548,7 +559,8 @@ __wti_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
-    uint64_t bucket, hash, sleep_usecs, total_usecs, yield_count;
+    uint64_t bucket, data_size, hash, sleep_usecs, total_usecs, yield_count;
+    unsigned u;
 
     blkcache = &S2C(session)->blkcache;
     hash = __wt_hash_city64(addr, addr_size);
@@ -562,8 +574,7 @@ __wti_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             __blkcache_update_ref_histogram(session, blkcache_item, WT_BLKCACHE_RM_FREE);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
-            (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
-            WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->data_size);
+
             /*
              * The block might be in use by another thread, wait for it to be released before
              * freeing it.
@@ -573,11 +584,22 @@ __wti_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr
                 total_usecs += sleep_usecs;
             }
             WT_STAT_CONN_INCRV(session, block_cache_blocks_removed_blocked, total_usecs);
+
+            data_size = blkcache_item->data_size;
+            for (u = 0; u < blkcache_item->num_deltas; u++) {
+                data_size += blkcache_item->deltas[u].data_size;
+                __blkcache_free(session, blkcache_item->deltas[u].data);
+            }
+            __wt_free(session, blkcache_item->deltas);
+            __wt_free(session, blkcache_item->block_meta);
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
+
             blkcache->removals++;
             WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
             WT_STAT_CONN_DECR(session, block_cache_blocks);
+            (void)__wt_atomic_sub64(&blkcache->bytes_used, data_size);
+            WT_STAT_CONN_DECRV(session, block_cache_bytes, data_size);
             __blkcache_verbose(
               session, WT_VERBOSE_DEBUG_1, "block removed from cache", hash, addr, addr_size);
             return;

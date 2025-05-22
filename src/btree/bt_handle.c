@@ -841,8 +841,8 @@ __btree_preload(WT_SESSION_IMPL *session)
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr)) {
             /*
-             * The below call passes in a nul for the block metadata argument - if we want to start
-             * calling this for disaggregated storage we will need to revisit that.
+             * FIXME-WT-14612: If we want to use prefetch with disaggregated storage we will need to
+             * supply block metadata.
              */
             WT_ERR(__wt_blkcache_read(session, tmp, NULL, addr.addr, addr.size));
             ++block_preload;

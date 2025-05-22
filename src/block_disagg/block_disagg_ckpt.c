@@ -30,13 +30,12 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * but the alternative is a call for the btree layer to crack the checkpoint cookie into
      * its components, and that's a fair amount of work.
      */
-    ckpt->size = block_meta->page_id; /* XXX What should be the checkpoint size? Do we need it? */
+    ckpt->size = block_meta->page_id;
+    /* FIXME-WT-14610: What should be the checkpoint size? Do we need it? */
 
     /*
      * Write the root page out, and get back the address information for that page which will be
      * written into the block manager checkpoint cookie.
-     *
-     * TODO: we need to check with the page service team if we need to write an empty root page.
      */
     if (root_image == NULL) {
         ckpt->raw.data = NULL;

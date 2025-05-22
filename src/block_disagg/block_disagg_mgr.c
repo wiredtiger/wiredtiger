@@ -72,8 +72,7 @@ static int
 __bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     /*
-     * Nothing to do for now - this should notify the space manager that the page is no longer
-     * required, but that isn't necessary to see something working.
+     * FIX-WT-14611: This should notify the space manager that the page is no longer required.
      */
     WT_UNUSED(bm);
     WT_UNUSED(session);
