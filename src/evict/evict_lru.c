@@ -2099,6 +2099,7 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
   bool internal_only, bool wont_need)
 {
     WT_PAGE *page;
+    bool bumped;
 
     page = ref->page;
 
@@ -2112,8 +2113,9 @@ __wt_evict_touch_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_REF 
             __evict_read_gen_new(session, page);
         __wt_evict_enqueue_page(session, dhandle, ref);
     } else if (!internal_only) {
-        __wti_evict_read_gen_bump(session, page);
-        __wt_evict_enqueue_page(session, dhandle, ref);
+        bumped = __wti_evict_read_gen_bump(session, page);
+        if (bumped)
+            __wt_evict_enqueue_page(session, dhandle, ref);
     }
 }
 

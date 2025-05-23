@@ -42,9 +42,10 @@ static WT_INLINE bool __wti_evict_exceeded_updates_trigger(
   WT_SESSION_IMPL *session, double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE bool __wti_evict_hs_dirty(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static WT_INLINE bool __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE double __wti_evict_dirty_target(WT_EVICT *evict)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE void __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
 
 #ifdef HAVE_UNITTEST
 
