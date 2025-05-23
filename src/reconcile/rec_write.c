@@ -413,7 +413,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * Track the tree's maximum transaction ID (used to decide if it's safe to discard the tree) and
      * maximum timestamp.
      */
-    if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
+    if (btree->rec_max_txn < r->max_txn)
         btree->rec_max_txn = r->max_txn;
     if (btree->rec_max_timestamp < r->max_ts)
         btree->rec_max_timestamp = r->max_ts;
@@ -632,7 +632,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     if (WT_IS_METADATA(session->dhandle)) {
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
-        if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
+        if (ckpt_txn != WT_TXN_NONE && (ckpt_txn < r->last_running))
             r->last_running = ckpt_txn;
     }
     /* When operating on the history store table, we should never try history store eviction. */

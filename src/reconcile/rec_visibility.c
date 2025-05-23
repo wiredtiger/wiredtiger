@@ -655,7 +655,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             upd_select->upd = upd;
 
         /* Track the selected update transaction id and timestamp. */
-        if (WT_TXNID_LT(max_txn, txnid))
+        if (max_txn < txnid)
             max_txn = txnid;
 
         if (upd->start_ts > max_ts)
@@ -675,7 +675,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
      * memory when they have changes required to satisfy a snapshot read.
      */
-    if (WT_TXNID_LT(r->max_txn, max_txn))
+    if (r->max_txn < max_txn)
         r->max_txn = max_txn;
 
     /* Update the maximum timestamp. */
