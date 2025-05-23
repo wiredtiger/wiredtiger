@@ -74,7 +74,7 @@ class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
         dirty_after = self.get_stat(stat.dsrc.cache_eviction_dirty)
 
         # Assert scrub eviction happened for dirty page
-        self.assertGreater(scrubbed_after, 0, 
+        self.assertGreater(scrubbed_after, 0,
             "Dirty page should be scrub-evicted.")
 
         self.assertEqual(clean_after, 0,
