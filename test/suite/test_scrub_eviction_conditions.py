@@ -45,25 +45,11 @@ class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
             c[i] = 'x' * 100
         c.close()
 
-    def evict_page(self, key, use_release_evict=True):
-        config = "debug=(release_evict)" if use_release_evict else ""
-        c = self.session.open_cursor(self.uri, None, config)
-        c.set_key(key)
-        c.search()
-        c.reset()
-        c.close()
-
     def get_stat(self, stat_key):
         cursor = self.session.open_cursor("statistics:" + self.uri)
         value = cursor[stat_key][2]
         cursor.close()
         return value
-
-    def read_key(self, key):
-        c = self.session.open_cursor(self.uri)
-        c.set_key(key)
-        self.assertEqual(c.search(), 0)
-        c.close()
 
     def test_page_eviction_is_scrubbed(self):
         self.populate_data()
@@ -74,7 +60,11 @@ class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
         c.close()
 
         # Evict the dirty page
-        self.evict_page(1)
+        c = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
+        c.set_key(1)
+        c.search()
+        c.reset()
+        c.close()
 
         # Record stats after eviction
         stat_cursor = self.session.open_cursor('statistics:')
