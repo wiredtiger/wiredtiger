@@ -916,21 +916,20 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          *
          * Note that don't scrub if checkpoint is running on the tree.
          */
-        const bool debug_aggressive_scrub_enabled =
+        bool debug_aggressive_scrub_enabled =
           FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_EVICT_AGGRESSIVE_MODE) &&
           __wt_random(&session->rnd_random) % 3 == 0;
 
-        const bool can_scrub = !WT_SESSION_BTREE_SYNC(session) &&
+        bool can_scrub = !WT_SESSION_BTREE_SYNC(session) &&
           (F_ISSET(evict, WT_EVICT_CACHE_SCRUB) || debug_aggressive_scrub_enabled);
 
         /*
          * Scrub only if cache is under the clean eviction target or the page has high read
          * generation.
          */
-        const bool is_scrub_candidate = !__wt_evict_clean_needed(session, NULL) ||
-          ref->page->read_gen > __evict_read_gen(session);
-
-        if (can_scrub && is_scrub_candidate) {
+        if (can_scrub &&
+          (!__wt_evict_clean_needed(session, NULL) ||
+            ref->page->read_gen > __evict_read_gen(session))) {
             LF_SET(WT_REC_SCRUB);
         }
     }
