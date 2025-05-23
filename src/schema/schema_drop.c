@@ -59,8 +59,8 @@ __drop_file(
     /*
      * Truncate history store for the dropped file, this is a best-effort operation, as we don't
      * fail drop if truncate returns an error. There is no history store to truncate for in-memory
-     * database, and we should not call history store truncate if connection is not minimal or
-     * ready.
+     * database, and we should not call truncate if connection is not ready for history store
+     * operations.
      */
     WT_ERR(ret);
     if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
