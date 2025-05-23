@@ -29,6 +29,13 @@
 import wttest
 from wiredtiger import stat
 
+# test_scrub_eviction_conditions.py
+#
+# Test to do the following steps.
+# 1. Populate data with 10 records
+# 2. Update a record to dirty state
+# 3. Evict the dirty page
+# 4. Check if the dirty page is scrub-evicted
 class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
     def conn_config(self):
         # Small cache to force eviction, enable all statistics
@@ -39,7 +46,7 @@ class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
         self.uri = 'table:test_scrub_eviction_conditions'
         self.session.create(self.uri, 'key_format=i,value_format=S')
 
-    def populate_data(self, n=100):
+    def populate_data(self, n=10):
         c = self.session.open_cursor(self.uri)
         for i in range(1, n + 1):
             c[i] = 'x' * 100
@@ -53,6 +60,7 @@ class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
 
     def test_page_eviction_is_scrubbed(self):
         self.populate_data()
+        self.session.checkpoint()
 
         # Dirty a page
         c = self.session.open_cursor(self.uri)
@@ -74,6 +82,7 @@ class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
         dirty_after = self.get_stat(stat.dsrc.cache_eviction_dirty)
 
         # Assert scrub eviction happened for dirty page
+        # We expect a scrub-eviction because threshold for clean eviction should not have been reached
         self.assertGreater(scrubbed_after, 0,
             "Dirty page should be scrub-evicted.")
 
