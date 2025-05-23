@@ -698,7 +698,6 @@ __evict_update_work(WT_SESSION_IMPL *session)
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
         __wt_atomic_store64(&cache->bytes_hs, __wt_atomic_load64(&hs_tree->bytes_inmem));
         cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
-        cache->bytes_hs_updates = hs_tree->bytes_updates;
     }
 
     /*
