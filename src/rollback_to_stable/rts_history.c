@@ -100,7 +100,8 @@ __wti_rts_history_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
       WT_RTS_VERB_TAG_HS_TRUNCATING "truncating history store entries for tree with id=%u",
       btree_id);
 
-    WT_RET(__wt_hs_btree_truncate(session, btree_id, S2C(session)->rts->dryrun));
+    if (!S2C(session)->rts->dryrun)
+        WT_RET(__wt_hs_btree_truncate(session, btree_id));
 
     WT_RTS_STAT_CONN_DATA_INCR(session, cache_hs_btree_truncate);
 

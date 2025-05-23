@@ -260,7 +260,7 @@ err:
  *     Wipe all history store updates for the btree.
  */
 int
-__wt_hs_btree_truncate(WT_SESSION_IMPL *session, uint32_t btree_id, bool dryrun)
+__wt_hs_btree_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor_start, *hs_cursor_stop;
     WT_DECL_ITEM(hs_key);
@@ -313,9 +313,8 @@ __wt_hs_btree_truncate(WT_SESSION_IMPL *session, uint32_t btree_id, bool dryrun)
         hs_cursor_stop->get_key(hs_cursor_stop, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter);
     } while (hs_btree_id != btree_id);
 
-    if (!dryrun)
-        WT_ERR(truncate_session->truncate(
-          truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
+    WT_ERR(
+      truncate_session->truncate(truncate_session, NULL, hs_cursor_start, hs_cursor_stop, NULL));
 
 done:
 err:
