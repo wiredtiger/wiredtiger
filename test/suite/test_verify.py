@@ -46,13 +46,13 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
     def file_name(self, name):
         return self.initialFileName('table:' + name)
 
-    def populate(self, tablename):
+    def populate(self, tablename, base = 0):
         """
         Insert some simple entries into the table
         """
         cursor = self.session.open_cursor('table:' + tablename, None, None)
         key = ''
-        for i in range(0, self.nentries):
+        for i in range(base, base + self.nentries):
             key += str(i)
             cursor[key] = key + key
         cursor.close()
@@ -421,6 +421,8 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.create('table:' + tables[-1], self.params)
         self.populate(tables[-1])
+        # Insert some non-checkpointed entries to the first table
+        self.populate(tables[0], self.nentries)
 
         self.runWt(["-v", "verify", "-C", ckptname], outfilename=self.outfile)
 
