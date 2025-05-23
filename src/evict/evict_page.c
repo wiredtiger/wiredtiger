@@ -915,8 +915,6 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
          * Scrub if we're supposed to or toss it in sometimes if we are in debugging mode.
          *
          * Note that don't scrub if checkpoint is running on the tree.
-         *
-         * Scrub only cache is under clean eviction target or the page has high read generation.
          */
         if (!WT_SESSION_BTREE_SYNC(session)) {
             bool can_scrub = (F_ISSET(evict, WT_EVICT_CACHE_SCRUB) ||
