@@ -681,7 +681,8 @@ __wt_blkcache_destroy(WT_SESSION_IMPL *session)
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_DECL_RET;
-    uint64_t i;
+    uint64_t data_size, i;
+    uint32_t u;
 
     blkcache = &S2C(session)->blkcache;
 
@@ -711,9 +712,17 @@ __wt_blkcache_destroy(WT_SESSION_IMPL *session)
              * Some workloads crash on freeing NVRAM arenas. If that occurs the call to free can be
              * removed and the library/OS will clean up for us once the process exits.
              */
+            data_size = blkcache_item->data_size;
+            for (u = 0; u < blkcache_item->num_deltas; u++) {
+                data_size += blkcache_item->deltas[u].data_size;
+                __blkcache_free(session, blkcache_item->deltas[u].data);
+            }
+            __wt_free(session, blkcache_item->deltas);
+            __wt_free(session, blkcache_item->block_meta);
             __blkcache_free(session, blkcache_item->data);
+
             __blkcache_update_ref_histogram(session, blkcache_item, WT_BLKCACHE_RM_EXIT);
-            (void)__wt_atomic_sub64(&blkcache->bytes_used, blkcache_item->data_size);
+            (void)__wt_atomic_sub64(&blkcache->bytes_used, data_size);
             __wt_free(session, blkcache_item);
         }
         __wt_spin_unlock(session, &blkcache->hash_locks[i]);
