@@ -1085,7 +1085,7 @@ __wt_txn_visible_id_snapshot(
      *	ids < snap_min are visible,
      *	everything else is visible unless it is found in the snapshot.
      */
-    if (WT_TXNID_LE(snap_max, id))
+    if (snap_max <= id)
         return (false);
     if (snapshot_count == 0 || id < snap_min)
         return (true);

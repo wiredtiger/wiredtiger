@@ -601,7 +601,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
-          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? (r->last_running <= txnid) :
                                             !__txn_visible_id(session, txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a

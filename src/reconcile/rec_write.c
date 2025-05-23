@@ -139,7 +139,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      * Check that transaction time always moves forward for a given page. If this check fails,
      * reconciliation can free something that a future reconciliation will need.
      */
-    WT_ASSERT(session, WT_TXNID_LE(mod->last_oldest_id, oldest_id));
+    WT_ASSERT(session, mod->last_oldest_id <= oldest_id);
     mod->last_oldest_id = oldest_id;
 #endif
 }
