@@ -61,6 +61,9 @@ struct __wt_ckpt_connection {
 
     /* Last checkpoint connection's base write generation. */
     uint64_t last_base_write_gen;
+
+    /* Checkpoint worker threads */
+    WTI_CKPT_WORKERS *workers, _workers;
 };
 
 /*
@@ -173,6 +176,10 @@ extern int __wt_checkpoint_server_create(WT_SESSION_IMPL *session, const char *c
 extern int __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_checkpoint_sync(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_workers_create(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_checkpoint_workers_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_checkpoint_apply_or_skip_handle_stats(WT_SESSION_IMPL *session, uint64_t time_us);
 extern void __wt_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt);

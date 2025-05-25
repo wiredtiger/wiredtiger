@@ -104,6 +104,7 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wt_evict_threads_destroy(session));
     /* The capacity server can only be shut down after all I/O is complete. */
     WT_TRET(__wti_capacity_server_destroy(session));
+    WT_TRET(__wt_checkpoint_workers_destroy(session));
 
     /* There should be no more file opens after this point. */
     F_SET_ATOMIC_32(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
@@ -228,6 +229,7 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wti_statlog_create(session, cfg));
     WT_RET(__wti_tiered_storage_create(session));
     WT_RET(__wt_logmgr_create(session));
+    WT_RET(__wt_checkpoint_workers_create(session));
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
