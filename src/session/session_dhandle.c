@@ -573,7 +573,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * There is no such restriction for the verification flow.
      */
     is_reserved_name = cval.len > strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
-    if (is_reserved_name && !(flags & WT_BTREE_VERIFY))
+    if (is_reserved_name && !LF_ISSET(WT_BTREE_VERIFY))
         WT_RET_MSG(
           session, EINVAL, "the prefix \"%s\" for checkpoint cursors is reserved", WT_CHECKPOINT);
 

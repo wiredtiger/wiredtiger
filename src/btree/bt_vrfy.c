@@ -206,7 +206,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *name;
-    bool bm_start, quit, skip_hs, check_done;
+    bool bm_start, quit, skip_hs, check_done, is_specific_checkpoint;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
@@ -215,7 +215,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm = btree->bm;
     ckptbase = NULL;
     name = session->dhandle->name;
-    bm_start = quit = check_done = false;
+    bm_start = quit = check_done = is_specific_checkpoint = false;
     WT_NOT_READ(skip_hs, false);
 
     WT_CLEAR(_vstuff);
@@ -231,10 +231,11 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__verify_config(session, cfg, vs));
     WT_ERR(__wt_config_gets(session, cfg, "checkpoint", &cfg_ckpt));
     WT_ERR(__wt_config_gets(session, cfg, "dump_offsets", &cfg_dump_offsets));
-    if (cfg_dump_offsets.len > 0 && cfg_ckpt.len > 0) {
+    is_specific_checkpoint = cfg_ckpt.len > 0;
+
+    if (cfg_dump_offsets.len > 0 && is_specific_checkpoint)
         WT_ERR_MSG(
           session, ENOTSUP, "Providing both \'checkpoint\' and \'dump_offsets\' is not supported");
-    }
 
     /* Optionally dump specific block offsets. */
 #ifdef HAVE_DIAGNOSTIC
@@ -260,7 +261,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm_start = true;
 
     /*
-     * Skip the history store explicit call if:
+     * Skip the history store explicit call if one of the following conditions is true:
      * - we are performing a metadata verification. Indeed, the metadata file is verified
      * before we verify the history store, and it makes no sense to verify the history store against
      * itself.
@@ -269,14 +270,15 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * - we are verifying only the specified checkpoint.
      */
     skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0 ||
-      F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID) || cfg_ckpt.len > 0;
+      F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID) || is_specific_checkpoint;
 
     /* Loop through the file's checkpoints, verifying each one. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        /* If the config provides a specific checkpoint, skip all other ones */
-        if (cfg_ckpt.len > 0 && !WT_CONFIG_MATCH(ckpt->name, cfg_ckpt))
+        /* If the config provides a specific checkpoint, skip all other ones. */
+        if (is_specific_checkpoint && !WT_CONFIG_MATCH(ckpt->name, cfg_ckpt))
             continue;
 
+        /* We have found a checkpoint to verify. */
         check_done = true;
         __wt_verbose(session, WT_VERB_VERIFY, "%s: checkpoint %s", name, ckpt->name);
 
@@ -368,9 +370,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Report WT_NOTFOUND if a checkpoint to verify was specified but not found. */
-    if (cfg_ckpt.len > 0 && !check_done) {
+    if (is_specific_checkpoint > 0 && !check_done)
         ret = WT_NOTFOUND;
-    }
 
 done:
 err:

@@ -51,12 +51,11 @@ verify_one(WT_SESSION *session, char *config, char *uri)
     ret = session->verify(session, uri, config);
 
     /*
-     * Usually means that a specific checkpoint verification was requested and this checkpoint isn't
-     * valid for the provided URI.
+     * The ENOENT error means that a specific checkpoint verification was requested and this
+     * checkpoint could not be found for the provided URI.
      */
-    if (ret == ENOENT) {
+    if (ret == ENOENT)
         return (ret);
-    }
 
     if (ret == 0 && verbose)
         printf("%s - done\n", uri);
