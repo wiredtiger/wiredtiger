@@ -14,11 +14,12 @@
       __wt_atomic_load32(&(dhandle)->references) == 0)
 
 /*
- * __sweep_check_file_handle_exists --
- *     Check if the file dhandle exists for the table dhandle.
+ * __sweep_file_dhandle_check_and_reset_tod --
+ *     Check if the file dhandle exists for the table dhandle and resets its time-of-death if it
+ *     does.
  */
 static int
-__sweep_check_file_handle_exists(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
+__sweep_file_dhandle_check_and_reset_tod(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_DECL_RET;
     WT_TABLE *table;
@@ -84,7 +85,7 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
         if (dhandle->type == WT_DHANDLE_TYPE_TABLE) {
             WT_WITH_TABLE_READ_LOCK(session,
               WT_WITH_HANDLE_LIST_READ_LOCK(
-                session, (ret = __sweep_check_file_handle_exists(session, dhandle))));
+                session, (ret = __sweep_file_dhandle_check_and_reset_tod(session, dhandle))));
 
             /* Continue if the file dhandle exists for the associated table dhandle. */
             if (ret == 0)
