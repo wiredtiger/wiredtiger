@@ -24,7 +24,7 @@ __drop_file(
     const char *filename;
     char *metadata_cfg = NULL;
     bool id_found, remove_files;
-    uint32_t id;
+    uint32_t id = 0;
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
