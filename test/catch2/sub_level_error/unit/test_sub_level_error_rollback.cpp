@@ -183,4 +183,20 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         // Reset updates to the initial value.
         session_impl->txn->mod_count = 0;
     }
+
+    SECTION(
+      "Test WT_MODIFY_READ_UNCOMMITTED in __wt_modify_reconstruct_from_upd_list - reader with uncommitted isolation")
+    {
+        CHECK(__wt_modify_reconstruct_from_upd_list(session_impl, NULL, NULL, NULL, WT_OPCTX_RECONCILATION) == 0);
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+        
+        session_impl->txn->isolation = WT_ISO_SNAPSHOT;
+        CHECK(__wt_modify_reconstruct_from_upd_list(session_impl, NULL, NULL, NULL, WT_OPCTX_TRANSACTION) == 0);
+        check_error_info(err_info, 0, WT_NONE, WT_ERROR_INFO_SUCCESS);
+
+        const char *err_msg_content = "Read-uncommitted readers do not support reconstructing a record with modifies.";
+        session_impl->txn->isolation = WT_ISO_READ_UNCOMMITTED;
+        CHECK(__wt_modify_reconstruct_from_upd_list(session_impl, NULL, NULL, NULL, WT_OPCTX_TRANSACTION) == 0);
+        check_error_info(err_info, WT_ROLLBACK, WT_MODIFY_READ_UNCOMMITTED, err_msg_content);
+    }
 }
