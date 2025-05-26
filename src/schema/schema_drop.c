@@ -23,7 +23,7 @@ __drop_file(
     WT_DECL_RET;
     const char *filename;
     char *metadata_cfg = NULL;
-    bool remove_files;
+    bool remove_files, id_found;
     uint32_t id;
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
@@ -44,9 +44,10 @@ __drop_file(
     WT_RET(ret);
 
     /* Get file id that will be used to truncate history store for the file. */
-    WT_ERR(__wt_metadata_search(session, uri, &metadata_cfg));
-    WT_ERR(__wt_config_getones(session, metadata_cfg, "id", &cval));
-    id = (uint32_t)cval.val;
+    id_found = __wt_metadata_search(session, uri, &metadata_cfg) == 0 &&
+      __wt_config_getones(session, metadata_cfg, "id", &cval) == 0;
+    if (id_found)
+        id = (uint32_t)cval.val;
 
     /* Remove the metadata entry (ignore missing items). */
     WT_TRET(__wt_metadata_remove(session, uri));
@@ -57,14 +58,14 @@ __drop_file(
         WT_TRET(__wt_meta_track_drop(session, filename));
 
     /*
-     * Truncate history store for the dropped file, this is a best-effort operation, as we don't
-     * fail drop if truncate returns an error. There is no history store to truncate for in-memory
-     * database, and we should not call truncate if connection is not ready for history store
-     * operations.
+     * Truncate history store for the dropped file if we can find its id from the metadata, this is
+     * a best-effort operation, as we don't fail drop if truncate returns an error. There is no
+     * history store to truncate for in-memory database, and we should not call truncate if
+     * connection is not ready for history store operations.
      */
     WT_ERR(ret);
-    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
-      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_MINIMAL | WT_CONN_READY))
+    if (id_found && !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READY))
         if (__wt_hs_btree_truncate(session, id) != 0)
             __wt_verbose_warning(
               session, WT_VERB_HS, "Failed to truncate history store for the file: %s", uri);
