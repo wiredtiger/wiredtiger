@@ -44,22 +44,18 @@ usage(void)
  *     Verify the file specified by the URI.
  */
 static int
-verify_one(WT_SESSION *session, char *config, char *uri)
+verify_one(WT_SESSION *session, char *config, char *uri, bool enoent_ok, bool *check_donep)
 {
     WT_DECL_RET;
 
-    ret = session->verify(session, uri, config);
-
-    /*
-     * The ENOENT error means that a specific checkpoint verification was requested and this
-     * checkpoint could not be found for the provided URI.
-     */
-    if (ret == ENOENT)
-        return (ret);
-
-    if (ret == 0 && verbose)
-        printf("%s - done\n", uri);
-    if (ret != 0)
+    if ((ret = session->verify(session, uri, config)) == 0) {
+        if (verbose)
+            printf("%s - done\n", uri);
+        *check_donep = true;
+    } else if (ret == ENOENT && enoent_ok)
+        /* If a specific checkpoint was provided, it might not be found in some tables. */
+        ret = 0;
+    else
         ret = util_err(session, ret, "session.verify: %s", uri);
 
     return (ret);
@@ -77,12 +73,13 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     size_t size;
     int ch;
     char *config, *dump_offsets, *key, *uri, *ckpt;
-    bool abort_on_error, do_not_clear_txn_id, dump_address, dump_all_data, dump_key_data,
-      dump_blocks, dump_layout, dump_tree_shape, dump_pages, read_corrupt, stable_timestamp, strict;
+    bool abort_on_error, check_done, do_not_clear_txn_id, dump_address, dump_all_data,
+      dump_key_data, dump_blocks, dump_layout, dump_tree_shape, dump_pages, enoent_ok, read_corrupt,
+      stable_timestamp, strict;
 
-    abort_on_error = do_not_clear_txn_id = dump_address = dump_all_data = dump_key_data =
-      dump_blocks = dump_layout = dump_tree_shape = dump_pages = read_corrupt = stable_timestamp =
-        strict = false;
+    abort_on_error = check_done = do_not_clear_txn_id = dump_address = dump_all_data =
+      dump_key_data = dump_blocks = dump_layout = dump_tree_shape = dump_pages = enoent_ok =
+        read_corrupt = stable_timestamp = strict = false;
     config = dump_offsets = uri = ckpt = NULL;
 
     while ((ch = __wt_getopt(progname, argc, argv, "aC:cd:kSstu?")) != EOF)
@@ -95,6 +92,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             break;
         case 'C':
             ckpt = __wt_optarg;
+            enoent_ok = true;
             break;
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
@@ -192,7 +190,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             WT_ERR(util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
         }
 
-        bool check_done = false;
         while ((ret = cursor->next(cursor)) == 0) {
             if ((ret = cursor->get_key(cursor, &key)) != 0)
                 WT_ERR(util_cerr(cursor, "get_key", ret));
@@ -204,26 +201,26 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
              */
             if (WT_PREFIX_MATCH(key, "table:") && !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX)) {
                 if (abort_on_error)
-                    WT_ERR_ERROR_OK(verify_one(session, config, key), ENOTSUP, false);
+                    WT_ERR_ERROR_OK(
+                      verify_one(session, config, key, enoent_ok, &check_done), ENOTSUP, false);
                 else
-                    WT_TRET(verify_one(session, config, key));
-
-                if (ret == 0)
-                    check_done = true;
+                    WT_TRET(verify_one(session, config, key, enoent_ok, &check_done));
             }
         }
+
+        /* No tables were found. */
         if (ret == WT_NOTFOUND)
             ret = 0;
-
-        /* Specific checkpoint verification requested but the checkpoint wasn't found. */
-        if (ckpt != NULL && check_done == false)
-            ret = ENOENT;
     } else {
         if ((uri = util_uri(session, *argv, "table")) == NULL)
             goto err;
 
-        ret = verify_one(session, config, uri);
+        ret = verify_one(session, config, uri, enoent_ok, &check_done);
     }
+
+    /* Specific checkpoint verification requested but the checkpoint wasn't found. */
+    if (ckpt != NULL && check_done == false)
+        ret = util_err(session, ENOENT, "session.verify");
 
 err:
     util_free(config);
