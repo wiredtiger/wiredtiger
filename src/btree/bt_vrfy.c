@@ -215,7 +215,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm = btree->bm;
     ckptbase = NULL;
     name = session->dhandle->name;
-    bm_start = quit = check_done = is_specific_checkpoint = false;
+    bm_start = quit = check_done = false;
+    WT_NOT_READ(is_specific_checkpoint, false);
     WT_NOT_READ(skip_hs, false);
 
     WT_CLEAR(_vstuff);
