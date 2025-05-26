@@ -23,7 +23,7 @@ __drop_file(
     WT_DECL_RET;
     const char *filename;
     char *metadata_cfg = NULL;
-    bool remove_files, id_found;
+    bool id_found, remove_files;
     uint32_t id;
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
