@@ -237,7 +237,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR_MSG(
           session, ENOTSUP, "Providing both \'checkpoint\' and \'dump_offsets\' is not supported");
 
-    /* Optionally dump specific block offsets. */
+        /* Optionally dump specific block offsets. */
 #ifdef HAVE_DIAGNOSTIC
     WT_ERR(__verify_config_offsets(session, &cfg_dump_offsets, &quit, vs));
 #else
