@@ -149,7 +149,6 @@ static WT_INLINE bool
 __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
                            WT_EVICT_BUCKETSET **bucketset, int *bucketset_level)
 {
-    WT_EVICT_BUCKET *bucket;
     WT_EVICT_HANDLE_DATA *evict_handle_data;
     bool correct_bucketset;
 
@@ -175,11 +174,10 @@ __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT
         return false;
     }
 
-    bucket = __wt_atomic_load_pointer(&page->evict_data.bucket);
-    if (bucket == NULL)
+    if (page->evict_data.bucket == NULL)
         return false;
 
-    *bucketset =  WT_BUCKET_TO_BUCKETSET(bucket);
+    *bucketset =  WT_BUCKET_TO_BUCKETSET(page->evict_data.bucket);
 
     if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset) {
         *bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
@@ -264,22 +262,22 @@ __evict_read_gen(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    static int times;
-    static int skipped, not_skipped;
+    //  static int times;
+    //static int skipped, not_skipped;
 
     /* Ignore pages set for forcible eviction. */
     if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_EVICT_SOON) {
-        skipped++;
+        //  skipped++;
         return false;
     }
 
     /* Ignore pages already in the future. */
     if (__wt_atomic_load64(&page->evict_data.read_gen) > __evict_read_gen(session)){
-        skipped++;
+        //skipped++;
         return false;
     }
 
-    not_skipped++;
+    //not_skipped++;
     /*
      * We set read-generations in the future (where "the future" is measured by increments of the
      * global read generation). The reason is because when acquiring a new hazard pointer for a
@@ -288,8 +286,8 @@ __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * avoid some number of updates immediately after each update we have to make.
      */
     __wt_atomic_store64(&page->evict_data.read_gen, __evict_read_gen(session) + WT_READGEN_STEP);
-    if (times++ % 10000 == 0)
-        printf("read_gen = %" PRIu64 ", skipped %d, not skipped %d \n", page->evict_data.read_gen, skipped, not_skipped);
+//    if (times++ % 10000 == 0)
+//        printf("read_gen = %" PRIu64 ", skipped %d, not skipped %d \n", page->evict_data.read_gen, skipped, not_skipped);
     return true;
 }
 

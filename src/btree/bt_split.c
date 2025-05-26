@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -472,8 +472,8 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
         } else
             ref->ref_recno = (*root_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
-		/* Make the ref visible in cache */
-		__wt_ref_make_visible(session, ref);
+        /* Make the ref visible in cache */
+        __wt_ref_make_visible(session, ref);
 
         /*
          * Initialize the child page. Block eviction in newly created pages and mark them dirty.
@@ -1023,8 +1023,8 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         } else
             ref->ref_recno = (*page_refp)->ref_recno;
         F_SET(ref, WT_REF_FLAG_INTERNAL);
-		/* Make the page visible */
-		__wt_ref_make_visible(session, ref);
+        /* Make the page visible */
+        __wt_ref_make_visible(session, ref);
 
         /*
          * Initialize the child page. Block eviction in newly created pages and mark them dirty.
@@ -1766,7 +1766,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
      */
     if (multi->disk_image!= NULL && !closing) {
         WT_RET(__split_multi_inmem(session, page, multi, ref));
-		__wt_ref_make_visible(session, ref);
+        __wt_ref_make_visible(session, ref);
     }
     __wt_free(session, multi->disk_image);
 
@@ -1825,7 +1825,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
     F_SET(child, WT_REF_FLAG_LEAF);
-	/* Visible as soon as the split completes. */
+    /* Visible as soon as the split completes. */
     __wt_ref_make_visible(session, child);
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
@@ -1866,7 +1866,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     __wt_ref_assign_page(child, right);
     F_SET(child, WT_REF_FLAG_LEAF);
-	__wt_ref_make_visible(session, child);
+    __wt_ref_make_visible(session, child);
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wti_row_ikey(
           session, 0, WT_INSERT_KEY(moved_ins), WT_INSERT_KEY_SIZE(moved_ins), child));
@@ -1912,12 +1912,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      *               __
      *              |c3|
      *               |
-     *   __		 __    __
+     *   __      __    __
      *  |a2|--------|c2|--|d2|
-     *   |		 |	|
-     *   __		 __    __	   __
+     *   |       |  |
+     *   __      __    __      __
      *  |a1|--------|c1|--|d1|--------|f1|
-     *   |		 |	|	   |
+     *   |       |  |      |
      *   __    __    __    __    __    __
      *  |a0|--|b0|--|c0|--|d0|--|e0|--|f0|
      *
@@ -2137,12 +2137,11 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
         WT_ERR(
           __wt_multi_to_ref(session, page, &mod->mod_multi[i], &ref_new[i], &parent_incr, closing));
 
-	/*
-	 * The reference is about to be discarded. Remove the page from eviction data structures now,
-	 * because we will lose this reference. The page will be freed later.
-	 */
-	__wt_evict_remove(session, ref, false);
-	printf("SPLIT!!!!!!\n"); fflush(stdout);
+    /*
+     * The reference is about to be discarded. Remove the page from eviction data structures now,
+     * because we will lose this reference. The page will be freed later.
+     */
+    __wt_evict_remove(session, ref, false);
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
@@ -2318,7 +2317,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 
     /* Swap the new page into place. */
     __wt_ref_assign_page(ref, new->page);
-	__wt_ref_make_visible(session, ref);
+    __wt_ref_make_visible(session, ref);
 
     __wt_free(session, new);
     return (0);
