@@ -9,12 +9,16 @@
 #include "wt_internal.h"
 static void __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p);
 static bool __evict_internal_page_has_cached_children(WT_SESSION_IMPL *sesison, WT_REF *ref);
-static int __evict_lru_pages(WT_SESSION_IMPL *session);
+static int __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server);
 static int __evict_page(WT_SESSION_IMPL *session);
 static bool __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
                                            WT_PAGE *page, bool new, bool verbose);
 static void __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
+static int __evict_server(WT_SESSION_IMPL *session, bool *did_work);
 static bool __evict_skip_page(WT_SESSION_IMPL *session, WT_REF *ref);
+static bool __evict_update_work(WT_SESSION_IMPL *session);
+
+#define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
 
 
 /*
@@ -145,12 +149,18 @@ __evict_thread_chk(WT_SESSION_IMPL *session)
 static int
 __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 {
+	WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_EVICT *evict;
+    bool did_work;
 
+    conn = S2C(session);
+    evict = conn->evict;
     (void)thread;
 
     /* Mark the session as an eviction thread session. */
     F_SET(session, WT_SESSION_EVICTION);
+	__wt_verbose_info(session, WT_VERB_EVICTION, "%s", "eviction thread starting");
 
     /*
      * Cache a history store cursor to avoid deadlock: if an eviction thread marks a file busy and
@@ -159,8 +169,20 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      */
     WT_ERR(__wt_curhs_cache(session));
 
-    __wt_verbose_info(session, WT_VERB_EVICTION, "%s", "eviction thread starting");
-    WT_ERR(__evict_lru_pages(session));
+	/* Designate one thread to act as a server. */
+	if (__wt_atomic_loadbool(&conn->evict_server_running) &&
+		__wt_spin_trylock(session, &evict->evict_housekeeping_lock) == 0) {
+		ret = __evict_server(session, &did_work);
+		__wt_spin_unlock(session,  &evict->evict_housekeeping_lock);
+		WT_ERR(ret);
+
+		/* Pause. The wait period is shorter if the server did work */
+//		printf("Eviction server to pause after exiting __evict_server function\n");
+		__wt_cond_auto_wait(session, evict->evict_server_cond, did_work, NULL);
+		__wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
+	}
+	else
+		WT_ERR(__evict_lru_pages(session, false));
 
     if (0) {
 err:
@@ -301,6 +323,42 @@ __wt_evict_threads_destroy(WT_SESSION_IMPL *session)
 
     return (0);
 }
+
+/*
+ * __evict_lru_pages --
+ *     Get pages from the LRU queue to evict.
+ */
+static int
+__evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_TRACK_OP_DECL;
+
+    WT_TRACK_OP_INIT(session);
+    conn = S2C(session);
+
+    /*
+     * Reconcile and discard some pages: EBUSY is returned if a page fails eviction because it's
+     * unavailable, continue in that case.
+     */
+    while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && __evict_update_work(session) && ret == 0)
+        if ((ret = __evict_page(session)) == EBUSY)
+            ret = 0;
+
+    /* If any resources are pinned, release them now. */
+    WT_TRET(__wt_session_release_resources(session));
+
+    /* If a worker thread is here, there is no work to do; pause. */
+    if (!is_server && F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
+//		printf("Evict worker is pausing\n");
+        __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
+	}
+
+    WT_TRACK_OP_END(session);
+    return (ret == WT_NOTFOUND ? 0 : ret);
+}
+
 
 /*
  * __evict_update_work --
@@ -676,12 +734,13 @@ done:
 }
 
 /*
- * __evict_lru_pages --
- *     Get pages from the LRU queue to evict. This function will be called repeatedly via the thread
- *     group until the threads are told to exit.
+ * __evict_server --
+ *     Work to do for a thread elected to act as a server. In addition to evicting page
+ *     this thread is responsible for tuning the number of workers and incrementing the
+ *     global read generation.
  */
 static int
-__evict_lru_pages(WT_SESSION_IMPL *session)
+__evict_server(WT_SESSION_IMPL *session, bool *did_work)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -689,11 +748,9 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
     WT_EVICT *evict;
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
-    uint32_t tmp_evict_aggressive_score;
     uint64_t eviction_progress, oldest_id, prev_oldest_id;
     uint64_t time_now, time_prev;
     u_int loop;
-    long rand;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
@@ -712,37 +769,28 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
         if (loop == 0)
             time_prev = time_now;
 
-        /* Designate one thread to tune eviction workers and increment the read generation */
-        if (__wt_atomic_loadbool(&conn->evict_server_running) &&
-            __wt_spin_trylock(session, &evict->evict_housekeeping_lock) == 0) {
-            __evict_tune_workers(session);
-            /*
-             * Increment the shared read generation. Do this occasionally even if eviction is not
-             * currently required, so that pages have some relative read generation when the eviction
-             * server does need to do some work.
-             */
-            if ((rand = random()) % 60 == 0) { /*** XXX -- fix this ***/
-                __wt_atomic_add64(&evict->read_gen, 1);
-                __wt_atomic_add64(&evict->evict_pass_gen, 1);
-            }
+		__evict_tune_workers(session);
+		/*
+		 * Increment the shared read generation. Do this occasionally even if eviction is not
+		 * currently required, so that pages have some relative read generation when the eviction
+		 * server does need to do some work.
+		 */
+		__wt_atomic_add64(&evict->read_gen, 1);
+		//printf("Eviction server readgen %" PRIu64 " \n", evict->read_gen);
 
-            /*
-             * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
-             * Without this, if all threads are blocked after a long-running transaction (such as a
-             * checkpoint) completes, we may never start evicting again.
-             *
-             * Do this every time the eviction server wakes up, regardless of whether the cache is full,
-             * to prevent the oldest ID falling too far behind. Don't wait to lock the table: with
-             * highly threaded workloads, that creates a bottleneck.
-             */
-            WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
-            __wt_spin_unlock(session,  &evict->evict_housekeeping_lock);
-        }
+		/*
+		 * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
+		 * Without this, if all threads are blocked after a long-running transaction (such as a
+		 * checkpoint) completes, we may never start evicting again.
+		 *
+		 * Do this every time the eviction server wakes up, regardless of whether the cache is full,
+		 * to prevent the oldest ID falling too far behind. Don't wait to lock the table: with
+		 * highly threaded workloads, that creates a bottleneck.
+		 */
+		WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
-        if (!__evict_update_work(session)) {
-            __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
+        if ( (*did_work = __evict_update_work(session)) == false)
             break;
-        }
 
         __wt_verbose_debug2(session, WT_VERB_EVICTION,
           "Eviction pass with: Max: %" PRIu64 " In use: %" PRIu64 " Dirty: %" PRIu64
@@ -752,9 +800,9 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
             __wt_atomic_load64(&cache->bytes_dirty_leaf),
           __wt_atomic_load64(&cache->bytes_updates));
 
-        /* Try to evict a page */
-        if ((ret = __evict_page(session)) == EBUSY)
-            ret = 0;
+        /* Evict pages if there are no workers */
+		if (!WT_EVICT_HAS_WORKERS(session))
+			WT_RET(__evict_lru_pages(session, true));
 
         /*
          * If we're making progress, keep going; if we're not making any progress at all, mark the
@@ -767,17 +815,13 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
          */
         if (eviction_progress == __wt_atomic_loadv64(&evict->eviction_progress)) {
             if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(evict, WT_EVICT_CACHE_HARD)) {
-                if ((tmp_evict_aggressive_score =__wt_atomic_load32(&evict->evict_aggressive_score))
-                    < WT_EVICT_SCORE_MAX)
-                    WT_IGNORE_RET(__wt_atomic_cas32(&evict->evict_aggressive_score, tmp_evict_aggressive_score,
-                                                    tmp_evict_aggressive_score + 1));
+                if (__wt_atomic_load32(&evict->evict_aggressive_score) < WT_EVICT_SCORE_MAX)
+					(void)__wt_atomic_addv32(&evict->evict_aggressive_score, 1);
                 oldest_id = __wt_atomic_loadv64(&txn_global->oldest_id);
                 if (prev_oldest_id == oldest_id &&
                     __wt_atomic_loadv64(&txn_global->current) != oldest_id &&
-                    (tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score))
-                    < WT_EVICT_SCORE_MAX)
-                    WT_IGNORE_RET(__wt_atomic_cas32(&evict->evict_aggressive_score, tmp_evict_aggressive_score,
-                                                    tmp_evict_aggressive_score + 1));
+                    __wt_atomic_load32(&evict->evict_aggressive_score) < WT_EVICT_SCORE_MAX)
+					(void)__wt_atomic_addv32(&evict->evict_aggressive_score, 1);
                 time_prev = time_now;
                 prev_oldest_id = oldest_id;
             }
@@ -791,18 +835,16 @@ __evict_lru_pages(WT_SESSION_IMPL *session)
                  * Back off if we aren't making progress.
                  */
                 WT_STAT_CONN_INCR(session, eviction_slept);
-                __wt_cond_wait(session, conn->evict_threads.wait_cond, WT_THOUSAND, NULL);
+				//printf("Eviction server about to pause after doing work \n");
+				__wt_cond_wait(session, evict->evict_server_cond, WT_THOUSAND, NULL);
                 continue;
             }
-
             WT_STAT_CONN_INCR(session, eviction_slow);
             __wt_verbose_debug1(session, WT_VERB_EVICTION, "%s", "unable making slow progress");
             break;
         }
-        if ((tmp_evict_aggressive_score = __wt_atomic_load32(&evict->evict_aggressive_score)) > 0) {
-            WT_IGNORE_RET(__wt_atomic_cas32(&evict->evict_aggressive_score, tmp_evict_aggressive_score,
-                                            tmp_evict_aggressive_score - 1));
-        }
+		if (__wt_atomic_load32(&evict->evict_aggressive_score) > 0)
+            (void)__wt_atomic_subv32(&evict->evict_aggressive_score, 1);
         loop = 0;
         eviction_progress = __wt_atomic_loadv64(&evict->eviction_progress);
     }

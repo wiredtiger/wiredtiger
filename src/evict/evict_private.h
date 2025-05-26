@@ -7,6 +7,8 @@
  */
 
 #pragma once
+#define WT_EVICT_DISABLED(btree) btree->evict_data.evict_disabled
+#define WT_EVICT_PAGE_CLEARED(page) (page->evict_data.bucket == NULL)
 
 #define WT_DHANDLE_TO_BUCKETSET(dhandle, set_number) \
     &((WT_BTREE *)(dhandle->handle))->evict_data.evict_bucketset[set_number]

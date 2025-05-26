@@ -41,6 +41,13 @@ struct __wt_evict {
     uint64_t evict_pass_gen;  /* Number of eviction passes */
 
     /*
+     * The thread responsible for incrementing the read generation sleeps on this condition variable
+     * proportionally to whether it has done work. This ensures that the global read generation is
+     * not incremented excessively.
+     */
+    WT_CONDVAR *evict_server_cond;
+
+    /*
      * Eviction threshold percentages use double type to allow for specifying percentages less than
      * one.
      */

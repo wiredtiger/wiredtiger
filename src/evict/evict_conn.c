@@ -271,14 +271,17 @@ __wt_evict_create(WT_SESSION_IMPL *session, const char *cfg[])
     /* Use a common routine for run-time configuration options. */
     WT_RET(__wt_evict_config(session, cfg, false));
 
-    WT_RET(__wt_spin_init(session, &conn->evict->evict_exclusive_lock, "evict-exclusive"));
-	WT_RET(__wt_spin_init(session, &conn->evict->evict_housekeeping_lock, "evict-housekeeping"));
     /*
      * The lowest possible page read-generation has a special meaning, it marks a page for forcible
      * eviction; don't let it happen by accident.
      */
     evict->read_gen_oldest = WT_READGEN_START_VALUE;
     __wt_atomic_store64(&evict->read_gen, WT_READGEN_START_VALUE);
+
+	WT_RET(__wt_cond_auto_alloc(
+      session, "evict server", 10 * WT_THOUSAND, WT_MILLION, &evict->evict_server_cond));
+    WT_RET(__wt_spin_init(session, &conn->evict->evict_exclusive_lock, "evict-exclusive"));
+	WT_RET(__wt_spin_init(session, &conn->evict->evict_housekeeping_lock, "evict-housekeeping"));
 
     /*
      * We get/set some values in the evict statistics (rather than have two copies), configure them.
