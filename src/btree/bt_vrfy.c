@@ -370,7 +370,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /* Report WT_NOTFOUND if a checkpoint to verify was specified but not found. */
-    if (is_specific_checkpoint > 0 && !check_done)
+    if (is_specific_checkpoint && !check_done)
         ret = WT_NOTFOUND;
 
 done:
