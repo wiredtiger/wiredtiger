@@ -696,8 +696,12 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * values could lead to surprising bugs in the future.
      */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
+        uint64_t bytes_hs_dirty;
         __wt_atomic_store64(&cache->bytes_hs, __wt_atomic_load64(&hs_tree->bytes_inmem));
-        cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
+        bytes_hs_dirty = __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
+          __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
+        __wt_atomic_store64(&cache->bytes_hs_dirty, bytes_hs_dirty);
+        __wt_atomic_store64(&cache->bytes_hs_updates, __wt_atomic_load64(&hs_tree->bytes_updates));
     }
 
     /*
@@ -732,7 +736,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
         LF_SET(WT_EVICT_CACHE_DIRTY);
 
     /*
-     * Scrub dirty pages and keep them in cache if we are less than half way to the clean, dirty or
+     * Scrub dirty pages and keep them in cache if we are less than half way to the clean, dirty and
      * updates triggers.
      */
     if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
