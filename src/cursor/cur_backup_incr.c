@@ -23,6 +23,25 @@ __wt_backup_load_incr(
     return (0);
 }
 
+/* For all non zero bits in the bitstring add the icremental size. */
+static size_t
+__compute_incr_size(WT_ITEM *bitstring, uint64_t nbits, uint64_t granularity)
+{
+    uint64_t bytes = nbits >> 3;
+    uint64_t total_count = 0;
+    for (uint64_t i = 0; i < bytes; i++) {
+        uint8_t byte = ((uint8_t *)bitstring->data)[i];
+        uint8_t set_count = 0;
+        while (byte) {
+            if (byte & 1)
+                set_count++;
+            byte >>= 1;
+        }
+        total_count += set_count;
+    }
+    return (total_count * granularity);
+}
+
 /*
  * __curbackup_incr_blkmod --
  *     Get the block modifications for a tree from its metadata and fill in the backup cursor's
@@ -35,6 +54,8 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     WT_CONFIG blkconf;
     WT_CONFIG_ITEM b, k, v;
     WT_DECL_RET;
+
+    size_t incr_size = 0;
 
     WT_ASSERT(session, btree != NULL);
     WT_ASSERT(session, btree->dhandle != NULL);
@@ -98,11 +119,17 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
              */
             if ((ret = __wt_config_subgets(session, &v, "blocks", &b)) == 0) {
                 WT_ERR(__wt_backup_load_incr(session, &b, &cb->bitstring, cb->nbits));
+                incr_size = __compute_incr_size(&cb->bitstring, cb->nbits, cb->granularity);
                 cb->bit_offset = 0;
                 F_SET(cb, WT_CURBACKUP_INCR_INIT);
             }
             WT_ERR_NOTFOUND_OK(ret, false);
         }
+        cb->incr_src->incr_size_bytes += incr_size;
+        cb->incr_src->dirty_size_bytes += btree->bm->block->bytes_dirtied;
+        btree->bm->block->bytes_dirtied = 0;
+        // printf("Computed incr size of %"PRIu64" with dirty size %"PRIu32" for bitstring %s\n",
+        // incr_size, btree->bm->block->bytes_dirtied, b.str);
         break;
     }
     WT_ERR_NOTFOUND_OK(ret, false);

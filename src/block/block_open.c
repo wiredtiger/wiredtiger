@@ -134,6 +134,10 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     WT_TRET(__wt_close(session, &block->fh));
 
+    __wt_free(session, block->block_groups_file);
+    block->block_groups_file = NULL; 
+    block->block_groups_cnt = 0;
+
     __wt_spin_destroy(session, &block->live_lock);
     __wti_block_ckpt_destroy(session, &block->live);
 
@@ -261,6 +265,9 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      */
     if (block->size == allocsize && F_ISSET_ATOMIC_32(conn, WT_CONN_INCR_BACKUP))
         block->created_during_backup = true;
+
+    block->block_groups_cnt = 0;
+    block->block_groups_file = NULL;
 
     /* Initialize the live checkpoint's lock. */
     WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));

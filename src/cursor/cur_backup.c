@@ -924,8 +924,33 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     /* If it's not a dup backup cursor, make sure one isn't open. */
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_BACKUP_DUP));
     WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_list = NULL);
-    if (cb->incr_src != NULL)
+    if (cb->incr_src != NULL) {
+        double multi = 0;
+        if (cb->incr_src->dirty_size_bytes != 0)
+            multi = (1.0 * cb->incr_src->incr_size_bytes) / cb->incr_src->dirty_size_bytes;
+        printf("Total size for incremental backup is: %" PRIuMAX " bytes, dirty_size: %" PRIuMAX
+               " bytes, multiplier: %.1lf\n",
+          cb->incr_src->incr_size_bytes, cb->incr_src->dirty_size_bytes, multi);
+        cb->incr_src->incr_size_bytes = 0;
+        cb->incr_src->dirty_size_bytes = 0;
         F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
+
+        WT_DATA_HANDLE *dhandle;
+        TAILQ_FOREACH(dhandle, &S2C(session)->dhqh, q) {
+          WT_BTREE *btree = (WT_BTREE *)dhandle->handle;
+          if (btree != NULL && dhandle->type == WT_DHANDLE_TYPE_BTREE) {
+              if (btree->bm != NULL) {
+                  WT_BLOCK *block = (WT_BLOCK *)btree->bm->block;
+                  if (block != NULL) {
+                    //TODO: lock? might not matter for short test to prove things out
+                    __wt_free(session, block->block_groups_file);
+                    block->block_groups_file = NULL;
+                    block->block_groups_cnt = 0;
+                  }
+              }
+          }
+        }
+    }
     WT_TRET(__backup_free(session, cb));
 
     /* Remove any backup specific file. */
@@ -960,10 +985,14 @@ __backup_all(WT_SESSION_IMPL *session)
 static int
 __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
 {
+    WT_BTREE *btree;
+    WT_CURSOR *cursor;
     WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
+    WT_SESSION *wt_session;
     char *value;
-
+    cursor = NULL;
+    wt_session = (WT_SESSION *)session;
     cb = session->bkp_cursor;
     WT_UNUSED(skip);
 
@@ -993,8 +1022,19 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
         goto err;
 
     /* Add file type objects to the list of files to be copied. */
-    if (WT_PREFIX_MATCH(name, "file:"))
+    if (WT_PREFIX_MATCH(name, "file:")) {
+        /*
+         * If this isn't a subsequent incremental backup open a cursor so we can reset the dirty
+         * size on the btree. This is a super duper hack.
+         */
+        if (cb->incr_src == NULL) {
+            WT_ERR(wt_session->open_cursor(wt_session, name, NULL, NULL, &cursor));
+            btree = CUR2BT(cursor);
+            btree->bm->block->bytes_dirtied = 0;
+            cursor->close(cursor);
+        }
         WT_ERR(__backup_list_append(session, cb, name, value));
+    }
 
 err:
     __wt_free(session, value);

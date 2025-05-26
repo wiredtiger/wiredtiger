@@ -8,6 +8,29 @@
 
 #include "wt_internal.h"
 
+#define BLOCK_GROUP_SIZE_BYTES (512 * 1024ULL)
+/* #define BLOCK_GROUP_MIN_FILE_BYTES (0) */
+#define BLOCK_GROUP_MAX_EXTRA_GROUPS (4ULL * 1024ULL)
+#define BLOCK_GROUP_DENSITY_WEIGHT 3
+#define BLOCK_GROUP_WASTE_WEIGHT 0
+#define BLOCK_GROUP_PROXIMITY_WEIGHT 0
+#define BLOCK_GROUP_MAX_SCORE DBL_MAX
+#define BLOCK_GROUP_SEARCH_BUDGET 1024
+#define BLOCK_GROUP_DIRTY_SCAN_CAP 128
+#define BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET 128
+
+/*
+#define BLOCK_GROUP_SIZE_BYTES (16ULL * 1024ULL * 1024ULL)
+#define BLOCK_GROUP_MIN_FILE_BYTES (BLOCK_GROUP_SIZE_BYTES * 8)
+#define BLOCK_GROUP_MAX_EXTRA_GROUPS (4ULL * 1024ULL)
+#define BLOCK_GROUP_DENSITY_WEIGHT 3
+#define BLOCK_GROUP_WASTE_WEIGHT 1
+#define BLOCK_GROUP_PROXIMITY_WEIGHT 2
+#define BLOCK_GROUP_MAX_SCORE DBL_MAX
+#define BLOCK_GROUP_SEARCH_BUDGET 32
+#define BLOCK_GROUP_DIRTY_SCAN_CAP 8
+#define BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET 16
+*/
 /*
  * WT_BLOCK_RET --
  *	Handle extension list errors that would normally panic the system but
@@ -130,6 +153,170 @@ __block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
             szp = &(*szp)->next[i];
         else
             stack[i--] = szp--;
+}
+
+/*
+ * __next_power_of_two --
+ *     Finds the next power of 2 relative to the given integer.
+ */
+static WT_INLINE uint64_t
+__next_power_of_two(uint64_t x)
+{
+    if (x == 0) {
+        return (1);
+    }
+
+    x--;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x |= x >> 32;
+    return (x + 1);
+}
+
+/*
+ * __block_dirty_srch_init --
+ *     init / resize block_groups_file bitstring as needed. not currently persisted across restarts.
+ *     This could be seeded with the incremental backup cursor dirty bitstring on creation to be
+ *     more durable.
+ *
+ * There is benefit to tracking this outside of the backup cursor bitstring, since it would help
+ *     consumers not using incremental backup cursor.
+ */
+static WT_INLINE int
+__block_dirty_srch_init(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    /* if ((uint64_t)block->size < BLOCK_GROUP_MIN_FILE_BYTES) {
+         return (0);
+    } */
+
+    /* Round up to nearest block group */
+    uint64_t exact_groups =
+      ((uint64_t)block->size + BLOCK_GROUP_SIZE_BYTES - 1) / BLOCK_GROUP_SIZE_BYTES;
+    /* Use next power of two for amortized growth */
+    uint64_t estimated_groups = __next_power_of_two(exact_groups);
+
+    estimated_groups = WT_MIN(estimated_groups, exact_groups + BLOCK_GROUP_MAX_EXTRA_GROUPS);
+
+    if (block->block_groups_file == NULL) {
+        WT_RET(__bit_alloc(session, estimated_groups, &block->block_groups_file));
+        block->block_groups_cnt = estimated_groups;
+        return (0);
+    }
+
+    if (block->block_groups_cnt >= exact_groups) {
+        return (0);
+    }
+
+    /* Grow the bit set. */
+    uint8_t *old_block_groups_file = block->block_groups_file;
+    uint64_t old_block_groups_cnt = block->block_groups_cnt;
+
+    WT_RET(__bit_alloc(session, estimated_groups, &block->block_groups_file));
+    block->block_groups_cnt = estimated_groups;
+
+    size_t old_bytes = __bitstr_size(old_block_groups_cnt);
+    memcpy(block->block_groups_file, old_block_groups_file, old_bytes);
+
+    __wt_free(session, old_block_groups_file);
+
+    return (0);
+}
+
+/*
+ * __block_score_extent --
+ *     computes a normalized score for a WT_EXT extent in WiredTiger to help choose the best block
+ *     for allocation. Here's a detailed explanation of what it does and why:
+ *
+ * It assigns a badness score to an extent based on: 1. How much larger it is than needed (waste) 2.
+ *     How far into the file it is (proximity) 3. How clean (non-dirty) it is (density)
+ *
+ * The function returns a double score lower is better so the allocation logic can compare extents
+ *     and pick the best one.
+ *
+ */
+static WT_INLINE double
+__block_score_extent(WT_EXT *ext, wt_off_t size, WT_BLOCK *block)
+{
+    uint64_t dirty_span = 0, checked_span = 0;
+
+    if (block->block_groups_file != NULL) {
+        uint64_t start = ((uint64_t)ext->off) / BLOCK_GROUP_SIZE_BYTES;
+        uint64_t end = ((uint64_t)ext->off + (uint64_t)ext->size + BLOCK_GROUP_SIZE_BYTES - 1) /
+          BLOCK_GROUP_SIZE_BYTES;
+
+        for (uint64_t b = start; b < end && dirty_span < BLOCK_GROUP_DIRTY_SCAN_CAP; b++) {
+            checked_span++;
+            if (__bit_test(block->block_groups_file, b))
+                dirty_span++;
+        }
+    }
+
+    /* TODO: could consider using alloc list in the scoring */
+    double waste_ratio = ext->size > 0 ? (double)(ext->size - size) / ext->size : 1.0;
+    double clean_ratio =
+      checked_span > 0 ? (double)(checked_span - dirty_span) / checked_span : 1.0;
+    double proximity_ratio = block->size > 0 ? (double)ext->off / block->size : 1.0;
+
+    /* higher score = better */
+    double score = (BLOCK_GROUP_WASTE_WEIGHT * waste_ratio) +
+      (BLOCK_GROUP_PROXIMITY_WEIGHT * proximity_ratio) + (BLOCK_GROUP_DENSITY_WEIGHT * clean_ratio);
+
+    return (score);
+}
+
+/*
+ * __block_dirty_srch --
+ *     custom block allocation search heuristic used in the block manager to find the best reusable
+ *     block for a given size but only within dirty block groups (regions of the file previously
+ *     freed).
+ *
+ * It enhances the __block_size_srch with scoring logic that balances: - Dirty block group density
+ *     (how much of the region is dirty) - Allocation waste (how oversized the candidate is) -
+ *     Introduces search budget to avoid excessive scanning after a promising match is found. If
+ *     block_groups_file not set will only do a proximity lookup.
+ */
+static WT_INLINE WT_EXT *
+__block_dirty_srch(WT_BLOCK *block, wt_off_t size)
+{
+    WT_SIZE **head = block->live.avail.sz;
+    WT_EXT *best_ext = NULL;
+
+    double best_score = BLOCK_GROUP_MAX_SCORE;
+    int remaining_budget = BLOCK_GROUP_SEARCH_BUDGET;
+
+    /*find first bucket that has enough size for our write*/
+    WT_SIZE **s = &head[0];
+    while (*s != NULL && (*s)->size < size)
+        s = &(*s)->next[0]; /* TODO: optimize */
+
+    /*score and search extents for the best, continue into the next bucket until budget reached*/
+    while ((*s) != NULL && (*s)->size >= size) {
+        int extents_checked_in_bucket = 0;
+        for (WT_EXT *ext = (*s)->off[0];
+             ext != NULL && extents_checked_in_bucket < BLOCK_GROUP_MAX_EXTENTS_PER_BUCKET;
+             ext = ext->next[0], extents_checked_in_bucket++, remaining_budget--) {
+            if (ext->size < size)
+                continue;
+
+            double score = __block_score_extent(ext, size, block);
+            if (score < best_score) {
+              printf("new best %f\n", score);
+                best_score = score;
+                best_ext = ext;
+            }
+
+            if (remaining_budget <= 0) {
+              printf("budget reached %p best_score: %f\n", (void*)best_ext, best_score);
+              return (best_ext);
+            }
+        }
+        s = &(*s)->next[0];
+    }
+
+    return (best_ext);
 }
 
 /*
@@ -530,6 +717,7 @@ __block_extend(
     return (0);
 }
 
+static bool alloc_printed = false;
 /*
  * __wti_block_alloc --
  *     Alloc a chunk of space from the underlying file.
@@ -540,7 +728,7 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
     WT_EXT **estack[WT_SKIP_MAXDEPTH], *ext;
     WT_EXTLIST *el;
     WT_SIZE **sstack[WT_SKIP_MAXDEPTH], *szp;
-
+    ext = NULL;
     /* The live lock must be locked. */
     WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
@@ -567,30 +755,75 @@ __wti_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_
      *
      * If we don't have anything big enough, extend the file.
      */
+
     if (block->live.avail.bytes < (uint64_t)size)
         goto append;
-    if (block->allocfirst) {
-        if (!__block_first_srch(block->live.avail.off, size, estack))
-            goto append;
-        ext = *estack[0];
-    } else {
-        __block_size_srch(block->live.avail.sz, size, sstack);
-        if ((szp = *sstack[0]) == NULL) {
-append:
-            el = &block->live.alloc;
-            WT_RET(__block_extend(session, block, el, offp, size));
-            WT_RET(__block_append(session, block, el, *offp, (wt_off_t)size));
-            return (0);
-        }
 
-        /* Take the first record. */
-        ext = szp->off[0];
+    WT_EXT *first_ext = NULL;
+    WT_EXT *best_fit_ext = NULL;
+    WT_EXT *dirty_fit_ext = NULL;
+    // block->allocfirst = 1;
+    if(__block_first_srch(block->live.avail.off, size, estack)) {
+      first_ext = *estack[0];
     }
 
+    WT_RET(__block_dirty_srch_init(session, block));
+    dirty_fit_ext = __block_dirty_srch(block, size);
+
+     __block_size_srch(block->live.avail.sz, size, sstack);
+     if((szp = *sstack[0]) != NULL) {
+       best_fit_ext = szp->off[0];
+     }
+
+     printf("first_ext %"PRId64 ",%"PRId64"\n", first_ext != NULL ? first_ext->off : -1, first_ext != NULL ? first_ext->size : -1);
+     printf("best_fit_ext %"PRId64 ",%"PRId64"\n", best_fit_ext != NULL ? best_fit_ext->off : -1, best_fit_ext != NULL ? best_fit_ext->size : -1);
+     printf("dirty_fit_ext %"PRId64 ",%"PRId64"\n", dirty_fit_ext != NULL ? dirty_fit_ext->off : -1, dirty_fit_ext != NULL ? dirty_fit_ext->size : -1);
+
+     if(best_fit_ext != dirty_fit_ext) {
+       printf("not equal!\n");
+     } else {
+       printf("all equal!\n");
+     }
+
+    if (block->allocfirst) {
+        if(!alloc_printed) {
+          alloc_printed = true;
+          printf("allocalgo: __block_first_srch\n");
+        }
+        if (first_ext == NULL)
+            goto append;
+        ext = first_ext;
+    } else {
+        // if(/* DISABLES CODE */ (false) && true) {
+          if(!alloc_printed) {
+            alloc_printed = true;
+            printf("allocalgo: __block_dirty_srch\n");
+          }
+          ext = dirty_fit_ext;
+        // }
+        if (ext == NULL) {
+            if(!alloc_printed) {
+              alloc_printed = true;
+              printf("allocalgo: __block_size_srch\n");
+            }
+
+            if (best_fit_ext == NULL) {
+append:
+                el = &block->live.alloc;
+                WT_RET(__block_extend(session, block, el, offp, size));
+                WT_RET(__block_append(session, block, el, *offp, (wt_off_t)size));
+                return (0);
+            }
+            /* Take the first record. */
+            ext = best_fit_ext;
+        }
+    }
+
+    printf("ext before %"PRId64 ",%"PRId64"\n", ext->off, ext->size);
     /* Remove the record, and set the returned offset. */
     WT_RET(__block_off_remove(session, block, &block->live.avail, ext->off, &ext));
     *offp = ext->off;
-
+    printf("ext after %"PRId64 ",%"PRId64"\n", ext->off, ext->size);
     /* If doing a partial allocation, adjust the record and put it back. */
     if (ext->size > size) {
         __wt_verbose(session, WT_VERB_BLOCK,
@@ -610,6 +843,11 @@ append:
         __wti_block_ext_free(session, &ext);
     }
 
+    if (block->block_groups_file != NULL) {
+        uint64_t start = ((uint64_t)*offp) / BLOCK_GROUP_SIZE_BYTES;
+        uint64_t end = ((uint64_t)*offp + (uint64_t)size) / BLOCK_GROUP_SIZE_BYTES;
+        __bit_nset(block->block_groups_file, start, end);
+    }
     /* Add the newly allocated extent to the list of allocations. */
     WT_RET(__block_merge(session, block, &block->live.alloc, *offp, (wt_off_t)size));
     return (0);

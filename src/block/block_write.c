@@ -200,7 +200,7 @@ __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_
 
     WT_RET(__wti_block_write_off(
       session, block, buf, &offset, &size, &checksum, data_checksum, checkpoint_io, false));
-
+    block->bytes_dirtied += size;
     endp = addr;
     WT_RET(__wt_block_addr_pack(block, &endp, block->objectid, offset, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);

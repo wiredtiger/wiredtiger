@@ -284,7 +284,7 @@ struct __wt_block {
     size_t os_cache;               /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
-
+    uint32_t bytes_dirtied;
     u_int block_header; /* Header length */
 
     /*
@@ -331,6 +331,10 @@ struct __wt_block {
     uint64_t frags;          /* Maximum frags in the file */
     uint8_t *fragfile;       /* Per-file frag tracking list */
     uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
+
+    /* Dirty block tracking for allocation */
+    uint64_t block_groups_cnt;  /* Block groups count */
+    uint8_t *block_groups_file; /* Blocks group dirty tracking */
 
     /* Multi-file support */
     wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
