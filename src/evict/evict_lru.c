@@ -2074,13 +2074,13 @@ __evict_get_min_pages(WT_SESSION_IMPL *session, uint32_t target_pages)
      * only looking for dirty pages, search the tree for longer.
      */
     min_pages = 10 * (uint64_t)target_pages;
-    if (!F_ISSET(evict, WT_EVICT_CACHE_DIRTY | WT_EVICT_CACHE_UPDATES))
+    if (F_ISSET(evict, WT_EVICT_CACHE_CLEAN))
         WT_STAT_CONN_INCR(session, eviction_target_strategy_clean);
-    else if (!F_ISSET(evict, WT_EVICT_CACHE_CLEAN)) {
+    else if (F_ISSET(evict, WT_EVICT_CACHE_DIRTY)) {
         min_pages *= 10;
         WT_STAT_CONN_INCR(session, eviction_target_strategy_dirty);
-    } else
-        WT_STAT_CONN_INCR(session, eviction_target_strategy_both_clean_and_dirty);
+    } else if (F_ISSET(evict, WT_EVICT_CACHE_UPDATES))
+        WT_STAT_CONN_INCR(session, eviction_target_strategy_updates);
 
     return (min_pages);
 }
