@@ -193,6 +193,14 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
+
+    /*
+     * A list of prepared transactions that are available to be claimed. Populated by a prepared
+     * transactions cursor, and cleaned up when the cursor is closed. No need for concurrency
+     * control on making changes to the list.
+     */
+    WT_SESSION **pending_prepared_sessions;
+    uint32_t pending_prepared_sessions_allocated;
 };
 
 typedef enum __wt_txn_isolation {

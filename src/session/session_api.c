@@ -708,7 +708,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
         break;
     case 'p':
         if (WT_PREFIX_MATCH(uri, "prepared_transaction:")) {
-            WT_RET(__wt_cursor_prepared_txn_open(session, uri, other, cfg, cursorp));
+            WT_RET(__wt_cursor_prepared_discover_open(session, uri, other, cfg, cursorp));
         }
         break;
     case 's':

@@ -639,13 +639,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * An interesting case this code will need to deal with is the case where a prepare (start)
          * timestamp is old enough that it should be included in a checkpoint, but the commit
          * timestamp is new enough that it should be excluded. If non-precise checkpoints are
-         * configured, the full record can be included and rollback-to-stable will fix up content
-         * on recovery (it will need to be able to do that for out-front evictions anyway).
-         * For precise checkpoints the reconciliation code will need to write a record as it was
-         * before it was committed, and also leave the page/update in a state that makes sense
-         * (i.e: we might need a new flag like WT_UPDATE_DS, but indicating that it's partially
-         * in the datastore). Question: does this become tricky if a prepare makes multiple changes
-         * to the same key?
+         * configured, the full record can be included and rollback-to-stable will fix up content on
+         * recovery (it will need to be able to do that for out-front evictions anyway). For precise
+         * checkpoints the reconciliation code will need to write a record as it was before it was
+         * committed, and also leave the page/update in a state that makes sense (i.e: we might need
+         * a new flag like WT_UPDATE_DS, but indicating that it's partially in the datastore).
+         * Question: does this become tricky if a prepare makes multiple changes to the same key?
          */
         if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT_ALWAYS(session,
