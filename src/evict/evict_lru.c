@@ -23,17 +23,56 @@ static bool __evict_update_work(WT_SESSION_IMPL *session);
 #define WT_EVICT_HAS_WORKERS(s) (__wt_atomic_load32(&S2C(s)->evict_threads.current_threads) > 1)
 
 
+/* !!!
+ * __wt_evict_server_wake --
+ *     Wake up the eviction server thread. The eviction server typically sleeps for some time when
+ *     cache usage is below the target thresholds. When the cache is expected to exceed these
+ *     thresholds, callers can nudge the eviction server to wake up and resume its work.
+ *
+ *     This function is called in situations where pages are queued for urgent eviction or when
+ *     application threads request eviction assistance.
+ */
+void
+__wt_evict_server_wake(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    cache = conn->cache;
+
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_2)) {
+        uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
+
+        bytes_inuse = __wt_cache_bytes_inuse(cache);
+        bytes_max = conn->cache_size;
+        bytes_dirty = __wt_cache_dirty_inuse(cache);
+        bytes_updates = __wt_cache_bytes_updates(cache);
+        __wt_verbose_debug2(session, WT_VERB_EVICTION,
+          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB), bytes dirty %" PRIu64
+          "(bytes), bytes updates %" PRIu64 "(bytes)",
+          bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
+          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE, bytes_dirty,
+          bytes_updates);
+    }
+    __wt_cond_signal(session, conn->evict->evict_server_cond);
+}
+
+
 /*
  * __evict_log_cache_stuck --
  *     Output log messages if the cache is stuck.
  */
 static int
-__evict_log_cache_stuck(WT_SESSION_IMPL *session)
+__evict_log_cache_stuck(WT_SESSION_IMPL *session, bool *did_work)
 {
     struct timespec now;
     WT_CONNECTION_IMPL *conn;
     WT_EVICT *evict;
     uint64_t time_diff_ms;
+
+    /* Assume there has been no progress. */
+    *did_work = false;
 
     conn = S2C(session);
     evict = conn->evict;
@@ -43,10 +82,13 @@ __evict_log_cache_stuck(WT_SESSION_IMPL *session)
         return (0);
     }
 
+
+    /* Track if work was done. */
+    *did_work = __wt_atomic_loadv64(&evict->eviction_progress) != evict->last_eviction_progress;
     evict->last_eviction_progress = __wt_atomic_loadv64(&evict->eviction_progress);
 
     /* Eviction is stuck, check if we have made progress. */
-    if (__wt_atomic_loadv64(&evict->eviction_progress) != evict->last_eviction_progress) {
+    if (*did_work) {
 #if !defined(HAVE_DIAGNOSTIC)
         /* Need verbose check only if not in diagnostic build */
         if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTION))
@@ -179,8 +221,9 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         WT_ERR(ret);
 
         /* Pause. The wait period is shorter if the server did work */
-//        printf("Eviction server to pause after exiting __evict_server function\n");
+        printf("Eviction server to pause after exiting __evict_server function, did_work = %d\n", did_work);
         __wt_cond_auto_wait(session, evict->evict_server_cond, did_work, NULL);
+        printf("Evict server waking\n");
         __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
     }
     else
@@ -267,9 +310,6 @@ __wt_evict_threads_create(WT_SESSION_IMPL *session)
       conn->evict_threads_min, conn->evict_threads_max, session_flags, __evict_thread_chk,
       __evict_thread_run, __evict_thread_stop));
 
-//  WT_RET(__wt_cond_auto_alloc(
-//           session, "evict cond", 10 * WT_THOUSAND, WT_MILLION, &conn->evict_threads.wait_cond));
-
 /*
  * Ensure the cache stuck timer is initialized when starting eviction.
  */
@@ -344,16 +384,19 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
      * Reconcile and discard some pages: EBUSY is returned if a page fails eviction because it's
      * unavailable, continue in that case.
      */
+    printf("Worker is starting\n");
     while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && __evict_update_work(session) && ret == 0)
         if ((ret = __evict_page(session)) == EBUSY)
             ret = 0;
+
+    printf("Worker is done\n");
 
     /* If any resources are pinned, release them now. */
     WT_TRET(__wt_session_release_resources(session));
 
     /* If a worker thread is here, there is no work to do; pause. */
     if (!is_server && F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
-//        printf("Evict worker is pausing\n");
+        printf("Evict worker is pausing\n");
         __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
     }
 
@@ -778,7 +821,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          * server does need to do some work.
          */
         __wt_atomic_add64(&evict->read_gen, 1);
-//        printf("Eviction server readgen %" PRIu64 " \n", evict->read_gen);
+        printf("Eviction server readgen %" PRIu64 " \n", evict->read_gen);
 
         /*
          * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
@@ -791,7 +834,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          */
         WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
-        if ( (*did_work = __evict_update_work(session)) == false)
+        if (!__evict_update_work(session))
             break;
 
         __wt_verbose_debug2(session, WT_VERB_EVICTION,
@@ -803,8 +846,10 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
           __wt_atomic_load64(&cache->bytes_updates));
 
         /* Evict pages if there are no workers */
-        if (!WT_EVICT_HAS_WORKERS(session))
+        if (!WT_EVICT_HAS_WORKERS(session)) {
+            printf("Evict server about to evict\n");
             WT_RET(__evict_lru_pages(session, true));
+        }
 
         /*
          * If we're making progress, keep going; if we're not making any progress at all, mark the
@@ -835,10 +880,11 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
               __wt_atomic_load32(&evict->evict_aggressive_score) < WT_EVICT_SCORE_MAX) {
                 /*
                  * Back off if we aren't making progress.
-                 */
+                 *
                 WT_STAT_CONN_INCR(session, eviction_slept);
-//                printf("Eviction server about to pause after doing work \n");
+                printf("Eviction server about to pause after doing work \n");
                 __wt_cond_wait(session, evict->evict_server_cond, WT_THOUSAND, NULL);
+                printf("Eviction server waking \n"); */
                 continue;
             }
             WT_STAT_CONN_INCR(session, eviction_slow);
@@ -852,7 +898,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
     }
 
     /* Check if the cache is stuck and write messages to the log */
-    __evict_log_cache_stuck(session);
+    __evict_log_cache_stuck(session, did_work);
 
     /* If any resources are pinned, release them now. */
     WT_TRET(__wt_session_release_resources(session));
@@ -1281,7 +1327,7 @@ __wti_evict_app_assist_worker(WT_SESSION_IMPL *session, bool busy, bool readonly
         goto done;
 
     /* Wake the eviction threads if we need to do work. */
-    __wt_cond_signal(session, conn->evict_threads.wait_cond);
+    __wt_evict_server_wake(session);
 
     /* Track how long application threads spend doing eviction. */
     app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
@@ -1404,7 +1450,10 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ASSERT(session, session->dhandle != NULL);
     __wt_evict_touch_page(session, session->dhandle, ref, false, true /* won't need */);
-    __wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
+    if (WT_EVICT_HAS_WORKERS(session))
+        __wt_cond_signal(session, S2C(session)->evict_threads.wait_cond);
+    else
+        __wt_evict_server_wake(session);
 }
 
 /* !!!

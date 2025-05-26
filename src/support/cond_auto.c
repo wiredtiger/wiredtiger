@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -68,7 +68,7 @@ __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool prog
     }
 
     __wt_cond_wait_signal(session, cond, cond->prev_wait, run_func, signalled);
-
+    printf("prev_wait = %" PRIu64 ", signalled = %d\n", cond->prev_wait, *signalled);
     if (progress || *signalled)
         WT_STAT_CONN_INCR(session, cond_auto_wait_reset);
     if (*signalled)
