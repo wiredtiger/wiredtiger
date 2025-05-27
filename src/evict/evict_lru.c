@@ -1197,11 +1197,11 @@ __evict_page(WT_SESSION_IMPL *session)
     uint64_t time_start, time_stop;
     uint32_t flags;
     bool page_is_modified;
-    static int notfound;
-    static uint64_t total, times;
+    //  static int notfound;
+    //static uint64_t total, times;
 
     WT_TRACK_OP_INIT(session);
-
+/*
     time_start =  __wt_clock(session);
     ret = __evict_get_ref(session, &btree, &ref, &previous_state);
     time_stop = __wt_clock(session);
@@ -1217,12 +1217,12 @@ __evict_page(WT_SESSION_IMPL *session)
     }
     if (ret != 0)
         return ret;
-
+*/
     time_start = 0;
     flags = 0;
     page_is_modified = false;
 
-//    WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
+    WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
     WT_ASSERT(session,
               (WT_REF_GET_STATE(ref) == WT_REF_LOCKED
                && WT_REF_OWNER(ref) == (uint64_t)session));
