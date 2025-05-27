@@ -870,6 +870,7 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
     WT_DECL_RET;
     WT_EVICT *evict;
     uint32_t flags;
+
     bool closing, is_application_thread_snapshot_refreshed, is_eviction_thread,
       use_snapshot_for_app_thread;
 
