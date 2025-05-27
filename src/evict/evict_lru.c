@@ -1204,8 +1204,8 @@ __evict_page(WT_SESSION_IMPL *session)
     uint64_t time_start, time_stop;
     uint32_t flags;
     bool page_is_modified;
-    //  static int notfound;
-    //static uint64_t total, times;
+//    static int notfound;
+//    static uint64_t total, times;
 
     WT_TRACK_OP_INIT(session);
 /*
@@ -1218,7 +1218,7 @@ __evict_page(WT_SESSION_IMPL *session)
     if (ret == WT_NOTFOUND)
         notfound++;
 
-    if (times % 10000 == 0)
+    if (times % 100000 == 0)
     {
         printf("average time to __evict_get_ref: %" PRIu64 ", notfound %d\n", total/times, notfound);
     }
