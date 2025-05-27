@@ -68,6 +68,7 @@ func_ok()
         -e '/int __win_terminate$/d' \
         -e '/int __wt_block_compact_end$/d' \
         -e '/int __wt_block_compact_start$/d' \
+        -e '/int __wt_block_disagg_manager_create$/d' \
         -e '/int __wt_block_disagg_manager_size$/d' \
         -e '/int __wt_block_disagg_read$/d' \
         -e '/int __wt_block_manager_size$/d' \
