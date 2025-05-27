@@ -221,9 +221,7 @@ __evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         WT_ERR(ret);
 
         /* Pause. The wait period is shorter if the server did work */
-        printf("Eviction server to pause after exiting __evict_server function, did_work = %d\n", did_work);
         __wt_cond_auto_wait(session, evict->evict_server_cond, did_work, NULL);
-        printf("Evict server waking\n");
         __wt_verbose_debug2(session, WT_VERB_EVICTION, "%s", "waking");
     }
     else
@@ -384,21 +382,16 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
      * Reconcile and discard some pages: EBUSY is returned if a page fails eviction because it's
      * unavailable, continue in that case.
      */
-    printf("Worker is starting\n");
     while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && __evict_update_work(session) && ret == 0)
         if ((ret = __evict_page(session)) == EBUSY)
             ret = 0;
-
-    printf("Worker is done\n");
 
     /* If any resources are pinned, release them now. */
     WT_TRET(__wt_session_release_resources(session));
 
     /* If a worker thread is here, there is no work to do; pause. */
-    if (!is_server && F_ISSET(conn, WT_CONN_EVICTION_RUN)) {
-        printf("Evict worker is pausing\n");
+    if (!is_server && F_ISSET(conn, WT_CONN_EVICTION_RUN))
         __wt_cond_wait(session, conn->evict_threads.wait_cond, 10 * WT_THOUSAND, NULL);
-    }
 
     WT_TRACK_OP_END(session);
     return (ret == WT_NOTFOUND ? 0 : ret);
@@ -821,7 +814,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          * server does need to do some work.
          */
         __wt_atomic_add64(&evict->read_gen, 1);
-        printf("Eviction server readgen %" PRIu64 " \n", evict->read_gen);
+//        printf("Eviction server readgen %" PRIu64 " \n", evict->read_gen);
 
         /*
          * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
@@ -847,7 +840,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 
         /* Evict pages if there are no workers */
         if (!WT_EVICT_HAS_WORKERS(session)) {
-            printf("Evict server about to evict\n");
             WT_RET(__evict_lru_pages(session, true));
         }
 
