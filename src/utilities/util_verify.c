@@ -50,7 +50,8 @@ verify_one(WT_SESSION *session, char *config, char *uri, bool enoent_ok, bool *c
 
     if ((ret = session->verify(session, uri, config)) == 0) {
         if (verbose)
-            printf("%s - done\n", uri);
+            /* Verbose also configures a progress counter, move to a new line before printing. */
+            printf("\n%s - done\n", uri);
         *check_donep = true;
     } else if (ret == ENOENT && enoent_ok)
         /* If a specific checkpoint was provided, it might not be found in some tables. */
