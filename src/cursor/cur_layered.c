@@ -1152,7 +1152,8 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
             found = true;
     } else {
         /* Be sure we'll make a search attempt further down.  */
-        WT_ASSERT(session, F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL);
+        WT_ASSERT(
+          session, F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL);
     }
 
     /*
