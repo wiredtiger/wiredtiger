@@ -62,14 +62,13 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     WT_CURSOR *cursor;
     WT_DECL_ITEM(config);
     WT_DECL_RET;
-    WT_SESSION_IMPL *session_impl;
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     int ch;
     char *dump_offsets, *key, *uri;
     bool abort_on_error, dump_all_data, dump_key_data;
 
     abort_on_error = dump_all_data = dump_key_data = false;
     dump_offsets = uri = NULL;
-    session_impl = (WT_SESSION_IMPL *)session;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &config));
 
