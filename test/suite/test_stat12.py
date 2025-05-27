@@ -35,13 +35,23 @@ import wttest
 
 class test_stat12(wttest.WiredTigerTestCase):
     uri = 'table:test_stat12'
-    conn_config = 'statistics=(all),cache_size=1MB'
+    # conn_config = 'statistics=(all),cache_size=1MB'
     create_params = 'key_format=i,value_format=S'
+
+    def conn_config(self):
+        # Small cache to force eviction, enable all statistics
+        return 'cache_size=1MB,statistics=(all),eviction=(threads_max=4)'
 
     def populate_data(self, start, end, value_size=100):
         c = self.session.open_cursor(self.uri)
         for i in range(start, end):
             c[i] = 'x' * value_size
+        c.close()
+
+    def read_key(self, key):
+        c = self.session.open_cursor(self.uri)
+        c.set_key(key)
+        self.assertEqual(c.search(), 0)
         c.close()
 
     def get_stat(self, stat_key):
@@ -64,8 +74,18 @@ class test_stat12(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.create_params)
 
         # Populate enough data to force eviction and thresholds
-        self.populate_data(0, 10000, value_size=200)  # Big values to fill cache
+        self.populate_data(0, 10000, value_size=2000)  # Big values to fill cache
         self.session.checkpoint()
+
+        # Additional reads to *touch* clean pages (increase memory usage) without dirtying
+        for i in range(200, 10000):
+            self.read_key(i)
+
+        # Force dirty eviction
+        for i in range(200, 3000):
+            c = self.session.open_cursor(self.uri)
+            c[i] = 'y' * 1000
+            c.close()
 
         # Read the relevant eviction trigger stats
         clean_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_clean_reached)
