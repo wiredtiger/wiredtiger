@@ -28,6 +28,7 @@
 
 import wiredtiger
 import wttest
+import time
 
 # test_stat12.py
 # Check for the presence of eviction-related statistics.
@@ -87,10 +88,15 @@ class test_stat12(wttest.WiredTigerTestCase):
             c[i] = 'y' * 1000
             c.close()
 
-        # Read the relevant eviction trigger stats
-        clean_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_clean_reached)
-        dirty_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_dirty_reached)
-        updates_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_updates_reached)
+        for _ in range(10):
+            # Read the relevant eviction trigger stats
+            clean_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_clean_reached)
+            dirty_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_dirty_reached)
+            updates_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_updates_reached)
+            if clean_trigger_count != 0 and dirty_trigger_count != 0 and updates_trigger_count != 0:
+                break
+            # Sleep to allow eviction to process
+            time.sleep(1)
 
         # Print or assert their values have increased from 0
         self.assertGreaterEqual(clean_trigger_count, 1, "Clean trigger was not reached.")
