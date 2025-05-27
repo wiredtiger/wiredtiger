@@ -1065,7 +1065,7 @@ __evict_get_ref(
 
     /* If we evict aggressively, don't always begin at the lowest bucketset */
     //for (i = ((time(NULL) ^ (unsigned)pthread_self()) % (max_level + 1)); i <= max_level; i++) {
-    for (i = 0; i <= max_level; i++) {
+    for (i = 0; i < max_level; i++) { /* XXX we are below max level */
         bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
             bucket = &bucketset->buckets[j];
