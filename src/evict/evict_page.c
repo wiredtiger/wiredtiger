@@ -207,18 +207,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * Get exclusive access to the page if our caller doesn't have the tree locked down.
      */
     if (!closing) {
-#if 0
-        WT_ASSERT(session,
-                  (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
-                   && WT_REF_OWNER(ref) == (uint64_t)session));
-#if EVICT_DEBUG_PRINT
-        printf("to evict page %p read_gen %llu from bucket %d by session %d\n",
-               (void*)ref->page, ref->page->evict_data.read_gen,
-               (int)ref->page->evict_data.bucket->id, session->id);
-        fflush(stdout);
-#endif
-        __wt_evict_remove(session, ref, false);
-#endif
         WT_ERR_FUNC("evict_exclusive", __evict_exclusive(session, ref));
     }
 
@@ -297,7 +285,7 @@ err:
              * In case something goes wrong, don't pick the same set of pages every time. Mark the
              * page, so that eviction skips it once if it encounters it.
              */
-            __wt_atomic_storebool(&ref->page->evict_data.evict_skip, true);
+//            __wt_atomic_storebool(&ref->page->evict_data.evict_skip, true);
 
             if (WT_EVICT_PAGE_CLEARED(page)) {
 #if EVICT_DEBUG_PRINT
@@ -307,8 +295,8 @@ err:
 #endif
                 /* Put the page back into the list it belongs */
                 __wt_evict_enqueue_page(session, session->dhandle, ref);
-                /* Release the page */
             }
+            /* Release the page */
             __evict_exclusive_clear(session, ref, previous_state);
         }
         if (ebusy_only && ret != EBUSY)

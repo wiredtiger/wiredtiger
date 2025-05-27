@@ -499,8 +499,8 @@ struct __wt_connection_stats {
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t eviction_worker_evict_attempt;
     int64_t eviction_worker_evict_fail;
-    int64_t eviction_get_ref_no_dhandle;
     int64_t eviction_get_ref_empty;
+    int64_t eviction_get_ref_no_dhandle;
     int64_t eviction_aggressive_set;
     int64_t eviction_fail_checkpoint_no_ts;
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_1;
@@ -524,16 +524,10 @@ struct __wt_connection_stats {
     int64_t eviction_skip_trees_stick_in_cache;
     int64_t eviction_skip_trees_eviction_disabled;
     int64_t eviction_state;
-    int64_t npos_evict_walk_max;
-    int64_t cache_eviction_target_page_lt10;
-    int64_t cache_eviction_target_page_lt32;
-    int64_t cache_eviction_target_page_ge128;
-    int64_t cache_eviction_target_page_lt64;
-    int64_t cache_eviction_target_page_lt128;
-    int64_t cache_eviction_target_page_reduced;
     int64_t eviction_target_strategy_both_clean_and_dirty;
     int64_t eviction_target_strategy_clean;
     int64_t eviction_target_strategy_dirty;
+    int64_t npos_evict_walk_max;
     int64_t eviction_active_workers;
     int64_t eviction_stable_state_workers;
     int64_t eviction_slept;
@@ -604,7 +598,6 @@ struct __wt_connection_stats {
     int64_t cache_read_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
-    int64_t cache_eviction_pages_seen;
     int64_t eviction_fail;
     int64_t eviction_fail_active_children_on_an_internal_page;
     int64_t eviction_fail_in_reconciliation;
@@ -1168,12 +1161,6 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_no_ts_checkpoint_race_4;
     int64_t cache_eviction_blocked_remove_hs_race_with_checkpoint;
     int64_t cache_eviction_blocked_no_progress;
-    int64_t cache_eviction_target_page_lt10;
-    int64_t cache_eviction_target_page_lt32;
-    int64_t cache_eviction_target_page_ge128;
-    int64_t cache_eviction_target_page_lt64;
-    int64_t cache_eviction_target_page_lt128;
-    int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_blocked_hazard;
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
@@ -1212,7 +1199,6 @@ struct __wt_dsrc_stats {
     int64_t cache_read_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
-    int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore;
     int64_t cache_eviction_blocked_recently_modified;

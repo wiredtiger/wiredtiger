@@ -1063,7 +1063,8 @@ __evict_get_ref(
         max_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
 
     /* If we evict aggressively, don't always begin at the lowest bucketset */
-    for (i = (time(NULL) ^ (unsigned)pthread_self()) % (max_level + 1); i <= max_level; i++) {
+    //for (i = ((time(NULL) ^ (unsigned)pthread_self()) % (max_level + 1)); i <= max_level; i++) {
+    for (i = 0; i <= max_level; i++) {
         bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
             bucket = &bucketset->buckets[j];
@@ -1196,18 +1197,35 @@ __evict_page(WT_SESSION_IMPL *session)
     uint64_t time_start, time_stop;
     uint32_t flags;
     bool page_is_modified;
+    static int notfound;
+    static uint64_t total, times;
 
     WT_TRACK_OP_INIT(session);
 
-    WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
-    WT_ASSERT(session,
-              (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
-               && WT_REF_OWNER(ref) == (uint64_t)session));
+    time_start =  __wt_clock(session);
+    ret = __evict_get_ref(session, &btree, &ref, &previous_state);
+    time_stop = __wt_clock(session);
+    times++;
+    total += WT_CLOCKDIFF_NS(time_stop, time_start);
+
+    if (ret == WT_NOTFOUND)
+        notfound++;
+
+    if (times % 10000 == 0)
+    {
+        printf("average time to __evict_get_ref: %" PRIu64 ", notfound %d\n", total/times, notfound);
+    }
+    if (ret != 0)
+        return ret;
 
     time_start = 0;
-
     flags = 0;
     page_is_modified = false;
+
+//    WT_RET_TRACK(__evict_get_ref(session, &btree, &ref, &previous_state));
+    WT_ASSERT(session,
+              (WT_REF_GET_STATE(ref) == WT_REF_LOCKED
+               && WT_REF_OWNER(ref) == (uint64_t)session));
 
     /*
      * Remember the bucket where the page came from.
