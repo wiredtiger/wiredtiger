@@ -19,7 +19,6 @@ int
 __wt_block_disagg_manager_create(
   WT_SESSION_IMPL *session, WT_BUCKET_STORAGE *bstorage, const char *filename)
 {
-#if 1
     WT_UNUSED(session);
     WT_UNUSED(bstorage);
     WT_UNUSED(filename);
