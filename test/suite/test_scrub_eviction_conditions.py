@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wttest
+import time
 from wiredtiger import stat
 from eviction_util import eviction_util
 
@@ -67,10 +68,15 @@ class test_scrub_eviction_conditions(eviction_util):
         c.reset()
         c.close()
 
-        # Record stats after eviction
-        scrubbed_after = self.get_stat(stat.conn.cache_write_restore)
-        clean_after = self.get_stat(stat.dsrc.cache_eviction_clean, uri=self.uri)
-        dirty_after = self.get_stat(stat.dsrc.cache_eviction_dirty, uri=self.uri)
+        # Retry loop to ensure eviction stats are updated
+        for _ in range(10):
+            # Record stats after eviction
+            scrubbed_after = self.get_stat(stat.conn.cache_write_restore)
+            clean_after = self.get_stat(stat.dsrc.cache_eviction_clean, uri=self.uri)
+            dirty_after = self.get_stat(stat.dsrc.cache_eviction_dirty, uri=self.uri)
+            if (scrubbed_after > 0 and dirty_after > 0):
+                break
+            time.sleep(0.5)
 
         # Assert scrub eviction happened for dirty page
         # We expect a scrub-eviction because threshold for clean eviction should not have been reached
