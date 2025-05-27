@@ -262,22 +262,14 @@ __evict_read_gen(WT_SESSION_IMPL *session)
 static WT_INLINE bool
 __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-//    static int times;
-//    static int skipped, not_skipped;
-
     /* Ignore pages set for forcible eviction. */
-    if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_EVICT_SOON) {
-        //      skipped++;
+    if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_EVICT_SOON)
         return false;
-    }
 
     /* Ignore pages already in the future. */
-    if (__wt_atomic_load64(&page->evict_data.read_gen) > __evict_read_gen(session)){
-        //skipped++;
+    if (__wt_atomic_load64(&page->evict_data.read_gen) > __evict_read_gen(session))
         return false;
-    }
 
-    //not_skipped++;
     /*
      * We set read-generations in the future (where "the future" is measured by increments of the
      * global read generation). The reason is because when acquiring a new hazard pointer for a
@@ -286,8 +278,6 @@ __wti_evict_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page)
      * avoid some number of updates immediately after each update we have to make.
      */
     __wt_atomic_store64(&page->evict_data.read_gen, __evict_read_gen(session) + WT_READGEN_STEP);
-    //  if (times++ % 10000 == 0)
-    //   printf("read_gen = %" PRIu64 ", skipped %d, not skipped %d \n", page->evict_data.read_gen, skipped, not_skipped);
     return true;
 }
 

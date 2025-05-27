@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -157,10 +157,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     stats_flags = 0;
     clean_page = ebusy_only = false;
 
-	if (!closing)
-		WT_ASSERT(session,
-				  (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
-				   && WT_REF_OWNER(ref) == (uint64_t)session));
+    if (!closing)
+        WT_ASSERT(session,
+                  (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
+                   && WT_REF_OWNER(ref) == (uint64_t)session));
 
     __wt_verbose_debug3(
       session, WT_VERB_EVICTION, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -207,18 +207,19 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
      * Get exclusive access to the page if our caller doesn't have the tree locked down.
      */
     if (!closing) {
-		WT_ASSERT(session,
-				  (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
-				   && WT_REF_OWNER(ref) == (uint64_t)session));
+#if 0
+        WT_ASSERT(session,
+                  (WT_REF_GET_STATE_STRICT(ref) == WT_REF_LOCKED
+                   && WT_REF_OWNER(ref) == (uint64_t)session));
 #if EVICT_DEBUG_PRINT
-		printf("to evict page %p read_gen %llu from bucket %d by session %d\n",
-			   (void*)ref->page, ref->page->evict_data.read_gen,
-			   (int)ref->page->evict_data.bucket->id, session->id);
-		fflush(stdout);
+        printf("to evict page %p read_gen %llu from bucket %d by session %d\n",
+               (void*)ref->page, ref->page->evict_data.read_gen,
+               (int)ref->page->evict_data.bucket->id, session->id);
+        fflush(stdout);
 #endif
         __wt_evict_remove(session, ref, false);
-
-		WT_ERR_FUNC("evict_exclusive", __evict_exclusive(session, ref));
+#endif
+        WT_ERR_FUNC("evict_exclusive", __evict_exclusive(session, ref));
     }
 
     if (F_ISSET_ATOMIC_16(page, WT_PAGE_PREFETCH))
@@ -298,16 +299,16 @@ err:
              */
             __wt_atomic_storebool(&ref->page->evict_data.evict_skip, true);
 
-			if (WT_EVICT_PAGE_CLEARED(page)) {
+            if (WT_EVICT_PAGE_CLEARED(page)) {
 #if EVICT_DEBUG_PRINT
-				printf("EVICTION FAILED ON page %p by session %d. Current bucket is %p PUT BACK, previous state is %d\n",
-					   (void*)ref->page, session->id, (void*)ref->page->evict_data.bucket, previous_state);
-				fflush(stdout);
+                printf("EVICTION FAILED ON page %p by session %d. Current bucket is %p PUT BACK, previous state is %d\n",
+                       (void*)ref->page, session->id, (void*)ref->page->evict_data.bucket, previous_state);
+                fflush(stdout);
 #endif
-				/* Put the page back into the list it belongs */
-				__wt_evict_enqueue_page(session, session->dhandle, ref);
-				/* Release the page */
-			}
+                /* Put the page back into the list it belongs */
+                __wt_evict_enqueue_page(session, session->dhandle, ref);
+                /* Release the page */
+            }
             __evict_exclusive_clear(session, ref, previous_state);
         }
         if (ebusy_only && ret != EBUSY)
