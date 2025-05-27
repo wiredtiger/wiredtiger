@@ -28,6 +28,7 @@
 
 import wttest
 from wiredtiger import stat
+from eviction_util import eviction_util
 
 # test_scrub_eviction_conditions.py
 #
@@ -36,10 +37,10 @@ from wiredtiger import stat
 # 2. Update a record to dirty state
 # 3. Evict the dirty page
 # 4. Check if the dirty page is scrub-evicted
-class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
+class test_scrub_eviction_conditions(eviction_util):
     def conn_config(self):
         # Small cache to force eviction, enable all statistics
-        return 'cache_size=1MB,statistics=(all),eviction=(threads_max=4),eviction_target=10'
+        return 'cache_size=10MB,statistics=(all),eviction=(threads_max=4)'
 
     def setUp(self):
         super().setUp()
@@ -52,34 +53,24 @@ class test_scrub_eviction_conditions(wttest.WiredTigerTestCase):
             c[i] = 'x' * 100
         c.close()
 
-    def get_stat(self, stat_key):
-        cursor = self.session.open_cursor("statistics:" + self.uri)
-        value = cursor[stat_key][2]
-        cursor.close()
-        return value
-
     def test_page_eviction_is_scrubbed(self):
         self.populate_data()
         self.session.checkpoint()
 
         # Dirty a page
-        c = self.session.open_cursor(self.uri)
+        c = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
         c[1] = 'dirty-data'
-        c.close()
 
         # Evict the dirty page
-        c = self.session.open_cursor(self.uri, None, "debug=(release_evict)")
         c.set_key(1)
         c.search()
         c.reset()
         c.close()
 
         # Record stats after eviction
-        stat_cursor = self.session.open_cursor('statistics:')
-        scrubbed_after = stat_cursor[stat.conn.cache_write_restore][2]
-        stat_cursor.close()
-        clean_after = self.get_stat(stat.dsrc.cache_eviction_clean)
-        dirty_after = self.get_stat(stat.dsrc.cache_eviction_dirty)
+        scrubbed_after = self.get_stat(stat.conn.cache_write_restore)
+        clean_after = self.get_stat(stat.dsrc.cache_eviction_clean, uri=self.uri)
+        dirty_after = self.get_stat(stat.dsrc.cache_eviction_dirty, uri=self.uri)
 
         # Assert scrub eviction happened for dirty page
         # We expect a scrub-eviction because threshold for clean eviction should not have been reached
