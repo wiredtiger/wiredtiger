@@ -31,44 +31,6 @@ __wt_block_disagg_manager_create(
      * special leading descriptor block.
      */
     return (0);
-#else
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    WT_FH *fh;
-    int suffix;
-    bool exists;
-
-    /*
-     * Create the underlying file and open a handle.
-     *
-     * Since WiredTiger schema operations are (currently) non-transactional, it's possible to see a
-     * partially-created file left from a previous create. Further, there's nothing to prevent users
-     * from creating files in our space. Move any existing files out of the way and complain.
-     */
-    for (;;) {
-        ret = bstorage->file_system->fs_open_file(bstorage->file_system, &session->iface, filename,
-          WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE | WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE,
-          &fh);
-        if (ret == 0)
-            break;
-        WT_ERR_TEST(ret != EEXIST, ret, false);
-    }
-
-    /* Write out the file's meta-data. */
-    ret = __wt_desc_write(session, fh, allocsize);
-
-    /* Close the file handle. */
-    WT_TRET(__wt_close(session, &fh));
-
-    /* Undo any create on error. */
-    if (ret != 0)
-        WT_TRET(__wt_fs_remove(session, filename, false, false));
-
-err:
-    __wt_scr_free(session, &tmp);
-
-    return (ret);
-#endif
 }
 
 /*
