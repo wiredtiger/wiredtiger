@@ -9,8 +9,8 @@
 #include "wt_internal.h"
 
 static int __cursor_prepared_discover_list_create(
-  WT_SESSION_IMPL *, WT_CURSOR_PREPARE_TXN *, uint64_t);
-static int __cursor_prepared_discover_setup(WT_SESSION_IMPL *, WT_CURSOR_PREPARE_TXN *);
+  WT_SESSION_IMPL *, WT_CURSOR_PREPARE_DISCOVERED *);
+static int __cursor_prepared_discover_setup(WT_SESSION_IMPL *, WT_CURSOR_PREPARE_DISCOVERED *);
 
 /*
  * __cursor_prepared_discover_next --
@@ -19,11 +19,11 @@ static int __cursor_prepared_discover_setup(WT_SESSION_IMPL *, WT_CURSOR_PREPARE
 static int
 __cursor_prepared_discover_next(WT_CURSOR *cursor)
 {
-    WT_CURSOR_PREPARE_TXN *cursor_prepare;
+    WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    cursor_prepare = (WT_CURSOR_PREPARE_TXN *)cursor;
+    cursor_prepare = (WT_CURSOR_PREPARE_DISCOVERED *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, NULL);
 
     if (cursor_prepare->list == NULL || cursor_prepare->list[cursor_prepare->next] == 0) {
@@ -49,11 +49,11 @@ err:
 static int
 __cursor_prepared_discover_reset(WT_CURSOR *cursor)
 {
-    WT_CURSOR_PREPARE_TXN *cursor_prepare;
+    WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    cursor_prepare = (WT_CURSOR_PREPARE_TXN *)cursor;
+    cursor_prepare = (WT_CURSOR_PREPARE_DISCOVERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 
     cursor_prepare->next = 0;
@@ -70,11 +70,11 @@ err:
 static int
 __cursor_prepared_discover_close(WT_CURSOR *cursor)
 {
-    WT_CURSOR_PREPARE_TXN *cursor_prepare;
+    WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    cursor_prepare = (WT_CURSOR_PREPARE_TXN *)cursor;
+    cursor_prepare = (WT_CURSOR_PREPARE_DISCOVERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 err:
 
@@ -117,10 +117,10 @@ __wt_cursor_prepared_discover_open(WT_SESSION_IMPL *session, const char *uri, WT
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __cursor_prepared_discover_close);              /* close */
     WT_CURSOR *cursor;
-    WT_CURSOR_PREPARE_TXN *cursor_prepare;
+    WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare;
     WT_DECL_RET;
 
-    WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_PREPARE_TXN);
+    WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_PREPARE_DISCOVERED);
 
     WT_UNUSED(other);
     WT_UNUSED(cfg);
@@ -163,7 +163,8 @@ err:
  *     handle, since they can be claimed by other sessions while the cursor is open.
  */
 static int
-__cursor_prepared_discover_setup(WT_SESSION_IMPL *session, WT_CURSOR_PREPARE_TXN *cursor_prepare)
+__cursor_prepared_discover_setup(
+  WT_SESSION_IMPL *session, WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare)
 {
     WT_RET(__wt_prepared_discover_filter_apply_handles(session));
     WT_RET(__cursor_prepared_discover_list_create(session, cursor_prepare));
@@ -178,28 +179,28 @@ __cursor_prepared_discover_setup(WT_SESSION_IMPL *session, WT_CURSOR_PREPARE_TXN
  */
 static int
 __cursor_prepared_discover_list_create(
-  WT_SESSION_IMPL *session, WT_CURSOR_PREPARE_TXN *cursor_prepare, uint64_t prepared_id)
+  WT_SESSION_IMPL *session, WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare)
 {
-    uint64_t *p;
-    uint32_t prepared_discovered_count;
+    WT_TXN_GLOBAL *txn_global;
+    uint32_t i, prepared_discovered_count;
+
+    txn_global = &S2C(session)->txn_global;
+    i = prepared_discovered_count = 0;
 
     /* If no transactions were discovered, there is nothing more to do here */
     if (txn_global->pending_prepared_sessions == NULL)
         return (0);
 
     for (prepared_discovered_count = 0;
-         pending_prepared_sessions[prepared_discovered_count] != NULL;
+         txn_global->pending_prepared_sessions[prepared_discovered_count] != NULL;
          ++prepared_discovered_count) {
     }
 
     /* Leave a NULL at the end to mark the end of the list. */
     WT_RET(__wt_realloc_def(session, &cursor_prepare->list_allocated, prepared_discovered_count + 1,
       &cursor_prepare->list));
-    p = &cursor_prepare->list[cursor_prepare->list_next];
-    p[0] = prepared_id;
-    p[1] = 0;
-
-    ++cursor_prepare->list_next;
+    for (i = 0; i < prepared_discovered_count; i++)
+        cursor_prepare->list[i] = txn_global->pending_prepared_sessions[i]->txn->prepare_timestamp;
 
     return (0);
 }

@@ -17,7 +17,7 @@ __prepared_discover_btree_has_prepare(WT_SESSION_IMPL *session, const char *conf
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, key, value;
-    bool prepared_updates;
+    WT_DECL_RET;
 
     *has_prepp = false;
 
@@ -43,6 +43,14 @@ static int
 __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
   uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack)
 {
+    WT_CURSOR *hs_cursor;
+    WT_DECL_RET;
+    WT_ITEM *key;
+    WT_PAGE *page;
+    WT_TIME_WINDOW *hs_tw, *tw;
+    uint8_t *memp;
+
+    page = ref->page;
     if (rip != NULL) {
         if (row_key != NULL)
             key = row_key;
@@ -60,11 +68,11 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
     }
 
     /* Retrieve the time window from the unpacked value cell. */
-    __wt_cell_get_tw(unpack, &tw);
+    __wt_cell_get_tw(vpack, &tw);
 
     /* Add an entry for this key to the transaction structure */
     if (rip != NULL)
-        WT_ERR(__wti_prepared_discover_add_artifact_ondisk_row(session, tw, key));
+        WT_ERR(__wti_prepared_discover_add_artifact_ondisk_row(session, tw->start_ts, tw, key));
     else
         WT_ASSERT_ALWAYS(
           session, false, "Column store prepared transaction discovery not supported");
@@ -88,7 +96,7 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
      * into data store and removed from history store. If none of the history store records satisfy
      * the given timestamp, the key is removed from data store.
      */
-    hs_cursor->set_key(hs_cursor, 4, hs_btree_id, key, WT_TS_MAX, UINT64_MAX);
+    hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
     ret = __wt_curhs_search_near_before(session, hs_cursor);
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         /* Retrieve the time window from the history cursor. */
@@ -103,12 +111,13 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
          * resolution figures out that there are a chain of updates to deal with.
          */
         if (rip != NULL)
-            WT_ERR(__wti_prepared_discover_add_artifact_ondisk_row(session, tw, key));
+            WT_ERR(__wti_prepared_discover_add_artifact_ondisk_row(session, tw->start_ts, tw, key));
         else
             WT_ASSERT_ALWAYS(
               session, false, "Column store prepared transaction discovery not supported");
     }
 
+err:
     if (rip == NULL || row_key == NULL)
         __wt_scr_free(session, &key);
     return (0);
@@ -122,20 +131,7 @@ static int
 __prepared_discover_check_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
   uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack)
 {
-    WT_DECL_ITEM(key);
-    WT_DECL_ITEM(key_string);
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    WT_PAGE *page;
     WT_TIME_WINDOW *tw;
-    WT_UPDATE *upd;
-    uint8_t *memp;
-    char time_string[WT_TIME_STRING_SIZE];
-    char ts_string[5][WT_TS_INT_STRING_SIZE];
-    bool prepared;
-
-    page = ref->page;
-    upd = NULL;
 
     /*
      * Prepared artifacts in the history store are processed when earlier records from the
@@ -151,10 +147,9 @@ __prepared_discover_check_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_RO
     if (!tw->prepare)
         return (0);
 
-    prepared = tw->prepare;
-    WT_ERR(__prepared_discover_process_ondisk_kv(session, ref, rip, 0, NULL, vpack));
+    WT_RET(__prepared_discover_process_ondisk_kv(session, ref, rip, recno, row_key, vpack));
 
-    return (ret);
+    return (0);
 }
 
 /*
@@ -164,11 +159,13 @@ __prepared_discover_check_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_RO
 static int
 __prepared_discover_process_prepared_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *upd)
 {
+    wt_timestamp_t prepare_timestamp;
+
     WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INIT);
 
     /* TODO: at the moment the prepare time is overloaded, eventually this will be different */
     prepare_timestamp = upd->start_ts;
-    WT_RET(__wti_prepared_discover_add_artifact_upd(session, prepare_timestamp, key, upd)
+    WT_RET(__wti_prepared_discover_add_artifact_upd(session, prepare_timestamp, key, upd));
     return (0);
 }
 
@@ -254,7 +251,6 @@ __prepared_discover_process_row_store_leaf_page(WT_SESSION_IMPL *session, WT_REF
     WT_ROW *rip;
     WT_UPDATE *upd;
     uint32_t i;
-    char ts_string[WT_TS_INT_STRING_SIZE];
 
     page = ref->page;
 
@@ -264,7 +260,7 @@ __prepared_discover_process_row_store_leaf_page(WT_SESSION_IMPL *session, WT_REF
      * Review the insert list for keys before the first entry on the disk page.
      */
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-        WT_ERR(__prepared_discover_process_isnert_list(session, page, insert, NULL));
+        WT_ERR(__prepared_discover_process_insert_list(session, page, insert));
 
     /*
      * Review updates that belong to keys that are on the disk image, as well as for keys inserted
@@ -286,7 +282,7 @@ __prepared_discover_process_row_store_leaf_page(WT_SESSION_IMPL *session, WT_REF
 
         /* Walk through any intermediate insert list. */
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL) {
-            WT_ERR(__prepared_discover_process_insert_list(session, page, insert, NULL));
+            WT_ERR(__prepared_discover_process_insert_list(session, page, insert));
         }
     }
 
@@ -299,13 +295,12 @@ err:
  * __prepared_discover_process_leaf_page --
  *     Review the content of a leaf page discovering and processing prepared updates.
  */
-int
+static int
 __prepared_discover_process_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_PAGE *page;
 
     page = ref->page;
-    modified = __wt_page_is_modified(page);
 
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
@@ -324,9 +319,6 @@ __prepared_discover_process_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_RET(__wt_illegal_value(session, page->type));
     }
 
-    /* Mark the page as dirty to reconcile the page. */
-    if (!dryrun && page->modify)
-        __wt_page_modify_set(session, page);
     return (0);
 }
 
@@ -338,11 +330,14 @@ static int
 __prepared_discover_tree_walk_skip(
   WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool visible_all, bool *skipp)
 {
+    WT_ADDR *addr;
+    WT_CELL_UNPACK_ADDR vpack;
     WT_PAGE_DELETED *page_del;
-    char time_string[3][WT_TIME_STRING_SIZE];
+    WT_TIME_AGGREGATE *ta;
 
     WT_UNUSED(context);
     WT_UNUSED(visible_all);
+    addr = ref->addr;
 
     *skipp = false; /* Default to reading */
 
@@ -377,18 +372,18 @@ __prepared_discover_tree_walk_skip(
     /*
      * Check whether this on-disk page or it's children has any prepared content.
      */
-    if (!__wt_off_page(ref->home, ref->addr)) {
+    if (!__wt_off_page(ref->home, addr)) {
         /* Check if the page is obsolete using the page disk address. */
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
         /* Retrieve the time aggregate from the unpacked address cell. */
         __wt_cell_get_ta(&vpack, &ta);
         if (!ta->prepare)
             *skipp = true;
-    } else if (ref->addr != NULL) {
+    } else if (addr != NULL) {
         if (!addr->ta.prepare)
             *skipp = true;
     } else
-        __wt_abort(session, "Prepared discovery walk encountered a page without a valid address");
+        WT_ASSERT_ALWAYS(session, false, "Prepared discovery walk encountered a page without a valid address");
 
     return (0);
 }
@@ -401,7 +396,9 @@ __prepared_discover_tree_walk_skip(
 static int
 __prepared_discover_walk_one_tree(WT_SESSION_IMPL *session, const char *uri)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
+    WT_REF *ref;
     uint32_t flags;
 
     /* Open a handle for processing. */
@@ -409,15 +406,18 @@ __prepared_discover_walk_one_tree(WT_SESSION_IMPL *session, const char *uri)
     if (ret != 0)
         WT_RET_MSG(session, ret, "%s: unable to open handle%s", uri,
           ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
+
+    btree = S2BT(session);
     /* There is nothing to do on an empty tree. */
     if (btree->root.page != NULL) {
         flags = WT_READ_NO_EVICT | WT_READ_VISIBLE_ALL | WT_READ_WONT_NEED | WT_READ_SEE_DELETED;
+        ref = NULL;
         while ((ret = __wt_tree_walk_custom_skip(
                   session, &ref, __prepared_discover_tree_walk_skip, NULL, flags)) == 0 &&
           ref != NULL) {
 
             if (F_ISSET(ref, WT_REF_FLAG_LEAF))
-                WT_ERR(__prepared_discover_process_leaf_page(session, ref, rollback_timestamp));
+                WT_ERR(__prepared_discover_process_leaf_page(session, ref));
         }
     }
 err:
@@ -435,7 +435,6 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    int t_ret;
     const char *uri, *config;
     bool has_prepare;
 
@@ -452,8 +451,8 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
         if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_METAFILE_URI) == 0)
             continue;
 
-        WT_ERR(cursor->get_value(cursor, &config));
-        if (t_ret != 0)
+        WT_ERR_NOTFOUND_OK(cursor->get_value(cursor, &config), true);
+        if (ret == WT_NOTFOUND)
             config = NULL;
         /* Check to see if there is any prepared content in the handle */
         WT_ERR(__prepared_discover_btree_has_prepare(session, config, &has_prepare));
