@@ -987,6 +987,7 @@ __evict_get_ref(
     WT_EVICT *evict;
     WT_EVICT_BUCKET *bucket;
     WT_EVICT_BUCKETSET *bucketset;
+    WT_HAZARD *hazard;
     WT_PAGE *page;
     WT_REF *ref;
     WT_REF_STATE previous_state;
@@ -1104,6 +1105,12 @@ __evict_get_ref(
                  * If we are here, we have a ref and it is locked. Make sure we unlock it if we
                  * decide to skip.
                  */
+                WT_WITH_DHANDLE(session, dhandle, hazard =__wt_hazard_check(session, ref, NULL));
+                if (hazard != NULL) {
+                    WT_REF_UNLOCK(ref, previous_state);
+                    ref = NULL;
+                    continue;
+                }
                 if (page->evict_data.evict_skip) {
                     /*
                      * We are skipping the page, because we recently skipped it and the skip flag
