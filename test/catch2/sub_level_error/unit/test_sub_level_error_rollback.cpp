@@ -191,7 +191,6 @@ TEST_CASE("Test functions for error handling in rollback workflows",
         WT_UPDATE modify;
         WT_UPDATE base;
         WT_UPDATE_VALUE upd_value;
-        WT_CURSOR cursor;
 
         // Create an aborted modify so that it doesn't need to be applied.
         modify.type = WT_UPDATE_MODIFY;
