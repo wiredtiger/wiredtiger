@@ -399,11 +399,12 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(["-v", "-p", "verify", "-a"], outfilename=self.outfile,
             errfilename="verifyerr.out", failure=True)
 
-        self.assertEqual(self.count_file_contains(self.outfile, "table:test_verify.a0 - done"), 1)
+        self.assertEqual(self.count_file_contains(self.outfile,
+            "table:" + self.tablename + "0" + " - done"), 1)
         self.assertEqual(self.count_file_contains("verifyerr.out",
-            "table:test_verify.a1: WT_ERROR"), 1)
+            "table:" + self.tablename + "1" + ": WT_ERROR"), 1)
         self.assertEqual(self.count_file_contains("verifyerr.out",
-            "table:test_verify.a2: WT_ERROR"), 0)
+            "table:" + self.tablename + "2" + ": WT_ERROR"), 0)
 
     def test_verify_ckpt(self):
         """
@@ -413,7 +414,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         tables = [self.tablename + str(i) for i in range(0, 3)]
         ckptname = 'CustomCkpt'
 
-        for table in tables[: -1]:
+        for table in tables[:-1]:
             self.session.create('table:' + table, self.params)
             self.populate(table)
 
@@ -427,7 +428,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(["-v", "verify", "-C", ckptname], outfilename=self.outfile)
 
         # The last table shouldn't be verified since it doesn't contain the specified checkpoint
-        for tablename in tables[: -1]:
+        for tablename in tables[:-1]:
             self.assertEqual(self.count_file_contains(self.outfile,
                 "table:" + tablename + " - done") , 1)
         self.check_file_not_contains(self.outfile, "table:" + tables[-1] + " - done")
