@@ -25,6 +25,10 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# indexes:search_near
+# [END_TAGS]
 
 import wiredtiger, wttest
 from wtscenario import make_scenarios
@@ -120,6 +124,3 @@ class test_index02(wttest.WiredTigerTestCase):
         else:
             cur.set_key(3, 1)
         self.assertEqual(cur.search_near(), wiredtiger.WT_NOTFOUND)
-
-if __name__ == '__main__':
-    wttest.run()

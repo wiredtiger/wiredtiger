@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 #ifdef HAVE_X86INTRIN_H
 #if !defined(_MSC_VER) && !defined(_lint)
 #include <x86intrin.h>
@@ -21,12 +23,12 @@
 
 /*
  * __wt_lex_compare --
- *     Lexicographic comparison routine. Returns: < 0 if user_item is lexicographically < tree_item
- *     = 0 if user_item is lexicographically = tree_item > 0 if user_item is lexicographically >
- *     tree_item We use the names "user" and "tree" so it's clear in the btree code which the
+ *     Lexicographic comparison routine. Returns: < 0 if user_item is lexicographically < tree_item,
+ *     = 0 if user_item is lexicographically = tree_item, > 0 if user_item is lexicographically >
+ *     tree_item. We use the names "user" and "tree" so it's clear in the btree code which the
  *     application is looking at when we call its comparison function.
  */
-static inline int
+static WT_INLINE int
 __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 {
     size_t len, usz, tsz;
@@ -99,7 +101,7 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
  * __wt_compare --
  *     The same as __wt_lex_compare, but using the application's collator function when configured.
  */
-static inline int
+static WT_INLINE int
 __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *user_item,
   const WT_ITEM *tree_item, int *cmpp)
 {
@@ -111,17 +113,73 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
 }
 
 /*
+ * __wt_compare_bounds --
+ *     Return if the cursor key is within the bounded range. If upper is True, this indicates a next
+ *     call and the key is checked against the upper bound. If upper is False, this indicates a prev
+ *     call and the key is then checked against the lower bound.
+ */
+static WT_INLINE int
+__wt_compare_bounds(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_ITEM *key, uint64_t recno,
+  bool upper, bool *key_out_of_bounds)
+{
+    uint64_t recno_bound;
+    int cmpp;
+
+    cmpp = 0;
+    recno_bound = 0;
+
+    WT_STAT_CONN_DSRC_INCR(session, cursor_bounds_comparisons);
+
+    if (upper) {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->upper_bound));
+        if (CUR2BT(cursor)->type == BTREE_ROW)
+            WT_RET(
+              __wt_compare(session, CUR2BT(cursor)->collator, key, &cursor->upper_bound, &cmpp));
+        else
+            /* Unpack the raw recno buffer into integer variable. */
+            WT_RET(__wt_struct_unpack(
+              session, cursor->upper_bound.data, cursor->upper_bound.size, "q", &recno_bound));
+
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_UPPER_INCLUSIVE))
+            *key_out_of_bounds =
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp > 0) : (recno > recno_bound);
+        else
+            *key_out_of_bounds =
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp >= 0) : (recno >= recno_bound);
+    } else {
+        WT_ASSERT(session, WT_DATA_IN_ITEM(&cursor->lower_bound));
+        if (CUR2BT(cursor)->type == BTREE_ROW)
+            WT_RET(
+              __wt_compare(session, CUR2BT(cursor)->collator, key, &cursor->lower_bound, &cmpp));
+        else
+            /* Unpack the raw recno buffer into integer variable. */
+            WT_RET(__wt_struct_unpack(
+              session, cursor->lower_bound.data, cursor->lower_bound.size, "q", &recno_bound));
+
+        if (F_ISSET(cursor, WT_CURSTD_BOUND_LOWER_INCLUSIVE))
+            *key_out_of_bounds =
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp < 0) : (recno < recno_bound);
+        else
+            *key_out_of_bounds =
+              CUR2BT(cursor)->type == BTREE_ROW ? (cmpp <= 0) : (recno <= recno_bound);
+    }
+    return (0);
+}
+
+/*
  * __wt_lex_compare_skip --
  *     Lexicographic comparison routine, skipping leading bytes. Returns: < 0 if user_item is
  *     lexicographically < tree_item = 0 if user_item is lexicographically = tree_item > 0 if
  *     user_item is lexicographically > tree_item We use the names "user" and "tree" so it's clear
  *     in the btree code which the application is looking at when we call its comparison function.
  */
-static inline int
-__wt_lex_compare_skip(const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
+static WT_INLINE int
+__wt_lex_compare_skip(
+  WT_SESSION_IMPL *session, const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
 {
     size_t len, usz, tsz;
     const uint8_t *userp, *treep;
+    int ret_val;
 
     usz = user_item->size;
     tsz = tree_item->size;
@@ -177,15 +235,36 @@ __wt_lex_compare_skip(const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t
         len += remain;
     }
 #endif
+    ret_val = 0;
     /*
      * Use the non-vectorized version for the remaining bytes and for the small key sizes.
      */
     for (; len > 0; --len, ++userp, ++treep, ++*matchp)
-        if (*userp != *treep)
-            return (*userp < *treep ? -1 : 1);
+        if (*userp != *treep) {
+            ret_val = *userp < *treep ? -1 : 1;
+            break;
+        }
 
     /* Contents are equal up to the smallest length. */
-    return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+    if (ret_val == 0)
+        ret_val = ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * There are various optimizations in the code to skip comparing prefixes that are known to be
+     * the same. If configured, check that the prefixes actually match.
+     */
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_PREFIX_COMPARE)) {
+        int full_cmp_ret;
+        full_cmp_ret = __wt_lex_compare(user_item, tree_item);
+        WT_ASSERT_ALWAYS(NULL, full_cmp_ret == ret_val,
+          "Comparison that skipped prefix returned different result than a full comparison");
+    }
+#else
+    WT_UNUSED(session);
+#endif
+
+    return (ret_val);
 }
 
 /*
@@ -193,12 +272,12 @@ __wt_lex_compare_skip(const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t
  *     The same as __wt_lex_compare_skip, but using the application's collator function when
  *     configured.
  */
-static inline int
+static WT_INLINE int
 __wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *user_item,
   const WT_ITEM *tree_item, int *cmpp, size_t *matchp)
 {
     if (collator == NULL) {
-        *cmpp = __wt_lex_compare_skip(user_item, tree_item, matchp);
+        *cmpp = __wt_lex_compare_skip(session, user_item, tree_item, matchp);
         return (0);
     }
     return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
@@ -211,7 +290,7 @@ __wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM
  *     user_item is lexicographically > tree_item We use the names "user" and "tree" so it's clear
  *     in the btree code which the application is looking at when we call its comparison function.
  */
-static inline int
+static WT_INLINE int
 __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 {
     size_t len, usz, tsz;

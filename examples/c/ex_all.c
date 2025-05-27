@@ -192,6 +192,14 @@ cursor_ops(WT_SESSION *session)
     }
 
     {
+        /*! [Get the raw key and value for the current record.] */
+        WT_ITEM key;   /* Get the raw key and value for the current record. */
+        WT_ITEM value; /* Get the raw key and value for the current record. */
+        error_check(cursor->get_raw_key_value(cursor, &key, &value));
+        /*! [Get the raw key and value for the current record.] */
+    }
+
+    {
         /*! [Set the cursor's raw value] */
         WT_ITEM value; /* Set the cursor's raw value. */
         value.data = "another value";
@@ -213,6 +221,14 @@ cursor_ops(WT_SESSION *session)
     /*! [Return the previous record] */
     error_check(cursor->prev(cursor));
     /*! [Return the previous record] */
+
+    {
+        /*! [Get the table's largest key] */
+        const char *largest_key;
+        error_check(cursor->largest_key(cursor));
+        error_check(cursor->get_key(cursor, &largest_key));
+        /*! [Get the table's largest key] */
+    }
 
     {
         WT_CURSOR *other = NULL;
@@ -371,16 +387,6 @@ cursor_ops(WT_SESSION *session)
     }
 
     {
-        /*! [Remove a record and fail if DNE] */
-        const char *key = "some key";
-        error_check(
-          session->open_cursor(session, "table:mytable", NULL, "overwrite=false", &cursor));
-        cursor->set_key(cursor, key);
-        error_check(cursor->remove(cursor));
-        /*! [Remove a record and fail if DNE] */
-    }
-
-    {
         /*! [Remove a record] */
         const char *key = "some key";
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
@@ -390,13 +396,24 @@ cursor_ops(WT_SESSION *session)
     }
 
     {
+        /*! [Remove a record and fail if DNE] */
+        const char *key = "non-existent key";
+        error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
+        cursor->set_key(cursor, key);
+        /* We expect to get a WT_NOTFOUND error if we try to remove a record that does not exist. */
+        if ((ret = cursor->remove(cursor)) == WT_NOTFOUND)
+            fprintf(stderr, "cursor.remove: key doesn't exist %s\n", wiredtiger_strerror(ret));
+        else
+            error_check(ret);
+        /*! [Remove a record and fail if DNE] */
+    }
+
+    {
         /*! [Display an error] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
-        if ((ret = cursor->remove(cursor)) != 0) {
+        if ((ret = cursor->remove(cursor)) != 0)
             fprintf(stderr, "cursor.remove: %s\n", wiredtiger_strerror(ret));
-            return (ret);
-        }
         /*! [Display an error] */
     }
 
@@ -404,10 +421,8 @@ cursor_ops(WT_SESSION *session)
         /*! [Display an error thread safe] */
         const char *key = "non-existent key";
         cursor->set_key(cursor, key);
-        if ((ret = cursor->remove(cursor)) != 0) {
+        if ((ret = cursor->remove(cursor)) != 0)
             fprintf(stderr, "cursor.remove: %s\n", cursor->session->strerror(cursor->session, ret));
-            return (ret);
-        }
         /*! [Display an error thread safe] */
     }
 
@@ -523,6 +538,8 @@ static void
 cursor_statistics(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
+    uint64_t stat_value;
+    int ret, stat_key;
 
     /*! [Statistics cursor database] */
     error_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
@@ -550,6 +567,18 @@ cursor_statistics(WT_SESSION *session)
     /*! [Statistics cursor session] */
     error_check(session->open_cursor(session, "statistics:session", NULL, NULL, &cursor));
     /*! [Statistics cursor session] */
+
+    /*! [Statistics cursor ignore column] */
+    error_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        error_check(cursor->get_key(cursor, &stat_key));
+
+        /* Ignore the first two columns, only retrieve the statistics value. */
+        error_check(cursor->get_value(cursor, NULL, NULL, &stat_value));
+    }
+    scan_end_check(ret == WT_NOTFOUND);
+    error_check(cursor->close(cursor));
+    /*! [Statistics cursor ignore column] */
 }
 
 static void
@@ -615,6 +644,13 @@ session_ops_create(WT_SESSION *session)
       session, "table:mytable", "block_compressor=zstd,key_format=S,value_format=S"));
     /*! [Create a zstd compressed table] */
     error_check(session->drop(session, "table:mytable", NULL));
+
+    /*! [Create a iaa compressed table] */
+    error_check(session->create(
+      session, "table:mytable", "block_compressor=iaa,key_format=S,value_format=S"));
+    /*! [Create a iaa compressed table] */
+    error_check(session->drop(session, "table:mytable", NULL));
+
 #endif
 
     /*! [Configure checksums to uncompressed] */
@@ -700,10 +736,6 @@ session_ops(WT_SESSION *session)
         error_check(session->truncate(session, "table:mytable", NULL, NULL, NULL));
         /*! [Truncate a table] */
 
-        /*! [Transaction sync] */
-        error_check(session->transaction_sync(session, NULL));
-        /*! [Transaction sync] */
-
         /*! [Reset the session] */
         error_check(session->reset(session));
         /*! [Reset the session] */
@@ -741,9 +773,7 @@ session_ops(WT_SESSION *session)
             }
         }
 
-        /*! [Upgrade a table] */
-        error_check(session->upgrade(session, "table:mytable", NULL));
-        /*! [Upgrade a table] */
+        error_check(session->checkpoint(session, NULL));
 
         /*! [Verify a table] */
         error_check(session->verify(session, "table:mytable", NULL));
@@ -849,15 +879,17 @@ transaction_ops(WT_SESSION *session_arg)
     {
         /*! [reset snapshot] */
         /*
-         * Resets snapshots for snapshot isolation transactions to update their existing snapshot.
-         * It raises an error when this API is used for isolation other than snapshot isolation
-         * mode.
+         * Get a new read snapshot for the current transaction. This is only permitted for
+         * transactions running with snapshot isolation.
          */
+        const char *value1, *value2; /* For the cursor's string value. */
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
         error_check(session->begin_transaction(session, "isolation=snapshot"));
         cursor->set_key(cursor, "some-key");
         error_check(cursor->search(cursor));
+        error_check(cursor->get_value(cursor, &value1));
         error_check(session->reset_snapshot(session));
+        error_check(cursor->get_value(cursor, &value2)); /* May be different. */
         error_check(session->commit_transaction(session, NULL));
         /*! [reset snapshot] */
     }
@@ -887,6 +919,22 @@ transaction_ops(WT_SESSION *session_arg)
     error_check(session->begin_transaction(session, NULL));
 
     {
+        /*! [hexadecimal timestamp] */
+        uint64_t ts;
+
+        /* 2 bytes for each byte converted to hexadecimal; sizeof includes the trailing nul byte */
+        char timestamp_buf[sizeof("commit_timestamp=") + 2 * sizeof(uint64_t)];
+
+        (void)snprintf(timestamp_buf, sizeof(timestamp_buf), "commit_timestamp=%x", 20u);
+        error_check(session->timestamp_transaction(session, timestamp_buf));
+
+        error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_durable"));
+        ts = strtoull(timestamp_buf, NULL, 16);
+        /*! [hexadecimal timestamp] */
+        (void)ts;
+    }
+
+    {
         /*! [query timestamp] */
         char timestamp_buf[2 * sizeof(uint64_t) + 1];
 
@@ -898,11 +946,17 @@ transaction_ops(WT_SESSION *session_arg)
 
         error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_durable"));
         /*! [query timestamp] */
+
+        error_check(session->begin_transaction(session, NULL));
+        /*! [transaction timestamp_uint] */
+        error_check(session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_COMMIT, 42));
+        /*! [transaction timestamp_uint] */
+        error_check(session->commit_transaction(session, NULL));
     }
 
-    /*! [set commit timestamp] */
-    error_check(conn->set_timestamp(conn, "commit_timestamp=2a"));
-    /*! [set commit timestamp] */
+    /*! [set durable timestamp] */
+    error_check(conn->set_timestamp(conn, "durable_timestamp=2a"));
+    /*! [set durable timestamp] */
 
     /*! [set oldest timestamp] */
     error_check(conn->set_timestamp(conn, "oldest_timestamp=2a"));
@@ -1012,9 +1066,9 @@ connection_ops(WT_CONNECTION *conn)
      *
      * Functions are specified by name (for example, "wiredtiger_open").
      *
-     * Methods are specified using a concatenation of the handle name, a
-     * period and the method name (for example, session create would be
-     * "WT_SESSION.create" and cursor close would be WT_CURSOR.close").
+     * Methods are specified using a concatenation of the handle name, a period and the method name
+     * (for example, session create would be "WT_SESSION.create" and cursor close would be
+     * "WT_CURSOR.close").
      */
     error_check(
       wiredtiger_config_validate(NULL, NULL, "WT_SESSION.create", "allocation_size=32KB"));
@@ -1084,8 +1138,6 @@ pack_ops(WT_SESSION *session)
 static void
 backup(WT_SESSION *session)
 {
-    char buf[1024];
-
     WT_CURSOR *dup_cursor;
     /*! [backup]*/
     WT_CURSOR *cursor;
@@ -1101,9 +1153,7 @@ backup(WT_SESSION *session)
     /* Copy the list of files. */
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_key(cursor, &filename));
-        (void)snprintf(
-          buf, sizeof(buf), "cp /path/database/%s /path/database.backup/%s", filename, filename);
-        error_check(system(buf));
+        testutil_system("cp /path/database/%s /path/database.backup/%s", filename, filename);
     }
     scan_end_check(ret == WT_NOTFOUND);
 
@@ -1129,10 +1179,6 @@ backup(WT_SESSION *session)
       session, "backup:", NULL, "incremental=(enabled,src_id=ID0,this_id=ID1)", &cursor));
     /*! [incremental block backup]*/
     error_check(cursor->close(cursor));
-
-    /*! [backup of a checkpoint]*/
-    error_check(session->checkpoint(session, "drop=(from=June01),name=June01"));
-    /*! [backup of a checkpoint]*/
 }
 
 int
@@ -1195,6 +1241,24 @@ main(int argc, char *argv[])
     /*! [Configure zstd extension with compression level] */
     error_check(conn->close(conn, NULL));
 
+    /*! [Configure iaa extension] */
+    error_check(wiredtiger_open(
+      home, NULL, "create,extensions=[/usr/local/lib/libwiredtiger_iaa.so]", &conn));
+    /*! [Configure iaa extension] */
+    error_check(conn->close(conn, NULL));
+
+    /* this is outside the example snippet on purpose; don't encourage compiling in keys */
+    const char *secretkey = "abcdef";
+    /*! [Configure sodium extension] */
+    char conf[1024];
+    snprintf(conf, sizeof(conf),
+      "create,extensions=[/usr/local/lib/libwiredtiger_sodium.so],"
+      "encryption=(name=sodium,secretkey=%s)",
+      secretkey);
+    error_check(wiredtiger_open(home, NULL, conf, &conn));
+    /*! [Configure sodium extension] */
+    error_check(conn->close(conn, NULL));
+
     /*
      * This example code gets run, and direct I/O might not be available, causing the open to fail.
      * The documentation requires code snippets, use #ifdef's to avoid running it.
@@ -1220,8 +1284,8 @@ main(int argc, char *argv[])
     /*
      * Configure eviction to begin at 90% full, and run until the cache is only 75% dirty.
      */
-    error_check(
-      wiredtiger_open(home, NULL, "create,eviction_trigger=90,eviction_dirty_target=75", &conn));
+    error_check(wiredtiger_open(home, NULL,
+      "create,eviction_trigger=90,eviction_dirty_target=75,eviction_dirty_trigger=90", &conn));
     /*! [Eviction configuration] */
     error_check(conn->close(conn, NULL));
 
@@ -1312,6 +1376,24 @@ main(int argc, char *argv[])
         func = wiredtiger_crc32c_func();
         crc32c = func(buffer, len);
         /*! [Checksum a buffer] */
+        (void)crc32c;
+    }
+
+    {
+        size_t chunk1, chunk2, chunk3;
+        /*! [Checksum a large buffer in smaller pieces] */
+        uint32_t crc32c, (*func_with_seed)(uint32_t, const void *, size_t);
+        const char *buffer = "some other larger string";
+
+        func_with_seed = wiredtiger_crc32c_with_seed_func();
+        chunk1 = strlen("some ");
+        chunk2 = strlen("other larger ");
+        chunk3 = strlen("string");
+        crc32c = 0;
+        crc32c = func_with_seed(crc32c, buffer, chunk1);
+        crc32c = func_with_seed(crc32c, buffer + chunk1, chunk2);
+        crc32c = func_with_seed(crc32c, buffer + chunk1 + chunk2, chunk3);
+        /*! [Checksum a large buffer in smaller pieces] */
         (void)crc32c;
     }
 

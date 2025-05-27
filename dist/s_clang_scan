@@ -1,0 +1,60 @@
+#!/bin/bash
+
+. `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
+cd_top
+setup_trap 'rm -rf $t_out $t_out_filtered $t_build $t_diff_filtered'
+
+t_out=__wt.$$.out
+t_out_filtered=__wt.$$.out_filtered
+t_diff_filtered=__wt.$$.diff_filtered
+t_build=__s_clang_scan_tmp_build
+
+echo "$0: running scan-build in $PWD"
+
+compiler=$(which clang)
+scan=$(which scan-build)
+echo "$0: compiler: $compiler"
+echo "$0: scan-build: $scan"
+
+# Check if Clang is available with the desired version.
+desired_version="12.0.1"
+if ! $compiler --version | grep -q $desired_version; then
+    echo "$compiler is not using the expected version: $desired_version"
+    $compiler --version
+    exit 1
+fi
+
+# Remove old reports.
+rm -rf clangScanBuildReports && mkdir clangScanBuildReports
+rm -rf ${t_build} && mkdir ${t_build}
+
+cd ${t_build} || exit 1
+args="$args --use-cc=$compiler"
+args="$args -disable-checker core.NullDereference"
+$scan $args cmake -G Ninja ../. > /dev/null
+$scan $args ninja wt > ../$t_out 2>&1
+cd ..
+
+# Strip comments from the diff file.
+cat dist/s_clang_scan.diff | sed '/^#/d' > $t_diff_filtered
+
+# Compare the set of errors/warnings and exit success when they're expected.
+# clang_scan outputs errors/warnings with a leading file path followed by a
+# colon, followed by the string "error:" or "warning:".
+cat $t_out |
+    grep -E '^[a-z\./].*error: |^[a-z\./].*warning: ' |
+    sed -e 's/^.*wiredtiger/wiredtiger/' |
+    sed -e 's/:.*:.*://' |
+    sort > $t_out_filtered
+diff $t_diff_filtered $t_out_filtered > /dev/null && exit 0
+
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+echo 'scan-build output differs from expected:'
+echo '<<<<<<<<<< Expected >>>>>>>>>> Current'
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+diff $t_diff_filtered $t_out_filtered
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+echo 'scan-build output:'
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+cat $t_out
+exit 1

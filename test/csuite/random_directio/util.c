@@ -37,14 +37,15 @@
  * util.c
  * 	Utility functions for test that simulates system crashes.
  */
-#define COPY_BUF_SIZE ((size_t)(20 * 1024))
+#define COPY_BUF_SIZE ((size_t)(64 * 1024))
 
 /*
- * copy_directory --
- *     Copy a directory, using direct IO if indicated.
+ * copy_directory_int --
+ *     Copy a directory, using direct IO if indicated. Recursive internal function. Assumes all
+ *     cleanup has already happened at the destination.
  */
-void
-copy_directory(const char *fromdir, const char *todir, bool directio)
+static void
+copy_directory_int(const char *fromdir, const char *todir, bool directio)
 {
     struct dirent *dp;
     struct stat sb;
@@ -66,21 +67,6 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
     buf = NULL;
     blksize = bufsize = 0;
 
-    dirp = opendir(todir);
-    if (dirp != NULL) {
-        while ((dp = readdir(dirp)) != NULL) {
-            /*
-             * Skip . and ..
-             */
-            if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
-                continue;
-            testutil_check(__wt_snprintf(tofile, sizeof(tofile), "%s/%s", todir, dp->d_name));
-            testutil_check(unlink(tofile));
-        }
-        testutil_check(closedir(dirp));
-        testutil_check(rmdir(todir));
-    }
-
     testutil_check(mkdir(todir, 0777));
     dirp = opendir(fromdir);
     testutil_assert(dirp != NULL);
@@ -91,9 +77,13 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
          */
         if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
             continue;
+        testutil_snprintf(fromfile, sizeof(fromfile), "%s/%s", fromdir, dp->d_name);
+        testutil_snprintf(tofile, sizeof(tofile), "%s/%s", todir, dp->d_name);
+        if (dp->d_type == DT_DIR) {
+            copy_directory_int(fromfile, tofile, directio);
+            continue;
+        }
 
-        testutil_check(__wt_snprintf(fromfile, sizeof(fromfile), "%s/%s", fromdir, dp->d_name));
-        testutil_check(__wt_snprintf(tofile, sizeof(tofile), "%s/%s", todir, dp->d_name));
         rfd = open(fromfile, O_RDONLY | openflags, 0);
         /*
          * The child process may have been stopped during a drop and WiredTiger drop will do an
@@ -115,7 +105,7 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
          */
         if (buf == NULL) {
             if (directio) {
-                blksize = (size_t)sb.st_blksize;
+                blksize = (size_t)WT_MAX(sb.st_blksize, WT_BUFFER_ALIGNMENT_DEFAULT);
                 testutil_assert(blksize < COPY_BUF_SIZE);
                 /*
                  * Make sure we have plenty of room for adjusting the pointer.
@@ -154,4 +144,16 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
     }
     testutil_check(closedir(dirp));
     free(orig_buf);
+}
+
+/*
+ * copy_directory --
+ *     Copy a directory, using direct IO if indicated. Wrapper because the sub functions can be
+ *     called recursively if there are sub-directories present.
+ */
+void
+copy_directory(const char *fromdir, const char *todir, bool directio)
+{
+    testutil_remove(todir);
+    copy_directory_int(fromdir, todir, directio);
 }

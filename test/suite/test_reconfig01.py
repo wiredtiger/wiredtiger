@@ -25,6 +25,10 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# connection_api:reconfigure
+# [END_TAGS]
 
 import time
 import wiredtiger, wttest
@@ -116,6 +120,3 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure("file_manager=(close_idle_time=4)")
         self.conn.reconfigure(
             "file_manager=(close_idle_time=4,close_scan_interval=100)")
-
-if __name__ == '__main__':
-    wttest.run()

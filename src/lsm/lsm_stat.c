@@ -29,6 +29,8 @@ __curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cs
       WT_CONFIG_BASE(session, WT_SESSION_open_cursor), "checkpoint=" WT_CHECKPOINT, NULL, NULL};
     bool locked;
 
+    WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
+
     locked = false;
     WT_RET(__wt_lsm_tree_get(session, uri, false, &lsm_tree));
     WT_ERR(__wt_scr_alloc(session, 0, &uribuf));
@@ -43,7 +45,7 @@ __curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cs
     }
 
     /* Hold the LSM lock so that we can safely walk through the chunks. */
-    __wt_lsm_tree_readlock(session, lsm_tree);
+    __wti_lsm_tree_readlock(session, lsm_tree);
     locked = true;
 
     /*
@@ -137,7 +139,7 @@ __curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cs
 
 err:
     if (locked)
-        __wt_lsm_tree_readunlock(session, lsm_tree);
+        __wti_lsm_tree_readunlock(session, lsm_tree);
     __wt_lsm_tree_release(session, lsm_tree);
     __wt_scr_free(session, &uribuf);
 

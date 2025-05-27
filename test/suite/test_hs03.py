@@ -26,27 +26,23 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_hs03.py
 # Ensure checkpoints don't read too unnecessary history store entries.
 class test_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
-    session_config = 'isolation=snapshot'
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer', dict(key_format='i')),
-        ('string', dict(key_format='S'))
+    format_values = [
+        ('column', dict(key_format='r', value_format='u')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('integer-row', dict(key_format='i', value_format='u')),
+        ('string-row', dict(key_format='S', value_format='u'))
     ]
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -61,16 +57,22 @@ class test_hs03(wttest.WiredTigerTestCase):
         for i in range(nrows + 1, nrows + nops + 1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(i))
+            session.commit_transaction('commit_timestamp=' + self.timestamp_str(i))
         cursor.close()
 
     def test_checkpoint_hs_reads(self):
         # Create a small table.
         uri = "table:test_hs03"
         nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format='u')
+        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
-        bigvalue = b"aaaaa" * 100
+
+        if self.value_format == '8t':
+            bigvalue = 97
+            bigvalue2 = 100
+        else:
+            bigvalue = b"aaaaa" * 100
+            bigvalue2 = b"ddddd" * 100
 
         # Initially load huge data.
         cursor = self.session.open_cursor(uri)
@@ -80,8 +82,7 @@ class test_hs03(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check to see the history store working with old timestamp.
-        bigvalue2 = b"ddddd" * 100
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         hs_writes_start = self.get_stat(stat.conn.cache_write_hs)
         self.large_updates(self.session, uri, bigvalue2, ds, nrows, 10000)
 
@@ -91,7 +92,7 @@ class test_hs03(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(hs_writes, 0)
 
         for ts in range(2, 4):
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(ts))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
 
             # Now just update one record and checkpoint again.
             self.large_updates(self.session, uri, bigvalue2, ds, nrows, 1)
@@ -104,6 +105,3 @@ class test_hs03(wttest.WiredTigerTestCase):
             # and skewing is controlled by a heuristic, we can't put too tight
             # a bound on this.
             self.assertLessEqual(hs_reads, 200)
-
-if __name__ == '__main__':
-    wttest.run()

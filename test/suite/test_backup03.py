@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import glob, os, shutil, string
+import os, shutil
 import wiredtiger
 from wtbackup import backup_base
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
@@ -121,6 +121,3 @@ class test_backup_target(backup_base):
         self.populate_big = self.big
         self.populate(self.objs, True)
         self.backup_table_cursor(self.list)
-
-if __name__ == '__main__':
-    wttest.run()

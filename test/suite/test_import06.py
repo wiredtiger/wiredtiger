@@ -34,7 +34,6 @@ from test_import01 import test_import_base
 from wtscenario import make_scenarios
 
 class test_import06(test_import_base):
-    session_config = 'isolation=snapshot'
 
     original_db_file = 'original_db_file'
     uri = 'file:' + original_db_file
@@ -45,8 +44,18 @@ class test_import06(test_import_base):
     values = [b'\x01\x02aaa\x03\x04', b'\x01\x02bbb\x03\x04', b'\x01\x02ccc\x03\x04',
               b'\x01\x02ddd\x03\x04', b'\x01\x02eee\x03\x04', b'\x01\x02fff\x03\x04']
     ts = [10*k for k in range(1, len(keys)+1)]
-    create_config = 'allocation_size={},key_format=u,log=(enabled=true),value_format=u,' \
+    create_config = 'allocation_size={},key_format=u,value_format=u,' \
         'block_compressor={},encryption=(name={})'
+
+    # To test the sodium encryptor, we use secretkey= rather than
+    # setting a keyid, because for a "real" (vs. test-only) encryptor,
+    # keyids require some kind of key server, and (a) setting one up
+    # for testing would be a nuisance and (b) currently the sodium
+    # encryptor doesn't support any anyway.
+    #
+    # It expects secretkey= to provide a hex-encoded 256-bit chacha20 key.
+    # This key will serve for testing purposes.
+    sodium_testkey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 
     allocsizes = [
         ('512', dict(allocsize='512')),
@@ -63,9 +72,10 @@ class test_import06(test_import_base):
         ('zstd', dict(compressor='zstd')),
     ]
     encryptors = [
-        ('none', dict(encryptor='none')),
-        ('nop', dict(encryptor='none')),
-        ('rotn', dict(encryptor='rotn')),
+        ('none', dict(encryptor='none', encryptor_args='')),
+        ('nop', dict(encryptor='none', encryptor_args='')),
+        ('rotn', dict(encryptor='rotn', encryptor_args='')),
+        ('sodium', dict(encryptor='sodium', encryptor_args=',secretkey=' + sodium_testkey)),
     ]
     scenarios = make_scenarios(allocsizes, compressors, encryptors)
 
@@ -76,8 +86,7 @@ class test_import06(test_import_base):
         extlist.extension('encryptors', self.encryptor)
 
     def conn_config(self):
-        return 'cache_size=50MB,log=(enabled),statistics=(all),encryption=(name={})'.format(
-            self.encryptor)
+        return 'cache_size=50MB,encryption=(name={})'.format(self.encryptor + self.encryptor_args)
 
     def test_import_repair(self):
         self.session.create(self.uri,
@@ -134,7 +143,7 @@ class test_import06(test_import_base):
         self.session.create(self.uri, import_config)
 
         # Verify object.
-        self.session.verify(self.uri)
+        self.verifyUntilSuccess(self.session, self.uri, None)
 
         # Check that the previously inserted values survived the import.
         self.check(self.uri, self.keys[:max_idx], self.values[:max_idx])

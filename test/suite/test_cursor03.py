@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger
 from test_cursor_tracker import TestCursorTracker
 from wtscenario import make_scenarios
 
@@ -44,7 +43,7 @@ class test_cursor03(TestCursorTracker):
             ('row', dict(tablekind='row', keysize=None, valsize=None, uri='table')),
             ('lsm-row', dict(tablekind='row', keysize=None, valsize=None, uri='lsm')),
             ('col', dict(tablekind='col', keysize=None, valsize=None, uri='table')),
-            #('fix', dict(tablekind='fix', keysize=None, valsize=None))
+            ('fix', dict(tablekind='fix', keysize=None, valsize=None, uri='table')),
             ('row.val10k', dict(tablekind='row', keysize=None, valsize=[10, 10000], uri='table')),
             ('col.val10k', dict(tablekind='col', keysize=None, valsize=[10, 10000], uri='table')),
             ('row.keyval10k', dict(tablekind='row', keysize=[10,10000], valsize=[10, 10000], uri='table')),
@@ -115,6 +114,3 @@ class test_cursor03(TestCursorTracker):
         self.cur_last(cursor)
         self.cur_check_backward(cursor, -1)
         cursor.close()
-
-if __name__ == '__main__':
-    wttest.run()

@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-from wtscenario import make_scenarios
+import wttest
 
 # test_join10.py
 #    Test modeled on the C example for join.
@@ -184,6 +183,3 @@ class test_join10(wttest.WiredTigerTestCase):
         country_cursor.close()
         country_cursor2.close()
         year_cursor.close()
-
-if __name__ == '__main__':
-    wttest.run()

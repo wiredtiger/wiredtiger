@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * WiredTiger's block manager interface.
  */
@@ -51,7 +53,7 @@ struct __wt_extlist {
     uint64_t bytes;   /* Byte count */
     uint32_t entries; /* Entry count */
 
-    uint32_t logid;    /* Written log ID */
+    uint32_t objectid; /* Written object ID */
     wt_off_t offset;   /* Written extent offset */
     uint32_t checksum; /* Written extent checksum */
     uint32_t size;     /* Written extent size */
@@ -103,6 +105,17 @@ struct __wt_size {
 };
 
 /*
+ * Per session handle cached block manager information.
+ */
+typedef struct {
+    WT_EXT *ext_cache;   /* List of WT_EXT handles */
+    u_int ext_cache_cnt; /* Count */
+
+    WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
+    u_int sz_cache_cnt; /* Count */
+} WT_BLOCK_MGR_SESSION;
+
+/*
  * WT_EXT_FOREACH --
  *	Walk a block manager skiplist.
  * WT_EXT_FOREACH_OFF --
@@ -113,6 +126,15 @@ struct __wt_size {
     for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[0])
 #define WT_EXT_FOREACH_OFF(skip, head) \
     for ((skip) = (head)[0]; (skip) != NULL; (skip) = (skip)->next[(skip)->depth])
+
+/*
+ * WT_EXT_FOREACH_FROM_OFFSET_INCL --
+ *	Walk a by-offset skiplist from the given offset, starting with the extent that contains the
+ * given offset if available.
+ */
+#define WT_EXT_FOREACH_FROM_OFFSET_INCL(skip, el, start)                        \
+    for ((skip) = __wt_block_off_srch_inclusive((el), (start)); (skip) != NULL; \
+         (skip) = (skip)->next[0])
 
 /*
  * Checkpoint cookie: carries a version number as I don't want to rev the schema
@@ -141,7 +163,7 @@ struct __wt_size {
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
 
-    uint32_t root_logid;
+    uint32_t root_objectid;
     wt_off_t root_offset; /* The root */
     uint32_t root_checksum, root_size;
 
@@ -165,7 +187,7 @@ struct __wt_block_ckpt {
 
 /*
  * WT_BM --
- *	Block manager handle, references a single checkpoint in a file.
+ *	Block manager handle, references a single checkpoint in a btree.
  */
 struct __wt_bm {
     /* Methods */
@@ -181,14 +203,15 @@ struct __wt_bm {
     int (*checkpoint_unload)(WT_BM *, WT_SESSION_IMPL *);
     int (*close)(WT_BM *, WT_SESSION_IMPL *);
     int (*compact_end)(WT_BM *, WT_SESSION_IMPL *);
+    int (*compact_page_rewrite)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
     int (*compact_page_skip)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t, bool *);
     int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);
+    void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
-    int (*preload)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*read)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
     int (*salvage_end)(WT_BM *, WT_SESSION_IMPL *);
     int (*salvage_next)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);
@@ -196,6 +219,8 @@ struct __wt_bm {
     int (*salvage_valid)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t, bool);
     int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
     int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
+    int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
+    int (*switch_object_end)(WT_BM *, WT_SESSION_IMPL *, uint32_t);
     int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
@@ -203,11 +228,26 @@ struct __wt_bm {
     int (*write)(WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
 
-    WT_BLOCK *block; /* Underlying file */
+    WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
+    WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
+    WT_BLOCK *prev_block; /* If a tier switch was done, this was the old file. */
 
     void *map; /* Mapped region */
     size_t maplen;
     void *mapped_cookie;
+
+    /*
+     * For trees, such as tiered tables, that are allowed to have more than one backing file or
+     * object, we maintain an array of the block handles used by the tree. We use a reader-writer
+     * mutex to protect the array. We lock it for reading when looking for a handle in the array and
+     * lock it for writing when adding or removing handles in the array.
+     */
+    bool is_multi_handle;
+    WT_BLOCK **handle_array;       /* Array of block handles */
+    size_t handle_array_allocated; /* Size of handle array */
+    WT_RWLOCK handle_array_lock;   /* Lock for block handle array */
+    u_int handle_array_next;       /* Next open slot */
+    uint32_t max_flushed_objectid; /* Local objects at or below this id should be closed */
 
     /*
      * There's only a single block manager handle that can be written, all others are checkpoints.
@@ -220,11 +260,10 @@ struct __wt_bm {
  *	Block manager handle, references a single file.
  */
 struct __wt_block {
-    const char *name;   /* Name */
-    uint64_t name_hash; /* Hash of name */
+    const char *name;  /* Name */
+    uint32_t objectid; /* Object id */
+    uint32_t ref;      /* References */
 
-    /* A list of block manager handles, sharing a file descriptor. */
-    uint32_t ref;                  /* References */
     TAILQ_ENTRY(__wt_block) q;     /* Linked list of handles */
     TAILQ_ENTRY(__wt_block) hashq; /* Hashed list of handles */
 
@@ -234,35 +273,27 @@ struct __wt_block {
     wt_off_t extend_len;  /* File extend chunk size */
 
     bool created_during_backup; /* Created during incremental backup */
+    bool sync_on_checkpoint;    /* fsync the handle after the next checkpoint */
+    bool remote;                /* Handle references non-local object */
+    bool readonly;              /* Underlying file was opened only for reading */
 
     /* Configuration information, set when the file is opened. */
-    uint32_t allocfirst; /* Allocation is first-fit */
-    uint32_t allocsize;  /* Allocation size */
-    bool log_structured; /* Write checkpoint as separate files */
-    size_t os_cache;     /* System buffer cache flush max */
+    wt_shared uint32_t allocfirst; /* Allocation is first-fit */
+    uint32_t allocsize;            /* Allocation size */
+    size_t os_cache;               /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
 
     u_int block_header; /* Header length */
 
-    /* Log-structured tracking. */
-    uint32_t file_flags, logid, max_logid;
-    WT_FH **lfh;
-    size_t lfh_alloc;
-
     /*
-     * There is only a single checkpoint in a file that can be written. The information could
-     * logically live in the WT_BM structure, but then we would be re-creating it every time we
-     * opened a new checkpoint and I'd rather not do that. So, it's stored here, only accessed by
-     * one WT_BM handle.
+     * There is only a single checkpoint in a file that can be written; stored here, only accessed
+     * by one WT_BM handle.
      */
     WT_SPINLOCK live_lock; /* Live checkpoint lock */
     WT_BLOCK_CKPT live;    /* Live checkpoint */
-#ifdef HAVE_DIAGNOSTIC
-    bool live_open; /* Live system is open */
-#endif
-    /* Live checkpoint status */
-    enum {
+    bool live_open;        /* Live system is open */
+    enum {                 /* Live checkpoint status */
         WT_CKPT_NONE = 0,
         WT_CKPT_INPROGRESS,
         WT_CKPT_PANIC_ON_FAILURE,
@@ -272,10 +303,19 @@ struct __wt_block {
     WT_CKPT *final_ckpt; /* Final live checkpoint write */
 
     /* Compaction support */
-    int compact_pct_tenths;          /* Percent to compact */
-    uint64_t compact_pages_reviewed; /* Pages reviewed */
-    uint64_t compact_pages_skipped;  /* Pages skipped */
-    uint64_t compact_pages_written;  /* Pages rewritten */
+    bool compact_estimated;                    /* If compaction work has been estimated */
+    int compact_pct_tenths;                    /* Percent to compact */
+    uint64_t compact_bytes_reviewed;           /* Bytes reviewed */
+    uint64_t compact_bytes_rewritten;          /* Bytes rewritten */
+    uint64_t compact_bytes_rewritten_expected; /* The expected number of bytes to rewrite */
+    uint64_t compact_internal_pages_reviewed;  /* Internal pages reviewed */
+    uint64_t compact_pages_reviewed;           /* Pages reviewed */
+    uint64_t compact_pages_rewritten;          /* Pages rewritten */
+    uint64_t compact_pages_rewritten_expected; /* The expected number of pages to rewrite */
+    uint64_t compact_pages_skipped;            /* Pages skipped */
+    uint64_t compact_prev_pages_rewritten;     /* Pages rewritten during the previous iteration */
+    wt_off_t compact_prev_size;                /* File size at the start of a compaction pass */
+    uint32_t compact_session_id;               /* Session compacting */
 
     /* Salvage support */
     wt_off_t slvg_off; /* Salvage file offset */
@@ -283,12 +323,16 @@ struct __wt_block {
     /* Verification support */
     bool verify;             /* If performing verification */
     bool verify_layout;      /* Print out file layout information */
+    bool dump_tree_shape;    /* Print out tree shape */
     bool verify_strict;      /* Fail hard on any error */
     wt_off_t verify_size;    /* Checkpoint's file size */
     WT_EXTLIST verify_alloc; /* Verification allocation list */
     uint64_t frags;          /* Maximum frags in the file */
     uint8_t *fragfile;       /* Per-file frag tracking list */
     uint8_t *fragckpt;       /* Per-checkpoint frag tracking list */
+
+    /* Multi-file support */
+    wt_shared uint32_t read_count; /* Count of active read requests using this block handle */
 };
 
 /*
@@ -318,7 +362,7 @@ struct __wt_block_desc {
  * __wt_block_desc_byteswap --
  *     Handle big- and little-endian transformation of a description block.
  */
-static inline void
+static WT_INLINE void
 __wt_block_desc_byteswap(WT_BLOCK_DESC *desc)
 {
 #ifdef WORDS_BIGENDIAN
@@ -377,7 +421,7 @@ struct __wt_block_header {
  *     Handle big- and little-endian transformation of a header block, copying from a source to a
  *     target.
  */
-static inline void
+static WT_INLINE void
 __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
 {
     *to = *from;
@@ -391,7 +435,7 @@ __wt_block_header_byteswap_copy(WT_BLOCK_HEADER *from, WT_BLOCK_HEADER *to)
  * __wt_block_header_byteswap --
  *     Handle big- and little-endian transformation of a header block.
  */
-static inline void
+static WT_INLINE void
 __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
 {
 #ifdef WORDS_BIGENDIAN
@@ -425,10 +469,21 @@ __wt_block_header_byteswap(WT_BLOCK_HEADER *blk)
  * __wt_block_header --
  *     Return the size of the block-specific header.
  */
-static inline u_int
+static WT_INLINE u_int
 __wt_block_header(WT_BLOCK *block)
 {
     WT_UNUSED(block);
 
     return ((u_int)WT_BLOCK_HEADER_SIZE);
+}
+
+/*
+ * __wt_block_eligible_for_sweep --
+ *     Return true if the block meets requirements for sweeping. The check that read reference count
+ *     is zero is made elsewhere.
+ */
+static WT_INLINE bool
+__wt_block_eligible_for_sweep(WT_BM *bm, WT_BLOCK *block)
+{
+    return (!block->remote && block->objectid <= bm->max_flushed_objectid);
 }

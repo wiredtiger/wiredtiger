@@ -8,13 +8,23 @@
 
 #include "util.h"
 
+/*
+ * usage --
+ *     Display a usage message for the rename command.
+ */
 static int
 usage(void)
 {
-    util_usage("rename uri newuri", NULL, NULL);
+    static const char *options[] = {"-?", "show this message", NULL, NULL};
+
+    util_usage("rename uri newuri", "options:", options);
     return (1);
 }
 
+/*
+ * util_rename --
+ *     The rename command.
+ */
 int
 util_rename(WT_SESSION *session, int argc, char *argv[])
 {
@@ -23,9 +33,11 @@ util_rename(WT_SESSION *session, int argc, char *argv[])
     char *uri, *newuri;
 
     uri = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "?")) != EOF)
         switch (ch) {
         case '?':
+            usage();
+            return (0);
         default:
             return (usage());
         }
@@ -42,6 +54,6 @@ util_rename(WT_SESSION *session, int argc, char *argv[])
     if ((ret = session->rename(session, uri, newuri, NULL)) != 0)
         (void)util_err(session, ret, "session.rename: %s, %s", uri, newuri);
 
-    free(uri);
+    util_free(uri);
     return (ret);
 }

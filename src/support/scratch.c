@@ -21,15 +21,23 @@ __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
 
     /*
      * Maintain the existing data: there are 3 cases:
-     *	No existing data: allocate the required memory, and initialize
-     * the data to reference it.
-     *	Existing data local to the buffer: set the data to the same
-     * offset in the re-allocated memory.
-     *	Existing data not-local to the buffer: copy the data into the
-     * buffer and set the data to reference it.
+     *
+     * 1. No existing data: allocate the required memory, and initialize the data to reference it.
+     * 2. Existing data local to the buffer: set the data to the same offset in the re-allocated
+     *    memory. The offset in this case is likely a read of an overflow item, the data pointer
+     *    is offset in the buffer in order to skip over the leading data block page header. For
+     *    the same reason, take any offset in the buffer into account when calculating the size
+     *    to allocate, it saves complex calculations in our callers to decide if the buffer is large
+     *    enough in the case of buffers with offset data pointers.
+     * 3. Existing data not-local to the buffer: copy the data into the buffer and set the data to
+     *    reference it.
+     *
+     * Take the offset of the data pointer in the buffer when calculating the size
+     * needed, overflow items use the data pointer to skip the leading data block page header
      */
     if (WT_DATA_IN_ITEM(buf)) {
         offset = WT_PTRDIFF(buf->data, buf->mem);
+        size += offset;
         copy_data = false;
     } else {
         offset = 0;
@@ -51,9 +59,24 @@ __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
         buf->data = buf->mem;
         buf->size = 0;
     } else {
-        if (copy_data)
+        if (copy_data) {
+            /*
+             * It's easy to corrupt memory if you pass in the wrong size for the final buffer size,
+             * which is harder to debug than this assert.
+             */
+            WT_ASSERT(session, buf->size <= buf->memsize);
             memcpy(buf->mem, buf->data, buf->size);
-        buf->data = (uint8_t *)buf->mem + offset;
+        }
+
+        /*
+         * There's an edge case where our caller initializes the item to zero bytes, for example if
+         * there's no configuration value and we're setting the item to reference it. In which case
+         * we never allocated memory and buf.mem == NULL. Handle the case explicitly to avoid
+         * sanitizer errors and let the caller continue. It's an error in the caller, but unless
+         * caller assumes buf.data points into buf.mem, there shouldn't be a subsequent failure, the
+         * item is consistent.
+         */
+        buf->data = buf->mem == NULL ? NULL : (uint8_t *)buf->mem + offset;
     }
 
     return (0);
@@ -67,9 +90,12 @@ int
 __wt_buf_fmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 3, 4))) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    WT_DECL_RET;
+
     WT_VA_ARGS_BUF_FORMAT(session, buf, fmt, false);
 
-    return (0);
+err:
+    return (ret);
 }
 
 /*
@@ -80,6 +106,8 @@ int
 __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
   WT_GCC_FUNC_ATTRIBUTE((format(printf, 3, 4))) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    WT_DECL_RET;
+
     /*
      * If we're appending data to an existing buffer, any data field should point into the allocated
      * memory. (It wouldn't be insane to copy any previously existing data at this point, if data
@@ -89,7 +117,8 @@ __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
 
     WT_VA_ARGS_BUF_FORMAT(session, buf, fmt, true);
 
-    return (0);
+err:
+    return (ret);
 }
 
 /*
@@ -97,9 +126,17 @@ __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
  *     Set the contents of the buffer to a printable representation of a byte string.
  */
 const char *
-__wt_buf_set_printable(WT_SESSION_IMPL *session, const void *p, size_t size, WT_ITEM *buf)
+__wt_buf_set_printable(
+  WT_SESSION_IMPL *session, const void *p, size_t size, bool hexonly, WT_ITEM *buf)
 {
-    if (__wt_raw_to_esc_hex(session, p, size, buf)) {
+    WT_DECL_RET;
+
+    if (hexonly)
+        ret = __wt_raw_to_hex(session, p, size, buf);
+    else
+        ret = __wt_raw_to_esc_hex(session, p, size, buf);
+
+    if (ret != 0) {
         buf->data = "[Error]";
         buf->size = strlen("[Error]");
     }
@@ -112,14 +149,14 @@ __wt_buf_set_printable(WT_SESSION_IMPL *session, const void *p, size_t size, WT_
  *     format.
  */
 const char *
-__wt_buf_set_printable_format(
-  WT_SESSION_IMPL *session, const void *buffer, size_t size, const char *format, WT_ITEM *buf)
+__wt_buf_set_printable_format(WT_SESSION_IMPL *session, const void *buffer, size_t size,
+  const char *format, bool hexonly, WT_ITEM *buf)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_PACK_VALUE(pv);
     WT_DECL_RET;
     WT_PACK pack;
-    const uint8_t *p, *end;
+    const uint8_t *end, *p;
     const char *sep;
 
     p = (const uint8_t *)buffer;
@@ -146,7 +183,7 @@ __wt_buf_set_printable_format(
             if (tmp == NULL)
                 WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_buf_catfmt(session, buf, "%s%s", sep,
-              __wt_buf_set_printable(session, pv.u.item.data, pv.u.item.size, tmp)));
+              __wt_buf_set_printable(session, pv.u.item.data, pv.u.item.size, hexonly, tmp)));
             break;
         case 'b':
         case 'h':
@@ -183,7 +220,7 @@ err:
      * is truncated, and then passed here by a page debugging routine). Our current callers aren't
      * interested in error handling in such cases, return a byte string instead.
      */
-    return (__wt_buf_set_printable(session, buffer, size, buf));
+    return (__wt_buf_set_printable(session, buffer, size, hexonly, buf));
 }
 
 /*
@@ -233,7 +270,7 @@ __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **scratchp
   ) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_DECL_RET;
-    WT_ITEM *buf, **p, **best, **slot;
+    WT_ITEM **best, *buf, **p, **slot;
     size_t allocated;
     u_int i;
 

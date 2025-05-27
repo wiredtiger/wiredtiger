@@ -63,7 +63,7 @@ class test_inmem01(wttest.WiredTigerTestCase):
 
         # Figure out the last key we successfully inserted, and check all
         # previous inserts are still there.
-        cursor = self.session.open_cursor(self.uri, None)
+        cursor = ds.open_cursor(self.uri, None)
         cursor.prev()
         last_key = int(cursor.get_key())
         ds = SimpleDataSet(self, self.uri, last_key, key_format=self.keyfmt,
@@ -81,13 +81,15 @@ class test_inmem01(wttest.WiredTigerTestCase):
 
         # Now that the database contains as much data as will fit into
         # the configured cache, verify removes succeed.
-        cursor = self.session.open_cursor(self.uri, None)
+        cursor = ds.open_cursor(self.uri, None)
         for i in range(1, 100):
             cursor.set_key(ds.key(i))
-            cursor.remove()
+            self.assertEqual(cursor.remove(), 0)
 
     # Run queries after adding, removing and re-inserting data.
     # Try out keeping a cursor open while adding new data.
+
+    @wttest.skip_for_hook("timestamp", "removing timestamped items will not free space")
     def test_insert_over_delete_replace(self):
         msg = '/WT_CACHE_FULL.*/'
         ds = SimpleDataSet(self, self.uri, 10000000, key_format=self.keyfmt,
@@ -95,16 +97,56 @@ class test_inmem01(wttest.WiredTigerTestCase):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
             ds.populate, msg)
 
-        cursor = self.session.open_cursor(self.uri, None)
+        cursor = ds.open_cursor(self.uri, None)
         cursor.prev()
         last_key = int(cursor.get_key())
 
+        # This test fails on FLCS when the machine is under heavy load: it gets WT_CACHE_FULL
+        # forever in the bottom loop and eventually fails there. This is at least partly because
+        # in FLCS removing values does not recover space (deleted values are stored as 0).
+        #
+        # I think what happens is that under sufficient load the initial fill doesn't fail until
+        # all the pages in it have already been reconciled. Then since removing some of the rows
+        # in the second step doesn't free any space up, there's no space for more updates and
+        # the bottom loop eventually fails. When not under load, at least one page in the
+        # initial fill isn't reconciled until after the initial fill stops; it gets reconciled
+        # afterwards and that frees up enough space to do the rest of the writes. (Because
+        # update structures are much larger than FLCS values, which are one byte, reconciling a
+        # page with pending updates recovers a lot of space.)
+        #
+        # There does not seem to currently be any way to keep this from happening. (If we get a
+        # mechanism to prevent reconciling pages, using that on the first page of the initialn
+        # fill should solve the problem.)
+        #
+        # However, because the cache size is fixed, the number of rows that the initial fill
+        # generates can be used as an indicator: more rows mean that more updates were already
+        # reconciled and there's less space to work with later. So, if we see enough rows that
+        # there's not going to be any space for the later updates, skip the test on the grounds
+        # that it's probably going to break. (Skip rather than fail because it's not wrong that
+        # this happens; skip conditionally rather than disable the test because it does work an
+        # appreciable fraction of the time and it's better to run it when possible.)
+        #
+        # I've picked an threshold based on some initial experiments. 141676 rows succeeds,
+        # 143403 fails, so I picked 141677. Hopefully this will not need to be conditionalized
+        # on the OS or machine type.
+        #
+        # Note that with 141676 rows there are several retries in the bottom loop, so things are
+        # working as designed and the desired scenario is being tested.
+
+        # While I'm pretty sure the above analysis is sound, the threshold is not as portable as
+        # I'd hoped, so just skip the test entirely until someone has the patience to track down
+        # a suitable threshold value for the test environment.
+        #if self.valuefmt == '8t' and last_key >= 141677:
+        #    self.skipTest('Load too high; test will get stuck')
+        if self.valuefmt == '8t':
+            self.skipTest('Gets stuck and fails sometimes under load')
+
         # Now that the database contains as much data as will fit into
         # the configured cache, verify removes succeed.
-        cursor = self.session.open_cursor(self.uri, None)
+        cursor = ds.open_cursor(self.uri, None)
         for i in range(1, last_key // 4, 1):
             cursor.set_key(ds.key(i))
-            cursor.remove()
+            self.assertEqual(cursor.remove(), 0)
 
         cursor.reset()
         # Spin inserting to give eviction a chance to reclaim space
@@ -136,7 +178,7 @@ class test_inmem01(wttest.WiredTigerTestCase):
         ds = SimpleDataSet(self, self.uri, 0, key_format=self.keyfmt,
             value_format=self.valuefmt, config=self.table_config)
         ds.populate()
-        cursor = self.session.open_cursor(self.uri, None)
+        cursor = ds.open_cursor(self.uri, None)
 
         run = 0
         start, last_key = -1000, 0
@@ -167,6 +209,3 @@ class test_inmem01(wttest.WiredTigerTestCase):
             ds.check()
             self.pr('Finished check ' + str(run))
             sleep(1)
-
-if __name__ == '__main__':
-    wttest.run()

@@ -25,9 +25,13 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# wt_util
+# [END_TAGS]
 
 import os, shutil
-import wiredtiger, wttest
+import wttest
 
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
@@ -209,6 +213,3 @@ class test_dump_projection(wttest.WiredTigerTestCase, suite_subprocess):
         self.reopen_conn(self.dir)
         pop_reload = ProjectionDataSet(self, uri, self.nentries, key_format='S')
         pop_reload.check()
-
-if __name__ == '__main__':
-    wttest.run()

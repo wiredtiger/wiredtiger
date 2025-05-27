@@ -31,10 +31,11 @@
 #   continue to generate more log files.
 #
 
-import fnmatch, os, shutil, time
+import fnmatch, os
 from suite_subprocess import suite_subprocess
-import wttest
+import helper, wttest
 
+@wttest.skip_for_hook("tiered", "Fails on tiered storage")
 class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
     t1 = 'table:test_txn16_1'
     t2 = 'table:test_txn16_2'
@@ -44,10 +45,10 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
     # Set the log file size small so we generate checkpoints
     # with LSNs in different files.
     conn_config = 'config_base=false,' + \
-        'log=(archive=false,enabled,file_max=100K),' + \
+        'log=(enabled,file_max=100K,remove=false),' + \
         'transaction_sync=(method=dsync,enabled)'
     conn_on = 'config_base=false,' + \
-        'log=(archive=false,enabled,file_max=100K),' + \
+        'log=(enabled,file_max=100K,remove=false),' + \
         'transaction_sync=(method=dsync,enabled)'
     conn_off = 'config_base=false,log=(enabled=false)'
 
@@ -61,22 +62,6 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
             if i % 900 == 0:
                 self.session.checkpoint()
         c.close()
-
-    def copy_dir(self, olddir, newdir):
-        ''' Simulate a crash from olddir and restart in newdir. '''
-        # with the connection still open, copy files to new directory
-        shutil.rmtree(newdir, ignore_errors=True)
-        os.mkdir(newdir)
-        for fname in os.listdir(olddir):
-            fullname = os.path.join(olddir, fname)
-            # Skip lock file on Windows since it is locked
-            if os.path.isfile(fullname) and \
-                "WiredTiger.lock" not in fullname and \
-                "Tmplog" not in fullname and \
-                "Preplog" not in fullname:
-                shutil.copy(fullname, newdir)
-        # close the original connection.
-        self.close_conn()
 
     def run_toggle(self, homedir):
         loop = 0
@@ -92,10 +77,11 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
                 cur_logs = fnmatch.filter(os.listdir(homedir), "*gerLog*")
                 scur = set(cur_logs)
                 sorig = set(orig_logs)
-                # There can be overlap with the log files that were
-                # there originally. Because some pages are rolled back
-                # as part of RTS.
-                self.assertEqual(scur.isdisjoint(sorig), False)
+                # There should never be overlap with the log files that
+                # were there originally.  Mostly this checks that after
+                # opening with logging disabled and then re-enabled, we
+                # don't see log file 1.
+                self.assertEqual(scur.isdisjoint(sorig), True)
                 if loop > 1:
                     # We should be creating the same log files each time.
                     for l in cur_logs:
@@ -131,9 +117,7 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
         self.populate_table(self.t1)
         self.populate_table(self.t2)
         self.populate_table(self.t3)
-        self.copy_dir(".", "RESTART")
+        helper.copy_wiredtiger_home(self, '.', 'RESTART')
+        self.close_conn()
         self.run_toggle(".")
         self.run_toggle("RESTART")
-
-if __name__ == '__main__':
-    wttest.run()

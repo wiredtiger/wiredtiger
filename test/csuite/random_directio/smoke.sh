@@ -4,13 +4,19 @@ set -e
 
 # Smoke-test random_directio as part of running "make check".
 
-# If $top_builddir/$top_srcdir aren't set, default to building in build_posix
-# and running in test/csuite.
-top_builddir=${top_builddir:-../../build_posix}
-top_srcdir=${top_srcdir:-../..}
+# If $binary_dir isn't set, default to using the build directory
+# this script resides under. Our CMake build will sync a copy of this
+# script to the build directory. Note this assumes we are executing a
+# copy of the script that lives under the build directory. Otherwise
+# passing the binary path is required.
+binary_dir=${binary_dir:-`dirname $0`}
 
-RUN_TEST_CMD="$TEST_WRAPPER $top_builddir/test/csuite/test_random_directio"
-
+if [ -n "$1" ]
+then
+    RUN_TEST_CMD="$TEST_WRAPPER $1"
+else
+    RUN_TEST_CMD="$TEST_WRAPPER $binary_dir/test_random_directio"
+fi
 # Replace for more complete testing
 #TEST_THREADS="1 5 10"
 TEST_THREADS="5"

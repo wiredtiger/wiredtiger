@@ -34,20 +34,28 @@ import wttest
 from wtscenario import make_scenarios
 
 class test_txn20(wttest.WiredTigerTestCase):
-
     uri = 'table:test_txn'
+
+    format_values = [
+        ('string-row', dict(key_format='S', key='key', \
+                            value_format='S', old_value='value:old', new_value='value:new')),
+        ('column', dict(key_format='r', key=12, \
+                            value_format='S', old_value='value:old', new_value='value:new')),
+        ('column-fix', dict(key_format='r', key=12, \
+                            value_format='8t', old_value=89, new_value=167)),
+    ]
     iso_types = [
         ('isolation_read_uncommitted', dict(isolation='read-uncommitted')),
         ('isolation_read_committed', dict(isolation='read-committed')),
         ('isolation_snapshot', dict(isolation='snapshot'))
     ]
-    scenarios = make_scenarios(iso_types)
-    key = 'key'
+    scenarios = make_scenarios(format_values, iso_types)
     old_value = 'value: old'
     new_value = 'value: new'
 
     def test_isolation_level(self):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
+        config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(self.uri, config)
         cursor = self.session.open_cursor(self.uri, None)
         cursor[self.key] = self.old_value
 
@@ -82,6 +90,3 @@ class test_txn20(wttest.WiredTigerTestCase):
             # that wasn't visible earlier in our previous read. As before,
             # 'read-uncommitted' will still see the new value.
             self.assertEqual(cursor[self.key], self.new_value)
-
-if __name__ == '__main__':
-    wttest.run()

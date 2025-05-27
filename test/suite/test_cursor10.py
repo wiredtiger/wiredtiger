@@ -26,14 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
 
 # test_cursor10.py
 #     Cursors with projections.
 class test_cursor10(wttest.WiredTigerTestCase):
     """
-    Test cursor search and search_near
+    Test cursor search
     """
     table_name1 = 'test_cursor10'
     nentries = 20
@@ -123,5 +123,3 @@ class test_cursor10(wttest.WiredTigerTestCase):
             count += 1
         self.assertEqual(count, self.nentries)
         cursor.close()
-if __name__ == '__main__':
-    wttest.run()

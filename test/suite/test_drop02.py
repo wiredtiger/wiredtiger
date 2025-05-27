@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 
 # test_drop02.py
@@ -43,6 +43,3 @@ class test_drop02(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         self.session.drop(uri, None)
-
-if __name__ == '__main__':
-    wttest.run()

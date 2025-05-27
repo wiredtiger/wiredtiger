@@ -126,7 +126,7 @@
 # expression (as it appears in the output of dtruss on OS/X).
 
 from __future__ import print_function
-import argparse, distutils.spawn, fnmatch, os, platform, re, shutil, \
+import argparse, fnmatch, os, platform, re, shutil, \
     subprocess, sys
 
 # A class that represents a context in which predefined constants can be
@@ -153,10 +153,10 @@ calls_returning_zero = [ 'close', 'ftruncate', 'fdatasync', 'rename' ]
 # When this program is run, we'll find out their actual values on
 # the host system.
 defines_used = [
-    'HAVE_FTRUNCATE', 'O_ACCMODE', 'O_APPEND', 'O_ASYNC',
-    'O_CLOEXEC', 'O_CREAT', 'O_EXCL', 'O_EXLOCK', 'O_NOATIME',
-    'O_NOFOLLOW', 'O_NONBLOCK', 'O_RDONLY', 'O_RDWR', 'O_SHLOCK',
-    'O_TRUNC', 'O_WRONLY', 'WT_USE_OPENAT' ]
+    'O_ACCMODE', 'O_APPEND', 'O_ASYNC', 'O_CLOEXEC', 'O_CREAT',
+    'O_EXCL', 'O_EXLOCK', 'O_NOATIME', 'O_NOFOLLOW', 'O_NONBLOCK',
+    'O_RDONLY', 'O_RDWR', 'O_SHLOCK', 'O_TRUNC', 'O_WRONLY',
+    'WT_USE_OPENAT' ]
 
 ################################################################
 
@@ -526,7 +526,7 @@ class Runner:
             return False
         return True
 
-    # func(args);  is shorthand for for ASSERT_EQ(func(args), xxx);
+    # func(args);  is shorthand for ASSERT_EQ(func(args), xxx);
     # where xxx may be 0 or may be derived from one of the args.
     def call_compare(self, callname, result, eargs, errline):
         if callname in calls_returning_zero:
@@ -770,8 +770,26 @@ class SyscallCommand:
     def parse_args(self, argv):
         srcdir = os.path.join(self.disttop, 'test', 'syscall')
         self.exetopdir = os.path.join(self.builddir, 'test', 'syscall')
-        self.incdir1 = os.path.join(self.disttop, 'src', 'include')
-        self.incdir2 = self.builddir
+        self.incdirs = []
+
+        if self.disttop == self.builddir:
+            # CTest runs a copy of the script in the build directory, so the src include
+            # is a level above.
+            self.incdirs.append(os.path.join(self.disttop, '..', 'src', 'include'))
+        else:
+            self.incdirs.append(os.path.join(self.disttop, 'src', 'include'))
+
+        if os.path.isfile(os.path.join(self.builddir, 'wiredtiger_config.h')) and \
+            os.path.isfile(os.path.join(self.builddir, 'wiredtiger.h')):
+            # When building with autoconf, the generated includes will be at the top level
+            # of the build directory.
+            self.incdirs.append(self.builddir)
+        elif os.path.isfile(os.path.join(self.builddir, 'config', 'wiredtiger_config.h')) and \
+            os.path.isfile(os.path.join(self.builddir, 'include', 'wiredtiger.h')):
+            # When building with CMake, the generated includes will be in the config and include
+            # sub-directories.
+            self.incdirs.append(os.path.join(self.builddir, 'config'))
+            self.incdirs.append(os.path.join(self.builddir, 'include'))
 
         ap = argparse.ArgumentParser('Syscall test runner')
         ap.add_argument('--systype',
@@ -814,7 +832,7 @@ class SyscallCommand:
         else:
             msg("systype '" + args.systype + "' unsupported")
             return False
-        if not distutils.spawn.find_executable(straceexe):
+        if not shutil.which(straceexe):
             msg("strace: does not exist")
             return False
         self.args = args
@@ -881,8 +899,8 @@ class SyscallCommand:
         with open(probe_c, "w") as f:
             f.write(program)
         ccargs = ['cc', '-o', probe_exe]
-        ccargs.append('-I' + self.incdir1)
-        ccargs.append('-I' + self.incdir2)
+        for inc in self.incdirs:
+            ccargs.append('-I' + inc)
         if self.args.systype == 'Linux':
             ccargs.append('-D_GNU_SOURCE')
         ccargs.append(probe_c)
@@ -950,16 +968,18 @@ syscalldir = sys.path[0]
 wt_disttop = os.path.dirname(os.path.dirname(syscalldir))
 
 # Note: this code is borrowed from test/suite/run.py
-# Check for a local build that contains the wt utility. First check in
-# current working directory, then in build_posix and finally in the disttop
-# directory. This isn't ideal - if a user has multiple builds in a tree we
-# could pick the wrong one.
-if os.path.isfile(os.path.join(os.getcwd(), 'wt')):
+# Check for a local build that contains the wt utility. First check if the user
+# manually specified a local build through the 'WT_BUILDDIR' env variable. Otherwise
+# iterate through other possible locations. This including current working directory,
+# and in the dist directory. This isn't ideal - if a
+# user has multiple builds in a tree we could pick the wrong one.
+env_builddir = os.getenv('WT_BUILDDIR')
+if env_builddir and os.path.isfile(os.path.join(env_builddir, 'wt')):
+    wt_builddir = env_builddir
+elif os.path.isfile(os.path.join(os.getcwd(), 'wt')):
     wt_builddir = os.getcwd()
 elif os.path.isfile(os.path.join(wt_disttop, 'wt')):
     wt_builddir = wt_disttop
-elif os.path.isfile(os.path.join(wt_disttop, 'build_posix', 'wt')):
-    wt_builddir = os.path.join(wt_disttop, 'build_posix')
 elif os.path.isfile(os.path.join(wt_disttop, 'wt.exe')):
     wt_builddir = wt_disttop
 else:

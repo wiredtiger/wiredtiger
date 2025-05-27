@@ -25,6 +25,10 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# cursors:reconfigure
+# [END_TAGS]
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
@@ -35,33 +39,40 @@ from wtscenario import make_scenarios
 class test_cursor06(wttest.WiredTigerTestCase):
     name = 'reconfigure'
     scenarios = make_scenarios([
-        ('file-r', dict(type='file:', keyfmt='r', dataset=SimpleDataSet)),
-        ('file-S', dict(type='file:', keyfmt='S', dataset=SimpleDataSet)),
-        ('lsm-S', dict(type='lsm:', keyfmt='S', dataset=SimpleDataSet)),
-        ('table-r', dict(type='table:', keyfmt='r', dataset=SimpleDataSet)),
-        ('table-S', dict(type='table:', keyfmt='S', dataset=SimpleDataSet)),
-        ('table-r-complex', dict(type='table:', keyfmt='r',
+        ('file-f', dict(type='file:', keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
+        ('file-r', dict(type='file:', keyfmt='r', valfmt='S', dataset=SimpleDataSet)),
+        ('file-S', dict(type='file:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('lsm-S', dict(type='lsm:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('table-f', dict(type='table:', keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
+        ('table-r', dict(type='table:', keyfmt='r', valfmt='S', dataset=SimpleDataSet)),
+        ('table-S', dict(type='table:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('table-r-complex', dict(type='table:', keyfmt='r', valfmt=None,
             dataset=ComplexDataSet)),
-        ('table-S-complex', dict(type='table:', keyfmt='S',
+        ('table-S-complex', dict(type='table:', keyfmt='S', valfmt=None,
             dataset=ComplexDataSet)),
-        ('table-S-complex-lsm', dict(type='table:', keyfmt='S',
+        ('table-S-complex-lsm', dict(type='table:', keyfmt='S', valfmt=None,
             dataset=ComplexLSMDataSet)),
     ])
 
     def populate(self, uri):
-        self.ds = self.dataset(self, uri, 100, key_format=self.keyfmt)
+        self.ds = self.dataset(self, uri, 100, key_format=self.keyfmt, value_format=self.valfmt)
         self.ds.populate()
 
     def set_kv(self, cursor):
         cursor.set_key(self.ds.key(10))
         cursor.set_value(self.ds.value(10))
 
+    @wttest.skip_for_hook("timestamp", "Crashes on final connection close")
     def test_reconfigure_overwrite(self):
         uri = self.type + self.name
         for open_config in (None, "overwrite=0", "overwrite=1"):
-            self.session.drop(uri, "force")
+            if open_config == None:
+                # The first time it has not been created yet so use force.
+                self.dropUntilSuccess(self.session, uri, "force")
+            else:
+                self.dropUntilSuccess(self.session, uri)
             self.populate(uri)
-            cursor = self.session.open_cursor(uri, None, open_config)
+            cursor = self.ds.open_cursor(uri, None, open_config)
             if open_config != "overwrite=0":
                 self.set_kv(cursor)
                 cursor.insert()
@@ -78,9 +89,13 @@ class test_cursor06(wttest.WiredTigerTestCase):
     def test_reconfigure_readonly(self):
         uri = self.type + self.name
         for open_config in (None, "readonly=0", "readonly=1"):
-            self.session.drop(uri, "force")
+            if open_config == None:
+                # The first time it has not been created yet so use force.
+                self.dropUntilSuccess(self.session, uri, "force")
+            else:
+                self.dropUntilSuccess(self.session, uri)
             self.populate(uri)
-            cursor = self.session.open_cursor(uri, None, open_config)
+            cursor = self.ds.open_cursor(uri, None, open_config)
             msg = '/Unsupported cursor/'
             if open_config == "readonly=1":
                 self.set_kv(cursor)
@@ -91,5 +106,11 @@ class test_cursor06(wttest.WiredTigerTestCase):
                 cursor.update()
             cursor.close()
 
-if __name__ == '__main__':
-    wttest.run()
+    def test_reconfigure_invalid(self):
+        uri = self.type + self.name
+        self.populate(uri)
+        c = self.ds.open_cursor(uri, None, None)
+        c.reconfigure("overwrite=1")
+        msg = '/Invalid argument/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: c.reconfigure("xxx=true"), msg)

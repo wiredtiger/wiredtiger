@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, time
 import wiredtiger, wttest
 from helper import confirm_does_not_exist
 from wtdataset import SimpleDataSet, ComplexDataSet
@@ -34,6 +33,7 @@ from wtscenario import make_scenarios
 
 # test_rename.py
 #    session level rename operation
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_rename(wttest.WiredTigerTestCase):
     name1 = 'test_rename1'
     name2 = 'test_rename2'
@@ -60,11 +60,11 @@ class test_rename(wttest.WiredTigerTestCase):
                 lambda: self.session.rename(uri1, uri2, None))
             cursor.close()
 
-        self.session.rename(uri1, uri2, None)
+        self.renameUntilSuccess(self.session, uri1, uri2)
         confirm_does_not_exist(self, uri1)
         ds2.check()
 
-        self.session.rename(uri2, uri1, None)
+        self.renameUntilSuccess(self.session, uri2, uri1)
         confirm_does_not_exist(self, uri2)
         ds1.check()
 
@@ -97,6 +97,3 @@ class test_rename(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.rename(uri1, uri2, None),
             '/type must match URI/')
-
-if __name__ == '__main__':
-    wttest.run()

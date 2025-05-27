@@ -35,6 +35,8 @@
 WT_THREAD_RET
 random_kv(void *arg)
 {
+    SAP sap;
+    TABLE *table;
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -49,27 +51,33 @@ random_kv(void *arg)
 
     conn = g.wts_conn;
 
-    /* Random cursor ops are only supported on row-store. */
-    if (g.type != ROW)
+    /* Random cursor ops are only supported on row-store, make sure there's a row-store table. */
+    if (ntables == 0 && tables[0]->type != ROW)
         return (WT_THREAD_RET_VALUE);
+    else {
+        for (i = 1; i < ntables; ++i)
+            if (tables[i]->type == ROW)
+                break;
+        if (i == ntables)
+            return (WT_THREAD_RET_VALUE);
+    }
 
     /* Open a session. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(
+      conn, &sap, NULL, enable_session_prefetch() ? SESSION_PREFETCH_CFG_ON : NULL, &session);
 
     for (simple = false;;) {
         /* Alternate between simple random cursors and sample-size random cursors. */
         config = simple ? "next_random=true" : "next_random=true,next_random_sample_size=37";
         simple = !simple;
 
-        /*
-         * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
-         */
-        while ((ret = session->open_cursor(session, g.uri, NULL, config, &cursor)) == EBUSY)
-            __wt_yield();
-        testutil_check(ret);
+        /* Select a table and open a cursor. */
+        table = table_select_type(ROW, false);
+        wt_wrap_open_cursor(session, table->uri, config, &cursor);
 
         /* This is just a smoke-test, get some key/value pairs. */
-        for (i = mmrand(NULL, 0, 1000); i > 0; --i) {
+        for (i = mmrand(&g.extra_rnd, 0, WT_THOUSAND); i > 0 && !g.workers_finished; --i) {
             switch (ret = cursor->next(cursor)) {
             case 0:
                 break;
@@ -88,7 +96,7 @@ random_kv(void *arg)
         testutil_check(cursor->close(cursor));
 
         /* Sleep for some number of seconds. */
-        period = mmrand(NULL, 1, 10);
+        period = mmrand(&g.extra_rnd, 1, 10);
 
         /* Sleep for short periods so we don't make the run wait. */
         while (period > 0 && !g.workers_finished) {
@@ -99,7 +107,7 @@ random_kv(void *arg)
             break;
     }
 
-    testutil_check(session->close(session, NULL));
+    wt_wrap_close_session(session);
 
     return (WT_THREAD_RET_VALUE);
 }

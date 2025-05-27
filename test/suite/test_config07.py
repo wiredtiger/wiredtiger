@@ -83,7 +83,7 @@ class test_config07(wttest.WiredTigerTestCase):
         msg = '/invalid log extend length/'
 
         config = 'log=(enabled,file_max=1M),file_extend=' + self.log_extend_len
-        configarg = 'create,statistics=(fast)' + ',' + config
+        configarg = 'create,' + config
 
         # Expect an error when an invalid log extend size is provided.
         if self.expected_log_size is None:
@@ -100,6 +100,3 @@ class test_config07(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.checkLogFileSize(self.expected_log_size)
-
-if __name__ == '__main__':
-    wttest.run()

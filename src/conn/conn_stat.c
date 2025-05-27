@@ -73,14 +73,26 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
     stats = conn->stats;
 
-    __wt_cache_stats_update(session);
+    __wti_cache_stats_update(session);
+    __wt_evict_stats_update(session);
     __wt_txn_stats_update(session);
 
-    WT_STAT_SET(session, stats, file_open, conn->open_file_count);
-    WT_STAT_SET(session, stats, cursor_open_count, conn->open_cursor_count);
-    WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
-    WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
-    WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
+    WT_STATP_CONN_SET(session, stats, file_open, conn->open_file_count);
+    WT_STATP_CONN_SET(
+      session, stats, cursor_open_count, __wt_atomic_load32(&conn->open_cursor_count));
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_btree_count, conn->dhandle_types_count[WT_DHANDLE_TYPE_BTREE]);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_table_count, conn->dhandle_types_count[WT_DHANDLE_TYPE_TABLE]);
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_tiered_count,
+      conn->dhandle_types_count[WT_DHANDLE_TYPE_TIERED]);
+    WT_STATP_CONN_SET(session, stats, dh_conn_handle_tiered_tree_count,
+      conn->dhandle_types_count[WT_DHANDLE_TYPE_TIERED_TREE]);
+    WT_STATP_CONN_SET(
+      session, stats, dh_conn_handle_checkpoint_count, conn->dhandle_checkpoint_count);
+    WT_STATP_CONN_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
+    WT_STATP_CONN_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
 }
 
 /*
@@ -157,9 +169,9 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
         __wt_config_subinit(session, &objectconf, &cval);
         for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
             /*
-             * XXX Only allow "file:" and "lsm:" for now: "file:" works because it's been converted
-             * to data handles, "lsm:" works because we can easily walk the list of open LSM
-             * objects, even though it hasn't been converted.
+             * Only allow "file:" and "lsm:" for now: "file:" works because it's been converted to
+             * data handles, "lsm:" works because we can easily walk the list of open LSM objects,
+             * even though it hasn't been converted.
              */
             if (!WT_PREFIX_MATCH(k.str, "file:") && !WT_PREFIX_MATCH(k.str, "lsm:"))
                 WT_ERR_MSG(session, EINVAL,
@@ -193,7 +205,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 #define WT_TIMESTAMP_JSON_DEFAULT "%Y-%m-%dT%H:%M:%S.000Z"
     WT_ERR(__wt_config_gets(session, cfg, "statistics_log.timestamp", &cval));
     if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON) &&
-      WT_STRING_MATCH(WT_TIMESTAMP_DEFAULT, cval.str, cval.len))
+      WT_CONFIG_LIT_MATCH(WT_TIMESTAMP_DEFAULT, cval))
         WT_ERR(__wt_strdup(session, WT_TIMESTAMP_JSON_DEFAULT, &conn->stat_format));
     else
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->stat_format));
@@ -309,7 +321,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
     size_t prefixlen;
     int64_t val;
     const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
-    const char *desc, *endprefix, *valstr, *uri;
+    const char *desc, *endprefix, *uri, *valstr;
     bool first, groupfirst;
 
     conn = S2C(session);
@@ -410,7 +422,7 @@ __statlog_lsm_apply(WT_SESSION_IMPL *session)
     bool locked;
     char **p;
 
-    cnt = locked = 0;
+    cnt = 0;
 
     /*
      * Walk the list of LSM trees, checking for a match on the set of sources.
@@ -494,17 +506,19 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 
     /*
      * Lock the schema and walk the list of open handles, dumping any that match the list of object
-     * sources.
+     * sources. Statistics logging starts before recovery is run. Only walk the handles after the
+     * connection completes recovery.
      */
-    if (conn->stat_sources != NULL)
+    if (conn->stat_sources != NULL && F_ISSET(conn, WT_CONN_RECOVERY_COMPLETE))
         WT_RET(__wt_conn_btree_apply(session, NULL, __statlog_apply, NULL, NULL));
 
     /*
-     * Walk the list of open LSM trees, dumping any that match the list of object sources.
+     * Walk the list of open LSM trees, dumping any that match the list of object sources. Only walk
+     * handles after the connection after completes recovery.
      *
      * XXX This code should be removed when LSM objects are converted to data handles.
      */
-    if (conn->stat_sources != NULL)
+    if (conn->stat_sources != NULL && F_ISSET(conn, WT_CONN_RECOVERY_COMPLETE))
         WT_RET(__statlog_lsm_apply(session));
     WT_RET(__statlog_print_footer(session));
 
@@ -617,7 +631,7 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
     FLD_SET(conn->server_flags, WT_CONN_SERVER_STATISTICS);
 
     /* The statistics log server gets its own session. */
-    WT_RET(__wt_open_internal_session(conn, "statlog-server", true, 0, &conn->stat_session));
+    WT_RET(__wt_open_internal_session(conn, "statlog-server", true, 0, 0, &conn->stat_session));
     session = conn->stat_session;
 
     WT_RET(__wt_cond_alloc(session, "statistics log server", &conn->stat_cond));
@@ -638,16 +652,20 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 }
 
 /*
- * __wt_statlog_create --
+ * __wti_statlog_create --
  *     Start the statistics server thread.
  */
 int
-__wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wti_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     bool start;
 
     conn = S2C(session);
+
+    /* Readonly systems don't configure statistics logging. */
+    if (F_ISSET(conn, WT_CONN_READONLY))
+        return (0);
 
     /*
      * Stop any server that is already running. This means that each time reconfigure is called
@@ -663,7 +681,7 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (conn->stat_session == NULL)
         WT_RET(__stat_config_discard(session));
     else
-        WT_RET(__wt_statlog_destroy(session, false));
+        WT_RET(__wti_statlog_destroy(session, false));
 
     WT_RET(__statlog_config(session, cfg, &start));
     if (start)
@@ -673,16 +691,20 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_statlog_destroy --
+ * __wti_statlog_destroy --
  *     Destroy the statistics server thread.
  */
 int
-__wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
+__wti_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
     conn = S2C(session);
+
+    /* Readonly systems don't configure statistics logging. */
+    if (F_ISSET(conn, WT_CONN_READONLY))
+        return (0);
 
     /* Stop the server thread. */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_STATISTICS);

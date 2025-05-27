@@ -79,6 +79,7 @@ import wiredtiger, wttest
 class TestCursorTracker(wttest.WiredTigerTestCase):
     table_name1 = 'test_cursor'
     DELETED = 0xffffffffffffffff
+    DELETED_VERSION = 0xffff
     TRACE_API = False    # a print output for each WT API call
 
     def config_string(self):
@@ -142,6 +143,7 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
             raise Exception('cur_initial_conditions: npairs too big')
         self.tablekind = tablekind
         self.isrow = (tablekind == 'row')
+        self.isfix = (tablekind == 'fix')
         self.setup_encoders_decoders()
         self.bitlist = [(x << 32) for x in range(npairs)]
         self.vers = dict((x << 32, 0) for x in range(npairs))
@@ -198,7 +200,7 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
     def check_content(self, s, sizes):
         if sizes != None:
             stretched = self.stretch_content(s[0:20], sizes)
-            self.assertEquals(s, stretched)
+            self.assertEqual(s, stretched)
 
     # There are variants of {encode,decode}_{key,value} to be
     # used with each table kind: 'row', 'col', 'fix'
@@ -245,10 +247,11 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
         return ((maj << 32) | (min << 16))
 
     def encode_value_fix(self, bits):
+        [maj, min, ver] = self.bits_to_triple(bits)
+        if ver == self.DELETED_VERSION:
+            return 0
         # can only encode only 8 bits
-        maj = ((bits >> 32) & 0xff)
-        min = (bits >> 16) & 0xff
-        return (maj ^ min)
+        return (maj ^ min) % 256
 
     def decode_value_fix(self, s):
         return int(s)
@@ -256,7 +259,7 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
     def setpos(self, newpos, isforward):
         length = len(self.bitlist)
         while newpos >= 0 and newpos < length:
-            if not self.isrow and self.bitlist[newpos] == self.DELETED:
+            if not self.isrow and not self.isfix and self.bitlist[newpos] == self.DELETED:
                 if isforward:
                     newpos = newpos + 1
                 else:
@@ -279,15 +282,15 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
     def cur_first(self, cursor, expect=0):
         self.setpos(0, True)
         self.traceapi('cursor.first()')
-        self.assertEquals(0, cursor.reset())
-        self.assertEquals(expect, cursor.next())
+        self.assertEqual(0, cursor.reset())
+        self.assertEqual(expect, cursor.next())
         self.curremoved = False
 
     def cur_last(self, cursor, expect=0):
         self.setpos(len(self.bitlist) - 1, False)
         self.traceapi('cursor.last()')
-        self.assertEquals(0, cursor.reset())
-        self.assertEquals(expect, cursor.prev())
+        self.assertEqual(0, cursor.reset())
+        self.assertEqual(expect, cursor.prev())
         self.curremoved = False
 
     def cur_update(self, cursor, key):
@@ -326,6 +329,9 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
                 self.bitlist.pop(self.curpos)
                 self.setpos(self.curpos - 1, True)
                 self.nopos = True
+            elif self.isfix:
+                [major, minor, version] = self.bits_to_triple(self.bitlist[self.curpos])
+                self.bitlist[self.curpos] = self.triple_to_bits(major, minor, self.DELETED_VERSION)
             else:
                 self.bitlist[self.curpos] = self.DELETED
             self.curremoved = True
@@ -442,7 +448,7 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
             return str(self.bits_to_triple(self.decode_key(k))) + ' = ' + str(k)
 
     def _cursor_value_to_string(self, v):
-            return str(self.bits_to_triple(self.decode_value(v))) + ' = ' + v
+            return str(self.bits_to_triple(self.decode_value(v))) + ' = ' + str(v)
 
     def _dumpcursor(self, cursor):
         print('cursor')
@@ -481,6 +487,3 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
             else:
                 kind = 'value'
             self.fail('mismatched ' + kind + ', want: ' + wantstr + ', got: ' + gotstr)
-
-if __name__ == '__main__':
-    wttest.run()

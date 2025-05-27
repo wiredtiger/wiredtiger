@@ -9,35 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __rename_blkmod --
- *     Reset the incremental backup information for a rename.
- */
-static int
-__rename_blkmod(WT_SESSION_IMPL *session, const char *oldvalue, WT_ITEM *buf)
-{
-    WT_CKPT ckpt;
-    WT_DECL_RET;
-
-    WT_CLEAR(ckpt);
-    /*
-     * Replace the old file entries with new file entries. We need to recreate the incremental
-     * backup information to indicate copying the entire file in its bitmap.
-     */
-    /* First load any existing backup information into a temp checkpoint structure. */
-    WT_RET(__wt_meta_blk_mods_load(session, oldvalue, &ckpt, true));
-
-    /* Take the checkpoint structure and generate the metadata string. */
-    ret = __wt_ckpt_blkmod_to_meta(session, buf, &ckpt);
-    __wt_meta_checkpoint_free(session, &ckpt);
-    return (ret);
-}
-
-/*
  * __rename_file --
  *     WT_SESSION::rename for a file.
  */
 static int
-__rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
+__rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri, bool check_visibility)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -53,11 +29,11 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     newfile = newuri;
     WT_PREFIX_SKIP_REQUIRED(session, newfile, "file:");
 
-    WT_RET(__wt_schema_backup_check(session, filename));
-    WT_RET(__wt_schema_backup_check(session, newfile));
+    WT_RET(__wti_schema_backup_check(session, filename));
+    WT_RET(__wti_schema_backup_check(session, newfile));
     /* Close any btree handles in the file. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, ret = __wt_conn_dhandle_close_all(session, uri, true, false));
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, false, check_visibility));
     WT_ERR(ret);
     WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
@@ -89,7 +65,7 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     WT_ERR(__wt_metadata_remove(session, uri));
     filecfg[0] = oldvalue;
     if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
-        WT_ERR(__rename_blkmod(session, oldvalue, buf));
+        WT_ERR(__wt_reset_blkmod(session, oldvalue, buf));
         filecfg[1] = buf->mem;
     } else
         filecfg[1] = NULL;
@@ -114,7 +90,7 @@ err:
  */
 static int
 __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, const char *name,
-  const char *cfg[])
+  const char *cfg[], bool check_visibility)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_ITEM(nn);
@@ -135,8 +111,7 @@ __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, con
     /*
      * Create the new data source URI and update the schema value.
      *
-     * 'name' has the format (colgroup|index):<tablename>[:<suffix>];
-     * we need the suffix.
+     * 'name' has the format (colgroup|index):<tablename>[:<suffix>]; we need the suffix.
      */
     is_colgroup = WT_PREFIX_MATCH(name, "colgroup:");
     if (!is_colgroup && !WT_PREFIX_MATCH(name, "index:"))
@@ -165,12 +140,14 @@ __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, con
     WT_ERR(__wt_scr_alloc(session, 0, &ns));
     table->iface.name = newuri;
     if (is_colgroup)
-        WT_ERR(__wt_schema_colgroup_source(session, table, suffix, value, ns));
+        WT_ERR(__wti_schema_colgroup_source(session, table, suffix, value, ns));
     else
-        WT_ERR(__wt_schema_index_source(session, table, suffix, value, ns));
+        WT_ERR(__wti_schema_index_source(session, table, suffix, value, ns));
 
+    /* Convert not-found errors to EINVAL for the application. */
     if ((ret = __wt_config_getones(session, value, "source", &cval)) != 0)
-        WT_ERR_MSG(session, EINVAL, "index or column group has no data source: %s", value);
+        WT_ERR_MSG(session, ret == WT_NOTFOUND ? EINVAL : ret,
+          "index or column group has no data source: %s", value);
 
     /* Take a copy of the old data source. */
     WT_ERR(__wt_scr_alloc(session, 0, &os));
@@ -185,7 +162,7 @@ __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, con
      * Do the rename before updating the metadata to avoid leaving the metadata inconsistent if the
      * rename fails.
      */
-    WT_ERR(__wt_schema_rename(session, os->data, ns->data, cfg));
+    WT_ERR(__wt_schema_rename(session, os->data, ns->data, cfg, check_visibility));
 
     /*
      * Remove the old metadata entry. Insert the new metadata entry.
@@ -227,7 +204,8 @@ err:
  *     WT_SESSION::rename for a table.
  */
 static int
-__rename_table(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[])
+__rename_table(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[],
+  bool check_visibility)
 {
     WT_DECL_RET;
     WT_TABLE *table;
@@ -251,12 +229,14 @@ __rename_table(WT_SESSION_IMPL *session, const char *uri, const char *newuri, co
 
     /* Rename the column groups. */
     for (i = 0; i < WT_COLGROUPS(table); i++)
-        WT_ERR(__rename_tree(session, table, newuri, table->cgroups[i]->name, cfg));
+        WT_ERR(
+          __rename_tree(session, table, newuri, table->cgroups[i]->name, cfg, check_visibility));
 
     /* Rename the indices. */
     WT_ERR(__wt_schema_open_indices(session, table));
     for (i = 0; i < table->nindices; i++)
-        WT_ERR(__rename_tree(session, table, newuri, table->indices[i]->name, cfg));
+        WT_ERR(
+          __rename_tree(session, table, newuri, table->indices[i]->name, cfg, check_visibility));
 
     /* Make sure the table data handle is closed. */
     WT_ERR(__wt_schema_release_table(session, &table));
@@ -284,23 +264,11 @@ err:
 static int
 __rename_tiered(WT_SESSION_IMPL *session, const char *olduri, const char *newuri, const char *cfg[])
 {
-    WT_DECL_RET;
-    WT_TIERED *tiered;
-
-    /* Get the tiered data handle. */
-    WT_RET(__wt_session_get_dhandle(session, olduri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
-    tiered = (WT_TIERED *)session->dhandle;
-
-    /* TODO */
     WT_UNUSED(olduri);
     WT_UNUSED(newuri);
     WT_UNUSED(cfg);
-    WT_UNUSED(tiered);
-
-    F_SET(session->dhandle, WT_DHANDLE_DISCARD);
-    WT_TRET(__wt_session_release_dhandle(session));
-
-    return (ret);
+    /* We do not allow renaming a tiered table. */
+    WT_RET_MSG(session, EINVAL, "rename of tiered table is not supported");
 }
 
 /*
@@ -308,7 +276,8 @@ __rename_tiered(WT_SESSION_IMPL *session, const char *olduri, const char *newuri
  *     WT_SESSION::rename.
  */
 static int
-__schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[])
+__schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[],
+  bool check_visibility)
 {
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
@@ -326,11 +295,11 @@ __schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, c
     WT_RET(__wt_meta_track_on(session));
 
     if (WT_PREFIX_MATCH(uri, "file:"))
-        ret = __rename_file(session, uri, newuri);
+        ret = __rename_file(session, uri, newuri, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "lsm:"))
-        ret = __wt_lsm_tree_rename(session, uri, newuri, cfg);
+        ret = __wt_lsm_tree_rename(session, uri, newuri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "table:"))
-        ret = __rename_table(session, uri, newuri, cfg);
+        ret = __rename_table(session, uri, newuri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
         ret = __rename_tiered(session, uri, newuri, cfg);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
@@ -351,13 +320,24 @@ __schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, c
  *     WT_SESSION::rename.
  */
 int
-__wt_schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[])
+__wt_schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[],
+  bool check_visibility)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
 
-    WT_RET(__wt_schema_internal_session(session, &int_session));
-    ret = __schema_rename(int_session, uri, newuri, cfg);
-    WT_TRET(__wt_schema_session_release(session, int_session));
+    /*
+     * We should be calling this function with the checkpoint lock and the schema lock, but we
+     * cannot verify that here because we can re-enter this function with the internal session. If
+     * we get here using the internal session, we cannot check whether we own the locks, as they
+     * would be locked by the outer session. We can thus only check whether the locks are acquired,
+     * as opposed to, whether the locks are acquired by us.
+     */
+    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->checkpoint_lock));
+    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+
+    WT_RET(__wti_schema_internal_session(session, &int_session));
+    ret = __schema_rename(int_session, uri, newuri, cfg, check_visibility);
+    WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
 }

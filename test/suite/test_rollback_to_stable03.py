@@ -26,25 +26,20 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
-from test_rollback_to_stable01 import test_rollback_to_stable_base
-
-def timestamp_str(t):
-    return '%x' % t
+from rollback_to_stable_util import test_rollback_to_stable_base
 
 # test_rollback_to_stable03.py
 # Test that rollback to stable clears the history store updates from reconciled pages.
-class test_rollback_to_stable01(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
+class test_rollback_to_stable03(test_rollback_to_stable_base):
 
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+    format_values = [
+        ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     in_memory_values = [
@@ -57,61 +52,68 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(key_format_values, in_memory_values, prepare_values)
+    worker_thread_values = [
+        ('0', dict(threads=0)),
+        ('4', dict(threads=4)),
+        ('8', dict(threads=8))
+    ]
+
+    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, worker_thread_values)
 
     def conn_config(self):
-        config = 'cache_size=4GB,statistics=(all)'
+        config = 'cache_size=4GB,statistics=(all),verbose=(rts:5)'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',log=(enabled),in_memory=false'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 1000
 
-        # Prepare transactions for column store table is not yet supported.
-        if self.prepare and self.key_format == 'r':
-            self.skipTest('Prepare transactions for column store table is not yet supported')
-
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable03"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        ds_config = ',log=(enabled=false)' if self.in_memory else ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
-        # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        if self.value_format == '8t':
+            valuea = 97
+            valueb = 98
+            valuec = 99
+        else:
+            valuea = "aaaaa" * 100
+            valueb = "bbbbb" * 100
+            valuec = "ccccc" * 100
 
-        valuea = "aaaaa" * 100
-        valueb = "bbbbb" * 100
-        valuec = "ccccc" * 100
+        # Pin oldest and stable to timestamp 1.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+
         self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
-        self.check(valuea, uri, nrows, 10)
+        self.check(valuea, uri, nrows, None, 11 if self.prepare else 10)
 
         self.large_updates(uri, valueb, ds, nrows, self.prepare, 20)
         # Check that all updates are seen.
-        self.check(valueb, uri, nrows, 20)
+        self.check(valueb, uri, nrows, None, 21 if self.prepare else 20)
 
         self.large_updates(uri, valuec, ds, nrows, self.prepare, 30)
         # Check that all updates are seen.
-        self.check(valuec, uri, nrows, 30)
+        self.check(valuec, uri, nrows, None, 31 if self.prepare else 30)
 
         # Pin stable to timestamp 30 if prepare otherwise 20.
         if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(30))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         # Checkpoint to ensure that all the updates are flushed to disk.
         if not self.in_memory:
             self.session.checkpoint()
 
-        self.conn.rollback_to_stable()
+        self.conn.rollback_to_stable('threads=' + str(self.threads))
         # Check that the old updates are only seen even with the update timestamp.
-        self.check(valueb, uri, nrows, 20)
-        self.check(valuea, uri, nrows, 10)
+        self.check(valueb, uri, nrows, None, 20)
+        self.check(valuea, uri, nrows, None, 10)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -131,6 +133,3 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         else:
             self.assertGreaterEqual(upd_aborted + hs_removed, nrows)
         self.assertGreater(pages_visited, 0)
-
-if __name__ == '__main__':
-    wttest.run()

@@ -30,7 +30,6 @@
 #   Transactions: different sync modes
 #
 
-import fnmatch, os, shutil, time
 from suite_subprocess import suite_subprocess
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -38,16 +37,20 @@ import wttest
 
 class test_txn15(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:test_txn15_1'
-    create_params = 'key_format=i,value_format=i'
     entries = 100
     # Turn on logging for this test.
     def conn_config(self):
         return 'statistics=(fast),' + \
-            'log=(archive=false,enabled,file_max=100K),' + \
+            'log=(enabled,file_max=100K,remove=false),' + \
             'use_environment=false,' + \
             'transaction_sync=(enabled=%s),' % self.conn_enable + \
             'transaction_sync=(method=%s),' % self.conn_method
 
+    format_values = [
+        ('integer-row', dict(key_format='i', value_format='i')),
+        ('column', dict(key_format='r', value_format='i')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+    ]
     conn_sync_enabled = [
         ('en_off', dict(conn_enable='false')),
         ('en_on', dict(conn_enable='true')),
@@ -71,8 +74,13 @@ class test_txn15(wttest.WiredTigerTestCase, suite_subprocess):
         ('c_none', dict(commit_sync=None)),
         ('c_off', dict(commit_sync='sync=off')),
     ]
-    scenarios = make_scenarios(conn_sync_enabled, conn_sync_method,
+    scenarios = make_scenarios(format_values, conn_sync_enabled, conn_sync_method,
         begin_sync, commit_sync)
+
+    def mkvalue(self, i):
+        if self.value_format == '8t':
+            return i % 256
+        return i
 
     # Given the different configuration settings determine if this group
     # of settings would result in either a wait for write or sync.
@@ -111,7 +119,8 @@ class test_txn15(wttest.WiredTigerTestCase, suite_subprocess):
         if self.begin_sync != None and self.commit_sync != None:
             return
 
-        self.session.create(self.uri, self.create_params)
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(self.uri, create_params)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         #
@@ -126,8 +135,8 @@ class test_txn15(wttest.WiredTigerTestCase, suite_subprocess):
 
         c = self.session.open_cursor(self.uri, None, None)
         self.session.begin_transaction(self.begin_sync)
-        for i in range(self.entries):
-            c[i] = i + 1
+        for i in range(1, self.entries + 1):
+            c[i] = self.mkvalue(i + 1)
         self.session.commit_transaction(self.commit_sync)
         c.close()
 
@@ -148,6 +157,3 @@ class test_txn15(wttest.WiredTigerTestCase, suite_subprocess):
                 self.assertNotEqual(sync1, sync2)
         else:
             self.assertEqual(write1, write2)
-
-if __name__ == '__main__':
-    wttest.run()

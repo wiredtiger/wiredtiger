@@ -35,7 +35,7 @@
 void
 wts_checkpoints(void)
 {
-    char config[1024];
+    char config[128];
 
     /*
      * Configuring WiredTiger library checkpoints is done separately, rather than as part of the
@@ -45,12 +45,11 @@ wts_checkpoints(void)
      * checkpoint running in the tree, and the cache can get stuck. That workload is unlikely enough
      * we're not going to fix it in the library, so configure it away by delaying checkpoint start.
      */
-    if (g.c_checkpoint_flag != CHECKPOINT_WIREDTIGER)
+    if (g.checkpoint_config != CHECKPOINT_WIREDTIGER)
         return;
 
-    testutil_check(
-      __wt_snprintf(config, sizeof(config), ",checkpoint=(wait=%" PRIu32 ",log_size=%" PRIu32 ")",
-        g.c_checkpoint_wait, MEGABYTE(g.c_checkpoint_log_size)));
+    testutil_snprintf(config, sizeof(config), ",checkpoint=(wait=%" PRIu32 ",log_size=%" PRIu32 ")",
+      GV(CHECKPOINT_WAIT), MEGABYTE(GV(CHECKPOINT_LOG_SIZE)));
     testutil_check(g.wts_conn->reconfigure(g.wts_conn, config));
 }
 
@@ -61,19 +60,29 @@ wts_checkpoints(void)
 WT_THREAD_RET
 checkpoint(void *arg)
 {
+    SAP sap;
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
-    u_int secs;
+    u_int counter, secs;
     char config_buf[64];
-    const char *ckpt_config;
-    bool backup_locked;
+    const char *ckpt_config, *ckpt_vrfy_name;
+    bool backup_locked, ebusy_ok, flush_tier, named_checkpoints;
 
     (void)arg;
-    conn = g.wts_conn;
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    for (secs = mmrand(NULL, 1, 10); !g.workers_finished;) {
+    conn = g.wts_conn;
+    counter = 0;
+
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+
+    named_checkpoints = !g.lsm_config;
+    /* Tiered tables do not support named checkpoints. */
+    if (g.tiered_storage_config)
+        named_checkpoints = false;
+
+    for (secs = mmrand(&g.extra_rnd, 1, 10); !g.workers_finished;) {
         if (secs > 0) {
             __wt_sleep(1, 0);
             --secs;
@@ -87,45 +96,73 @@ checkpoint(void *arg)
          * when we can't drop the previous one.
          */
         ckpt_config = NULL;
-        backup_locked = false;
-        if (!DATASOURCE("lsm"))
-            switch (mmrand(NULL, 1, 20)) {
+        ckpt_vrfy_name = "WiredTigerCheckpoint";
+        backup_locked = ebusy_ok = false;
+
+        /*
+         * Use checkpoint with flush_tier as often as configured. Don't mix with named checkpoints,
+         * we're not interested in testing that combination.
+         */
+        flush_tier = (mmrand(&g.extra_rnd, 1, 100) <= GV(TIERED_STORAGE_FLUSH_FREQUENCY));
+        if (flush_tier)
+            ckpt_config = "flush_tier=(enabled)";
+        else if (named_checkpoints)
+            switch (mmrand(&g.extra_rnd, 1, 20)) {
             case 1:
                 /*
-                 * 5% create a named snapshot. Rotate between a
-                 * few names to test multiple named snapshots in
-                 * the system.
+                 * 5% create a named snapshot. Rotate between a few names to test multiple named
+                 * snapshots in the system.
                  */
                 ret = lock_try_writelock(session, &g.backup_lock);
                 if (ret == 0) {
                     backup_locked = true;
-                    testutil_check(__wt_snprintf(
-                      config_buf, sizeof(config_buf), "name=mine.%" PRIu32, mmrand(NULL, 1, 4)));
+                    testutil_snprintf(config_buf, sizeof(config_buf), "name=mine.%" PRIu32,
+                      mmrand(&g.extra_rnd, 1, 4));
                     ckpt_config = config_buf;
+                    ckpt_vrfy_name = config_buf + strlen("name=");
+                    ebusy_ok = true;
                 } else if (ret != EBUSY)
                     testutil_check(ret);
                 break;
             case 2:
-                /*
-                 * 5% drop all named snapshots.
-                 */
+                /* 5% drop all named snapshots. */
                 ret = lock_try_writelock(session, &g.backup_lock);
                 if (ret == 0) {
                     backup_locked = true;
                     ckpt_config = "drop=(all)";
+                    ebusy_ok = true;
                 } else if (ret != EBUSY)
                     testutil_check(ret);
                 break;
             }
 
-        testutil_check(session->checkpoint(session, ckpt_config));
+        if (ckpt_config == NULL)
+            trace_msg(session, "Checkpoint #%u start", ++counter);
+        else
+            trace_msg(session, "Checkpoint #%u start (%s)", ++counter, ckpt_config);
+
+        ret = session->checkpoint(session, ckpt_config);
+        /*
+         * Because of the concurrent activity of the sweep server, it is possible to get EBUSY when
+         * we are trying to remove an existing checkpoint as the sweep server may be interacting
+         * with a dhandle associated with the checkpoint being removed.
+         */
+        testutil_assert(ret == 0 || (ret == EBUSY && ebusy_ok));
+
+        if (ckpt_config == NULL)
+            trace_msg(session, "Checkpoint #%u stop", counter);
+        else
+            trace_msg(session, "Checkpoint #%u stop (%s)", counter, ckpt_config);
 
         if (backup_locked)
             lock_writeunlock(session, &g.backup_lock);
 
-        secs = mmrand(NULL, 5, 40);
+        /* Verify the checkpoints. */
+        wts_verify_mirrors(conn, ckpt_vrfy_name, NULL);
+
+        secs = mmrand(&g.extra_rnd, 5, 40);
     }
 
-    testutil_check(session->close(session, NULL));
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
     return (WT_THREAD_RET_VALUE);
 }

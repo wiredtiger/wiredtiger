@@ -25,6 +25,10 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# connection_api
+# [END_TAGS]
 
 import wiredtiger, wttest
 
@@ -35,6 +39,3 @@ class test_version(wttest.WiredTigerTestCase):
     # Test version call.
     def test_version(self):
         version = wiredtiger.wiredtiger_version()
-
-if __name__ == '__main__':
-    wttest.run()

@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import wiredtiger, wttest, run
+import wttest
 
 # test_join04.py
 #    Join operations
@@ -138,6 +137,3 @@ class test_join04(wttest.WiredTigerTestCase):
             jcursor.close()
             for c in cursors:
                 c.close()
-
-if __name__ == '__main__':
-    wttest.run()

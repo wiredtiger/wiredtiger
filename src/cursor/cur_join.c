@@ -528,7 +528,7 @@ __curjoin_extract_insert(WT_CURSOR *cursor)
     if (cextract->ismember)
         return (0);
 
-    CURSOR_API_CALL(cursor, session, insert, NULL);
+    CURSOR_API_CALL(cursor, session, ret, insert, NULL);
 
     WT_ITEM_SET(ikey, cursor->key);
     /*
@@ -538,7 +538,7 @@ __curjoin_extract_insert(WT_CURSOR *cursor)
     WT_ASSERT(session, ikey.size > 0);
     --ikey.size;
 
-    ret = __curjoin_entry_in_range(session, cextract->entry, &ikey, false);
+    ret = __curjoin_entry_in_range(session, cextract->entry, &ikey, NULL);
     if (ret == WT_NOTFOUND)
         ret = 0;
     else if (ret == 0)
@@ -561,10 +561,11 @@ __curjoin_entry_member(
     WT_CURSOR *c;
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
+      __wt_cursor_get_raw_key_value,                  /* get-raw-key-value */
       __wt_cursor_set_key,                            /* set-key */
       __wt_cursor_set_value,                          /* set-value */
-      __wt_cursor_compare_notsup,                     /* compare */
-      __wt_cursor_equals_notsup,                      /* equals */
+      __wti_cursor_compare_notsup,                    /* compare */
+      __wti_cursor_equals_notsup,                     /* equals */
       __wt_cursor_notsup,                             /* next */
       __wt_cursor_notsup,                             /* prev */
       __wt_cursor_notsup,                             /* reset */
@@ -575,9 +576,12 @@ __curjoin_entry_member(
       __wt_cursor_notsup,                             /* update */
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
-      __wt_cursor_reconfigure_notsup,                 /* reconfigure */
+      __wt_cursor_config_notsup,                      /* reconfigure */
+      __wt_cursor_notsup,                             /* largest_key */
+      __wt_cursor_config_notsup,                      /* bound */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
+      __wt_cursor_checkpoint_id,                      /* checkpoint ID */
       __wt_cursor_notsup);                            /* close */
     WT_DECL_RET;
     WT_INDEX *idx;
@@ -685,12 +689,12 @@ __curjoin_get_key(WT_CURSOR *cursor, ...)
 
     cjoin = (WT_CURSOR_JOIN *)cursor;
 
-    JOINABLE_CURSOR_API_CALL(cursor, session, get_key, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, get_key, NULL);
 
     if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) || !cjoin->iter->positioned)
         WT_ERR_MSG(session, EINVAL, "join cursor must be advanced with next()");
     va_start(ap, cursor);
-    ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
+    ret = __wti_cursor_get_keyv(cursor, cursor->flags, ap);
     va_end(ap);
 
 err:
@@ -711,7 +715,7 @@ __curjoin_get_value(WT_CURSOR *cursor, ...)
 
     cjoin = (WT_CURSOR_JOIN *)cursor;
 
-    JOINABLE_CURSOR_API_CALL(cursor, session, get_value, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, get_value, NULL);
 
     if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) || !cjoin->iter->positioned)
         WT_ERR_MSG(session, EINVAL, "join cursor must be advanced with next()");
@@ -1019,7 +1023,7 @@ __curjoin_next(WT_CURSOR *cursor)
 
     cjoin = (WT_CURSOR_JOIN *)cursor;
 
-    JOINABLE_CURSOR_API_CALL(cursor, session, next, NULL);
+    JOINABLE_CURSOR_API_CALL(cursor, session, ret, next, NULL);
 
     if (F_ISSET(cjoin, WT_CURJOIN_ERROR))
         WT_ERR_MSG(session, WT_ERROR, "join cursor encountered previous error");
@@ -1207,10 +1211,11 @@ __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 {
     WT_CURSOR_STATIC_INIT(iface, __curjoin_get_key, /* get-key */
       __curjoin_get_value,                          /* get-value */
-      __wt_cursor_set_key_notsup,                   /* set-key */
-      __wt_cursor_set_value_notsup,                 /* set-value */
-      __wt_cursor_compare_notsup,                   /* compare */
-      __wt_cursor_equals_notsup,                    /* equals */
+      __wti_cursor_get_raw_key_value_notsup,        /* get-raw-key-value */
+      __wti_cursor_set_key_notsup,                  /* set-key */
+      __wti_cursor_set_value_notsup,                /* set-value */
+      __wti_cursor_compare_notsup,                  /* compare */
+      __wti_cursor_equals_notsup,                   /* equals */
       __curjoin_next,                               /* next */
       __wt_cursor_notsup,                           /* prev */
       __curjoin_reset,                              /* reset */
@@ -1221,9 +1226,12 @@ __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
       __wt_cursor_notsup,                           /* update */
       __wt_cursor_notsup,                           /* remove */
       __wt_cursor_notsup,                           /* reserve */
-      __wt_cursor_reconfigure_notsup,               /* reconfigure */
+      __wt_cursor_config_notsup,                    /* reconfigure */
+      __wt_cursor_notsup,                           /* largest_key */
+      __wt_cursor_config_notsup,                    /* bound */
       __wt_cursor_notsup,                           /* cache */
       __wt_cursor_reopen_notsup,                    /* reopen */
+      __wt_cursor_checkpoint_id,                    /* checkpoint ID */
       __curjoin_close);                             /* close */
     WT_CURSOR *cursor;
     WT_CURSOR_JOIN *cjoin;
@@ -1233,7 +1241,7 @@ __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     size_t size;
     const char *tablename, *columns;
 
-    WT_STATIC_ASSERT(offsetof(WT_CURSOR_JOIN, iface) == 0);
+    WT_VERIFY_OPAQUE_POINTER(WT_CURSOR_JOIN);
 
     if (owner != NULL)
         WT_RET_MSG(session, EINVAL, "unable to initialize a join cursor with existing owner");
@@ -1422,9 +1430,8 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, WT_INDEX *idx
             WT_RET(__curjoin_open_main(session, cjoin, entry));
 
             /*
-             * When we are repacking index keys to remove the
-             * primary key, we never want to transform trailing
-             * 'u'.  Use no-op padding to force this.
+             * When we are repacking index keys to remove the primary key, we never want to
+             * transform trailing 'u'. Use no-op padding to force this.
              */
             cindex = (WT_CURSOR_INDEX *)ref_cursor;
             len = strlen(cindex->iface.key_format) + 3;

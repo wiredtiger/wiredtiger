@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -61,14 +61,13 @@ __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool prog
          * within the bounds of the maximum configured. Don't retry if our update didn't make it in
          * - it's not necessary for the previous wait time to be updated every time.
          */
-        WT_ORDERED_READ(saved_prev_wait, cond->prev_wait);
+        WT_ACQUIRE_READ_WITH_BARRIER(saved_prev_wait, cond->prev_wait);
         if (!__wt_atomic_cas64(
               &cond->prev_wait, saved_prev_wait, WT_MIN(cond->max_wait, saved_prev_wait + delta)))
             WT_STAT_CONN_INCR(session, cond_auto_wait_skipped);
     }
 
     __wt_cond_wait_signal(session, cond, cond->prev_wait, run_func, signalled);
-
     if (progress || *signalled)
         WT_STAT_CONN_INCR(session, cond_auto_wait_reset);
     if (*signalled)

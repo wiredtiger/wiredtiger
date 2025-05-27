@@ -26,24 +26,19 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest, unittest
+import wttest
+from rollback_to_stable_util import verify_rts_logs
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_rollback_to_stable15.py
 # Test that roll back to stable handles updates present in the
 # update-list for both fixed length and variable length column store.
 # Eviction is set to false, so that everything persists in memory.
 class test_rollback_to_stable15(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('integer', dict(key_format='i')),
+        ('integer-row', dict(key_format='i')),
     ]
     value_format_values = [
         # Fixed length
@@ -55,14 +50,24 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         ('no_inmem', dict(in_memory=False)),
         ('inmem', dict(in_memory=True))
     ]
-    scenarios = make_scenarios(key_format_values, value_format_values, in_memory_values)
+    worker_thread_values = [
+        ('0', dict(threads=0)),
+        ('4', dict(threads=4)),
+        ('8', dict(threads=8))
+    ]
+    scenarios = make_scenarios(key_format_values, value_format_values, in_memory_values, worker_thread_values)
+
+    # Don't raise errors for these, the expectation is that the RTS verifier will
+    # run on the test output.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+        self.addTearDownAction(verify_rts_logs)
 
     def conn_config(self):
-        config = 'cache_size=200MB,statistics=(all),debug_mode=(eviction=false)'
+        config = 'cache_size=200MB,statistics=(all),debug_mode=(eviction=false),verbose=(rts:5)'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',in_memory=false'
         return config
 
     def check(self, check_value, uri, nrows, read_ts):
@@ -70,26 +75,29 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         if read_ts == 0:
             session.begin_transaction()
         else:
-            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+            session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
             self.assertEqual(v, check_value)
             count += 1
         session.commit_transaction()
+        cursor.close()
         self.assertEqual(count, nrows)
 
     def test_rollback_to_stable(self):
-        # Create a table.
         uri = "table:rollback_to_stable15"
         nrows = 2000
-        create_params = 'log=(enabled=false),key_format={},value_format={}'.format(self.key_format, self.value_format)
+
+        # Create a table.
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params += ',log=(enabled=false)' if self.in_memory else ''
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
 
         # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         value20 = 0x20
         value30 = 0x30
@@ -100,35 +108,38 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[i] = value20
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         #First Update to value 30 at timestamp 5
         for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[i] = value30
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
+        cursor.close()
 
         #Set stable timestamp to 2
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
-        self.conn.rollback_to_stable()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(2))
+        self.conn.rollback_to_stable('threads=' + str(self.threads))
         # Check that only value20 is available
         self.check(value20, uri, nrows - 1, 2)
 
         #Second Update to value30 at timestamp 7
+        cursor = self.session.open_cursor(uri)
         for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[i] = value30
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(7))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(7))
 
         #Third Update to value40 at timestamp 9
         for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[i] = value40
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(9))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(9))
+        cursor.close()
 
         #Set stable timestamp to 7
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(7))
-        self.conn.rollback_to_stable()
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(7))
+        self.conn.rollback_to_stable('threads=' + str(self.threads))
         #Check that only value30 is available
         self.check(value30, uri, nrows - 1, 7)
 
@@ -140,6 +151,3 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         self.assertEqual(calls, 2)
 
         self.session.close()
-
-if __name__ == '__main__':
-    wttest.run()

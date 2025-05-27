@@ -12,18 +12,26 @@ static int list_init_block(WT_SESSION *, const char *, WT_BLOCK *);
 static int list_print(WT_SESSION *, const char *, bool, bool);
 static int list_print_checkpoint(WT_SESSION *, const char *);
 
+/*
+ * usage --
+ *     Display a usage message for the list command.
+ */
 static int
 usage(void)
 {
     static const char *options[] = {"-c",
       "display checkpoints in human-readable format (by default checkpoints are not displayed)",
-      "-v", "display the complete schema table (by default only a subset is displayed)", NULL,
-      NULL};
+      "-v", "display the complete schema table (by default only a subset is displayed)", "-?",
+      "show this message", NULL, NULL};
 
     util_usage("list [-cv] [uri]", "options:", options);
     return (1);
 }
 
+/*
+ * util_list --
+ *     The list command.
+ */
 int
 util_list(WT_SESSION *session, int argc, char *argv[])
 {
@@ -34,7 +42,7 @@ util_list(WT_SESSION *session, int argc, char *argv[])
 
     cflag = vflag = false;
     uri = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "cv")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "cv?")) != EOF)
         switch (ch) {
         case 'c':
             cflag = true;
@@ -43,6 +51,8 @@ util_list(WT_SESSION *session, int argc, char *argv[])
             vflag = true;
             break;
         case '?':
+            usage();
+            return (0);
         default:
             return (usage());
         }
@@ -62,7 +72,7 @@ util_list(WT_SESSION *session, int argc, char *argv[])
 
     ret = list_print(session, uri, cflag, vflag);
 
-    free(uri);
+    util_free(uri);
     return (ret);
 }
 
@@ -101,9 +111,6 @@ list_init_block(WT_SESSION *session, const char *key, WT_BLOCK *block)
     else if (ret != WT_NOTFOUND)
         WT_ERR(util_err(session, ret, "WT_CONFIG_PARSER.get"));
 
-    if ((ret = parser->get(parser, "block_allocation", &cval)) == 0)
-        block->log_structured = WT_STRING_MATCH("log_structured", cval.str, cval.len);
-
 err:
     if (parser != NULL && (tret = parser->close(parser)) != 0) {
         tret = util_err(session, tret, "WT_CONFIG_PARSER.close");
@@ -111,7 +118,7 @@ err:
             ret = tret;
     }
 
-    free(config);
+    util_free(config);
     return (ret);
 }
 
@@ -258,7 +265,8 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
         /* Decode the checkpoint block. */
         if (ckpt->raw.data == NULL)
             continue;
-        if ((ret = __wt_block_ckpt_decode(session, block, ckpt->raw.data, &ci)) == 0) {
+        if ((ret = __wt_block_ckpt_decode(session, block, ckpt->raw.data, ckpt->raw.size, &ci)) ==
+          0) {
             printf(
               "\t\t"
               "file-size: ");

@@ -27,27 +27,22 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time
-from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
-
 # test_hs07.py
-# Test that the history store sweep cleans the obsolete history store entries and gives expected results.
+# Test history store sweep cleans the obsolete history store entries and gives expected results.
 class test_hs07(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = ('cache_size=50MB,eviction_updates_trigger=95,'
-                   'eviction_updates_target=80,log=(enabled)')
-    session_config = 'isolation=snapshot'
+    conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80')
 
-    key_format_values = (
-        ('column', dict(key_format='r')),
-        ('int', dict(key_format='i'))
+    format_values = (
+        ('column', dict(key_format='r', value_format='S')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('integer-row', dict(key_format='i', value_format='S'))
     )
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records, we'll hang if the history store table isn't working.
@@ -56,12 +51,12 @@ class test_hs07(wttest.WiredTigerTestCase):
         for i in range(1, nrows + 1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+            session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
@@ -73,24 +68,29 @@ class test_hs07(wttest.WiredTigerTestCase):
     def test_hs(self):
         nrows = 10000
 
-        # Create a table without logging to ensure we get "skew_newest" history store eviction
-        # behavior.
-        uri = "table:las07_main"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        # Create a table.
+        uri = "table:hs07_main"
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
-        uri2 = "table:las07_extra"
-        ds2 = SimpleDataSet(self, uri2, 0, key_format=self.key_format, value_format="S")
+        uri2 = "table:hs07_extra"
+        ds2 = SimpleDataSet(
+            self, uri2, 0, key_format=self.key_format, value_format=self.value_format)
         ds2.populate()
 
-        # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        if self.value_format == '8t':
+            bigvalue = 97
+            bigvalue2 = 100
+        else:
+            bigvalue = "aaaaa" * 100
+            bigvalue2 = "ddddd" * 100
 
-        bigvalue = "aaaaa" * 100
-        bigvalue2 = "ddddd" * 100
+        # Commit at timestamp 1.
         self.large_updates(uri, bigvalue, ds, nrows, 1)
+
+        # Pin oldest and stable to timestamp 1.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         # Check that all updates are seen
         self.check(bigvalue, uri, nrows, 100)
@@ -102,8 +102,8 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.check(bigvalue, uri, nrows, 100)
 
         # Pin oldest and stable to timestamp 100.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100) +
-            ',stable_timestamp=' + timestamp_str(100))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(100) +
+            ',stable_timestamp=' + self.timestamp_str(100))
 
         # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
         time.sleep(10)
@@ -116,25 +116,37 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            mods = [wiredtiger.Modify('A', 10, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(110))
+            if self.value_format == '8t':
+                cursor.set_value(105)
+                cursor.update()
+            else:
+                mods = [wiredtiger.Modify('A', 10, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(110))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            mods = [wiredtiger.Modify('B', 20, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(120))
+            if self.value_format == '8t':
+                cursor.set_value(106)
+                cursor.update()
+            else:
+               mods = [wiredtiger.Modify('B', 20, 1)]
+               self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(120))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            mods = [wiredtiger.Modify('C', 30, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(130))
+            if self.value_format == '8t':
+                cursor.set_value(107)
+                cursor.update()
+            else:
+                mods = [wiredtiger.Modify('C', 30, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(130))
         cursor.close()
 
         # Second set of update operations with increased timestamp
@@ -147,8 +159,8 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.check(bigvalue2, uri, nrows, 200)
 
         # Pin oldest and stable to timestamp 300.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(200) +
-            ',stable_timestamp=' + timestamp_str(200))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(200) +
+            ',stable_timestamp=' + self.timestamp_str(200))
 
         # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
         time.sleep(10)
@@ -161,25 +173,37 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            mods = [wiredtiger.Modify('A', 10, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(210))
+            if self.value_format == '8t':
+                cursor.set_value(105)
+                cursor.update()
+            else:
+                mods = [wiredtiger.Modify('A', 10, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(210))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            mods = [wiredtiger.Modify('B', 20, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(220))
+            if self.value_format == '8t':
+                cursor.set_value(106)
+                cursor.update()
+            else:
+                mods = [wiredtiger.Modify('B', 20, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(220))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, nrows):
             cursor.set_key(i)
-            mods = [wiredtiger.Modify('C', 30, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(230))
+            if self.value_format == '8t':
+                cursor.set_value(107)
+                cursor.update()
+            else:
+                mods = [wiredtiger.Modify('C', 30, 1)]
+                self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(230))
         cursor.close()
 
         # Third set of update operations with increased timestamp
@@ -192,8 +216,8 @@ class test_hs07(wttest.WiredTigerTestCase):
         self.check(bigvalue, uri, nrows, 300)
 
         # Pin oldest and stable to timestamp 400.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(300) +
-            ',stable_timestamp=' + timestamp_str(300))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(300) +
+            ',stable_timestamp=' + self.timestamp_str(300))
 
         # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
         time.sleep(10)
@@ -201,5 +225,4 @@ class test_hs07(wttest.WiredTigerTestCase):
         # Check that the new updates are only seen after the update timestamp
         self.check(bigvalue, uri, nrows, 300)
 
-if __name__ == '__main__':
-    wttest.run()
+        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')

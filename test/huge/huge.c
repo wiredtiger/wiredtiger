@@ -59,6 +59,11 @@ static size_t lengths[] = {20,       /* Check configuration */
   0};
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -73,6 +78,10 @@ usage(void)
 #define SIZET_FMT "%Iu" /* size_t format string */
 #endif
 
+/*
+ * run --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run(CONFIG *cp, int bigkey, size_t bytes)
 {
@@ -92,13 +101,14 @@ run(CONFIG *cp, int bigkey, size_t bytes)
       bytes < MEGABYTE ? "B" : (bytes < GIGABYTE ? "MB" : "GB"), cp->uri, cp->config,
       bigkey ? "key" : "value");
 
-    testutil_make_work_dir(home);
+    testutil_recreate_dir(home);
 
     /*
      * Open/create the database, connection, session and cursor; set the cache size large, we don't
      * want to try and evict anything.
      */
-    testutil_check(wiredtiger_open(home, NULL, "create,cache_size=10GB", &conn));
+    testutil_check(wiredtiger_open(home, NULL,
+      "create,cache_size=10GB,statistics=(all),statistics_log=(json,on_close,wait=1)", &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, cp->uri, cp->config));
     testutil_check(session->open_cursor(session, cp->uri, NULL, NULL, &cursor));
@@ -113,8 +123,30 @@ run(CONFIG *cp, int bigkey, size_t bytes)
         cursor->set_key(cursor, "key001");
     cursor->set_value(cursor, big);
 
+    /*
+     * This test inserts very large single updates and a single page can hit eviction thresholds by
+     * itself. Auto-transactions leave the cursor positioned on the page which pins it and
+     * preventing eviction after committing. This can lead to a case where the transaction blocks on
+     * attempting to evict the same page it is pinning. Use an explicit transaction here to ensure
+     * we can reset the cursor and unpin the page.
+     */
+    testutil_check(session->begin_transaction(session, NULL));
+
     /* Insert the record (use update, insert discards the key). */
     testutil_check(cursor->update(cursor));
+    /* Free the page referenced by the cursor */
+    testutil_check(cursor->reset(cursor));
+
+    testutil_check(session->commit_transaction(session, NULL));
+
+    /* re-set the key after cursor has been reset */
+    if (bigkey)
+        cursor->set_key(cursor, big);
+    else if (cp->recno) {
+        keyno = 1;
+        cursor->set_key(cursor, keyno);
+    } else
+        cursor->set_key(cursor, "key001");
 
     /* Retrieve the record and check it. */
     testutil_check(cursor->search(cursor));
@@ -135,6 +167,10 @@ run(CONFIG *cp, int bigkey, size_t bytes)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -181,7 +217,7 @@ main(int argc, char *argv[])
     }
     free(big);
 
-    testutil_clean_work_dir(home);
+    testutil_remove(home);
 
     return (EXIT_SUCCESS);
 }

@@ -76,11 +76,11 @@ cgcols:
 }
 
 /*
- * __wt_schema_colcheck --
+ * __wti_schema_colcheck --
  *     Check that a list of columns matches a (key,value) format pair.
  */
 int
-__wt_schema_colcheck(WT_SESSION_IMPL *session, const char *key_format, const char *value_format,
+__wti_schema_colcheck(WT_SESSION_IMPL *session, const char *key_format, const char *value_format,
   WT_CONFIG_ITEM *colconf, u_int *kcolsp, u_int *vcolsp)
 {
     WT_CONFIG conf;
@@ -120,11 +120,11 @@ __wt_schema_colcheck(WT_SESSION_IMPL *session, const char *key_format, const cha
 }
 
 /*
- * __wt_table_check --
+ * __wti_table_check --
  *     Make sure all columns appear in a column group.
  */
 int
-__wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
+__wti_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
 {
     WT_CONFIG conf;
     WT_CONFIG_ITEM k, v;
@@ -142,7 +142,7 @@ __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
     for (i = 0; i < table->nkey_columns; i++)
         WT_RET(__wt_config_next(&conf, &k, &v));
     cg = col = 0;
-    coltype = 0;
+    coltype = '\0';
     while ((ret = __wt_config_next(&conf, &k, &v)) == 0) {
         if (__find_next_col(session, table, &k, &cg, &col, &coltype) != 0)
             WT_RET_MSG(session, EINVAL, "Column '%.*s' in '%s' does not appear in a column group",
@@ -214,10 +214,9 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table, const char *columns,
                 WT_RET(__wt_buf_catfmt(session, plan, "%c", WT_PROJ_SKIP));
             }
             /*
-             * Now copy the value in / out.  In the common case,
-             * where each value is used in one column, we do a
-             * "next" operation.  If the value is used again, we do
-             * a "reuse" operation to avoid making another copy.
+             * Now copy the value in / out. In the common case, where each value is used in one
+             * column, we do a "next" operation. If the value is used again, we do a "reuse"
+             * operation to avoid making another copy.
              */
             if (!have_it) {
                 WT_RET(__wt_buf_catfmt(session, plan, "%c", WT_PROJ_NEXT));
@@ -355,11 +354,11 @@ __wt_struct_reformat(WT_SESSION_IMPL *session, WT_TABLE *table, const char *colu
 }
 
 /*
- * __wt_struct_truncate --
+ * __wti_struct_truncate --
  *     Return a packing string for the first N columns in a value.
  */
 int
-__wt_struct_truncate(WT_SESSION_IMPL *session, const char *input_fmt, u_int ncols, WT_ITEM *format)
+__wti_struct_truncate(WT_SESSION_IMPL *session, const char *input_fmt, u_int ncols, WT_ITEM *format)
 {
     WT_DECL_PACK_VALUE(pv);
     WT_PACK pack;

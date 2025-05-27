@@ -37,9 +37,10 @@ from wtscenario import make_scenarios
 class test_cursor11(wttest.WiredTigerTestCase):
 
     keyfmt = [
-        ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
-        ('string', dict(keyfmt='S')),
+        ('integer', dict(keyfmt='i', valfmt='S')),
+        ('recno', dict(keyfmt='r', valfmt='S')),
+        ('recno-fix', dict(keyfmt='r', valfmt='8t')),
+        ('string', dict(keyfmt='S', valfmt='S')),
     ]
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
@@ -50,49 +51,50 @@ class test_cursor11(wttest.WiredTigerTestCase):
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
         ('table-simple-lsm', dict(uri='table', ds=SimpleLSMDataSet)),
     ]
-    scenarios = make_scenarios(types, keyfmt)
 
-    def skip(self):
-        return self.keyfmt == 'r' and \
-            (self.ds.is_lsm() or self.uri == 'lsm')
+    # Discard invalid or unhelpful scenario combinations.
+    def keep(name, d):
+        if d['keyfmt'] == 'r' and (d['ds'].is_lsm() or d['uri'] == 'lsm'):
+            return False
+        if d['valfmt'] == '8t' and d['keyfmt'] != 'r':
+            return False
+        if d['valfmt'] == '8t' and d['ds'] == ComplexDataSet:
+            return False
+        return True
+
+    scenarios = make_scenarios(types, keyfmt, include=keep)
 
     # Do a remove using the cursor after setting a position, and confirm
     # the key and position remain set but no value.
     def test_cursor_remove_with_position(self):
-        if self.skip():
-            return
-
         # Build an object.
         uri = self.uri + ':test_cursor11'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
         s = self.conn.open_session()
-        c = s.open_cursor(uri, None)
+        c = ds.open_cursor()
 
         c.set_key(ds.key(25))
-        self.assertEquals(c.search(), 0)
-        self.assertEquals(c.next(), 0)
-        self.assertEquals(c.get_key(), ds.key(26))
+        self.assertEqual(c.search(), 0)
+        self.assertEqual(c.next(), 0)
+        self.assertEqual(c.get_key(), ds.key(26))
         c.remove()
-        self.assertEquals(c.get_key(), ds.key(26))
+        self.assertEqual(c.get_key(), ds.key(26))
         msg = '/requires value be set/'
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, c.get_value, msg)
-        self.assertEquals(c.next(), 0)
-        self.assertEquals(c.get_key(), ds.key(27))
+        self.assertEqual(c.next(), 0)
+        self.assertEqual(c.get_key(), ds.key(27))
 
     # Do a remove using the cursor without setting a position, and confirm
     # no key, value or position remains.
     def test_cursor_remove_without_position(self):
-        if self.skip():
-            return
-
         # Build an object.
         uri = self.uri + ':test_cursor11'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
         s = self.conn.open_session()
-        c = s.open_cursor(uri, None)
+        c = ds.open_cursor()
 
         c.set_key(ds.key(25))
         c.remove()
@@ -102,24 +104,21 @@ class test_cursor11(wttest.WiredTigerTestCase):
         msg = '/requires value be set/'
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, c.get_value, msg)
-        self.assertEquals(c.next(), 0)
-        self.assertEquals(c.get_key(), ds.key(1))
+        self.assertEqual(c.next(), 0)
+        self.assertEqual(c.get_key(), ds.key(1))
 
     # Do a remove using the key after also setting a position, and confirm
     # no key, value or position remains.
     def test_cursor_remove_with_key_and_position(self):
-        if self.skip():
-            return
-
         # Build an object.
         uri = self.uri + ':test_cursor11'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
         s = self.conn.open_session()
-        c = s.open_cursor(uri, None)
+        c = ds.open_cursor()
 
         c.set_key(ds.key(25))
-        self.assertEquals(c.search(), 0)
+        self.assertEqual(c.search(), 0)
         c.set_key(ds.key(25))
         c.remove()
         msg = '/requires key be set/'
@@ -128,20 +127,17 @@ class test_cursor11(wttest.WiredTigerTestCase):
         msg = '/requires value be set/'
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, c.get_value, msg)
-        self.assertEquals(c.next(), 0)
-        self.assertEquals(c.get_key(), ds.key(1))
+        self.assertEqual(c.next(), 0)
+        self.assertEqual(c.get_key(), ds.key(1))
 
     # Do an insert and confirm no key, value or position remains.
     def test_cursor_insert(self):
-        if self.skip():
-            return
-
         # Build an object.
         uri = self.uri + ':test_cursor11'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
         s = self.conn.open_session()
-        c = s.open_cursor(uri, None)
+        c = ds.open_cursor()
 
         c.set_key(ds.key(25))
         c.set_value(ds.value(300))
@@ -152,8 +148,5 @@ class test_cursor11(wttest.WiredTigerTestCase):
         msg = '/requires value be set/'
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, c.get_value, msg)
-        self.assertEquals(c.next(), 0)
-        self.assertEquals(c.get_key(), ds.key(1))
-
-if __name__ == '__main__':
-    wttest.run()
+        self.assertEqual(c.next(), 0)
+        self.assertEqual(c.get_key(), ds.key(1))

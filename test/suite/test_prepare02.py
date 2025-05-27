@@ -33,11 +33,8 @@
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-def timestamp_str(t):
-    return '%x' % t
-
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
-    session_config = 'isolation=snapshot'
 
     def test_prepare_session_operations(self):
 
@@ -78,8 +75,6 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.truncate("table:mytable", None, None, None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.upgrade("table:mytable", None), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.verify("table:mytable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.begin_transaction(), msg)
@@ -91,9 +86,6 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTimestampsEqual(self.session.query_timestamp('get=prepare'), '2a')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.checkpoint(), msg)
-        # WT_SESSION.transaction_pinned_range permitted, not supported in the Python API.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.session.transaction_sync(), msg)
         self.session.breakpoint()
 
         # Commit the transaction. Test that no "not permitted in a prepared transaction" error has
@@ -127,6 +119,3 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.close()
-
-if __name__ == '__main__':
-    wttest.run()

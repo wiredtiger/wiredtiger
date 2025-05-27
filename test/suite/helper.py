@@ -27,10 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import glob, os, shutil, string, subprocess
+import glob, os, shutil, subprocess
 import wiredtiger
-
-from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
 
 # Python has a filecmp.cmp function, but different versions of python approach
 # file comparison differently.  To make sure we get byte for byte comparison,
@@ -98,6 +96,17 @@ def confirm_empty(testcase, uri):
         testcase.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
+# Confirm a URI exists and is not empty.
+def confirm_nonempty(testcase, uri):
+    testcase.pr('confirm_nonempty: ' + uri)
+    cursor = testcase.session.open_cursor(uri, None)
+    if cursor.value_format == '8t':
+        for key,val in cursor:
+            testcase.assertNotEqual(val, 0)
+    else:
+        testcase.assertNotEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+    cursor.close()
+
 # Copy a WT home directory.
 def copy_wiredtiger_home(testcase, olddir, newdir, aligned=True):
     # Unaligned copy requires 'dd', which may not be available on Windows.
@@ -121,7 +130,7 @@ def copy_wiredtiger_home(testcase, olddir, newdir, aligned=True):
                     # If the copy failed it means the file was removed underneath us in the
                     # short time after we verified the files existence. This can happen if we
                     # are copying wiredtiger log files at the same time they are getting
-                    # archived by the background log server thread. To avoid failing in this case
+                    # removed by the background log server thread. To avoid failing in this case
                     # we can log/print the removed file and continue.
                     if "WiredTigerLog" not in fullname:
                         raise e

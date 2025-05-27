@@ -28,7 +28,7 @@
 
 import os
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wttest
 
 # test_util16.py
 #    Utilities: wt rename
@@ -43,29 +43,26 @@ class test_util16(wttest.WiredTigerTestCase, suite_subprocess):
         """
         params = 'key_format=S,value_format=S'
         self.session.create('table:' + self.tablename, params)
-        self.assertTrue(os.path.exists(self.tablename + ".wt"))
+        self.assertTrue(self.tableExists(self.tablename))
         cursor = self.session.open_cursor('table:' + self.tablename, None, None)
         for i in range(0, self.nentries):
             cursor[str(i)] = str(i)
         cursor.close()
 
         self.runWt(["rename", "table:" + self.tablename, "table:" + self.tablename2])
-        self.assertTrue(os.path.exists(self.tablename2 + ".wt"))
+        self.assertTrue(self.tableExists(self.tablename2))
         cursor = self.session.open_cursor('table:' + self.tablename2, None, None)
         count = 0
         while cursor.next() == 0:
             count +=1
         cursor.close()
-        self.assertEquals(self.nentries, count)
+        self.assertEqual(self.nentries, count)
 
         self.runWt(["rename", "table:" + self.tablename2, "table:" + self.tablename])
-        self.assertTrue(os.path.exists(self.tablename + ".wt"))
+        self.assertTrue(self.tableExists(self.tablename))
         cursor = self.session.open_cursor('table:' + self.tablename, None, None)
         count = 0
         while cursor.next() == 0:
             count +=1
         cursor.close()
-        self.assertEquals(self.nentries, count)
-
-if __name__ == '__main__':
-    wttest.run()
+        self.assertEqual(self.nentries, count)

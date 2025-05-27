@@ -3,17 +3,20 @@
 set -e
 
 # Smoke-test format as part of running "make check".
-args="-1 -c . "
-args="$args btree.compression=none "
-args="$args logging_compression=none"
-args="$args runs.ops=50000 "
-args="$args runs.rows=10000 "
+args="-c . "
+args="$args btree.compression=off "
+args="$args cache.minimum=40 "
+args="$args logging_compression=off"
+args="$args runs.rows=100000 "
 args="$args runs.source=table "
-args="$args runs.threads=4 "
+args="$args runs.tables=3 "
+args="$args runs.threads=6 "
+args="$args runs.timer=1 "
+args="$args transaction.timestamps=1 "
 
-# Temporarily disabled
-# $TEST_WRAPPER ./t $args runs.type=fix
-# $TEST_WRAPPER ./t $args runs.type=row runs.source=lsm
-# $TEST_WRAPPER ./t $args runs.type=var
-
+$TEST_WRAPPER ./t $args runs.type=fix
 $TEST_WRAPPER ./t $args runs.type=row
+$TEST_WRAPPER ./t $args runs.type=var
+
+# Temporarily disable LSM.
+# $TEST_WRAPPER ./t $args runs.type=row runs.source=lsm

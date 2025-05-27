@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * WT_CELL --
  *	Variable-length cell type.
@@ -23,6 +25,9 @@
  *
  * Deleted cells are place-holders for column-store files, where entries cannot
  * be removed in order to preserve the record count.
+ *
+ * Note that deleted value cells (WT_CELL_DEL) are different from deleted-address
+ * cells (WT_CELL_ADDR_DEL).
  *
  * Here's the cell use by page type:
  *
@@ -43,6 +48,10 @@
  * WT_PAGE_COL_VAR (Column-store leaf page storing variable-length cells):
  *	Data cells (a WT_CELL_{VALUE,VALUE_COPY,VALUE_OVFL} cell), or deleted
  * cells (a WT_CELL_DEL cell).
+ *
+ * WT_PAGE_COL_FIX (Column-store leaf page storing fixed-length data):
+ *      Pairs of WT_CELL_KEY and WT_CELL_VALUE, where the key is always a recno,
+ * and the value is empty but contains a non-empty time window.
  *
  * Each cell starts with a descriptor byte:
  *
@@ -128,26 +137,27 @@
  */
 struct __wt_cell {
     /*
-     * Maximum of 71 bytes:
+     * Maximum of 98 bytes:
      *  1: cell descriptor byte
      *  1: prefix compression count
      *  1: secondary descriptor byte
      * 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
      * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
      *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
+     * 27: fast-delete information (transaction ID, 2 timestamps)
      *  5: data length		(uint32_t encoding, max 5 bytes)
      *
-     * This calculation is extremely pessimistic: the prefix compression
-     * count and 64V value overlap, and the validity window, 64V value
-     * and data length are all optional in some cases.
+     * This calculation is pessimistic: the prefix compression count and 64V value overlap, and the
+     * validity window, 64V value, fast-delete information and data length are all optional in some
+     * or even most cases.
      */
-    uint8_t __chunk[1 + 1 + 1 + 7 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
+    uint8_t __chunk[98];
 };
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CELL_UNPACK_OVERFLOW 0x1u            /* cell is an overflow */
 #define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x2u /* time window cleared because of restart */
-                                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
 
 /*
  * We have two "unpacked cell" structures: one holding holds unpacked cells from internal nodes
@@ -193,6 +203,8 @@ struct __wt_cell_unpack_addr {
     WT_CELL_COMMON_FIELDS;
 
     WT_TIME_AGGREGATE ta; /* Address validity window */
+
+    WT_PAGE_DELETED page_del; /* Fast-truncate information */
 };
 
 /*

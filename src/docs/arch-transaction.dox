@@ -17,7 +17,7 @@ run at a time per session, and that transaction must complete before another tra
 started. Since every session is singly-threaded, all the operations in the transaction are executed
 on the same thread.
 
-@plantuml_start{transaction_lifecycle.png}
+@plantuml_start{transaction_lifecycle.png }
 @startuml{transaction_lifecycle.png}
 :Transaction Lifecycle;
 
@@ -143,6 +143,8 @@ minimum timestamp that a new operation can commit at.
 
 Only transactions running in snapshot isolation can run with timestamps.
 
+See @ref arch-timestamp for further discussion.
+
 @subsection Visibility
 
 The visibility of the transactions in WiredTiger considers both the operations' transaction ids and
@@ -156,23 +158,15 @@ chain, it checks the version on the disk image, which is the version that was ch
 to disk in the last reconciliation. If it is still invisible, WiredTiger will search the history
 store to check if there is a version visible to the reader there.
 
-The repeated read guarantee under snapshot isolation may break in one case if the timestamps
-committed to the updates are out of order, e.g,
-
-`U@20 -> U@30 -> U@15`
-
-In the above example, reading with timestamp 15 doesn't guarantee to return the third update. In
-some cases, users may read the second update U@30 if it is moved to the history store.
-
 @subsection Durability
 
 WiredTiger transactions support commit level durability and checkpoint level durability. An
-operation is commit level durable if logging is enabled on the table (@ref arch-logging). After it
+operation is commit level durable if @ref arch-logging "Logging" is enabled on the table. After it
 has been successfully committed, the operation is guaranteed to survive restart. An operation will
 only survive across restart under checkpoint durability if it is included in the last successful
 checkpoint.
 
-@section Prepared Transactions
+@section arch-transaction-prepare Prepared Transactions
 
 WiredTiger introduces prepared transactions to meet the needs of implementing distributed
 transactions through two-phase commit. Prepared transactions only work under snapshot isolation.
@@ -190,8 +184,8 @@ timestamp, which may cause excessive amounts of data to be pinned in memory. The
 is allowed to move beyond the prepared timestamp and at the commit time, the prepared transaction
 can then be committed after the current stable timestamp with a larger durable timestamp. The
 durable timestamp also marks the time the update is to be stable. If the stable timestamp is moved
-to or beyond the durable timestamp of an update, it will not be removed by rollback to stable from
-a checkpoint. See @ref arch-rts for more details.
+to or beyond the durable timestamp of an update, it will not be removed from a checkpoint by
+@ref arch-rts "rollback to stable".
 
 The visibility of the prepared transaction is also special when in the prepared state. Since in the
 prepared state, the transaction has released its snapshot, it should be visible to the transactions

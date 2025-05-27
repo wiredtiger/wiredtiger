@@ -38,11 +38,13 @@
 /* Don't move into shared function there is a cross platform solution */
 #include <signal.h>
 
-#define MILLION 1000000
-
 /* Needs to be global for signal handling. */
 static TEST_OPTS *opts, _opts;
 
+/*
+ * page_init --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 page_init(uint64_t n)
 {
@@ -65,7 +67,7 @@ page_init(uint64_t n)
         else {
             if (recno % 3 == 0)
                 ++vrecno;
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "%" PRIu64 " VALUE ------", vrecno));
+            testutil_snprintf(buf, sizeof(buf), "%" PRIu64 " VALUE ------", vrecno);
             cursor->set_value(cursor, buf);
         }
         testutil_check(cursor->insert(cursor));
@@ -75,6 +77,10 @@ page_init(uint64_t n)
     }
 }
 
+/*
+ * onsig --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 onsig(int signo)
 {
@@ -85,18 +91,18 @@ onsig(int signo)
 #define N_APPEND_THREADS 6
 #define N_RECORDS (20 * WT_MILLION)
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
     WT_SESSION *session;
+    wt_thread_t idlist[100];
     clock_t ce, cs;
-    pthread_t idlist[100];
     uint64_t i, id;
-    char buf[100];
-
-    /* Bypass this test for valgrind */
-    if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
-        return (EXIT_SUCCESS);
+    char buf[256];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -104,16 +110,17 @@ main(int argc, char *argv[])
     opts->n_append_threads = N_APPEND_THREADS;
     opts->nrecords = N_RECORDS;
     testutil_check(testutil_parse_opts(argc, argv, opts));
-    testutil_make_work_dir(opts->home);
+    testutil_recreate_dir(opts->home);
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "create,cache_size=%s,eviction=(threads_max=5),statistics=(fast)",
-      opts->table_type == TABLE_FIX ? "500MB" : "2GB"));
+    testutil_snprintf(buf, sizeof(buf),
+      "create,cache_size=%s,eviction=(threads_max=5),statistics=(all),"
+      "statistics_log=(json,on_close,wait=1)",
+      opts->table_type == TABLE_FIX ? "500MB" : "2GB");
     testutil_check(wiredtiger_open(opts->home, NULL, buf, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
+    testutil_snprintf(buf, sizeof(buf),
       "key_format=r,value_format=%s,allocation_size=4K,leaf_page_max=64K",
-      opts->table_type == TABLE_FIX ? "8t" : "S"));
+      opts->table_type == TABLE_FIX ? "8t" : "S");
     testutil_check(session->create(session, opts->uri, buf));
     testutil_check(session->close(session, NULL));
 
@@ -121,22 +128,24 @@ main(int argc, char *argv[])
 
     /* Force to disk and re-open. */
     testutil_check(opts->conn->close(opts->conn, NULL));
-    testutil_check(wiredtiger_open(opts->home, NULL, NULL, &opts->conn));
+    testutil_check(wiredtiger_open(
+      opts->home, NULL, "statistics=(all),statistics_log=(json,on_close,wait=1)", &opts->conn));
 
     (void)signal(SIGINT, onsig);
 
+    memset(idlist, 0, sizeof(idlist));
     cs = clock();
     id = 0;
     for (i = 0; i < opts->n_append_threads; ++i, ++id) {
         printf("append: %" PRIu64 "\n", id);
-        testutil_check(pthread_create(&idlist[id], NULL, thread_append, opts));
+        testutil_check(__wt_thread_create(NULL, &idlist[id], thread_append, opts));
     }
 
     for (i = 0; i < id; ++i)
-        testutil_check(pthread_join(idlist[i], NULL));
+        testutil_check(__wt_thread_join(NULL, &idlist[i]));
 
     ce = clock();
-    printf("%" PRIu64 "M records: %.2lf processor seconds\n", opts->max_inserted_id / MILLION,
+    printf("%" PRIu64 "M records: %.2lf processor seconds\n", opts->max_inserted_id / WT_MILLION,
       (ce - cs) / (double)CLOCKS_PER_SEC);
 
     testutil_cleanup(opts);

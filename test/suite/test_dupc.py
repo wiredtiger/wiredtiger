@@ -30,7 +30,6 @@
 #       test cursor duplication
 #
 
-import os, time
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wtscenario import make_scenarios
@@ -41,10 +40,12 @@ class test_duplicate_cursor(wttest.WiredTigerTestCase):
     nentries = 1000
 
     scenarios = make_scenarios([
-        ('file-r', dict(uri='file:', fmt='r')),
-        ('file-S', dict(uri='file:', fmt='S')),
-        ('table-r', dict(uri='table:', fmt='r')),
-        ('table-S', dict(uri='table:', fmt='S'))
+        ('file-f', dict(uri='file:', keyfmt='r', valfmt='8t')),
+        ('file-r', dict(uri='file:', keyfmt='r', valfmt='S')),
+        ('file-S', dict(uri='file:', keyfmt='S', valfmt='S')),
+        ('table-f', dict(uri='table:', keyfmt='r', valfmt='8t')),
+        ('table-r', dict(uri='table:', keyfmt='r', valfmt='S')),
+        ('table-S', dict(uri='table:', keyfmt='S', valfmt='S'))
     ])
 
     # Iterate through an object, duplicate the cursor and checking that it
@@ -68,20 +69,23 @@ class test_duplicate_cursor(wttest.WiredTigerTestCase):
         cursor.close()
 
     def test_duplicate_cursor(self):
+        # Using column store ComplexDataStore after SimpleDataStore doesn't work with tiered tables.
+        if 'tiered' in self.hook_names:
+            self.skipTest("this test does not yet work with tiered storage")
+
         uri = self.uri + self.name
 
         # A simple, one-file file or table object.
-        ds = SimpleDataSet(self, uri, self.nentries, key_format=self.fmt)
+        ds = SimpleDataSet(self, uri, self.nentries, \
+                key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
         self.iterate(uri, ds)
-        self.session.drop(uri, None)
+        self.dropUntilSuccess(self.session, uri)
 
         # A complex, multi-file table object.
-        if self.uri == "table:":
-            ds = ComplexDataSet(self, uri, self.nentries, key_format=self.fmt)
+        if self.uri == "table:" and self.valfmt != '8t':
+            ds = ComplexDataSet(self, uri, self.nentries, \
+                    key_format=self.keyfmt, value_format=self.valfmt)
             ds.populate()
             self.iterate(uri, ds)
-            self.session.drop(uri, None)
-
-if __name__ == '__main__':
-    wttest.run()
+            self.dropUntilSuccess(self.session, uri)

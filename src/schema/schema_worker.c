@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_exclusive_handle_operation --
- *     Get exclusive access to a file and apply a function.
+ * __wti_execute_handle_operation --
+ *     Apply a function to a handle, getting exclusive access if requested.
  */
 int
-__wt_exclusive_handle_operation(WT_SESSION_IMPL *session, const char *uri,
+__wti_execute_handle_operation(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]), const char *cfg[], uint32_t open_flags)
 {
     WT_DECL_RET;
@@ -24,11 +24,11 @@ __wt_exclusive_handle_operation(WT_SESSION_IMPL *session, const char *uri,
      */
     if (FLD_ISSET(open_flags, WT_DHANDLE_EXCLUSIVE)) {
         WT_WITH_HANDLE_LIST_WRITE_LOCK(
-          session, ret = __wt_conn_dhandle_close_all(session, uri, false, false));
+          session, ret = __wt_conn_dhandle_close_all(session, uri, false, false, false));
         WT_RET(ret);
     }
 
-    WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, open_flags));
+    WT_RET(__wt_session_get_btree_ckpt(session, uri, cfg, open_flags, NULL, NULL));
     WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
     WT_TRET(__wt_session_release_dhandle(session));
 
@@ -36,11 +36,11 @@ __wt_exclusive_handle_operation(WT_SESSION_IMPL *session, const char *uri,
 }
 
 /*
- * __wt_schema_tiered_worker --
+ * __schema_tiered_worker --
  *     Run a schema worker operation on each tier of a tiered data source.
  */
-int
-__wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
+static int
+__schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
 {
@@ -49,19 +49,14 @@ __wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
     WT_TIERED *tiered;
     u_int i;
 
-    /*
-     * If this was an alter operation, we need to alter the configuration for the overall tree and
-     * then reread it so it isn't out of date. TODO not yet supported.
-     */
-    if (FLD_ISSET(open_flags, WT_BTREE_ALTER))
-        WT_RET(ENOTSUP);
-
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
     tiered = (WT_TIERED *)session->dhandle;
 
-    for (i = 0; i < tiered->ntiers; i++) {
-        dhandle = tiered->tiers[i];
-        WT_SAVE_DHANDLE(session,
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
+        dhandle = tiered->tiers[i].tier;
+        if (dhandle == NULL)
+            continue;
+        WT_WITHOUT_DHANDLE(session,
           ret = __wt_schema_worker(session, dhandle->name, file_func, name_func, cfg, open_flags));
         WT_ERR(ret);
     }
@@ -88,11 +83,12 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
     WT_SESSION *wt_session;
     WT_TABLE *table;
     u_int i;
-    bool skip;
+    bool is_tiered, skip;
 
     table = NULL;
-
     skip = false;
+    WT_NOT_READ(is_tiered, false);
+
     if (name_func != NULL)
         WT_ERR(name_func(session, uri, &skip));
 
@@ -100,17 +96,23 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
     if (skip)
         return (0);
 
+    /* Tiered tables do not support verify or salvage operations. */
+    is_tiered = WT_PREFIX_MATCH(uri, "object:") || WT_PREFIX_MATCH(uri, "tier:") ||
+      WT_PREFIX_MATCH(uri, "tiered:");
+    if (is_tiered && (file_func == __wt_salvage || file_func == __wt_verify))
+        WT_ERR(ENOTSUP);
+
     /* Get the btree handle(s) and call the underlying function. */
     if (WT_PREFIX_MATCH(uri, "file:")) {
         if (file_func != NULL)
-            WT_ERR(__wt_exclusive_handle_operation(session, uri, file_func, cfg, open_flags));
+            WT_ERR(__wti_execute_handle_operation(session, uri, file_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "colgroup:")) {
         WT_ERR(__wt_schema_get_colgroup(session, uri, false, NULL, &colgroup));
         WT_ERR(
           __wt_schema_worker(session, colgroup->source, file_func, name_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "index:")) {
         idx = NULL;
-        WT_ERR(__wt_schema_get_index(session, uri, false, false, &idx));
+        WT_ERR(__wti_schema_get_index(session, uri, false, false, &idx));
         WT_ERR(__wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
     } else if (WT_PREFIX_MATCH(uri, "lsm:")) {
         WT_ERR(__wt_lsm_tree_worker(session, uri, file_func, name_func, cfg, open_flags));
@@ -129,6 +131,12 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
          */
         for (i = 0; i < WT_COLGROUPS(table); i++) {
             colgroup = table->cgroups[i];
+
+            /* Verify is not implemented for tiered tables. */
+            if ((file_func == __wt_salvage || file_func == __wt_verify) &&
+              WT_PREFIX_MATCH(colgroup->source, "tiered:"))
+                WT_ERR(ENOTSUP);
+
             skip = false;
             if (name_func != NULL)
                 WT_ERR(name_func(session, colgroup->name, &skip));
@@ -142,7 +150,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
          * checkpoints, do not. Opening indexes requires the handle write lock, so check whether
          * that lock is held when deciding what to do.
          */
-        if (F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE))
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE))
             WT_ERR(__wt_schema_open_indices(session, table));
 
         for (i = 0; i < table->nindices; i++) {
@@ -155,7 +163,7 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
                   __wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
         }
     } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
-        WT_ERR(__wt_schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));
+        WT_ERR(__schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL) {
         wt_session = (WT_SESSION *)session;
         if (file_func == __wt_salvage && dsrc->salvage != NULL)

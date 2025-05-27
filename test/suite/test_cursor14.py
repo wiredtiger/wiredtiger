@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios
 
@@ -34,27 +34,26 @@ from wtscenario import make_scenarios
 #    Test that more than 64K cursors can be opened on a data source
 class test_cursor14(wttest.WiredTigerTestCase):
     scenarios = make_scenarios([
-        ('file-r', dict(type='file:', keyfmt='r', dataset=SimpleDataSet)),
-        ('file-S', dict(type='file:', keyfmt='S', dataset=SimpleDataSet)),
-        ('lsm-S', dict(type='lsm:', keyfmt='S', dataset=SimpleDataSet)),
-        ('table-r', dict(type='table:', keyfmt='r', dataset=SimpleDataSet)),
-        ('table-S', dict(type='table:', keyfmt='S', dataset=SimpleDataSet)),
-        ('table-r-complex', dict(type='table:', keyfmt='r',
+        ('file-f', dict(type='file:', keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
+        ('file-r', dict(type='file:', keyfmt='r', valfmt='S', dataset=SimpleDataSet)),
+        ('file-S', dict(type='file:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('lsm-S', dict(type='lsm:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('table-f', dict(type='table:', keyfmt='r', valfmt='8t', dataset=SimpleDataSet)),
+        ('table-r', dict(type='table:', keyfmt='r', valfmt='S', dataset=SimpleDataSet)),
+        ('table-S', dict(type='table:', keyfmt='S', valfmt='S', dataset=SimpleDataSet)),
+        ('table-r-complex', dict(type='table:', keyfmt='r', valfmt=None,
             dataset=ComplexDataSet)),
-        ('table-S-complex', dict(type='table:', keyfmt='S',
+        ('table-S-complex', dict(type='table:', keyfmt='S', valfmt=None,
             dataset=ComplexDataSet)),
-        ('table-S-complex-lsm', dict(type='table:', keyfmt='S',
+        ('table-S-complex-lsm', dict(type='table:', keyfmt='S', valfmt=None,
             dataset=ComplexLSMDataSet)),
     ])
 
     def test_cursor14(self):
         uri = self.type + 'cursor14'
 
-        ds = self.dataset(self, uri, 100, key_format=self.keyfmt)
+        ds = self.dataset(self, uri, 100, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
 
         for i in range(66000):
             cursor = self.session.open_cursor(uri, None, None)
-
-if __name__ == '__main__':
-    wttest.run()

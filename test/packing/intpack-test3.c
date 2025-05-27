@@ -31,6 +31,10 @@
 void test_value(int64_t);
 void test_spread(int64_t, int64_t, int64_t);
 
+/*
+ * test_value --
+ *     TODO: Add a comment describing this function.
+ */
 void
 test_value(int64_t val)
 {
@@ -68,7 +72,7 @@ test_value(int64_t val)
           ", got %" WT_SIZET_FMT "\n",
           sinput, used_len,
           cp > p ? used_len + (size_t)(cp - p) : /* More than buf used */
-            used_len - (size_t)(p - cp));        /* Less than buf used */
+                   used_len - (size_t)(p - cp));        /* Less than buf used */
         abort();
     }
 
@@ -96,6 +100,10 @@ test_value(int64_t val)
     }
 }
 
+/*
+ * test_spread --
+ *     TODO: Add a comment describing this function.
+ */
 void
 test_spread(int64_t start, int64_t before, int64_t after)
 {
@@ -107,22 +115,29 @@ test_spread(int64_t start, int64_t before, int64_t after)
         test_value(i);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(void)
 {
-    int64_t i;
+    int64_t i, range, start_int64;
+
+    range = 1025;
+    start_int64 = INT64_MAX - range; /* reduce start point by range to avoid integer overflow */
 
     /*
      * Test all values in a range, to ensure pack/unpack of small numbers (which most actively use
      * different numbers of bits) works.
      */
-    test_spread(0, 100000, 100000);
-    test_spread(INT16_MAX, 1025, 1025);
-    test_spread(INT32_MAX, 1025, 1025);
-    test_spread(INT64_MAX, 1025, 1025);
+    test_spread(0, 100 * WT_THOUSAND, 100 * WT_THOUSAND);
+    test_spread(INT16_MAX, range, range);
+    test_spread(INT32_MAX, range, range);
+    test_spread(start_int64, range, range);
     /* Test bigger numbers */
-    for (i = INT64_MAX; i > 0; i = i / 2)
-        test_spread(i, 1025, 1025);
+    for (i = start_int64; i > 0; i = i / 2)
+        test_spread(i, range, range);
     printf("\n");
 
     return (0);

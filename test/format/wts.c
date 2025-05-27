@@ -28,90 +28,96 @@
 
 #include "format.h"
 
-/*
- * Home directory initialize command: create the directory if it doesn't exist, else remove
- * everything except the RNG log file.
- *
- * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
- * directory to our output.
- */
-#define FORMAT_HOME_INIT_CMD   \
-    "test -e %s || mkdir %s; " \
-    "cd %s > /dev/null && rm -rf `ls | sed /CONFIG.rand/d`"
-
-/*
- * compressor --
- *     Configure compression.
- */
-static const char *
-compressor(uint32_t compress_flag)
-{
-    const char *p;
-
-    p = "unrecognized compressor flag";
-    switch (compress_flag) {
-    case COMPRESS_NONE:
-        p = "none";
-        break;
-    case COMPRESS_LZ4:
-        p = "lz4";
-        break;
-    case COMPRESS_SNAPPY:
-        p = "snappy";
-        break;
-    case COMPRESS_ZLIB:
-        p = "zlib";
-        break;
-    case COMPRESS_ZSTD:
-        p = "zstd";
-        break;
-    default:
-        testutil_die(EINVAL, "illegal compression flag: %#" PRIx32, compress_flag);
-        /* NOTREACHED */
-    }
-    return (p);
-}
+static void create_object(TABLE *, void *);
 
 /*
  * encryptor --
  *     Configure encryption.
  */
 static const char *
-encryptor(uint32_t encrypt_flag)
+encryptor(void)
 {
-    const char *p;
+    const char *p, *s;
 
-    p = "unrecognized encryptor flag";
-    switch (encrypt_flag) {
-    case ENCRYPT_NONE:
+    s = GVS(DISK_ENCRYPTION);
+    if (strcmp(s, "off") == 0)
         p = "none";
-        break;
-    case ENCRYPT_ROTN_7:
+    else if (strcmp(s, "rotn-7") == 0)
         p = "rotn,keyid=7";
-        break;
-    default:
-        testutil_die(EINVAL, "illegal encryption flag: %#" PRIx32, encrypt_flag);
-        /* NOTREACHED */
-    }
+    else if (strcmp(s, "sodium") == 0)
+        p = "sodium,secretkey=" SODIUM_TESTKEY;
+    else
+        testutil_die(EINVAL, "illegal encryption configuration: %s", s);
+
+    /* Returns "none" or the name of an encryptor. */
     return (p);
 }
 
+/*
+ * encryptor_at_open --
+ *     Configure encryption for wts_open().
+ *
+ * This must set any secretkey. When keyids are in use it can return NULL.
+ */
+static const char *
+encryptor_at_open(void)
+{
+    const char *p, *s;
+
+    s = GVS(DISK_ENCRYPTION);
+    if (strcmp(s, "off") == 0)
+        p = NULL;
+    else if (strcmp(s, "rotn-7") == 0)
+        p = NULL;
+    else if (strcmp(s, "sodium") == 0)
+        p = "sodium,secretkey=" SODIUM_TESTKEY;
+    else
+        testutil_die(EINVAL, "illegal encryption configuration: %s", s);
+
+    /* Returns NULL or the name of an encryptor. */
+    return (p);
+}
+
+/*
+ * handle_message --
+ *     Event handler for verbose and error messages.
+ */
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
 {
+    SAP *sap;
     WT_DECL_RET;
     int nw;
+    bool printf_msg;
 
-    (void)(handler);
-    (void)(session);
+    (void)handler;
 
     /*
-     * WiredTiger logs a verbose message when the read timestamp is set to a value older than the
-     * oldest timestamp. Ignore the message, it happens when repeating operations to confirm
-     * timestamped values don't change underneath us.
+     * If Antithesis is enabled and the message starts with ANTITHESIS: then make sure it always
+     * goes to stdout and is flushed.
      */
-    if (strstr(message, "less than the oldest timestamp") != NULL)
-        return (0);
+    printf_msg = false;
+#ifdef ENABLE_ANTITHESIS
+    printf_msg = WT_PREFIX_MATCH(message, "ANTITHESIS:");
+#endif
+
+    /*
+     * Log to the trace database when tracing messages. In threaded paths there will be a per-thread
+     * session reference to the tracing database, but that requires a session, and verbose messages
+     * can be generated in the library when we don't have a session. There's a global session we can
+     * use, but that requires locking.
+     */
+    if (g.trace_conn != NULL && (sap = session->app_private) != NULL && sap->trace != NULL) {
+        testutil_check(sap->trace->log_printf(sap->trace, "%s", message));
+        if (!printf_msg)
+            return (0);
+    } else if (g.trace_session != NULL) {
+        __wt_spin_lock((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
+        testutil_check(g.trace_session->log_printf(g.trace_session, "%s", message));
+        __wt_spin_unlock((WT_SESSION_IMPL *)g.trace_session, &g.trace_lock);
+        if (!printf_msg)
+            return (0);
+    }
 
     /* Write and flush the message so we're up-to-date on error. */
     nw = printf("%p:%s\n", (void *)session, message);
@@ -119,41 +125,242 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
     return (nw < 0 ? EIO : (ret == EOF ? errno : 0));
 }
 
+/*
+ * handle_progress --
+ *     Event handler for progress messages.
+ */
 static int
 handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
 {
-    (void)(handler);
-    (void)(session);
+    char buf[256];
 
-    track(operation, progress, NULL);
+    (void)handler;
+
+    if (session->app_private != NULL) {
+        testutil_snprintf(buf, sizeof(buf), "%s %s", (char *)session->app_private, operation);
+        track(buf, progress);
+        return (0);
+    }
+
+    track(operation, progress);
     return (0);
 }
 
-static WT_EVENT_HANDLER event_handler = {
-  NULL, handle_message, handle_progress, NULL /* Close handler. */
-};
+static WT_EVENT_HANDLER event_handler = {NULL, handle_message, handle_progress, NULL, NULL};
 
-#define CONFIG_APPEND(p, ...)                                               \
-    do {                                                                    \
-        size_t __len;                                                       \
-        testutil_check(__wt_snprintf_len_set(p, max, &__len, __VA_ARGS__)); \
-        if (__len > max)                                                    \
-            __len = max;                                                    \
-        p += __len;                                                         \
-        max -= __len;                                                       \
+#define CONFIG_APPEND(p, ...)                                   \
+    do {                                                        \
+        size_t __len;                                           \
+        testutil_snprintf_len_set(p, max, &__len, __VA_ARGS__); \
+        if (__len > max)                                        \
+            __len = max;                                        \
+        p += __len;                                             \
+        max -= __len;                                           \
     } while (0)
+
+/*
+ * configure_timing_stress --
+ *     Configure stressing settings.
+ */
+static void
+configure_timing_stress(char **p, size_t max)
+{
+    CONFIG_APPEND(*p, ",timing_stress_for_test=[");
+    if (GV(STRESS_AGGRESSIVE_STASH_FREE))
+        CONFIG_APPEND(*p, ",aggressive_stash_free");
+    if (GV(STRESS_AGGRESSIVE_SWEEP))
+        CONFIG_APPEND(*p, ",aggressive_sweep");
+    if (GV(STRESS_CHECKPOINT))
+        CONFIG_APPEND(*p, ",checkpoint_slow");
+    if (GV(STRESS_CHECKPOINT_EVICT_PAGE))
+        CONFIG_APPEND(*p, ",checkpoint_evict_page");
+    if (GV(STRESS_CHECKPOINT_PREPARE))
+        CONFIG_APPEND(*p, ",prepare_checkpoint_delay");
+    if (GV(STRESS_COMPACT_SLOW))
+        CONFIG_APPEND(*p, ",compact_slow");
+    if (GV(STRESS_EVICT_REPOSITION))
+        CONFIG_APPEND(*p, ",evict_reposition");
+    if (GV(STRESS_FAILPOINT_EVICTION_SPLIT))
+        CONFIG_APPEND(*p, ",failpoint_eviction_split");
+    if (GV(STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS))
+        CONFIG_APPEND(*p, ",failpoint_history_store_delete_key_from_ts");
+    if (GV(STRESS_HS_CHECKPOINT_DELAY))
+        CONFIG_APPEND(*p, ",history_store_checkpoint_delay");
+    if (GV(STRESS_HS_SEARCH))
+        CONFIG_APPEND(*p, ",history_store_search");
+    if (GV(STRESS_HS_SWEEP))
+        CONFIG_APPEND(*p, ",history_store_sweep_race");
+    if (GV(STRESS_PREPARE_RESOLUTION_1))
+        CONFIG_APPEND(*p, ",prepare_resolution_1");
+    if (GV(STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE))
+        CONFIG_APPEND(*p, ",sleep_before_read_overflow_onpage");
+    if (GV(STRESS_SPLIT_1))
+        CONFIG_APPEND(*p, ",split_1");
+    if (GV(STRESS_SPLIT_2))
+        CONFIG_APPEND(*p, ",split_2");
+    if (GV(STRESS_SPLIT_3))
+        CONFIG_APPEND(*p, ",split_3");
+    if (GV(STRESS_SPLIT_4))
+        CONFIG_APPEND(*p, ",split_4");
+    if (GV(STRESS_SPLIT_5))
+        CONFIG_APPEND(*p, ",split_5");
+    if (GV(STRESS_SPLIT_6))
+        CONFIG_APPEND(*p, ",split_6");
+    if (GV(STRESS_SPLIT_7))
+        CONFIG_APPEND(*p, ",split_7");
+    if (GV(STRESS_SPLIT_8))
+        CONFIG_APPEND(*p, ",split_8");
+    CONFIG_APPEND(*p, "]");
+}
+
+/*
+ * configure_file_manager --
+ *     Configure file manager settings.
+ */
+static void
+configure_file_manager(char **p, size_t max)
+{
+    CONFIG_APPEND(*p, ",file_manager=[");
+    if (GV(FILE_MANAGER_CLOSE_HANDLE_MINIMUM) != 0)
+        CONFIG_APPEND(*p, ",close_handle_minimum=%" PRIu32, GV(FILE_MANAGER_CLOSE_HANDLE_MINIMUM));
+    if (GV(FILE_MANAGER_CLOSE_IDLE_TIME) != 0)
+        CONFIG_APPEND(*p, ",close_idle_time=%" PRIu32, GV(FILE_MANAGER_CLOSE_IDLE_TIME));
+    if (GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL) != 0)
+        CONFIG_APPEND(*p, ",close_scan_interval=%" PRIu32, GV(FILE_MANAGER_CLOSE_SCAN_INTERVAL));
+    CONFIG_APPEND(*p, "]");
+}
+
+/*
+ * configure_debug_mode --
+ *     Configure debug settings.
+ */
+static void
+configure_debug_mode(char **p, size_t max)
+{
+    CONFIG_APPEND(*p, ",debug_mode=[");
+
+    if (GV(DEBUG_BACKGROUND_COMPACT))
+        CONFIG_APPEND(*p, ",background_compact=true");
+    if (GV(DEBUG_CHECKPOINT_RETENTION) != 0)
+        CONFIG_APPEND(*p, ",checkpoint_retention=%" PRIu32, GV(DEBUG_CHECKPOINT_RETENTION));
+    if (GV(DEBUG_CURSOR_REPOSITION))
+        CONFIG_APPEND(*p, ",cursor_reposition=true");
+    if (GV(DEBUG_EVICTION))
+        CONFIG_APPEND(*p, ",eviction=true");
+    /*
+     * Don't configure log retention debug mode during backward compatibility mode. Compatibility
+     * requires removing log files on reconfigure. When the version is changed for compatibility,
+     * reconfigure requires removing earlier log files and log retention can make that seem to hang.
+     */
+    if (GV(DEBUG_LOG_RETENTION) != 0 && !g.backward_compatible)
+        CONFIG_APPEND(*p, ",log_retention=%" PRIu32, GV(DEBUG_LOG_RETENTION));
+    if (GV(DEBUG_REALLOC_EXACT))
+        CONFIG_APPEND(*p, ",realloc_exact=true");
+    if (GV(DEBUG_REALLOC_MALLOC))
+        CONFIG_APPEND(*p, ",realloc_malloc=true");
+    if (GV(DEBUG_SLOW_CHECKPOINT))
+        CONFIG_APPEND(*p, ",slow_checkpoint=true");
+    if (GV(DEBUG_TABLE_LOGGING))
+        CONFIG_APPEND(*p, ",table_logging=true");
+    if (GV(DEBUG_UPDATE_RESTORE_EVICT))
+        CONFIG_APPEND(*p, ",update_restore_evict=true");
+    CONFIG_APPEND(*p, "]");
+}
+
+/*
+ * configure_tiered_storage --
+ *     Configure tiered storage settings for opening a connection.
+ */
+static void
+configure_tiered_storage(const char *home, char **p, size_t max, char *ext_cfg, size_t ext_cfg_size)
+{
+    TEST_OPTS opts;
+    char tiered_cfg[1024];
+
+    if (!g.tiered_storage_config) {
+        testutil_assert(ext_cfg_size > 0);
+        ext_cfg[0] = '\0';
+        return;
+    }
+
+    memset(&opts, 0, sizeof(opts));
+    opts.tiered_storage = true;
+
+    /*
+     * We need to cast these values. Normally, testutil allocates and fills these strings based on
+     * command line arguments and frees them when done. Format doesn't use the standard test command
+     * line parser and doesn't rely on testutil to free anything in this struct. We're only using
+     * the options struct on a temporary basis to help create the tiered storage configuration.
+     */
+    opts.tiered_storage_source = (char *)GVS(TIERED_STORAGE_STORAGE_SOURCE);
+    opts.home = (char *)home;
+    opts.build_dir = (char *)BUILDDIR;
+
+    /*
+     * Have testutil create the bucket directory for us when using the directory store.
+     */
+    opts.make_bucket_dir = true;
+
+    /*
+     * Use an absolute path for the bucket directory when using the directory store. Then we can
+     * create copies of the home directory to be used for backup, and we'll be able to find the
+     * bucket.
+     */
+    opts.absolute_bucket_dir = true;
+
+    testutil_tiered_storage_configuration(
+      &opts, home, tiered_cfg, sizeof(tiered_cfg), ext_cfg, ext_cfg_size);
+    CONFIG_APPEND(*p, ",%s", tiered_cfg);
+}
+
+/*
+ * configure_chunkcache --
+ *     Configure chunk cache settings for opening a connection.
+ */
+static void
+configure_chunkcache(char **p, size_t max)
+{
+    char chunkcache_ext_cfg[512];
+
+    if (GV(CHUNK_CACHE)) {
+        if (strcmp(GVS(CHUNK_CACHE_TYPE), "FILE") == 0)
+            testutil_snprintf(chunkcache_ext_cfg, sizeof(chunkcache_ext_cfg), "storage_path=%s,",
+              strcmp(GVS(CHUNK_CACHE_STORAGE_PATH), "off") != 0 ? GVS(CHUNK_CACHE_STORAGE_PATH) :
+                                                                  "WiredTigerChunkCache");
+        else
+            chunkcache_ext_cfg[0] = '\0';
+
+        CONFIG_APPEND(*p,
+          ",chunk_cache=(enabled=true,capacity=%" PRIu32 "MB,chunk_size=%" PRIu32 "MB,type=%s,%s)",
+          GV(CHUNK_CACHE_CAPACITY), GV(CHUNK_CACHE_CHUNK_SIZE), GVS(CHUNK_CACHE_TYPE),
+          chunkcache_ext_cfg);
+    }
+}
+
+/*
+ * configure_prefetch --
+ *     Configure prefetch settings for opening a connection. When enabled, this allows sessions to
+ *     use the prefetch feature.
+ */
+static void
+configure_prefetch(char **p, size_t max)
+{
+    if (GV(PREFETCH))
+        CONFIG_APPEND(*p, ",prefetch=(available=true,default=false)");
+}
 
 /*
  * create_database --
  *     Create a WiredTiger database.
  */
-static void
+void
 create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
-    char config[8 * 1024], *p;
+    char config[8 * 1024], *p, tiered_ext_cfg[1024];
+    const char *s, *sources;
 
     p = config;
     max = sizeof(config);
@@ -164,109 +371,118 @@ create_database(const char *home, WT_CONNECTION **connp)
       "MB"
       ",checkpoint_sync=false"
       ",error_prefix=\"%s\""
-      ",operation_timeout_ms=2000",
-      g.c_cache, progname);
+      ",statistics=(%s)",
+      GV(CACHE), progname, GVS(STATISTICS_MODE));
+
+    /* Eviction (dirty) configuration. */
+    if (GV(CACHE_EVICTION_DIRTY_TARGET) != 0)
+        CONFIG_APPEND(p, ",eviction_dirty_target=%" PRIu32, GV(CACHE_EVICTION_DIRTY_TARGET));
+    if (GV(CACHE_EVICTION_DIRTY_TRIGGER) != 0)
+        CONFIG_APPEND(p, ",eviction_dirty_trigger=%" PRIu32, GV(CACHE_EVICTION_DIRTY_TRIGGER));
+
+    /* Statistics log configuration. */
+    sources = GVS(STATISTICS_LOG_SOURCES);
+    if (strcmp(sources, "off") != 0)
+        CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5,sources=(\"%s\"))", sources);
+    else
+        CONFIG_APPEND(p, ",statistics_log=(json,on_close,wait=5)");
 
     /* In-memory configuration. */
-    if (g.c_in_memory != 0)
+    if (GV(RUNS_IN_MEMORY) != 0)
         CONFIG_APPEND(p, ",in_memory=1");
 
+    /* Block cache configuration. */
+    if (GV(BLOCK_CACHE) != 0)
+        CONFIG_APPEND(p,
+          ",block_cache=(enabled=true,type=\"dram\""
+          ",cache_on_checkpoint=%s"
+          ",cache_on_writes=%s"
+          ",size=%" PRIu32 "MB)",
+          GV(BLOCK_CACHE_CACHE_ON_CHECKPOINT) == 0 ? "false" : "true",
+          GV(BLOCK_CACHE_CACHE_ON_WRITES) == 0 ? "false" : "true", GV(BLOCK_CACHE_SIZE));
+
     /* LSM configuration. */
-    if (DATASOURCE("lsm"))
-        CONFIG_APPEND(p, ",lsm_manager=(worker_thread_max=%" PRIu32 "),", g.c_lsm_worker_threads);
+    if (g.lsm_config)
+        CONFIG_APPEND(p, ",lsm_manager=(worker_thread_max=%" PRIu32 "),", GV(LSM_WORKER_THREADS));
 
-    if (DATASOURCE("lsm") || g.c_cache < 20)
-        CONFIG_APPEND(p, ",eviction_dirty_trigger=95");
-
-    /* Eviction worker configuration. */
-    if (g.c_evict_max != 0)
-        CONFIG_APPEND(p, ",eviction=(threads_max=%" PRIu32 ")", g.c_evict_max);
+    /* Eviction configuration. */
+    if (GV(CACHE_EVICT_MAX) != 0)
+        CONFIG_APPEND(p, ",eviction=(threads_max=%" PRIu32 ")", GV(CACHE_EVICT_MAX));
 
     /* Logging configuration. */
-    if (g.c_logging)
+    if (GV(LOGGING)) {
+        s = GVS(LOGGING_COMPRESSION);
         CONFIG_APPEND(p,
-          ",log=(enabled=true,archive=%d,prealloc=%d,file_max=%" PRIu32 ",compressor=\"%s\")",
-          g.c_logging_archive ? 1 : 0, g.c_logging_prealloc ? 1 : 0, KILOBYTE(g.c_logging_file_max),
-          compressor(g.c_logging_compression_flag));
+          ",log=(enabled=true,%s=%d,prealloc=%d,file_max=%" PRIu32 ",compressor=\"%s\")",
+          g.backward_compatible ? "archive" : "remove", GV(LOGGING_REMOVE) ? 1 : 0,
+          GV(LOGGING_PREALLOC) ? 1 : 0, KILOBYTE(GV(LOGGING_FILE_MAX)),
+          strcmp(s, "off") == 0 ? "none" : s);
+    }
 
     /* Encryption. */
-    if (g.c_encryption)
-        CONFIG_APPEND(p, ",encryption=(name=%s)", encryptor(g.c_encryption_flag));
+    CONFIG_APPEND(p, ",encryption=(name=%s)", encryptor());
 
-/* Miscellaneous. */
+    /* Miscellaneous. */
+    if (GV(BUFFER_ALIGNMENT)) {
 #ifdef HAVE_POSIX_MEMALIGN
-    CONFIG_APPEND(p, ",buffer_alignment=512");
+        CONFIG_APPEND(p, ",buffer_alignment=512");
+#else
+        WARN("%s", "Ignoring buffer_alignment=1, missing HAVE_POSIX_MEMALIGN support")
 #endif
+    }
 
-    if (g.c_mmap)
+    if (GV(DISK_MMAP))
         CONFIG_APPEND(p, ",mmap=1");
-    if (g.c_mmap_all)
+    if (GV(DISK_MMAP_ALL))
         CONFIG_APPEND(p, ",mmap_all=1");
 
-    if (g.c_direct_io)
-        CONFIG_APPEND(p, ",direct_io=(data)");
+    if (GV(DISK_DIRECT_IO))
+        CONFIG_APPEND(p, ",direct_io=(checkpoint,data,log)");
 
-    if (g.c_data_extend)
+    if (GV(DISK_DATA_EXTEND))
         CONFIG_APPEND(p, ",file_extend=(data=8MB)");
 
-    /*
-     * Run the statistics server and/or maintain statistics in the engine. Sometimes specify a set
-     * of sources just to exercise that code.
-     */
-    if (g.c_statistics_server) {
-        if (mmrand(NULL, 0, 5) == 1 && memcmp(g.uri, "file:", strlen("file:")) == 0)
-            CONFIG_APPEND(
-              p, ",statistics=(fast),statistics_log=(json,on_close,wait=5,sources=(\"file:\"))");
-        else
-            CONFIG_APPEND(p, ",statistics=(fast),statistics_log=(json,on_close,wait=5)");
-    } else
-        CONFIG_APPEND(p, ",statistics=(%s)", g.c_statistics ? "fast" : "none");
+    /* Optional timing stress. */
+    configure_timing_stress(&p, max);
 
-    /* Optionally stress operations. */
-    CONFIG_APPEND(p, ",timing_stress_for_test=[");
-    if (g.c_timing_stress_aggressive_sweep)
-        CONFIG_APPEND(p, ",aggressive_sweep");
-    if (g.c_timing_stress_checkpoint)
-        CONFIG_APPEND(p, ",checkpoint_slow");
-    if (g.c_timing_stress_checkpoint_prepare)
-        CONFIG_APPEND(p, ",prepare_checkpoint_delay");
-    if (g.c_timing_stress_hs_checkpoint_delay)
-        CONFIG_APPEND(p, ",history_store_checkpoint_delay");
-    if (g.c_timing_stress_hs_search)
-        CONFIG_APPEND(p, ",history_store_search");
-    if (g.c_timing_stress_hs_sweep)
-        CONFIG_APPEND(p, ",history_store_sweep_race");
-    if (g.c_timing_stress_split_1)
-        CONFIG_APPEND(p, ",split_1");
-    if (g.c_timing_stress_split_2)
-        CONFIG_APPEND(p, ",split_2");
-    if (g.c_timing_stress_split_3)
-        CONFIG_APPEND(p, ",split_3");
-    if (g.c_timing_stress_split_4)
-        CONFIG_APPEND(p, ",split_4");
-    if (g.c_timing_stress_split_5)
-        CONFIG_APPEND(p, ",split_5");
-    if (g.c_timing_stress_split_6)
-        CONFIG_APPEND(p, ",split_6");
-    if (g.c_timing_stress_split_7)
-        CONFIG_APPEND(p, ",split_7");
-    if (g.c_timing_stress_split_8)
-        CONFIG_APPEND(p, ",split_8");
-    CONFIG_APPEND(p, "]");
+    /* Optional file manager. */
+    configure_file_manager(&p, max);
+
+    /* Optional debug mode. */
+    configure_debug_mode(&p, max);
+
+    /* Optional tiered storage. */
+    configure_tiered_storage(home, &p, max, tiered_ext_cfg, sizeof(tiered_ext_cfg));
+
+    /* Optional chunk cache. */
+    configure_chunkcache(&p, max);
+
+    /* Optional prefetch. */
+    configure_prefetch(&p, max);
+
+#define EXTENSION_PATH(path) (access((path), R_OK) == 0 ? (path) : "")
 
     /* Extensions. */
-    CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
-      g.c_reverse ? REVERSE_PATH : "", access(LZ4_PATH, R_OK) == 0 ? LZ4_PATH : "",
-      access(ROTN_PATH, R_OK) == 0 ? ROTN_PATH : "",
-      access(SNAPPY_PATH, R_OK) == 0 ? SNAPPY_PATH : "",
-      access(ZLIB_PATH, R_OK) == 0 ? ZLIB_PATH : "", access(ZSTD_PATH, R_OK) == 0 ? ZSTD_PATH : "");
+    CONFIG_APPEND(p,
+      ",extensions=["
+      "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", %s],",
+      /* Collators. */
+      REVERSE_PATH,
+      /* Compressors. */
+      EXTENSION_PATH(LZ4_PATH), EXTENSION_PATH(SNAPPY_PATH), EXTENSION_PATH(ZLIB_PATH),
+      EXTENSION_PATH(ZSTD_PATH),
+      /* Encryptors. */
+      EXTENSION_PATH(ROTN_PATH), EXTENSION_PATH(SODIUM_PATH),
+      /* Storage source. */
+      tiered_ext_cfg);
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
      * options at the end. Do this so they override the standard configuration.
      */
-    if (g.c_config_open != NULL)
-        CONFIG_APPEND(p, ",%s", g.c_config_open);
+    s = GVS(WIREDTIGER_CONFIG);
+    if (strcmp(s, "off") != 0)
+        CONFIG_APPEND(p, ",%s", s);
     if (g.config_open != NULL)
         CONFIG_APPEND(p, ",%s", g.config_open);
 
@@ -283,107 +499,95 @@ create_database(const char *home, WT_CONNECTION **connp)
  *     Create the database object.
  */
 static void
-create_object(WT_CONNECTION *conn)
+create_object(TABLE *table, void *arg)
 {
+    SAP sap;
+    WT_CONNECTION *conn;
     WT_SESSION *session;
     size_t max;
-    uint32_t maxintlkey, maxleafkey, maxleafvalue;
+    uint32_t maxleafkey, maxleafvalue;
     char config[4096], *p;
+    const char *s;
+
+    conn = (WT_CONNECTION *)arg;
+    testutil_assert(table != NULL);
 
     p = config;
     max = sizeof(config);
 
+/* The page must be a multiple of the allocation size, and 512 always works. */
+#define BLOCK_ALLOCATION_SIZE 512
     CONFIG_APPEND(p,
       "key_format=%s,allocation_size=%d,%s,internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32
       ",memory_page_max=%" PRIu32,
-      (g.type == ROW) ? "u" : "r", BLOCK_ALLOCATION_SIZE,
-      g.c_firstfit ? "block_allocation=first" : "", g.intl_page_max, g.leaf_page_max,
-      MEGABYTE(g.c_memory_page_max));
+      (table->type == ROW) ? "u" : "r", BLOCK_ALLOCATION_SIZE,
+      TV(DISK_FIRSTFIT) ? "block_allocation=first" : "", table->max_intl_page, table->max_leaf_page,
+      table->max_mem_page);
 
     /*
      * Configure the maximum key/value sizes, but leave it as the default if we come up with
      * something crazy.
      */
-    maxintlkey = mmrand(NULL, g.intl_page_max / 50, g.intl_page_max / 40);
-    if (maxintlkey > 20)
-        CONFIG_APPEND(p, ",internal_key_max=%" PRIu32, maxintlkey);
-    maxleafkey = mmrand(NULL, g.leaf_page_max / 50, g.leaf_page_max / 40);
+    maxleafkey = mmrand(&g.extra_rnd, table->max_leaf_page / 50, table->max_leaf_page / 40);
     if (maxleafkey > 20)
         CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
-    maxleafvalue = mmrand(NULL, g.leaf_page_max * 10, g.leaf_page_max / 40);
+    maxleafvalue = mmrand(&g.extra_rnd, table->max_leaf_page * 10, table->max_leaf_page / 40);
     if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
         CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
-    switch (g.type) {
+    switch (table->type) {
     case FIX:
-        CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", g.c_bitcnt);
+        CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", TV(BTREE_BITCNT));
         break;
     case ROW:
-        if (g.c_prefix_compression)
-            CONFIG_APPEND(p, ",prefix_compression_min=%" PRIu32, g.c_prefix_compression_min);
-        else
-            CONFIG_APPEND(p, ",prefix_compression=false");
-        if (g.c_reverse)
+        CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
+          TV(BTREE_PREFIX_COMPRESSION) == 0 ? "false" : "true", TV(BTREE_PREFIX_COMPRESSION_MIN));
+        if (TV(BTREE_REVERSE))
             CONFIG_APPEND(p, ",collator=reverse");
     /* FALLTHROUGH */
     case VAR:
-        if (g.c_huffman_value)
-            CONFIG_APPEND(p, ",huffman_value=english");
-        if (g.c_dictionary)
-            CONFIG_APPEND(p, ",dictionary=%" PRIu32, mmrand(NULL, 123, 517));
+        if (TV(BTREE_DICTIONARY))
+            CONFIG_APPEND(p, ",dictionary=%" PRIu32, mmrand(&g.extra_rnd, 123, 517));
         break;
     }
 
     /* Configure checksums. */
-    switch (g.c_checksum_flag) {
-    case CHECKSUM_OFF:
-        CONFIG_APPEND(p, ",checksum=\"off\"");
-        break;
-    case CHECKSUM_ON:
-        CONFIG_APPEND(p, ",checksum=\"on\"");
-        break;
-    case CHECKSUM_UNCOMPRESSED:
-        CONFIG_APPEND(p, ",checksum=\"uncompressed\"");
-        break;
-    }
+    CONFIG_APPEND(p, ",checksum=\"%s\"", TVS(DISK_CHECKSUM));
 
     /* Configure compression. */
-    if (g.c_compression_flag != COMPRESS_NONE)
-        CONFIG_APPEND(p, ",block_compressor=\"%s\"", compressor(g.c_compression_flag));
+    s = TVS(BTREE_COMPRESSION);
+    CONFIG_APPEND(p, ",block_compressor=\"%s\"", strcmp(s, "off") == 0 ? "none" : s);
 
-    /* Configure Btree internal key truncation. */
-    CONFIG_APPEND(p, ",internal_key_truncate=%s", g.c_internal_key_truncation ? "true" : "false");
+    /* Configure Btree. */
+    CONFIG_APPEND(
+      p, ",internal_key_truncate=%s", TV(BTREE_INTERNAL_KEY_TRUNCATION) ? "true" : "false");
+    CONFIG_APPEND(p, ",split_pct=%" PRIu32, TV(BTREE_SPLIT_PCT));
 
-    /* Configure Btree page key gap. */
-    CONFIG_APPEND(p, ",key_gap=%" PRIu32, g.c_key_gap);
+    /* Timestamps */
+    if (g.transaction_timestamps_config)
+        CONFIG_APPEND(p, ",log=(enabled=false)");
 
-    /* Configure Btree split page percentage. */
-    CONFIG_APPEND(p, ",split_pct=%" PRIu32, g.c_split_pct);
-
-    /*
-     * Assertions. Assertions slow down the code for additional diagnostic checking.
-     */
-    if (g.c_txn_timestamps && g.c_assert_commit_timestamp)
-        CONFIG_APPEND(p, ",write_timestamp_usage=key_consistent,assert=(write_timestamp=on)");
-    if (g.c_txn_timestamps && g.c_assert_read_timestamp)
-        CONFIG_APPEND(p, ",assert=(read_timestamp=always)");
+    /* Assertions: assertions slow down the code for additional diagnostic checking.  */
+    if (GV(ASSERT_READ_TIMESTAMP))
+        CONFIG_APPEND(
+          p, ",assert=(read_timestamp=%s)", g.transaction_timestamps_config ? "none" : "never");
 
     /* Configure LSM. */
-    if (DATASOURCE("lsm")) {
+    if (DATASOURCE(table, "lsm")) {
         CONFIG_APPEND(p, ",type=lsm,lsm=(");
-        CONFIG_APPEND(p, "auto_throttle=%s,", g.c_auto_throttle ? "true" : "false");
-        CONFIG_APPEND(p, "chunk_size=%" PRIu32 "MB,", g.c_chunk_size);
+        CONFIG_APPEND(p, "auto_throttle=%s,", TV(LSM_AUTO_THROTTLE) ? "true" : "false");
+        CONFIG_APPEND(p, "chunk_size=%" PRIu32 "MB,", TV(LSM_CHUNK_SIZE));
         /*
          * We can't set bloom_oldest without bloom, and we want to test with Bloom filters on most
          * of the time anyway.
          */
-        if (g.c_bloom_oldest)
-            g.c_bloom = 1;
-        CONFIG_APPEND(p, "bloom=%s,", g.c_bloom ? "true" : "false");
-        CONFIG_APPEND(p, "bloom_bit_count=%" PRIu32 ",", g.c_bloom_bit_count);
-        CONFIG_APPEND(p, "bloom_hash_count=%" PRIu32 ",", g.c_bloom_hash_count);
-        CONFIG_APPEND(p, "bloom_oldest=%s,", g.c_bloom_oldest ? "true" : "false");
-        CONFIG_APPEND(p, "merge_max=%" PRIu32 ",", g.c_merge_max);
+        if (TV(LSM_BLOOM_OLDEST))
+            TV(LSM_BLOOM) = 1;
+        CONFIG_APPEND(p, "bloom=%s,", TV(LSM_BLOOM) ? "true" : "false");
+        CONFIG_APPEND(p, "bloom_bit_count=%" PRIu32 ",", TV(LSM_BLOOM_BIT_COUNT));
+        CONFIG_APPEND(p, "bloom_hash_count=%" PRIu32 ",", TV(LSM_BLOOM_HASH_COUNT));
+        CONFIG_APPEND(p, "bloom_oldest=%s,", TV(LSM_BLOOM_OLDEST) ? "true" : "false");
+        CONFIG_APPEND(p, "merge_max=%" PRIu32 ",", TV(LSM_MERGE_MAX));
         CONFIG_APPEND(p, ",)");
     }
 
@@ -393,36 +597,40 @@ create_object(WT_CONNECTION *conn)
     /*
      * Create the underlying store.
      */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_checkfmt(session->create(session, g.uri, config), "%s", g.uri);
-    testutil_check(session->close(session, NULL));
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+    testutil_checkfmt(session->create(session, table->uri, config), "%s", table->uri);
+    wt_wrap_close_session(session);
 }
 
 /*
- * wts_create --
- *     Create the database home and objects.
+ * wts_create_home --
+ *     Remove and re-create the directory.
  */
 void
-wts_create(const char *home)
+wts_create_home(void)
+{
+    testutil_recreate_dir(g.home);
+}
+
+/*
+ * wts_create_database --
+ *     Create the database.
+ */
+void
+wts_create_database(void)
 {
     WT_CONNECTION *conn;
-    WT_DECL_RET;
-    size_t len;
-    char *cmd;
 
-    len = strlen(g.home) * 3 + strlen(FORMAT_HOME_INIT_CMD) + 1;
-    cmd = dmalloc(len);
-    testutil_check(__wt_snprintf(cmd, len, FORMAT_HOME_INIT_CMD, g.home, g.home, g.home));
-    if ((ret = system(cmd)) != 0)
-        testutil_die(ret, "home initialization (\"%s\") failed", cmd);
-    free(cmd);
+    create_database(g.home, &conn);
 
-    create_database(home, &conn);
-    create_object(conn);
-    if (g.c_in_memory != 0)
-        g.wts_conn_inmemory = conn;
+    g.wts_conn = conn;
+    tables_apply(create_object, g.wts_conn);
+    if (GV(RUNS_IN_MEMORY) != 0)
+        g.wts_conn_inmemory = g.wts_conn;
     else
         testutil_check(conn->close(conn, NULL));
+    g.wts_conn = NULL;
 }
 
 /*
@@ -430,34 +638,71 @@ wts_create(const char *home)
  *     Open a connection to a WiredTiger database.
  */
 void
-wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool allow_verify)
+wts_open(const char *home, WT_CONNECTION **connp, bool verify_metadata)
 {
     WT_CONNECTION *conn;
-    const char *config;
+    size_t max;
+    char config[1024], *p;
+    const char *enc, *s;
 
     *connp = NULL;
-    *sessionp = NULL;
+
+    p = config;
+    max = sizeof(config);
+    config[0] = '\0';
+
+    /* Configuration settings that are not persistent between open calls. */
+    enc = encryptor_at_open();
+    if (enc != NULL)
+        CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
+
+    CONFIG_APPEND(
+      p, ",error_prefix=\"%s\",statistics=(fast),statistics_log=(json,on_close,wait=5)", progname);
+
+    /* Optional timing stress. */
+    configure_timing_stress(&p, max);
+
+    /* Optional file manager. */
+    configure_file_manager(&p, max);
+
+    /* Optional debug mode. */
+    configure_debug_mode(&p, max);
+
+    /* Optional prefetch. */
+    configure_prefetch(&p, max);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
-    if (g.c_in_memory != 0)
+    if (GV(RUNS_IN_MEMORY) != 0)
         conn = g.wts_conn_inmemory;
     else {
-        config = "";
+        /*
+         * Put configuration file configuration options second to last. Put command line
+         * configuration options at the end. Do this so they override the standard configuration.
+         */
+        s = GVS(WIREDTIGER_CONFIG);
+        if (strcmp(s, "off") != 0)
+            CONFIG_APPEND(p, ",%s", s);
+        if (g.config_open != NULL)
+            CONFIG_APPEND(p, ",%s", g.config_open);
+
 #if WIREDTIGER_VERSION_MAJOR >= 10
-        if (g.c_verify && allow_verify)
-            config = ",verify_metadata=true";
+        if (GV(OPS_VERIFY) && verify_metadata)
+            CONFIG_APPEND(p, ",verify_metadata=true");
 #else
-        WT_UNUSED(allow_verify);
+        WT_UNUSED(verify_metadata);
 #endif
         testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
     }
 
-    testutil_check(conn->open_session(conn, NULL, NULL, sessionp));
     *connp = conn;
 }
 
+/*
+ * wts_close --
+ *     Close the open database.
+ */
 void
-wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
+wts_close(WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
 
@@ -472,37 +717,59 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
      */
     if (conn == g.wts_conn_inmemory)
         g.wts_conn_inmemory = NULL;
-    *sessionp = NULL;
 
     if (g.backward_compatible)
         testutil_check(conn->reconfigure(conn, "compatibility=(release=3.3)"));
 
-    testutil_check(conn->close(conn, g.c_leak_memory ? "leak_memory" : NULL));
+    testutil_check(conn->close(conn, GV(WIREDTIGER_LEAK_MEMORY) ? "leak_memory" : NULL));
 }
 
-void
-wts_verify(WT_CONNECTION *conn, const char *tag)
-{
-    WT_DECL_RET;
+struct stats_args {
+    FILE *fp;
     WT_SESSION *session;
+};
 
-    if (g.c_verify == 0)
-        return;
+/*
+ * stats_data_print --
+ *     Print out the statistics.
+ */
+static void
+stats_data_print(WT_SESSION *session, const char *uri, FILE *fp)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    uint64_t v;
+    const char *desc, *pval;
 
-    track("verify", 0ULL, NULL);
+    wt_wrap_open_cursor(session, uri, NULL, &cursor);
+    while (
+      (ret = cursor->next(cursor)) == 0 && (ret = cursor->get_value(cursor, &desc, &pval, &v)) == 0)
+        testutil_assert(fprintf(fp, "%s=%s\n", desc, pval) >= 0);
+    testutil_assert(ret == WT_NOTFOUND);
+    testutil_check(cursor->close(cursor));
+}
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    trace_msg("%s", "=============== verify start");
+/*
+ * stats_data_source --
+ *     Dump each data source's statistics.
+ */
+static void
+stats_data_source(TABLE *table, void *arg)
+{
+    struct stats_args *args;
+    FILE *fp;
+    WT_SESSION *session;
+    char buf[1024];
 
-    /*
-     * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of
-     * LSM, the handle may not be available for a long time.
-     */
-    ret = session->verify(session, g.uri, "strict");
-    testutil_assertfmt(ret == 0 || ret == EBUSY, "session.verify: %s: %s", g.uri, tag);
+    args = arg;
+    testutil_assert(table != NULL);
 
-    trace_msg("%s", "=============== verify stop");
-    testutil_check(session->close(session, NULL));
+    fp = args->fp;
+    session = args->session;
+
+    testutil_assert(fprintf(fp, "\n\n====== Data source statistics: %s\n", table->uri) >= 0);
+    testutil_snprintf(buf, sizeof(buf), "statistics:%s", table->uri);
+    stats_data_print(session, buf, fp);
 }
 
 /*
@@ -512,59 +779,28 @@ wts_verify(WT_CONNECTION *conn, const char *tag)
 void
 wts_stats(void)
 {
+    struct stats_args args;
     FILE *fp;
+    SAP sap;
     WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
     WT_SESSION *session;
-    size_t len;
-    uint64_t v;
-    char *stat_name;
-    const char *desc, *pval;
-
-    /* Ignore statistics if they're not configured. */
-    if (g.c_statistics == 0)
-        return;
 
     conn = g.wts_conn;
-    track("stat", 0ULL, NULL);
-
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
-    if ((fp = fopen(g.home_stats, "w")) == NULL)
-        testutil_die(errno, "fopen: %s", g.home_stats);
+    track("stat", 0ULL);
 
     /* Connection statistics. */
-    fprintf(fp, "====== Connection statistics:\n");
-    testutil_check(session->open_cursor(session, "statistics:", NULL, NULL, &cursor));
+    testutil_assert((fp = fopen(g.home_stats, "w")) != NULL);
+    testutil_assert(fprintf(fp, "====== Connection statistics:\n") >= 0);
 
-    while (
-      (ret = cursor->next(cursor)) == 0 && (ret = cursor->get_value(cursor, &desc, &pval, &v)) == 0)
-        if (fprintf(fp, "%s=%s\n", desc, pval) < 0)
-            testutil_die(errno, "fprintf");
+    memset(&sap, 0, sizeof(sap));
+    wt_wrap_open_session(conn, &sap, NULL, NULL, &session);
+    stats_data_print(session, "statistics:", fp);
 
-    if (ret != WT_NOTFOUND)
-        testutil_die(ret, "cursor.next");
-    testutil_check(cursor->close(cursor));
+    args.fp = fp;
+    args.session = session;
+    tables_apply(stats_data_source, &args);
 
-    /* Data source statistics. */
-    fprintf(fp, "\n\n====== Data source statistics:\n");
-    len = strlen("statistics:") + strlen(g.uri) + 1;
-    stat_name = dmalloc(len);
-    testutil_check(__wt_snprintf(stat_name, len, "statistics:%s", g.uri));
-    testutil_check(session->open_cursor(session, stat_name, NULL, NULL, &cursor));
-    free(stat_name);
-
-    while (
-      (ret = cursor->next(cursor)) == 0 && (ret = cursor->get_value(cursor, &desc, &pval, &v)) == 0)
-        if (fprintf(fp, "%s=%s\n", desc, pval) < 0)
-            testutil_die(errno, "fprintf");
-
-    if (ret != WT_NOTFOUND)
-        testutil_die(ret, "cursor.next");
-    testutil_check(cursor->close(cursor));
+    wt_wrap_close_session(session);
 
     fclose_and_clear(&fp);
-
-    testutil_check(session->close(session, NULL));
 }

@@ -25,9 +25,12 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# connection_api:turtle_file
+# [END_TAGS]
 
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 import os, shutil
 
@@ -35,6 +38,7 @@ import os, shutil
 # WT-6526: test that we can successfully open a readonly connection after it was stopped while
 # the temporary turtle file existed. We simulate that by copying the turtle file to its temporary name
 # and then opening the connection readonly.
+@wttest.skip_for_hook("tiered", "Tiered causes python crash")
 class test_bug024(wttest.WiredTigerTestCase):
     conn_config = ('cache_size=50MB')
 
@@ -53,6 +57,3 @@ class test_bug024(wttest.WiredTigerTestCase):
         # Open wiredtiger in new directory and in readonly mode.
         conn = self.wiredtiger_open(self.home, "readonly")
         conn.close()
-
-if __name__ == '__main__':
-    wttest.run()

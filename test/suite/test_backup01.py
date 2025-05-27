@@ -27,14 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# backup:correctness:full_backup
+# wt_util
+# backup:cursors
 # [END_TAGS]
 #
 
-import glob
 import os
 import shutil
-import string
 import time
 from wtbackup import backup_base
 import wiredtiger
@@ -185,6 +184,3 @@ class test_backup(backup_base):
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(
             self.objs[0][0], None, "checkpoint=two"))
-
-if __name__ == '__main__':
-    wttest.run()

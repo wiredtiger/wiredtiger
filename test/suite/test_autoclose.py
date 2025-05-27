@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest
 
 # test_autoclose
 class test_autoclose(wttest.WiredTigerTestCase):
@@ -42,7 +42,7 @@ class test_autoclose(wttest.WiredTigerTestCase):
                             'key_format=S,value_format=S')
 
     def drop_table(self):
-        self.session.drop(self.uri, None)
+        self.dropUntilSuccess(self.session, self.uri)
 
     def open_cursor(self):
         cursor = self.session.open_cursor(self.uri, None, None)
@@ -156,6 +156,3 @@ class test_autoclose(wttest.WiredTigerTestCase):
         self.assertRaisesHavingMessage(RuntimeError,
                                        lambda: conn.open_session(None),
                                        '/wt_connection.* is None/')
-
-if __name__ == '__main__':
-    wttest.run()

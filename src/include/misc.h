@@ -6,9 +6,31 @@
  * See the file LICENSE for redistribution information.
  */
 
+#ifndef __WT_MISC_H
+#define __WT_MISC_H
+
 /*
- * Quiet compiler warnings about unused function parameters and variables, and unused function
- * return values.
+ * When compiling for code coverage measurement it is necessary to ensure that inline functions in
+ * header files that are #included in multiple source files are not inlined.
+ *
+ * Otherwise, it is possible that there will be multiple copies of the function across the linked
+ * executable with the result that the code coverage counts for branch coverage (both in terms of
+ * branches in the code and the number of branches executed) will be too high and incorrect.
+ *
+ * In non-code coverage builds, preventing inlining would impact performance and so this must only
+ * take place when performing code coverage.
+ */
+#ifdef CODE_COVERAGE_MEASUREMENT
+#ifdef _WIN32
+#error "Code coverage measurement is not currently supported for WiredTiger on Windows."
+#endif /* _WIN32 */
+#define WT_INLINE __attribute__((noinline))
+#else
+#define WT_INLINE inline
+#endif /* CODE_COVERAGE_MEASUREMENT */
+
+/*
+ * Explicitly suppress compiler warnings about unused variables, and function parameters.
  */
 #define WT_UNUSED(var) (void)(var)
 #define WT_NOT_READ(v, val) \
@@ -16,35 +38,30 @@
         (v) = (val);        \
         (void)(v);          \
     } while (0);
-#define WT_IGNORE_RET(call)                \
-    do {                                   \
-        uintmax_t __ignored_ret;           \
-        __ignored_ret = (uintmax_t)(call); \
-        WT_UNUSED(__ignored_ret);          \
-    } while (0)
-#define WT_IGNORE_RET_BOOL(call)  \
-    do {                          \
-        bool __ignored_ret;       \
-        __ignored_ret = (call);   \
-        WT_UNUSED(__ignored_ret); \
-    } while (0)
-#define WT_IGNORE_RET_PTR(call)    \
-    do {                           \
-        const void *__ignored_ret; \
-        __ignored_ret = (call);    \
-        WT_UNUSED(__ignored_ret);  \
-    } while (0)
+
+/*
+ * Explicitly suppress: warning unused result.
+ *
+ * Simply casting to void as in WT_UNUSED will not suppress this warning on the current version of
+ * gcc (11.3.0) used for the server build.
+ *
+ * This workaround works with every supported toolchain, and does not employ unused temporary values
+ * that are then detected by Coverity.
+ */
+#define WT_IGNORE_RET(call) ((void)!(call))
 
 #define WT_DIVIDER "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
 /* Basic constants. */
+#define WT_MILLION_LITERAL 1000000
 #define WT_THOUSAND (1000)
-#define WT_MILLION (1000000)
+#define WT_MILLION (WT_MILLION_LITERAL)
 #define WT_BILLION (1000000000)
 
+#define WT_DAY (86400)
 #define WT_MINUTE (60)
 
-#define WT_PROGRESS_MSG_PERIOD (20)
+#define WT_PROGRESS_MSG_PERIOD (20) /* Seconds. */
 
 #define WT_KILOBYTE (1024)
 #define WT_MEGABYTE (1048576)
@@ -57,6 +74,9 @@
 #define WT_ERR_STRING "[Error]"
 #define WT_NO_ADDR_STRING "[NoAddr]"
 
+/* Maximum length of an encoded JSON character. */
+#define WT_MAX_JSON_ENCODE 6
+
 /*
  * Sizes that cannot be larger than 2**32 are stored in uint32_t fields in common structures to save
  * space. To minimize conversions from size_t to uint32_t through the code, we use the following
@@ -68,7 +88,6 @@
 #define WT_BLOCK_FITS(p, len, begin, maxlen)             \
     ((const uint8_t *)(p) >= (const uint8_t *)(begin) && \
       ((const uint8_t *)(p) + (len) <= (const uint8_t *)(begin) + (maxlen)))
-#define WT_PTR_IN_RANGE(p, begin, maxlen) WT_BLOCK_FITS((p), 1, (begin), (maxlen))
 
 /*
  * Align an unsigned value of any type to a specified power-of-2, including the offset result of a
@@ -81,6 +100,10 @@
 /* Min, max. */
 #define WT_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
+#define WT_CLAMP(x, low, high) (WT_MIN(WT_MAX((x), (low)), (high)))
+
+/* Ceil for unsigned/positive real numbers. */
+#define WT_CEIL_POS(a) ((a) - (double)(uintmax_t)(a) > 0.0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))
 
 /* Elements in an array. */
 #define WT_ELEMENTS(a) (sizeof(a) / sizeof((a)[0]))
@@ -94,6 +117,12 @@
  * Constant value.
  */
 #define WT_ENCRYPT_LEN_SIZE sizeof(uint32_t)
+
+/*
+ * WT-specific return codes for __wt_getopt(); use __wt_optwt to enable.
+ */
+#define WT_GETOPT_BAD_ARGUMENT 1
+#define WT_GETOPT_BAD_OPTION 2
 
 /*
  * __wt_calloc_def, __wt_calloc_one --
@@ -118,11 +147,11 @@
           addr))
 
 /*
- * Our internal free function clears the underlying address atomically so there is a smaller chance
- * of racing threads seeing intermediate results while a structure is being free'd. (That would be a
- * bug, of course, but I'd rather not drop core, just the same.) That's a non-standard "free" API,
- * and the resulting bug is a mother to find -- make sure we get it right, don't make the caller
- * remember to put the & operator on the pointer.
+ * Our internal free function clears the underlying address so there is a smaller chance of racing
+ * threads seeing intermediate results while a structure is being free'd. (That would be a bug, of
+ * course, but I'd rather not drop core, just the same.) That's a non-standard "free" API, and the
+ * resulting bug is non-trivial to find -- make sure we get it right, don't make the caller remember
+ * to put the & operator on the pointer.
  */
 #define __wt_free(session, p)            \
     do {                                 \
@@ -134,15 +163,21 @@
 /* Overwrite whether or not this is a diagnostic build. */
 #define __wt_explicit_overwrite(p, size) memset(p, WT_DEBUG_BYTE, size)
 #ifdef HAVE_DIAGNOSTIC
-#define __wt_overwrite_and_free(session, p)       \
-    do {                                          \
-        __wt_explicit_overwrite(p, sizeof(*(p))); \
-        __wt_free(session, p);                    \
+#define __wt_overwrite_and_free(session, p)           \
+    do {                                              \
+        void *__p = &(p);                             \
+        if (*(void **)__p != NULL) {                  \
+            __wt_explicit_overwrite(p, sizeof(*(p))); \
+            __wt_free_int(session, __p);              \
+        }                                             \
     } while (0)
 #define __wt_overwrite_and_free_len(session, p, len) \
     do {                                             \
-        __wt_explicit_overwrite(p, len);             \
-        __wt_free(session, p);                       \
+        void *__p = &(p);                            \
+        if (*(void **)__p != NULL) {                 \
+            __wt_explicit_overwrite(p, len);         \
+            __wt_free_int(session, __p);             \
+        }                                            \
     } while (0)
 #else
 #define __wt_overwrite_and_free(session, p) __wt_free(session, p)
@@ -156,24 +191,52 @@
  * argument), LF_XXX (handles a local variable named "flags"), and FLD_XXX (handles any variable,
  * anywhere).
  *
- * Flags are unsigned 32-bit values -- we cast to keep the compiler quiet (the hex constant might be
- * a negative integer), and to ensure the hex constant is the correct size before applying the
- * bitwise not operator.
+ * Flags can be different unsigned bit values -- we cast to keep the compiler quiet (the hex
+ * constant might be a negative integer), and to ensure the hex constant is the correct size before
+ * applying the bitwise not operator.
+ *
+ * Summary of flag tests:
+ *
+ * Is any flag set? - F*_ISSET()
+ *
+ * Are none of the flags set? - !F*_ISSET()
+ *
+ * Are all of the flags set? - F*_AREALLSET()
  */
+#ifdef TSAN_BUILD
+/*
+ * FIXME-WT-12534 We need atomics to fix data races detected by TSan, however these atomics come
+ * with a large performance cost. Define these atomics only for TSan builds as they aren't
+ * performance critical and we'll investigate a long term solution separately.
+ */
+#define FLD_CLR(field, mask) (void)__wt_atomic_and_generic(&field, (__typeof__(field))(~(mask)))
+#define FLD_MASK(field, mask) (__wt_atomic_load_generic(&field) & (mask))
+#define FLD_ISSET(field, mask) (FLD_MASK(field, (mask)) != 0)
+#define FLD_SET(field, mask) ((void)__wt_atomic_or_generic(&field, (mask)))
+#else
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
 #define FLD_ISSET(field, mask) (FLD_MASK(field, mask) != 0)
 #define FLD_SET(field, mask) ((void)((field) |= (mask)))
+#endif
+/* Named like a macro for consistency. An inline function to evaluate mask only once. */
+static inline bool
+FLD_AREALLSET(uint64_t field, uint64_t mask)
+{
+    return (FLD_MASK(field, mask) == mask);
+}
 
 #define F_CLR(p, mask) FLD_CLR((p)->flags, mask)
 #define F_ISSET(p, mask) FLD_ISSET((p)->flags, mask)
 #define F_MASK(p, mask) FLD_MASK((p)->flags, mask)
 #define F_SET(p, mask) FLD_SET((p)->flags, mask)
+#define F_AREALLSET(p, mask) FLD_AREALLSET((uint64_t)((p)->flags), (uint64_t)(mask))
 
 #define LF_CLR(mask) FLD_CLR(flags, mask)
 #define LF_ISSET(mask) FLD_ISSET(flags, mask)
 #define LF_MASK(mask) FLD_MASK(flags, mask)
 #define LF_SET(mask) FLD_SET(flags, mask)
+#define LF_AREALLSET(mask) FLD_AREALLSET(flags, mask)
 
 /*
  * Insertion sort, for sorting small sets of values.
@@ -230,11 +293,34 @@
         }                                                              \
     } while (0)
 
+/*
+ * Binary search for a string key. Note: For the binary search to function correctly, the array
+ * should not contain NULL values.
+ */
+#define WT_BINARY_SEARCH_STRING(key, arrayp, n, found)                 \
+    do {                                                               \
+        uint32_t __base, __indx, __limit;                              \
+        (found) = false;                                               \
+        for (__base = 0, __limit = (n); __limit != 0; __limit >>= 1) { \
+            __indx = __base + (__limit >> 1);                          \
+            if (strcmp((arrayp)[__indx], (key)) < 0) {                 \
+                __base = __indx + 1;                                   \
+                --__limit;                                             \
+            } else if (strcmp((arrayp)[__indx], (key)) == 0) {         \
+                (found) = true;                                        \
+                break;                                                 \
+            }                                                          \
+        }                                                              \
+    } while (0)
+
 #define WT_CLEAR(s) memset(&(s), 0, sizeof(s))
 
 /* Check if a string matches a prefix. */
-#define WT_PREFIX_MATCH(str, pfx) \
-    (((const char *)(str))[0] == ((const char *)(pfx))[0] && strncmp(str, pfx, strlen(pfx)) == 0)
+#define WT_PREFIX_MATCH(str, pfx) (strncmp(str, pfx, strlen(pfx)) == 0)
+
+/* Check if a string matches a suffix. */
+#define WT_SUFFIX_MATCH(str, sfx) \
+    (strlen(str) >= strlen(sfx) && strcmp(&str[strlen(str) - strlen(sfx)], sfx) == 0)
 
 /* Check if a string matches a prefix, and move past it. */
 #define WT_PREFIX_SKIP(str, pfx) (WT_PREFIX_MATCH(str, pfx) ? ((str) += strlen(pfx), 1) : 0)
@@ -255,10 +341,34 @@
  */
 #define WT_STREQ(s, cs) (sizeof(cs) == 2 ? (s)[0] == (cs)[0] && (s)[1] == '\0' : strcmp(s, cs) == 0)
 
-/* Check if a string matches a byte string of len bytes. */
-#define WT_STRING_MATCH(str, bytes, len)                                                        \
-    (((const char *)(str))[0] == ((const char *)(bytes))[0] && strncmp(str, bytes, len) == 0 && \
-      (str)[len] == '\0')
+/*
+ * Check if a literal string matches the length and content of the supplied bytes/len pair. The
+ * bytes argument does not need to be null-terminated, and it may be null if the supplied length is
+ * zero. Note this macro works differently than the standard strncmp function. When strncmp is given
+ * a zero length it returns true. When this macro is given a zero length it returns false, unless
+ * the literal string is also zero length.
+ */
+#define WT_STRING_LIT_MATCH(str, bytes, len) \
+    ((len) == strlen("" str "") && strncmp(str, bytes, len) == 0)
+
+/*
+ * Identical to WT_STRING_LIT_MATCH, except that this works with non-literal strings. It is slightly
+ * slower, so WT_STRING_LIT_MATCH is always preferred for literal strings.
+ */
+#define WT_STRING_MATCH(str, bytes, len) __wt_string_match(str, bytes, len)
+
+static WT_INLINE bool
+__wt_string_match(const char *str, const char *bytes, size_t len)
+{
+    return (strncmp(str, bytes, len) == 0 && str[len] == '\0');
+}
+
+/*
+ * CONFIG versions of the WT_STRING_LIT_MATCH and WT_STRING_MATCH macros. These are convenient when
+ * matching WT_CONFIG_ITEMs.
+ */
+#define WT_CONFIG_LIT_MATCH(s, cval) WT_STRING_LIT_MATCH(s, (cval).str, (cval).len)
+#define WT_CONFIG_MATCH(s, cval) WT_STRING_MATCH(s, (cval).str, (cval).len)
 
 /*
  * Macro that produces a string literal that isn't wrapped in quotes, to avoid tripping up spell
@@ -287,12 +397,13 @@
  */
 #ifdef HAVE_DIAGNOSTIC
 #define __wt_hazard_set(session, walk, busyp) \
-    __wt_hazard_set_func(session, walk, busyp, __func__, __LINE__)
+    __wt_hazard_set_func(session, walk, busyp, __PRETTY_FUNCTION__, __LINE__)
 #define __wt_scr_alloc(session, size, scratchp) \
-    __wt_scr_alloc_func(session, size, scratchp, __func__, __LINE__)
-#define __wt_page_in(session, ref, flags) __wt_page_in_func(session, ref, flags, __func__, __LINE__)
+    __wt_scr_alloc_func(session, size, scratchp, __PRETTY_FUNCTION__, __LINE__)
+#define __wt_page_in(session, ref, flags) \
+    __wt_page_in_func(session, ref, flags, __PRETTY_FUNCTION__, __LINE__)
 #define __wt_page_swap(session, held, want, flags) \
-    __wt_page_swap_func(session, held, want, flags, __func__, __LINE__)
+    __wt_page_swap_func(session, held, want, flags, __PRETTY_FUNCTION__, __LINE__)
 #else
 #define __wt_hazard_set(session, walk, busyp) __wt_hazard_set_func(session, walk, busyp)
 #define __wt_scr_alloc(session, size, scratchp) __wt_scr_alloc_func(session, size, scratchp)
@@ -336,7 +447,7 @@ union __wt_rand_state {
     do {                                                                        \
         size_t __len, __space;                                                  \
         va_list __ap;                                                           \
-        int __ret_xx; /* __ret already used by WT_RET */                        \
+        int __ret_xx; /* __ret already used by WT_ERR */                        \
         char *__p;                                                              \
                                                                                 \
         /*                                                                      \
@@ -348,14 +459,15 @@ union __wt_rand_state {
             (buf)->size = 0;                                                    \
         for (;;) {                                                              \
             WT_ASSERT(session, (buf)->memsize >= (buf)->size);                  \
-            __p = (char *)((uint8_t *)(buf)->mem + (buf)->size);                \
+            if ((__p = (buf)->mem) != NULL)                                     \
+                __p += (buf)->size;                                             \
             __space = (buf)->memsize - (buf)->size;                             \
                                                                                 \
             /* Format into the buffer. */                                       \
             va_start(__ap, fmt);                                                \
             __ret_xx = __wt_vsnprintf_len_set(__p, __space, &__len, fmt, __ap); \
             va_end(__ap);                                                       \
-            WT_RET(__ret_xx);                                                   \
+            WT_ERR(__ret_xx);                                                   \
                                                                                 \
             /* Check if there was enough space. */                              \
             if (__len < __space) {                                              \
@@ -368,6 +480,8 @@ union __wt_rand_state {
              * If not, double the size of the buffer: we're dealing             \
              * with strings, we don't expect the size to get huge.              \
              */                                                                 \
-            WT_RET(__wt_buf_extend(session, buf, (buf)->size + __len + 1));     \
+            WT_ERR(__wt_buf_extend(session, buf, (buf)->size + __len + 1));     \
         }                                                                       \
     } while (0)
+
+#endif /* __WT_MISC_H */

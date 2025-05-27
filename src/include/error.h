@@ -5,13 +5,23 @@
  *
  * See the file LICENSE for redistribution information.
  */
+
+#pragma once
+
 #define WT_COMPAT_MSG_PREFIX "Version incompatibility detected: "
 
 #define WT_DEBUG_POINT ((void *)(uintptr_t)0xdeadbeef)
 #define WT_DEBUG_BYTE (0xab)
 
-/* In DIAGNOSTIC mode, yield in places where we want to encourage races. */
-#ifdef HAVE_DIAGNOSTIC
+/* In DIAGNOSTIC mode, yield in places where we want to encourage races (except for with
+ * antithesis). */
+#if defined HAVE_DIAGNOSTIC && defined NON_BARRIER_DIAGNOSTIC_YIELDS && !defined ENABLE_ANTITHESIS
+#define WT_DIAGNOSTIC_YIELD      \
+    do {                         \
+        __wt_yield_no_barrier(); \
+    } while (0)
+#elif defined HAVE_DIAGNOSTIC && !defined NON_BARRIER_DIAGNOSTIC_YIELDS && \
+  !defined ENABLE_ANTITHESIS
 #define WT_DIAGNOSTIC_YIELD \
     do {                    \
         __wt_yield();       \
@@ -20,18 +30,31 @@
 #define WT_DIAGNOSTIC_YIELD
 #endif
 
-#define __wt_err(session, error, ...) __wt_err_func(session, error, __func__, __LINE__, __VA_ARGS__)
-#define __wt_errx(session, ...) __wt_errx_func(session, __func__, __LINE__, __VA_ARGS__)
+#define __wt_err(session, error, ...) \
+    __wt_err_func(                    \
+      session, error, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
+#define __wt_errx(session, ...) \
+    __wt_errx_func(session, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
 #define __wt_panic(session, error, ...) \
-    __wt_panic_func(session, error, __func__, __LINE__, __VA_ARGS__)
-#define __wt_set_return(session, error) __wt_set_return_func(session, __func__, __LINE__, error)
+    __wt_panic_func(                    \
+      session, error, __PRETTY_FUNCTION__, __LINE__, WT_VERBOSE_CATEGORY_DEFAULT, __VA_ARGS__)
+#define __wt_set_return(session, error) \
+    __wt_set_return_func(session, __PRETTY_FUNCTION__, __LINE__, error, #error)
 
 /* Set "ret" and branch-to-err-label tests. */
-#define WT_ERR(a)             \
-    do {                      \
-        if ((ret = (a)) != 0) \
-            goto err;         \
+#define WT_ERR(a)											\
+    do {													\
+		if ((ret = (a)) != 0)								\
+			goto err;										\
     } while (0)
+
+#define WT_ERR_FUNC(func, a)					\
+	do {										\
+	if ((ret = (a)) != 0)	{								\
+	goto err;												\
+	}}														\
+	while(0)
+
 #define WT_ERR_MSG(session, v, ...)          \
     do {                                     \
         ret = (v);                           \
@@ -85,6 +108,42 @@
     } while (0)
 #define WT_RET_BUSY_OK(a) WT_RET_ERROR_OK(a, EBUSY)
 #define WT_RET_NOTFOUND_OK(a) WT_RET_ERROR_OK(a, WT_NOTFOUND)
+#define WT_RET_ONLY(a, e)             \
+    do {                              \
+        int __ret = (a);              \
+        WT_RET_TEST(__ret == (e), e); \
+    } while (0)
+
+#ifdef INLINE_FUNCTIONS_INSTEAD_OF_MACROS
+/* Set "ret" if not already set. */
+static WT_INLINE void
+__wt_tret(int *pret, int a)
+{
+    int __ret;
+    WT_DECL_RET;
+
+    ret = *pret;
+    if ((__ret = (a)) != 0 &&
+      (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND ||
+        ret == WT_RESTART))
+        *pret = __ret;
+}
+#define WT_TRET(a) __wt_tret(&ret, a)
+
+static WT_INLINE void
+__wt_tret_error_ok(int *pret, int a, int e)
+{
+    int __ret;
+    WT_DECL_RET;
+
+    ret = *pret;
+    if ((__ret = (a)) != 0 && __ret != (e) &&
+      (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND ||
+        ret == WT_RESTART))
+        *pret = __ret;
+}
+#define WT_TRET_ERROR_OK(a, e) __wt_tret_error_ok(&ret, a, e)
+#else
 /* Set "ret" if not already set. */
 #define WT_TRET(a)                                                                           \
     do {                                                                                     \
@@ -102,6 +161,8 @@
             ret == WT_RESTART))                                                              \
             ret = __ret;                                                                     \
     } while (0)
+#endif /* INLINE_FUNCTIONS_INSTEAD_OF_MACROS */
+
 #define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
 #define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
@@ -114,72 +175,163 @@
       "encountered an illegal file format or internal value", (uintmax_t)(v))
 
 /*
- * WT_ERR_ASSERT, WT_RET_ASSERT, WT_ASSERT
- *	Assert an expression, aborting in diagnostic mode and otherwise exiting
- * the function with an error. WT_ASSERT is deprecated, and should be used only
- * where required for performance.
+ * Branch prediction hints. If an expression is likely to return true/false we can use this
+ * information to improve performance at runtime. This is not supported for MSVC compilers.
  */
-#ifdef HAVE_DIAGNOSTIC
-#define WT_ASSERT(session, exp)             \
-    do {                                    \
-        if (!(exp)) {                       \
-            __wt_errx(session, "%s", #exp); \
-            __wt_abort(session);            \
-        }                                   \
+#if !defined(_MSC_VER)
+#define WT_LIKELY(x) __builtin_expect(!!(x), 1)
+#define WT_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define WT_LIKELY(x) (x)
+#define WT_UNLIKELY(x) (x)
+#endif
+
+#define WT_ERR_MSG_BUF_LEN 1024
+
+/*
+ * BUILD_ASSERTION_STRING --
+ *  Append a common prefix to an assertion message and save into the provided buffer.
+ */
+#define BUILD_ASSERTION_STRING(session, buf, len, exp, ...)                                        \
+    do {                                                                                           \
+        size_t _offset;                                                                            \
+        _offset = 0;                                                                               \
+        WT_IGNORE_RET(                                                                             \
+          __wt_snprintf_len_set(buf, len, &_offset, "WiredTiger assertion failed: '%s'. ", #exp)); \
+        /* If we would overflow, finish with what we have. */                                      \
+        if (_offset < len)                                                                         \
+            WT_IGNORE_RET(__wt_snprintf(buf + _offset, len - _offset, __VA_ARGS__));               \
     } while (0)
-#define WT_ERR_ASSERT(session, exp, v, ...)    \
-    do {                                       \
-        if (!(exp)) {                          \
-            __wt_err(session, v, __VA_ARGS__); \
-            __wt_abort(session);               \
-        }                                      \
-    } while (0)
-#define WT_RET_ASSERT(session, exp, v, ...)    \
-    do {                                       \
-        if (!(exp)) {                          \
-            __wt_err(session, v, __VA_ARGS__); \
-            __wt_abort(session);               \
-        }                                      \
-    } while (0)
-#define WT_RET_PANIC_ASSERT(session, exp, v, ...) \
-    do {                                          \
-        if (!(exp)) {                             \
-            __wt_err(session, v, __VA_ARGS__);    \
-            __wt_abort(session);                  \
-        }                                         \
+
+/*
+ * TRIGGER_ABORT --
+ *  Abort the program.
+ *
+ * When unit testing assertions we don't want to call __wt_abort, but we do want to track that we
+ * should have done so.
+ */
+#ifdef HAVE_UNITTEST_ASSERTS
+#define TRIGGER_ABORT(session, exp, ...)                                                    \
+    do {                                                                                    \
+        if ((session) == NULL) {                                                            \
+            __wt_errx(                                                                      \
+              session, "A non-NULL session must be provided when unit testing assertions"); \
+            __wt_abort(session);                                                            \
+        }                                                                                   \
+        BUILD_ASSERTION_STRING(                                                             \
+          session, (session)->unittest_assert_msg, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__);   \
+        (session)->unittest_assert_hit = true;                                              \
     } while (0)
 #else
-#define WT_ASSERT(session, exp) WT_UNUSED(session)
-#define WT_ERR_ASSERT(session, exp, v, ...)      \
-    do {                                         \
-        if (!(exp))                              \
-            WT_ERR_MSG(session, v, __VA_ARGS__); \
-    } while (0)
-#define WT_RET_ASSERT(session, exp, v, ...)      \
-    do {                                         \
-        if (!(exp))                              \
-            WT_RET_MSG(session, v, __VA_ARGS__); \
-    } while (0)
-#define WT_RET_PANIC_ASSERT(session, exp, v, ...)  \
-    do {                                           \
-        if (!(exp))                                \
-            WT_RET_PANIC(session, v, __VA_ARGS__); \
+#define TRIGGER_ABORT(session, exp, ...)                                             \
+    do {                                                                             \
+        char _buf[WT_ERR_MSG_BUF_LEN];                                               \
+        BUILD_ASSERTION_STRING(session, _buf, WT_ERR_MSG_BUF_LEN, exp, __VA_ARGS__); \
+        __wt_errx(session, "%s", _buf);                                              \
+        __wt_abort(session);                                                         \
     } while (0)
 #endif
 
-/* Verbose messages. */
-#define WT_VERBOSE_ISSET(session, flag) (FLD_ISSET(S2C(session)->verbose, flag))
+/*
+ * EXTRA_DIAGNOSTICS_ENABLED --
+ *  Fetch whether diagnostic asserts for the provided category are runtime enabled.
+ *  When compiled with HAVE_DIAGNOSTIC=1, the WT_DIAGNOSTIC_ALL category is always set on
+ *  the connection and this function will always return true for non-null sessions.
+ */
+#define EXTRA_DIAGNOSTICS_ENABLED(session, category) \
+    ((session != NULL) &&                            \
+      WT_UNLIKELY(FLD_ISSET(S2C(session)->extra_diagnostics_flags, category | WT_DIAGNOSTIC_ALL)))
 
 /*
- * __wt_verbose --
- *     Display a verbose message. Not an inlined function because you can't inline functions taking
- *     variadic arguments and we don't want to make a function call in production systems just to
- *     find out a verbose flag isn't set. The macro must take a format string and at least one
- *     additional argument, there's no portable way to remove the comma before an empty __VA_ARGS__
- *     value.
+ * WT_ASSERT --
+ *  Assert an expression and abort if it fails.
+ *  Only enabled when compiled with HAVE_DIAGNOSTIC=1.
  */
-#define __wt_verbose(session, flag, fmt, ...)                              \
-    do {                                                                   \
-        if (WT_VERBOSE_ISSET(session, flag))                               \
-            __wt_verbose_worker(session, "[" #flag "] " fmt, __VA_ARGS__); \
+#ifdef HAVE_DIAGNOSTIC
+#define WT_ASSERT(session, exp)                                       \
+    do {                                                              \
+        if (WT_UNLIKELY(!(exp)))                                      \
+            TRIGGER_ABORT(session, exp, "Expression returned false"); \
+    } while (0)
+#else
+#define WT_ASSERT(session, exp) WT_UNUSED(session)
+#endif
+
+/*
+ * WT_ASSERT_OPTIONAL --
+ *  Assert an expression if the relevant assertion category is enabled.
+ */
+#define WT_ASSERT_OPTIONAL(session, category, exp, ...)                \
+    do {                                                               \
+        if (WT_UNLIKELY(EXTRA_DIAGNOSTICS_ENABLED(session, category))) \
+            if (WT_UNLIKELY(!(exp)))                                   \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);              \
+    } while (0)
+
+/*
+ * WT_ASSERT_ALWAYS --
+ *  Assert an expression. This is enabled regardless of configuration.
+ */
+#define WT_ASSERT_ALWAYS(session, exp, ...)           \
+    do {                                              \
+        if (WT_UNLIKELY(!(exp)))                      \
+            TRIGGER_ABORT(session, exp, __VA_ARGS__); \
+    } while (0)
+
+/*
+ * WT_ERR_ASSERT --
+ *  Assert an expression. If the relevant assertion category is
+ *  enabled abort the program, otherwise print a message and return WT_ERR.
+ */
+#define WT_ERR_ASSERT(session, category, exp, v, ...)         \
+    do {                                                      \
+        if (WT_UNLIKELY(!(exp))) {                            \
+            if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
+            else                                              \
+                WT_ERR_MSG(session, v, __VA_ARGS__);          \
+        }                                                     \
+    } while (0)
+
+/*
+ * WT_RET_ASSERT --
+ *  Assert an expression. If the relevant assertion category is enabled
+ *  abort the program, otherwise print a message and early return from the function.
+ */
+#define WT_RET_ASSERT(session, category, exp, v, ...)         \
+    do {                                                      \
+        if (WT_UNLIKELY(!(exp))) {                            \
+            if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
+            else                                              \
+                WT_RET_MSG(session, v, __VA_ARGS__);          \
+        }                                                     \
+    } while (0)
+
+/*
+ * WT_RET_PANIC_ASSERT --
+ *  Assert an expression. If the relevant assertion category is enabled
+ *  abort the program, otherwise return WT_PANIC.
+ */
+#define WT_RET_PANIC_ASSERT(session, category, exp, v, ...)   \
+    do {                                                      \
+        if (WT_UNLIKELY(!(exp))) {                            \
+            if (EXTRA_DIAGNOSTICS_ENABLED(session, category)) \
+                TRIGGER_ABORT(session, exp, __VA_ARGS__);     \
+            else                                              \
+                WT_RET_PANIC(session, v, __VA_ARGS__);        \
+        }                                                     \
+    } while (0)
+
+/*
+ * WT_PREFETCH_ASSERT --
+ *  Assert an expression for prefetch if in diagnostic mode, or update the relevant statistic if
+ *  not. As pre-fetch is an optional optimization, we want to avoid crashing the application for
+ *  an error, but instead swallow errors where possible.
+ */
+#define WT_PREFETCH_ASSERT(session, exp, stat) \
+    do {                                       \
+        if (!(exp))                            \
+            WT_STAT_CONN_INCR(session, stat);  \
+        WT_ASSERT(session, exp);               \
     } while (0)

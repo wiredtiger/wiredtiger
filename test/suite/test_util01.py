@@ -26,12 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import string, os, sys, random
+import string, random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_util01.py
 #    Utilities: wt dump, as well as the dump cursor
@@ -47,7 +44,6 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
 
     tablename = 'test_util01.a'
     nentries = 1000
-    session_config = 'isolation=snapshot'
     stringclass = ''.__class__
 
     def compare_config(self, expected_cfg, actual_cfg):
@@ -164,7 +160,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                 expectout.write(self.dumpstr(key, hexoutput))
                 expectout.write(self.dumpstr(value, hexoutput))
         if commit_timestamp is not None:
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_timestamp))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_timestamp))
 
     def dump(self, usingapi, hexoutput, commit_timestamp, read_timestamp):
         params = self.table_config()
@@ -244,6 +240,3 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_dump_process_timestamp_new(self):
         self.dump(False, False, 5, 7)
-
-if __name__ == '__main__':
-    wttest.run()

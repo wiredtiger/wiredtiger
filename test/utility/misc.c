@@ -27,8 +27,15 @@
  */
 #include "test_util.h"
 
+#include <math.h>
+
 #ifndef _WIN32
 #include <sys/wait.h>
+#endif
+
+#if defined(__APPLE__) || defined(__linux__)
+#include <dirent.h>
+#include <libgen.h>
 #endif
 
 void (*custom_die)(void) = NULL;
@@ -47,10 +54,6 @@ testutil_die(int e, const char *fmt, ...)
     (void)fflush(stdout);
     (void)fflush(stderr);
 
-    /* Allow test programs to cleanup on fatal error. */
-    if (custom_die != NULL)
-        (*custom_die)();
-
     fprintf(stderr, "%s: FAILED", progname);
     if (fmt != NULL) {
         fprintf(stderr, ": ");
@@ -61,9 +64,15 @@ testutil_die(int e, const char *fmt, ...)
     if (e != 0)
         fprintf(stderr, ": %s", wiredtiger_strerror(e));
     fprintf(stderr, "\n");
-    fprintf(stderr, "%s: process aborting\n", progname);
+    (void)fflush(stderr);
 
-    abort();
+    /* Allow test programs to cleanup on fatal error. */
+    if (custom_die != NULL)
+        (*custom_die)();
+
+    /* Drop core. */
+    fprintf(stderr, "%s: process aborting\n", progname);
+    __wt_abort(NULL);
 }
 
 /*
@@ -73,10 +82,19 @@ testutil_die(int e, const char *fmt, ...)
 const char *
 testutil_set_progname(char *const *argv)
 {
-    if ((progname = strrchr(argv[0], DIR_DELIM)) == NULL)
-        progname = argv[0];
-    else
-        ++progname;
+#ifdef _WIN32
+    /*
+     * On some Windows environments, such as Cygwin, argv[0] can use '/' as a path delimiter instead
+     * of '\\', so check both just in case.
+     */
+    if ((progname = strrchr(argv[0], '/')) != NULL)
+        return (++progname);
+#endif
+
+    if ((progname = strrchr(argv[0], DIR_DELIM)) != NULL)
+        return (++progname);
+
+    progname = argv[0];
     return (progname);
 }
 
@@ -99,92 +117,62 @@ testutil_work_dir_from_path(char *buffer, size_t len, const char *dir)
 }
 
 /*
- * testutil_clean_work_dir --
- *     Remove the work directory.
+ * testutil_deduce_build_dir --
+ *     Deduce the build directory.
  */
 void
-testutil_clean_work_dir(const char *dir)
+testutil_deduce_build_dir(TEST_OPTS *opts)
 {
-    size_t len;
-    int ret;
-    char *buf;
+    struct stat stats;
 
-#ifdef _WIN32
-    /* Additional bytes for the Windows rd command. */
-    len = 2 * strlen(dir) + strlen(RM_COMMAND) + strlen(DIR_EXISTS_COMMAND) + 4;
-    if ((buf = malloc(len)) == NULL)
-        testutil_die(ENOMEM, "Failed to allocate memory");
+    char path[512], pwd[512], stat_path[512];
+    char *token;
+    int index;
 
-    testutil_check(
-      __wt_snprintf(buf, len, "%s %s %s %s", DIR_EXISTS_COMMAND, dir, RM_COMMAND, dir));
-#else
-    len = strlen(dir) + strlen(RM_COMMAND) + 1;
-    if ((buf = malloc(len)) == NULL)
-        testutil_die(ENOMEM, "Failed to allocate memory");
+    if (getcwd(pwd, sizeof(pwd)) == NULL)
+        testutil_die(ENOENT, "No such directory");
 
-    testutil_check(__wt_snprintf(buf, len, "%s%s", RM_COMMAND, dir));
-#endif
+    /* This condition is when the full path name is used for argv0. */
+    if (opts->argv0[0] == '/')
+        testutil_snprintf(path, sizeof(path), "%s", opts->argv0);
+    else
+        testutil_snprintf(path, sizeof(path), "%s/%s", pwd, opts->argv0);
 
-    if ((ret = system(buf)) != 0 && ret != ENOENT)
-        testutil_die(ret, "%s", buf);
-    free(buf);
+    token = strrchr(path, '/');
+    while (strlen(path) > 0) {
+        testutil_assert(token != NULL);
+        index = (int)(token - path);
+        path[index] = '\0';
+
+        testutil_snprintf(stat_path, sizeof(stat_path), "%s/wt", path);
+
+        if (stat(stat_path, &stats) == 0) {
+            opts->build_dir = dstrdup(path);
+            return;
+        }
+        token = strrchr(path, '/');
+    }
+    return;
 }
 
 /*
  * testutil_build_dir --
- *     Get the git top level directory and concatenate the build directory.
+ *     Get the build directory.
  */
 void
-testutil_build_dir(char *buf, int size)
+testutil_build_dir(TEST_OPTS *opts, char *buf, int size)
 {
-    FILE *fp;
-    char *p;
+    /*
+     * To keep it simple, in order to get the build directory we require the user to set the build
+     * directory from the command line options. We unfortunately can't depend on a known/constant
+     * build directory (the user could have multiple out-of-source build directories). There's also
+     * not really any OS-agnostic mechanisms we can here use to discover the build directory the
+     * calling test binary exists in.
+     */
+    if (opts->build_dir == NULL)
+        testutil_die(ENOENT, "No build directory given");
 
-    /* Get the git top level directory. */
-#ifdef _WIN32
-    fp = _popen("git rev-parse --show-toplevel", "r");
-#else
-    fp = popen("git rev-parse --show-toplevel", "r");
-#endif
-
-    if (fp == NULL)
-        testutil_die(errno, "popen");
-    p = fgets(buf, size, fp);
-    if (p == NULL)
-        testutil_die(errno, "fgets");
-
-#ifdef _WIN32
-    _pclose(fp);
-#else
-    pclose(fp);
-#endif
-
-    /* Remove the trailing newline character added by fgets. */
-    buf[strlen(buf) - 1] = '\0';
-    strcat(buf, "/build_posix");
-}
-
-/*
- * testutil_make_work_dir --
- *     Delete the existing work directory, then create a new one.
- */
-void
-testutil_make_work_dir(const char *dir)
-{
-    size_t len;
-    char *buf;
-
-    testutil_clean_work_dir(dir);
-
-    /* Additional bytes for the mkdir command */
-    len = strlen(dir) + strlen(MKDIR_COMMAND) + 1;
-    if ((buf = malloc(len)) == NULL)
-        testutil_die(ENOMEM, "Failed to allocate memory");
-
-    /* mkdir shares syntax between Windows and Linux */
-    testutil_check(__wt_snprintf(buf, len, "%s%s", MKDIR_COMMAND, dir));
-    testutil_check(system(buf));
-    free(buf);
+    strncpy(buf, opts->build_dir, (size_t)size);
 }
 
 /*
@@ -198,7 +186,7 @@ testutil_progress(TEST_OPTS *opts, const char *message)
     uint64_t now;
 
     if (opts->progress_fp == NULL)
-        testutil_checksys((opts->progress_fp = fopen(opts->progress_file_name, "w")) == NULL);
+        testutil_assert_errno((opts->progress_fp = fopen(opts->progress_file_name, "w")) != NULL);
 
     fp = opts->progress_fp;
     __wt_seconds(NULL, &now);
@@ -216,44 +204,113 @@ testutil_cleanup(TEST_OPTS *opts)
     if (opts->conn != NULL)
         testutil_check(opts->conn->close(opts->conn, NULL));
 
-    if (!opts->preserve)
-        testutil_clean_work_dir(opts->home);
-
+    /*
+     * Make sure to close the progress file before we attempt to delete it; otherwise we will get an
+     * error on Windows.
+     */
     if (opts->progress_fp != NULL)
         testutil_assert(fclose(opts->progress_fp) == 0);
+
+    if (!opts->preserve)
+        testutil_remove(opts->home);
 
     free(opts->uri);
     free(opts->progress_file_name);
     free(opts->home);
+    free(opts->build_dir);
+    free(opts->tiered_storage_source);
 }
 
 /*
  * testutil_copy_data --
- *     Copy the data to a backup folder.
+ *     Copy the data to a backup folder. Usually, the data copy is cleaned up by a call to
+ *     testutil_clean_test_artifacts.
  */
 void
 testutil_copy_data(const char *dir)
 {
-    int status;
-    char buf[512];
+    WT_FILE_COPY_OPTS opts;
+    char save_dir[512];
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", dir, dir, dir));
-    if ((status = system(buf)) < 0)
-        testutil_die(status, "system: %s", buf);
+    memset(&opts, 0, sizeof(opts));
+    opts.preserve = true;
+
+    testutil_snprintf(save_dir, sizeof(save_dir), ".." DIR_DELIM_STR "%s.SAVE", dir);
+    testutil_remove(save_dir);
+    testutil_copy_ext(".", save_dir, &opts);
 }
 
 /*
- * testutil_timestamp_parse --
- *     Parse a timestamp to an integral value.
+ * testutil_copy_data_opt --
+ *     Copy the data to a backup folder. Directories and files with the specified "readonly prefix"
+ *     will be hard-linked instead of copied for efficiency on supported platforms.
  */
 void
-testutil_timestamp_parse(const char *str, uint64_t *tsp)
+testutil_copy_data_opt(const char *dir, const char *readonly_prefix)
 {
-    char *p;
+    WT_FILE_COPY_OPTS opts;
+    char save_dir[512];
 
-    *tsp = __wt_strtouq(str, &p, 16);
-    testutil_assert(p - str <= 16);
+    memset(&opts, 0, sizeof(opts));
+    opts.link = true;
+    opts.link_if_prefix = readonly_prefix;
+    opts.preserve = true;
+
+    testutil_snprintf(save_dir, sizeof(save_dir), ".." DIR_DELIM_STR "%s.SAVE", dir);
+    testutil_remove(save_dir);
+    testutil_copy_ext(".", save_dir, &opts);
+}
+
+/*
+ * testutil_clean_test_artifacts --
+ *     Clean any temporary files and folders created during test execution
+ */
+void
+testutil_clean_test_artifacts(const char *dir)
+{
+    char buf[512];
+
+    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.SAVE", dir);
+    testutil_remove(buf);
+
+    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.CHECK", dir);
+    testutil_remove(buf);
+
+    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.DEBUG", dir);
+    testutil_remove(buf);
+
+    testutil_snprintf(buf, sizeof(buf), ".." DIR_DELIM_STR "%s.BACKUP", dir);
+    testutil_remove(buf);
+}
+
+/*
+ * testutil_copy_if_exists --
+ *     Copy a file into a directory if it exists.
+ */
+void
+testutil_copy_if_exists(WT_SESSION *session, const char *name)
+{
+    bool exist;
+
+    testutil_check(__wt_fs_exist((WT_SESSION_IMPL *)session, name, &exist));
+    if (exist)
+        testutil_copy_file(session, name);
+}
+
+/*
+ * testutil_verify_model --
+ *     Run the model verification tool on the database. The database must be closed, and it has to
+ *     be created with debug logging and with log file removal set to false.
+ */
+void
+testutil_verify_model(TEST_OPTS *opts, const char *home)
+{
+    char tool_path[PATH_MAX];
+
+    testutil_build_dir(opts, tool_path, sizeof(tool_path));
+    testutil_strcat(tool_path, sizeof(tool_path), "/test/model/tools/model_verify_debug_log");
+
+    testutil_system("%s -h \"%s\"", tool_path, home);
 }
 
 /*
@@ -275,7 +332,7 @@ testutil_is_flag_set(const char *flag)
      */
     flag_being_set = res[0] != '0';
 
-    free((void *)res);
+    __wt_free(NULL, res);
 
     return (flag_being_set);
 }
@@ -293,6 +350,42 @@ testutil_print_command_line(int argc, char *const *argv)
     for (i = 0; i < argc; i++)
         printf("%s ", argv[i]);
     printf("\n");
+}
+
+/*
+ * testutil_is_dir_store --
+ *     Check if the external storage is dir_store.
+ */
+bool
+testutil_is_dir_store(TEST_OPTS *opts)
+{
+    bool dir_store;
+
+    dir_store = strcmp(opts->tiered_storage_source, DIR_STORE) == 0 ? true : false;
+    return (dir_store);
+}
+
+/*
+ * testutil_wiredtiger_open --
+ *     Call wiredtiger_open with the tiered storage configuration if enabled.
+ */
+void
+testutil_wiredtiger_open(TEST_OPTS *opts, const char *home, const char *config,
+  WT_EVENT_HANDLER *event_handler, WT_CONNECTION **connectionp, bool rerun, bool benchmarkrun)
+{
+    char buf[1024], tiered_cfg[512], tiered_ext_cfg[512];
+
+    opts->local_retention = benchmarkrun ? 0 : 2;
+    testutil_tiered_storage_configuration(
+      opts, home, tiered_cfg, sizeof(tiered_cfg), tiered_ext_cfg, sizeof(tiered_ext_cfg));
+
+    testutil_snprintf(buf, sizeof(buf), "%s%s%s%s,extensions=[%s]", config == NULL ? "" : config,
+      (rerun ? TESTUTIL_ENV_CONFIG_REC : ""), (opts->compat ? TESTUTIL_ENV_CONFIG_COMPAT : ""),
+      tiered_cfg, tiered_ext_cfg);
+
+    if (opts->verbose)
+        printf("wiredtiger_open configuration: %s\n", buf);
+    testutil_check(wiredtiger_open(home, event_handler, buf, connectionp));
 }
 
 #ifndef _WIN32
@@ -322,6 +415,43 @@ testutil_sleep_wait(uint32_t seconds, pid_t pid)
     }
 }
 #endif
+
+/*
+ * testutil_time_us --
+ *     Return the number of microseconds since the epoch.
+ */
+uint64_t
+testutil_time_us(WT_SESSION *session)
+{
+    struct timespec ts;
+
+    __wt_epoch((WT_SESSION_IMPL *)session, &ts);
+    return ((uint64_t)ts.tv_sec * WT_MILLION + (uint64_t)ts.tv_nsec / WT_THOUSAND);
+}
+
+/*
+ * testutil_pareto --
+ *     Given a random value, a range and a skew percentage. Return a value between [0 and range).
+ */
+uint64_t
+testutil_pareto(uint64_t rand, uint64_t range, u_int skew)
+{
+    double S1, S2, U;
+#define PARETO_SHAPE 1.5
+
+    S1 = (-1 / PARETO_SHAPE);
+    S2 = range * (skew / 100.0) * (PARETO_SHAPE - 1);
+    U = 1 - (double)rand / (double)UINT32_MAX;
+    rand = (uint64_t)((pow(U, S1) - 1) * S2);
+    /*
+     * This Pareto calculation chooses out of range values about
+     * 2% of the time, from my testing. That will lead to the
+     * first item in the table being "hot".
+     */
+    if (rand > range)
+        rand = 0;
+    return (rand);
+}
 
 /*
  * dcalloc --
@@ -413,6 +543,56 @@ example_setup(int argc, char *const *argv)
      */
     if ((home = getenv("WIREDTIGER_HOME")) == NULL)
         home = "WT_HOME";
-    testutil_make_work_dir(home);
+    testutil_recreate_dir(home);
     return (home);
+}
+
+/*
+ * is_mounted --
+ *     Check whether the given directory (other than /) is mounted. Works only on Linux.
+ */
+bool
+is_mounted(const char *mount_dir)
+{
+#ifndef __linux__
+    WT_UNUSED(mount_dir);
+    return false;
+#else
+    struct stat sb, parent_sb;
+    char buf[PATH_MAX];
+
+    testutil_snprintf(buf, sizeof(buf), "%s", mount_dir);
+    testutil_assert_errno(stat(mount_dir, &sb) == 0);
+    testutil_assert_errno(stat(dirname(buf), &parent_sb) == 0);
+
+    return sb.st_dev != parent_sb.st_dev;
+#endif
+}
+
+/*
+ * testutil_system_internal --
+ *     A convenience function that combines snprintf, system, and testutil_check.
+ */
+void
+testutil_system_internal(const char *function, uint32_t line, const char *fmt, ...)
+  WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)))
+{
+    WT_DECL_RET;
+    size_t len;
+    char buf[4096];
+    va_list ap;
+
+    len = 0;
+
+    va_start(ap, fmt);
+    ret = __wt_vsnprintf_len_incr(buf, sizeof(buf), &len, fmt, ap);
+    va_end(ap);
+
+    testutil_check(ret);
+
+    if (len >= sizeof(buf))
+        testutil_die(ERANGE, "The command is too long.");
+
+    if ((ret = (system(buf))) != 0)
+        testutil_die(ret, "%s/%d: system(%s)", function, line, buf);
 }

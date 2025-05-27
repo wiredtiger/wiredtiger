@@ -26,12 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
-
-def timestamp_str(t):
-    return '%x' % t
+from wtscenario import make_scenarios
 
 # test_prepare_hs01.py
 # test to ensure history store eviction is working for prepared transactions.
@@ -39,16 +36,24 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80'
 
+    format_values = [
+        ('column', dict(key_format='r', value_format='u')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('string-row', dict(key_format='S', value_format='u')),
+    ]
+
+    scenarios = make_scenarios(format_values)
+
     def check(self, uri, ds, nrows, nsessions, nkeys, read_ts, expected_value, not_expected_value):
         cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         for i in range(1, nsessions * nkeys):
             cursor.set_key(ds.key(nrows + i))
-            self.assertEquals(cursor.search(), 0)
+            self.assertEqual(cursor.search(), 0)
             # Correctness Test - commit_value should be visible
-            self.assertEquals(cursor.get_value(), expected_value)
+            self.assertEqual(cursor.get_value(), expected_value)
             # Correctness Test - prepare_value should NOT be visible
-            self.assertNotEquals(cursor.get_value(), not_expected_value)
+            self.assertNotEqual(cursor.get_value(), not_expected_value)
         cursor.close()
         self.session.commit_transaction()
 
@@ -67,26 +72,31 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         # memory. Hence testing if we can read prepared updates from the history store.
 
         # Start with setting a stable timestamp to pin history in cache
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+
+        if self.value_format == '8t':
+            bigvalue1 = 98
+            bigvalue2 = 99
+        else:
+            bigvalue1 = b"bbbbb" * 100
+            bigvalue2 = b"ccccc" * 100
 
         # Commit some updates to get eviction and history store fired up
-        bigvalue1 = b"bbbbb" * 100
         cursor = self.session.open_cursor(uri)
         for i in range(1, nsessions * nkeys):
-            self.session.begin_transaction('isolation=snapshot')
+            self.session.begin_transaction()
             cursor.set_key(ds.key(nrows + i))
             cursor.set_value(bigvalue1)
-            self.assertEquals(cursor.insert(), 0)
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
+            self.assertEqual(cursor.insert(), 0)
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         # Have prepared updates in multiple sessions. This should ensure writing
         # prepared updates to the history store
         sessions = [0] * nsessions
         cursors = [0] * nsessions
-        bigvalue2 = b"ccccc" * 100
         for j in range (0, nsessions):
             sessions[j] = self.conn.open_session()
-            sessions[j].begin_transaction('isolation=snapshot')
+            sessions[j].begin_transaction()
             cursors[j] = sessions[j].open_cursor(uri)
             # Each session will update many consecutive keys.
             start = (j * nkeys)
@@ -94,12 +104,12 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
             for i in range(start, end):
                 cursors[j].set_key(ds.key(nrows + i))
                 cursors[j].set_value(bigvalue2)
-                self.assertEquals(cursors[j].insert(), 0)
-            sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(2))
+                self.assertEqual(cursors[j].insert(), 0)
+            sessions[j].prepare_transaction('prepare_timestamp=' + self.timestamp_str(3))
 
         # Re-read the original versions of all the data. This ensures reading
         # original versions from the history store
-        self.check(uri, ds, nrows, nsessions, nkeys, 1, bigvalue1, bigvalue2)
+        self.check(uri, ds, nrows, nsessions, nkeys, 2, bigvalue1, bigvalue2)
 
         # Close all cursors and sessions, this will cause prepared updates to be
         # rollback-ed
@@ -110,22 +120,28 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         # Re-read the original versions of all the data. This ensures reading
         # original versions from the data store as the prepared updates are
         # aborted
-        self.check(uri, ds, nrows, nsessions, nkeys, 2, bigvalue1, bigvalue2)
+        self.check(uri, ds, nrows, nsessions, nkeys, 3, bigvalue1, bigvalue2)
 
+    @wttest.prevent(["timestamp"])  # prevent the use of hooks that manage timestamps
     def test_prepare_hs(self):
         # Create a small table.
         uri = "table:test_prepare_hs01"
         nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
+        ds = SimpleDataSet(
+            self, uri, nrows, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
-        bigvalue = b"aaaaa" * 100
+
+        if self.value_format == '8t':
+            bigvalue = 97
+        else:
+            bigvalue = b"aaaaa" * 100
 
         # Initially load huge data
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
             cursor.set_key(ds.key(nrows + i))
             cursor.set_value(bigvalue)
-            self.assertEquals(cursor.insert(), 0)
+            self.assertEqual(cursor.insert(), 0)
         cursor.close()
         self.session.checkpoint()
 
@@ -136,5 +152,4 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         nkeys = 4000
         self.prepare_updates(uri, ds, nrows, nsessions, nkeys)
 
-if __name__ == '__main__':
-    wttest.run()
+        self.ignoreStdoutPatternIfExists('Eviction took more than 1 minute')

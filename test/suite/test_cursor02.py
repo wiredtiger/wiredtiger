@@ -43,7 +43,7 @@ class test_cursor02(TestCursorTracker):
         ('row', dict(tablekind='row', uri='table')),
         ('lsm-row', dict(tablekind='row', uri='lsm')),
         ('col', dict(tablekind='col', uri='table')),
-        #('fix', dict(tablekind='fix'))
+        ('fix', dict(tablekind='fix', uri='table'))
     ])
 
     def create_session_and_cursor(self, ninitialentries):
@@ -149,6 +149,3 @@ class test_cursor02(TestCursorTracker):
         self.cur_check_backward(cursor, -1)
         self.cur_check_forward(cursor, -1)
         cursor.close()
-
-if __name__ == '__main__':
-    wttest.run()

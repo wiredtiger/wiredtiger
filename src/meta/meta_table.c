@@ -73,18 +73,15 @@ __wt_metadata_cursor_open(WT_SESSION_IMPL *session, const char *config, WT_CURSO
      */
     btree = CUR2BT(*cursorp);
 
-/*
- * Special settings for metadata: skew eviction so metadata almost always stays in cache and make
- * sure metadata is logged if possible.
- *
- * Test before setting so updates can't race in subsequent opens (the first update is safe because
- * it's single-threaded from wiredtiger_open).
- */
-#define WT_EVICT_META_SKEW 10000
-    if (btree->evict_priority == 0)
+#define WT_EVICT_META_SKEW (10 * WT_THOUSAND)
+    /*
+     * Skew eviction so metadata almost always stays in cache.
+     *
+     * Test before setting so updates can't race in subsequent opens (the first update is safe
+     * because it's single-threaded from wiredtiger_open).
+     */
+    if (btree->evict_data.evict_priority == 0)
         WT_WITH_BTREE(session, btree, __wt_evict_priority_set(session, WT_EVICT_META_SKEW));
-    if (F_ISSET(btree, WT_BTREE_NO_LOGGING))
-        F_CLR(btree, WT_BTREE_NO_LOGGING);
 
     return (0);
 }
@@ -186,7 +183,7 @@ __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *valu
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_METADATA,
+    __wt_verbose_debug3(session, WT_VERB_METADATA,
       "Insert: key: %s, value: %s, tracking: %s, %s"
       "turtle",
       key, value, WT_META_TRACKING(session) ? "true" : "false",
@@ -200,7 +197,7 @@ __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *valu
     cursor->set_value(cursor, value);
     WT_ERR(cursor->insert(cursor));
     if (WT_META_TRACKING(session))
-        WT_ERR(__wt_meta_track_insert(session, key));
+        WT_ERR(__wti_meta_track_insert(session, key));
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
@@ -216,19 +213,19 @@ __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *valu
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_METADATA,
+    __wt_verbose_debug3(session, WT_VERB_METADATA,
       "Update: key: %s, value: %s, tracking: %s, %s"
       "turtle",
       key, value, WT_META_TRACKING(session) ? "true" : "false",
       __metadata_turtle(key) ? "" : "not ");
 
     if (__metadata_turtle(key)) {
-        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value));
+        WT_WITH_TURTLE_LOCK(session, ret = __wti_turtle_update(session, key, value));
         return (ret);
     }
 
     if (WT_META_TRACKING(session))
-        WT_RET(__wt_meta_track_update(session, key));
+        WT_RET(__wti_meta_track_update(session, key));
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     /* This cursor needs to have overwrite semantics. */
@@ -252,7 +249,7 @@ __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_METADATA,
+    __wt_verbose_debug3(session, WT_VERB_METADATA,
       "Remove: key: %s, tracking: %s, %s"
       "turtle",
       key, WT_META_TRACKING(session) ? "true" : "false", __metadata_turtle(key) ? "" : "not ");
@@ -271,7 +268,7 @@ __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
     WT_ERR(__wt_metadata_cursor_release(session, &cursor));
 
     if (WT_META_TRACKING(session))
-        WT_ERR(__wt_meta_track_update(session, key));
+        WT_ERR(__wti_meta_track_update(session, key));
 
     WT_ERR(__wt_metadata_cursor(session, &cursor));
     cursor->set_key(cursor, key);
@@ -296,7 +293,7 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
 
     *valuep = NULL;
 
-    __wt_verbose(session, WT_VERB_METADATA,
+    __wt_verbose_debug3(session, WT_VERB_METADATA,
       "Search: key: %s, tracking: %s, %s"
       "turtle",
       key, WT_META_TRACKING(session) ? "true" : "false", __metadata_turtle(key) ? "" : "not ");
@@ -307,7 +304,7 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
          * otherwise. The code path is used enough that Coverity complains a lot, add an error check
          * to get some peace and quiet.
          */
-        WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_read(session, key, valuep));
+        WT_WITH_TURTLE_LOCK(session, ret = __wti_turtle_read(session, key, valuep));
         if (ret != 0)
             __wt_free(session, *valuep);
         return (ret);
@@ -350,7 +347,7 @@ __wt_metadata_btree_id_to_uri(WT_SESSION_IMPL *session, uint32_t btree_id, char 
     char *key, *value;
 
     *uri = NULL;
-    key = NULL;
+    key = value = NULL;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {

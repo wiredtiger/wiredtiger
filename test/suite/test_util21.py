@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2021 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,14 +30,10 @@ import wttest
 from suite_subprocess import suite_subprocess
 from helper import compare_files
 
-def timestamp_str(t):
-    return '%x' % t
-
 # test_util21.py
 # Ensure that wt dump can dump obsolete data in the history store.
 class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'cache_size=50MB'
-    session_config = 'isolation=snapshot'
 
     def add_data_with_timestamp(self, uri, value, ts):
         # Apply a series of updates with commit timestamp.
@@ -45,7 +41,7 @@ class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
         for i in range(1, 5):
             self.session.begin_transaction()
             cursor[str(i)] = value
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         cursor.close()
 
     def test_dump_obsolete_data(self):
@@ -58,7 +54,7 @@ class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
         value3 = 'c' * 100
         value4 = 'd' * 100
 
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
 
         self.add_data_with_timestamp(uri, value1, 2)
         self.add_data_with_timestamp(uri, value2, 3)
@@ -68,18 +64,15 @@ class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
 
         # Set stable timestamp, so we don't lose data when closing/opening connection when using wt dump.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
 
         # Call dump on the values before the oldest timestamp is set
         self.runWt(['dump', 'file:WiredTigerHS.wt'], outfilename="before_oldest")
 
         # Set oldest timestamp, and checkpoint, the obsolete data should not removed as
         # the pages are clean.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(6))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(6))
         self.session.checkpoint()
         self.runWt(['dump', 'file:WiredTigerHS.wt'], outfilename="after_oldest")
 
         self.assertEqual(True, compare_files(self, "before_oldest", "after_oldest"))
-
-if __name__ == '__main__':
-    wttest.run()

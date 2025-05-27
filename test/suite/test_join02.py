@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest, suite_random
+import wttest, suite_random
 from wtscenario import make_scenarios
 
 # test_join02.py
@@ -105,7 +105,7 @@ class test_join02(wttest.WiredTigerTestCase):
             #         ' ' + str(curleft.low) + ')')
             curleft.reset()
             curleft.set_key(*curleft.low)
-            self.assertEquals(0, curleft.search())
+            self.assertEqual(0, curleft.search())
             self.session.join(jc, curleft, 'compare=' + c0 + joinconfig)
             if c0 == 'eq':
                 mbr = mbr.intersection(curleft.eqmembers)
@@ -120,7 +120,7 @@ class test_join02(wttest.WiredTigerTestCase):
             #         ' ' + str(curright.high) + ')')
             curright.reset()
             curright.set_key(*curright.high)
-            self.assertEquals(0, curright.search())
+            self.assertEqual(0, curright.search())
             self.session.join(jc, curright, 'compare=' + c1 + joinconfig)
             if c1 == 'le':
                 mbr = mbr.intersection(
@@ -141,18 +141,18 @@ class test_join02(wttest.WiredTigerTestCase):
                 i = int(str(k0[3:]))
             elif self.keyformat == 'iS':
                 i = k0
-                self.assertEquals(i, int(str(k1[3:])))
+                self.assertEqual(i, int(str(k1[3:])))
             else:
                 i = k0
             #self.tty('  iteration got key: ' + str(k0) + ',' + str(k1))
             #self.tty('  iteration got values: ' + str([v0,v1,v2,v3,v4]))
             #self.tty('  iteration expects values: ' + str(self.gen_values(i)))
-            self.assertEquals(self.gen_values(i), [v0,v1,v2,v3,v4])
+            self.assertEqual(self.gen_values(i), [v0,v1,v2,v3,v4])
             if not i in mbr:
                 self.tty('  result ' + str(i) + ' is not in: ' + str(mbr))
             self.assertTrue(i in mbr)
             mbr.remove(i)
-        self.assertEquals(0, len(mbr))
+        self.assertEqual(0, len(mbr))
 
     def mkmbr(self, expr):
         return frozenset([x for x in self.range() if expr(x)])
@@ -286,6 +286,3 @@ class test_join02(wttest.WiredTigerTestCase):
         c3a.close()
         c3b.close()
         c4a.close()
-
-if __name__ == '__main__':
-    wttest.run()

@@ -13,7 +13,8 @@
  *     Drop a file.
  */
 static int
-__drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+__drop_file(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -26,10 +27,10 @@ __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *c
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
 
-    WT_RET(__wt_schema_backup_check(session, filename));
+    WT_RET(__wti_schema_backup_check(session, filename));
     /* Close all btree handles associated with this file. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
-      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
     WT_RET(ret);
 
     /* Remove the metadata entry (ignore missing items). */
@@ -50,17 +51,18 @@ __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *c
  *     WT_SESSION::drop for a colgroup.
  */
 static int
-__drop_colgroup(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+__drop_colgroup(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_COLGROUP *colgroup;
     WT_DECL_RET;
     WT_TABLE *table;
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
 
     /* If we can get the colgroup, detach it from the table. */
     if ((ret = __wt_schema_get_colgroup(session, uri, force, &table, &colgroup)) == 0) {
-        WT_TRET(__wt_schema_drop(session, colgroup->source, cfg));
+        WT_TRET(__wt_schema_drop(session, colgroup->source, cfg, check_visibility));
         if (ret == 0)
             table->cg_complete = false;
     }
@@ -74,14 +76,15 @@ __drop_colgroup(WT_SESSION_IMPL *session, const char *uri, bool force, const cha
  *     WT_SESSION::drop for an index.
  */
 static int
-__drop_index(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
+__drop_index(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_DECL_RET;
     WT_INDEX *idx;
 
     /* If we can get the index, detach it from the table. */
-    if ((ret = __wt_schema_get_index(session, uri, true, force, &idx)) == 0)
-        WT_TRET(__wt_schema_drop(session, idx->source, cfg));
+    if ((ret = __wti_schema_get_index(session, uri, true, force, &idx)) == 0)
+        WT_TRET(__wt_schema_drop(session, idx->source, cfg, check_visibility));
 
     WT_TRET(__wt_metadata_remove(session, uri));
     return (ret);
@@ -92,7 +95,8 @@ __drop_index(WT_SESSION_IMPL *session, const char *uri, bool force, const char *
  *     WT_SESSION::drop for a table.
  */
 static int
-__drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+__drop_table(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
     WT_COLGROUP *colgroup;
     WT_DECL_RET;
@@ -102,7 +106,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     const char *name;
     bool tracked;
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE_WRITE));
 
     name = uri;
     WT_PREFIX_SKIP_REQUIRED(session, name, "table:");
@@ -122,8 +126,14 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
      * table that are already open must at least be closed before this call proceeds.
      */
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
-    WT_ERR(__wt_schema_release_table(session, &table));
+    WT_ERR(__wti_schema_release_table_gen(session, &table, true));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
+
+    if (force && !table->is_simple) {
+        __wt_verbose_warning(session, WT_VERB_HANDLEOPS,
+          "ENOTSUP: drop table with force=true is not supported for complex tables. uri=%s", uri);
+        WT_ERR(ENOTSUP);
+    }
 
     /* Drop the column groups. */
     for (i = 0; i < WT_COLGROUPS(table); i++) {
@@ -133,7 +143,7 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
          * Drop the column group before updating the metadata to avoid the metadata for the table
          * becoming inconsistent if we can't get exclusive access.
          */
-        WT_ERR(__wt_schema_drop(session, colgroup->source, cfg));
+        WT_ERR(__wt_schema_drop(session, colgroup->source, cfg, check_visibility));
         WT_ERR(__wt_metadata_remove(session, colgroup->name));
     }
 
@@ -146,12 +156,12 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
          * Drop the index before updating the metadata to avoid the metadata for the table becoming
          * inconsistent if we can't get exclusive access.
          */
-        WT_ERR(__wt_schema_drop(session, idx->source, cfg));
+        WT_ERR(__wt_schema_drop(session, idx->source, cfg, check_visibility));
         WT_ERR(__wt_metadata_remove(session, idx->name));
     }
 
     /* Make sure the table data handle is closed. */
-    WT_ERR(__wt_schema_release_table(session, &table));
+    WT_ERR(__wti_schema_release_table_gen(session, &table, true));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
     F_SET(&table->iface, WT_DHANDLE_DISCARD);
     if (WT_META_TRACKING(session)) {
@@ -174,36 +184,157 @@ err:
  *     Drop a tiered store.
  */
 static int
-__drop_tiered(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+__drop_tiered(
+  WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[], bool check_visibility)
 {
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
-    WT_TIERED *tiered;
-    u_int i;
+    WT_TIERED *tiered, tiered_tmp;
+    u_int i, localid;
+    const char *filename, *name;
+    bool exist, got_dhandle, remove_files, remove_shared;
 
+    conn = S2C(session);
+    WT_NOT_READ(got_dhandle, false);
+
+    WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
+    remove_files = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "remove_shared", &cval));
+    remove_shared = cval.val != 0;
+
+    if (!remove_files && remove_shared)
+        WT_RET_MSG(session, EINVAL,
+          "drop for tiered storage object must configure removal of underlying files "
+          "if forced removal of shared objects is enabled");
+
+    name = NULL;
     /* Get the tiered data handle. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    got_dhandle = true;
     tiered = (WT_TIERED *)session->dhandle;
+    /*
+     * Save a copy because we cannot release the tiered resources until after the dhandle is
+     * released and closed. We have to know if the table is busy or if the close is successful
+     * before cleaning up the tiered information.
+     */
+    tiered_tmp = *tiered;
 
-    /* Drop the tiers. */
-    for (i = 0; i < tiered->ntiers; i++) {
-        tier = tiered->tiers[i];
-        WT_ERR(__wt_schema_drop(session, tier->name, cfg));
+    /*
+     * We are about to close the dhandle. If that is successful we need to remove any tiered work
+     * from the queue relating to that dhandle. But if closing the dhandle has an error we don't
+     * remove the work. So hold the tiered lock for the duration so that the worker thread cannot
+     * race and process work for this handle.
+     */
+    __wt_spin_lock(session, &conn->tiered_lock);
+    /*
+     * Close all btree handles associated with this table. This must be done after we're done using
+     * the tiered structure because that is from the dhandle.
+     */
+    WT_ERR(__wt_session_release_dhandle(session));
+    got_dhandle = false;
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
+    WT_ERR(ret);
+
+    /*
+     * If closing the URI succeeded then we can remove tiered information using the saved tiered
+     * structure from above. We need the copy because the dhandle has been released.
+     */
+
+    /*
+     * We cannot remove the objects on shared storage as other systems may be accessing them too.
+     * Remove the current local file object, the tiered entry and all bucket objects from the
+     * metadata only.
+     */
+    tier = tiered_tmp.tiers[WT_TIERED_INDEX_LOCAL].tier;
+    localid = tiered_tmp.current_id;
+    if (tier != NULL) {
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: drop %u local object %s", localid, tier->name);
+        WT_WITHOUT_DHANDLE(session,
+          WT_WITH_HANDLE_LIST_WRITE_LOCK(
+            session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
+        WT_ERR(ret);
+        WT_ERR(__wt_metadata_remove(session, tier->name));
+        if (remove_files) {
+            filename = tier->name;
+            WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
+            WT_ERR(__wt_meta_track_drop(session, filename));
+        }
     }
+
+    /* Close any dhandle and remove any tier: entry from metadata. */
+    tier = tiered_tmp.tiers[WT_TIERED_INDEX_SHARED].tier;
+    if (tier != NULL) {
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: drop shared object %s", tier->name);
+        WT_WITHOUT_DHANDLE(session,
+          WT_WITH_HANDLE_LIST_WRITE_LOCK(
+            session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
+        WT_ERR(ret);
+        WT_ERR(__wt_metadata_remove(session, tier->name));
+    } else
+        /* If we don't have a shared tier we better be on the first object. */
+        WT_ASSERT(session, localid == 1);
+
+    /*
+     * We remove all metadata entries for both the file and object versions of an object. The local
+     * retention means we can have both versions in the metadata. Ignore WT_NOTFOUND.
+     */
+    for (i = tiered_tmp.oldest_id; i < tiered_tmp.current_id; ++i) {
+        WT_ERR(__wt_tiered_name(session, &tiered_tmp.iface, i, WT_TIERED_NAME_LOCAL, &name));
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: remove local object %s from metadata", name);
+        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
+        __wt_free(session, name);
+        WT_ERR(__wt_tiered_name(session, &tiered_tmp.iface, i, WT_TIERED_NAME_OBJECT, &name));
+        __wt_verbose_debug2(
+          session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
+        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name), false);
+        if (remove_files && tier != NULL) {
+            filename = name;
+            WT_PREFIX_SKIP_REQUIRED(session, filename, "object:");
+            WT_ERR(__wt_fs_exist(session, filename, &exist));
+            if (exist)
+                WT_ERR(__wt_meta_track_drop(session, filename));
+
+            /*
+             * If a drop operation on tiered storage is configured to force removal of shared
+             * objects, we want to remove these files after the drop operation is successful.
+             */
+            if (remove_shared)
+                WT_ERR(__wt_meta_track_drop_object(session, tiered_tmp.bstorage, filename));
+        }
+        __wt_free(session, name);
+    }
+
+    /*
+     * If everything is successful, remove any tiered work associated with this tiered handle. The
+     * dhandle has been released here but queued work may still refer to it. The queued work unit
+     * has its own reference to it and we're holding the lock so it isn't yet stale.
+     */
+    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove work for %p", (void *)tiered);
+    __wt_tiered_remove_work(session, tiered, true);
+    __wt_spin_unlock(session, &conn->tiered_lock);
 
     ret = __wt_metadata_remove(session, uri);
 
 err:
-    F_SET(session->dhandle, WT_DHANDLE_DISCARD);
-    WT_TRET(__wt_session_release_dhandle(session));
+    if (got_dhandle)
+        WT_TRET(__wt_session_release_dhandle(session));
+    __wt_free(session, name);
+    __wt_spin_unlock_if_owned(session, &conn->tiered_lock);
     return (ret);
 }
+
 /*
  * __schema_drop --
  *     Process a WT_SESSION::drop operation for all supported types.
  */
 static int
-__schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+__schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool check_visibility)
 {
     WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
@@ -219,17 +350,17 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     session->dhandle = NULL;
 
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
-        ret = __drop_colgroup(session, uri, force, cfg);
+        ret = __drop_colgroup(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "file:"))
-        ret = __drop_file(session, uri, force, cfg);
+        ret = __drop_file(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "index:"))
-        ret = __drop_index(session, uri, force, cfg);
+        ret = __drop_index(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "lsm:"))
-        ret = __wt_lsm_tree_drop(session, uri, cfg);
+        ret = __wt_lsm_tree_drop(session, uri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "table:"))
-        ret = __drop_table(session, uri, cfg);
+        ret = __drop_table(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
-        ret = __drop_tiered(session, uri, cfg);
+        ret = __drop_tiered(session, uri, force, cfg, check_visibility);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
         ret = dsrc->drop == NULL ? __wt_object_unsupported(session, uri) :
                                    dsrc->drop(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg);
@@ -243,7 +374,10 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     if (ret == WT_NOTFOUND || ret == ENOENT)
         ret = force ? 0 : ENOENT;
 
-    WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+    if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE))
+        WT_TRET(__wt_meta_track_off(session, false, ret != 0));
+    else
+        WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
     return (ret);
 }
@@ -253,13 +387,23 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
  *     Process a WT_SESSION::drop operation for all supported types.
  */
 int
-__wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+__wt_schema_drop(
+  WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool check_visibility)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *int_session;
 
-    WT_RET(__wt_schema_internal_session(session, &int_session));
-    ret = __schema_drop(int_session, uri, cfg);
-    WT_TRET(__wt_schema_session_release(session, int_session));
+    /*
+     * We should be calling this function with the schema lock, but we cannot verify it here because
+     * we can re-enter this function with the internal session. If we get here using the internal
+     * session, we cannot check whether we own the lock, as it would be locked by the outer session.
+     * We can thus only check whether the lock is acquired, as opposed to, whether the lock is
+     * acquired by us.
+     */
+    WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
+
+    WT_RET(__wti_schema_internal_session(session, &int_session));
+    ret = __schema_drop(int_session, uri, cfg, check_visibility);
+    WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
 }

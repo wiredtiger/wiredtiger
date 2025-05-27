@@ -8,6 +8,10 @@
 
 #include "util.h"
 
+/*
+ * util_cerr --
+ *     Report an error for a cursor operation.
+ */
 int
 util_cerr(WT_CURSOR *cursor, const char *op, int ret)
 {
@@ -53,7 +57,7 @@ util_read_line(WT_SESSION *session, ULINE *l, bool eof_expected, bool *eofp)
     *eofp = false;
 
     if (l->memsize == 0) {
-        if ((l->mem = realloc(l->mem, l->memsize + 1024)) == NULL)
+        if ((l->mem = util_realloc(l->mem, l->memsize + 1024)) == NULL)
             return (util_err(session, errno, NULL));
         l->memsize = 1024;
     }
@@ -75,7 +79,7 @@ util_read_line(WT_SESSION *session, ULINE *l, bool eof_expected, bool *eofp)
          * means we always need one extra byte at the end.
          */
         if (len >= l->memsize - 1) {
-            if ((l->mem = realloc(l->mem, l->memsize + 1024)) == NULL)
+            if ((l->mem = util_realloc(l->mem, l->memsize + 1024)) == NULL)
                 return (util_err(session, errno, NULL));
             l->memsize += 1024;
         }
@@ -134,15 +138,15 @@ util_flush(WT_SESSION *session, const char *uri)
     char *buf;
 
     len = strlen(uri) + 100;
-    if ((buf = malloc(len)) == NULL)
+    if ((buf = util_malloc(len)) == NULL)
         return (util_err(session, errno, NULL));
 
     if ((ret = __wt_snprintf(buf, len, "target=(\"%s\")", uri)) != 0) {
-        free(buf);
+        util_free(buf);
         return (util_err(session, ret, NULL));
     }
     ret = session->checkpoint(session, buf);
-    free(buf);
+    util_free(buf);
 
     if (ret == 0)
         return (0);
@@ -169,4 +173,55 @@ util_usage(const char *usage, const char *tag, const char *list[])
     if (list != NULL)
         for (p = list; *p != NULL; p += 2)
             fprintf(stderr, "    %s%s%s\n", p[0], strlen(p[0]) > 2 ? "\n        " : "  ", p[1]);
+}
+
+/*
+ * util_malloc --
+ *     Convenience and correctness wrapper for memory allocations. Pairs with util_free.
+ */
+void *
+util_malloc(size_t len)
+{
+    return (malloc(len));
+}
+
+/*
+ * util_calloc --
+ *     Convenience and correctness wrapper for array allocations. Pairs with util_free.
+ */
+void *
+util_calloc(size_t members, size_t sz)
+{
+    return (calloc(members, sz));
+}
+
+/*
+ * util_realloc --
+ *     Convenience and correctness wrapper for memory reallocations. Pairs with util_free.
+ */
+void *
+util_realloc(void *p, size_t len)
+{
+    return (realloc(p, len));
+}
+
+/*
+ * util_free --
+ *     Convenience and correctness wrapper for freeing memory. Pairs with
+ *     util_malloc/util_realloc/util_calloc.
+ */
+void
+util_free(void *p)
+{
+    free(p);
+}
+
+/*
+ * util_strdup --
+ *     Convenience and correctness wrapper for strdup. Free allocated memory with util_free.
+ */
+char *
+util_strdup(const char *s)
+{
+    return (strdup(s));
 }

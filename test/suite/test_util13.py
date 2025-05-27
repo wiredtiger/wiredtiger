@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, string
+import os, re
 from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 import wiredtiger, wttest
@@ -180,6 +180,3 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.assertTrue(self.compare_files(expectfile, outfile))
         self.assertTrue(self.load_recheck(ds, expectfile, outfile))
-
-if __name__ == '__main__':
-    wttest.run()

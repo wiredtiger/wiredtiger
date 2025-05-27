@@ -27,29 +27,40 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-
-def timestamp_str(t):
-    return '%x' % t
+from wtscenario import make_scenarios
 
 # test_truncate05.py
 # Test various fast truncate visibility scenarios
 class test_truncate05(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB'
-    session_config = 'isolation=snapshot'
+
+    format_values = [
+        ('column', dict(key_format='r', value_format='S', extraconfig='')),
+        ('column_fix', dict(key_format='r', value_format='8t',
+            extraconfig=',allocation_size=512,leaf_page_max=512')),
+        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
+    ]
+
+    scenarios = make_scenarios(format_values)
 
     def test_truncate_read_older_than_newest(self):
         uri = 'table:test_truncate05'
-        self.session.create(uri, 'key_format=i,value_format=S')
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, format + self.extraconfig)
         cursor = self.session.open_cursor(uri)
 
-        value1 = 'a' * 500
-        value2 = 'b' * 500
+        if self.value_format == '8t':
+            value1 = 97
+            value2 = 98
+        else:
+            value1 = 'a' * 500
+            value2 = 'b' * 500
 
         # Insert a range of keys.
         for i in range(1, 1000):
             self.session.begin_transaction()
             cursor[i] = value1
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         # Reopen the connection to force all content to disk.
         self.reopen_conn()
@@ -59,17 +70,17 @@ class test_truncate05(wttest.WiredTigerTestCase):
         # Insert a single update at a later timestamp.
         self.session.begin_transaction()
         cursor[500] = value2
-        self.assertEqual(self.session.commit_transaction('commit_timestamp=' + timestamp_str(3)), 0)
+        self.assertEqual(self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3)), 0)
 
         # Insert a bunch of other content to fill the database and evict the committed update.
         for i in range(1000, 20000):
             self.session.begin_transaction()
             cursor[i] = value1
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
 
         # Start a transaction with an earlier read timestamp than the commit timestamp of the
         # previous update.
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(2))
 
         # Truncate from key 1 to 1000.
         start = self.session.open_cursor(uri, None)

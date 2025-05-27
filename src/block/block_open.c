@@ -21,6 +21,38 @@ __wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename, bool dur
 }
 
 /*
+ * __wt_block_manager_drop_object --
+ *     Drop a shared object file from the bucket directory and the cache directory.
+ */
+int
+__wt_block_manager_drop_object(
+  WT_SESSION_IMPL *session, WT_BUCKET_STORAGE *bstorage, const char *filename, bool durable)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+
+    WT_UNUSED(durable);
+
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+
+    /* Generate the name of the shared object file with the bucket prefix. */
+    WT_ERR(__wt_buf_fmt(session, tmp, "%s%s", bstorage->bucket_prefix, filename));
+    /*
+     * Call directly into the bucket file system rather than wt_fs_remove because wt_fs_remove will
+     * prepend the home directory and then send an incorrect path into the storage layer. The bucket
+     * and cache directory should just get the prefixed name and it will do its own path management.
+     */
+    WT_WITH_BUCKET_STORAGE(bstorage, session,
+      ret = bstorage->file_system->fs_remove(
+        bstorage->file_system, (WT_SESSION *)session, tmp->data, 0));
+    WT_ERR(ret);
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
  * __wt_block_manager_create --
  *     Create a file.
  */
@@ -53,15 +85,15 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
             WT_ERR(__wt_fs_exist(session, tmp->data, &exists));
             if (!exists) {
                 WT_ERR(__wt_fs_rename(session, filename, tmp->data, false));
-                WT_ERR(__wt_msg(session, "unexpected file %s found, renamed to %s", filename,
-                  (const char *)tmp->data));
+                __wt_verbose_notice(session, WT_VERB_BLOCK,
+                  "unexpected file %s found, renamed to %s", filename, (const char *)tmp->data);
                 break;
             }
         }
     }
 
     /* Write out the file's meta-data. */
-    ret = __wt_desc_write(session, fh, allocsize);
+    ret = __wti_desc_write(session, fh, allocsize);
 
     /*
      * Ensure the truncated file has made it to disk, then the upper-level is never surprised.
@@ -73,7 +105,7 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
 
     /* Undo any create on error. */
     if (ret != 0)
-        WT_TRET(__wt_fs_remove(session, filename, false));
+        WT_TRET(__wt_fs_remove(session, filename, false, false));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -82,33 +114,28 @@ err:
 }
 
 /*
- * __block_destroy --
- *     Destroy a block handle.
+ * __wt_block_close --
+ *     Close a block handle.
  */
-static int
-__block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
+int
+__wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint64_t bucket;
-    u_int i;
 
-    conn = S2C(session);
-    bucket = block->name_hash & (conn->hash_size - 1);
-    WT_CONN_BLOCK_REMOVE(conn, block, bucket);
+    if (block == NULL) /* Safety check, if failed to initialize. */
+        return (0);
+
+    __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
+
+    /* We shouldn't have any read requests in progress. */
+    WT_ASSERT(session, block->read_count == 0);
 
     __wt_free(session, block->name);
 
-    if (block->log_structured && block->lfh != NULL) {
-        for (i = 0; i < block->max_logid; i++)
-            WT_TRET(__wt_close(session, &block->lfh[i]));
-        __wt_free(session, block->lfh);
-    }
-
-    if (block->fh != NULL)
-        WT_TRET(__wt_close(session, &block->fh));
+    WT_TRET(__wt_close(session, &block->fh));
 
     __wt_spin_destroy(session, &block->live_lock);
+    __wti_block_ckpt_destroy(session, &block->live);
 
     __wt_overwrite_and_free(session, block);
 
@@ -116,11 +143,11 @@ __block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
 }
 
 /*
- * __wt_block_configure_first_fit --
+ * __wti_block_configure_first_fit --
  *     Configure first-fit allocation.
  */
 void
-__wt_block_configure_first_fit(WT_BLOCK *block, bool on)
+__wti_block_configure_first_fit(WT_BLOCK *block, bool on)
 {
     /*
      * Switch to first-fit allocation so we rewrite blocks at the start of the file; use atomic
@@ -138,8 +165,9 @@ __wt_block_configure_first_fit(WT_BLOCK *block, bool on)
  *     Open a block handle.
  */
 int
-__wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp)
+__wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objectid,
+  const char *cfg[], bool forced_salvage, bool readonly, bool fixed, uint32_t allocsize,
+  WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
@@ -148,41 +176,41 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     uint64_t bucket, hash;
     uint32_t flags;
 
-    *blockp = block = NULL;
+    *blockp = NULL;
 
     __wt_verbose(session, WT_VERB_BLOCK, "open: %s", filename);
 
+    block = NULL;
     conn = S2C(session);
+
+    /* Block objects can be shared (although there can be only one writer). */
     hash = __wt_hash_city64(filename, strlen(filename));
     bucket = hash & (conn->hash_size - 1);
     __wt_spin_lock(session, &conn->block_lock);
-    TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
-        if (strcmp(filename, block->name) == 0) {
+    TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq)
+        if (block->objectid == objectid && strcmp(filename, block->name) == 0) {
             ++block->ref;
             *blockp = block;
             __wt_spin_unlock(session, &conn->block_lock);
             return (0);
         }
-    }
 
-    /*
-     * Basic structure allocation, initialization.
-     *
-     * Note: set the block's name-hash value before any work that can fail because cleanup calls the
-     * block destroy code which uses that hash value to remove the block from the underlying linked
-     * lists.
-     */
+    /* Basic structure allocation, initialization. */
     WT_ERR(__wt_calloc_one(session, &block));
-    block->ref = 1;
-    block->name_hash = hash;
-    block->allocsize = allocsize;
-    WT_CONN_BLOCK_INSERT(conn, block, bucket);
-
     WT_ERR(__wt_strdup(session, filename, &block->name));
+    block->compact_session_id = WT_SESSION_ID_INVALID;
+    block->objectid = objectid;
+    block->ref = 1;
+
+    /* If not passed an allocation size, get one from the configuration. */
+    if (allocsize == 0) {
+        WT_ERR(__wt_config_gets(session, cfg, "allocation_size", &cval));
+        allocsize = (uint32_t)cval.val;
+    }
+    block->allocsize = allocsize;
 
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
-    block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
-    block->log_structured = WT_STRING_MATCH("log-structured", cval.str, cval.len);
+    block->allocfirst = WT_CONFIG_LIT_MATCH("first", cval) ? 1 : 0;
 
     /* Configuration: optional OS buffer cache maximum size. */
     WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));
@@ -202,17 +230,26 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
      */
     flags = 0;
     WT_ERR(__wt_config_gets(session, cfg, "access_pattern_hint", &cval));
-    if (WT_STRING_MATCH("random", cval.str, cval.len))
+    if (WT_CONFIG_LIT_MATCH("random", cval))
         LF_SET(WT_FS_OPEN_ACCESS_RAND);
-    else if (WT_STRING_MATCH("sequential", cval.str, cval.len))
+    else if (WT_CONFIG_LIT_MATCH("sequential", cval))
         LF_SET(WT_FS_OPEN_ACCESS_SEQ);
 
+    if (fixed)
+        LF_SET(WT_FS_OPEN_FIXED);
     if (readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT))
         LF_SET(WT_FS_OPEN_DIRECTIO);
     if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
         LF_SET(WT_FS_OPEN_DIRECTIO);
-    block->file_flags = flags;
-    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &block->fh));
+    /*
+     * Tiered storage sets file permissions to readonly, but nobody else does. This flag means the
+     * underlying file is read-only, and NOT that the handle access pattern is read-only.
+     */
+    if (readonly) {
+        LF_SET(WT_FS_OPEN_READONLY);
+        block->readonly = true;
+    }
+    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));
@@ -236,51 +273,27 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     if (!forced_salvage)
         WT_ERR(__desc_read(session, allocsize, block));
 
-    *blockp = block;
+    /* Block is valid, so make it visible in the connection. */
+    WT_CONN_BLOCK_INSERT(conn, block, bucket);
+
     __wt_spin_unlock(session, &conn->block_lock);
+
+    *blockp = block;
     return (0);
 
 err:
-    if (block != NULL)
-        WT_TRET(__block_destroy(session, block));
     __wt_spin_unlock(session, &conn->block_lock);
-    return (ret);
-}
-
-/*
- * __wt_block_close --
- *     Close a block handle.
- */
-int
-__wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-
-    if (block == NULL) /* Safety check */
-        return (0);
-
-    conn = S2C(session);
-
-    __wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
-
-    __wt_spin_lock(session, &conn->block_lock);
-
-    /* Reference count is initialized to 1. */
-    if (block->ref == 0 || --block->ref == 0)
-        ret = __block_destroy(session, block);
-
-    __wt_spin_unlock(session, &conn->block_lock);
+    WT_TRET(__wt_block_close(session, block));
 
     return (ret);
 }
 
 /*
- * __wt_desc_write --
+ * __wti_desc_write --
  *     Write a file's initial descriptor structure.
  */
 int
-__wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
+__wti_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 {
     WT_BLOCK_DESC *desc;
     WT_DECL_ITEM(buf);
@@ -313,6 +326,17 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 
     __wt_scr_free(session, &buf);
     return (ret);
+}
+
+/*
+ * __file_is_wt_internal --
+ *     Check if a filename is one used by WiredTiger internal files.
+ */
+static bool
+__file_is_wt_internal(const char *name)
+{
+    return (strcmp(name, WT_METAFILE) == 0 || strcmp(name, WT_HS_FILE) == 0 ||
+      strcmp(name, WT_CC_METAFILE) == 0);
 }
 
 /*
@@ -391,8 +415,11 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * file name, and is now frantically pounding their interrupt key.
      */
     if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched) {
-        if (strcmp(block->name, WT_METAFILE) == 0 || strcmp(block->name, WT_HS_FILE) == 0)
-            WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s is corrupted", block->name);
+        if (__file_is_wt_internal(block->name))
+            WT_ERR_MSG(session, WT_TRY_SALVAGE,
+              "%s is corrupted: calculated block checksum of %#" PRIx32
+              " doesn't match expected checksum of %#" PRIx32,
+              block->name, __wt_checksum(desc, allocsize), checksum_tmp);
         /*
          * If we're doing an import, we can't expect to be able to verify checksums since we don't
          * know the allocation size being used. This isn't an error so we should just return success

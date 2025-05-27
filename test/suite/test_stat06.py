@@ -26,13 +26,17 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import helper, wiredtiger, wttest
+import wiredtiger, wttest
 from time import sleep
 from wiredtiger import stat
 
 # test_stat06.py
 #    Check that statistics are started or stopped when intended
 class test_stat06(wttest.WiredTigerTestCase):
+
+    # Turn off statistics by default for this test.
+    def conn_config(self):
+        return 'statistics=(none)'
 
     def test_stats_on(self):
         self.close_conn()
@@ -56,6 +60,3 @@ class test_stat06(wttest.WiredTigerTestCase):
             msg = '/database statistics configuration/'
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
                 self.session.open_cursor('statistics:', None, None), msg)
-
-if __name__ == '__main__':
-    wttest.run()

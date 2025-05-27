@@ -30,50 +30,71 @@
 #   Test the write generation mechanism to ensure that transaction ids get wiped between runs.
 #
 
-import wiredtiger, wttest
+import wttest
+from wtscenario import make_scenarios
 
 class test_txn25(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
-    session_config = 'isolation=snapshot'
+    base_config = 'create,cache_size=50MB'
+    format_values = [
+        ('fix', dict(key_format='r', usestrings=False, value_format='8t')),
+        ('row', dict(key_format='S', usestrings=True, value_format='S')),
+        ('var', dict(key_format='r', usestrings=False, value_format='S')),
+    ]
+    log_config = [
+        ('logging', dict(conn_config=base_config + ',log=(enabled)')),
+        ('no-logging', dict(conn_config=base_config)),
+    ]
+    scenarios = make_scenarios(format_values, log_config)
+
+    def getkey(self, i):
+        return str(i) if self.usestrings else i
 
     def test_txn25(self):
         uri = 'file:test_txn25'
-        create_config = 'allocation_size=512,key_format=S,value_format=S'
-        self.session.create(uri, create_config)
+        create_config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, 'allocation_size=512,' + create_config)
 
         # Populate the file and ensure that we start seeing some high transaction IDs in the system.
-        value1 = 'aaaaa' * 100
-        value2 = 'bbbbb' * 100
-        value3 = 'ccccc' * 100
+        nrows = 1000
+        if self.value_format == '8t':
+            # Values are 1/500 the size, but for this we don't need to generate a lot of data,
+            # just a lot of transactions, so we can keep the same nrows. This will generate only
+            # one page, but that shouldn't affect the test criteria.
+            value1 = 97
+            value2 = 98
+            value3 = 99
+        else:
+            value1 = 'aaaaa' * 100
+            value2 = 'bbbbb' * 100
+            value3 = 'ccccc' * 100
 
         # Keep transaction ids around.
         session2 = self.conn.open_session()
         session2.begin_transaction()
 
         cursor = self.session.open_cursor(uri)
-        for i in range(1, 1000):
+        for i in range(1, nrows):
             self.session.begin_transaction()
-            cursor[str(i)] = value1
+            cursor[self.getkey(i)] = value1
             self.session.commit_transaction()
 
-        for i in range(1, 1000):
+        for i in range(1, nrows):
             self.session.begin_transaction()
-            cursor[str(i)] = value2
+            cursor[self.getkey(i)] = value2
             self.session.commit_transaction()
 
-        for i in range(1, 1000):
+        for i in range(1, nrows):
             self.session.begin_transaction()
-            cursor[str(i)] = value3
+            cursor[self.getkey(i)] = value3
             self.session.commit_transaction()
+
+        # Force pages to be written with transaction IDs.
+        self.session.checkpoint()
 
         session2.rollback_transaction()
-        session2.close()
 
-        # Close and re-open the connection.
-        cursor.close()
-        self.conn.close()
-        self.conn = wiredtiger.wiredtiger_open(self.home, self.conn_config)
-        self.session = self.conn.open_session(self.session_config)
+        # Reopen the connection.
+        self.reopen_conn()
 
         # Now that we've reopened, check that we can view the latest data from the previous run.
         #
@@ -81,6 +102,6 @@ class test_txn25(wttest.WiredTigerTestCase):
         # so we have to wipe the cell's transaction IDs in order to see them.
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, 1000):
-            self.assertEqual(cursor[str(i)], value3)
+        for i in range(1, nrows):
+            self.assertEqual(cursor[self.getkey(i)], value3)
         self.session.rollback_transaction()

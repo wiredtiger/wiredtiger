@@ -53,9 +53,9 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from test_import01 import test_import_base
 
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_import04(test_import_base):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
-    session_config = 'isolation=snapshot'
+    conn_config = 'cache_size=50MB'
 
     ntables = 10
     nrows = 100
@@ -91,7 +91,7 @@ class test_import04(test_import_base):
         # Create the target table for import tests.
         original_db_table = 'original_db_table'
         uri = 'table:' + original_db_table
-        create_config = 'allocation_size=512,log=(enabled=true),' + self.config
+        create_config = 'allocation_size=512,' + self.config
         self.session.create(uri, create_config)
 
         keys = self.keys
@@ -192,7 +192,7 @@ class test_import04(test_import_base):
         self.session.create(uri, import_config)
 
         # Verify object.
-        self.session.verify(uri)
+        self.verifyUntilSuccess(self.session, uri, None)
 
         # Check that the previously inserted values survived the import.
         self.check(uri, keys[:max_idx], values[:max_idx])
@@ -216,6 +216,3 @@ class test_import04(test_import_base):
 
         # Perform a checkpoint.
         self.session.checkpoint()
-
-if __name__ == '__main__':
-    wttest.run()

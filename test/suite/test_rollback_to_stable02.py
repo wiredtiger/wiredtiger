@@ -26,25 +26,30 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
-from test_rollback_to_stable01 import test_rollback_to_stable_base
-
-def timestamp_str(t):
-    return '%x' % t
+from rollback_to_stable_util import test_rollback_to_stable_base
 
 # test_rollback_to_stable02.py
 # Test that rollback to stable brings back the history value to replace on-disk value.
 class test_rollback_to_stable02(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+    # For FLCS, set the page size down. Otherwise for the in-memory scenarios we get enough
+    # updates on the page that the in-memory page footprint exceeds the default maximum
+    # in-memory size, and that in turn leads to pathological behavior where the page gets
+    # force-evicted over and over again trying to resolve/condense the updates. But they
+    # don't (for in-memory, they can't be moved to the history store) so this leads to a
+    # semi-livelock state that makes the test some 20x slower than it needs to be.
+    #
+    # FUTURE: it would be better if the system adjusted on its own, but it's not critical
+    # and this workload (with every entry on the page modified repeatedly) isn't much like
+    # anything that happens in production.
+    format_values = [
+        ('column', dict(key_format='r', value_format='S', extraconfig='')),
+        ('column_fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
+        ('row_integer', dict(key_format='i', value_format='S', extraconfig='')),
     ]
 
     in_memory_values = [
@@ -57,72 +62,95 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(key_format_values, in_memory_values, prepare_values)
+    dryrun_values = [
+        ('no_dryrun', dict(dryrun=False)),
+        ('dryrun', dict(dryrun=True))
+    ]
+
+    worker_thread_values = [
+        ('0', dict(threads=0)),
+        ('4', dict(threads=4)),
+        ('8', dict(threads=8))
+    ]
+
+    scenarios = make_scenarios(format_values, in_memory_values, prepare_values, dryrun_values, worker_thread_values)
 
     def conn_config(self):
-        config = 'cache_size=100MB,statistics=(all)'
+        config = 'cache_size=100MB,statistics=(all),verbose=(rts:5)'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',log=(enabled),in_memory=false'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 10000
 
-        # Prepare transactions for column store table is not yet supported.
-        if self.prepare and self.key_format == 'r':
-            self.skipTest('Prepare transactions for column store table is not yet supported')
-
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable02"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        ds_config = self.extraconfig
+        ds_config += ',log=(enabled=false)' if self.in_memory else ''
+        ds = SimpleDataSet(self, uri, 0,
+            key_format=self.key_format, value_format=self.value_format, config=ds_config)
         ds.populate()
 
-        # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        if self.value_format == '8t':
+            valuea = 97
+            valueb = 98
+            valuec = 99
+            valued = 100
+        else:
+            valuea = "aaaaa" * 100
+            valueb = "bbbbb" * 100
+            valuec = "ccccc" * 100
+            valued = "ddddd" * 100
 
-        valuea = "aaaaa" * 100
-        valueb = "bbbbb" * 100
-        valuec = "ccccc" * 100
-        valued = "ddddd" * 100
+        # Pin oldest and stable to timestamp 1.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+
         self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
-        self.check(valuea, uri, nrows, 10)
+        self.check(valuea, uri, nrows, None, 11 if self.prepare else 10)
 
         self.large_updates(uri, valueb, ds, nrows, self.prepare, 20)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valueb, uri, nrows, 20)
+        self.check(valueb, uri, nrows, None, 21 if self.prepare else 20)
 
         self.large_updates(uri, valuec, ds, nrows, self.prepare, 30)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valuec, uri, nrows, 30)
+        self.check(valuec, uri, nrows, None, 31 if self.prepare else 30)
 
         self.large_updates(uri, valued, ds, nrows, self.prepare, 40)
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valued, uri, nrows, 40)
+        self.check(valued, uri, nrows, None, 41 if self.prepare else 40)
 
         # Pin stable to timestamp 30 if prepare otherwise 20.
         if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(30))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         # Checkpoint to ensure that all the data is flushed.
+        self.session.breakpoint()
         if not self.in_memory:
             self.session.checkpoint()
 
-        self.conn.rollback_to_stable()
+        self.conn.rollback_to_stable('dryrun={}'.format('true' if self.dryrun else 'false') + ',threads=' + str(self.threads))
         # Check that the new updates are only seen after the update timestamp.
-        self.check(valueb, uri, nrows, 40)
-        self.check(valueb, uri, nrows, 20)
-        self.check(valuea, uri, nrows, 10)
+        self.session.breakpoint()
+
+        if self.dryrun:
+            self.check(valued, uri, nrows, None, 40)
+        else:
+            self.check(valueb, uri, nrows, None, 40)
+
+        self.check(valueb, uri, nrows, None, 20)
+        self.check(valuea, uri, nrows, None, 10)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
         upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
             stat_cursor[stat.conn.txn_rts_hs_removed][2])
+        upd_aborted_dryrun = (stat_cursor[stat.conn.txn_rts_upd_aborted_dryrun][2] +
+            stat_cursor[stat.conn.txn_rts_hs_removed_dryrun][2])
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
@@ -132,7 +160,10 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(upd_aborted, nrows * 2)
 
-if __name__ == '__main__':
-    wttest.run()
+        if self.dryrun:
+            self.assertEqual(upd_aborted, 0)
+            self.assertGreaterEqual(upd_aborted_dryrun, nrows * 2)
+        else:
+            self.assertGreaterEqual(upd_aborted, nrows * 2)
+            self.assertEqual(upd_aborted_dryrun, 0)

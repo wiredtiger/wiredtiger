@@ -15,17 +15,19 @@
  */
 typedef struct __wt_meta_track {
     enum {
-        WT_ST_EMPTY = 0,   /* Unused slot */
-        WT_ST_CHECKPOINT,  /* Complete a checkpoint */
-        WT_ST_DROP_COMMIT, /* Drop post commit */
-        WT_ST_FILEOP,      /* File operation */
-        WT_ST_LOCK,        /* Lock a handle */
-        WT_ST_REMOVE,      /* Remove a metadata entry */
-        WT_ST_SET          /* Reset a metadata entry */
+        WT_ST_EMPTY = 0,          /* Unused slot */
+        WT_ST_CHECKPOINT,         /* Complete a checkpoint */
+        WT_ST_DROP_COMMIT,        /* Drop post commit */
+        WT_ST_DROP_OBJECT_COMMIT, /* Drop an object post commit */
+        WT_ST_FILEOP,             /* File operation */
+        WT_ST_LOCK,               /* Lock a handle */
+        WT_ST_REMOVE,             /* Remove a metadata entry */
+        WT_ST_SET                 /* Reset a metadata entry */
     } op;
-    char *a, *b;             /* Strings */
-    WT_DATA_HANDLE *dhandle; /* Locked handle */
-    bool created;            /* Handle on newly created file */
+    char *a, *b;                 /* Strings */
+    WT_BUCKET_STORAGE *bstorage; /* Bucket */
+    WT_DATA_HANDLE *dhandle;     /* Locked handle */
+    bool created;                /* Handle on newly created file */
 } WT_META_TRACK;
 
 /*
@@ -147,6 +149,10 @@ __meta_track_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
         if ((ret = __wt_block_manager_drop(session, trk->a, false)) != 0)
             __wt_err(session, ret, "metadata remove dropped file %s", trk->a);
         break;
+    case WT_ST_DROP_OBJECT_COMMIT:
+        if ((ret = __wt_block_manager_drop_object(session, trk->bstorage, trk->a, false)) != 0)
+            __wt_err(session, ret, "metadata remove dropped object file %s", trk->a);
+        break;
     case WT_ST_LOCK:
         WT_WITH_DHANDLE(session, trk->dhandle, ret = __wt_session_release_dhandle(session));
         break;
@@ -181,6 +187,8 @@ __meta_track_unroll(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
         break;
     case WT_ST_DROP_COMMIT:
         break;
+    case WT_ST_DROP_OBJECT_COMMIT:
+        break;
     case WT_ST_LOCK: /* Handle lock, see above */
         if (trk->created)
             F_SET(trk->dhandle, WT_DHANDLE_DISCARD);
@@ -196,7 +204,8 @@ __meta_track_unroll(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
              session, trk->b + strlen("file:"), trk->a + strlen("file:"), true)) != 0)
             __wt_err(session, ret, "metadata unroll rename %s to %s", trk->b, trk->a);
 
-        if (trk->a == NULL && (ret = __wt_fs_remove(session, trk->b + strlen("file:"), false)) != 0)
+        if (trk->a == NULL &&
+          (ret = __wt_fs_remove(session, trk->b + strlen("file:"), false, false)) != 0)
             __wt_err(session, ret, "metadata unroll create %s", trk->b);
 
         /*
@@ -276,14 +285,14 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
         WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
           ret = __wt_txn_checkpoint_log(session, false, WT_TXN_LOG_CKPT_SYNC, NULL));
     else {
-        WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
         ckpt_session = S2C(session)->meta_ckpt_session;
         /*
          * If this operation is part of a running transaction, that should be included in the
          * checkpoint.
          */
         ckpt_session->txn->id = session->txn->id;
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_METADATA));
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_METADATA));
         WT_WITH_DHANDLE(ckpt_session, WT_SESSION_META_DHANDLE(session),
           WT_WITH_METADATA_LOCK(ckpt_session, ret = __wt_checkpoint(ckpt_session, NULL)));
         ckpt_session->txn->id = WT_TXN_NONE;
@@ -390,11 +399,11 @@ __wt_meta_track_checkpoint(WT_SESSION_IMPL *session)
     return (0);
 }
 /*
- * __wt_meta_track_insert --
+ * __wti_meta_track_insert --
  *     Track an insert operation.
  */
 int
-__wt_meta_track_insert(WT_SESSION_IMPL *session, const char *key)
+__wti_meta_track_insert(WT_SESSION_IMPL *session, const char *key)
 {
     WT_DECL_RET;
     WT_META_TRACK *trk;
@@ -411,11 +420,11 @@ err:
 }
 
 /*
- * __wt_meta_track_update --
+ * __wti_meta_track_update --
  *     Track a metadata update operation.
  */
 int
-__wt_meta_track_update(WT_SESSION_IMPL *session, const char *key)
+__wti_meta_track_update(WT_SESSION_IMPL *session, const char *key)
 {
     WT_DECL_RET;
     WT_META_TRACK *trk;
@@ -426,8 +435,8 @@ __wt_meta_track_update(WT_SESSION_IMPL *session, const char *key)
     WT_ERR(__wt_strdup(session, key, &trk->a));
 
     /*
-     * If there was a previous value, keep it around -- if not, then this
-     * "update" is really an insert.
+     * If there was a previous value, keep it around -- if not, then this "update" is really an
+     * insert.
      */
     if ((ret = __wt_metadata_search(session, key, &trk->b)) == WT_NOTFOUND) {
         trk->op = WT_ST_REMOVE;
@@ -485,6 +494,29 @@ err:
 }
 
 /*
+ * __wt_meta_track_drop_object --
+ *     Track a shared object file drop, where the remove is deferred until commit.
+ */
+int
+__wt_meta_track_drop_object(
+  WT_SESSION_IMPL *session, WT_BUCKET_STORAGE *bstorage, const char *filename)
+{
+    WT_DECL_RET;
+    WT_META_TRACK *trk;
+
+    WT_RET(__meta_track_next(session, &trk));
+
+    trk->op = WT_ST_DROP_OBJECT_COMMIT;
+    trk->bstorage = bstorage;
+    WT_ERR(__wt_strdup(session, filename, &trk->a));
+    return (0);
+
+err:
+    __meta_track_err(session);
+    return (ret);
+}
+
+/*
  * __wt_meta_track_handle_lock --
  *     Track a locked handle.
  */
@@ -515,7 +547,7 @@ __wt_meta_track_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
         WT_RET(__wt_open_internal_session(
-          conn, "metadata-ckpt", false, WT_SESSION_NO_DATA_HANDLES, &conn->meta_ckpt_session));
+          conn, "metadata-ckpt", false, WT_SESSION_NO_DATA_HANDLES, 0, &conn->meta_ckpt_session));
 
         /*
          * Set session transaction isolation to read-committed isolation, we rely on that for the

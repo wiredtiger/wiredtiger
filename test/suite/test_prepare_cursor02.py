@@ -27,21 +27,17 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtdataset import SimpleDataSet, SimpleIndexDataSet
-from wtdataset import SimpleLSMDataSet, ComplexDataSet, ComplexLSMDataSet
+from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' %t
 
 # test_prepare_cursor02.py
 #    WT_CURSOR navigation (next/prev) tests with prepared transactions
 class test_prepare_cursor02(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
 
     keyfmt = [
-        ('row-store', dict(keyfmt='i')),
-        ('column-store', dict(keyfmt='r')),
+        ('row-store', dict(keyfmt='i', valfmt='S')),
+        ('column-store', dict(keyfmt='r', valfmt='S')),
+        ('fixed-length-column-store', dict(keyfmt='r', valfmt='8t')),
     ]
     types = [
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
@@ -49,18 +45,12 @@ class test_prepare_cursor02(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(types, keyfmt)
 
-    def skip(self):
-        return self.keyfmt == 'r' and \
-            (self.ds.is_lsm() or self.uri == 'lsm')
-
     # Test cursor navigate (next/prev) with prepared transactions.
     def test_cursor_navigate_prepare_transaction(self):
-        if self.skip():
-            return
 
         # Build an object.
         uri = self.uri + ':test_prepare_cursor02'
-        ds = self.ds(self, uri, 0, key_format=self.keyfmt)
+        ds = self.ds(self, uri, 0, key_format=self.keyfmt, value_format=self.valfmt)
         ds.populate()
 
         session = self.session
@@ -69,7 +59,7 @@ class test_prepare_cursor02(wttest.WiredTigerTestCase):
         cursor.set_key(ds.key(1))
         cursor.set_value(ds.value(1))
         cursor.insert()
-        session.prepare_transaction('prepare_timestamp=' + timestamp_str(100))
+        session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100))
 
         prep_session = self.conn.open_session(self.session_config)
         prep_cursor = prep_session.open_cursor(uri, None)
@@ -93,6 +83,3 @@ class test_prepare_cursor02(wttest.WiredTigerTestCase):
         prep_session.commit_transaction()
 
         session.rollback_transaction()
-
-if __name__ == '__main__':
-    wttest.run()

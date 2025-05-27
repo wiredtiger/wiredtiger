@@ -26,27 +26,44 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# [TEST_TAGS]
+# truncate:prepare
+# [END_TAGS]
+#
 # test_prepare13.py
 #   Fast-truncate fails when a page contains prepared updates.
 import wiredtiger, wttest
 from wtdataset import simple_key, simple_value
+from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
 class test_prepare13(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
+    conn_config = 'cache_size=10MB'
+
+    format_values = [
+        ('column', dict(key_format='r', value_format='S')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+        ('string-row', dict(key_format='S', value_format='S')),
+    ]
+
+    scenarios = make_scenarios(format_values)
 
     def test_prepare(self):
         nrows = 20000
+
+        if self.value_format == '8t':
+            replacement_value = 199
+        else:
+            replacement_value = "replacement_value"
+
         # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         # Create a large table with lots of pages.
         uri = "table:test_prepare13"
-        config = 'allocation_size=512,leaf_page_max=512,key_format=S,value_format=S'
-        self.session.create(uri, config)
+        config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, 'allocation_size=512,leaf_page_max=512,' + config)
         cursor = self.session.open_cursor(uri)
         for i in range(1, nrows):
             cursor[simple_key(cursor, i)] = simple_value(cursor, i)
@@ -55,14 +72,14 @@ class test_prepare13(wttest.WiredTigerTestCase):
         # Prepare a record.
         self.session.begin_transaction()
         cursor = self.session.open_cursor(uri)
-        cursor[simple_key(cursor, 1000)] = "replacement_value"
+        cursor[simple_key(cursor, 1000)] = replacement_value
         cursor.close()
-        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(10))
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10))
 
         try:
             # Pin oldest and stable to timestamp 10.
-            self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
-                ',stable_timestamp=' + timestamp_str(10))
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
+                ',stable_timestamp=' + self.timestamp_str(10))
 
             # Open a separate session and cursor and perform updates to let prepared update to evict.
             s = self.conn.open_session()
@@ -70,27 +87,25 @@ class test_prepare13(wttest.WiredTigerTestCase):
             for i in range(2000, nrows):
                 s.begin_transaction()
                 cursor[simple_key(cursor, i)] = simple_value(cursor, i)
-                s.commit_transaction('commit_timestamp=' + timestamp_str(20))
+                s.commit_transaction('commit_timestamp=' + self.timestamp_str(20))
             cursor.close()
 
             # Truncate the middle chunk and expect a conflict.
-            preparemsg = '/conflict with a prepared update/'
+            msg = preparemsg = '/conflict between concurrent operations/'
             s.begin_transaction()
             c1 = s.open_cursor(uri, None)
             c1.set_key(simple_key(c1, 100))
             c2 = s.open_cursor(uri, None)
             c2.set_key(simple_key(c1, nrows))
-            self.assertRaisesException(wiredtiger.WiredTigerError, lambda:s.truncate(None, c1, c2, None), preparemsg)
+            self.assertRaisesException(
+                wiredtiger.WiredTigerError, lambda:s.truncate(None, c1, c2, None), msg)
             c1.close()
             c2.close()
             s.rollback_transaction()
 
         finally:
-            self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(50))
-            self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(50))
+            self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(50))
+            self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(50))
             self.session.commit_transaction()
 
         s.close()
-
-if __name__ == '__main__':
-    wttest.run()

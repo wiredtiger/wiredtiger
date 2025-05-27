@@ -30,33 +30,37 @@
 #   Timestamps: make sure they don't end up in metadata
 #
 
-import random
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wttest
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 class test_timestamp05(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:ts05'
-    session_config = 'isolation=snapshot'
+
+    format_values = [
+        ('integer-row', dict(key_format='i', value_format='S')),
+        ('column', dict(key_format='r', value_format='S')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+    ]
+    scenarios = make_scenarios(format_values)
 
     def test_create(self):
         s = self.session
         conn = self.conn
+
+        new_value = 71 if self.value_format == '8t' else 'new value'
 
         # Start timestamps at 50
         conn.set_timestamp('oldest_timestamp=50,stable_timestamp=50')
 
         # Commit at 100
         s.begin_transaction()
-        s.create(self.uri, 'key_format=i,value_format=S')
-        s.commit_transaction('commit_timestamp=' + timestamp_str(100))
+        s.create(self.uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
+        s.commit_transaction('commit_timestamp=' + self.timestamp_str(100))
 
         # Make sure the tree is dirty
         c = s.open_cursor(self.uri)
-        c[200] = 'new value'
+        c[200] = new_value
 
         # Checkpoint at 50
         s.checkpoint('use_timestamp=true')
@@ -65,13 +69,16 @@ class test_timestamp05(wttest.WiredTigerTestCase, suite_subprocess):
         s = self.session
         conn = self.conn
 
-        s.create(self.uri, 'key_format=i,value_format=S')
+        some_value = 66 if self.value_format == '8t' else 'some value'
+        new_value = 71 if self.value_format == '8t' else 'new value'
+
+        s.create(self.uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
         c = s.open_cursor(self.uri, None, 'bulk')
 
         # Insert keys 1..100 each with timestamp=key, in some order
         nkeys = 100
         for k in range(1, nkeys+1):
-            c[k] = 'some value'
+            c[k] = some_value
 
         # Start timestamps at 50
         conn.set_timestamp('oldest_timestamp=50,stable_timestamp=50')
@@ -79,14 +86,11 @@ class test_timestamp05(wttest.WiredTigerTestCase, suite_subprocess):
         # Commit at 100
         s.begin_transaction()
         c.close()
-        s.commit_transaction('commit_timestamp=' + timestamp_str(100))
+        s.commit_transaction('commit_timestamp=' + self.timestamp_str(100))
 
         # Make sure the tree is dirty
         c = s.open_cursor(self.uri)
-        c[200] = 'new value'
+        c[200] = new_value
 
         # Checkpoint at 50
         s.checkpoint('use_timestamp=true')
-
-if __name__ == '__main__':
-    wttest.run()

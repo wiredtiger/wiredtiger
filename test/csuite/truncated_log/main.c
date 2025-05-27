@@ -32,26 +32,30 @@
 
 static char home[1024]; /* Program working dir */
 static const char *const uri = "table:main";
+static bool use_columns = false;
 
 #define RECORDS_FILE "records"
 
-#define ENV_CONFIG                                      \
-    "create,log=(file_max=100K,archive=false,enabled)," \
-    "transaction_sync=(enabled,method=none)"
-#define ENV_CONFIG_REC "log=(recover=on)"
+#define ENV_CONFIG                                                                                \
+    "create,log=(enabled,file_max=100K,remove=false),"                                            \
+    "transaction_sync=(enabled,method=none),statistics=(all),statistics_log=(json,on_close,wait=" \
+    "1)"
+#define ENV_CONFIG_ADD_REC "log=(recover=on),statistics=(all),statistics_log=(json,on_close,wait=1)"
 
 #define LOG_FILE_1 "WiredTigerLog.0000000001"
 
 #define K_SIZE 16
 #define V_SIZE 256
 
-/*
- * Write a new log record into the log via log print, then open up a log cursor and walk the log to
- * make sure we can read it. The reason for this test is that if there is a partial log record at
- * the end of the previous log file and truncate does not exist, this tests that we can still read
- * past that record.
- */
 static void write_and_read_new(WT_SESSION *);
+
+/*
+ * write_and_read_new --
+ *     Write a new log record into the log via log print, then open up a log cursor and walk the log
+ *     to make sure we can read it. The reason for this test is that if there is a partial log
+ *     record at the end of the previous log file and truncate does not exist, this tests that we
+ *     can still read past that record.
+ */
 static void
 write_and_read_new(WT_SESSION *session)
 {
@@ -106,6 +110,11 @@ write_and_read_new(WT_SESSION *session)
 }
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -113,11 +122,13 @@ usage(void)
     exit(EXIT_FAILURE);
 }
 
-/*
- * Child process creates the database and table, and then writes data into the table until it
- * switches into log file 2.
- */
 static void fill_db(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
+/*
+ * fill_db --
+ *     Child process creates the database and table, and then writes data into the table until it
+ *     switches into log file 2.
+ */
 static void
 fill_db(void)
 {
@@ -128,7 +139,13 @@ fill_db(void)
     WT_SESSION *session;
     uint32_t i, max_key, min_key, units, unused;
     char k[K_SIZE], v[V_SIZE];
+    const char *table_config;
     bool first;
+
+    if (use_columns)
+        table_config = "key_format=r,value_format=S";
+    else
+        table_config = "key_format=S,value_format=S";
 
     /*
      * Run in the home directory so that the records file is in there too.
@@ -137,7 +154,7 @@ fill_db(void)
         testutil_die(errno, "chdir: %s", home);
     testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->create(session, uri, "key_format=S,value_format=S"));
+    testutil_check(session->create(session, uri, table_config));
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
     /*
@@ -160,14 +177,18 @@ fill_db(void)
      * and file creation records. Then subtract out a few more records to be conservative.
      */
     units = (K_SIZE + V_SIZE) / 128 + 1;
-    min_key = 90000 / (units * 128) - 15;
+    min_key = (90 * WT_THOUSAND) / (units * 128) - 15;
     max_key = min_key * 2;
     first = true;
     for (i = 0; i < max_key; ++i) {
-        testutil_check(__wt_snprintf(k, sizeof(k), "key%03d", (int)i));
-        testutil_check(
-          __wt_snprintf(v, sizeof(v), "value%0*d", (int)(V_SIZE - (strlen("value") + 1)), (int)i));
-        cursor->set_key(cursor, k);
+        if (use_columns)
+            cursor->set_key(cursor, i + 1);
+        else {
+            testutil_snprintf(k, sizeof(k), "key%03" PRIu32, i);
+            cursor->set_key(cursor, k);
+        }
+        testutil_snprintf(
+          v, sizeof(v), "value%0*" PRIu32, (int)(V_SIZE - (strlen("value") + 1)), i);
         cursor->set_value(cursor, v);
         testutil_check(cursor->insert(cursor));
 
@@ -207,13 +228,16 @@ fill_db(void)
     }
     if (fclose(fp) != 0)
         testutil_die(errno, "fclose");
-    exit(0);
-    /* NOTREACHED */
+    _exit(EXIT_SUCCESS);
 }
 
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -226,14 +250,23 @@ main(int argc, char *argv[])
     uint32_t count, max_key;
     int ch, ret, status;
     const char *working_dir;
+    bool preserve;
 
+    preserve = false;
     (void)testutil_set_progname(argv);
 
     working_dir = "WT_TEST.truncated-log";
-    while ((ch = __wt_getopt(progname, argc, argv, "h:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "ch:")) != EOF)
         switch (ch) {
+        case 'c':
+            /* Variable-length columns only (for now) */
+            use_columns = true;
+            break;
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         default:
             usage();
@@ -243,23 +276,21 @@ main(int argc, char *argv[])
         usage();
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
-    testutil_make_work_dir(home);
+    testutil_recreate_dir(home);
 
     /*
      * Fork a child to do its work. Wait for it to exit.
      */
-    if ((pid = fork()) < 0)
-        testutil_die(errno, "fork");
+    testutil_assert_errno((pid = fork()) >= 0);
 
     if (pid == 0) { /* child */
         fill_db();
-        return (EXIT_SUCCESS);
+        /* NOTREACHED */
     }
 
     /* parent */
     /* Wait for child to kill itself. */
-    if (waitpid(pid, &status, 0) == -1)
-        testutil_die(errno, "waitpid");
+    testutil_assert_errno(waitpid(pid, &status, 0) != -1);
 
     /*
      * !!! If we wanted to take a copy of the directory before recovery,
@@ -288,7 +319,7 @@ main(int argc, char *argv[])
     if (truncate(LOG_FILE_1, (wt_off_t)new_offset) != 0)
         testutil_die(errno, "truncate");
 
-    testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
+    testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_ADD_REC, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
@@ -316,5 +347,12 @@ main(int argc, char *argv[])
      */
     write_and_read_new(session);
     testutil_check(conn->close(conn, NULL));
+    if (!preserve) {
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_remove(home);
+    }
+
     return (EXIT_SUCCESS);
 }

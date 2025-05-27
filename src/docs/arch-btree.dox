@@ -1,0 +1,102 @@
+/*! @arch_page arch-btree B-Trees
+
+WiredTiger represents database tables using a B-Tree data structure (\c WT_BTREE in
+\c btree.h), which is made up of nodes that are page structures. The root and internal
+pages only store keys and references to other pages, while leaf pages store keys and
+values. Pages are populated with records as users insert data into the database. Records
+are maintained in sorted order according to their key, and pages will split once their
+configured limit is reached, causing the B-Tree to expand. Pages have an in-memory
+representation as well as an on-disk representation. The focus here will be on
+the in-memory representation of the B-Tree and its pages as defined in \c btmem.h. The
+on-disk representation is discussed in the @ref arch-data-file page.
+
+@section btree_btree_data_source B-Tree Data Source (WT_BTREE)
+
+As discussed in the @ref arch-dhandle page, data handles (dhandles), are generic
+containers used to access various types of data sources. Dhandles that represent
+B-Trees contain a pointer to the \c WT_BTREE. At a high-level, the \c WT_BTREE
+contains a memory cache of key value pairs, along with functions to read and
+write data as needed to and from the data file. It also contains the specific WT_BTREE
+type, a reference to the root page on disk for access to the underlying data, and
+information used to maintain the B-Tree structure. The different B-Tree types support
+different access methods; row-store is most commonly used (\c WT_BTREE_ROW), and
+column-store is available with either fixed-length records (\c WT_BTREE_COL_FIX) or
+variable-length records (\c WT_BTREE_COL_VAR) (see @ref arch-row-column for more details).
+
+@section btree_btree_in_memory_representation B-Tree In-Memory Representation
+
+B-Trees can grow to a very large size, and the space in memory is
+generally not large enough to hold all the pages of the B-Tree. To access a page in
+the B-Tree, we require a \c WT_REF which tracks whether the page has or has not been
+loaded from storage. Once the page is loaded, the \c WT_REF or reference structure will
+have a valid \c WT_PAGE pointer which represents the in-memory page. The \c WT_BTREE
+structure contains a \c WT_REF that points to the root page of the given tree. Other
+pages can be accessed as required by traversing through the child structures of the root
+page, and the child structures of those pages, and so on.
+
+To insert or modify values in a row-store B-Tree, the code traverses down to the leaf
+pages which contain the key/value pairs (\c WT_ROW structure). New key/value pairs are
+inserted into row-store leaf pages using a \c WT_INSERT structure. Existing entries on
+leaf pages can be updated, modified or deleted through \c WT_UPDATE structures. As new
+updates are made, these structures are chained into an update list. This means that an
+entry may have some old values, or deleted values, which may be visible depending on
+the timestamp used by a reader.
+
+@section btree_truncate_operation Truncate Operation
+
+Truncate allows multiple records in a specified range to be deleted in a single operation.
+It is much faster and more efficient than deleting each record individually. Fast-truncate
+is an optimization that WiredTiger makes internally; whole pages are marked as deleted
+without having to first instantiate the page in memory or inspect records individually. In
+situations where this is not possible, a slower truncate will walk keys individually, putting
+a tombstone onto each one to mark deletion. Truncation is also possible for log files but
+the focus here will be on truncation for B-Tree data files (\c file: uri).
+
+@section btree_range_truncate_file Range Truncate On Files
+
+<!-- Caution: the long ref to the arch-fast-truncate page must stay on one line. -->
+
+To perform a truncate on a file, a start and stop cursor are positioned corresponding
+to the desired range provided by the user. The desired start and stop keys do not actually
+need to exist since the cursors are positioned by doing a search-near rather than a search.
+Once positioned, we do a page-by-page walk on the B-Tree, fast-truncating pages where
+possible.
+See @ref ft_truncate for a detailed description, and see
+@ref arch-fast-truncate "the separate page on fast-truncate and deleted pages"
+for further description of other ways deleted pages appear and what happens to them after
+they are deleted.
+
+@section btree_truncate_interaction_with_other_operations Interaction With Other Operations
+
+Historically we have stated that truncation is not transactional: if a range truncate is in
+progress and another transaction happens to insert a key into the same range, the behavior is
+not well defined.
+This is a hedge for a pair of known bugs, both limited to logged trees.
+One is that if the truncation passes \c NULL instead of a cursor for the start and/or end
+point and that point changes concurrently, it is possible for log replay to find and use a
+different position for the start or end of the tree than occurred in the original
+transaction.
+
+The other is a bit more complicated. However, to understand its
+behavior one must recognize that truncate is a read-write operation: it scans the tree from the
+start key to the end key and deletes every value it finds. Concurrent updates where the same
+scan and update done manually would report a conflict cause truncate to report a conflict.
+Concurrent updates that this scan would miss (for example, insertion of new rows in a
+row-store tree) will be skipped over by the truncate and not cause a conflict. (This is a
+form of <i>phantom</i> behavior and is a result of the isolation model, not a transaction
+bug.)
+The second logging bug is that these phantom writes, which should be left alone, are removed by log
+recovery if the transaction that created them commits before the truncate.
+The logging for truncate saves the endpoints of the truncate range, not the individual
+data items removed, and consequently when replayed with additional items visible it
+removes them as well.
+
+Note that pages where conflicts (including prepare conflicts) are possible are always
+slow-truncated, and the slow truncate path uses the same update logic as all other updates;
+apart from possible logging issues it would be difficult for truncate to be
+non-transactional.
+
+For the time being, the hedge remains in the user documentation and no guarantees
+are made to users.
+
+*/

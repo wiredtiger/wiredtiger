@@ -25,9 +25,11 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-
-import itertools, wiredtiger, wttest
-from suite_subprocess import suite_subprocess
+#
+# [TEST_TAGS]
+# cursors:statistics
+# [END_TAGS]
+import wttest
 from wiredtiger import stat
 
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
@@ -38,11 +40,17 @@ from wtscenario import make_scenarios
 class test_stat_cursor_reset(wttest.WiredTigerTestCase):
     pfx = 'test_stat_cursor_reset'
     uri = [
-        ('file-simple', dict(uri='file:' + pfx, dataset=SimpleDataSet)),
-        ('table-simple', dict(uri='table:' + pfx, dataset=SimpleDataSet)),
-        ('table-complex', dict(uri='table:' + pfx, dataset=ComplexDataSet)),
+        ('file-simple-row', dict(uri='file:' + pfx, dataset=SimpleDataSet, kf='S', vf='S')),
+        ('file-simple-var', dict(uri='file:' + pfx, dataset=SimpleDataSet, kf='r', vf='S')),
+        ('file-simple-fix', dict(uri='file:' + pfx, dataset=SimpleDataSet, kf='r', vf='8t')),
+        ('table-simple-row', dict(uri='table:' + pfx, dataset=SimpleDataSet, kf='S', vf='S')),
+        ('table-simple-var', dict(uri='table:' + pfx, dataset=SimpleDataSet, kf='r', vf='S')),
+        ('table-simple-fix', dict(uri='table:' + pfx, dataset=SimpleDataSet, kf='r', vf='8t')),
+        # The complex data sets ignore any passed-in value format.
+        ('table-complex-row', dict(uri='table:' + pfx, dataset=ComplexDataSet, kf='S', vf=None)),
+        ('table-complex-var', dict(uri='table:' + pfx, dataset=ComplexDataSet, kf='r', vf=None)),
         ('table-complex-lsm', dict(uri='table:' + pfx,
-            dataset=ComplexLSMDataSet))
+            dataset=ComplexLSMDataSet, kf='S', vf=None))
     ]
 
     scenarios = make_scenarios(uri)
@@ -54,7 +62,7 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
 
     def test_stat_cursor_reset(self):
         n = 100
-        ds = self.dataset(self, self.uri, n)
+        ds = self.dataset(self, self.uri, n, key_format=self.kf, value_format=self.vf)
         ds.populate()
 
         # The number of btree_entries reported is influenced by the
@@ -88,6 +96,3 @@ class test_stat_cursor_reset(wttest.WiredTigerTestCase):
             statc = self.stat_cursor(ds.colgroup_name(0))
             self.assertEqual(statc[stat.dsrc.btree_entries][2], n)
         statc.close()
-
-if __name__ == '__main__':
-    wttest.run()

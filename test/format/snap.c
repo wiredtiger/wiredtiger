@@ -28,10 +28,9 @@
 
 #include "format.h"
 
-/*
- * Issue a warning when there enough consecutive unsuccessful checks for rollback to stable.
- */
-#define WARN_RTS_NO_CHECK 5
+#define SNAP_LIST_SIZE 512
+#define TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
+    "oldest pinned transaction ID rolled back for eviction"
 
 /*
  * snap_init --
@@ -41,14 +40,16 @@ void
 snap_init(TINFO *tinfo)
 {
     /*
-     * We maintain two snap lists. The current one is indicated by tinfo->s, and keeps the most
-     * recent operations. The other one is used when we are running with rollback_to_stable. When
-     * each thread notices that the stable timestamp has changed, it stashes the current snap list
-     * and starts fresh with the other snap list. After we've completed a rollback_to_stable, we can
-     * the secondary snap list to see the state of keys/values seen and updated at the time of the
-     * rollback.
+     * We maintain two snap lists, where the current one is indicated by tinfo->s, and keeps the
+     * most recent operations.
+     *
+     * The other one is used when we are running timestamp transactions with rollback_to_stable.
+     * When each thread notices that the stable timestamp has changed, it stashes the current snap
+     * list and starts fresh with the other snap list. After we've completed a rollback_to_stable,
+     * we can the secondary snap list to see the state of keys/values seen and updated at the time
+     * of the rollback.
      */
-    if (g.c_txn_rollback_to_stable) {
+    if (g.transaction_timestamps_config) {
         tinfo->s = &tinfo->snap_states[1];
         tinfo->snap_list = dcalloc(SNAP_LIST_SIZE, sizeof(SNAP_OPS));
         tinfo->snap_end = &tinfo->snap_list[SNAP_LIST_SIZE];
@@ -72,15 +73,15 @@ snap_teardown(TINFO *tinfo)
     for (snap_index = 0; snap_index < WT_ELEMENTS(tinfo->snap_states); snap_index++)
         if ((snaplist = tinfo->snap_states[snap_index].snap_state_list) != NULL) {
             for (i = 0; i < SNAP_LIST_SIZE; ++i) {
-                free(snaplist[i].kdata);
-                free(snaplist[i].vdata);
+                __wt_buf_free(NULL, &snaplist[i].key);
+                __wt_buf_free(NULL, &snaplist[i].value);
             }
             free(snaplist);
         }
 }
 
 /*
- * snap_clear --
+ * snap_clear_one --
  *     Clear a single snap entry.
  */
 static void
@@ -113,13 +114,15 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
 
     ++tinfo->opid;
 
-    if (g.c_txn_rollback_to_stable) {
+    if (g.transaction_timestamps_config) {
         /*
          * If the stable timestamp has changed and we've advanced beyond it, preserve the current
          * snapshot history up to this point, we'll use it verify rollback_to_stable. Switch our
-         * tracking to the other snap list.
+         * tracking to the other snap list. Use a barrier to ensure a cached value doesn't cause us
+         * to ignore a stable timestamp transition.
          */
-        stable_ts = __wt_atomic_addv64(&g.stable_timestamp, 0);
+        WT_COMPILER_BARRIER();
+        stable_ts = g.stable_timestamp;
         if (stable_ts != tinfo->stable_ts && read_ts > stable_ts) {
             tinfo->stable_ts = stable_ts;
             if (tinfo->s == &tinfo->snap_states[0])
@@ -147,34 +150,51 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
 void
 snap_track(TINFO *tinfo, thread_op op)
 {
-    WT_ITEM *ip;
     SNAP_OPS *snap;
+    TABLE *table;
+    WT_ITEM *ip;
+    u_int mask;
+
+    table = tinfo->table;
 
     snap = tinfo->snap_current;
     snap->op = op;
     snap->opid = tinfo->opid;
+    snap->id = table->id;
     snap->keyno = tinfo->keyno;
     snap->ts = WT_TS_NONE;
     snap->repeatable = false;
-    snap->last = op == TRUNCATE ? tinfo->last : 0;
-    snap->ksize = snap->vsize = 0;
+    snap->last = 0;
+    snap->bitv = FIX_VALUE_WRONG;
+    snap->key.data = snap->value.data = NULL;
+    snap->key.size = snap->value.size = 0;
 
-    if (op == INSERT && g.type == ROW) {
-        ip = tinfo->key;
-        if (snap->kmemsize < ip->size) {
-            snap->kdata = drealloc(snap->kdata, ip->size);
-            snap->kmemsize = ip->size;
+    switch (op) {
+    case INSERT:
+        if (table->type == ROW)
+            testutil_check(__wt_buf_set(NULL, &snap->key, tinfo->key->data, tinfo->key->size));
+        /* FALLTHROUGH */
+    case MODIFY:
+    case READ:
+    case UPDATE:
+        if (table->type == FIX) {
+            /*
+             * At this point we should have a value the right size for this table, even for mirror
+             * tables. If we messed up, bail now rather than waiting for a repeatable read to fail.
+             */
+            mask = (1u << TV(BTREE_BITCNT)) - 1;
+            testutil_assert((tinfo->bitv & mask) == tinfo->bitv);
+            snap->bitv = tinfo->bitv;
+        } else {
+            ip = op == READ ? tinfo->value : tinfo->new_value;
+            testutil_check(__wt_buf_set(NULL, &snap->value, ip->data, ip->size));
         }
-        memcpy(snap->kdata, ip->data, snap->ksize = ip->size);
-    }
-
-    if (op != REMOVE && op != TRUNCATE) {
-        ip = tinfo->value;
-        if (snap->vmemsize < ip->size) {
-            snap->vdata = drealloc(snap->vdata, ip->size);
-            snap->vmemsize = ip->size;
-        }
-        memcpy(snap->vdata, ip->data, snap->vsize = ip->size);
+        break;
+    case REMOVE:
+        break;
+    case TRUNCATE:
+        snap->last = tinfo->last;
+        break;
     }
 
     /* Move to the next slot, wrap at the end of the circular buffer. */
@@ -190,105 +210,102 @@ snap_track(TINFO *tinfo, thread_op op)
         tinfo->repeatable_wrap = true;
 }
 
+typedef struct {
+    SNAP_OPS *snap;
+    TABLE *table;
+    TINFO *tinfo;
+    WT_CURSOR *cursor;
+    WT_ITEM *key;
+    uint64_t keyno;
+} SEARCH_CALLBACK;
+
 /*
- * print_item_data --
- *     Display a single data/size pair, with a tag.
+ * snap_verify_callback --
+ *     Callback from inside the WiredTiger library.
  */
 static void
-print_item_data(const char *tag, const uint8_t *data, size_t size)
+snap_verify_callback(WT_CURSOR *cursor, int ret, void *arg)
 {
-    WT_ITEM tmp;
-
-    if (g.type == FIX) {
-        fprintf(stderr, "%s {0x%02x}\n", tag, data[0]);
-        return;
-    }
-
-    memset(&tmp, 0, sizeof(tmp));
-    testutil_check(__wt_raw_to_esc_hex(NULL, data, size, &tmp));
-    fprintf(stderr, "%s {%s}\n", tag, (char *)tmp.mem);
-    __wt_buf_free(NULL, &tmp);
-}
-
-/*
- * snap_verify --
- *     Repeat a read and verify the contents.
- */
-static int
-snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
-{
-    WT_DECL_RET;
+    SEARCH_CALLBACK *callback;
+    SNAP_OPS *snap;
+    TABLE *table;
+    TINFO *tinfo;
     WT_ITEM *key, *value;
     uint64_t keyno;
-    uint8_t bitfield;
+    uint8_t bitv;
+    char ret_buf[10], snap_buf[10];
 
-    testutil_assert(snap->op != TRUNCATE);
+    /* We only handle success and not-found. */
+    if (ret != 0 && ret != WT_NOTFOUND)
+        return;
 
-    key = tinfo->key;
-    value = tinfo->value;
-    keyno = snap->keyno;
+    callback = arg;
 
     /*
-     * Retrieve the key/value pair by key. Row-store inserts have a unique generated key we saved,
-     * else generate the key from the key number.
+     * It's possible that our cursor operation triggered another internal cursor operation (on the
+     * history store or metadata). Make sure it's the cursor we started with.
      */
-    if (snap->op == INSERT && g.type == ROW) {
-        key->data = snap->kdata;
-        key->size = snap->ksize;
-        cursor->set_key(cursor, key);
-    } else {
-        switch (g.type) {
-        case FIX:
-        case VAR:
-            cursor->set_key(cursor, keyno);
-            break;
-        case ROW:
-            key_gen(key, keyno);
-            cursor->set_key(cursor, key);
-            break;
+    if (cursor != callback->cursor)
+        return;
+
+    snap = callback->snap;
+    table = callback->table;
+    tinfo = callback->tinfo;
+    key = callback->key;
+    keyno = callback->keyno;
+
+    value = tinfo->value;
+    bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
+
+    /* Get the value and check for matches. */
+    if (ret == 0) {
+        if (table->type == FIX) {
+            testutil_check(cursor->get_value(cursor, &bitv));
+            if (snap->op != REMOVE && bitv == snap->bitv)
+                return;
+        } else {
+            testutil_check(cursor->get_value(cursor, value));
+            if (snap->op != REMOVE && value->size == snap->value.size &&
+              (value->size == 0 || memcmp(value->data, snap->value.data, snap->value.size) == 0))
+                return;
         }
     }
 
-    switch (ret = read_op(cursor, SEARCH, NULL)) {
-    case 0:
-        if (g.type == FIX) {
-            testutil_check(cursor->get_value(cursor, &bitfield));
-            *(uint8_t *)(value->data) = bitfield;
-            value->size = 1;
-        } else
-            testutil_check(cursor->get_value(cursor, value));
-        break;
-    case WT_NOTFOUND:
-        break;
-    default:
-        return (ret);
-    }
-
-    /* Check for simple matches. */
-    if (ret == 0 && snap->op != REMOVE && value->size == snap->vsize &&
-      memcmp(value->data, snap->vdata, value->size) == 0)
-        return (0);
+    /* Check for missing records matching delete operations. */
     if (ret == WT_NOTFOUND && snap->op == REMOVE)
-        return (0);
+        return;
 
     /*
      * In fixed length stores, zero values at the end of the key space are returned as not-found,
      * and not-found row reads are saved as zero values. Map back-and-forth for simplicity.
      */
-    if (g.type == FIX) {
-        if (ret == WT_NOTFOUND && snap->vsize == 1 && *(uint8_t *)snap->vdata == 0)
-            return (0);
-        if (snap->op == REMOVE && value->size == 1 && *(uint8_t *)value->data == 0)
-            return (0);
+    if (table->type == FIX) {
+        if (ret == WT_NOTFOUND && snap->bitv == 0)
+            return;
+        if (snap->op == REMOVE && bitv == 0)
+            return;
     }
 
-    /* Things went pear-shaped. */
-    switch (g.type) {
+    /*
+     * Things went pear-shaped.
+     *
+     * Dump the WiredTiger handle ID, it's useful in selecting trace records from the log. We have
+     * an open cursor on the handle, so while this is pretty ugly, I don't think it's unsafe.
+     */
+    fprintf(stderr, "%s: WiredTiger trace ID: %u\n", table->uri,
+      (u_int)((WT_BTREE *)((WT_CURSOR_BTREE *)cursor)->dhandle->handle)->id);
+    switch (table->type) {
     case FIX:
-        fprintf(stderr,
-          "snapshot-isolation: %" PRIu64 " search: expected {0x%02x}, found {0x%02x}\n", keyno,
-          snap->op == REMOVE ? 0U : *(uint8_t *)snap->vdata,
-          ret == WT_NOTFOUND ? 0U : *(uint8_t *)value->data);
+        if (snap->op == REMOVE)
+            strcpy(snap_buf, "remove");
+        else
+            testutil_snprintf(snap_buf, sizeof(snap_buf), "0x%02x", (u_int)snap->bitv);
+        if (ret == WT_NOTFOUND)
+            strcpy(ret_buf, "notfound");
+        else
+            testutil_snprintf(ret_buf, sizeof(ret_buf), "0x%02x", (u_int)bitv);
+        fprintf(stderr, "snapshot-isolation: %" PRIu64 " search: expected {%s}, found {%s}\n",
+          keyno, snap_buf, ret_buf);
         break;
     case ROW:
         fprintf(
@@ -297,11 +314,11 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
         if (snap->op == REMOVE)
             fprintf(stderr, "expected {deleted}\n");
         else
-            print_item_data("expected", snap->vdata, snap->vsize);
+            fprintf(stderr, "expected {%.*s}\n", (int)snap->value.size, (char *)snap->value.data);
         if (ret == WT_NOTFOUND)
             fprintf(stderr, "   found {deleted}\n");
         else
-            print_item_data("   found", value->data, value->size);
+            fprintf(stderr, "   found {%.*s}\n", (int)value->size, (char *)value->data);
         break;
     case VAR:
         fprintf(stderr, "snapshot-isolation %" PRIu64 " search mismatch\n", keyno);
@@ -309,19 +326,94 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
         if (snap->op == REMOVE)
             fprintf(stderr, "expected {deleted}\n");
         else
-            print_item_data("expected", snap->vdata, snap->vsize);
+            fprintf(stderr, "expected {%.*s}\n", (int)snap->value.size, (char *)snap->value.data);
         if (ret == WT_NOTFOUND)
             fprintf(stderr, "   found {deleted}\n");
         else
-            print_item_data("   found", value->data, value->size);
+            fprintf(stderr, "   found {%.*s}\n", (int)value->size, (char *)value->data);
+        break;
+    }
+    fflush(stderr);
+
+    /* We have a mismatch, dump WiredTiger datastore pages. */
+    cursor_dump_page(cursor, "snapshot-isolation error");
+    testutil_assert(0);
+}
+
+/*
+ * snap_verify --
+ *     Repeat a read and verify the contents.
+ */
+static int
+snap_verify(TINFO *tinfo, SNAP_OPS *snap)
+{
+    SEARCH_CALLBACK callback;
+    TABLE *table;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_ITEM *key;
+    uint64_t keyno;
+
+    testutil_assert(snap->op != TRUNCATE);
+
+    table = tables[ntables == 0 ? 0 : snap->id];
+    cursor = table_cursor(tinfo, snap->id);
+    key = NULL;
+    keyno = snap->keyno;
+
+    if (FLD_ISSET(g.trace_flags, TRACE_READ)) {
+        if (snap->op == REMOVE)
+            trace_uri_op(
+              tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {deleted}", keyno, snap->ts);
+        else if (snap->op == INSERT && table->type == ROW)
+            trace_uri_op(tinfo, table->uri, "repeat {%.*s} ts=%" PRIu64 " {%.*s}",
+              (int)snap->key.size, (char *)snap->key.data, snap->ts, (int)snap->value.size,
+              (char *)snap->value.data);
+        else if (table->type == FIX)
+            trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {0x%02" PRIx8 "}",
+              keyno, snap->ts, snap->bitv);
+        else
+            trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {%.*s}", keyno,
+              snap->ts, (int)snap->value.size, (char *)snap->value.data);
+    }
+
+    /*
+     * Retrieve the key/value pair by key. Row-store inserts have a unique generated key we saved,
+     * else generate the key from the key number.
+     */
+    switch (table->type) {
+    case FIX:
+    case VAR:
+        cursor->set_key(cursor, keyno);
+        break;
+    case ROW:
+        key = tinfo->key;
+        if (snap->op == INSERT) {
+            key->data = snap->key.data;
+            key->size = snap->key.size;
+        } else
+            key_gen(table, key, keyno);
+        cursor->set_key(cursor, key);
         break;
     }
 
-    g.page_dump_cursor = cursor;
-    testutil_assert(0);
+    /*
+     * Hook into the WiredTiger library with a callback function. That allows us to dump information
+     * before any failing operation releases its underlying pages.
+     */
+    callback.snap = snap;
+    callback.table = table;
+    callback.tinfo = tinfo;
+    callback.cursor = cursor;
+    callback.key = key;
+    callback.keyno = keyno;
+    CUR2S(cursor)->format_private = snap_verify_callback;
+    CUR2S(cursor)->format_private_arg = &callback;
+    ret = read_op(cursor, SEARCH, NULL);
+    CUR2S(cursor)->format_private = NULL;
 
-    /* NOTREACHED */
-    return (1);
+    testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == WT_ROLLBACK);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
@@ -340,31 +432,40 @@ snap_ts_clear(TINFO *tinfo, uint64_t ts)
 }
 
 /*
- * snap_repeat_ok_match --
- *     Compare two operations and see if they modified the same record.
+ * snap_repeat_match --
+ *     Compare two operations and return if they modified the same record.
  */
 static bool
-snap_repeat_ok_match(SNAP_OPS *current, SNAP_OPS *a)
+snap_repeat_match(SNAP_OPS *current, SNAP_OPS *a)
 {
+    TABLE *table;
+    bool reverse;
+
     /* Reads are never a problem, there's no modification. */
     if (a->op == READ)
-        return (true);
-
-    /* Check for a matching single record modification. */
-    if (a->keyno == current->keyno)
         return (false);
 
+    /* Check if the operations were in the same table. */
+    if (a->id != current->id)
+        return (false);
+
+    /* Check for a matching single record insert, modify, remove or update. */
+    if (a->keyno == current->keyno)
+        return (true);
+
     /* Truncates are slightly harder, make sure the ranges don't overlap. */
+    table = tables[ntables == 0 ? 0 : a->id];
+    reverse = TV(BTREE_REVERSE) != 0;
     if (a->op == TRUNCATE) {
-        if (g.c_reverse && (a->keyno == 0 || a->keyno >= current->keyno) &&
+        if (reverse && (a->keyno == 0 || a->keyno >= current->keyno) &&
           (a->last == 0 || a->last <= current->keyno))
-            return (false);
-        if (!g.c_reverse && (a->keyno == 0 || a->keyno <= current->keyno) &&
+            return (true);
+        if (!reverse && (a->keyno == 0 || a->keyno <= current->keyno) &&
           (a->last == 0 || a->last >= current->keyno))
-            return (false);
+            return (true);
     }
 
-    return (true);
+    return (false);
 }
 
 /*
@@ -397,7 +498,7 @@ snap_repeat_ok_commit(TINFO *tinfo, SNAP_OPS *current)
         if (p->opid != tinfo->opid)
             break;
 
-        if (!snap_repeat_ok_match(current, p))
+        if (snap_repeat_match(current, p))
             return (false);
     }
 
@@ -410,7 +511,7 @@ snap_repeat_ok_commit(TINFO *tinfo, SNAP_OPS *current)
         if (p->opid != tinfo->opid)
             break;
 
-        if (!snap_repeat_ok_match(current, p))
+        if (snap_repeat_match(current, p))
             return (false);
     }
     return (true);
@@ -440,7 +541,7 @@ snap_repeat_ok_rollback(TINFO *tinfo, SNAP_OPS *current)
         if (p->opid != tinfo->opid)
             break;
 
-        if (!snap_repeat_ok_match(current, p))
+        if (snap_repeat_match(current, p))
             return (false);
     }
     return (true);
@@ -451,7 +552,7 @@ snap_repeat_ok_rollback(TINFO *tinfo, SNAP_OPS *current)
  *     Repeat each operation done within a snapshot isolation transaction.
  */
 int
-snap_repeat_txn(WT_CURSOR *cursor, TINFO *tinfo)
+snap_repeat_txn(TINFO *tinfo)
 {
     SNAP_OPS *current;
 
@@ -474,7 +575,7 @@ snap_repeat_txn(WT_CURSOR *cursor, TINFO *tinfo)
          * other threads of control committing in our past, until the transaction resolves.
          */
         if (snap_repeat_ok_commit(tinfo, current))
-            WT_RET(snap_verify(cursor, tinfo, current));
+            WT_RET(snap_verify(tinfo, current));
     }
 
     return (0);
@@ -528,41 +629,56 @@ snap_repeat_update(TINFO *tinfo, bool committed)
  *     Repeat one operation.
  */
 static void
-snap_repeat(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap, bool rollback_allowed)
+snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    char buf[64];
+    const char *rollback_reason;
+#define MAX_RETRY_ON_ROLLBACK WT_THOUSAND
+    u_int max_retry;
 
-    session = cursor->session;
+    rollback_reason = NULL;
+    session = tinfo->session;
 
-    /*
-     * Start a new transaction. Set the read timestamp. Verify the record. Discard the transaction.
-     */
-    wiredtiger_begin_transaction(session, "isolation=snapshot");
+    /* Start a transaction with a read-timestamp and verify the record. */
+    for (max_retry = 0; max_retry < MAX_RETRY_ON_ROLLBACK; ++max_retry, __wt_yield()) {
+        wt_wrap_begin_transaction(session, "isolation=snapshot");
 
-    /*
-     * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
-     */
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->ts));
-
-    ret = session->timestamp_transaction(session, buf);
-    if (ret == 0) {
-        trace_op(tinfo, "repeat %" PRIu64 " ts=%" PRIu64 " {%s}", snap->keyno, snap->ts,
-          trace_bytes(tinfo, snap->vdata, snap->vsize));
-
-        /* The only expected error is rollback. */
-        ret = snap_verify(cursor, tinfo, snap);
-
-        if (ret != 0 && (!rollback_allowed || (ret != WT_ROLLBACK && ret != WT_CACHE_FULL)))
-            testutil_check(ret);
-    } else if (ret == EINVAL)
-        snap_ts_clear(tinfo, snap->ts);
-    else
+        /* EINVAL means the timestamp has aged out of the system. */
+        if ((ret = session->timestamp_transaction_uint(session, WT_TS_TXN_TYPE_READ, snap->ts)) ==
+          EINVAL) {
+            snap_ts_clear(tinfo, snap->ts);
+            break;
+        }
         testutil_check(ret);
 
-    /* Discard the transaction. */
-    testutil_check(session->rollback_transaction(session, NULL));
+        /*
+         * The only expected error is rollback (as a read-only transaction, cache-full shouldn't
+         * matter to us). Persist after rollback, as a repeatable read we should succeed, yield to
+         * let eviction catch up.
+         */
+        if ((ret = snap_verify(tinfo, snap)) == 0)
+            break;
+        testutil_assertfmt(ret == WT_ROLLBACK, "operation failed: %d", ret);
+
+        rollback_reason = session->get_rollback_reason(session);
+
+        testutil_check(session->rollback_transaction(session, NULL));
+    }
+
+    /*
+     * If we have a long running checkpoint, it may block eviction for an excessive amount of time.
+     * This would cause the snapshot read to rollback even we retry many times. Give up and ignore
+     * this case.
+     */
+    if (max_retry >= MAX_RETRY_ON_ROLLBACK && rollback_reason != NULL &&
+      strcmp(rollback_reason, TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION) == 0)
+        WARN(
+          "%s: %s", "snap repeat exceeds maximum retry", TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
+    else {
+        testutil_assert(max_retry < MAX_RETRY_ON_ROLLBACK);
+        testutil_check(session->rollback_transaction(session, NULL));
+    }
 }
 
 /*
@@ -570,30 +686,34 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap, bool rollback_allow
  *     Repeat an historic operation.
  */
 void
-snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
+snap_repeat_single(TINFO *tinfo)
 {
     SNAP_OPS *snap;
+    uint64_t ts;
     u_int v;
     int count;
+
+    /* Repeat an operation that's before any running operation. */
+    ts = timestamp_maximum_committed();
 
     /*
      * Start at a random spot in the list of operations and look for a read to retry. Stop when
      * we've walked the entire list or found one.
      */
-    v = mmrand(&tinfo->rnd, 1, SNAP_LIST_SIZE) - 1;
+    v = mmrand(&tinfo->extra_rnd, 1, SNAP_LIST_SIZE) - 1;
     for (snap = &tinfo->snap_list[v], count = SNAP_LIST_SIZE; count > 0; --count, ++snap) {
         /* Wrap at the end of the circular buffer. */
         if (snap >= tinfo->snap_end)
             snap = tinfo->snap_list;
 
-        if (snap->repeatable)
+        if (snap->repeatable && snap->ts <= ts)
             break;
     }
 
     if (count == 0)
         return;
 
-    snap_repeat(cursor, tinfo, snap, true);
+    snap_repeat(tinfo, snap);
 }
 
 /*
@@ -601,20 +721,22 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
  *     Repeat all known operations after a rollback.
  */
 void
-snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
+snap_repeat_rollback(WT_SESSION *session, TINFO **tinfo_array, size_t tinfo_count)
 {
     SNAP_OPS *snap;
     SNAP_STATE *state;
     TINFO *tinfo, **tinfop;
     uint32_t count;
     size_t i, statenum;
-    char buf[100];
+    char buf[64];
 
     count = 0;
 
-    track("rollback_to_stable: checking", 0ULL, NULL);
+    track("rollback_to_stable: checking", 0ULL);
     for (i = 0, tinfop = tinfo_array; i < tinfo_count; ++i, ++tinfop) {
         tinfo = *tinfop;
+        testutil_assert(tinfo->session == NULL);
+        tinfo->session = session;
 
         /*
          * For this thread, walk through both sets of snaps ("states"), looking for entries that are
@@ -626,29 +748,23 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
         for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
             state = &tinfo->snap_states[statenum];
             for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap) {
-                if (snap->repeatable && snap->ts <= g.stable_timestamp &&
-                  snap->ts >= g.oldest_timestamp) {
-                    snap_repeat(cursor, tinfo, snap, false);
+                if (snap->repeatable && snap->ts <= g.stable_timestamp) {
+                    snap_repeat(tinfo, snap);
                     ++count;
                     if (count % 100 == 0) {
-                        testutil_check(__wt_snprintf(
-                          buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
-                        track(buf, 0ULL, NULL);
+                        testutil_snprintf(
+                          buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count);
+                        track(buf, 0ULL);
                     }
                 }
                 snap_clear_one(snap);
             }
         }
+
+        tinfo->session = NULL;
     }
 
-    /* Show the final result and check that we're accomplishing some checking. */
-    testutil_check(
-      __wt_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
-    track(buf, 0ULL, NULL);
-    if (count == 0) {
-        if (++g.rts_no_check >= WARN_RTS_NO_CHECK)
-            fprintf(stderr,
-              "Warning: %" PRIu32 " consecutive runs with no rollback_to_stable checking\n", count);
-    } else
-        g.rts_no_check = 0;
+    /* Show the final result. */
+    testutil_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count);
+    track(buf, 0ULL);
 }

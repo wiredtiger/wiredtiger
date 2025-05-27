@@ -26,15 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import fnmatch, os, shutil, time
 from helper import simulate_crash_restart
-from test_rollback_to_stable01 import test_rollback_to_stable_base
+from rollback_to_stable_util import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_rollback_to_stable07.py
 # Test the rollback to stable operation performs as expected following a server crash and
@@ -42,11 +38,11 @@ def timestamp_str(t):
 #   (a) the on-disk value is replaced by the correct value from the history store, and
 #   (b) newer updates are removed.
 class test_rollback_to_stable07(test_rollback_to_stable_base):
-    session_config = 'isolation=snapshot'
 
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+    format_values = [
+        ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     prepare_values = [
@@ -54,33 +50,34 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(key_format_values, prepare_values)
+    scenarios = make_scenarios(format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=5MB,statistics=(all),log=(enabled=true)'
+        config = 'cache_size=5MB,statistics=(all),verbose=(rts:5)'
         return config
 
     def test_rollback_to_stable(self):
         nrows = 1000
 
-        # Prepare transactions for column store table is not yet supported.
-        if self.prepare and self.key_format == 'r':
-            self.skipTest('Prepare transactions for column store table is not yet supported')
-
-        # Create a table without logging.
+        # Create a table.
         uri = "table:rollback_to_stable07"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format=self.value_format)
         ds.populate()
 
-        # Pin oldest and stable to timestamp 10.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
-            ',stable_timestamp=' + timestamp_str(10))
+        if self.value_format == '8t':
+            value_a = 97
+            value_b = 98
+            value_c = 99
+            value_d = 100
+        else:
+            value_a = "aaaaa" * 100
+            value_b = "bbbbb" * 100
+            value_c = "ccccc" * 100
+            value_d = "ddddd" * 100
 
-        value_a = "aaaaa" * 100
-        value_b = "bbbbb" * 100
-        value_c = "ccccc" * 100
-        value_d = "ddddd" * 100
+        # Pin oldest and stable to timestamp 10.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
+            ',stable_timestamp=' + self.timestamp_str(10))
 
         # Perform several updates.
         self.large_updates(uri, value_d, ds, nrows, self.prepare, 20)
@@ -89,16 +86,16 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.large_updates(uri, value_a, ds, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
-        self.check(value_d, uri, nrows, 20)
-        self.check(value_c, uri, nrows, 30)
-        self.check(value_b, uri, nrows, 40)
-        self.check(value_a, uri, nrows, 50)
+        self.check(value_d, uri, nrows, None, 21 if self.prepare else 20)
+        self.check(value_c, uri, nrows, None, 31 if self.prepare else 30)
+        self.check(value_b, uri, nrows, None, 41 if self.prepare else 40)
+        self.check(value_a, uri, nrows, None, 51 if self.prepare else 50)
 
         # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(50))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
 
         # Perform additional updates.
         self.large_updates(uri, value_b, ds, nrows, self.prepare, 60)
@@ -109,18 +106,18 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Verify additional update data is visible and correct.
-        self.check(value_b, uri, nrows, 60)
-        self.check(value_c, uri, nrows, 70)
-        self.check(value_d, uri, nrows, 80)
+        self.check(value_b, uri, nrows, None, 61 if self.prepare else 60)
+        self.check(value_c, uri, nrows, None, 71 if self.prepare else 70)
+        self.check(value_d, uri, nrows, None, 81 if self.prepare else 80)
 
         # Simulate a server crash and restart.
         simulate_crash_restart(self, ".", "RESTART")
 
         # Check that the correct data is seen at and after the stable timestamp.
-        self.check(value_b, uri, nrows, 40)
-        self.check(value_b, uri, nrows, 80)
-        self.check(value_c, uri, nrows, 30)
-        self.check(value_d, uri, nrows, 20)
+        self.check(value_b, uri, nrows, None, 40)
+        self.check(value_b, uri, nrows, None, 80)
+        self.check(value_c, uri, nrows, None, 30)
+        self.check(value_d, uri, nrows, None, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -142,10 +139,10 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         simulate_crash_restart(self, "RESTART", "RESTART2")
 
         # Check that the correct data is seen at and after the stable timestamp.
-        self.check(value_b, uri, nrows, 40)
-        self.check(value_b, uri, nrows, 80)
-        self.check(value_c, uri, nrows, 30)
-        self.check(value_d, uri, nrows, 20)
+        self.check(value_b, uri, nrows, None, 40)
+        self.check(value_b, uri, nrows, None, 80)
+        self.check(value_c, uri, nrows, None, 30)
+        self.check(value_d, uri, nrows, None, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -162,6 +159,3 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.assertGreaterEqual(pages_visited, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertEqual(hs_removed, 0)
-
-if __name__ == '__main__':
-    wttest.run()

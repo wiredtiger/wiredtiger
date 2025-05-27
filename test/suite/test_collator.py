@@ -26,8 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import wiredtiger, wttest, run
+import wttest
 
 # test_collator.py
 #    Test indices using a custom extractor and collator.
@@ -65,7 +64,7 @@ class test_collator(wttest.WiredTigerTestCase):
 
     def drop_indices(self):
         for i in range(0, self.nindices):
-            self.session.drop("index:collator:x" + str(i))
+            self.dropUntilSuccess(self.session, "index:collator:x" + str(i))
 
     def csv(self, s, i):
         return s.split(',')[i]
@@ -117,7 +116,7 @@ class test_collator(wttest.WiredTigerTestCase):
             for key, val in c:
                 primkey = int(val.split(',')[1])
                 expected.remove(primkey)
-            self.assertEquals(0, len(expected))
+            self.assertEqual(0, len(expected))
             c.close()
 
     def test_index(self):
@@ -131,6 +130,3 @@ class test_collator(wttest.WiredTigerTestCase):
         self.drop_indices()
         self.create_indices()
         self.check_entries()
-
-if __name__ == '__main__':
-    wttest.run()

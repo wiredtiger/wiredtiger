@@ -25,12 +25,18 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# connection_api:wiredtiger_open
+# config_api
+# [END_TAGS]
 
 import os
 import wiredtiger, wttest
 
 # test_config02.py
 #    The home directory for wiredtiger_open
+@wttest.skip_for_hook("tiered", "using environment variable to set WT home")
 class test_config02(wttest.WiredTigerTestCase):
     table_name1 = 'test_config02'
     nentries = 100
@@ -162,6 +168,3 @@ class test_config02(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.wiredtiger_open(dir, 'create'),
             '/Permission denied/')
-
-if __name__ == '__main__':
-    wttest.run()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2021 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger
+import os, wiredtiger
 from wtscenario import make_scenarios
 from wtbackup import backup_base
 
@@ -78,7 +78,7 @@ class test_import10(backup_base):
         self.session.create(table_uri, import_config)
 
         # Verify object.
-        self.session.verify(table_uri)
+        self.verifyUntilSuccess(self.session, table_uri)
 
         # Check that the data got imported correctly.
         cursor = self.session.open_cursor(table_uri)
@@ -86,9 +86,7 @@ class test_import10(backup_base):
             self.assertEqual(cursor[i], i)
         cursor.close()
 
+        os.mkdir(self.dir)
         all_files = self.take_full_backup(self.dir, bkup_c)
-        self.assertTrue(self.uri + "wt" not in all_files)
+        self.assertTrue(self.uri + ".wt" not in all_files)
         bkup_c.close()
-
-if __name__ == '__main__':
-    wttest.run()

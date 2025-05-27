@@ -26,54 +26,63 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from helper import copy_wiredtiger_home
-import wiredtiger, wttest
-
-def timestamp_str(t):
-    return '%x' %t
+import wttest
+from wtscenario import make_scenarios
 
 # test_durable_ts03.py
 #    Check that the checkpoint honors the durable timestamp of updates.
+@wttest.skip_for_hook("tiered", "Tiered causes python crash")
 class test_durable_ts03(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=10MB'
-    session_config = 'isolation=snapshot'
+
+    format_values = [
+        ('integer-row', dict(key_format='i', value_format='u')),
+        ('column', dict(key_format='r', value_format='u')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
+    ]
+    scenarios = make_scenarios(format_values)
 
     def test_durable_ts03(self):
         # Create a table.
         uri = 'table:test_durable_ts03'
         nrows = 3000
-        self.session.create(uri, 'key_format=i,value_format=u')
-        valueA = b"aaaaa" * 100
-        valueB = b"bbbbb" * 100
-        valueC = b"ccccc" * 100
+        self.session.create(uri, 'key_format={},value_format={}'.format(self.key_format, self.value_format))
+        if self.value_format == '8t':
+            valueA = 97
+            valueB = 98
+            valueC = 99
+        else:
+            valueA = b"aaaaa" * 100
+            valueB = b"bbbbb" * 100
+            valueC = b"ccccc" * 100
 
         # Start with setting a stable and oldest timestamp.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1) + \
-                                ',oldest_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1) + \
+                                ',oldest_timestamp=' + self.timestamp_str(1))
 
         # Load the data into the table.
         session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
-        for i in range(0, nrows):
+        for i in range(1, nrows + 1):
             session.begin_transaction()
             cursor[i] = valueA
-            session.commit_transaction('commit_timestamp=' + timestamp_str(50))
+            session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
         cursor.close()
 
         # Set the stable and the oldest timestamp to checkpoint initial data.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100) + \
-                                ',oldest_timestamp=' + timestamp_str(100))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(100) + \
+                                ',oldest_timestamp=' + self.timestamp_str(100))
         self.session.checkpoint()
 
         # Update all the values within transaction. Commit the transaction with
         # a durable timestamp newer than the stable timestamp.
         cursor = session.open_cursor(uri, None)
-        for i in range(0, nrows):
+        for i in range(1, nrows + 1):
             session.begin_transaction()
             cursor[i] = valueB
-            session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
-            session.timestamp_transaction('commit_timestamp=' + timestamp_str(200))
-            session.timestamp_transaction('durable_timestamp=' + timestamp_str(220))
+            session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(150))
+            session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(200))
+            session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(220))
             session.commit_transaction()
 
         # Check the checkpoint wrote only the durable updates.
@@ -82,15 +91,22 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         for key, value in cursor2:
             self.assertEqual(value, valueA)
 
-        self.assertEquals(cursor.reset(), 0)
-        session.begin_transaction('read_timestamp=' + timestamp_str(150))
+        self.assertEqual(cursor.reset(), 0)
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(150))
         for key, value in cursor:
             self.assertEqual(value, valueA)
         session.commit_transaction()
 
+        # Check that the updated data can still be read even while it is not yet durable.
+        self.assertEqual(cursor.reset(), 0)
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(210))
+        for key, value in cursor:
+            self.assertEqual(value, valueB)
+        session.rollback_transaction()
+
         # Read the updated data to confirm that it is visible.
-        self.assertEquals(cursor.reset(), 0)
-        session.begin_transaction('read_timestamp=' + timestamp_str(210))
+        self.assertEqual(cursor.reset(), 0)
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(220))
         for key, value in cursor:
             self.assertEqual(value, valueB)
         session.commit_transaction()
@@ -102,21 +118,21 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         self.reopen_conn()
         session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(210) + \
-                                ',oldest_timestamp=' + timestamp_str(210))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(210) + \
+                                ',oldest_timestamp=' + self.timestamp_str(210))
         for key, value in cursor:
             self.assertEqual(value, valueA)
 
-        self.assertEquals(cursor.reset(), 0)
-        for i in range(0, nrows):
+        self.assertEqual(cursor.reset(), 0)
+        for i in range(1, nrows + 1):
             session.begin_transaction()
             cursor[i] = valueC
-            session.prepare_transaction('prepare_timestamp=' + timestamp_str(220))
-            session.timestamp_transaction('commit_timestamp=' + timestamp_str(230))
-            session.timestamp_transaction('durable_timestamp=' + timestamp_str(240))
+            session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(220))
+            session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(230))
+            session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(240))
             session.commit_transaction()
 
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(250))
         self.session.checkpoint()
         cursor.close()
         session.close()
@@ -124,10 +140,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         self.reopen_conn()
         session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250) + \
-                                ',oldest_timestamp=' + timestamp_str(250))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(250) + \
+                                ',oldest_timestamp=' + self.timestamp_str(250))
         for key, value in cursor:
             self.assertEqual(value, valueC)
-
-if __name__ == '__main__':
-    wttest.run()

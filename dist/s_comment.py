@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Fill out block comments to the full line length (currently 100).
 #
 # We're defining a "block comment" to be a multiline comment where each line
@@ -55,7 +57,7 @@ for line in sys.stdin:
         comment += line
         # Don't mess with generated comments.
         # Scripts in dist rely on them to figure out where to generate code.
-        if 'DO NOT EDIT' in comment:
+        if 'DO NOT EDIT' in comment or '!!!' in comment:
             block = False
         if multiline and not block:
             sys.stdout.write(comment)
@@ -104,11 +106,11 @@ for line in sys.stdin:
             (sline[2].islower() or sline[2] == '_') and sline.endswith('--')):
             function_desc = True
         # We're only reformatting block comments where each line begins with a space and an
-        # alphabetic character after the asterisk, or a parenthetical. The only exceptions
+        # normal comment character after the asterisk, or a parenthetical. The only exceptions
         # are function descriptions.
         block = block and \
             len(sline) >= 3 and sline.startswith('*') and sline[1] == ' ' and \
-            (sline[2].isalpha() or (len(sline) >= 5 and \
+            (sline[2].isalpha() or sline[2] == '"' or sline[2] == "'" or (len(sline) >= 5 and \
             (sline[2] == '(' and sline[3].isalpha() and sline[4] != ')'))) or function_desc
         # Trim asterisks at the beginning of each line in a multiline comment.
         if sline.startswith('*'):

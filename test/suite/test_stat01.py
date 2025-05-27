@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import helper, wiredtiger, wttest
+import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
@@ -46,8 +46,9 @@ class test_stat01(wttest.WiredTigerTestCase):
         ('table', dict(uri='table:test_stat01.wt'))
     ]
     keyfmt = [
-        ('recno', dict(keyfmt='r')),
-        ('string', dict(keyfmt='S')),
+        ('column', dict(keyfmt='r', valfmt='S')),
+        ('column-fix', dict(keyfmt='r', valfmt='8t')),
+        ('string-row', dict(keyfmt='S', valfmt='S')),
     ]
     scenarios = make_scenarios(types, keyfmt)
 
@@ -61,7 +62,7 @@ class test_stat01(wttest.WiredTigerTestCase):
         parts = str.rpartition('(')
         return int(parts[2].rstrip(')'))
 
-    # Do a quick check of the entries in the the stats cursor, the "lookfor"
+    # Do a quick check of the entries in the stats cursor, the "lookfor"
     # string should appear with a minimum value of least "min".
     def check_stats(self, statcursor, min, lookfor):
         stringclass = ''.__class__
@@ -77,7 +78,7 @@ class test_stat01(wttest.WiredTigerTestCase):
             self.assertEqual(type(valstr), stringclass)
             self.assertEqual(type(val), intclass)
             self.assertEqual(val, self.statstr_to_int(valstr))
-            self.printVerbose(2, '  stat: \'' + desc + '\', \'' +
+            self.printVerbose(3, '  stat: \'' + desc + '\', \'' +
                               valstr + '\', ' + str(val))
             if desc == lookfor:
                 found = True
@@ -89,8 +90,9 @@ class test_stat01(wttest.WiredTigerTestCase):
     # Test simple connection statistics.
     def test_basic_conn_stats(self):
         # Build an object and force some writes.
-        SimpleDataSet(self, self.uri, 1000,
-                      config=self.config, key_format=self.keyfmt).populate()
+        ds = SimpleDataSet(self, self.uri, 1000,
+                      config=self.config, key_format=self.keyfmt, value_format = self.valfmt)
+        ds.populate()
         self.session.checkpoint(None)
 
         # See that we can get a specific stat value by its key and verify its
@@ -131,6 +133,14 @@ class test_stat01(wttest.WiredTigerTestCase):
         self.assertEqual(values[0], 'btree: overflow pages')
         val = self.statstr_to_int(values[1])
         self.assertEqual(val, values[2])
+
+        # Verify we can look at backup statistics without invoking backup.
+        values = cursor[stat.dsrc.backup_blocks_compressed]
+        val = self.statstr_to_int(values[1])
+        self.assertEqual(val, values[2])
+        values = cursor[stat.dsrc.backup_blocks_uncompressed]
+        val = self.statstr_to_int(values[1])
+        self.assertEqual(val, values[2])
         cursor.close()
 
         cursor = self.session.open_cursor(
@@ -140,6 +150,7 @@ class test_stat01(wttest.WiredTigerTestCase):
         cursor.close()
 
     # Test simple per-checkpoint statistics.
+    @wttest.skip_for_hook("timestamp", "__txn_visible_all_id assertion hit")
     def test_checkpoint_stats(self):
         ds = SimpleDataSet(self, self.uri, self.nentries,
             config=self.config, key_format=self.keyfmt)
@@ -155,6 +166,3 @@ class test_stat01(wttest.WiredTigerTestCase):
     def test_missing_file_stats(self):
         self.assertRaises(wiredtiger.WiredTigerError, lambda:
             self.session.open_cursor('statistics:file:DoesNotExist'))
-
-if __name__ == '__main__':
-    wttest.run()

@@ -1,8 +1,19 @@
+#!/usr/bin/env python3
+
 # Output C #defines for errors into wiredtiger.in and the associated error
 # message code in strerror.c.
 
-import re, textwrap
+import os, sys, textwrap
 from dist import compare_srcfile, format_srcfile
+from common_functions import filter_if_fast
+
+if not [f for f in filter_if_fast([
+            "../src/conn/api_strerror.c",
+            "../src/docs/error-handling.dox",
+            "../src/include/wiredtiger.in",
+        ], prefix="../")]:
+    sys.exit(0)
+
 
 class Error:
     def __init__(self, name, value, desc, long_desc=None, **flags):
@@ -31,8 +42,9 @@ errors = [
         'overwrite' configuration to WT_SESSION::open_cursor.'''),
     Error('WT_ERROR', -31802,
         'non-specific WiredTiger error', '''
-        This error is returned when an error is not covered by a
-        specific error return.'''),
+        This error is returned when an error is not covered by a specific error
+        return. The operation may be retried; if a transaction is in progress,
+        it should be rolled back and the operation retried in a new transaction.'''),
     Error('WT_NOTFOUND', -31803,
         'item not found', '''
         This error indicates an operation did not find a value to
@@ -49,22 +61,19 @@ errors = [
         'restart the operation (internal)', undoc=True),
     Error('WT_RUN_RECOVERY', -31806,
         'recovery must be run to continue', '''
-        This error is generated when wiredtiger_open is configured
-        to return an error if recovery is required to use the database.'''),
+        This error is generated when ::wiredtiger_open is configured to return
+        an error if recovery is required to use the database.'''),
     Error('WT_CACHE_FULL', -31807,
         'operation would overflow cache', '''
-        This error is only generated when wiredtiger_open is configured
-        to run in-memory, and an insert or update operation requires
-        more than the configured cache size to complete, or when an
-        application thread fails to do eviction within cache_max_wait_ms.
-        The operation may be retried; if a transaction is in progress, it
-        should be rolled back and the operation retried in a new transaction.'''),
+        This error is generated when wiredtiger_open is configured to run in-memory, and a
+        data modification operation requires more than the configured cache size to complete.
+        The operation may be retried; if a transaction is in progress, it should be rolled back
+        and the operation retried in a new transaction.'''),
     Error('WT_PREPARE_CONFLICT', -31808,
         'conflict with a prepared update', '''
-        This error is generated when the application attempts to update
-        an already updated record which is in prepared state. An updated
-        record will be in prepared state, when the transaction that performed
-        the update is in prepared state.'''),
+        This error is generated when the application attempts to read an
+        updated record which is part of a transaction that has been prepared
+        but not yet resolved.'''),
     Error('WT_TRY_SALVAGE', -31809,
         'database corruption detected', '''
         This error is generated when corruption is detected in an on-disk file.
@@ -75,7 +84,7 @@ errors = [
 ]
 
 # Update the #defines in the wiredtiger.in file.
-tmp_file = '__tmp'
+tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
 skip = 0
 for line in open('../src/include/wiredtiger.in', 'r'):
@@ -104,7 +113,7 @@ tfile.close()
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
 # Output the wiredtiger_strerror and wiredtiger_sterror_r code.
-tmp_file = '__tmp'
+tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
 tfile.write('''/* DO NOT EDIT: automatically built by dist/api_err.py. */
 
@@ -173,7 +182,7 @@ compare_srcfile(tmp_file, '../src/conn/api_strerror.c')
 
 # Update the error documentation block.
 doc = '../src/docs/error-handling.dox'
-tmp_file = '__tmp'
+tmp_file = '__tmp_api_err' + str(os.getpid())
 tfile = open(tmp_file, 'w')
 skip = 0
 for line in open(doc, 'r'):
@@ -190,7 +199,7 @@ for line in open(doc, 'r'):
             if 'undoc' in err.flags:
                 continue
             tfile.write(
-                '@par <code>' + err.name.upper() + '</code>\n' +
+                '@par \\c ' + err.name.upper() + '\n' +
                 " ".join(err.long_desc.split()) + '\n\n')
 tfile.close()
 format_srcfile(tmp_file)

@@ -52,8 +52,8 @@
  * of inserts set low as a default.
  */
 
-#define N_RECORDS 10000
-#define N_INSERT 500000
+#define N_RECORDS (10 * WT_THOUSAND)
+#define N_INSERT (500 * WT_THOUSAND)
 #define N_INSERT_THREAD 2
 #define N_JOIN_THREAD 2
 #define S64 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789::"
@@ -85,6 +85,10 @@ static void *thread_insert(void *);
 static void *thread_join(void *);
 static void test_join(TEST_OPTS *, SHARED_OPTS *, bool, bool);
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -92,31 +96,24 @@ main(int argc, char *argv[])
     TEST_OPTS *opts, _opts;
     const char *tablename;
 
-    /* Bypass this test for valgrind */
-    if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
-        return (EXIT_SUCCESS);
-
     opts = &_opts;
     sharedopts = &_sharedopts;
     memset(opts, 0, sizeof(*opts));
     memset(sharedopts, 0, sizeof(*sharedopts));
 
     testutil_check(testutil_parse_opts(argc, argv, opts));
-    testutil_make_work_dir(opts->home);
+    testutil_recreate_dir(opts->home);
 
     tablename = strchr(opts->uri, ':');
     testutil_assert(tablename != NULL);
     tablename++;
-    testutil_check(
-      __wt_snprintf(sharedopts->posturi, sizeof(sharedopts->posturi), "index:%s:post", tablename));
-    testutil_check(
-      __wt_snprintf(sharedopts->baluri, sizeof(sharedopts->baluri), "index:%s:bal", tablename));
-    testutil_check(
-      __wt_snprintf(sharedopts->flaguri, sizeof(sharedopts->flaguri), "index:%s:flag", tablename));
-    testutil_check(
-      __wt_snprintf(sharedopts->joinuri, sizeof(sharedopts->joinuri), "join:%s", opts->uri));
+    testutil_snprintf(sharedopts->posturi, sizeof(sharedopts->posturi), "index:%s:post", tablename);
+    testutil_snprintf(sharedopts->baluri, sizeof(sharedopts->baluri), "index:%s:bal", tablename);
+    testutil_snprintf(sharedopts->flaguri, sizeof(sharedopts->flaguri), "index:%s:flag", tablename);
+    testutil_snprintf(sharedopts->joinuri, sizeof(sharedopts->joinuri), "join:%s", opts->uri);
 
-    testutil_check(wiredtiger_open(opts->home, NULL, "create,cache_size=1G", &opts->conn));
+    testutil_check(wiredtiger_open(opts->home, NULL,
+      "create,cache_size=1G,statistics=(all),statistics_log=(json,on_close,wait=1)", &opts->conn));
 
     test_join(opts, sharedopts, true, true);
     test_join(opts, sharedopts, true, false);
@@ -128,6 +125,10 @@ main(int argc, char *argv[])
     return (0);
 }
 
+/*
+ * test_join --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_remove)
 {
@@ -206,13 +207,17 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
           insert_args[i].inserts, insert_args[i].removes, insert_args[i].notfounds,
           insert_args[i].rollbacks);
 
-    testutil_check(session->drop(session, sharedopts->posturi, NULL));
-    testutil_check(session->drop(session, sharedopts->baluri, NULL));
-    testutil_check(session->drop(session, sharedopts->flaguri, NULL));
-    testutil_check(session->drop(session, opts->uri, NULL));
+    WT_OP_CHECKPOINT_WAIT(session, session->drop(session, sharedopts->posturi, NULL));
+    WT_OP_CHECKPOINT_WAIT(session, session->drop(session, sharedopts->baluri, NULL));
+    WT_OP_CHECKPOINT_WAIT(session, session->drop(session, sharedopts->flaguri, NULL));
+    WT_OP_CHECKPOINT_WAIT(session, session->drop(session, opts->uri, NULL));
     testutil_check(session->close(session, NULL));
 }
 
+/*
+ * thread_insert --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 thread_insert(void *arg)
 {
@@ -240,20 +245,15 @@ thread_insert(void *arg)
          */
         key = (int)(__wt_random(&rnd) % N_RECORDS);
         maincur->set_key(maincur, key);
-/* FIXME-WT-6180: disable lower isolation levels. */
-#if 0
-        if (sharedopts->remove)
-            testutil_check(session->begin_transaction(session, "isolation=snapshot"));
-#else
+
         testutil_check(session->begin_transaction(session, "isolation=snapshot"));
-#endif
+
         if (sharedopts->remove && __wt_random(&rnd) % 5 == 0 && maincur->search(maincur) == 0) {
             /*
-             * Another thread can be removing at the same time.
+             * Another thread can be removing at the same time, or we can remove twice in a row.
              */
             ret = maincur->remove(maincur);
-            testutil_assert(
-              ret == 0 || (N_INSERT_THREAD > 1 && (ret == WT_NOTFOUND || ret == WT_ROLLBACK)));
+            testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == WT_ROLLBACK);
             if (ret == 0)
                 threadargs->removes++;
             else if (ret == WT_NOTFOUND)
@@ -264,12 +264,12 @@ thread_insert(void *arg)
             if (__wt_random(&rnd) % 2 == 0)
                 post = 54321;
             else
-                post = i % 100000;
+                post = i % (100 * WT_THOUSAND);
             if (__wt_random(&rnd) % 2 == 0) {
                 bal = -100;
                 flag = 1;
             } else {
-                bal = 1 + (i % 1000) * 100;
+                bal = 1 + (i % WT_THOUSAND) * 100;
                 flag = 0;
             }
             maincur->set_value(maincur, post, bal, extra, flag, key);
@@ -281,22 +281,14 @@ thread_insert(void *arg)
             else if (ret == WT_ROLLBACK)
                 threadargs->rollbacks++;
         }
-/* FIXME-WT-6180: disable lower isolation levels. */
-#if 0
-        if (sharedopts->remove) {
-            if (ret == WT_ROLLBACK)
-                testutil_check(session->rollback_transaction(session, NULL));
-            else
-                testutil_check(session->commit_transaction(session, NULL));
-        }
-#else
+
         if (ret == WT_ROLLBACK)
             testutil_check(session->rollback_transaction(session, NULL));
         else
             testutil_check(session->commit_transaction(session, NULL));
-#endif
-        if (i % 1000 == 0 && i != 0) {
-            if (i % 10000 == 0)
+
+        if (i % WT_THOUSAND == 0 && i != 0) {
+            if (i % (10 * WT_THOUSAND) == 0)
                 fprintf(stderr, "*");
             else
                 fprintf(stderr, ".");
@@ -307,6 +299,10 @@ thread_insert(void *arg)
     return (NULL);
 }
 
+/*
+ * thread_join --
+ *     TODO: Add a comment describing this function.
+ */
 static void *
 thread_join(void *arg)
 {
@@ -338,19 +334,17 @@ thread_join(void *arg)
         balcur->set_key(balcur, 0);
         testutil_check(balcur->search(balcur));
         if (sharedopts->bloom)
-            testutil_check(
-              __wt_snprintf(cfg, sizeof(cfg), "compare=lt,strategy=bloom,count=%d", N_RECORDS));
+            testutil_snprintf(cfg, sizeof(cfg), "compare=lt,strategy=bloom,count=%d", N_RECORDS);
         else
-            testutil_check(__wt_snprintf(cfg, sizeof(cfg), "compare=lt"));
+            testutil_snprintf(cfg, sizeof(cfg), "compare=lt");
         testutil_check(session->join(session, joincur, balcur, cfg));
 
         flagcur->set_key(flagcur, 0);
         testutil_check(flagcur->search(flagcur));
         if (sharedopts->bloom)
-            testutil_check(
-              __wt_snprintf(cfg, sizeof(cfg), "compare=eq,strategy=bloom,count=%d", N_RECORDS));
+            testutil_snprintf(cfg, sizeof(cfg), "compare=eq,strategy=bloom,count=%d", N_RECORDS);
         else
-            testutil_check(__wt_snprintf(cfg, sizeof(cfg), "compare=eq"));
+            testutil_snprintf(cfg, sizeof(cfg), "compare=eq");
         testutil_check(session->join(session, joincur, flagcur, cfg));
 
         /* Expect no values returned */

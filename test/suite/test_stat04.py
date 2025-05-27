@@ -26,10 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, struct
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
-import wiredtiger, wttest
+import wttest
 from wiredtiger import stat
 
 # test_stat04.py
@@ -37,10 +36,9 @@ from wiredtiger import stat
 class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
     uripfx = 'table:test_stat04.'
 
-    # Note: stats for fixed length bit fields (valuefmt='8t')
-    # do not include accurate counts for kv pairs.
     keyfmt = [
         ('col', dict(keyfmt='r', valuefmt='S', storekind='col')),
+        ('fix', dict(keyfmt='r', valuefmt='8t', storekind='fix')),
         ('row', dict(keyfmt='S', valuefmt='S', storekind='row')),
     ]
     nentries = [
@@ -95,7 +93,7 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
         # Remove a number of entries, at each step checking that stats match.
         for i in range(0, self.nentries // 37):
             cursor.set_key(self.genkey(i*11 % self.nentries))
-            if cursor.remove() == 0:
+            if cursor.remove() == 0 and self.valuefmt != '8t':
                 count -= 1
             self.checkcount(uri, count)
         cursor.close()
@@ -104,6 +102,3 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
         # that tests the on-disk format as well as the in-memory format.
         self.reopen_conn()
         self.checkcount(uri, count)
-
-if __name__ == '__main__':
-    wttest.run()

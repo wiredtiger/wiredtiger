@@ -34,8 +34,7 @@ from wtscenario import make_scenarios
 from test_import01 import test_import_base
 
 class test_import03(test_import_base):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
-    session_config = 'isolation=snapshot'
+    conn_config = 'cache_size=50MB'
 
     ntables = 10
     nrows = 100
@@ -70,7 +69,7 @@ class test_import03(test_import_base):
 
         original_db_table = 'original_db_table'
         uri = 'table:' + original_db_table
-        create_config = 'allocation_size=512,log=(enabled=true),' + self.config
+        create_config = 'allocation_size=512,' + self.config
         self.session.create(uri, create_config)
 
         keys = self.keys
@@ -101,7 +100,7 @@ class test_import03(test_import_base):
         self.printVerbose(3, '\nFile configuration:\n' + original_db_file_config)
         self.printVerbose(3, '\nTable configuration:\n' + original_db_table_config)
 
-        # Contruct the config string.
+        # Construct the config string.
         import_config = '{},import=(enabled,repair=false,file_metadata=({}))'.format(
             original_db_table_config, original_db_file_config)
 
@@ -129,7 +128,7 @@ class test_import03(test_import_base):
         self.session.create(uri, import_config)
 
         # Verify object.
-        self.session.verify(uri)
+        self.verifyUntilSuccess(self.session, uri, None)
 
         # Check that the previously inserted values survived the import.
         self.check(uri, keys[:max_idx], values[:max_idx])
@@ -155,6 +154,3 @@ class test_import03(test_import_base):
 
         # Perform a checkpoint.
         self.session.checkpoint()
-
-if __name__ == '__main__':
-    wttest.run()

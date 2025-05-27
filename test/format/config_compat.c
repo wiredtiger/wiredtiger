@@ -89,8 +89,6 @@ static const char *list[] = {
   "runs.type",
   "firstfit=",
   "disk.firstfit",
-  "huffman_value=",
-  "btree.huffman_value",
   "in_memory=",
   "runs.in_memory",
   "independent_thread_rng=",
@@ -101,10 +99,6 @@ static const char *list[] = {
   "btree.internal_key_truncation",
   "internal_page_max=",
   "btree.internal_page_max",
-  "isolation=",
-  "transaction.isolation",
-  "key_gap=",
-  "btree.key_gap",
   "key_max=",
   "btree.key_max",
   "key_min=",
@@ -113,8 +107,10 @@ static const char *list[] = {
   "btree.leaf_page_max",
   "leak_memory=",
   "wiredtiger.leak_memory",
+  "logging.archive=",
+  "logging.remove",
   "logging_archive=",
-  "logging.archive",
+  "logging.remove",
   "logging_compression=",
   "logging.compression",
   "logging_file_max=",
@@ -165,6 +161,8 @@ static const char *list[] = {
   "runs.threads",
   "timer=",
   "runs.timer",
+  "timing_stress_aggressive_stash_free=",
+  "stress.aggressive_stash_free",
   "timing_stress_aggressive_sweep=",
   "stress.aggressive_sweep",
   "timing_stress_checkpoint=",
@@ -185,8 +183,6 @@ static const char *list[] = {
   "stress.split_6",
   "timing_stress_split_7=",
   "stress.split_7",
-  "timing_stress_split_8=",
-  "stress.split_8",
   "transaction-frequency=",
   "transaction.frequency",
   "transaction_timestamps=",
@@ -223,7 +219,7 @@ config_compat(const char **origp)
 
     for (p = list; *p != NULL; p += 2)
         if (strncmp(orig, *p, (size_t)((equalp - orig) + 1)) == 0) {
-            testutil_check(__wt_snprintf(conv, sizeof(conv), "%s%s", *++p, equalp));
+            testutil_snprintf(conv, sizeof(conv), "%s%s", *++p, equalp);
             *origp = conv;
             break;
         }

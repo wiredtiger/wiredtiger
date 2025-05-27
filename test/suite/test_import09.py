@@ -32,11 +32,22 @@
 import os, random, shutil
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
+import wttest
 
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_import09(test_import_base):
     nrows = 100
     ntables = 1
-    session_config = 'isolation=snapshot'
+
+    # To test the sodium encryptor, we use secretkey= rather than
+    # setting a keyid, because for a "real" (vs. test-only) encryptor,
+    # keyids require some kind of key server, and (a) setting one up
+    # for testing would be a nuisance and (b) currently the sodium
+    # encryptor doesn't support any anyway.
+    #
+    # It expects secretkey= to provide a hex-encoded 256-bit chacha20 key.
+    # This key will serve for testing purposes.
+    sodium_testkey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 
     allocsizes = [
         ('512', dict(allocsize='512')),
@@ -53,9 +64,10 @@ class test_import09(test_import_base):
        ('zstd', dict(compressor='zstd')),
     ]
     encryptors = [
-       ('none', dict(encryptor='none')),
-       ('nop', dict(encryptor='nop')),
-       ('rotn', dict(encryptor='rotn')),
+       ('none', dict(encryptor='none', encryptor_args='')),
+       ('nop', dict(encryptor='nop', encryptor_args='')),
+       ('rotn', dict(encryptor='rotn', encryptor_args='')),
+       ('sodium', dict(encryptor='sodium', encryptor_args=',secretkey=' + sodium_testkey)),
     ]
     tables = [
         ('simple_table', dict(
@@ -89,8 +101,7 @@ class test_import09(test_import_base):
         extlist.extension('encryptors', self.encryptor)
 
     def conn_config(self):
-        return 'cache_size=50MB,log=(enabled),statistics=(all),encryption=(name={})'.format(
-            self.encryptor)
+        return 'cache_size=50MB,encryption=(name={})'.format(self.encryptor + self.encryptor_args)
 
     def test_import_table_repair(self):
         # Add some tables & data and checkpoint.
@@ -100,7 +111,7 @@ class test_import09(test_import_base):
         # Create the table targeted for import.
         original_db_table = 'original_db_table'
         uri = 'table:' + original_db_table
-        create_config = ('allocation_size={},log=(enabled=true),block_compressor={},'
+        create_config = ('allocation_size={},block_compressor={},'
             'encryption=(name={}),') + self.config
         self.session.create(uri,
             create_config.format(self.allocsize, self.compressor, self.encryptor))
@@ -154,13 +165,13 @@ class test_import09(test_import_base):
         self.copy_file(original_db_table + '.wt', '.', newdir)
 
         # Construct the config string.
-        import_config = 'log=(enabled=true),import=(enabled,repair=true)'
+        import_config = 'import=(enabled,repair=true)'
 
         # Import the file.
         self.session.create(uri, import_config)
 
         # Verify object.
-        self.session.verify(uri)
+        self.verifyUntilSuccess(self.session, uri, None)
 
         # Check that the previously inserted values survived the import.
         self.check(uri, keys[:max_idx], values[:max_idx])

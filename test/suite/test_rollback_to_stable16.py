@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -24,31 +25,30 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# rollback_to_stable
+# [END_TAGS]
 
-import os, shutil
 from helper import simulate_crash_restart
+from rollback_to_stable_util import verify_rts_logs
 import wiredtiger, wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_rollback_to_stable16.py
 # Test that rollback to stable removes updates present on disk for column store.
+# (This test is now probably redundant with others, and could maybe be removed?)
 class test_rollback_to_stable16(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
 
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+        ('row_integer', dict(key_format='i')),
     ]
 
     value_format_values = [
         # Fixed length
-        #FIXME: WT-7304 Fixed length column store failing on rollback on disk values
-        # ('fixed', dict(value_format='8t')),
+        ('fixed', dict(value_format='8t')),
         # Variable length
         ('variable', dict(value_format='S')),
     ]
@@ -58,10 +58,30 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         ('inmem', dict(in_memory=True))
     ]
 
-    scenarios = make_scenarios(key_format_values, value_format_values, in_memory_values)
+    worker_thread_values = [
+        ('0', dict(threads=0)),
+        ('4', dict(threads=4)),
+        ('8', dict(threads=8))
+    ]
+
+    def keep(name, d):
+        if d['key_format'] == 'i' and d['value_format'] == '8t':
+            # Fixed-length format is only special for column-stores.
+            return False
+        return True
+
+    scenarios = make_scenarios(key_format_values, value_format_values, in_memory_values,
+        worker_thread_values, include=keep)
+
+    # Don't raise errors for these, the expectation is that the RTS verifier will
+    # run on the test output.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+        self.addTearDownAction(verify_rts_logs)
 
     def conn_config(self):
-        config = 'cache_size=200MB,statistics=(all)'
+        config = 'cache_size=200MB,statistics=(all),verbose=(rts:5)'
         if self.in_memory:
             config += ',in_memory=true'
         else:
@@ -76,7 +96,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
                 cursor[i] = value + str(i)
             else:
                 cursor[i] = value
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(timestamp))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(timestamp))
         cursor.close()
 
     def check(self, check_value, uri, nrows, start_row, read_ts):
@@ -84,7 +104,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         if read_ts == 0:
             session.begin_transaction()
         else:
-            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+            session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
 
         count = 0
@@ -119,18 +139,20 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         else:
             values = [0x01, 0x02, 0x03, 0x04]
 
-        create_params = 'log=(enabled=false),key_format={},value_format={}'.format(self.key_format, self.value_format)
+        # Create a table.
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params += ',log=(enabled=false)' if self.in_memory else ''
         self.session.create(uri, create_params)
 
         # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         for i in range(len(values)):
             self.insert_update_data(uri, values[i], start_row, nrows, ts[i])
             start_row += nrows
 
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
 
         if not self.in_memory:
             # Checkpoint to ensure that all the updates are flushed to disk.
@@ -139,12 +161,12 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
             simulate_crash_restart(self,".", "RESTART")
         else:
             # Manually call rollback_to_stable for in memory keys/values.
-            self.conn.rollback_to_stable()
+            self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         self.check(values[0], uri, nrows, 1, 2)
         self.check(values[1], uri, nrows, 201, 5)
-        self.check(None, uri, nrows, 401, 7)
-        self.check(None, uri, nrows, 601, 9)
+        self.check(0 if self.value_format == '8t' else None, uri, nrows, 401, 7)
+        self.check(0 if self.value_format == '8t' else None, uri, nrows, 601, 9)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
@@ -154,6 +176,3 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(upd_aborted + keys_removed, (nrows*2) - 2)
 
         self.session.close()
-
-if __name__ == '__main__':
-    wttest.run()

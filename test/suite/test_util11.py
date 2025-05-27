@@ -25,10 +25,13 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# wt_util
+# [END_TAGS]
 
-import os, struct
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wttest
 
 # test_util11.py
 #    Utilities: wt list
@@ -92,8 +95,8 @@ class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + pfx + '4', params)
         self.populate(pfx + '2')
         self.populate(pfx + '3')
-        self.session.drop('table:' + pfx + '2', None)
-        self.session.drop('table:' + pfx + '4', None)
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '2')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '4')
 
         # Construct what we think we'll find
         tablelist = ''.join('table:' + pfx + str(i) + '\n' for i in (1, 3, 5))
@@ -116,17 +119,14 @@ class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + pfx + '4', params)
         self.populate(pfx + '2')
         self.populate(pfx + '3')
-        self.session.drop('table:' + pfx + '5', None)
-        self.session.drop('table:' + pfx + '4', None)
-        self.session.drop('table:' + pfx + '3', None)
-        self.session.drop('table:' + pfx + '2', None)
-        self.session.drop('table:' + pfx + '1', None)
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '5')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '4')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '3')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '2')
+        self.dropUntilSuccess(self.session, 'table:' + pfx + '1')
 
         # Construct what we think we'll find
         filelist = ''
         outfile = "listout.txt"
         self.runWt(["list"], outfilename=outfile)
         self.check_file_content(outfile, filelist)
-
-if __name__ == '__main__':
-    wttest.run()

@@ -34,12 +34,8 @@ import os, shutil
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
-
 class test_backup08(wttest.WiredTigerTestCase):
     conn_config = 'config_base=false,create,log=(enabled)'
-    session_config = 'isolation=snapshot'
     dir = 'backup.dir'
     coll1_uri = 'table:collection10.1'
     coll2_uri = 'table:collection10.2'
@@ -85,12 +81,12 @@ class test_backup08(wttest.WiredTigerTestCase):
                 curs[i] = i
                 self.pr("i: " + str(i))
                 self.session.commit_transaction(
-                  'commit_timestamp=' + timestamp_str(i))
+                  'commit_timestamp=' + self.timestamp_str(i))
             # Set the oldest and stable timestamp a bit earlier than the data
             # we inserted. Take a checkpoint to the stable timestamp.
             self.pr("stable ts: " + str(ts))
-            self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(ts) +
-                ',stable_timestamp=' + timestamp_str(ts))
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts) +
+                ',stable_timestamp=' + self.timestamp_str(ts))
             # This forces a different checkpoint timestamp for each table.
             # Default is to use the stable timestamp.
             expected = ts
@@ -102,7 +98,7 @@ class test_backup08(wttest.WiredTigerTestCase):
                 ckpt_config = 'use_timestamp=true'
             self.session.checkpoint(ckpt_config)
             q = self.conn.query_timestamp('get=last_checkpoint')
-            self.assertTimestampsEqual(q, timestamp_str(expected))
+            self.assertTimestampsEqual(q, self.timestamp_str(expected))
         return expected
 
     def backup_and_recover(self, expected_rec_ts):
@@ -123,7 +119,7 @@ class test_backup08(wttest.WiredTigerTestCase):
         backup_conn = self.wiredtiger_open(self.dir)
         q = backup_conn.query_timestamp('get=recovery')
         self.pr("query recovery ts: " + q)
-        self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
+        self.assertTimestampsEqual(q, self.timestamp_str(expected_rec_ts))
 
     def test_timestamp_backup(self):
         # Add some data and checkpoint using the timestamp or not
@@ -135,6 +131,3 @@ class test_backup08(wttest.WiredTigerTestCase):
         # This tests that the stable timestamp information is transferred
         # with the backup. It should be part of the backup metadata file.
         self.backup_and_recover(ckpt_ts)
-
-if __name__ == '__main__':
-    wttest.run()

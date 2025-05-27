@@ -150,9 +150,9 @@ do_rotate(char *buf, size_t len, int rotn)
      */
     for (i = 0; i < len; i++) {
         if ('a' <= buf[i] && buf[i] <= 'z')
-            buf[i] = ((buf[i] - 'a') + rotn) % 26 + 'a';
+            buf[i] = (char)(((buf[i] - 'a') + rotn) % 26 + 'a');
         else if ('A' <= buf[i] && buf[i] <= 'Z')
-            buf[i] = ((buf[i] - 'A') + rotn) % 26 + 'A';
+            buf[i] = (char)(((buf[i] - 'A') + rotn) % 26 + 'A');
     }
 }
 
@@ -333,6 +333,10 @@ rotn_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encr
     /*
      * In this demonstration, the secret key must be alphabetic characters. We stash the secret key
      * from the configuration string and build some shift bytes to make encryption/decryption easy.
+     *
+     * We allow specifying both a keyid and an explicit secret key (which overrides the keyid) for
+     * testing purposes. Under ordinary circumstances being asked to use two keys at once would be
+     * an error.
      */
     if ((ret = wt_api->config_get(wt_api, session, encrypt_config, "secretkey", &secret)) == 0 &&
       secret.len != 0) {

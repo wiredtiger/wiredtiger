@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+#pragma once
+
 /*
  * WT_REC_KV--
  *	An on-page key/value item we're building.
@@ -58,6 +60,21 @@ struct __wt_rec_chunk {
     size_t min_offset; /* byte offset */
 
     WT_ITEM image; /* disk-image */
+
+    /* For fixed-length column store, track where the time windows start and how many we have. */
+    uint32_t aux_start_offset;
+    uint32_t auxentries;
+};
+
+/*
+ * WT_DELETE_HS_UPD --
+ *	Update that needs to be deleted from the history store.
+ */
+struct __wt_delete_hs_upd {
+    WT_INSERT *ins; /* Insert list reference */
+    WT_ROW *rip;    /* Original on-page reference */
+    WT_UPDATE *upd;
+    WT_UPDATE *tombstone;
 };
 
 /*
@@ -88,19 +105,15 @@ struct __wt_reconcile {
     /* Track the pinned timestamp at the time reconciliation started. */
     wt_timestamp_t rec_start_pinned_ts;
 
-    /* Track the page's min/maximum transactions. */
+    /* Track the page's maximum transaction/timestamp. */
     uint64_t max_txn;
     wt_timestamp_t max_ts;
-    wt_timestamp_t min_skipped_ts;
-
-    u_int updates_seen;     /* Count of updates seen. */
-    u_int updates_unstable; /* Count of updates not visible_all. */
 
     /*
      * When we do not find any update to be written for the whole page, we would like to mark
-     * eviction failed in the case of update-restore. There is no progress made by eviction in such
-     * a case, the page size stays the same and considering it a success could force the page
-     * through eviction repeatedly.
+     * eviction failed in the case of update-restore unless all the updates for a key are found
+     * aborted. There is no progress made by eviction in such a case, the page size stays the same
+     * and considering it a success could force the page through eviction repeatedly.
      */
     bool update_used;
 
@@ -116,9 +129,9 @@ struct __wt_reconcile {
      * can delete the leaf page without reading it because we don't have to discard any overflow
      * items it might reference.
      *
-     * The test test is per-page reconciliation, that is, once we see an overflow item on the page,
-     * all subsequent leaf pages written for the page will not be leaf-no-overflow type, regardless
-     * of whether or not they contain overflow items. In other words, leaf-no-overflow is not
+     * The test is per-page reconciliation, that is, once we see an overflow item on the page, all
+     * subsequent leaf pages written for the page will not be leaf-no-overflow type, regardless of
+     * whether or not they contain overflow items. In other words, leaf-no-overflow is not
      * guaranteed to be set on every page that doesn't contain an overflow item, only that if it is
      * set, the page contains no overflow items. XXX This was originally done because raw
      * compression couldn't do better, now that raw compression has been removed, we should do
@@ -142,7 +155,8 @@ struct __wt_reconcile {
      * Reconciliation gets tricky if we have to split a page, which happens when the disk image we
      * create exceeds the page type's maximum disk image size.
      *
-     * First, the target size of the page we're building.
+     * First, the target size of the page we're building. In FLCS, this is the size of both the
+     * primary and auxiliary portions.
      */
     uint32_t page_size; /* Page size */
 
@@ -184,6 +198,15 @@ struct __wt_reconcile {
     size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
 
     /*
+     * Fixed-length column store divides the disk image into two sections, primary and auxiliary,
+     * and we need to track both of them.
+     */
+    uint32_t aux_start_offset; /* First auxiliary byte */
+    uint32_t aux_entries;      /* Current number of auxiliary entries */
+    uint8_t *aux_first_free;   /* Current first free auxiliary byte */
+    size_t aux_space_avail;    /* Current remaining auxiliary space */
+
+    /*
      * Counters tracking how much time information is included in reconciliation for each page that
      * is written to disk. The number of entries on a page is limited to a 32 bit number so these
      * counters can be too.
@@ -196,7 +219,7 @@ struct __wt_reconcile {
     uint32_t count_stop_txn;
     uint32_t count_prepare;
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
 #define WT_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
 #define WT_REC_TIME_NEWEST_STOP_TS 0x04u
@@ -204,7 +227,7 @@ struct __wt_reconcile {
 #define WT_REC_TIME_NEWEST_TXN 0x10u
 #define WT_REC_TIME_OLDEST_START_TS 0x20u
 #define WT_REC_TIME_PREPARE 0x40u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t ts_usage_flags;
 
     /*
@@ -216,6 +239,15 @@ struct __wt_reconcile {
     uint32_t supd_next;
     size_t supd_allocated;
     size_t supd_memsize; /* Size of saved update structures */
+
+    /*
+     * List of updates to be deleted from the history store. While reviewing updates for each page,
+     * we save the updates that needs to be deleted from history store here, and then delete them
+     * after we have built the disk image.
+     */
+    WT_DELETE_HS_UPD *delete_hs_upd; /* Updates to delete from history store */
+    uint32_t delete_hs_upd_next;
+    size_t delete_hs_upd_allocated;
 
     /* List of pages we've written so far. */
     WT_MULTI *multi;
@@ -236,12 +268,6 @@ struct __wt_reconcile {
      */
     bool cell_zero; /* Row-store internal page 0th key */
 
-    /*
-     * We calculate checksums to find previously written identical blocks, but once a match fails
-     * during an eviction, there's no point trying again.
-     */
-    bool evict_matching_checksum_failed;
-
     WT_REC_DICTIONARY **dictionary;          /* Dictionary */
     u_int dictionary_next, dictionary_slots; /* Next, max entries */
                                              /* Skiplist head. */
@@ -252,6 +278,10 @@ struct __wt_reconcile {
     WT_ITEM *cur, _cur;   /* Key/Value being built */
     WT_ITEM *last, _last; /* Last key/value built */
 
+/* Don't increase key prefix-compression unless there's a significant gain. */
+#define WT_KEY_PREFIX_PREVIOUS_MINIMUM 10
+    uint8_t key_pfx_last; /* Last prefix compression */
+
     bool key_pfx_compress;      /* If can prefix-compress next key */
     bool key_pfx_compress_conf; /* If prefix compression configured */
     bool key_sfx_compress;      /* If can suffix-compress next key */
@@ -261,10 +291,11 @@ struct __wt_reconcile {
 
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 
-    bool cache_write_hs;      /* Used the history store table */
-    bool cache_write_restore; /* Used update/restoration */
+    bool cache_write_hs;                /* Used the history store table */
+    bool cache_write_restore_invisible; /* Used update/restoration because of invisible update */
+    bool cache_upd_chain_all_aborted;   /* All updates in the chain are aborted */
 
-    uint8_t tested_ref_state; /* Debugging information */
+    WT_REF_STATE tested_ref_state; /* Debugging information */
 
     /*
      * XXX In the case of a modified update, we may need a copy of the current value as a set of
@@ -280,20 +311,30 @@ struct __wt_reconcile {
     bool rec_page_cell_with_ts;
     bool rec_page_cell_with_txn_id;
     bool rec_page_cell_with_prepared_txn;
+
+    /*
+     * When removing a key due to a tombstone with a durable timestamp of "none", we also remove the
+     * history store contents associated with that key. Keep the pertinent state here: a flag to say
+     * whether this is appropriate, and a cached history store cursor for doing it.
+     */
+    bool hs_clear_on_tombstone;
+    WT_CURSOR *hs_cursor;
 };
 
 typedef struct {
-    WT_UPDATE *upd; /* Update to write (or NULL) */
+    WT_UPDATE *upd;       /* Update to write (or NULL) */
+    WT_UPDATE *tombstone; /* The tombstone to write (or NULL) */
 
     WT_TIME_WINDOW tw;
 
-    bool upd_saved; /* An element on the row's update chain was saved */
+    bool upd_saved;       /* An element on the row's update chain was saved */
+    bool no_ts_tombstone; /* Tombstone without a timestamp */
 } WT_UPDATE_SELECT;
 
 /*
  * WT_CHILD_RELEASE, WT_CHILD_RELEASE_ERR --
- *	Macros to clean up during internal-page reconciliation, releasing the
- *	hazard pointer we're holding on child pages.
+ *	Macros to clean up during internal-page reconciliation, releasing the hazard pointer we're
+ * holding on a child page.
  */
 #define WT_CHILD_RELEASE(session, hazard, ref)                          \
     do {                                                                \
@@ -308,15 +349,41 @@ typedef struct {
         WT_ERR(ret);                               \
     } while (0)
 
-typedef enum {
-    WT_CHILD_IGNORE,   /* Ignored child */
-    WT_CHILD_MODIFIED, /* Modified child */
-    WT_CHILD_ORIGINAL, /* Original child */
-    WT_CHILD_PROXY     /* Deleted child: proxy */
-} WT_CHILD_STATE;
+/*
+ * WT_CHILD_MODIFY_STATE --
+ *	We review child pages (while holding the child page's WT_REF lock), during internal-page
+ * reconciliation. This structure encapsulates the child page's returned information/state.
+ */
+typedef struct {
+    enum {
+        WT_CHILD_IGNORE,   /* Ignored child */
+        WT_CHILD_MODIFIED, /* Modified child */
+        WT_CHILD_ORIGINAL, /* Original child */
+        WT_CHILD_PROXY     /* Deleted child: proxy */
+    } state;               /* Returned child state */
+
+    WT_PAGE_DELETED del; /* WT_CHILD_PROXY state fast-truncate information */
+
+    bool hazard; /* If currently holding a child hazard pointer */
+} WT_CHILD_MODIFY_STATE;
 
 /*
  * Macros from fixed-length entries to/from bytes.
  */
-#define WT_FIX_BYTES_TO_ENTRIES(btree, bytes) ((uint32_t)((((bytes)*8) / (btree)->bitcnt)))
-#define WT_FIX_ENTRIES_TO_BYTES(btree, entries) ((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
+#define WT_COL_FIX_BYTES_TO_ENTRIES(btree, bytes) ((uint32_t)((((bytes)*8) / (btree)->bitcnt)))
+#define WT_COL_FIX_ENTRIES_TO_BYTES(btree, entries) \
+    ((uint32_t)WT_ALIGN((entries) * (btree)->bitcnt, 8))
+
+#define WT_UPDATE_SELECT_INIT(upd_select)       \
+    do {                                        \
+        (upd_select)->upd = NULL;               \
+        (upd_select)->tombstone = NULL;         \
+        (upd_select)->upd_saved = false;        \
+        (upd_select)->no_ts_tombstone = false;  \
+        WT_TIME_WINDOW_INIT(&(upd_select)->tw); \
+    } while (0)
+
+/*
+ * Enumeration used to track the context of reconstructing modifies within a update list.
+ */
+typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;

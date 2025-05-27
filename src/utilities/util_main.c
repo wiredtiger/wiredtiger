@@ -11,7 +11,7 @@
 const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
-const char *usage_prefix = "[-LmRrSVv] [-C config] [-E secretkey] [-h home]";
+const char *usage_prefix = "[-BLmpRrSVv] [-C config] [-E secretkey] [-h home]";
 bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
@@ -25,16 +25,35 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 #define REC_RECOVER "log=(recover=on)"
 #define SALVAGE "salvage=true"
 
+/*
+ * wt_explicit_zero --
+ *     Clear a buffer, with precautions against being optimized away.
+ */
+static void
+wt_explicit_zero(void *ptr, size_t len)
+{
+    /* Call through a volatile pointer to avoid removal even when it's a dead store. */
+    static void *(*volatile memsetptr)(void *ptr, int ch, size_t len) = memset;
+    (void)memsetptr(ptr, '\0', len);
+}
+
+/*
+ * usage --
+ *     Display a usage message for the wt utility.
+ */
 static void
 usage(void)
 {
     static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
       "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
       "database directory", "-L", "turn logging off for debug-mode", "-m", "run verify on metadata",
+      "-p",
+      "disable pre-fetching on the connection (use this option when dumping/verifying corrupted "
+      "data)",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
-      "-v", "verbose", NULL, NULL};
+      "-v", "verbose", "-?", "show this message", NULL, NULL};
     static const char *commands[] = {"alter", "alter an object", "backup", "database backup",
       "compact", "compact an object", "copyright", "display copyright information", "create",
       "create an object", "downgrade", "downgrade a database", "drop", "drop an object", "dump",
@@ -42,8 +61,8 @@ usage(void)
       "load an object from a text file", "printlog", "display the database log", "read",
       "read values from an object", "rename", "rename an object", "salvage", "salvage a file",
       "stat", "display statistics for an object", "truncate",
-      "truncate an object, removing all content", "upgrade", "upgrade an object", "verify",
-      "verify an object", "write", "write values to an object", NULL, NULL};
+      "truncate an object, removing all content", "verify", "verify an object", "write",
+      "write values to an object", NULL, NULL};
 
     fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
       WIREDTIGER_VERSION_MINOR);
@@ -52,6 +71,10 @@ usage(void)
     util_usage(NULL, "commands:", commands);
 }
 
+/*
+ * main --
+ *     The wt utility.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -61,8 +84,9 @@ main(int argc, char *argv[])
     size_t len;
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
-    const char *cmd_config, *config, *p1, *p2, *p3, *readonly_config, *rec_config, *salvage_config;
-    bool backward_compatible, logoff, meta_verify, readonly, recover, salvage;
+    const char *cmd_config, *conn_config, *p1, *p2, *p3, *readonly_config, *rec_config,
+      *salvage_config, *session_config;
+    bool backward_compatible, disable_prefetch, logoff, meta_verify, readonly, recover, salvage;
 
     conn = NULL;
     p = NULL;
@@ -83,16 +107,18 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
-    cmd_config = config = readonly_config = salvage_config = secretkey = NULL;
+    cmd_config = conn_config = readonly_config = salvage_config = session_config = secretkey = NULL;
     /*
      * We default to returning an error if recovery needs to be run. Generally we expect this to be
      * run after a clean shutdown. The printlog command disables logging entirely. If recovery is
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    backward_compatible = logoff = meta_verify = readonly = recover = salvage = false;
+    backward_compatible = disable_prefetch = logoff = meta_verify = readonly = recover = salvage =
+      false;
     /* Check for standard options. */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LmRrSVv")) != EOF)
+    __wt_optwt = 1; /* enable WT-specific behavior */
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LmpRrSVv?")) != EOF)
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
@@ -100,13 +126,15 @@ main(int argc, char *argv[])
         case 'C': /* wiredtiger_open config */
             cmd_config = __wt_optarg;
             break;
-        case 'E':            /* secret key */
-            free(secretkey); /* lint: set more than once */
-            if ((secretkey = strdup(__wt_optarg)) == NULL) {
+        case 'E': /* secret key */
+            if (secretkey != NULL)
+                wt_explicit_zero(secretkey, strlen(secretkey));
+            util_free(secretkey); /* lint: set more than once */
+            if ((secretkey = util_strdup(__wt_optarg)) == NULL) {
                 (void)util_err(NULL, errno, NULL);
                 goto err;
             }
-            memset(__wt_optarg, 0, strlen(__wt_optarg));
+            wt_explicit_zero(__wt_optarg, strlen(__wt_optarg));
             break;
         case 'h': /* home directory */
             home = __wt_optarg;
@@ -118,6 +146,9 @@ main(int argc, char *argv[])
         case 'm': /* verify metadata on connection open */
             cmd_config = "verify_metadata=true";
             meta_verify = true;
+            break;
+        case 'p':
+            disable_prefetch = true;
             break;
         case 'R': /* recovery */
             rec_config = REC_RECOVER;
@@ -138,6 +169,8 @@ main(int argc, char *argv[])
             verbose = true;
             break;
         case '?':
+            usage();
+            goto done;
         default:
             usage();
             goto err;
@@ -182,7 +215,7 @@ main(int argc, char *argv[])
             goto done;
         } else if (strcmp(command, "create") == 0) {
             func = util_create;
-            config = "create";
+            conn_config = "create";
         }
         break;
     case 'd':
@@ -198,10 +231,10 @@ main(int argc, char *argv[])
             func = util_list;
         else if (strcmp(command, "load") == 0) {
             func = util_load;
-            config = "create";
+            conn_config = "create";
         } else if (strcmp(command, "loadtext") == 0) {
             func = util_loadtext;
-            config = "create";
+            conn_config = "create";
         }
         break;
     case 'p':
@@ -221,20 +254,23 @@ main(int argc, char *argv[])
             func = util_salvage;
         else if (strcmp(command, "stat") == 0) {
             func = util_stat;
-            config = "statistics=(all)";
+            conn_config = "statistics=(all)";
         }
         break;
     case 't':
         if (strcmp(command, "truncate") == 0)
             func = util_truncate;
         break;
-    case 'u':
-        if (strcmp(command, "upgrade") == 0)
-            func = util_upgrade;
-        break;
     case 'v':
-        if (strcmp(command, "verify") == 0)
+        if (strcmp(command, "verify") == 0) {
             func = util_verify;
+            if (disable_prefetch)
+                conn_config = "prefetch=(available=false,default=false)";
+            else {
+                conn_config = "prefetch=(available=true,default=false)";
+                session_config = "prefetch=(enabled=true)";
+            }
+        }
         break;
     case 'w':
         if (strcmp(command, "write") == 0)
@@ -253,8 +289,8 @@ open:
     len = 10; /* some slop */
     p1 = p2 = p3 = "";
     len += strlen("error_prefix=wt");
-    if (config != NULL)
-        len += strlen(config);
+    if (conn_config != NULL)
+        len += strlen(conn_config);
     if (cmd_config != NULL)
         len += strlen(cmd_config);
     if (readonly_config != NULL)
@@ -268,29 +304,42 @@ open:
         p3 = ")";
     }
     len += strlen(rec_config);
-    if ((p = malloc(len)) == NULL) {
+    if ((p = util_malloc(len)) == NULL) {
         (void)util_err(NULL, errno, NULL);
         goto err;
     }
     if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s,%s,%s%s%s%s",
-           config == NULL ? "" : config, cmd_config == NULL ? "" : cmd_config,
+           conn_config == NULL ? "" : conn_config, cmd_config == NULL ? "" : cmd_config,
            readonly_config == NULL ? "" : readonly_config, rec_config,
            salvage_config == NULL ? "" : salvage_config, p1, p2, p3)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
-    config = p;
+    conn_config = p;
 
-    if ((ret = wiredtiger_open(home, verbose ? verbose_handler : NULL, config, &conn)) != 0) {
+    if ((ret = wiredtiger_open(home, verbose ? verbose_handler : NULL, conn_config, &conn)) != 0) {
         (void)util_err(NULL, ret, NULL);
+        fprintf(stderr,
+          "Note: this issue typically arises from running wt util in an incorrect directory or not "
+          "specifying one. Ensure you execute wt within a WiredTiger directory, or use the -h flag "
+          "to direct it to one.\n");
         goto err;
     }
+
+    if (secretkey != NULL) {
+        /* p contains a copy of secretkey, so zero both before freeing */
+        wt_explicit_zero(p, strlen(p));
+        wt_explicit_zero(secretkey, strlen(secretkey));
+    }
+    util_free(p);
+    util_free(secretkey);
+    secretkey = p = NULL;
 
     /* If we only want to verify the metadata, that is done in wiredtiger_open. We're done. */
     if (func == NULL && meta_verify)
         goto done;
 
-    if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
+    if ((ret = conn->open_session(conn, NULL, session_config, &session)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
@@ -304,6 +353,17 @@ err:
     }
 done:
 
+    /* may get here via either err or done before the free above happens */
+    if (p != NULL) {
+        /* p may contain a copy of secretkey, so zero before freeing */
+        wt_explicit_zero(p, strlen(p));
+        util_free(p);
+    }
+    if (secretkey != NULL) {
+        wt_explicit_zero(secretkey, strlen(secretkey));
+        util_free(secretkey);
+    }
+
     if (conn != NULL) {
         /* Maintain backward compatibility. */
         if (backward_compatible &&
@@ -314,9 +374,6 @@ done:
         if ((tret = conn->close(conn, NULL)) != 0 && ret == 0)
             ret = tret;
     }
-
-    free(p);
-    free(secretkey);
 
     return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
@@ -339,7 +396,7 @@ util_uri(WT_SESSION *session, const char *s, const char *type)
     }
 
     len = strlen(type) + strlen(s) + 2;
-    if ((name = calloc(len, 1)) == NULL) {
+    if ((name = util_calloc(len, 1)) == NULL) {
         (void)util_err(session, errno, NULL);
         return (NULL);
     }
@@ -355,7 +412,7 @@ util_uri(WT_SESSION *session, const char *s, const char *type)
     return (name);
 
 err:
-    free(name);
+    util_free(name);
     (void)util_err(session, ret, NULL);
     return (NULL);
 }

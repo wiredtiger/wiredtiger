@@ -8,6 +8,11 @@
 
 #include "wt_internal.h"
 
+/* Enable all recovery-related verbose messaging events. */
+#define WT_VERB_RECOVERY_ALL        \
+    WT_DECL_VERBOSE_MULTI_CATEGORY( \
+      ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS}))
+
 /* State maintained during recovery. */
 typedef struct {
     const char *uri; /* File URI. */
@@ -28,6 +33,7 @@ typedef struct {
     WT_LSN max_ckpt_lsn; /* Maximum checkpoint LSN seen. */
     WT_LSN max_rec_lsn;  /* Maximum recovery LSN seen. */
 
+    bool backup_only;   /* Set to only recover backup. */
     bool missing;       /* Were there missing files? */
     bool metadata_only; /*
                          * Set during the first recovery pass,
@@ -79,6 +85,14 @@ __recovery_cursor(
             WT_RET(__wt_open_cursor(session, r->files[id].uri, NULL, cfg, &c));
             r->files[id].c = c;
         }
+#ifndef WT_STANDALONE_BUILD
+        /*
+         * In the event of a clean shutdown, there shouldn't be any other table log records other
+         * than metadata.
+         */
+        if (!metadata_op)
+            S2C(session)->unclean_shutdown = true;
+#endif
     }
 
     if (duplicate && c != NULL)
@@ -89,16 +103,137 @@ __recovery_cursor(
 }
 
 /*
+ * __txn_backup_post_recovery --
+ *     Perform any necessary backup related activity after recovery.
+ */
+static void
+__txn_backup_post_recovery(WT_RECOVERY *r)
+{
+    WT_BLKINCR *blk;
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *session;
+    uint32_t i;
+    bool clear;
+
+    session = r->session;
+    conn = S2C(session);
+
+    /*
+     * The backup IDs are written as individual operations for each slot. Walk the backup array and
+     * check if all items are invalid. If so, turn off backups in the connection. This will happen
+     * when we log a force stop operation as the final backup related log records.
+     */
+    clear = true;
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk = &conn->incr_backups[i];
+        if (F_ISSET(blk, WT_BLKINCR_VALID))
+            clear = false;
+    }
+    if (clear) {
+        F_CLR(conn, WT_CONN_INCR_BACKUP);
+        FLD_CLR(conn->log_flags, WT_CONN_LOG_INCR_BACKUP);
+        conn->incr_granularity = 0;
+    }
+    return;
+}
+
+/*
+ * __txn_system_op_apply --
+ *     Apply a system record during recovery.
+ */
+static int
+__txn_system_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
+{
+    WT_BLKINCR *blk;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(lsn_str);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    uint64_t granularity;
+    uint32_t index, opsize, optype;
+    const char *id_str;
+
+    session = r->session;
+    conn = S2C(session);
+
+    WT_RET(__wt_scr_alloc(session, 0, &lsn_str));
+    if ((ret = __wt_lsn_string(session, lsnp, lsn_str)) != 0) {
+        __wt_errx(session, "Failed to build LSN string");
+        __wt_scr_free(session, &lsn_str);
+        return (ret);
+    }
+
+    /* Right now the only system record we care about is the backup id. Skip anything else. */
+    WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
+    end = *pp + opsize;
+    /* If it is not a backup id system operation type, we're done. */
+    if (optype != WT_LOGOP_BACKUP_ID) {
+        *pp += opsize;
+        goto done;
+    }
+
+    WT_ERR(__wt_logop_backup_id_unpack(session, pp, end, &index, &granularity, &id_str));
+    /*
+     * Set up incremental information from the record. Only record information for as many slots as
+     * this system accepts. There could be a future change that allows additional incremental
+     * identifiers that this system cannot handle. A log record is written when a force stop happens
+     * and indicates the entries are empty. That is indicated by the out of range granularity.
+     */
+    if (index < WT_BLKINCR_MAX) {
+        blk = &conn->incr_backups[index];
+        if (granularity != UINT64_MAX) {
+            __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
+              "Backup ID: LSN [%s]: Applying slot %" PRIu32 " granularity %" PRIu64 " ID string %s",
+              (char *)lsn_str->mem, index, granularity, id_str);
+            WT_ERR(__wt_backup_set_blkincr(session, index, granularity, id_str, strlen(id_str)));
+        } else {
+            __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
+              "Backup ID: LSN [%s]: Clearing slot %" PRIu32, (char *)lsn_str->mem, index);
+            /* This is the result of a force stop, clear the entry. */
+            WT_CLEAR(*blk);
+        }
+    } else
+        __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL,
+          "Ignoring out-of-range (%d) backup ID index %" PRIu32, WT_BLKINCR_MAX, index);
+
+    if (0) {
+err:
+        __wt_err(
+          session, ret, "backup id apply failed during recovery: at LSN %s", (char *)lsn_str->mem);
+    }
+
+done:
+    __wt_scr_free(session, &lsn_str);
+    return (ret);
+}
+
+/*
+ * __txn_system_apply --
+ *     Apply a system record during recovery.
+ */
+static int
+__txn_system_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
+{
+    /* The logging subsystem zero-pads records. */
+    while (*pp < end && **pp)
+        WT_RET(__txn_system_op_apply(r, lsnp, pp, end));
+
+    return (0);
+}
+
+/*
  * Helper to a cursor if this operation is to be applied during recovery.
  */
-#define GET_RECOVERY_CURSOR(session, r, lsnp, fileid, cp)                            \
-    ret = __recovery_cursor(session, r, lsnp, fileid, false, cp);                    \
-    __wt_verbose(session, WT_VERB_RECOVERY,                                          \
-      "%s op %" PRIu32 " to file %" PRIu32 " at LSN %" PRIu32 "/%" PRIu32,           \
-      ret != 0 ? "Error" : cursor == NULL ? "Skipping" : "Applying", optype, fileid, \
-      (lsnp)->l.file, (lsnp)->l.offset);                                             \
-    WT_ERR(ret);                                                                     \
-    if (cursor == NULL)                                                              \
+#define GET_RECOVERY_CURSOR(session, r, lsnp, fileid, cp)         \
+    ret = __recovery_cursor(session, r, lsnp, fileid, false, cp); \
+    __wt_verbose_debug2(session, WT_VERB_RECOVERY,                \
+      "%s op %" PRIu32 " to file %" PRIu32 " at LSN %s",          \
+      ret != 0         ? "Error" :                                \
+        cursor == NULL ? "Skipping" :                             \
+                         "Applying",                              \
+      optype, fileid, (char *)lsn_str->mem);                      \
+    WT_ERR(ret);                                                  \
+    if (cursor == NULL)                                           \
     break
 
 /*
@@ -109,15 +244,25 @@ static int
 __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *end)
 {
     WT_CURSOR *cursor, *start, *stop;
+    WT_DECL_ITEM(lsn_str);
     WT_DECL_RET;
     WT_ITEM key, start_key, stop_key, value;
     WT_SESSION_IMPL *session;
     wt_timestamp_t commit, durable, first_commit, prepare, read;
+    size_t max_memsize;
     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
-    uint32_t fileid, mode, optype, opsize;
+    uint32_t fileid, mode, opsize, optype;
 
     session = r->session;
     cursor = NULL;
+
+    /* Build the LSN string here as it's used inside the GET_RECOVERY_CURSOR macro. */
+    WT_RET(__wt_scr_alloc(session, 0, &lsn_str));
+    if (__wt_lsn_string(session, lsnp, lsn_str) != 0) {
+        __wt_errx(session, "Failed to build LSN string");
+        __wt_scr_free(session, &lsn_str);
+        return (ret);
+    }
 
     /* Peek at the size and the type. */
     WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
@@ -144,6 +289,10 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              * Build/insert a complete value during recovery rather than using cursor modify to
              * create a partial update (for no particular reason than simplicity).
              */
+            __wt_modify_max_memsize_format(
+              value.data, cursor->value_format, cursor->value.size, &max_memsize);
+            WT_ERR(__wt_buf_set_and_grow(
+              session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
             WT_ERR(__wt_modify_apply_item(
               CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
@@ -162,7 +311,12 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         WT_ERR(__wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         cursor->set_key(cursor, recno);
-        WT_ERR(cursor->remove(cursor));
+        /*
+         * WT_NOTFOUND is an expected error because the checkpoint snapshot we're rolling forward
+         * may race with a remove, resulting in the key not being in the tree, but recovery still
+         * processing the log record of the remove.
+         */
+        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
         break;
 
     case WT_LOGOP_COL_TRUNCATE:
@@ -171,15 +325,15 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
 
         /* Set up the cursors. */
-        if (start_recno == WT_RECNO_OOB) {
-            start = NULL;
-            stop = cursor;
-        } else if (stop_recno == WT_RECNO_OOB) {
+        start = stop = NULL;
+        if (start_recno != WT_RECNO_OOB)
             start = cursor;
-            stop = NULL;
-        } else {
-            start = cursor;
-            WT_ERR(__recovery_cursor(session, r, lsnp, fileid, true, &stop));
+
+        if (stop_recno != WT_RECNO_OOB) {
+            if (start != NULL)
+                WT_ERR(__recovery_cursor(session, r, lsnp, fileid, true, &stop));
+            else
+                stop = cursor;
         }
 
         /* Set the keys. */
@@ -188,7 +342,17 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         if (stop != NULL)
             stop->set_key(stop, stop_recno);
 
-        WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+        /*
+         * If the truncate log doesn't have a recorded start and stop recno, truncate the whole file
+         * using the URI. Otherwise use the positioned start or stop cursors to truncate a range of
+         * the file.
+         */
+        if (start == NULL && stop == NULL)
+            WT_TRET(
+              session->iface.truncate(&session->iface, r->files[fileid].uri, NULL, NULL, NULL));
+        else
+            WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+
         /* If we opened a duplicate cursor, close it now. */
         if (stop != NULL && stop != cursor)
             WT_TRET(stop->close(stop));
@@ -206,6 +370,10 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              * Build/insert a complete value during recovery rather than using cursor modify to
              * create a partial update (for no particular reason than simplicity).
              */
+            __wt_modify_max_memsize_format(
+              value.data, cursor->value_format, cursor->value.size, &max_memsize);
+            WT_ERR(__wt_buf_set_and_grow(
+              session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
             WT_ERR(__wt_modify_apply_item(
               CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
@@ -224,7 +392,12 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         WT_ERR(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         __wt_cursor_set_raw_key(cursor, &key);
-        WT_ERR(cursor->remove(cursor));
+        /*
+         * WT_NOTFOUND is an expected error because the checkpoint snapshot we're rolling forward
+         * may race with a remove, resulting in the key not being in the tree, but recovery still
+         * processing the log record of the remove.
+         */
+        WT_ERR_NOTFOUND_OK(cursor->remove(cursor), false);
         break;
 
     case WT_LOGOP_ROW_TRUNCATE:
@@ -257,7 +430,17 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         if (stop != NULL)
             __wt_cursor_set_raw_key(stop, &stop_key);
 
-        WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+        /*
+         * If the truncate log doesn't have a recorded start and stop key, truncate the whole file
+         * using the URI. Otherwise use the positioned start or stop cursors to truncate a range of
+         * the file.
+         */
+        if (start == NULL && stop == NULL)
+            WT_TRET(
+              session->iface.truncate(&session->iface, r->files[fileid].uri, NULL, NULL, NULL));
+        else
+            WT_TRET(session->iface.truncate(&session->iface, NULL, start, stop, NULL));
+
         /* If we opened a duplicate cursor, close it now. */
         if (stop != NULL && stop != cursor)
             WT_TRET(stop->close(stop));
@@ -279,13 +462,15 @@ done:
     /* Reset the cursor so it doesn't block eviction. */
     if (cursor != NULL)
         WT_ERR(cursor->reset(cursor));
-    return (0);
 
+    if (0) {
 err:
-    __wt_err(session, ret,
-      "operation apply failed during recovery: operation type %" PRIu32 " at LSN %" PRIu32
-      "/%" PRIu32,
-      optype, lsnp->l.file, lsnp->l.offset);
+        __wt_err(session, ret,
+          "operation apply failed during recovery: operation type %" PRIu32 " at LSN %s", optype,
+          (char *)lsn_str->mem);
+    }
+
+    __wt_scr_free(session, &lsn_str);
     return (ret);
 }
 
@@ -324,6 +509,12 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
 
     /* First, peek at the log record type. */
     WT_RET(__wt_logrec_read(session, &p, end, &rectype));
+    /*
+     * If we're in backup only mode, skip anything that isn't a system record. We need to return
+     * here so that we don't try to apply any other records at this time.
+     */
+    if (r->backup_only && rectype != WT_LOGREC_SYSTEM)
+        return (0);
 
     /*
      * Record the highest LSN we process during the metadata phase. If not the metadata phase, then
@@ -337,51 +528,20 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
     switch (rectype) {
     case WT_LOGREC_CHECKPOINT:
         if (r->metadata_only)
-            WT_RET(__wt_txn_checkpoint_logread(session, &p, end, &r->ckpt_lsn));
+            WT_RET(__wti_txn_checkpoint_logread(session, &p, end, &r->ckpt_lsn));
         break;
-
     case WT_LOGREC_COMMIT:
         if ((ret = __wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid_unused)) != 0)
             WT_RET_MSG(session, ret, "txn_log_recover: unpack failure");
         WT_RET(__txn_commit_apply(r, lsnp, &p, end));
         break;
+    case WT_LOGREC_SYSTEM:
+        if (r->backup_only || r->metadata_only)
+            WT_RET(__txn_system_apply(r, lsnp, &p, end));
+        break;
     }
 
     return (0);
-}
-
-/*
- * __recovery_retrieve_timestamp --
- *     Retrieve a timestamp from the metadata.
- */
-static int
-__recovery_retrieve_timestamp(
-  WT_RECOVERY *r, const char *system_uri, const char *timestamp_name, wt_timestamp_t *timestampp)
-{
-    WT_CONFIG_ITEM cval;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    char *sys_config;
-
-    sys_config = NULL;
-
-    session = r->session;
-
-    /* Search the metadata for the system information. */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, system_uri, &sys_config), false);
-    if (sys_config != NULL) {
-        WT_CLEAR(cval);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, sys_config, timestamp_name, &cval), false);
-        if (cval.len != 0) {
-            __wt_verbose(session, WT_VERB_RECOVERY, "Recovery %s %.*s", timestamp_name,
-              (int)cval.len, cval.str);
-            WT_ERR(__wt_txn_parse_timestamp_raw(session, timestamp_name, timestampp, &cval));
-        }
-    }
-
-err:
-    __wt_free(session, sys_config);
-    return (ret);
 }
 
 /*
@@ -398,14 +558,12 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
     session = r->session;
     conn = S2C(session);
+
     /*
      * Read the system checkpoint information from the metadata file and save the stable timestamp
      * of the last checkpoint for later query. This gets saved in the connection.
      */
-    ckpt_timestamp = 0;
-
-    WT_RET(
-      __recovery_retrieve_timestamp(r, WT_SYSTEM_CKPT_URI, WT_SYSTEM_CKPT_TS, &ckpt_timestamp));
+    WT_RET(__wt_meta_read_checkpoint_timestamp(r->session, NULL, &ckpt_timestamp, NULL));
 
     /*
      * Set the recovery checkpoint timestamp and the metadata checkpoint timestamp so that the
@@ -413,8 +571,7 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
      */
     conn->txn_global.meta_ckpt_timestamp = conn->txn_global.recovery_timestamp = ckpt_timestamp;
 
-    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
-      "Set global recovery timestamp: %s",
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global recovery timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.recovery_timestamp, ts_string));
 
     return (0);
@@ -422,7 +579,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
 /*
  * __recovery_set_oldest_timestamp --
- *     Set the oldest timestamp as retrieved from the metadata file.
+ *     Set the oldest timestamp as retrieved from the metadata file. Setting the oldest timestamp
+ *     doesn't automatically set the pinned timestamp.
  */
 static int
 __recovery_set_oldest_timestamp(WT_RECOVERY *r)
@@ -438,15 +596,11 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
      * Read the system checkpoint information from the metadata file and save the oldest timestamp
      * of the last checkpoint for later query. This gets saved in the connection.
      */
-    oldest_timestamp = 0;
-
-    WT_RET(__recovery_retrieve_timestamp(
-      r, WT_SYSTEM_OLDEST_URI, WT_SYSTEM_OLDEST_TS, &oldest_timestamp));
+    WT_RET(__wt_meta_read_checkpoint_oldest(r->session, NULL, &oldest_timestamp, NULL));
     conn->txn_global.oldest_timestamp = oldest_timestamp;
-    conn->txn_global.has_oldest_timestamp = oldest_timestamp != WT_TS_NONE;
+    __wt_atomic_storebool(&conn->txn_global.has_oldest_timestamp, oldest_timestamp != WT_TS_NONE);
 
-    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
-      "Set global oldest timestamp: %s",
+    __wt_verbose_multi(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));
 
     return (0);
@@ -459,62 +613,36 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
 static int
 __recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
 {
-    WT_CONFIG list;
-    WT_CONFIG_ITEM cval;
-    WT_CONFIG_ITEM k;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    uint8_t counter;
-    char *sys_config;
 
-    sys_config = NULL;
     conn = S2C(session);
-    counter = 0;
+
+    /*
+     * WiredTiger versions 10.0.1 onward have a valid checkpoint snapshot on-disk. There was a bug
+     * in some versions of WiredTiger that are tagged with the 10.0.0 release, which saved the wrong
+     * checkpoint snapshot (see WT-8395), so we ignore the snapshot when it was created with one of
+     * those versions. Versions of WiredTiger prior to 10.0.0 never saved a checkpoint snapshot.
+     * Additionally the turtle file doesn't always exist (for example, backup doesn't include the
+     * turtle file), so there isn't always a WiredTiger version available. If there is no version
+     * available, assume that the snapshot is valid, otherwise restoring from a backup won't work.
+     */
+    if (__wt_version_defined(conn->recovery_version) &&
+      __wt_version_lte(conn->recovery_version, (WT_VERSION){10, 0, 0})) {
+        /* Return an empty snapshot. */
+        conn->recovery_ckpt_snap_min = WT_TXN_NONE;
+        conn->recovery_ckpt_snap_max = WT_TXN_NONE;
+        conn->recovery_ckpt_snapshot = NULL;
+        conn->recovery_ckpt_snapshot_count = 0;
+        return (0);
+    }
 
     /*
      * Read the system checkpoint information from the metadata file and save the snapshot related
-     * details of the last checkpoint for later query. This gets saved in the connection.
+     * details of the last checkpoint in the connection for later query.
      */
-    WT_ERR_NOTFOUND_OK(
-      __wt_metadata_search(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, &sys_config), false);
-    if (sys_config != NULL) {
-        WT_CLEAR(cval);
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval) == 0 &&
-          cval.len != 0)
-            conn->recovery_ckpt_snap_min = (uint64_t)cval.val;
-
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval) == 0 &&
-          cval.len != 0)
-            conn->recovery_ckpt_snap_max = (uint64_t)cval.val;
-
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval) == 0 &&
-          cval.len != 0)
-            conn->recovery_ckpt_snapshot_count = (uint32_t)cval.val;
-
-        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval) == 0 &&
-          cval.len != 0) {
-            __wt_config_subinit(session, &list, &cval);
-            WT_ERR(__wt_calloc_def(
-              session, conn->recovery_ckpt_snapshot_count, &conn->recovery_ckpt_snapshot));
-            while (__wt_config_subget_next(&list, &k) == 0)
-                conn->recovery_ckpt_snapshot[counter++] = (uint64_t)k.val;
-        }
-
-        /*
-         * Make sure that checkpoint snapshot does not have any unexpected value. The recovered
-         * snapshot array should contain the values between recovered snapshot min and recovered
-         * snapshot max.
-         */
-        WT_ASSERT(session,
-          conn->recovery_ckpt_snapshot == NULL ||
-            (conn->recovery_ckpt_snapshot_count == counter &&
-              conn->recovery_ckpt_snapshot[0] == conn->recovery_ckpt_snap_min &&
-              conn->recovery_ckpt_snapshot[counter - 1] < conn->recovery_ckpt_snap_max));
-    }
-
-err:
-    __wt_free(session, sys_config);
-    return (ret);
+    return (__wt_meta_read_checkpoint_snapshot(session, NULL, NULL, &conn->recovery_ckpt_snap_min,
+      &conn->recovery_ckpt_snap_max, &conn->recovery_ckpt_snapshot,
+      &conn->recovery_ckpt_snapshot_count, NULL));
 }
 
 /*
@@ -548,36 +676,41 @@ err:
 }
 
 /*
- * __recovery_correct_write_gen --
- *     Update the connection's base write generation from all files in metadata.
+ * __recovery_txn_setup_initial_state --
+ *     Setup the transaction initial state required by rollback to stable.
  */
 static int
-__recovery_correct_write_gen(WT_SESSION_IMPL *session)
+__recovery_txn_setup_initial_state(WT_SESSION_IMPL *session, WT_RECOVERY *r)
 {
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    char *config, *uri;
+    WT_CONNECTION_IMPL *conn;
 
-    uri = NULL;
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-    while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &uri));
+    conn = S2C(session);
 
-        if (!WT_PREFIX_MATCH(uri, "file:"))
-            continue;
+    WT_RET(__recovery_set_checkpoint_snapshot(session));
 
-        WT_ERR(cursor->get_value(cursor, &config));
+    /*
+     * Set the checkpoint timestamp and oldest timestamp retrieved from the checkpoint metadata.
+     * These are the stable timestamp and oldest timestamps of the last successful checkpoint.
+     */
+    WT_RET(__recovery_set_checkpoint_timestamp(r));
+    WT_RET(__recovery_set_oldest_timestamp(r));
 
-        /* Update base write gen to the write gen. */
-        WT_ERR(__wt_metadata_update_base_write_gen(session, config));
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
+    /*
+     * Now that timestamps extracted from the checkpoint metadata have been configured, configure
+     * the pinned timestamp.
+     */
+    __wti_txn_update_pinned_timestamp(session, true);
 
-err:
-    if (ret != 0 && uri != NULL)
-        __wt_err(session, ret, "unable to correct write gen for %s", uri);
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    return (ret);
+    WT_ASSERT(session,
+      conn->txn_global.has_stable_timestamp == false &&
+        conn->txn_global.stable_timestamp == WT_TS_NONE);
+
+    /* Set the stable timestamp from recovery timestamp. */
+    conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+    if (conn->txn_global.stable_timestamp != WT_TS_NONE)
+        conn->txn_global.has_stable_timestamp = true;
+
+    return (0);
 }
 
 /*
@@ -589,6 +722,7 @@ static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_ITEM(lsn_str);
     WT_DECL_RET;
     WT_LSN lsn;
     uint32_t fileid, lsnfile, lsnoffset;
@@ -625,26 +759,30 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
           cval.str);
     WT_ASSIGN_LSN(&r->files[fileid].ckpt_lsn, &lsn);
 
-    __wt_verbose(r->session, WT_VERB_RECOVERY,
-      "Recovering %s with id %" PRIu32 " @ (%" PRIu32 ", %" PRIu32 ")", uri, fileid, lsn.l.file,
-      lsn.l.offset);
+    WT_ERR(__wt_scr_alloc(r->session, 0, &lsn_str));
+    WT_ERR(__wt_lsn_string(r->session, &lsn, lsn_str));
+    __wt_verbose(r->session, WT_VERB_RECOVERY, "Recovering %s with id %" PRIu32 " @ (%s)", uri,
+      fileid, (char *)lsn_str->mem);
 
     if ((!WT_IS_MAX_LSN(&lsn) && !WT_IS_INIT_LSN(&lsn)) &&
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
-    /* Update the base write gen based on this file's configuration. */
-    if ((ret = __wt_metadata_update_base_write_gen(r->session, config)) != 0)
-        WT_RET_MSG(r->session, ret, "Failed recovery setup for %s: cannot update write gen", uri);
-    return (0);
+    /* Update the base write gen and most recent checkpoint based on this file's configuration. */
+    if ((ret = __wt_meta_update_connection(r->session, config)) != 0)
+        WT_ERR_MSG(r->session, ret, "Failed recovery setup for %s: cannot update write gen", uri);
+
+err:
+    __wt_scr_free(r->session, &lsn_str);
+    return (ret);
 }
 
 /*
- * __recovery_free --
- *     Free the recovery state.
+ * __recovery_close_cursors --
+ *     Close the logging recovery cursors.
  */
 static int
-__recovery_free(WT_RECOVERY *r)
+__recovery_close_cursors(WT_RECOVERY *r)
 {
     WT_CURSOR *c;
     WT_DECL_RET;
@@ -658,8 +796,48 @@ __recovery_free(WT_RECOVERY *r)
             WT_TRET(c->close(c));
     }
 
+    r->nfiles = 0;
     __wt_free(session, r->files);
     return (ret);
+}
+
+/*
+ * __recovery_file_scan_prefix --
+ *     Scan the files matching the prefix referenced from the metadata and gather information about
+ *     them for recovery.
+ */
+static int
+__recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *ignore_suffix)
+{
+    WT_CURSOR *c;
+    WT_DECL_RET;
+    int cmp;
+    const char *config, *uri;
+
+    /* Scan through all entries in the metadata matching the prefix. */
+    c = r->files[0].c;
+    c->set_key(c, prefix);
+    if ((ret = c->search_near(c, &cmp)) != 0) {
+        /* Is the metadata empty? */
+        WT_RET_NOTFOUND_OK(ret);
+        return (0);
+    }
+    if (cmp < 0 && (ret = c->next(c)) != 0) {
+        /* No matching entries? */
+        WT_RET_NOTFOUND_OK(ret);
+        return (0);
+    }
+    for (; ret == 0; ret = c->next(c)) {
+        WT_RET(c->get_key(c, &uri));
+        if (!WT_PREFIX_MATCH(uri, prefix))
+            break;
+        if (ignore_suffix != NULL && WT_SUFFIX_MATCH(uri, ignore_suffix))
+            continue;
+        WT_RET(c->get_value(c, &config));
+        WT_RET(__recovery_setup_file(r, uri, config));
+    }
+    WT_RET_NOTFOUND_OK(ret);
+    return (0);
 }
 
 /*
@@ -669,29 +847,12 @@ __recovery_free(WT_RECOVERY *r)
 static int
 __recovery_file_scan(WT_RECOVERY *r)
 {
-    WT_CURSOR *c;
-    WT_DECL_RET;
-    int cmp;
-    const char *uri, *config;
+    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
+      "scanning metadata to find the largest file ID");
 
-    /* Scan through all files in the metadata. */
-    c = r->files[0].c;
-    c->set_key(c, "file:");
-    if ((ret = c->search_near(c, &cmp)) != 0) {
-        /* Is the metadata empty? */
-        WT_RET_NOTFOUND_OK(ret);
-        return (0);
-    }
-    if (cmp < 0)
-        WT_RET_NOTFOUND_OK(c->next(c));
-    for (; ret == 0; ret = c->next(c)) {
-        WT_RET(c->get_key(c, &uri));
-        if (!WT_PREFIX_MATCH(uri, "file:"))
-            break;
-        WT_RET(c->get_value(c, &config));
-        WT_RET(__recovery_setup_file(r, uri, config));
-    }
-    WT_RET_NOTFOUND_OK(ret);
+    /* Scan through all files and tiered entries in the metadata. */
+    WT_RET(__recovery_file_scan_prefix(r, "file:", ".wtobj"));
+    WT_RET(__recovery_file_scan_prefix(r, "tiered:", NULL));
 
     /*
      * Set the connection level file id tracker, as such upon creation of a new file we'll begin
@@ -699,6 +860,8 @@ __recovery_file_scan(WT_RECOVERY *r)
      */
     S2C(r->session)->next_file_id = r->max_fileid;
 
+    __wt_verbose_level_multi(r->session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+      "largest file ID found in the metadata %u", r->max_fileid);
     return (0);
 }
 
@@ -776,16 +939,20 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
+    WT_DECL_ITEM(ckpt_lsn_str);
+    WT_DECL_ITEM(max_rec_lsn_str);
     WT_DECL_RET;
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
+    WT_TIMER checkpoint_timer, rts_timer, timer;
     wt_off_t hs_size;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
-    bool rts_executed;
+    bool do_checkpoint, eviction_started, hs_exists, needs_rec, rts_executed, was_backup;
 
     conn = S2C(session);
+    F_SET(conn, WT_CONN_RECOVERING);
+
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
@@ -794,19 +961,24 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
+    __wt_verbose_level_multi(
+      session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s", "starting WiredTiger recovery");
+    __wt_timer_start(session, &timer);
+
     /* We need a real session for recovery. */
-    WT_RET(__wt_open_internal_session(conn, "txn-recover", false, WT_SESSION_NO_LOGGING, &session));
+    WT_RET(__wt_open_internal_session(conn, "txn-recover", false, 0, 0, &session));
     r.session = session;
     WT_MAX_LSN(&r.max_ckpt_lsn);
     WT_MAX_LSN(&r.max_rec_lsn);
     conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
 
-    F_SET(conn, WT_CONN_RECOVERING);
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
     metafile = &r.files[WT_METAFILE_ID];
     metafile->c = metac;
+
+    WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
 
     /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done
@@ -830,7 +1002,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 
         if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) && WT_IS_MAX_LSN(&metafile->ckpt_lsn) &&
           !WT_IS_MAX_LSN(&r.max_ckpt_lsn))
-            WT_ERR(__wt_log_reset(session, r.max_ckpt_lsn.l.file));
+            WT_ERR(__wt_log_reset(session, __wt_lsn_file(&r.max_ckpt_lsn)));
         else
             do_checkpoint = false;
         WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
@@ -845,42 +1017,53 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * want to recover whatever part of the data we can from the last checkpoint up until whatever
      * problem we detect in the log file. In salvage, we ignore errors from scanning the log so
      * recovery can continue. Other errors remain errors.
+     *
+     * We only need to recover the metadata if we weren't a backup. But a backup needs to recover
+     * system records with incremental IDs. So the first pass may recover only backup information or
+     * metadata (and also backup information).
      */
-    if (!was_backup) {
+    if (was_backup) {
+        r.metadata_only = false;
+        r.backup_only = true;
+    } else {
         r.metadata_only = true;
-        /*
-         * If this is a read-only connection, check if the checkpoint LSN in the metadata file is up
-         * to date, indicating a clean shutdown.
-         */
-        if (F_ISSET(conn, WT_CONN_READONLY)) {
-            WT_ERR(__wt_log_needs_recovery(session, &metafile->ckpt_lsn, &needs_rec));
-            if (needs_rec)
-                WT_ERR_MSG(session, WT_RUN_RECOVERY, "Read-only database needs recovery");
-        }
-        if (WT_IS_INIT_LSN(&metafile->ckpt_lsn))
-            ret = __wt_log_scan(session, NULL, NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r);
-        else {
-            /*
-             * Start at the last checkpoint LSN referenced in the metadata. If we see the end of a
-             * checkpoint while scanning, we will change the full scan to start from there.
-             */
-            WT_ASSIGN_LSN(&r.ckpt_lsn, &metafile->ckpt_lsn);
-            ret = __wt_log_scan(session, &metafile->ckpt_lsn, NULL, WT_LOGSCAN_RECOVER_METADATA,
-              __txn_log_recover, &r);
-        }
-        if (F_ISSET(conn, WT_CONN_SALVAGE))
-            ret = 0;
-        /*
-         * If log scan couldn't find a file we expected to be around, this indicates a corruption of
-         * some sort.
-         */
-        if (ret == ENOENT) {
-            F_SET(conn, WT_CONN_DATA_CORRUPTION);
-            ret = WT_ERROR;
-        }
-
-        WT_ERR(ret);
+        r.backup_only = false;
     }
+    /*
+     * If this is a read-only connection, check if the checkpoint LSN in the metadata file is up to
+     * date, indicating a clean shutdown.
+     */
+    if (F_ISSET(conn, WT_CONN_READONLY)) {
+        WT_ERR(__wt_log_needs_recovery(session, &metafile->ckpt_lsn, &needs_rec));
+        if (needs_rec)
+            WT_ERR_MSG(session, WT_RUN_RECOVERY, "Read-only database needs recovery");
+    }
+    if (WT_IS_INIT_LSN(&metafile->ckpt_lsn))
+        ret = __wt_log_scan(session, NULL, NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r);
+    else {
+        /*
+         * Start at the last checkpoint LSN referenced in the metadata. If we see the end of a
+         * checkpoint while scanning, we will change the full scan to start from there.
+         */
+        WT_ASSIGN_LSN(&r.ckpt_lsn, &metafile->ckpt_lsn);
+        ret = __wt_log_scan(
+          session, &metafile->ckpt_lsn, NULL, WT_LOGSCAN_RECOVER_METADATA, __txn_log_recover, &r);
+    }
+    if (F_ISSET(conn, WT_CONN_SALVAGE))
+        ret = 0;
+    /* We need to do some work after recovering backup information. Do that now. */
+    __txn_backup_post_recovery(&r);
+    /*
+     * If log scan couldn't find a file we expected to be around, this indicates a corruption of
+     * some sort.
+     */
+    if (ret == ENOENT) {
+        F_SET(conn, WT_CONN_DATA_CORRUPTION);
+        ret = WT_ERROR;
+    }
+
+    r.backup_only = false;
+    WT_ERR(ret);
 
     /* Scan the metadata to find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));
@@ -913,9 +1096,13 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * get truncated.
      */
     r.metadata_only = false;
-    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
-      "Main recovery loop: starting at %" PRIu32 "/%" PRIu32 " to %" PRIu32 "/%" PRIu32,
-      r.ckpt_lsn.l.file, r.ckpt_lsn.l.offset, r.max_rec_lsn.l.file, r.max_rec_lsn.l.offset);
+    WT_ERR(__wt_scr_alloc(session, 0, &ckpt_lsn_str));
+    WT_ERR(__wt_scr_alloc(session, 0, &max_rec_lsn_str));
+    WT_ERR(__wt_lsn_string(session, &r.ckpt_lsn, ckpt_lsn_str));
+    WT_ERR(__wt_lsn_string(session, &r.max_rec_lsn, max_rec_lsn_str));
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+      "Main recovery loop: starting at %s to %s", (char *)ckpt_lsn_str->mem,
+      (char *)max_rec_lsn_str->mem);
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
     /*
      * Check if the database was shut down cleanly. If not return an error if the user does not want
@@ -934,7 +1121,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     if (!hs_exists) {
-        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "%s",
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO, "%s",
           "Creating the history store before applying log records. Likely recovering after an"
           "unclean shutdown on an earlier version");
         /*
@@ -947,7 +1134,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
      * paging. Start eviction threads for recovery without history store cursors.
      */
-    WT_ERR(__wt_evict_create(session));
+    WT_ERR(__wt_evict_threads_create(session));
     eviction_started = true;
 
     /*
@@ -966,10 +1153,26 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(ret);
 
 done:
-    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    WT_ERR(__recovery_set_oldest_timestamp(&r));
-    WT_ERR(__recovery_set_checkpoint_snapshot(session));
-    WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
+    /* Close cached cursors, rollback-to-stable asserts exclusive access. */
+    WT_ERR(__recovery_close_cursors(&r));
+#ifndef WT_STANDALONE_BUILD
+    /*
+     * There is a known problem with upgrading from release 10.0.0 specifically. There are now fixes
+     * that can properly upgrade from 10.0.0 without hitting the problem but only from a clean
+     * shutdown of 10.0.0. Earlier releases are not affected by the upgrade issue.
+     */
+    if (conn->unclean_shutdown && __wt_version_eq(conn->recovery_version, (WT_VERSION){10, 0, 0}))
+        WT_ERR_MSG(session, WT_ERROR,
+          "Upgrading from a WiredTiger version 10.0.0 database that was not shutdown cleanly is "
+          "not allowed. Perform a clean shutdown on version 10.0.0 and then upgrade.");
+#endif
+    /* Time since the Log replay has started. */
+    __wt_timer_evaluate_ms(session, &timer, &conn->recovery_timeline.log_replay_ms);
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+      "recovery log replay has successfully finished and ran for %" PRIu64 " milliseconds",
+      conn->recovery_timeline.log_replay_ms);
+
+    WT_ERR(__recovery_txn_setup_initial_state(session, &r));
 
     /*
      * Set the history store file size as it may already exist after a restart.
@@ -986,66 +1189,91 @@ done:
      * 2. The history store file was found in the metadata.
      */
     if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY)) {
+        const char *rts_cfg[] = {
+          WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
+        __wt_timer_start(session, &rts_timer);
         /* Start the eviction threads for rollback to stable if not already started. */
         if (!eviction_started) {
-            WT_ERR(__wt_evict_create(session));
+            WT_ERR(__wt_evict_threads_create(session));
             eviction_started = true;
         }
 
-        WT_ASSERT(session,
-          conn->txn_global.has_stable_timestamp == false &&
-            conn->txn_global.stable_timestamp == WT_TS_NONE);
-
-        /*
-         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
-         * stable.
-         */
-        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-        conn->txn_global.has_stable_timestamp = false;
-
-        if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
-            conn->txn_global.has_stable_timestamp = true;
-
-        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RTS,
-          "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
-          "%s",
+        __wt_verbose_level_multi(session,
+          WT_DECL_VERBOSE_MULTI_CATEGORY(
+            ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS, WT_VERB_RTS})),
+          WT_VERBOSE_INFO,
+          "[RECOVERY_RTS] performing recovery rollback_to_stable with stable_timestamp=%s and "
+          "oldest_timestamp=%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
         rts_executed = true;
-        WT_ERR(__wt_rollback_to_stable(session, NULL, true));
+        WT_ERR(conn->rts->rollback_to_stable(session, rts_cfg, true));
+
+        /* Time since the rollback to stable has started. */
+        __wt_timer_evaluate_ms(session, &rts_timer, &conn->recovery_timeline.rts_ms);
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+          "recovery rollback to stable has successfully finished and ran for %" PRIu64
+          " milliseconds",
+          conn->recovery_timeline.rts_ms);
     }
 
-    if (do_checkpoint || rts_executed)
+    /*
+     * Sometimes eviction is triggered after doing a checkpoint. However, we don't want eviction to
+     * make the tree dirty after checkpoint as this will interfere with WT_SESSION alter which
+     * expects a clean tree.
+     */
+    if (eviction_started)
+        WT_TRET(__wt_evict_threads_destroy(session));
+
+    if (do_checkpoint || rts_executed) {
+        __wt_timer_start(session, &checkpoint_timer);
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
-         * the checkpoint LSN and archiving.
+         * the checkpoint LSN and removal.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
-    /*
-     * Rollback to stable may have left out clearing stale transaction ids. Update the connection
-     * base write generation based on the latest checkpoint write generations to reset them.
-     */
-    if (rts_executed)
-        WT_ERR(__recovery_correct_write_gen(session));
+        /* Time since the recovery checkpoint has started. */
+        __wt_timer_evaluate_ms(session, &checkpoint_timer, &conn->recovery_timeline.checkpoint_ms);
+        __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+          "recovery checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
+          conn->recovery_timeline.checkpoint_ms);
+    }
+
+    /* Remove any backup file now that metadata has been synced. */
+    WT_ERR(__wt_backup_file_remove(session));
 
     /*
      * Update the open dhandles write generations and base write generation with the connection's
      * base write generation because the recovery checkpoint writes the pages to disk with new write
-     * generation number which contains transaction ids that are needed to reset later.
+     * generation number which contains transaction ids that are needed to reset later. The
+     * connection level base write generation number is updated at the end of the recovery
+     * checkpoint.
      */
-    __wt_dhandle_update_write_gens(session);
+    WT_ERR(__wt_dhandle_update_write_gens(session));
 
     /*
-     * If we're downgrading and have newer log files, force an archive, no matter what the archive
+     * If we're downgrading and have newer log files, force log removal, no matter what the remove
      * setting is.
      */
     if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
         WT_ERR(__wt_log_truncate_files(session, NULL, true));
     FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
+    /* Time since the recovery has started. */
+    __wt_timer_evaluate_ms(session, &timer, &conn->recovery_timeline.recovery_ms);
+    __wt_verbose_level_multi(session, WT_VERB_RECOVERY_ALL, WT_VERBOSE_INFO,
+      "recovery was completed successfully and took %" PRIu64 "ms, including %" PRIu64
+      "ms for the log replay, %" PRIu64 "ms for the rollback to stable, and %" PRIu64
+      "ms for the checkpoint.",
+      conn->recovery_timeline.recovery_ms, conn->recovery_timeline.log_replay_ms,
+      conn->recovery_timeline.rts_ms, conn->recovery_timeline.checkpoint_ms);
+
 err:
-    WT_TRET(__recovery_free(&r));
+    __wt_scr_free(session, &ckpt_lsn_str);
+    __wt_scr_free(session, &max_rec_lsn_str);
+
+    WT_TRET(__recovery_close_cursors(&r));
     __wt_free(session, config);
     FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 
@@ -1059,9 +1287,10 @@ err:
      * once the history store table is created.
      */
     if (eviction_started)
-        WT_TRET(__wt_evict_destroy(session));
+        WT_TRET(__wt_evict_threads_destroy(session));
 
     WT_TRET(__wt_session_close_internal(session));
+    F_SET(conn, WT_CONN_RECOVERY_COMPLETE);
     F_CLR(conn, WT_CONN_RECOVERING);
 
     return (ret);

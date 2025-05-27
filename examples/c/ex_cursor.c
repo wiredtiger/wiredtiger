@@ -31,6 +31,7 @@
 #include <test_util.h>
 
 int cursor_reset(WT_CURSOR *cursor);
+int cursor_bound(WT_CURSOR *cursor);
 int cursor_forward_scan(WT_CURSOR *cursor);
 int cursor_reverse_scan(WT_CURSOR *cursor);
 int cursor_search(WT_CURSOR *cursor);
@@ -38,6 +39,7 @@ int cursor_search_near(WT_CURSOR *cursor);
 int cursor_insert(WT_CURSOR *cursor);
 int cursor_update(WT_CURSOR *cursor);
 int cursor_remove(WT_CURSOR *cursor);
+int version_cursor_dump(WT_CURSOR *cursor);
 
 static const char *home;
 
@@ -82,6 +84,16 @@ cursor_reset(WT_CURSOR *cursor)
     return (cursor->reset(cursor));
 }
 /*! [cursor reset] */
+
+/*! [cursor bound] */
+int
+cursor_bound(WT_CURSOR *cursor)
+{
+    cursor->set_key(cursor, "A");
+    error_check(cursor->bound(cursor, "action=set,bound=lower"));
+    return (0);
+}
+/*! [cursor bound] */
 
 /*! [cursor search] */
 int
@@ -155,6 +167,23 @@ cursor_remove(WT_CURSOR *cursor)
 }
 /*! [cursor remove] */
 
+/*! [version cursor dump] */
+int
+version_cursor_dump(WT_CURSOR *cursor)
+{
+    wt_timestamp_t start_ts, start_durable_ts, stop_ts, stop_durable_ts;
+    uint64_t start_txnid, stop_txnid;
+    uint8_t flags, location, prepare, type;
+    const char *value;
+    cursor->set_key(cursor, "foo");
+    error_check(cursor->search(cursor));
+    error_check(cursor->get_value(cursor, &start_txnid, &start_ts, &start_durable_ts, &stop_txnid,
+      &stop_ts, &stop_durable_ts, &type, &prepare, &flags, &location, &value));
+
+    return (0);
+}
+/*! [version cursor dump] */
+
 int
 main(int argc, char *argv[])
 {
@@ -197,6 +226,13 @@ main(int argc, char *argv[])
     error_check(cursor_search_near(cursor));
     error_check(cursor_update(cursor));
     error_check(cursor_remove(cursor));
+    error_check(cursor_insert(cursor));
+    error_check(cursor->close(cursor));
+
+    /* Create a version cursor. */
+    error_check(
+      session->open_cursor(session, "file:map.wt", NULL, "debug=(dump_version=true)", &cursor));
+    error_check(version_cursor_dump(cursor));
     error_check(cursor->close(cursor));
 
     /* Note: closing the connection implicitly closes open session(s). */

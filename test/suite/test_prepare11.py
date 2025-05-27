@@ -26,27 +26,52 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
-def timestamp_str(t):
-    return '%x' % t
+import wttest
+from wtscenario import make_scenarios
 
 # test_prepare11.py
 # Test prepare rollback with a reserved update between updates.
 class test_prepare11(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,statistics=(all)'
-    session_config = 'isolation=snapshot'
+    conn_config = 'cache_size=2MB'
+
+    format_values = [
+        ('column', dict(key_format='r', key1=17, value_format='S')),
+        ('column-fix', dict(key_format='r', key1=17, value_format='8t')),
+        ('string-row', dict(key_format='S', key1='key1', value_format='S')),
+    ]
+
+    commit_values = [
+        ('commit', dict(commit=True)),
+        ('rollback', dict(commit=False)),
+    ]
+
+    scenarios = make_scenarios(format_values, commit_values)
 
     def test_prepare_update_rollback(self):
         uri = "table:test_prepare11"
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.session.begin_transaction("isolation=snapshot")
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(uri, format)
+
+        if self.value_format == '8t':
+            value_x = 120
+            value_y = 121
+        else:
+            value_x = 'xxxx'
+            value_y = 'yyyy'
+
+        self.session.begin_transaction()
 
         # In the scenario where we have a reserved update in between two updates, the key repeated
         # flag won't get set and we'll call resolve prepared op on both prepared updates.
         c = self.session.open_cursor(uri, None)
-        c['key1'] = 'xxxx'
-        c.set_key('key1')
+        c[self.key1] = value_x
+        c.set_key(self.key1)
         c.reserve()
-        c['key1'] = 'yyyy'
+        c[self.key1] = value_y
         self.session.prepare_transaction('prepare_timestamp=10')
-        self.session.rollback_transaction()
+        if self.commit:
+            self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20))
+            self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(30))
+            self.session.commit_transaction()
+        else:
+            self.session.rollback_transaction()

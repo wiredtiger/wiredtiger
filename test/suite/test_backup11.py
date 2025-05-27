@@ -25,13 +25,14 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# backup:cursors
+# [END_TAGS]
 
 import wiredtiger, wttest
-import os, shutil
-from helper import compare_files
+import os
 from wtbackup import backup_base
-from wtdataset import simple_key
-from wtscenario import make_scenarios
 
 # test_backup11.py
 # Test cursor backup with a duplicate backup cursor.
@@ -76,7 +77,7 @@ class test_backup11(backup_base):
         msg = "/file name can only be specified on a duplicate/"
         self.pr("Specify file on primary")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor('backup:',
+            lambda:self.assertEqual(self.session.open_cursor('backup:',
             None, config), 0), msg)
 
         # Open a non-incremental full backup cursor.
@@ -85,7 +86,7 @@ class test_backup11(backup_base):
         bkup_c = self.session.open_cursor('backup:', None, None)
         msg = "/must have an incremental primary/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
         bkup_c.close()
 
@@ -102,10 +103,10 @@ class test_backup11(backup_base):
         self.pr("=========")
         # Test multiple duplicate backup cursors.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
 
-        # - We cannot make multiple incremental duplcate backup cursors.
+        # - We cannot make multiple incremental duplicate backup cursors.
         # - We cannot duplicate the duplicate backup cursor.
         config = 'incremental=(file=test.wt)'
         dupc = self.session.open_cursor(None, bkup_c, config)
@@ -114,11 +115,11 @@ class test_backup11(backup_base):
         self.pr("=========")
         # Test multiple duplicate backup cursors.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
         # Test duplicate of duplicate backup cursor.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             dupc, config), 0), msg)
         dupc.close()
 
@@ -128,7 +129,7 @@ class test_backup11(backup_base):
         msg = "/cannot be used for/"
         config = 'target=("file:test.wt")'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
 
         # - We cannot mix block incremental with a log target on the same duplicate.
@@ -137,7 +138,7 @@ class test_backup11(backup_base):
         config = 'incremental=(file=test.wt),target=("log:")'
         msg = "/incremental backup incompatible/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
 
         # - Incremental ids must be on primary, not duplicate.
@@ -146,11 +147,11 @@ class test_backup11(backup_base):
         config = 'incremental=(src_id="ID1")'
         msg = "/specified on a primary/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
         config = 'incremental=(this_id="ID1")'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
 
         # - Force stop must be on primary, not duplicate.
@@ -158,7 +159,7 @@ class test_backup11(backup_base):
         self.pr("=========")
         config = 'incremental=(force_stop=true)'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
+            lambda:self.assertEqual(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
 
         bkup_c.close()
@@ -234,6 +235,3 @@ class test_backup11(backup_base):
         # After the full backup, open and recover the backup database.
         backup_conn = self.wiredtiger_open(self.dir)
         backup_conn.close()
-
-if __name__ == '__main__':
-    wttest.run()

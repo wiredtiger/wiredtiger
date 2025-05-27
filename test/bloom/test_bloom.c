@@ -28,6 +28,8 @@
 
 #include "test_util.h"
 
+#define HOME_SIZE 512
+
 static struct {
     WT_CONNECTION *wt_conn; /* WT_CONNECTION handle */
     WT_SESSION *wt_session; /* WT_SESSION handle */
@@ -54,6 +56,10 @@ void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 extern char *__wt_optarg;
 extern int __wt_optind;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -63,7 +69,7 @@ main(int argc, char *argv[])
 
     /* Set default configuration values. */
     g.c_cache = 10;
-    g.c_ops = 100000;
+    g.c_ops = 100 * WT_THOUSAND;
     g.c_key_max = 100;
     g.c_k = 8;
     g.c_factor = 16;
@@ -98,14 +104,22 @@ main(int argc, char *argv[])
     return (EXIT_SUCCESS);
 }
 
+/*
+ * setup --
+ *     TODO: Add a comment describing this function.
+ */
 void
 setup(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
     char config[512];
+    static char home[HOME_SIZE]; /* Base home directory */
 
-    testutil_check(system("rm -f WiredTiger* *.bf"));
+    testutil_work_dir_from_path(home, HOME_SIZE, "WT_TEST");
+
+    /* Create the home test directory for the test (delete the previous directory if it exists). */
+    testutil_recreate_dir(home);
 
     /*
      * This test doesn't test public Wired Tiger functionality, it still needs connection and
@@ -116,11 +130,11 @@ setup(void)
      * Open configuration -- put command line configuration options at the end so they can override
      * "standard" configuration.
      */
-    testutil_check(__wt_snprintf(config, sizeof(config),
-      "create,error_prefix=\"%s\",cache_size=%" PRIu32 "MB,%s", progname, g.c_cache,
-      g.config_open == NULL ? "" : g.config_open));
+    testutil_snprintf(config, sizeof(config),
+      "create,statistics=(all),error_prefix=\"%s\",cache_size=%" PRIu32 "MB,%s", progname,
+      g.c_cache, g.config_open == NULL ? "" : g.config_open);
 
-    testutil_check(wiredtiger_open(NULL, NULL, config, &conn));
+    testutil_check(wiredtiger_open(home, NULL, config, &conn));
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
@@ -129,6 +143,10 @@ setup(void)
     populate_entries();
 }
 
+/*
+ * run --
+ *     TODO: Add a comment describing this function.
+ */
 void
 run(void)
 {
@@ -189,6 +207,10 @@ run(void)
     testutil_check(__wt_bloom_drop(bloomp, NULL));
 }
 
+/*
+ * cleanup --
+ *     TODO: Add a comment describing this function.
+ */
 void
 cleanup(void)
 {
@@ -202,8 +224,9 @@ cleanup(void)
 }
 
 /*
- * Create and keep all the strings used to populate the bloom filter, so that we can do validation
- * with the same set of entries.
+ * populate_entries --
+ *     Create and keep all the strings used to populate the bloom filter, so that we can do
+ *     validation with the same set of entries.
  */
 void
 populate_entries(void)

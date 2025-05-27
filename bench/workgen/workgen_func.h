@@ -25,10 +25,14 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+
+#pragma once
+
 struct workgen_random_state;
 
 extern uint32_t workgen_atomic_add32(uint32_t *vp, uint32_t v);
 extern uint64_t workgen_atomic_add64(uint64_t *vp, uint64_t v);
+extern uint32_t workgen_atomic_sub32(uint32_t *vp, uint32_t v);
 extern void workgen_clock(uint64_t *tsp);
 extern void workgen_epoch(struct timespec *tsp);
 extern uint32_t workgen_random(struct workgen_random_state volatile *rnd_state);

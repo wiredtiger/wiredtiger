@@ -26,25 +26,20 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, shutil
 from helper import simulate_crash_restart
-import wiredtiger, wttest
+from rollback_to_stable_util import verify_rts_logs
+import wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
-
 # test_rollback_to_stable17.py
-# Test that rollback to stable handles updates present on history store and data store for variable
-# length column store.
+# Test that rollback to stable handles updates present on history store and data store.
 class test_rollback_to_stable17(wttest.WiredTigerTestCase):
-    session_config = 'isolation=snapshot'
 
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+    format_values = [
+        ('column', dict(key_format='r', value_format='S')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     in_memory_values = [
@@ -52,14 +47,23 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         ('inmem', dict(in_memory=True))
     ]
 
-    scenarios = make_scenarios(key_format_values, in_memory_values)
+    worker_thread_values = [
+        ('0', dict(threads=0)),
+        ('4', dict(threads=4)),
+        ('8', dict(threads=8))
+    ]
+
+    scenarios = make_scenarios(format_values, in_memory_values, worker_thread_values)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_RTS')
+        self.addTearDownAction(verify_rts_logs)
 
     def conn_config(self):
-        config = 'cache_size=200MB,statistics=(all)'
+        config = 'cache_size=200MB,statistics=(all),verbose=(rts:5)'
         if self.in_memory:
             config += ',in_memory=true'
-        else:
-            config += ',in_memory=false'
         return config
 
     def insert_update_data(self, uri, value, start_row, end_row, timestamp):
@@ -67,12 +71,12 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         for i in range(start_row, end_row):
             self.session.begin_transaction()
             cursor[i] = value
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(timestamp))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(timestamp))
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
 
         count = 0
@@ -90,21 +94,26 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         nrows = 200
         start_row = 1
         ts = [2,5,7,9]
-        values = ["aaaa", "bbbb", "cccc", "dddd"]
+        if self.value_format == '8t':
+            values = [97, 98, 99, 100]
+        else:
+            values = ["aaaa", "bbbb", "cccc", "dddd"]
 
-        create_params = 'log=(enabled=false),key_format=r,value_format=S'
-        self.session.create(uri, create_params)
+        # Create a table.
+        config = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        config += ',log=(enabled=false)' if self.in_memory else ''
+        self.session.create(uri, config)
 
         # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         # Make a series of updates for the same keys with different values at different timestamps.
         for i in range(len(values)):
             self.insert_update_data(uri, values[i], start_row, nrows, ts[i])
 
         # Set the stable timestamp to 5.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(5))
 
         if not self.in_memory:
             # Checkpoint to ensure that all the updates are flushed to disk.
@@ -113,7 +122,7 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
             simulate_crash_restart(self,".", "RESTART")
         else:
             # Manually call rollback_to_stable for in memory keys/values.
-            self.conn.rollback_to_stable()
+            self.conn.rollback_to_stable('threads=' + str(self.threads))
 
         # Check that keys at timestamps 2 and 5 have the correct values they were updated with.
         self.check(values[0], uri, nrows - 1, 2)
@@ -131,6 +140,3 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(upd_aborted + hs_removed, (nrows*2) - 2)
 
         self.session.close()
-
-if __name__ == '__main__':
-    wttest.run()

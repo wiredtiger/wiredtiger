@@ -26,21 +26,75 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, queue, shutil, sys, threading, time, wiredtiger, wttest
+import os, queue, random, shutil, threading, time, wiredtiger, wttest
 from helper import compare_tables
 
 class checkpoint_thread(threading.Thread):
-    def __init__(self, conn, done):
+    def __init__(self, conn, done, **kwargs):
+        """
+        Keyword Args:
+            checkpoint_count_max (int): Maximum number of checkpoints to initiate. Must be greater
+                than zero. Thread will exit if done is signalled, or maximum number of checkpoints
+                is reached.
+        """
         self.conn = conn
         self.done = done
+        self.checkpoint_count = 0
+
+        if "checkpoint_count_max" in kwargs:
+            count_max = int(kwargs["checkpoint_count_max"])
+            if count_max <= 0:
+                raise ValueError("checkpoint_count_max must be a positive integer")
+            self._max_count = count_max
+        else:
+            # Infinite checkpoints: run until signalled.
+            self._max_count = 0
+
+        threading.Thread.__init__(self)
+
+    def reached_max_count(self):
+        return self._max_count > 0 and self.checkpoint_count >= self._max_count
+
+    def run(self):
+        sess = self.conn.open_session()
+        while not self.done.is_set() and not self.reached_max_count():
+            # Sleep for 10 milliseconds.
+            time.sleep(0.001)
+            sess.checkpoint()
+            self.checkpoint_count += 1
+        sess.close()
+
+class named_checkpoint_thread(threading.Thread):
+    def __init__(self, conn, done, ckpt_name):
+        self.conn = conn
+        self.done = done
+        self.ckpt_name = ckpt_name
         threading.Thread.__init__(self)
 
     def run(self):
         sess = self.conn.open_session()
-        while not self.done.isSet():
+        while not self.done.is_set():
             # Sleep for 10 milliseconds.
             time.sleep(0.001)
-            sess.checkpoint()
+            sess.checkpoint('name=' + self.ckpt_name)
+        sess.close()
+
+class flush_checkpoint_thread(threading.Thread):
+    def __init__(self, conn, done, prob):
+        self.conn = conn
+        self.done = done
+        self.flush_probability = prob
+        threading.Thread.__init__(self)
+
+    def run(self):
+        sess = self.conn.open_session()
+        while not self.done.is_set():
+            # Sleep for 10 milliseconds.
+            time.sleep(0.001)
+            if random.randint(0, 100) < self.flush_probability:
+                sess.checkpoint('flush_tier=(enabled)')
+            else:
+                sess.checkpoint()
         sess.close()
 
 class backup_thread(threading.Thread):
@@ -52,7 +106,7 @@ class backup_thread(threading.Thread):
 
     def run(self):
         sess = self.conn.open_session()
-        while not self.done.isSet():
+        while not self.done.is_set():
             # Sleep for 2 seconds.
             time.sleep(2)
             sess.checkpoint()
@@ -81,20 +135,16 @@ class backup_thread(threading.Thread):
                     uri = "file:" + next_file
                     uris.append(uri)
 
-                # TODO: We want a self.assertTrue here - be need to be a
-                # wttest to do that..
-                if not compare_tables(
-                        self, sess, uris, "checkpoint=WiredTigerCheckpoint"):
-                    print("Error: checkpoint tables differ.")
-                else:
-                    wttest.WiredTigerTestCase.printVerbose(
-                        3, "Checkpoint tables match")
+                # Add an assert to stop running the test if any difference in table contents
+                # is found. We would have liked to use self.assertTrue instead, but are unable
+                # to because backup_thread does not support this method unless it is a wttest.
+                wttest.WiredTigerTestCase.printVerbose(3, "Testing if checkpoint tables match:")
+                assert compare_tables(self, sess, uris) == True
+                wttest.WiredTigerTestCase.printVerbose(3, "Checkpoint tables match")
 
-                if not compare_tables(self, bkp_session, uris):
-                    print("Error: backup tables differ.")
-                else:
-                    wttest.WiredTigerTestCase.printVerbose(
-                        3, "Backup tables match")
+                wttest.WiredTigerTestCase.printVerbose(3, "Testing if backup tables match:")
+                assert compare_tables(self, bkp_session, uris) == True
+                wttest.WiredTigerTestCase.printVerbose(3, "Backup tables match")
             finally:
                 if bkp_conn != None:
                     bkp_conn.close()
@@ -124,7 +174,7 @@ class op_thread(threading.Thread):
             cursors = list()
             for next_uri in self.uris:
                 cursors.append(sess.open_cursor(next_uri, None, None))
-        while not self.done.isSet():
+        while not self.done.is_set():
             try:
                 op, key, value = self.work_queue.get_nowait()
                 if op == 'gi': # Group insert a number of tables.

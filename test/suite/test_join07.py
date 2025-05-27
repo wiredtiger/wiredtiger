@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, re, run
-import wiredtiger, wttest, suite_random
+import re
+import wttest
 from wtscenario import make_scenarios
 
 class ParseException(Exception):
@@ -186,6 +186,7 @@ class Tokenizer:
 
 # test_join07.py
 #    Join interpreter
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_join07(wttest.WiredTigerTestCase):
     reverseop = { '==' : '==', '<=' : '>=', '<' : '>', '>=' : '<=', '>' : '<' }
     compareop = { '==' : 'eq', '<=' : 'le', '<' : 'lt', '>=' : 'ge',
@@ -250,14 +251,14 @@ class test_join07(wttest.WiredTigerTestCase):
             # Duplicates may be returned when the disjunctions are used,
             # so we ignore them.
             if not i in gotkeys:
-                self.assertEquals(self.gen_values(i), values)
+                self.assertEqual(self.gen_values(i), values)
                 if not i in mbr:
                     self.tty('ERROR: result ' + str(i) + ' is not in: ' +
                              str(mbr))
                     self.assertTrue(i in mbr)
                 mbr.remove(i)
                 gotkeys.append(i)
-        self.assertEquals(0, len(mbr))
+        self.assertEqual(0, len(mbr))
 
     def token_literal(self, token):
         if token.kind == Token.STRING:
@@ -285,7 +286,7 @@ class test_join07(wttest.WiredTigerTestCase):
         if searchret != 0:
             self.tty('ERROR: cannot find value ' + str(literal) +
                      ' in ' + idxname)
-        self.assertEquals(0, searchret)
+        self.assertEqual(0, searchret)
         op = optok.kind
         if not isright:
             op = self.reverseop[op]
@@ -496,7 +497,7 @@ class test_join07(wttest.WiredTigerTestCase):
         self.iterate(jc, mbr)
 
         self.close_cursors(jc)
-        self.session.drop('table:join07')
+        self.dropUntilSuccess(self.session, 'table:join07')
 
     def test_join_string(self):
         self.interpret("[N=1000][key=r] 7 < A <= 500 && B < 150 && C > 17")
@@ -519,6 +520,3 @@ class test_join07(wttest.WiredTigerTestCase):
         clause1 = "(7 < A <= 500 && B[bloom=300] < 150)"
         clause2 = "(F[bloom=500] > '234' || G[bloom=20] < '100')"
         self.interpret("[N=1000][key=S]" + clause1 + "&&" + clause2)
-
-if __name__ == '__main__':
-    wttest.run()

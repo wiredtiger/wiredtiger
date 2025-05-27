@@ -26,22 +26,16 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest, time
+import wiredtiger, wttest
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_hs12.py
 # Verify we can correctly append modifies to the end of string values
 class test_hs12(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,statistics=(all),eviction=(threads_max=1)'
-    session_config = 'isolation=snapshot'
+    conn_config = 'cache_size=2MB,eviction=(threads_max=1)'
     key_format_values = [
-        # FIXME-WT-7120: The commented columnar tests needs to be enabled once columnar
-        # modify type update is fixed.
-        # ('column', dict(key_format='r')),
-        ('integer', dict(key_format='i')),
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
     ]
     scenarios = make_scenarios(key_format_values)
 
@@ -76,10 +70,10 @@ class test_hs12(wttest.WiredTigerTestCase):
         session2.begin_transaction()
         cursor2.set_key(1)
         cursor2.search()
-        self.assertEquals(cursor2.get_value(),  value1 + 'A')
+        self.assertEqual(cursor2.get_value(),  value1 + 'A')
         cursor2.set_key(2)
         cursor2.search()
-        self.assertEquals(cursor2.get_value(),  'AB' + value1)
+        self.assertEqual(cursor2.get_value(),  'AB' + value1)
         session2.commit_transaction()
 
         # Begin transaction on session 2 so it sees the current snap_min and snap_max
@@ -94,20 +88,17 @@ class test_hs12(wttest.WiredTigerTestCase):
         cursor[1] = value2
         self.session.commit_transaction()
 
-        # Insert a whole bunch of data into the table to force wiredtiger to evict data
-        # from the previous table.
-        self.session.begin_transaction()
-        for i in range(2, 10000):
-            cursor[i] = valuebig
-        self.session.commit_transaction()
+        # Configure debug behavior on a cursor to evict the positioned page on cursor reset
+        # and evict the page.
+        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+        evict_cursor.set_key(1)
+        self.assertEqual(evict_cursor.search(), 0)
+        evict_cursor.reset()
 
         # Try to find the value we saw earlier
         cursor2.set_key(1)
         cursor2.search()
-        self.assertEquals(cursor2.get_value(), value1 + 'A')
+        self.assertEqual(cursor2.get_value(), value1 + 'A')
         cursor2.set_key(2)
         cursor2.search()
-        self.assertEquals(cursor2.get_value(), 'AB' + value1)
-
-if __name__ == '__main__':
-    wttest.run()
+        self.assertEqual(cursor2.get_value(), 'AB' + value1)

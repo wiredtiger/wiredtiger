@@ -12,6 +12,47 @@ WT_PROCESS __wt_process;             /* Per-process structure */
 static int __wt_pthread_once_failed; /* If initialization failed */
 
 /*
+ * This is the list of the timing stress configuration names and flags. It is a global structure
+ * instead of declared in the config function so that other functions can use the name/flag
+ * association.
+ */
+const WT_NAME_FLAG __wt_stress_types[] = {
+  /*
+   * Each split race delay is controlled using a different flag to allow more effective race
+   * condition detection, since enabling all delays at once can lead to an overall slowdown to the
+   * point where race conditions aren't encountered.
+   *
+   * Fail points are also defined in this list and will occur randomly when enabled.
+   */
+  {"aggressive_stash_free", WT_TIMING_STRESS_AGGRESSIVE_STASH_FREE},
+  {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
+  {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
+  {"checkpoint_evict_page", WT_TIMING_STRESS_CHECKPOINT_EVICT_PAGE},
+  {"checkpoint_handle", WT_TIMING_STRESS_CHECKPOINT_HANDLE},
+  {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
+  {"checkpoint_stop", WT_TIMING_STRESS_CHECKPOINT_STOP},
+  {"commit_transaction_slow", WT_TIMING_STRESS_COMMIT_TRANSACTION_SLOW},
+  {"compact_slow", WT_TIMING_STRESS_COMPACT_SLOW},
+  {"evict_reposition", WT_TIMING_STRESS_EVICT_REPOSITION},
+  {"failpoint_eviction_split", WT_TIMING_STRESS_FAILPOINT_EVICTION_SPLIT},
+  {"failpoint_history_delete_key_from_ts",
+    WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS},
+  {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
+  {"history_store_search", WT_TIMING_STRESS_HS_SEARCH},
+  {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
+  {"prefetch_1", WT_TIMING_STRESS_PREFETCH_1}, {"prefetch_2", WT_TIMING_STRESS_PREFETCH_2},
+  {"prefetch_3", WT_TIMING_STRESS_PREFETCH_3}, {"prefix_compare", WT_TIMING_STRESS_PREFIX_COMPARE},
+  {"prepare_checkpoint_delay", WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY},
+  {"prepare_resolution_1", WT_TIMING_STRESS_PREPARE_RESOLUTION_1},
+  {"prepare_resolution_2", WT_TIMING_STRESS_PREPARE_RESOLUTION_2},
+  {"sleep_before_read_overflow_onpage", WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE},
+  {"split_1", WT_TIMING_STRESS_SPLIT_1}, {"split_2", WT_TIMING_STRESS_SPLIT_2},
+  {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
+  {"split_5", WT_TIMING_STRESS_SPLIT_5}, {"split_6", WT_TIMING_STRESS_SPLIT_6},
+  {"split_7", WT_TIMING_STRESS_SPLIT_7}, {"split_8", WT_TIMING_STRESS_SPLIT_8},
+  {"tiered_flush_finish", WT_TIMING_STRESS_TIERED_FLUSH_FINISH}, {NULL, 0}};
+
+/*
  * __endian_check --
  *     Check the build matches the machine.
  */
@@ -52,7 +93,7 @@ __global_calibrate_ticks(void)
     __wt_process.tsc_nsec_ratio = WT_TSC_DEFAULT_RATIO;
     __wt_process.use_epochtime = true;
 
-#if defined(__i386) || defined(__amd64)
+#if defined(__amd64) || defined(__aarch64__)
     {
         struct timespec start, stop;
         double ratio;
@@ -121,8 +162,15 @@ __global_once(void)
      * doesn't have to check if it's set or not.
      */
     __wt_process.checksum = wiredtiger_crc32c_func();
+    __wt_process.checksum_with_seed = wiredtiger_crc32c_with_seed_func();
 
     __global_calibrate_ticks();
+
+    /* Run-time configuration. */
+#ifdef WT_STANDALONE_BUILD
+    __wt_process.fast_truncate_2022 = true;
+    __wt_process.tiered_shared_2023 = true;
+#endif
 }
 
 /*

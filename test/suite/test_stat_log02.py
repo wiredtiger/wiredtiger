@@ -25,10 +25,13 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# statistics
+# [END_TAGS]
 
 import glob, json
-import helper, wiredtiger, wttest
-from wiredtiger import stat
+import wttest
 
 # test_stat_log02.py
 #    Statistics log sources argument and JSON testing.
@@ -70,6 +73,7 @@ class test_stat_log02(wttest.WiredTigerTestCase):
 
         self.check_stats_file(".")
 
+    @wttest.skip_for_hook("tiered", "Tiered causes python crash")
     def test_stats_log_on_json_with_tables(self):
         self.conn = self.wiredtiger_open(None,
             "create,statistics=(fast)," +\
@@ -86,6 +90,3 @@ class test_stat_log02(wttest.WiredTigerTestCase):
 
         self.check_stats_file(".")
         self.check_file_contains_tables(".")
-
-if __name__ == '__main__':
-    wttest.run()

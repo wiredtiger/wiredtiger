@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static void __free_page_modify(WT_SESSION_IMPL *, WT_PAGE *);
+static void __free_page_col_fix(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_col_var(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_int(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
@@ -24,25 +25,22 @@ void
 __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     /*
-     * A version of the page-out function that allows us to make additional diagnostic checks.
-     *
-     * The WT_REF cannot be the eviction thread's location.
-     */
-    WT_ASSERT(session, S2BT(session)->evict_ref != ref);
-
-    /*
      * Make sure no other thread has a hazard pointer on the page we are about to discard. This is
      * complicated by the fact that readers publish their hazard pointer before re-checking the page
      * state, so our check can race with readers without indicating a real problem. If we find a
      * hazard pointer, wait for it to be cleared.
      */
-    WT_ASSERT(session, __wt_hazard_check_assert(session, ref, true));
+    WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
+      __wt_hazard_check_assert(session, ref, true),
+      "Attempted to free a page with active hazard pointers");
 
+    /* Check we are not evicting an accessible internal page with an active split generation. */
     WT_ASSERT(session,
       !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
         F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
         !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
 
+    __wt_evict_remove(session, ref, true /* destroying the page */);
     __wt_page_out(session, &ref->page);
 }
 
@@ -63,6 +61,11 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     page = *pagep;
     *pagep = NULL;
 
+#if EVICT_DEBUG_PRINT
+	printf("DISCARDING PAGE %p\n", (void*)page);
+	fflush(stdout);
+#endif
+
     /*
      * Unless we have a dead handle or we're closing the database, we should never discard a dirty
      * page. We do ordinary eviction from dead trees until sweep gets to them, so we may not in the
@@ -71,9 +74,12 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING))
         __wt_page_modify_clear(session, page);
 
-    /* Assert we never discard a dirty page or a page queue for eviction. */
-    WT_ASSERT(session, !__wt_page_is_modified(page));
-    WT_ASSERT(session, !F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU));
+    WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
+    WT_ASSERT_ALWAYS(
+      session, !__wt_page_is_reconciling(page), "Attempting to discard page being reconciled");
+    WT_ASSERT_ALWAYS(session, WT_EVICT_PAGE_CLEARED(page),
+      "Attempting to discard a page that is still in an eviction queue");
+	page->evict_data.destroying = true;
 
     /*
      * If a root page split, there may be one or more pages linked from the page; walk the list,
@@ -89,14 +95,14 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     }
 
     /* Update the cache's information. */
-    __wt_cache_page_evict(session, page);
+    __wt_evict_page_cache_bytes_decr(session, page);
 
     dsk = (WT_PAGE_HEADER *)page->dsk;
-    if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_ALLOC))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
         __wt_cache_page_image_decr(session, page);
 
     /* Discard any mapped image. */
-    if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_MAPPED))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_MAPPED))
         (void)S2BT(session)->bm->map_discard(
           S2BT(session)->bm, session, dsk, (size_t)dsk->mem_size);
 
@@ -113,6 +119,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
+        __free_page_col_fix(session, page);
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -127,7 +134,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
     }
 
     /* Discard any allocated disk image. */
-    if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_ALLOC))
+    if (F_ISSET_ATOMIC_16(page, WT_PAGE_DISK_ALLOC))
         __wt_overwrite_and_free_len(session, dsk, dsk->mem_size);
 
     __wt_overwrite_and_free(session, page);
@@ -149,7 +156,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     mod = page->modify;
 
     /* In some failed-split cases, we can't discard updates. */
-    update_ignore = F_ISSET_ATOMIC(page, WT_PAGE_UPDATE_IGNORE);
+    update_ignore = F_ISSET_ATOMIC_16(page, WT_PAGE_UPDATE_IGNORE);
 
     switch (mod->rec_result) {
     case WT_PM_REC_MULTIBLOCK:
@@ -162,6 +169,13 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
                 break;
             }
             __wt_free(session, multi->supd);
+            /*
+             * Discard the new disk images if they are not NULL. If the new disk images are NULL,
+             * they must have been instantiated into memory. Otherwise, we have a failure in
+             * eviction after reconciliation. If the split code only successfully instantiates a
+             * subset of new pages into memory, free the instantiated pages and the new disk images
+             * of the pages not in memory. We will redo reconciliation next time we visit this page.
+             */
             __wt_free(session, multi->disk_image);
             __wt_free(session, multi->addr.addr);
         }
@@ -171,8 +185,16 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
         /*
          * Discard any replacement address: this memory is usually moved into the parent's WT_REF,
          * but at the root that can't happen.
+         *
+         * Discard the new disk image if it is not NULL. If the new disk image is NULL, it must have
+         * been instantiated into memory. Otherwise, we have a failure in eviction after
+         * reconciliation and later we decide to discard the old disk image without loading the new
+         * disk image into memory. Free the new disk image in this case. If a checkpoint visits this
+         * page, it would write the new disk image even it hasn't been instantiated into memory.
+         * Therefore, no need to reconcile the page again if it remains clean.
          */
         __wt_free(session, mod->mod_replace.addr);
+        __wt_free(session, mod->mod_disk_image);
         break;
     }
 
@@ -212,9 +234,36 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
     __wt_ovfl_discard_free(session, page);
 
     __wt_free(session, page->modify->ovfl_track);
+    __wt_free(session, page->modify->inst_updates);
+    __wt_free(session, page->modify->stop_ta);
     __wt_spin_destroy(session, &page->modify->page_lock);
 
     __wt_free(session, page->modify);
+}
+
+/*
+ * __wti_ref_addr_safe_free --
+ *     Any thread that is reviewing the address in a WT_REF, must also be holding a split generation
+ *     to ensure that the page index they are using remains valid. Utilize the same generation type
+ *     to safely free the address once all users of it have left the generation.
+ */
+void
+__wti_ref_addr_safe_free(WT_SESSION_IMPL *session, void *p, size_t len)
+{
+    WT_DECL_RET;
+    uint64_t split_gen;
+
+    /*
+     * The reading thread is always inside a split generation when it reads the ref, so we make use
+     * of WT_GEN_SPLIT type generation mechanism to protect the address in a WT_REF rather than
+     * creating a whole new generation counter. There are no page splits taking place.
+     */
+    split_gen = __wt_gen(session, WT_GEN_SPLIT);
+    WT_TRET(__wt_stash_add(session, WT_GEN_SPLIT, split_gen, p, len));
+    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
+
+    if (ret != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "fatal error during ref address free"));
 }
 
 /*
@@ -224,31 +273,50 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 void
 __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_PAGE *home;
     void *ref_addr;
 
     /*
-     * The page being discarded may be the child of a page being split, where the WT_REF.addr field
-     * is being instantiated (as it can no longer reference the on-disk image). Loop until we read
-     * and clear the address without a race, then free the read address as necessary.
+     * In order to free the WT_REF.addr field we need to read and clear the address without a race.
+     * The WT_REF may be a child of a page being split, in which case the addr field could be
+     * instantiated concurrently which changes the addr field. Once we swap in NULL we effectively
+     * own the addr. Then provided the addr is off page we can free the memory.
+     *
+     * However as we could be the child of a page being split the ref->home pointer which tells us
+     * whether the addr is on or off page could change concurrently. To avoid this we save the home
+     * pointer before we do the compare and swap. While the second acquire read should be sufficient
+     * we use an acquire read on the ref->home pointer as that is the standard mechanism to
+     * guarantee we read the current value.
+     *
+     * We don't reread this value inside loop as if it was to change then we would be pointing at a
+     * new parent, which would mean that our ref->addr must have been instantiated and thus we are
+     * safe to free it at the end of this function.
      */
+    WT_ACQUIRE_READ_WITH_BARRIER(home, ref->home);
     do {
-        WT_ORDERED_READ(ref_addr, ref->addr);
+        WT_ACQUIRE_READ_WITH_BARRIER(ref_addr, ref->addr);
         if (ref_addr == NULL)
             return;
     } while (!__wt_atomic_cas_ptr(&ref->addr, ref_addr, NULL));
 
-    if (ref->home == NULL || __wt_off_page(ref->home, ref_addr)) {
-        __wt_free(session, ((WT_ADDR *)ref_addr)->addr);
-        __wt_free(session, ref_addr);
+    /* Encourage races. */
+    if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_SPLIT_8)) {
+        __wt_yield();
+        __wt_yield();
+    }
+
+    if (home == NULL || __wt_off_page(home, ref_addr)) {
+        __wti_ref_addr_safe_free(session, ((WT_ADDR *)ref_addr)->addr, ((WT_ADDR *)ref_addr)->size);
+        __wti_ref_addr_safe_free(session, ref_addr, sizeof(WT_ADDR));
     }
 }
 
 /*
- * __wt_free_ref --
+ * __wti_free_ref --
  *     Discard the contents of a WT_REF structure (optionally including the pages it references).
  */
 void
-__wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
+__wti_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
 {
     WT_IKEY *ikey;
 
@@ -268,8 +336,10 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
      * clean explicitly.)
      */
     if (free_pages && ref->page != NULL) {
+        WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(ref->page),
+          "Attempting to discard ref to a page being reconciled");
         __wt_page_modify_clear(session, ref->page);
-        __wt_page_out(session, &ref->page);
+        __wt_ref_out(session, ref);
     }
 
     /*
@@ -290,11 +360,8 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     /* Free any address allocation. */
     __wt_ref_addr_free(session, ref);
 
-    /* Free any page-deleted information. */
-    if (ref->page_del != NULL) {
-        __wt_free(session, ref->page_del->update_list);
-        __wt_free(session, ref->page_del);
-    }
+    /* Free any backing fast-truncate memory. */
+    __wt_free(session, ref->page_del);
 
     __wt_overwrite_and_free_len(session, ref, WT_REF_CLEAR_SIZE);
 }
@@ -309,24 +376,29 @@ __free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_PAGE_INDEX *pindex;
     uint32_t i;
 
-    for (pindex = WT_INTL_INDEX_GET_SAFE(page), i = 0; i < pindex->entries; ++i)
-        __wt_free_ref(session, pindex->index[i], page->type, false);
+    WT_INTL_INDEX_GET_SAFE(page, pindex);
+    for (i = 0; i < pindex->entries; ++i)
+        __wti_free_ref(session, pindex->index[i], page->type, false);
 
     __wt_free(session, pindex);
 }
 
 /*
- * __wt_free_ref_index --
+ * __wti_free_ref_index --
  *     Discard a page index and its references.
  */
 void
-__wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
+__wti_free_ref_index(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
 {
     WT_REF *ref;
     uint32_t i;
 
     if (pindex == NULL)
         return;
+
+    WT_ASSERT_ALWAYS(session, !__wt_page_is_reconciling(page),
+      "Attempting to discard ref to a page being reconciled");
 
     for (i = 0; i < pindex->entries; ++i) {
         ref = pindex->index[i];
@@ -335,11 +407,24 @@ __wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pind
          * Used when unrolling splits and other error paths where there should never have been a
          * hazard pointer taken.
          */
-        WT_ASSERT(session, __wt_hazard_check_assert(session, ref, false));
+        WT_ASSERT_OPTIONAL(session, WT_DIAGNOSTIC_EVICTION_CHECK,
+          __wt_hazard_check_assert(session, ref, false),
+          "Attempting to discard ref to a page with hazard pointers");
 
-        __wt_free_ref(session, ref, page->type, free_pages);
+        __wti_free_ref(session, ref, page->type, free_pages);
     }
     __wt_free(session, pindex);
+}
+
+/*
+ * __free_page_col_fix --
+ *     Discard a WT_PAGE_COL_FIX page.
+ */
+static void
+__free_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    /* Free the time window lookup array. */
+    __wt_free(session, page->u.col_fix.fix_tw);
 }
 
 /*
@@ -360,22 +445,12 @@ __free_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page)
 static void
 __free_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_IKEY *ikey;
     WT_ROW *rip;
     uint32_t i;
-    void *copy;
 
-    /*
-     * Free the in-memory index array.
-     *
-     * For each entry, see if the key was an allocation (that is, if it points somewhere other than
-     * the original page), and if so, free the memory.
-     */
-    WT_ROW_FOREACH (page, rip, i) {
-        copy = WT_ROW_KEY_COPY(rip);
-        WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(page, copy, &ikey, NULL, NULL, NULL));
-        __wt_free(session, ikey);
-    }
+    /* Free any allocated memory used by instantiated keys. */
+    WT_ROW_FOREACH (page, rip, i)
+        __wt_row_leaf_key_free(session, page, rip);
 }
 
 /*

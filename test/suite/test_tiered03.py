@@ -27,29 +27,62 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, re
-import wiredtiger, wtscenario, wttest
+from helper_tiered import TieredConfigMixin, gen_tiered_storage_sources, get_conn_config
+import wtscenario, wttest
 from wtdataset import SimpleDataSet
 
 # test_tiered03.py
 #    Test block-log-structured tree configuration options.
-class test_tiered03(wttest.WiredTigerTestCase):
+class test_tiered03(wttest.WiredTigerTestCase, TieredConfigMixin):
     K = 1024
     M = 1024 * K
     G = 1024 * M
+    # TODO: tiered: change this to a table: URI, otherwise we are
+    # not using tiered files.  The use of a second directory for
+    # sharing would probably need to be reworked.
     uri = 'file:test_tiered03'
 
-    # Occasionally add a lot of records, so that merges (and bloom) happen.
+    storage_sources = gen_tiered_storage_sources(wttest.getss_random_prefix(), 'test_tiered03', tiered_only=True)
+
+    # Occasionally add a lot of records to vary the amount of work flush does.
     record_count_scenarios = wtscenario.quick_scenarios(
         'nrecs', [10, 10000], [0.9, 0.1])
+    scenarios = wtscenario.make_scenarios(storage_sources, record_count_scenarios,\
+         prune=100, prunelong=500)
 
-    scenarios = wtscenario.make_scenarios(record_count_scenarios, prune=100, prunelong=500)
+    absolute_bucket_dir = None  # initialied in conn_config to an absolute path
+
+    def conn_config(self):
+        bucket_ret = self.bucket
+
+        # The bucket format for the S3 store is the name and the region separated by a semi-colon.
+        if self.ss_name == 's3_store':
+            cache_dir = self.bucket[:self.bucket.find(';')] + '-cache'
+        else:
+            cache_dir = self.bucket + '-cache'
+
+        # We have multiple connections that want to share a bucket.
+        # For the directory store, the first time this function is called, we'll
+        # establish the absolute path for the bucket, and always use that for
+        # the bucket name.
+        # The cache directory name is a relative one, so it won't be shared
+        # between connections.
+        if self.ss_name == 'dir_store':
+            if self.absolute_bucket_dir == None:
+                self.absolute_bucket_dir = os.path.join(os.getcwd(), self.bucket)
+                os.mkdir(self.absolute_bucket_dir)
+            bucket_ret = self.absolute_bucket_dir
+        return get_conn_config(self) + 'cache_directory=%s)' % cache_dir
+
+    # Load the storage store extension.
+    def conn_extensions(self, extlist):
+        TieredConfigMixin.conn_extensions(self, extlist)
 
     # Test sharing data between a primary and a secondary
     def test_sharing(self):
-        args = 'block_allocation=log-structured'
-        self.verbose(3,
-            'Test log-structured allocation with config: ' + args + ' count: ' + str(self.nrecs))
-        ds = SimpleDataSet(self, self.uri, 10, config=args)
+        self.skipTest('Sharing the checkpoint file containing transaction ids is not supported')
+
+        ds = SimpleDataSet(self, self.uri, 10)
         ds.populate()
         ds.check()
         self.session.checkpoint()
@@ -71,7 +104,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
         ds.check_cursor(cursor2)
         cursor2.close()
 
-        newds = SimpleDataSet(self, self.uri, 10000, config=args)
+        newds = SimpleDataSet(self, self.uri, 10000)
         newds.populate()
         newds.check()
         self.session.checkpoint()
@@ -92,6 +125,3 @@ class test_tiered03(wttest.WiredTigerTestCase):
         # Check that we can see the new data
         cursor2 = session2.open_cursor(uri2)
         newds.check_cursor(cursor2)
-
-if __name__ == '__main__':
-    wttest.run()
