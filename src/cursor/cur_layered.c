@@ -1148,8 +1148,11 @@ __clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM
     if (!conn->layered_table_manager.leader) {
         c = clayered->ingest_cursor;
         WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
-        if (ret == 0)
+        if (ret == 0) {
             found = true;
+            if (__clayered_deleted(clayered, value))
+                ret = WT_NOTFOUND;
+        }
     } else {
         /* Be sure we'll make a search attempt further down.  */
         WT_ASSERT(
@@ -1176,10 +1179,7 @@ err:
         F_SET(cursor, WT_CURSTD_KEY_INT);
         clayered->current_cursor = c;
 
-        /* Relies on at least one of the tables having made a search attempt. */
-        if (__clayered_deleted(clayered, value))
-            ret = WT_NOTFOUND;
-        else if (value == &cursor->value)
+        if (value == &cursor->value)
             F_SET(cursor, WT_CURSTD_VALUE_INT);
     } else if (c != NULL)
         WT_TRET(c->reset(c));
