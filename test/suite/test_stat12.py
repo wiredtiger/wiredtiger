@@ -41,7 +41,7 @@ class test_stat12(wttest.WiredTigerTestCase):
 
     def conn_config(self):
         # Small cache to force eviction, enable all statistics
-        return 'cache_size=1MB,statistics=(all),eviction=(threads_max=4)'
+        return 'cache_size=1MB,statistics=(all),eviction=(threads_max=1),eviction_dirty_trigger=8,eviction_dirty_target=7,eviction_updates_trigger=5,eviction_updates_target=4,eviction_trigger=20,eviction_target=15'
 
     def populate_data(self, start, end, value_size=100):
         c = self.session.open_cursor(self.uri)
@@ -78,7 +78,7 @@ class test_stat12(wttest.WiredTigerTestCase):
         self.populate_data(0, 10000, value_size=2000)  # Big values to fill cache
         self.session.checkpoint()
 
-        # Additional reads to *touch* clean pages (increase memory usage) without dirtying
+        # Additional reads to touch clean pages (increase memory usage) without dirtying
         for i in range(200, 10000):
             self.read_key(i)
 
