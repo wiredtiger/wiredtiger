@@ -135,6 +135,7 @@ struct __wt_session_impl {
     uint64_t last_cursor_sweep;      /* Last regular sweep for dead cursors */
     u_int sweep_warning_5min;        /* Whether the session was without sweep for 5 min. */
     u_int sweep_warning_60min;       /* Whether the session was without sweep for 60 min. */
+    bool cursor_open_timer_running;  /* Flag used to track timer across nested calls. */
 
     WT_CURSOR_BACKUP *bkp_cursor; /* Hot backup cursor */
 

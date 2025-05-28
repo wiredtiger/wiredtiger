@@ -677,15 +677,6 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     if (*cursorp == NULL)
         return (__wt_bad_object_type(session, uri));
 
-    if (owner != NULL) {
-        /*
-         * We support caching simple cursors that have no children. If this cursor is a child, we're
-         * not going to cache this child or its parent.
-         */
-        F_CLR(owner, WT_CURSTD_CACHEABLE);
-        F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
-    }
-
     /*
      * When opening simple tables, the table code calls this function on the underlying data source,
      * in which case the application's URI has been copied.
@@ -709,11 +700,22 @@ int
 __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[],
   WT_CURSOR **cursorp)
 {
+    struct timespec end_time, start_time;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
-    uint64_t hash_value;
+    uint64_t hash_value, time_diff_usec;
+    bool cursor_timing;
 
+    cursor_timing = false;
     hash_value = 0;
+    /* Don't require a NULL input cursor */
+    *cursorp = NULL;
+
+    if (session->cursor_open_timer_running == false) {
+        session->cursor_open_timer_running = true;
+        cursor_timing = true;
+        __wt_epoch(session, &start_time);
+    }
     WT_NOT_READ(txn_global, &S2C(session)->txn_global);
 
     /*
@@ -730,14 +732,23 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
     /* We do not cache any subordinate tables/files cursors. */
-    if (owner == NULL) {
-        __wt_cursor_get_hash(session, uri, NULL, &hash_value);
-        if ((ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp)) == 0)
-            return (0);
-        WT_RET_NOTFOUND_OK(ret);
-    }
+    __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+    WT_ERR_NOTFOUND_OK(
+      __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp), false);
 
-    return (__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
+    /* Open a new cursor if no cached cursor was found. */
+    if (*cursorp == NULL)
+        WT_ERR(__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
+
+err:
+    /* Always close out the timing information regardless of success. */
+    if (cursor_timing) {
+        session->cursor_open_timer_running = false;
+        __wt_epoch(session, &end_time);
+        time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
+    }
+    return (ret);
 }
 
 /*
@@ -748,17 +759,25 @@ static int
 __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup,
   const char *config, WT_CURSOR **cursorp)
 {
+    struct timespec end_time, start_time;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t hash_value;
-    bool dup_backup, statjoin;
+    uint64_t hash_value, time_diff_usec;
+    bool dup_backup, cursor_timing, statjoin;
 
+    cursor_timing = false;
     cursor = *cursorp = NULL;
     hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, ret, open_cursor, config, cfg);
+
+    if (session->cursor_open_timer_running == false) {
+        session->cursor_open_timer_running = true;
+        cursor_timing = true;
+        __wt_epoch(session, &start_time);
+    }
 
     /*
      * Check for early usage of a user session to collect statistics. If the connection is not fully
@@ -814,6 +833,22 @@ done:
 err:
         if (cursor != NULL)
             WT_TRET(cursor->close(cursor));
+    }
+    /* Always close out the timing information regardless of success. */
+    if (cursor_timing) {
+        session->cursor_open_timer_running = false;
+        __wt_epoch(session, &end_time);
+        time_diff_usec = WT_TIMEDIFF_US(end_time, start_time);
+        /*
+         * It's considered a user open if it comes via a top-level API call. This could
+         * alternatively decide the statistic based on whether it's a user or internal session, but
+         * I'm most interested in knowing whether the user call open-session, or WiredTiger opened
+         * the session incidentally (even if that was within the purview of a user thread.
+         */
+        if (API_USER_ENTRY(session))
+            WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_user_usecs, time_diff_usec);
+        else
+            WT_STAT_CONN_DSRC_INCRV(session, cursor_open_time_internal_usecs, time_diff_usec);
     }
     /*
      * Opening a cursor on a non-existent data source will set ret to either of ENOENT or
