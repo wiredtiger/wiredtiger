@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 static int __clayered_copy_bounds(WT_CURSOR_LAYERED *);
-static int __clayered_lookup(WT_CURSOR_LAYERED *, WT_ITEM *);
+static int __clayered_lookup(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, WT_ITEM *);
 static int __clayered_open_cursors(WT_SESSION_IMPL *, WT_CURSOR_LAYERED *, bool);
 static int __clayered_reset_cursors(WT_CURSOR_LAYERED *, bool);
 static int __clayered_search_near(WT_CURSOR *, int *);
@@ -1107,37 +1107,57 @@ err:
 }
 
 /*
+ * __clayered_lookup_constituent --
+ *     The cursor-agnostic parts of layered table lookups.
+ */
+static int
+__clayered_lookup_constituent(WT_CURSOR *c, WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+
+    cursor = &clayered->iface;
+
+    c->set_key(c, &cursor->key);
+    if ((ret = c->search(c)) == 0) {
+        WT_RET(c->get_key(c, &cursor->key));
+        WT_RET(c->get_value(c, value));
+        clayered->current_cursor = c;
+    }
+
+    return (ret);
+}
+
+/*
  * __clayered_lookup --
  *     Position a layered cursor.
  */
 static int
-__clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
+__clayered_lookup(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *c, *cursor;
     WT_DECL_RET;
     bool found;
 
     c = NULL;
+    conn = S2C(session);
     cursor = &clayered->iface;
     found = false;
 
-    c = clayered->ingest_cursor;
-    c->set_key(c, &cursor->key);
-    if ((ret = c->search(c)) == 0) {
-        WT_ERR(c->get_key(c, &cursor->key));
-        WT_ERR(c->get_value(c, value));
-        clayered->current_cursor = c;
-        if (__clayered_deleted(clayered, value))
-            ret = WT_NOTFOUND;
-        /*
-         * Even a tombstone is considered found here - the delete overrides any remaining record in
-         * the stable constituent.
-         */
-        found = true;
+    if (!conn->layered_table_manager.leader) {
+        c = clayered->ingest_cursor;
+        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
+        if (ret == 0) {
+            found = true;
+            if (__clayered_deleted(clayered, value))
+                ret = WT_NOTFOUND;
+        }
+    } else {
+        /* Be sure we'll make a search attempt further down.  */
+        WT_ASSERT(
+          session, F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL);
     }
-    WT_ERR_NOTFOUND_OK(ret, true);
-    if (!found)
-        F_CLR(c, WT_CURSTD_KEY_SET);
 
     /*
      * If the key didn't exist in the ingest constituent and the cursor is setup for reading, check
@@ -1145,23 +1165,20 @@ __clayered_lookup(WT_CURSOR_LAYERED *clayered, WT_ITEM *value)
      */
     if (!found && F_ISSET(clayered, WT_CLAYERED_OPEN_READ) && clayered->stable_cursor != NULL) {
         c = clayered->stable_cursor;
-        c->set_key(c, &cursor->key);
-        if ((ret = c->search(c)) == 0) {
-            WT_ERR(c->get_key(c, &cursor->key));
-            WT_ERR(c->get_value(c, value));
+        WT_ERR_NOTFOUND_OK(__clayered_lookup_constituent(c, clayered, value), true);
+        if (ret == 0)
             found = true;
-            clayered->current_cursor = c;
-        }
-        WT_ERR_NOTFOUND_OK(ret, true);
-        if (!found)
-            F_CLR(c, WT_CURSTD_KEY_SET);
     }
+
+    if (!found)
+        F_CLR(c, WT_CURSTD_KEY_SET);
 
 err:
     if (ret == 0) {
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         F_SET(cursor, WT_CURSTD_KEY_INT);
         clayered->current_cursor = c;
+
         if (value == &cursor->value)
             F_SET(cursor, WT_CURSTD_VALUE_INT);
     } else if (c != NULL)
@@ -1189,7 +1206,7 @@ __clayered_search(WT_CURSOR *cursor)
     WT_ERR(__clayered_enter(clayered, true, false, false));
     F_CLR(clayered, WT_CLAYERED_ITERATE_NEXT | WT_CLAYERED_ITERATE_PREV);
 
-    ret = __clayered_lookup(clayered, &cursor->value);
+    ret = __clayered_lookup(session, clayered, &cursor->value);
 
     WT_STAT_CONN_DSRC_INCR(session, layered_curs_search);
     if (clayered->current_cursor == clayered->ingest_cursor)
@@ -1520,7 +1537,7 @@ __clayered_insert(WT_CURSOR *cursor)
      * lookup results in an error, and a failed lookup leaves the original key intact.
      */
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
-      (ret = __clayered_lookup(clayered, &value)) != WT_NOTFOUND) {
+      (ret = __clayered_lookup(session, clayered, &value)) != WT_NOTFOUND) {
         if (ret == 0) {
             WT_ERR(__clayered_copy_duplicate_kv(cursor));
             WT_ERR(WT_DUPLICATE_KEY);
@@ -1568,7 +1585,7 @@ __clayered_update(WT_CURSOR *cursor)
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-        WT_ERR(__clayered_lookup(clayered, &value));
+        WT_ERR(__clayered_lookup(session, clayered, &value));
         /*
          * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
          * have landed on.
@@ -1627,7 +1644,7 @@ __clayered_remove(WT_CURSOR *cursor)
      */
     if (!positioned) {
         WT_ERR(__clayered_enter(clayered, false, false, false));
-        WT_ERR(__clayered_lookup(clayered, &value));
+        WT_ERR(__clayered_lookup(session, clayered, &value));
         __clayered_leave(clayered);
     }
 
@@ -1677,7 +1694,7 @@ __clayered_reserve(WT_CURSOR *cursor)
     WT_ERR(__wt_txn_context_check(session, true));
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
-    WT_ERR(__clayered_lookup(clayered, &value));
+    WT_ERR(__clayered_lookup(session, clayered, &value));
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
      * landed on.
@@ -1907,7 +1924,7 @@ __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ERR(__clayered_enter(clayered, false, true, false));
 
     if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-        WT_ERR(__clayered_lookup(clayered, &value));
+        WT_ERR(__clayered_lookup(session, clayered, &value));
         /*
          * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may
          * have landed on.
