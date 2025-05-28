@@ -80,6 +80,15 @@ static WT_INLINE uint64_t
 __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t first_bucket,
                             bool blast)
 {
+#define RANDOM_BUCKET /* reduced contention for uniform random workloads */
+#ifdef RANDOM_BUCKET
+    (void)session;
+    (void)read_gen;
+    (void)first_bucket;
+    (void)blast;
+
+    return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
+#else
     double e1, target, c, n;
     int64_t blast_value;
 
@@ -104,6 +113,7 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
         return WT_EVICT_NUM_BUCKETS;
 
     if (blast) {
+
         /*
          * Read generations tend to cluster together, so during each given time window all pages
          * go into the same bucket. To prevent this (and hence avoid bucket contention), we add
@@ -121,6 +131,7 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
     fflush(stdout);
 #endif
     return (uint64_t)WT_MAX(0, ((int64_t)n + blast_value));
+#endif
 }
 
 /*
