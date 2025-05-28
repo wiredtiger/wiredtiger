@@ -667,7 +667,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_EVICT *evict;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
+      total_updates;
     uint32_t flags, hs_id;
 
     conn = S2C(session);
@@ -698,7 +699,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * values could lead to surprising bugs in the future.
      */
     if (F_ISSET_ATOMIC_64(conn, WT_CONN_HS_OPEN)) {
-        total_dirty = total_inmem = 0;
+        total_dirty = total_inmem = total_updates = 0;
         hs_id = 0;
         for (;;) {
             WT_RET_NOTFOUND_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id));
@@ -709,11 +710,14 @@ __evict_update_work(WT_SESSION_IMPL *session)
             }
             if (__wt_hs_get_btree(session, hs_id, &hs_tree) == 0) {
                 total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
-                total_dirty += hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
+                total_dirty += __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
+                  __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
+                total_updates += __wt_atomic_load64(&hs_tree->bytes_updates);
             }
         }
         __wt_atomic_store64(&cache->bytes_hs, total_inmem);
-        cache->bytes_hs_dirty = total_dirty;
+        __wt_atomic_store64(&cache->bytes_hs_dirty, total_dirty);
+        __wt_atomic_store64(&cache->bytes_hs_updates, total_updates);
     }
 
     /*
