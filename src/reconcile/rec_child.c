@@ -58,7 +58,7 @@ __rec_child_deleted(
      */
     if (__wt_page_del_committed_set(page_del)) {
         if (F_ISSET(r, WT_REC_VISIBLE_ALL)) {
-            visible = WT_TXNID_LE(page_del->txnid, r->last_running);
+            visible = page_del->txnid <= r->last_running;
 
             if (visible) {
                 WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, page_del->prepare_state);
