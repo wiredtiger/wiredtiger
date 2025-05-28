@@ -460,6 +460,8 @@ __wt_prepared_discover_filter_apply_handles(WT_SESSION_IMPL *session)
             continue;
         WT_ERR(__prepared_discover_walk_one_tree(session, uri));
     }
+    if (ret == WT_NOTFOUND)
+        ret = 0;
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 

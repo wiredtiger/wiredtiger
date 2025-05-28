@@ -291,6 +291,8 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
         WT_RET_NOTFOUND_OK(ret);
     }
 
+    /* Disable RTS for now */
+    return (0);
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want
      * to cache all of them forever, plus (b) can't guarantee that no other method will be called

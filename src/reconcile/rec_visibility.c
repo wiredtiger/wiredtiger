@@ -650,6 +650,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             WT_ASSERT_ALWAYS(session,
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
+            fprintf(stderr, "Reconciliation found a prepared entry with timestamp %" PRIu64 ", checkpoint timestamp: %"PRIu64"\n", upd->start_ts, S2C(session)->txn_global.checkpoint_timestamp);
             /*
              * Don't save the record if it's prepare time is greater than the checkpoint timestamp.
              */

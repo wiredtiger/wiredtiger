@@ -2193,6 +2193,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         if (WT_IS_METADATA(op->btree->dhandle))
             continue;
 
+        /* If this is a rollback during shutdown, prepared transaction work should not be a undone */
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) && prepare)
+            continue;
+
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;

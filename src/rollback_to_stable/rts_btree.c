@@ -700,7 +700,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             return (0);
     } else if (tw->durable_start_ts > rollback_timestamp ||
       !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ||
-      (!WT_TIME_WINDOW_HAS_STOP(tw) && prepared)) {
+      (!WT_TIME_WINDOW_HAS_STOP(tw) && prepared && tw->start_ts > rollback_timestamp)) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_ONDISK_ABORT_TW
           "on-disk update aborted with time_window=%s. "

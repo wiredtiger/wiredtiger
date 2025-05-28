@@ -634,6 +634,8 @@ struct __wt_connection_stats {
     int64_t eviction_clear_ordinary;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
+    int64_t cache_pages_requested_internal;
+    int64_t cache_pages_requested_leaf;
     int64_t cache_eviction_pages_seen;
     int64_t eviction_pages_already_queued;
     int64_t eviction_fail;
@@ -1249,6 +1251,8 @@ struct __wt_dsrc_stats {
     int64_t cache_read_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_pages_prefetch;
+    int64_t cache_pages_requested_internal;
+    int64_t cache_pages_requested_leaf;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
     int64_t cache_write_restore;

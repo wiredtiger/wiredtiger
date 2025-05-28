@@ -185,6 +185,7 @@ struct __wtperf {          /* Per-database structure */
     uint64_t truncate_ops; /* truncate operations */
     uint64_t update_ops;   /* update operations */
 
+    uint64_t search_op_timer;
     uint64_t index_max_multiplier; /* used to find and modify index keys */
     uint64_t insert_key;           /* insert key */
     uint64_t log_like_table_key;   /* used to allocate IDs for log table */
