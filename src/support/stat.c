@@ -107,6 +107,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
+  "cache: number of times clean trigger was reached",
+  "cache: number of times dirty trigger was reached",
+  "cache: number of times updates trigger was reached",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
@@ -448,6 +451,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint = 0;
+    stats->cache_eviction_trigger_clean_reached = 0;
+    stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
@@ -772,6 +778,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += from->cache_eviction_dirty;
     to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
+    to->cache_eviction_trigger_clean_reached += from->cache_eviction_trigger_clean_reached;
+    to->cache_eviction_trigger_dirty_reached += from->cache_eviction_trigger_dirty_reached;
+    to->cache_eviction_trigger_updates_reached += from->cache_eviction_trigger_updates_reached;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_deepen += from->cache_eviction_deepen;
@@ -1108,6 +1117,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += WT_STAT_DSRC_READ(from, cache_eviction_dirty);
     to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
+    to->cache_eviction_trigger_clean_reached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_trigger_clean_reached);
+    to->cache_eviction_trigger_dirty_reached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_updates_reached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_trigger_updates_reached);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
@@ -1554,6 +1569,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: npos read - had to walk this many pages",
+  "cache: number of times clean trigger was reached",
+  "cache: number of times dirty trigger was reached",
+  "cache: number of times updates trigger was reached",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -2371,6 +2389,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint = 0;
     stats->npos_read_walk_max = 0;
+    stats->cache_eviction_trigger_clean_reached = 0;
+    stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->cache_eviction_trigger_updates_reached = 0;
     stats->eviction_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -3196,6 +3217,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
     if ((v = WT_STAT_CONN_READ(from, npos_read_walk_max)) > to->npos_read_walk_max)
         to->npos_read_walk_max = v;
+    to->cache_eviction_trigger_clean_reached +=
+      WT_STAT_CONN_READ(from, cache_eviction_trigger_clean_reached);
+    to->cache_eviction_trigger_dirty_reached +=
+      WT_STAT_CONN_READ(from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_updates_reached +=
+      WT_STAT_CONN_READ(from, cache_eviction_trigger_updates_reached);
     to->eviction_timed_out_ops += WT_STAT_CONN_READ(from, eviction_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_overflow_keys);
