@@ -606,6 +606,9 @@ struct __wt_connection_stats {
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
     int64_t npos_read_walk_max;
+    int64_t cache_eviction_trigger_clean_reached;
+    int64_t cache_eviction_trigger_dirty_reached;
+    int64_t cache_eviction_trigger_updates_reached;
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -1222,6 +1225,9 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
+    int64_t cache_eviction_trigger_clean_reached;
+    int64_t cache_eviction_trigger_dirty_reached;
+    int64_t cache_eviction_trigger_updates_reached;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
