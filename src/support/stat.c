@@ -7,6 +7,12 @@ static const char *const __stats_dsrc_desc[] = {
   "autocommit: retries for update operations",
   "backup: total modified incremental blocks with compressed data",
   "backup: total modified incremental blocks without compressed data",
+  "block-disagg: Bytes read from the shared history store in SLS",
+  "block-disagg: Bytes written to the shared history store in SLS",
+  "block-disagg: Disaggregated block manager get",
+  "block-disagg: Disaggregated block manager get from the shared history store in SLS",
+  "block-disagg: Disaggregated block manager put ",
+  "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-manager: allocations requiring file extension",
   "block-manager: blocks allocated",
   "block-manager: blocks freed",
@@ -101,6 +107,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
+  "cache: number of times clean trigger was reached",
+  "cache: number of times dirty trigger was reached",
+  "cache: number of times updates trigger was reached",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
@@ -353,6 +362,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->autocommit_update_retry = 0;
     stats->backup_blocks_compressed = 0;
     stats->backup_blocks_uncompressed = 0;
+    stats->disagg_block_hs_byte_read = 0;
+    stats->disagg_block_hs_byte_write = 0;
+    stats->disagg_block_get = 0;
+    stats->disagg_block_hs_get = 0;
+    stats->disagg_block_put = 0;
+    stats->disagg_block_hs_put = 0;
     stats->block_extension = 0;
     stats->block_alloc = 0;
     stats->block_free = 0;
@@ -436,6 +451,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint = 0;
+    stats->cache_eviction_trigger_clean_reached = 0;
+    stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
@@ -653,6 +671,12 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->autocommit_update_retry += from->autocommit_update_retry;
     to->backup_blocks_compressed += from->backup_blocks_compressed;
     to->backup_blocks_uncompressed += from->backup_blocks_uncompressed;
+    to->disagg_block_hs_byte_read += from->disagg_block_hs_byte_read;
+    to->disagg_block_hs_byte_write += from->disagg_block_hs_byte_write;
+    to->disagg_block_get += from->disagg_block_get;
+    to->disagg_block_hs_get += from->disagg_block_hs_get;
+    to->disagg_block_put += from->disagg_block_put;
+    to->disagg_block_hs_put += from->disagg_block_hs_put;
     to->block_extension += from->block_extension;
     to->block_alloc += from->block_alloc;
     to->block_free += from->block_free;
@@ -754,6 +778,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += from->cache_eviction_dirty;
     to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint;
+    to->cache_eviction_trigger_clean_reached += from->cache_eviction_trigger_clean_reached;
+    to->cache_eviction_trigger_dirty_reached += from->cache_eviction_trigger_dirty_reached;
+    to->cache_eviction_trigger_updates_reached += from->cache_eviction_trigger_updates_reached;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_deepen += from->cache_eviction_deepen;
@@ -969,6 +996,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->autocommit_update_retry += WT_STAT_DSRC_READ(from, autocommit_update_retry);
     to->backup_blocks_compressed += WT_STAT_DSRC_READ(from, backup_blocks_compressed);
     to->backup_blocks_uncompressed += WT_STAT_DSRC_READ(from, backup_blocks_uncompressed);
+    to->disagg_block_hs_byte_read += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_read);
+    to->disagg_block_hs_byte_write += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_write);
+    to->disagg_block_get += WT_STAT_DSRC_READ(from, disagg_block_get);
+    to->disagg_block_hs_get += WT_STAT_DSRC_READ(from, disagg_block_hs_get);
+    to->disagg_block_put += WT_STAT_DSRC_READ(from, disagg_block_put);
+    to->disagg_block_hs_put += WT_STAT_DSRC_READ(from, disagg_block_hs_put);
     to->block_extension += WT_STAT_DSRC_READ(from, block_extension);
     to->block_alloc += WT_STAT_DSRC_READ(from, block_alloc);
     to->block_free += WT_STAT_DSRC_READ(from, block_free);
@@ -1084,6 +1117,12 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += WT_STAT_DSRC_READ(from, cache_eviction_dirty);
     to->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
+    to->cache_eviction_trigger_clean_reached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_trigger_clean_reached);
+    to->cache_eviction_trigger_dirty_reached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_updates_reached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_trigger_updates_reached);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
@@ -1357,6 +1396,12 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: total bytes",
   "block-cache: total bytes inserted on read path",
   "block-cache: total bytes inserted on write path",
+  "block-disagg: Bytes read from the shared history store in SLS",
+  "block-disagg: Bytes written to the shared history store in SLS",
+  "block-disagg: Disaggregated block manager get",
+  "block-disagg: Disaggregated block manager get from the shared history store in SLS",
+  "block-disagg: Disaggregated block manager put ",
+  "block-disagg: Disaggregated block manager put to the shared history store in SLS",
   "block-manager: blocks pre-loaded",
   "block-manager: blocks read",
   "block-manager: blocks written",
@@ -1397,6 +1442,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: bytes written from cache",
   "cache: checkpoint blocked page eviction",
   "cache: checkpoint of history store file blocked non-history store page eviction",
+  "cache: dirty bytes belonging to the history store table in the cache",
   "cache: evict page attempts by eviction server",
   "cache: evict page attempts by eviction worker threads",
   "cache: evict page failures by eviction server",
@@ -1446,9 +1492,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction walk target pages histogram - 32-63",
   "cache: eviction walk target pages histogram - 64-128",
   "cache: eviction walk target pages reduced due to history store cache pressure",
-  "cache: eviction walk target strategy both clean and dirty pages",
-  "cache: eviction walk target strategy only clean pages",
-  "cache: eviction walk target strategy only dirty pages",
+  "cache: eviction walk target strategy clean pages",
+  "cache: eviction walk target strategy dirty pages",
+  "cache: eviction walk target strategy pages with updates",
   "cache: eviction walks abandoned",
   "cache: eviction walks gave up because they restarted their walk twice",
   "cache: eviction walks gave up because they saw too many pages and found no candidates",
@@ -1523,6 +1569,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
   "cache: npos read - had to walk this many pages",
+  "cache: number of times clean trigger was reached",
+  "cache: number of times dirty trigger was reached",
+  "cache: number of times updates trigger was reached",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -1572,6 +1621,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: tracked dirty pages in the cache",
   "cache: uncommitted truncate blocked page eviction",
   "cache: unmodified pages evicted",
+  "cache: update bytes belonging to the history store table in the cache",
   "cache: updates in uncommitted txn - bytes",
   "cache: updates in uncommitted txn - count",
   "capacity: background fsync file handles considered",
@@ -1859,6 +1909,36 @@ static const char *const __stats_connection_desc[] = {
   "log: total size of compressed records",
   "log: written slots coalesced",
   "log: yields waiting for previous log file close",
+  "perf: block manager read latency histogram (bucket 1) - 0-10ms",
+  "perf: block manager read latency histogram (bucket 2) - 10-49ms",
+  "perf: block manager read latency histogram (bucket 3) - 50-99ms",
+  "perf: block manager read latency histogram (bucket 4) - 100-249ms",
+  "perf: block manager read latency histogram (bucket 5) - 250-499ms",
+  "perf: block manager read latency histogram (bucket 6) - 500-999ms",
+  "perf: block manager read latency histogram (bucket 7) - 1000ms+",
+  "perf: block manager read latency histogram total (msecs)",
+  "perf: block manager write latency histogram (bucket 1) - 0-10ms",
+  "perf: block manager write latency histogram (bucket 2) - 10-49ms",
+  "perf: block manager write latency histogram (bucket 3) - 50-99ms",
+  "perf: block manager write latency histogram (bucket 4) - 100-249ms",
+  "perf: block manager write latency histogram (bucket 5) - 250-499ms",
+  "perf: block manager write latency histogram (bucket 6) - 500-999ms",
+  "perf: block manager write latency histogram (bucket 7) - 1000ms+",
+  "perf: block manager write latency histogram total (msecs)",
+  "perf: disagg block manager read latency histogram (bucket 1) - 50-99us",
+  "perf: disagg block manager read latency histogram (bucket 2) - 100-249us",
+  "perf: disagg block manager read latency histogram (bucket 3) - 250-499us",
+  "perf: disagg block manager read latency histogram (bucket 4) - 500-999us",
+  "perf: disagg block manager read latency histogram (bucket 5) - 1000-9999us",
+  "perf: disagg block manager read latency histogram (bucket 6) - 10000us+",
+  "perf: disagg block manager read latency histogram total (usecs)",
+  "perf: disagg block manager write latency histogram (bucket 1) - 50-99us",
+  "perf: disagg block manager write latency histogram (bucket 2) - 100-249us",
+  "perf: disagg block manager write latency histogram (bucket 3) - 250-499us",
+  "perf: disagg block manager write latency histogram (bucket 4) - 500-999us",
+  "perf: disagg block manager write latency histogram (bucket 5) - 1000-9999us",
+  "perf: disagg block manager write latency histogram (bucket 6) - 10000us+",
+  "perf: disagg block manager write latency histogram total (usecs)",
   "perf: file system read latency histogram (bucket 1) - 0-10ms",
   "perf: file system read latency histogram (bucket 2) - 10-49ms",
   "perf: file system read latency histogram (bucket 3) - 50-99ms",
@@ -2153,6 +2233,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_bytes = 0;
     stats->block_cache_bytes_insert_read = 0;
     stats->block_cache_bytes_insert_write = 0;
+    stats->disagg_block_hs_byte_read = 0;
+    stats->disagg_block_hs_byte_write = 0;
+    stats->disagg_block_get = 0;
+    stats->disagg_block_hs_get = 0;
+    stats->disagg_block_put = 0;
+    stats->disagg_block_hs_put = 0;
     stats->block_preload = 0;
     stats->block_read = 0;
     stats->block_write = 0;
@@ -2192,6 +2278,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_bytes_write = 0;
     stats->cache_eviction_blocked_checkpoint = 0;
     stats->cache_eviction_blocked_checkpoint_hs = 0;
+    /* not clearing cache_bytes_hs_dirty */
     stats->eviction_server_evict_attempt = 0;
     stats->eviction_worker_evict_attempt = 0;
     stats->eviction_server_evict_fail = 0;
@@ -2235,9 +2322,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_target_page_lt64 = 0;
     stats->cache_eviction_target_page_lt128 = 0;
     stats->cache_eviction_target_page_reduced = 0;
-    stats->eviction_target_strategy_both_clean_and_dirty = 0;
     stats->eviction_target_strategy_clean = 0;
     stats->eviction_target_strategy_dirty = 0;
+    stats->eviction_target_strategy_updates = 0;
     stats->eviction_walks_abandoned = 0;
     stats->eviction_walks_stopped = 0;
     stats->eviction_walks_gave_up_no_targets = 0;
@@ -2302,6 +2389,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconciliation_during_checkpoint = 0;
     stats->npos_read_walk_max = 0;
+    stats->cache_eviction_trigger_clean_reached = 0;
+    stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->cache_eviction_trigger_updates_reached = 0;
     stats->eviction_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -2349,6 +2439,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_pages_dirty */
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
+    /* not clearing cache_bytes_hs_updates */
     /* not clearing cache_updates_txn_uncommitted_bytes */
     /* not clearing cache_updates_txn_uncommitted_count */
     stats->fsync_all_fh_total = 0;
@@ -2634,6 +2725,36 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->log_compress_len = 0;
     stats->log_slot_coalesced = 0;
     stats->log_close_yields = 0;
+    stats->perf_hist_bmread_latency_lt10 = 0;
+    stats->perf_hist_bmread_latency_lt50 = 0;
+    stats->perf_hist_bmread_latency_lt100 = 0;
+    stats->perf_hist_bmread_latency_lt250 = 0;
+    stats->perf_hist_bmread_latency_lt500 = 0;
+    stats->perf_hist_bmread_latency_lt1000 = 0;
+    stats->perf_hist_bmread_latency_gt1000 = 0;
+    stats->perf_hist_bmread_latency_total_msecs = 0;
+    stats->perf_hist_bmwrite_latency_lt10 = 0;
+    stats->perf_hist_bmwrite_latency_lt50 = 0;
+    stats->perf_hist_bmwrite_latency_lt100 = 0;
+    stats->perf_hist_bmwrite_latency_lt250 = 0;
+    stats->perf_hist_bmwrite_latency_lt500 = 0;
+    stats->perf_hist_bmwrite_latency_lt1000 = 0;
+    stats->perf_hist_bmwrite_latency_gt1000 = 0;
+    stats->perf_hist_bmwrite_latency_total_msecs = 0;
+    stats->perf_hist_disaggbmread_latency_lt100 = 0;
+    stats->perf_hist_disaggbmread_latency_lt250 = 0;
+    stats->perf_hist_disaggbmread_latency_lt500 = 0;
+    stats->perf_hist_disaggbmread_latency_lt1000 = 0;
+    stats->perf_hist_disaggbmread_latency_lt10000 = 0;
+    stats->perf_hist_disaggbmread_latency_gt10000 = 0;
+    stats->perf_hist_disaggbmread_latency_total_usecs = 0;
+    stats->perf_hist_disaggbmwrite_latency_lt100 = 0;
+    stats->perf_hist_disaggbmwrite_latency_lt250 = 0;
+    stats->perf_hist_disaggbmwrite_latency_lt500 = 0;
+    stats->perf_hist_disaggbmwrite_latency_lt1000 = 0;
+    stats->perf_hist_disaggbmwrite_latency_lt10000 = 0;
+    stats->perf_hist_disaggbmwrite_latency_gt10000 = 0;
+    stats->perf_hist_disaggbmwrite_latency_total_usecs = 0;
     stats->perf_hist_fsread_latency_lt10 = 0;
     stats->perf_hist_fsread_latency_lt50 = 0;
     stats->perf_hist_fsread_latency_lt100 = 0;
@@ -2902,6 +3023,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_bytes += WT_STAT_CONN_READ(from, block_cache_bytes);
     to->block_cache_bytes_insert_read += WT_STAT_CONN_READ(from, block_cache_bytes_insert_read);
     to->block_cache_bytes_insert_write += WT_STAT_CONN_READ(from, block_cache_bytes_insert_write);
+    to->disagg_block_hs_byte_read += WT_STAT_CONN_READ(from, disagg_block_hs_byte_read);
+    to->disagg_block_hs_byte_write += WT_STAT_CONN_READ(from, disagg_block_hs_byte_write);
+    to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
+    to->disagg_block_hs_get += WT_STAT_CONN_READ(from, disagg_block_hs_get);
+    to->disagg_block_put += WT_STAT_CONN_READ(from, disagg_block_put);
+    to->disagg_block_hs_put += WT_STAT_CONN_READ(from, disagg_block_hs_put);
     to->block_preload += WT_STAT_CONN_READ(from, block_preload);
     to->block_read += WT_STAT_CONN_READ(from, block_read);
     to->block_write += WT_STAT_CONN_READ(from, block_write);
@@ -2943,6 +3070,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint);
     to->cache_eviction_blocked_checkpoint_hs +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_checkpoint_hs);
+    to->cache_bytes_hs_dirty += WT_STAT_CONN_READ(from, cache_bytes_hs_dirty);
     to->eviction_server_evict_attempt += WT_STAT_CONN_READ(from, eviction_server_evict_attempt);
     to->eviction_worker_evict_attempt += WT_STAT_CONN_READ(from, eviction_worker_evict_attempt);
     to->eviction_server_evict_fail += WT_STAT_CONN_READ(from, eviction_server_evict_fail);
@@ -3008,10 +3136,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_target_page_lt128);
     to->cache_eviction_target_page_reduced +=
       WT_STAT_CONN_READ(from, cache_eviction_target_page_reduced);
-    to->eviction_target_strategy_both_clean_and_dirty +=
-      WT_STAT_CONN_READ(from, eviction_target_strategy_both_clean_and_dirty);
     to->eviction_target_strategy_clean += WT_STAT_CONN_READ(from, eviction_target_strategy_clean);
     to->eviction_target_strategy_dirty += WT_STAT_CONN_READ(from, eviction_target_strategy_dirty);
+    to->eviction_target_strategy_updates +=
+      WT_STAT_CONN_READ(from, eviction_target_strategy_updates);
     to->eviction_walks_abandoned += WT_STAT_CONN_READ(from, eviction_walks_abandoned);
     to->eviction_walks_stopped += WT_STAT_CONN_READ(from, eviction_walks_stopped);
     to->eviction_walks_gave_up_no_targets +=
@@ -3089,6 +3217,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_blocked_multi_block_reconciliation_during_checkpoint);
     if ((v = WT_STAT_CONN_READ(from, npos_read_walk_max)) > to->npos_read_walk_max)
         to->npos_read_walk_max = v;
+    to->cache_eviction_trigger_clean_reached +=
+      WT_STAT_CONN_READ(from, cache_eviction_trigger_clean_reached);
+    to->cache_eviction_trigger_dirty_reached +=
+      WT_STAT_CONN_READ(from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_updates_reached +=
+      WT_STAT_CONN_READ(from, cache_eviction_trigger_updates_reached);
     to->eviction_timed_out_ops += WT_STAT_CONN_READ(from, eviction_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_overflow_keys);
@@ -3145,6 +3279,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_blocked_uncommitted_truncate +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_uncommitted_truncate);
     to->cache_eviction_clean += WT_STAT_CONN_READ(from, cache_eviction_clean);
+    to->cache_bytes_hs_updates += WT_STAT_CONN_READ(from, cache_bytes_hs_updates);
     to->cache_updates_txn_uncommitted_bytes +=
       WT_STAT_CONN_READ(from, cache_updates_txn_uncommitted_bytes);
     to->cache_updates_txn_uncommitted_count +=
@@ -3465,6 +3600,54 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->log_compress_len += WT_STAT_CONN_READ(from, log_compress_len);
     to->log_slot_coalesced += WT_STAT_CONN_READ(from, log_slot_coalesced);
     to->log_close_yields += WT_STAT_CONN_READ(from, log_close_yields);
+    to->perf_hist_bmread_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt10);
+    to->perf_hist_bmread_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt50);
+    to->perf_hist_bmread_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt100);
+    to->perf_hist_bmread_latency_lt250 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt250);
+    to->perf_hist_bmread_latency_lt500 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt500);
+    to->perf_hist_bmread_latency_lt1000 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_lt1000);
+    to->perf_hist_bmread_latency_gt1000 += WT_STAT_CONN_READ(from, perf_hist_bmread_latency_gt1000);
+    to->perf_hist_bmread_latency_total_msecs +=
+      WT_STAT_CONN_READ(from, perf_hist_bmread_latency_total_msecs);
+    to->perf_hist_bmwrite_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt10);
+    to->perf_hist_bmwrite_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt50);
+    to->perf_hist_bmwrite_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt100);
+    to->perf_hist_bmwrite_latency_lt250 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt250);
+    to->perf_hist_bmwrite_latency_lt500 += WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt500);
+    to->perf_hist_bmwrite_latency_lt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_lt1000);
+    to->perf_hist_bmwrite_latency_gt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_gt1000);
+    to->perf_hist_bmwrite_latency_total_msecs +=
+      WT_STAT_CONN_READ(from, perf_hist_bmwrite_latency_total_msecs);
+    to->perf_hist_disaggbmread_latency_lt100 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt100);
+    to->perf_hist_disaggbmread_latency_lt250 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt250);
+    to->perf_hist_disaggbmread_latency_lt500 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt500);
+    to->perf_hist_disaggbmread_latency_lt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt1000);
+    to->perf_hist_disaggbmread_latency_lt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt10000);
+    to->perf_hist_disaggbmread_latency_gt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_gt10000);
+    to->perf_hist_disaggbmread_latency_total_usecs +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_total_usecs);
+    to->perf_hist_disaggbmwrite_latency_lt100 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt100);
+    to->perf_hist_disaggbmwrite_latency_lt250 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt250);
+    to->perf_hist_disaggbmwrite_latency_lt500 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt500);
+    to->perf_hist_disaggbmwrite_latency_lt1000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt1000);
+    to->perf_hist_disaggbmwrite_latency_lt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt10000);
+    to->perf_hist_disaggbmwrite_latency_gt10000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_gt10000);
+    to->perf_hist_disaggbmwrite_latency_total_usecs +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_total_usecs);
     to->perf_hist_fsread_latency_lt10 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt10);
     to->perf_hist_fsread_latency_lt50 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt50);
     to->perf_hist_fsread_latency_lt100 += WT_STAT_CONN_READ(from, perf_hist_fsread_latency_lt100);

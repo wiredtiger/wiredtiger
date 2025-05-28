@@ -70,18 +70,17 @@ int
 util_verify(WT_SESSION *session, int argc, char *argv[])
 {
     WT_CURSOR *cursor;
+    WT_DECL_ITEM(config);
     WT_DECL_RET;
-    size_t size;
+    WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     int ch;
-    char *config, *dump_offsets, *key, *uri, *ckpt;
-    bool abort_on_error, check_done, do_not_clear_txn_id, dump_address, dump_all_data,
-      dump_key_data, dump_blocks, dump_layout, dump_tree_shape, dump_pages, enoent_ok, read_corrupt,
-      stable_timestamp, strict;
+    char *ckpt, *dump_offsets, *key, *uri;
+    bool abort_on_error, check_done, dump_all_data, dump_key_data, enoent_ok;
 
-    abort_on_error = check_done = do_not_clear_txn_id = dump_address = dump_all_data =
-      dump_key_data = dump_blocks = dump_layout = dump_tree_shape = dump_pages = enoent_ok =
-        read_corrupt = stable_timestamp = strict = false;
-    config = dump_offsets = uri = ckpt = NULL;
+    abort_on_error = check_done = dump_all_data = dump_key_data = enoent_ok = false;
+    ckpt = dump_offsets = uri = NULL;
+
+    WT_RET(__wt_scr_alloc(session_impl, 0, &config));
 
     while ((ch = __wt_getopt(progname, argc, argv, "aC:cd:kSstu?")) != EOF)
         switch (ch) {
@@ -89,21 +88,22 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             abort_on_error = true;
             break;
         case 'c':
-            read_corrupt = true;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "read_corrupt,"));
             break;
         case 'C':
-            ckpt = __wt_optarg;
             enoent_ok = true;
+            ckpt = __wt_optarg;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "checkpoint=%s,", ckpt));
             break;
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
-                dump_address = true;
+                WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_address,"));
             else if (strcmp(__wt_optarg, "dump_blocks") == 0)
-                dump_blocks = true;
+                WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_blocks,"));
             else if (strcmp(__wt_optarg, "dump_layout") == 0)
-                dump_layout = true;
+                WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_layout,"));
             else if (strcmp(__wt_optarg, "dump_tree_shape") == 0)
-                dump_tree_shape = true;
+                WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_tree_shape,"));
             else if (WT_PREFIX_MATCH(__wt_optarg, "dump_offsets=")) {
                 if (dump_offsets != NULL) {
                     fprintf(
@@ -111,25 +111,28 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                     return (usage());
                 }
                 dump_offsets = __wt_optarg + strlen("dump_offsets=");
+                WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_offsets=[%s],", dump_offsets));
             } else if (strcmp(__wt_optarg, "dump_pages") == 0)
-                dump_pages = true;
+                WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_pages,"));
             else
                 return (usage());
             break;
         case 'k':
             dump_key_data = true;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_key_data,"));
             break;
         case 'S':
-            strict = true;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "strict,"));
             break;
         case 's':
-            stable_timestamp = true;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "stable_timestamp,"));
             break;
         case 't':
-            do_not_clear_txn_id = true;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "do_not_clear_txn_id,"));
             break;
         case 'u':
             dump_all_data = true;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_all_data,"));
             break;
         case '?':
             usage();
@@ -139,7 +142,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         }
 
     if (dump_all_data && dump_key_data)
-        WT_RET_MSG((WT_SESSION_IMPL *)session, ENOTSUP, "%s",
+        WT_ERR_MSG(session_impl, ENOTSUP, "%s",
           "-u (unredact all data), should not be set to true simultaneously with -k (unredact only "
           "keys)");
 
@@ -149,33 +152,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 
     argc -= __wt_optind;
     argv += __wt_optind;
-
-    if (ckpt || do_not_clear_txn_id || dump_address || dump_all_data || dump_blocks ||
-      dump_key_data || dump_layout || dump_tree_shape || dump_offsets != NULL || dump_pages ||
-      read_corrupt || stable_timestamp || strict) {
-        size = strlen("do_not_clear_txn_id,") + strlen("dump_address,") + strlen("dump_all_data,") +
-          strlen("dump_blocks,") + strlen("dump_key_data,") + strlen("dump_layout,") +
-          strlen("dump_tree_shape,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
-          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("history_store") +
-          strlen("read_corrupt,") + strlen("stable_timestamp,") + strlen("strict") + 20;
-        if ((config = util_malloc(size)) == NULL) {
-            ret = util_err(session, errno, NULL);
-            goto err;
-        }
-        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
-               ckpt != NULL ? "checkpoint=" : "", ckpt != NULL ? ckpt : "",
-               do_not_clear_txn_id ? "do_not_clear_txn_id," : "",
-               dump_address ? "dump_address," : "", dump_all_data ? "dump_all_data," : "",
-               dump_blocks ? "dump_blocks," : "", dump_key_data ? "dump_key_data," : "",
-               dump_layout ? "dump_layout," : "", dump_tree_shape ? "dump_tree_shape," : "",
-               dump_offsets != NULL ? "dump_offsets=[" : "",
-               dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
-               dump_pages ? "dump_pages," : "", read_corrupt ? "read_corrupt," : "",
-               stable_timestamp ? "stable_timestamp," : "", strict ? "strict," : "")) != 0) {
-            (void)util_err(session, ret, NULL);
-            goto err;
-        }
-    }
 
     /* Verify all the tables if no particular URI is specified. */
     if (argc < 1) {
@@ -203,9 +179,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             if (WT_PREFIX_MATCH(key, "table:") && !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX)) {
                 if (abort_on_error)
                     WT_ERR_ERROR_OK(
-                      verify_one(session, config, key, enoent_ok, &check_done), ENOTSUP, false);
+                      verify_one(session, (char *)config->data, key, enoent_ok, &check_done),
+                      ENOTSUP, false);
                 else
-                    WT_TRET(verify_one(session, config, key, enoent_ok, &check_done));
+                    WT_TRET(verify_one(session, (char *)config->data, key, enoent_ok, &check_done));
             }
         }
 
@@ -216,7 +193,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         if ((uri = util_uri(session, *argv, "table")) == NULL)
             goto err;
 
-        ret = verify_one(session, config, uri, enoent_ok, &check_done);
+        ret = verify_one(session, (char *)config->data, uri, enoent_ok, &check_done);
     }
 
     /* Specific checkpoint verification requested but the checkpoint wasn't found. */
@@ -224,7 +201,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         ret = util_err(session, ENOENT, "session.verify");
 
 err:
-    util_free(config);
+    __wt_scr_free(session_impl, &config);
     util_free(uri);
     return (ret);
 }
