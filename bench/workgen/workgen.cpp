@@ -29,7 +29,6 @@
 /* Needed to get UINT64_MAX in C++. */
 #ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
-#include <iterator>
 #endif
 
 /* Needed to get PRIuXX macros in C++. */
