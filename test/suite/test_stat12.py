@@ -94,7 +94,7 @@ class test_stat12(wttest.WiredTigerTestCase):
             c = self.session.open_cursor(self.uri)
             c[i] = 'y' * 1000
             c.close()
-        
+
         # Additional reads to touch clean pages (increase memory usage) without dirtying
         for i in range(200, 2000):
             self.read_key(i)
