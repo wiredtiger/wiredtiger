@@ -86,18 +86,18 @@ class test_stat12(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.create_params)
 
         # Populate enough data to force eviction and thresholds
-        self.populate_data(0, 1000, value_size=2000)  # Big values to fill cache
+        self.populate_data(0, 2000, value_size=2000)  # Big values to fill cache
         self.session.checkpoint()
 
-        # Additional reads to touch clean pages (increase memory usage) without dirtying
-        for i in range(200, 1000):
-            self.read_key(i)
-
         # Force dirty eviction
-        for i in range(200, 500):
+        for i in range(200, 1000):
             c = self.session.open_cursor(self.uri)
             c[i] = 'y' * 1000
             c.close()
+        
+        # Additional reads to touch clean pages (increase memory usage) without dirtying
+        for i in range(200, 2000):
+            self.read_key(i)
 
         for _ in range(20):
             # Read the relevant eviction trigger stats
