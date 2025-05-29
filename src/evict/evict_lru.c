@@ -735,6 +735,23 @@ __evict_update_work(WT_SESSION_IMPL *session)
     }
 
     /*
+     * If application threads are blocked by data in cache, track the fill ratio.
+     *
+     */
+    double cache_fill_ratio = bytes_inuse / bytes_max;
+    bool evict_is_hard = LF_ISSET(WT_EVICT_CACHE_UPDATES_HARD) || LF_ISSET(WT_EVICT_CACHE_DIRTY_HARD) || LF_ISSET(WT_EVICT_CACHE_CLEAN_HARD);
+    if (evict_is_hard) {
+        if (cache_fill_ratio < 0.25)
+            WT_STAT_CONN_INCR(session, cache_eviction_app_threads_fill_ratio_lt_25);
+        else if (cache_fill_ratio < 0.50)
+            WT_STAT_CONN_INCR(session, cache_eviction_app_threads_fill_ratio_25_50);
+        else if (cache_fill_ratio < 0.75)
+            WT_STAT_CONN_INCR(session, cache_eviction_app_threads_fill_ratio_50_75);
+        else
+            WT_STAT_CONN_INCR(session, cache_eviction_app_threads_fill_ratio_gt_75);
+    }
+
+    /*
      * If application threads are blocked by the total volume of data in cache, try dirty pages as
      * well.
      */
