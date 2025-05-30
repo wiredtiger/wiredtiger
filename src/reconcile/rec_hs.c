@@ -348,7 +348,7 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
      * specified timestamp must be mixed mode.
      */
     WT_ASSERT_ALWAYS(
-      session, ts == 1 || ts == WT_TS_NONE, "out-of-order timestamp update detected");
+      session, ts == 1 || ts == WT_TS_NONE, "out-of-order timestamp update detected, found an existing update with key=%s, with hs_start_ts=%lu, stop_ts=%lu, that exists later than specified ts=%lu", (char *) key->data, hs_start_ts, twp->stop_ts, ts);
     return (ret);
 }
 
