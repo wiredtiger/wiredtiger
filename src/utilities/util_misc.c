@@ -8,6 +8,20 @@
 
 #include "util.h"
 
+#ifdef ENABLE_WINDOWS_TCMALLOC_COMMUNITY_SUPPORT
+/*
+ * Include the TCMalloc header with the "-Wundef" diagnostic flag disabled. Compiling with strict
+ * (where the 'Wundef' diagnostic flag is enabled), generates compilation errors where the
+ * '__cplusplus' CPP macro is not defined. This being employed by the TCMalloc header to
+ * differentiate C & C++ compilation environments. We don't want to define '__cplusplus' when
+ * compiling C sources.
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wundef"
+#include <gperftools/tcmalloc.h>
+#pragma GCC diagnostic pop
+#endif
+
 /*
  * util_cerr --
  *     Report an error for a cursor operation.
@@ -170,7 +184,11 @@ util_usage(const char *usage, const char *tag, const char *list[])
 void *
 util_malloc(size_t len)
 {
+#ifdef ENABLE_WINDOWS_TCMALLOC_COMMUNITY_SUPPORT
+    return (tc_malloc(len));
+#else
     return (malloc(len));
+#endif
 }
 
 /*
@@ -180,7 +198,11 @@ util_malloc(size_t len)
 void *
 util_calloc(size_t members, size_t sz)
 {
+#ifdef ENABLE_WINDOWS_TCMALLOC_COMMUNITY_SUPPORT
+    return (tc_calloc(members, sz));
+#else
     return (calloc(members, sz));
+#endif
 }
 
 /*
@@ -190,7 +212,11 @@ util_calloc(size_t members, size_t sz)
 void *
 util_realloc(void *p, size_t len)
 {
+#ifdef ENABLE_WINDOWS_TCMALLOC_COMMUNITY_SUPPORT
+    return (tc_realloc(p, len));
+#else
     return (realloc(p, len));
+#endif
 }
 
 /*
@@ -201,7 +227,11 @@ util_realloc(void *p, size_t len)
 void
 util_free(void *p)
 {
+#ifdef ENABLE_WINDOWS_TCMALLOC_COMMUNITY_SUPPORT
+    tc_free(p);
+#else
     free(p);
+#endif
 }
 
 /*
@@ -211,7 +241,17 @@ util_free(void *p)
 char *
 util_strdup(const char *s)
 {
+#ifdef ENABLE_WINDOWS_TCMALLOC_COMMUNITY_SUPPORT
+    char *new = util_malloc(strlen(s) + 1);
+    if (new == NULL)
+        return (NULL);
+
+    strcpy(new, s);
+
+    return (new);
+#else
     return (strdup(s));
+#endif
 }
 
 /*
