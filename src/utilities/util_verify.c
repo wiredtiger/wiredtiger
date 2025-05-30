@@ -147,7 +147,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
           "keys)");
 
     if (dump_offsets != NULL && ckpt != NULL)
-        WT_RET_MSG((WT_SESSION_IMPL *)session, ENOTSUP, "%s",
+        WT_ERR_MSG((WT_SESSION_IMPL *)session, ENOTSUP, "%s",
           "-d dump_offsets, should not be set simultaneously with -C checkpoint-name");
 
     argc -= __wt_optind;
