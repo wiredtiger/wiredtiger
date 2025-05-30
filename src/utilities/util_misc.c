@@ -9,6 +9,11 @@
 #include "util.h"
 
 #ifdef ENABLE_WINDOWS_TCMALLOC_COMMUNITY_SUPPORT
+
+#ifndef _WIN32
+#error "Manual TCMalloc integration supported only on Windows."
+#endif
+
 /*
  * Include the TCMalloc header with the "-Wundef" diagnostic flag disabled. Compiling with strict
  * (where the 'Wundef' diagnostic flag is enabled), generates compilation errors where the
