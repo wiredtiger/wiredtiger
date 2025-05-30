@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_block_disagg_corrupt --
+ * __wti_block_disagg_corrupt --
  *     Report a block has been corrupted, external API.
  */
 int
-__wt_block_disagg_corrupt(
+__wti_block_disagg_corrupt(
   WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_DECL_ITEM(tmp);
@@ -24,10 +24,10 @@ __wt_block_disagg_corrupt(
 
     /* Read the block. */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_block_disagg_read(bm, session, tmp, &block_meta, addr, addr_size));
+    WT_ERR(__wti_block_disagg_read(bm, session, tmp, &block_meta, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
-    WT_ERR(__wt_block_disagg_addr_unpack(
+    WT_ERR(__wti_block_disagg_addr_unpack(
       &addr, addr_size, &page_id, &lsn, &checkpoint_id, &reconciliation_id, &size, &checksum));
     WT_ERR(__wt_bm_corrupt_dump(session, tmp, 0, (wt_off_t)page_id, size, checksum));
 
@@ -160,7 +160,7 @@ reread:
             blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(current->data);
         else
             blk = WT_BLOCK_HEADER_REF(current->data);
-        __wt_block_disagg_header_byteswap_copy(blk, &swap);
+        __wti_block_disagg_header_byteswap_copy(blk, &swap);
 
         /*
          * Make a quick check of the checksum on the final delta, it should match the cookie. If it
@@ -263,11 +263,11 @@ err:
 }
 
 /*
- * __wt_block_disagg_read --
+ * __wti_block_disagg_read --
  *     A basic read of a single block is not supported in disaggregated storage.
  */
 int
-__wt_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
+__wti_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
 {
     WT_UNUSED(bm);
@@ -281,13 +281,14 @@ __wt_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
 }
 
 /*
- * __wt_block_disagg_read_multiple --
+ * __wti_block_disagg_read_multiple --
  *     Map or read address cookie referenced page and deltas into an array of buffers, with memory
  *     managed by a memory buffer.
  */
 int
-__wt_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta,
-  const uint8_t *addr, size_t addr_size, WT_ITEM *buffer_array, u_int *buffer_count)
+__wti_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size, WT_ITEM *buffer_array,
+  u_int *buffer_count)
 {
     WT_BLOCK_DISAGG *block_disagg;
     uint64_t checkpoint_id, lsn, page_id, reconciliation_id;
@@ -296,7 +297,7 @@ __wt_block_disagg_read_multiple(WT_BM *bm, WT_SESSION_IMPL *session, WT_PAGE_BLO
     block_disagg = (WT_BLOCK_DISAGG *)bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_disagg_addr_unpack(
+    WT_RET(__wti_block_disagg_addr_unpack(
       &addr, addr_size, &page_id, &lsn, &checkpoint_id, &reconciliation_id, &size, &checksum));
 
     /* Read the block. */

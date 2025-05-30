@@ -213,6 +213,7 @@ struct __wt_bm {
     void (*compact_progress)(WT_BM *, WT_SESSION_IMPL *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
+    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *, bool);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
@@ -235,7 +236,6 @@ struct __wt_bm {
     int (*write)(
       WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_PAGE_BLOCK_META *, uint8_t *, size_t *, bool, bool);
     int (*write_size)(WT_BM *, WT_SESSION_IMPL *, size_t *);
-    size_t (*encrypt_skip)(WT_BM *, WT_SESSION_IMPL *, bool);
 
     WT_BLOCK *block; /* Underlying file. For a multi-handle tree this will be the writable file. */
     WT_BLOCK *next_block; /* If doing a tier switch, this is going to be the new file. */
@@ -244,7 +244,7 @@ struct __wt_bm {
     void *map; /* Mapped region */
     size_t maplen;
     void *mapped_cookie;
-    bool is_remote; /* Whether the storage is located on a remote host */
+    bool is_remote; /* Whether the storage is located on a remote host. */
 
     /*
      * For trees, such as tiered tables, that are allowed to have more than one backing file or
@@ -428,7 +428,6 @@ struct __wt_block_header {
 #define WT_BLOCK_HEADER_SIZE 12
 
 /*
- * WT_BLOCK_HEADER_BYTE
  * WT_BLOCK_HEADER_BYTE_SIZE --
  *	The first usable data byte on the block (past the combined headers).
  */

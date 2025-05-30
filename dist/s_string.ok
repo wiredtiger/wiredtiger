@@ -298,6 +298,7 @@ PREFETCH
 PREV
 PRId
 PRIu
+PRIx
 PRNG
 PSD
 PSE
@@ -546,7 +547,6 @@ blkmod
 blkmods
 bm
 bmd
-bmp
 bms
 bnd
 bool
@@ -1013,6 +1013,7 @@ maxv
 mb
 mbll
 mbss
+md
 mem
 membar
 memcmp
@@ -1141,6 +1142,7 @@ pfx
 pid
 pindexp
 plh
+plhandle
 pluggable
 pmem
 poptable

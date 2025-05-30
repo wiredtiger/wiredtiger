@@ -9,31 +9,31 @@
 #include "wt_internal.h"
 
 /*
- * __wt_block_disagg_header_byteswap --
+ * __block_disagg_header_byteswap --
  *     Place holder - it might be necessary to swap things into network byte order.
  */
-void
-__wt_block_disagg_header_byteswap(WT_BLOCK_DISAGG_HEADER *blk)
+static void
+__block_disagg_header_byteswap(WT_BLOCK_DISAGG_HEADER *blk)
 {
     WT_UNUSED(blk);
 }
 
 /*
- * __wt_block_disagg_header_byteswap_copy --
+ * __wti_block_disagg_header_byteswap_copy --
  *     Place holder - might be necessary to handle network order.
  */
 void
-__wt_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
+__wti_block_disagg_header_byteswap_copy(WT_BLOCK_DISAGG_HEADER *from, WT_BLOCK_DISAGG_HEADER *to)
 {
     *to = *from;
 }
 
 /*
- * __wt_block_disagg_write_size --
+ * __wti_block_disagg_write_size --
  *     Return the buffer size required to write a block.
  */
 int
-__wt_block_disagg_write_size(size_t *sizep)
+__wti_block_disagg_write_size(size_t *sizep)
 {
     /*
      * We write the page size, in bytes, into the block's header as a 4B unsigned value, and it's
@@ -54,13 +54,13 @@ __wt_block_disagg_write_size(size_t *sizep)
 }
 
 /*
- * __wt_block_disagg_write_internal --
+ * __wti_block_disagg_write_internal --
  *     Write a buffer into a block, returning the block's id, size, checksum, and the new block
  *     metadata for the page. Note that the current and the new block page metadata pointers could
  *     be the same.
  */
 int
-__wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
+__wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
   WT_ITEM *buf, WT_PAGE_BLOCK_META *block_meta, uint32_t *sizep, uint32_t *checksump,
   bool data_checksum, bool checkpoint_io)
 {
@@ -142,11 +142,11 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
         F_SET(blk, WT_BLOCK_DISAGG_DATA_CKSUM);
 
     /*
-     * XXX temporary measure until we put the block header at the beginning of the data. We have two
-     * sets of flags for encrypt/compress! Set the block manager encrypt/compress flags - the block
-     * manager/block cache layer will eventually do all encrypt/compress and it will use a unified
-     * set of flags for encrypt/compress, (only in the block header). But we can only do that when
-     * the block header is always at the beginning of the data.
+     * FIXME-WT-14613: temporary measure until we put the block header at the beginning of the data.
+     * We have two sets of flags for encrypt/compress! Set the block manager encrypt/compress flags
+     * - the block manager/block cache layer will eventually do all encrypt/compress and it will use
+     * a unified set of flags for encrypt/compress, (only in the block header). But we can only do
+     * that when the block header is always at the beginning of the data.
      */
     if (!is_delta) {
         page_header = (WT_PAGE_HEADER *)buf->mem;
@@ -181,9 +181,8 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
       (uint8_t)WT_MIN(block_meta->reconciliation_id, WT_BLOCK_OVERFLOW_RECONCILIATION_ID);
     blk->previous_checksum = block_meta->checksum;
     blk->checksum = 0;
-    __wt_block_disagg_header_byteswap(blk);
+    __block_disagg_header_byteswap(blk);
     blk->checksum = checksum =
-      /* TODO - WT_BLOCK_COMPRESS_SKIP may not be the right thing */
       __wt_checksum(buf->mem, data_checksum ? buf->size : WT_BLOCK_COMPRESS_SKIP);
 
     put_args.backlink_lsn = block_meta->backlink_lsn;
@@ -227,11 +226,11 @@ __wt_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *bloc
 }
 
 /*
- * __wt_block_disagg_write --
+ * __wti_block_disagg_write --
  *     Write a buffer into a block, returning the block's address cookie.
  */
 int
-__wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
+__wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
   WT_PAGE_BLOCK_META *block_meta, uint8_t *addr, size_t *addr_sizep, bool data_checksum,
   bool checkpoint_io)
 {
@@ -252,12 +251,12 @@ __wt_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
      * never see anything other than their original content.
      */
     __wt_page_header_byteswap(buf->mem);
-    WT_RET(__wt_block_disagg_write_internal(
+    WT_RET(__wti_block_disagg_write_internal(
       session, block_disagg, buf, block_meta, &size, &checksum, data_checksum, checkpoint_io));
     __wt_page_header_byteswap(buf->mem);
 
     endp = addr;
-    WT_RET(__wt_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->disagg_lsn,
+    WT_RET(__wti_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->disagg_lsn,
       block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 

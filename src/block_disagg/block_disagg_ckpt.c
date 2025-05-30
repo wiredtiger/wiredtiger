@@ -30,13 +30,12 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
      * but the alternative is a call for the btree layer to crack the checkpoint cookie into
      * its components, and that's a fair amount of work.
      */
-    ckpt->size = block_meta->page_id; /* XXX What should be the checkpoint size? Do we need it? */
+    ckpt->size = block_meta->page_id;
+    /* FIXME-WT-14610: What should be the checkpoint size? Do we need it? */
 
     /*
      * Write the root page out, and get back the address information for that page which will be
      * written into the block manager checkpoint cookie.
-     *
-     * TODO: we need to check with the page service team if we need to write an empty root page.
      */
     if (root_image == NULL) {
         ckpt->raw.data = NULL;
@@ -45,9 +44,9 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
         /* Copy the checkpoint information into the checkpoint. */
         WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
         endp = ckpt->raw.mem;
-        WT_RET(__wt_block_disagg_write_internal(
+        WT_RET(__wti_block_disagg_write_internal(
           session, block_disagg, root_image, block_meta, &size, &checksum, true, true));
-        WT_RET(__wt_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
+        WT_RET(__wti_block_disagg_ckpt_pack(block_disagg, &endp, block_meta->page_id,
           block_meta->disagg_lsn, block_meta->checkpoint_id, block_meta->reconciliation_id, size,
           checksum));
         ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
@@ -57,14 +56,14 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
 }
 
 /*
- * __wt_block_disagg_checkpoint --
+ * __wti_block_disagg_checkpoint --
  *     This function needs to do three things: Create a recovery point in the object store
  *     underlying this table and create an address cookie that is saved to the metadata (and used to
  *     find the checkpoint again) and save the content of the binary data added as a root page that
  *     can be retrieved to start finding content for the tree.
  */
 int
-__wt_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image,
+__wti_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_image,
   WT_PAGE_BLOCK_META *block_meta, WT_CKPT *ckptbase, bool data_checksum)
 {
     WT_BLOCK_DISAGG *block_disagg;
@@ -79,20 +78,18 @@ __wt_block_disagg_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *root_
      * fake checkpoint).
      */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (F_ISSET(ckpt, WT_CKPT_ADD)) {
-            /* __wt_bmp_write_page(block_disagg, buf, root_addr); */
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
             WT_RET(__bmd_checkpoint_pack_raw(block_disagg, session, root_image, block_meta, ckpt));
-        }
 
     return (0);
 }
 
 /*
- * __wt_block_disagg_checkpoint_resolve --
+ * __wti_block_disagg_checkpoint_resolve --
  *     Resolve the checkpoint.
  */
 int
-__wt_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
+__wti_block_disagg_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
     WT_BLOCK_DISAGG *block_disagg;
     WT_CONFIG_ITEM cval;
@@ -183,12 +180,12 @@ err:
 }
 
 /*
- * __wt_block_disagg_checkpoint_load --
+ * __wti_block_disagg_checkpoint_load --
  *     Load a checkpoint. This involves (1) cracking the checkpoint cookie open (2) loading the root
  *     page from the object store, (3) re-packing the root page's address cookie into root_addr.
  */
 int
-__wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr,
+__wti_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr,
   size_t addr_size, uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
     WT_BLOCK_DISAGG *block_disagg;
@@ -207,14 +204,14 @@ __wt_block_disagg_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uin
     if (addr == NULL || addr_size == 0)
         return (0);
 
-    WT_RET(__wt_block_disagg_ckpt_unpack(block_disagg, addr, addr_size, &root_id, &lsn,
+    WT_RET(__wti_block_disagg_ckpt_unpack(block_disagg, addr, addr_size, &root_id, &lsn,
       &checkpoint_id, &reconciliation_id, &root_size, &root_checksum));
 
     /*
      * Read root page address.
      */
     endp = root_addr;
-    WT_RET(__wt_block_disagg_addr_pack(
+    WT_RET(__wti_block_disagg_addr_pack(
       &endp, root_id, lsn, checkpoint_id, reconciliation_id, root_size, root_checksum));
     *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 

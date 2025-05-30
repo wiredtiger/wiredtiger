@@ -75,6 +75,7 @@ func_ok()
         -e '/int __wt_block_disagg_compact_page_skip$/d' \
         -e '/int __wt_block_disagg_compact_skip$/d' \
         -e '/int __wt_block_disagg_compact_start$/d' \
+        -e '/int __wt_block_disagg_manager_create$/d' \
         -e '/int __wt_block_disagg_manager_drop$/d' \
         -e '/int __wt_block_disagg_manager_size$/d' \
         -e '/int __wt_block_disagg_map_discard$/d' \
@@ -96,6 +97,24 @@ func_ok()
         -e '/int __wt_buf_fmt$/d' \
         -e '/int __wt_count_birthmarks$/d' \
         -e '/int __wt_conn_prefetch_clear_tree$/d' \
+        -e '/int __wti_block_disagg_checkpoint_start$/d' \
+        -e '/int __wti_block_disagg_checkpoint_unload$/d' \
+        -e '/int __wti_block_disagg_compact_end$/d' \
+        -e '/int __wti_block_disagg_compact_page_skip$/d' \
+        -e '/int __wti_block_disagg_compact_skip$/d' \
+        -e '/int __wti_block_disagg_compact_start$/d' \
+        -e '/int __wti_block_disagg_manager_size$/d' \
+        -e '/int __wti_block_disagg_map_discard$/d' \
+        -e '/int __wti_block_disagg_read$/d' \
+        -e '/int __wti_block_disagg_salvage_end$/d' \
+        -e '/int __wti_block_disagg_salvage_next$/d' \
+        -e '/int __wti_block_disagg_salvage_start$/d' \
+        -e '/int __wti_block_disagg_salvage_valid$/d' \
+        -e '/int __wti_block_disagg_sync$/d' \
+        -e '/int __wti_block_disagg_verify_addr$/d' \
+        -e '/int __wti_block_disagg_verify_end$/d' \
+        -e '/int __wti_block_disagg_verify_start$/d' \
+        -e '/int __wti_block_disagg_write_size$/d' \
         -e '/int __wti_cursor_noop$/d' \
         -e '/int __wt_epoch$/d' \
         -e '/int __wt_errno$/d' \

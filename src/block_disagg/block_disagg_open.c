@@ -19,7 +19,6 @@ int
 __wt_block_disagg_manager_create(
   WT_SESSION_IMPL *session, WT_BUCKET_STORAGE *bstorage, const char *filename)
 {
-#if 1
     WT_UNUSED(session);
     WT_UNUSED(bstorage);
     WT_UNUSED(filename);
@@ -31,44 +30,6 @@ __wt_block_disagg_manager_create(
      * special leading descriptor block.
      */
     return (0);
-#else
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    WT_FH *fh;
-    int suffix;
-    bool exists;
-
-    /*
-     * Create the underlying file and open a handle.
-     *
-     * Since WiredTiger schema operations are (currently) non-transactional, it's possible to see a
-     * partially-created file left from a previous create. Further, there's nothing to prevent users
-     * from creating files in our space. Move any existing files out of the way and complain.
-     */
-    for (;;) {
-        ret = bstorage->file_system->fs_open_file(bstorage->file_system, &session->iface, filename,
-          WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE | WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE,
-          &fh);
-        if (ret == 0)
-            break;
-        WT_ERR_TEST(ret != EEXIST, ret, false);
-    }
-
-    /* Write out the file's meta-data. */
-    ret = __wt_desc_write(session, fh, allocsize);
-
-    /* Close the file handle. */
-    WT_TRET(__wt_close(session, &fh));
-
-    /* Undo any create on error. */
-    if (ret != 0)
-        WT_TRET(__wt_fs_remove(session, filename, false, false));
-
-err:
-    __wt_scr_free(session, &tmp);
-
-    return (ret);
-#endif
 }
 
 /*
@@ -98,11 +59,11 @@ __block_disagg_destroy(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg)
 }
 
 /*
- * __wt_block_disagg_open --
+ * __wti_block_disagg_open --
  *     Open a block handle.
  */
 int
-__wt_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
+__wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
   bool forced_salvage, bool readonly, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
@@ -166,11 +127,11 @@ err:
 }
 
 /*
- * __wt_block_disagg_close --
+ * __wti_block_disagg_close --
  *     Close a block handle.
  */
 int
-__wt_block_disagg_close(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg)
+__wti_block_disagg_close(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -195,11 +156,11 @@ __wt_block_disagg_close(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg)
 }
 
 /*
- * __wt_block_disagg_stat --
+ * __wti_block_disagg_stat --
  *     Set the statistics for a live block handle.
  */
 void
-__wt_block_disagg_stat(
+__wti_block_disagg_stat(
   WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, WT_DSRC_STATS *stats)
 {
     WT_UNUSED(block_disagg);
@@ -209,11 +170,11 @@ __wt_block_disagg_stat(
 }
 
 /*
- * __wt_block_disagg_manager_size --
+ * __wti_block_disagg_manager_size --
  *     Return the size of a live block handle.
  */
 int
-__wt_block_disagg_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
+__wti_block_disagg_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
 {
     WT_UNUSED(session);
 

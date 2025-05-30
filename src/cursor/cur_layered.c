@@ -1828,11 +1828,11 @@ __clayered_close_int(WT_CURSOR *cursor)
 }
 
 /*
- * __wt_clayered_close --
+ * __clayered_close --
  *     WT_CURSOR->close method for the layered cursor type.
  */
-int
-__wt_clayered_close(WT_CURSOR *cursor)
+static int
+__clayered_close(WT_CURSOR *cursor)
 {
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
@@ -1987,7 +1987,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
-      __wt_clayered_close);                           /* close */
+      __clayered_close);                              /* close */
     WT_CURSOR *cursor;
     WT_CURSOR_LAYERED *clayered;
     WT_DECL_RET;
@@ -2048,7 +2048,7 @@ __wt_clayered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     if (0) {
 err:
         if (clayered != NULL)
-            WT_TRET(__wt_clayered_close(cursor));
+            WT_TRET(__clayered_close(cursor));
         WT_TRET(__wt_session_release_dhandle(session));
 
         *cursorp = NULL;

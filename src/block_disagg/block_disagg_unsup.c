@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_block_disagg_checkpoint_start --
+ * __wti_block_disagg_checkpoint_start --
  *     Start the checkpoint.
  */
 int
-__wt_block_disagg_checkpoint_start(WT_BM *bm, WT_SESSION_IMPL *session)
+__wti_block_disagg_checkpoint_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -21,11 +21,11 @@ __wt_block_disagg_checkpoint_start(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_checkpoint_unload --
+ * __wti_block_disagg_checkpoint_unload --
  *     Unload a checkpoint point.
  */
 int
-__wt_block_disagg_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
+__wti_block_disagg_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -33,11 +33,11 @@ __wt_block_disagg_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_compact_end --
+ * __wti_block_disagg_compact_end --
  *     End a block manager compaction.
  */
 int
-__wt_block_disagg_compact_end(WT_BM *bm, WT_SESSION_IMPL *session)
+__wti_block_disagg_compact_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -45,11 +45,11 @@ __wt_block_disagg_compact_end(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_compact_page_skip --
+ * __wti_block_disagg_compact_page_skip --
  *     Return if a page is useful for compaction.
  */
 int
-__wt_block_disagg_compact_page_skip(
+__wti_block_disagg_compact_page_skip(
   WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
 {
     WT_UNUSED(bm);
@@ -61,11 +61,11 @@ __wt_block_disagg_compact_page_skip(
 }
 
 /*
- * __wt_block_disagg_compact_skip --
+ * __wti_block_disagg_compact_skip --
  *     Return if a file can be compacted.
  */
 int
-__wt_block_disagg_compact_skip(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
+__wti_block_disagg_compact_skip(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -74,11 +74,11 @@ __wt_block_disagg_compact_skip(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
 }
 
 /*
- * __wt_block_disagg_compact_start --
+ * __wti_block_disagg_compact_start --
  *     Start a block manager compaction.
  */
 int
-__wt_block_disagg_compact_start(WT_BM *bm, WT_SESSION_IMPL *session)
+__wti_block_disagg_compact_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -86,11 +86,11 @@ __wt_block_disagg_compact_start(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_is_mapped --
+ * __wti_block_disagg_is_mapped --
  *     Return if the file is mapped into memory.
  */
 bool
-__wt_block_disagg_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
+__wti_block_disagg_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -98,11 +98,11 @@ __wt_block_disagg_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_map_discard --
+ * __wti_block_disagg_map_discard --
  *     Discard a mapped segment.
  */
 int
-__wt_block_disagg_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
+__wti_block_disagg_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -112,11 +112,11 @@ __wt_block_disagg_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, si
 }
 
 /*
- * __wt_block_disagg_salvage_end --
+ * __wti_block_disagg_salvage_end --
  *     End a block manager salvage.
  */
 int
-__wt_block_disagg_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
+__wti_block_disagg_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -124,11 +124,11 @@ __wt_block_disagg_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_salvage_next --
+ * __wti_block_disagg_salvage_next --
  *     Return the next block from the file.
  */
 int
-__wt_block_disagg_salvage_next(
+__wti_block_disagg_salvage_next(
   WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
 {
     WT_UNUSED(bm);
@@ -140,11 +140,11 @@ __wt_block_disagg_salvage_next(
 }
 
 /*
- * __wt_block_disagg_salvage_start --
+ * __wti_block_disagg_salvage_start --
  *     Start a block manager salvage.
  */
 int
-__wt_block_disagg_salvage_start(WT_BM *bm, WT_SESSION_IMPL *session)
+__wti_block_disagg_salvage_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -152,11 +152,11 @@ __wt_block_disagg_salvage_start(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_salvage_valid --
+ * __wti_block_disagg_salvage_valid --
  *     Inform salvage a block is valid.
  */
 int
-__wt_block_disagg_salvage_valid(
+__wti_block_disagg_salvage_valid(
   WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
 {
     WT_UNUSED(bm);
@@ -168,11 +168,11 @@ __wt_block_disagg_salvage_valid(
 }
 
 /*
- * __wt_block_disagg_sync --
+ * __wti_block_disagg_sync --
  *     Flush a file to disk.
  */
 int
-__wt_block_disagg_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
+__wti_block_disagg_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -181,11 +181,11 @@ __wt_block_disagg_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 }
 
 /*
- * __wt_block_disagg_verify_addr --
+ * __wti_block_disagg_verify_addr --
  *     Verify an address.
  */
 int
-__wt_block_disagg_verify_addr(
+__wti_block_disagg_verify_addr(
   WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_UNUSED(bm);
@@ -196,11 +196,11 @@ __wt_block_disagg_verify_addr(
 }
 
 /*
- * __wt_block_disagg_verify_end --
+ * __wti_block_disagg_verify_end --
  *     End a block manager verify.
  */
 int
-__wt_block_disagg_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
+__wti_block_disagg_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
@@ -208,11 +208,11 @@ __wt_block_disagg_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_block_disagg_verify_start --
+ * __wti_block_disagg_verify_start --
  *     Start a block manager verify.
  */
 int
-__wt_block_disagg_verify_start(
+__wti_block_disagg_verify_start(
   WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 {
     WT_UNUSED(bm);

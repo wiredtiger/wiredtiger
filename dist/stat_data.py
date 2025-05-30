@@ -1183,7 +1183,7 @@ conn_dsrc_stats = [
     CursorStat('cursor_tree_walk_ondisk_del_page_skip', 'Total number of on-disk deleted pages skipped during tree walk'),
 
     ##########################################
-    # Disaggrated block manager statistics
+    # Disaggregated block manager statistics
     ##########################################
     BlockDisaggStat('disagg_block_get', 'Disaggregated block manager get'),
     BlockDisaggStat('disagg_block_hs_byte_read', 'Bytes read from the shared history store in SLS', 'size'),

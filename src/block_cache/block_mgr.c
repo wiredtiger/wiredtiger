@@ -944,6 +944,7 @@ __wti_bm_method_set(WT_BM *bm, bool readonly)
     bm->compact_skip = __bm_compact_skip;
     bm->compact_start = __bm_compact_start;
     bm->corrupt = __wt_bm_corrupt;
+    bm->encrypt_skip = __bm_encrypt_skip_size;
     bm->free = __bm_free;
     bm->is_mapped = __bm_is_mapped;
     bm->map_discard = __bm_map_discard;
