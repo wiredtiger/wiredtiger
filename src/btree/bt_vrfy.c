@@ -123,7 +123,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
  *     Debugging: optionally dump specific blocks from the file.
  */
 static int
-__verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
+__verify_config_offsets(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg_dump_offets, bool *quitp
 #ifdef HAVE_DIAGNOSTIC
   ,
   WT_VSTUFF *vs)
@@ -132,14 +132,13 @@ __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
 #endif
 {
     WT_CONFIG list;
-    WT_CONFIG_ITEM cval, k, v;
+    WT_CONFIG_ITEM k, v;
     WT_DECL_RET;
     uint64_t offset;
 
     *quitp = false;
 
-    WT_RET(__wt_config_gets(session, cfg, "dump_offsets", &cval));
-    __wt_config_subinit(session, &list, &cval);
+    __wt_config_subinit(session, &list, cfg_dump_offets);
     while ((ret = __wt_config_next(&list, &k, &v)) == 0) {
         /*
          * Quit after dumping the requested blocks. (That's hopefully what the user wanted, all of
@@ -201,12 +200,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR addr_unpack;
     WT_CKPT *ckptbase, *ckpt;
+    WT_CONFIG_ITEM cfg_ckpt, cfg_dump_offsets;
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
     size_t root_addr_size;
     uint8_t root_addr[WT_ADDR_MAX_COOKIE];
     const char *name;
-    bool bm_start, quit, skip_hs;
+    bool bm_start, quit, skip_hs, check_done, is_specific_checkpoint;
 
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->checkpoint_lock);
     WT_ASSERT_SPINLOCK_OWNED(session, &S2C(session)->schema_lock);
@@ -215,7 +215,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm = btree->bm;
     ckptbase = NULL;
     name = session->dhandle->name;
-    bm_start = quit = false;
+    bm_start = quit = check_done = false;
+    WT_NOT_READ(is_specific_checkpoint, false);
     WT_NOT_READ(skip_hs, false);
 
     WT_CLEAR(_vstuff);
@@ -229,12 +230,19 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Check configuration strings. */
     WT_ERR(__verify_config(session, cfg, vs));
+    WT_ERR(__wt_config_gets(session, cfg, "checkpoint", &cfg_ckpt));
+    WT_ERR(__wt_config_gets(session, cfg, "dump_offsets", &cfg_dump_offsets));
+    is_specific_checkpoint = cfg_ckpt.len > 0;
 
-    /* Optionally dump specific block offsets. */
+    if (cfg_dump_offsets.len > 0 && is_specific_checkpoint)
+        WT_ERR_MSG(
+          session, ENOTSUP, "Providing both \'checkpoint\' and \'dump_offsets\' is not supported");
+
+        /* Optionally dump specific block offsets. */
 #ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__verify_config_offsets(session, cfg, &quit, vs));
+    WT_ERR(__verify_config_offsets(session, &cfg_dump_offsets, &quit, vs));
 #else
-    WT_ERR(__verify_config_offsets(session, cfg, &quit));
+    WT_ERR(__verify_config_offsets(session, &cfg_dump_offsets, &quit));
 #endif
     if (quit)
         goto done;
@@ -254,18 +262,25 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm_start = true;
 
     /*
-     * Skip the history store explicit call if:
+     * Skip the history store explicit call if one of the following conditions is true:
      * - we are performing a metadata verification. Indeed, the metadata file is verified
      * before we verify the history store, and it makes no sense to verify the history store against
      * itself.
      * - the debug flag is set where we do not clear the record's txn IDs. Visibility rules may not
      * work correctly when we do not clear the record's txn IDs.
+     * - we are verifying only the specified checkpoint.
      */
     skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0 ||
-      F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID);
+      F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID) || is_specific_checkpoint;
 
     /* Loop through the file's checkpoints, verifying each one. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
+        /* If the config provides a specific checkpoint, skip all other ones. */
+        if (is_specific_checkpoint && !WT_CONFIG_MATCH(ckpt->name, cfg_ckpt))
+            continue;
+
+        /* We have found a checkpoint to verify. */
+        check_done = true;
         __wt_verbose(session, WT_VERB_VERIFY, "%s: checkpoint %s", name, ckpt->name);
 
         /* Fake checkpoints require no work. */
@@ -354,6 +369,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         if (vs->dump_layout)
             WT_ERR(__dump_layout(session, vs));
     }
+
+    /* Report WT_NOTFOUND if a checkpoint to verify was specified but not found. */
+    if (is_specific_checkpoint && !check_done)
+        ret = WT_NOTFOUND;
 
 done:
 err:
