@@ -423,7 +423,7 @@ restart:
 
     /* Search the internal pages of the tree. */
     current = &btree->root;
-    for (depth = 2, pindex = NULL;; ++depth) {
+    for (depth = 1, pindex = NULL;; ++depth) {
         parent_pindex = pindex;
         page = current->page;
         if (page->type != WT_PAGE_ROW_INT)
