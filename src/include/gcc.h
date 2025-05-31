@@ -19,6 +19,15 @@
     }                        \
     ;
 
+/* ARM specific for HWCAP_SB detection at runtime */
+#if defined(__aarch64__) && defined(__linux__)
+#include <sys/auxv.h>
+
+#ifndef HWCAP_SB
+#define HWCAP_SB (1 << 29)
+#endif
+#endif  // __aarch64__ __linux__
+
 /*
  * Attribute are only permitted on function declarations, not definitions. This macro is a marker
  * for function definitions that is rewritten by dist/s_prototypes to create extern.h.
@@ -225,13 +234,39 @@ __wt_atomic_storevbool(volatile bool *vp, bool v)
 
 #elif defined(__aarch64__)
 /*
- * Use an isb instruction here to be closer to the original x86 pause instruction. The yield
- * instruction that was previously here is a nop that is intended to provide a hint that a
- * thread in a SMT system could yield. This is different from the x86 pause instruction
- * which delays execution by O(100) cycles. The isb will typically delay execution by about
- * 50 cycles so it's a reasonable alternative.
+ * Use an isb or sb instructions here to be closer to the original x86 pause instruction.
+ * The yield instruction that was previously here is a nop that is intended to provide a
+ * hint that a thread in a SMT system could yield. This is different from the x86 pause
+ * instruction which delays execution by O(100) cycles. The isb will typically delay execution
+ * by about 50 cycles so it's a reasonable alternative. For CPUs supporting AArch64 >=v8.5 an
+ * "sb" is a better choice. It also creates a small delay, but instead of flushing the CPU it
+ * does so by serializing older instructions to be non-speculative before it completes. This is
+ * less disruptive than an "isb" to high performance CPUs.
  */
-#define WT_PAUSE() __asm__ volatile("isb" ::: "memory")
+
+static inline void arm_arch_pause(void) {
+#if defined(__linux__)
+  static int use_spin_delay_sb = -1;
+
+  if (__builtin_expect(use_spin_delay_sb == 1, 1)) {
+    __asm__ volatile(".inst 0xd50330ff" ::: "memory");  // SB instruction encoding
+  }
+  else if (use_spin_delay_sb == 0) {
+    __asm__ volatile("isb" ::: "memory");
+  }
+  else {
+    // Initialize variable and check if SB is supported
+    if (getauxval(AT_HWCAP) & HWCAP_SB)
+      use_spin_delay_sb = 1;
+    else
+      use_spin_delay_sb = 0;
+  }
+#else
+  __asm__ volatile("isb" ::: "memory");
+#endif
+}
+
+#define WT_PAUSE() arm_arch_pause()
 
 /*
  * ARM offers three barrier types:
