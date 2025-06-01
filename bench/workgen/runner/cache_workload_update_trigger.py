@@ -50,7 +50,7 @@ def get_cache_eviction_stats(session, cache_eviction_file):
 
     stat_cursor = session.open_cursor('statistics:')
     print('----- Start of Cache Eviction statistics -----', file=fh)
-    # Cache statistics 
+    # Cache statistics
     cache_total = stat_cursor[wiredtiger.stat.conn.cache_bytes_max][2]
     print('Cache size          : 100 % :' + str(cache_total), file=fh)
     bytes_inuse = stat_cursor[wiredtiger.stat.conn.cache_bytes_inuse][2]
@@ -65,7 +65,7 @@ def get_cache_eviction_stats(session, cache_eviction_file):
     bytes_dirty = stat_cursor[wiredtiger.stat.conn.cache_bytes_dirty][2]
     value = ((bytes_dirty / cache_total) * 100 )
     print('Cache_bytes_dirty   : ' + str(round(value,2)) +' % : ' + str(bytes_dirty), file=fh)
-    
+
 
     # History store statistics
     bytes_hs = stat_cursor[wiredtiger.stat.conn.cache_bytes_hs][2]
@@ -86,9 +86,9 @@ def get_cache_eviction_stats(session, cache_eviction_file):
     print('Cache dirty trigger : ' + str(trigger_dirty), file=fh)
     trigger_clean = stat_cursor[wiredtiger.stat.conn.cache_eviction_trigger_clean_reached][2]
     print('Cache usage trigger : ' + str(trigger_clean), file=fh)
-    print(' ', file=fh)   
+    print(' ', file=fh)
 
-    # App cache statistics 
+    # App cache statistics
     value = stat_cursor[wiredtiger.stat.conn.cache_read_app_count][2]
     print('App pages read  : ' + str(value), file=fh)
     value = stat_cursor[wiredtiger.stat.conn.cache_write_app_count][2]
@@ -236,7 +236,7 @@ thread_read10k_sleep10.options.session_config="isolation=snapshot"
 # The new threads will also be added to the workload below.
 ############################################################################
 
-# 15% update workload 
+# 15% update workload
 cache_workload = Workload(context, 15 * thread_upd10k_sleep10 + 85 * thread_read10k_sleep10)
 cache_workload.options.report_interval=10
 # max operational latency in milli seconds.
