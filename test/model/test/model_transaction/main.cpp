@@ -79,6 +79,9 @@ const model::data_value byte6((uint64_t)6);
 const model::data_value key1("Key 1");
 const model::data_value key2("Key 2");
 const model::data_value key3("Key 3");
+const model::data_value key4("Key 4");
+const model::data_value key5("Key 5");
+const model::data_value key6("Key 6");
 
 /* Column keys. */
 const model::data_value recno1((uint64_t)1);
@@ -1123,6 +1126,109 @@ test_transaction_logged_wt(void)
 }
 
 /*
+ * test_transaction_truncate --
+ *     Demonstrate that truncate skips over keys that are not visible to it.
+ */
+static void
+test_transaction_truncate(void)
+{
+    model::kv_database database;
+    model::kv_table_ptr table = database.create_table("table");
+
+    /* Transactions. */
+    model::kv_transaction_ptr txn1, txn2, txn3;
+
+    txn1 = database.begin_transaction();
+    testutil_check(table->insert(txn1, key2, value2));
+    testutil_check(table->insert(txn1, key3, value3));
+    testutil_check(table->insert(txn1, key5, value5));
+    txn1->commit(1);
+
+    txn2 = database.begin_transaction();
+    testutil_check(table->insert(txn2, key1, value1));
+    testutil_check(table->insert(txn2, key4, value4));
+
+    txn3 = database.begin_transaction();
+    /* Truncate should skip over key1 and key4. */
+    testutil_check(table->truncate(txn3, key1, key6));
+    txn3->commit(3);
+
+    txn2->commit(2);
+
+    /* Ensure we can read the values of key1 and key4. */
+    testutil_assert(table->get(key1) == value1);
+    testutil_assert(table->get(key2) == model::NONE);
+    testutil_assert(table->get(key3) == model::NONE);
+    testutil_assert(table->get(key4) == value4);
+    testutil_assert(table->get(key5) == model::NONE);
+    testutil_assert(table->get(key6) == model::NONE);
+}
+
+/*
+ * test_transaction_truncate_wt --
+ *     Demonstrate that truncate skips over keys that are not visible to it in WT.
+ */
+static void
+test_transaction_truncate_wt(void)
+{
+    model::kv_database database;
+    model::kv_table_ptr table = database.create_table("table");
+
+    /* Transactions. */
+    model::kv_transaction_ptr txn1, txn2, txn3;
+
+    /* Create the test's home directory and database. */
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
+    WT_SESSION *session1;
+    WT_SESSION *session2;
+    const char *uri = "table:table";
+
+    std::string test_home = std::string(home) + DIR_DELIM_STR + "truncate";
+    testutil_recreate_dir(test_home.c_str());
+    testutil_wiredtiger_open(opts, test_home.c_str(), ENV_CONFIG, nullptr, &conn, false, false);
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session1));
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session2));
+    testutil_check(
+      session->create(session, uri, "key_format=S,value_format=S,log=(enabled=false)"));
+
+    wt_model_txn_begin_both(txn1, session);
+    wt_model_txn_insert_both(table, uri, txn1, session, key2, value2);
+    wt_model_txn_insert_both(table, uri, txn1, session, key3, value3);
+    wt_model_txn_insert_both(table, uri, txn1, session, key5, value5);
+    wt_model_txn_commit_both(txn1, session);
+
+    wt_model_txn_begin_both(txn2, session1);
+    wt_model_txn_insert_both(table, uri, txn2, session1, key1, value1);
+    wt_model_txn_insert_both(table, uri, txn2, session1, key4, value4);
+
+    wt_model_txn_begin_both(txn3, session2);
+    /* Truncate should skip over key1 and key4. */
+    wt_model_txn_truncate_both(table, txn3, uri, key1, key6);
+    wt_model_txn_commit_both(txn3, session2);
+
+    wt_model_txn_commit_both(txn2, session1);
+
+    /* Ensure we can read the values of key1 and key4. */
+    wt_model_assert(table, uri, key1);
+    wt_model_assert(table, uri, key2);
+    wt_model_assert(table, uri, key3);
+    wt_model_assert(table, uri, key4);
+    wt_model_assert(table, uri, key5);
+    wt_model_assert(table, uri, key6);
+
+    /* Verify. */
+    testutil_assert(table->verify_noexcept(conn));
+
+    /* Clean up. */
+    testutil_check(session->close(session, nullptr));
+    testutil_check(session1->close(session1, nullptr));
+    testutil_check(session2->close(session2, nullptr));
+    testutil_check(conn->close(conn, nullptr));
+}
+
+/*
  * usage --
  *     Print usage help for the program.
  */
@@ -1179,6 +1285,8 @@ main(int argc, char *argv[])
         test_transaction_prepared_wt();
         test_transaction_logged();
         test_transaction_logged_wt();
+        test_transaction_truncate();
+        test_transaction_truncate_wt();
     } catch (std::exception &e) {
         std::cerr << "Test failed with exception: " << e.what() << std::endl;
         ret = EXIT_FAILURE;
