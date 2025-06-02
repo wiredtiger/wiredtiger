@@ -1155,7 +1155,10 @@ test_transaction_truncate(void)
 
     txn2->commit(2);
 
-    /* Ensure we can read the values of key1 and key4. */
+    /*
+     * Ensure we can read the values of key1 and key4. This suggests that truncate skipped key 1 and
+     * key 4 due to their invisibility to the transaction.
+     */
     testutil_assert(table->get(key1) == value1);
     testutil_assert(table->get(key2) == model::NONE);
     testutil_assert(table->get(key3) == model::NONE);
@@ -1210,6 +1213,10 @@ test_transaction_truncate_wt(void)
 
     wt_model_txn_commit_both(txn2, session1, 2);
 
+    /*
+     * Verify that the model and WT contain identical keys and values; ideally, only key1 and key4
+     * should be present.
+     */
     wt_model_assert(table, uri, key1, 5);
     wt_model_assert(table, uri, key2, 5);
     wt_model_assert(table, uri, key3, 5);
