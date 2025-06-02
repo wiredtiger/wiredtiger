@@ -280,9 +280,9 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
  * wt_model_txn_truncate_both --
  *     Truncate with a txn in both from the model and from the database.
  */
-#define wt_model_txn_truncate_both(table, txn, uri, start, ...)       \
-    wt_model_assert_equal(table->truncate(txn, start, ##__VA_ARGS__), \
-      wt_truncate(session, uri, start, ##__VA_ARGS__));
+#define wt_model_txn_truncate_both(table, txn, uri, timestamp, start, ...) \
+    wt_model_assert_equal(table->truncate(txn, start, ##__VA_ARGS__),      \
+      wt_truncate(session, uri, start, ##__VA_ARGS__, timestamp));
 
 /*
  * wt_model_update_both --

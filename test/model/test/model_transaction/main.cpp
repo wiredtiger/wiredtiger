@@ -1197,7 +1197,7 @@ test_transaction_truncate_wt(void)
     wt_model_txn_insert_both(table, uri, txn1, session, key2, value2);
     wt_model_txn_insert_both(table, uri, txn1, session, key3, value3);
     wt_model_txn_insert_both(table, uri, txn1, session, key5, value5);
-    wt_model_txn_commit_both(txn1, session);
+    wt_model_txn_commit_both(txn1, session, 1);
 
     wt_model_txn_begin_both(txn2, session1);
     wt_model_txn_insert_both(table, uri, txn2, session1, key1, value1);
@@ -1205,18 +1205,17 @@ test_transaction_truncate_wt(void)
 
     wt_model_txn_begin_both(txn3, session2);
     /* Truncate should skip over key1 and key4. */
-    wt_model_txn_truncate_both(table, txn3, uri, key1, key6);
-    wt_model_txn_commit_both(txn3, session2);
+    wt_model_txn_truncate_both(table, txn3, uri, 3, key1, key6);
+    wt_model_txn_commit_both(txn3, session2, 3);
 
-    wt_model_txn_commit_both(txn2, session1);
+    wt_model_txn_commit_both(txn2, session1, 2);
 
-    /* Ensure we can read the values of key1 and key4. */
-    wt_model_assert(table, uri, key1);
-    wt_model_assert(table, uri, key2);
-    wt_model_assert(table, uri, key3);
-    wt_model_assert(table, uri, key4);
-    wt_model_assert(table, uri, key5);
-    wt_model_assert(table, uri, key6);
+    wt_model_assert(table, uri, key1, 5);
+    wt_model_assert(table, uri, key2, 5);
+    wt_model_assert(table, uri, key3, 5);
+    wt_model_assert(table, uri, key4, 5);
+    wt_model_assert(table, uri, key5, 5);
+    wt_model_assert(table, uri, key6, 5);
 
     /* Verify. */
     testutil_assert(table->verify_noexcept(conn));
