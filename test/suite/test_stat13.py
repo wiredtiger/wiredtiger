@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 
 class test_stat13(wttest.WiredTigerTestCase):
     uri = 'table:test_stat13'
-    
+
     keyfmt = [
         ('column', dict(keyfmt='r', valfmt='S')),
         ('column-fix', dict(keyfmt='r', valfmt='8t')),
@@ -54,7 +54,7 @@ class test_stat13(wttest.WiredTigerTestCase):
 
     def test_btree_depth(self):
         # Populate a table with a few records. This will create a two-level tree with a root
-        # page and one or more leaf pages. We aren't inserting nearly enough records to need 
+        # page and one or more leaf pages. We aren't inserting nearly enough records to need
         # and additional level
         nentries = 100
         ds = SimpleDataSet(self, self.uri, nentries,
@@ -65,10 +65,10 @@ class test_stat13(wttest.WiredTigerTestCase):
         # Confirm that tree has expected depth
         self.check_depth(2)
 
-        # Check that we have the same result on a new connection. 
+        # Check that we have the same result on a new connection.
         self.reopen_conn()
 
-        # The btree_maximum_depth statistic tracks the maximum depth seen on a table. So we 
+        # The btree_maximum_depth statistic tracks the maximum depth seen on a table. So we
         # have to perform an operation on the table to know its depth.
         cursor = ds.open_cursor()
         cursor.set_key(ds.key(50))
