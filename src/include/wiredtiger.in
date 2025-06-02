@@ -6293,10 +6293,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT	1203
 /*! cache: npos read - had to walk this many pages */
 #define	WT_STAT_CONN_NPOS_READ_WALK_MAX			1204
-/*! cache: number of times clean trigger was reached */
-#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_CLEAN_REACHED	1205
 /*! cache: number of times dirty trigger was reached */
-#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	1206
+#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	1205
+/*! cache: number of times eviction trigger was reached */
+#define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_REACHED	1206
 /*! cache: number of times updates trigger was reached */
 #define	WT_STAT_CONN_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	1207
 /*! cache: operations timed out waiting for space in cache */
@@ -7974,10 +7974,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_EVICTION_DIRTY		2095
 /*! cache: multi-block reconciliation blocked whilst checkpoint is running */
 #define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_MULTI_BLOCK_RECONCILIATION_DURING_CHECKPOINT	2096
-/*! cache: number of times clean trigger was reached */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_CLEAN_REACHED	2097
 /*! cache: number of times dirty trigger was reached */
-#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	2098
+#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_DIRTY_REACHED	2097
+/*! cache: number of times eviction trigger was reached */
+#define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_REACHED	2098
 /*! cache: number of times updates trigger was reached */
 #define	WT_STAT_DSRC_CACHE_EVICTION_TRIGGER_UPDATES_REACHED	2099
 /*!

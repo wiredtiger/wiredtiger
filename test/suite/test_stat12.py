@@ -62,11 +62,11 @@ class test_stat12(wttest.WiredTigerTestCase):
 
     def test_stats_eviction_trigger_exist(self):
         # Read the relevant eviction trigger stats
-        clean_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_clean_reached)
+        trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_reached)
         dirty_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_dirty_reached)
         updates_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_updates_reached)
 
-        self.assertNotEqual(clean_trigger_count, None)
+        self.assertNotEqual(trigger_count, None)
         self.assertNotEqual(dirty_trigger_count, None)
         self.assertNotEqual(updates_trigger_count, None)
 
@@ -101,7 +101,7 @@ class test_stat12(wttest.WiredTigerTestCase):
 
         for _ in range(20):
             # Read the relevant eviction trigger stats
-            clean_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_clean_reached)
+            trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_reached)
             dirty_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_dirty_reached)
             updates_trigger_count = self.get_stat(wiredtiger.stat.conn.cache_eviction_trigger_updates_reached)
             fill_ratio_lt_25 = self.get_stat(wiredtiger.stat.conn.cache_eviction_app_threads_fill_ratio_lt_25)
@@ -110,13 +110,13 @@ class test_stat12(wttest.WiredTigerTestCase):
             fill_ratio_gt_75 = self.get_stat(wiredtiger.stat.conn.cache_eviction_app_threads_fill_ratio_gt_75)
             fill_ratio_count = fill_ratio_lt_25 + fill_ratio_25_50 + fill_ratio_50_75 + fill_ratio_gt_75
 
-            if clean_trigger_count != 0 and dirty_trigger_count != 0 and updates_trigger_count != 0 and fill_ratio_count != 0:
+            if trigger_count != 0 and dirty_trigger_count != 0 and updates_trigger_count != 0 and fill_ratio_count != 0:
                 break
             # Sleep to allow eviction to process
             time.sleep(1)
 
         # Print or assert their values have increased from 0
-        self.assertGreaterEqual(clean_trigger_count, 1, "Clean trigger was not reached.")
+        self.assertGreaterEqual(trigger_count, 1, "Clean trigger was not reached.")
         self.assertGreaterEqual(dirty_trigger_count, 1, "Dirty trigger was not reached.")
         self.assertGreaterEqual(updates_trigger_count, 1, "Updates trigger was not reached.")
         self.assertGreaterEqual(fill_ratio_count, 1, "Cache fill ratio at eviction time should be incremented.")
@@ -125,5 +125,5 @@ class test_stat12(wttest.WiredTigerTestCase):
         # and that the total fill ratio stats do not exceed eviction trigger stats
         # the reason trigger counts are greater than fill ratio counts is that multiple eviction triggers (clean, dirty, updates)
         # can be reached at once, while fill ratio stats are only incremented once if any application thread evicts a page
-        self.assertGreaterEqual(clean_trigger_count + dirty_trigger_count + updates_trigger_count, fill_ratio_count, "Fill ratio stats should not exceed eviction trigger stats.")
+        self.assertGreaterEqual(trigger_count + dirty_trigger_count + updates_trigger_count, fill_ratio_count, "Fill ratio stats should not exceed eviction trigger stats.")
 
