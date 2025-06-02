@@ -55,7 +55,7 @@ class test_stat13(wttest.WiredTigerTestCase):
     def test_btree_depth(self):
         # Populate a table with a few records. This will create a two-level tree with a root
         # page and one or more leaf pages. We aren't inserting nearly enough records to need
-        # and additional level
+        # an additional level
         nentries = 100
         ds = SimpleDataSet(self, self.uri, nentries,
             key_format=self.keyfmt, value_format=self.valfmt)
