@@ -260,7 +260,7 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
     WT_ITEM hs_key;
     WT_ITEM key_string;
     WT_TIME_WINDOW *twp;
-    wt_timestamp_t hs_start_ts;
+    wt_timestamp_t hs_start_ts = WT_TS_NONE;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
 #ifdef HAVE_DIAGNOSTIC
