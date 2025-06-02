@@ -1846,20 +1846,23 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
 
     prev = __wt_atomic_load64(&bucketset->lowest_bucket_upper_range);
 
+#if 0
 #define WT_EVICT_RENUMBERING_MULTIPLIER 2
     /*
      * Additive increase proportional to the read generation step is crucial. See comments above.
      * To reduce the frequency of renumbering, increase the renumbering multiplier.
      */
     new = prev + WT_READGEN_STEP *  WT_EVICT_RENUMBERING_MULTIPLIER;
+#endif
+    new = prev * 2;
     /*
      * If the compare and swap fails, someone else is trying to update the value at the same time.
      * We let them win the race and return. The bucket's upper range can only grow, so we are okay
      * to lose this race.
      */
     __wt_atomic_casv64(&bucketset->lowest_bucket_upper_range, prev, new);
-#if EVICT_DEBUG_PRINT
-    printf("Renumbered: bucketset %p new upper range is %" PRId64 "\n",
+#if 1
+    printf("Renumbered: bucketset %p new upper range is %" PRIu64 "\n",
                            (void*)bucketset, new);
     fflush(stdout);
 #endif
@@ -2041,9 +2044,9 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     WT_REF_STATE previous_state;
     bool correct_bucketset, must_unlock_ref;
     int bucketset_level;
-    uint64_t dst_bucket, retries;
+    uint64_t dst_bucket, retries, read_gen;
 #if EVICT_DEBUG_PRINT
-    uint64_t new_lower_range, read_gen;
+    uint64_t new_lower_range;
 #endif
     page = ref->page;
     previous_state = WT_REF_GET_STATE(ref);
@@ -2126,7 +2129,11 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
      */
 retry:
     dst_bucket = __evict_destination_bucket(session, page->evict_data.read_gen,
-                                            __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range), true); /* XXX */
+                                            __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range), false); /* XXX */
+    read_gen = page->evict_data.read_gen;
+    if (!WT_PAGE_IS_INTERNAL(page)) {
+        printf("%d, %d, \n", (int)read_gen, (int)dst_bucket);
+    }
 #if EVICT_DEBUG_PRINT
     read_gen = page->evict_data.read_gen;
     printf("read_gen = %d, dst_bucket = %d, bucketset=%d, dhandle = %p, session = %d\n",
@@ -2402,9 +2409,12 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
 static void
 __evict_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    WT_IGNORE_RET(__wti_evict_read_gen_bump(session, page));
+#if 0
     __wt_atomic_store64(
       &page->evict_data.read_gen,
       (__evict_read_gen(session) + S2C(session)->evict->read_gen_oldest) / 2);
+#endif
 }
 
 /* !!!

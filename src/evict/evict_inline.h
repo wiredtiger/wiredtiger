@@ -80,7 +80,7 @@ static WT_INLINE uint64_t
 __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t first_bucket,
                             bool blast)
 {
-#define RANDOM_BUCKET /* reduced contention for uniform random workloads */
+//#define RANDOM_BUCKET /* reduced contention for uniform random workloads */
 #ifdef RANDOM_BUCKET
     (void)session;
     (void)read_gen;
