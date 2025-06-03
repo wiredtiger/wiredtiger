@@ -77,24 +77,23 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
  *       trigger a renumbering.
  */
 static WT_INLINE uint64_t
-__evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t first_bucket,
-                            bool blast)
+__evict_destination_bucket(WT_SESSION_IMPL *session, WT_PAGE *page, WT_EVICT_BUCKETSET *bucketset,
+                           bool blast)
 {
-//#define RANDOM_BUCKET /* reduced contention for uniform random workloads */
-#ifdef RANDOM_BUCKET
-    (void)session;
-    (void)read_gen;
-    (void)first_bucket;
-    (void)blast;
-
-    return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
-#else
     double e1, target, c, n;
     int64_t blast_value;
+    uint64_t first_bucket, read_gen;
+
+    if (bucketset ==
+        &((WT_BTREE*)page->evict_data.dhandle->handle)->evict_data.evict_bucketset[WT_EVICT_LEVEL_WONT_NEED])
+        return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
+
+    first_bucket =  __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range);
+    read_gen = __wt_atomic_loadv64(&page->evict_data.read_gen);
 
     blast_value = 0;
     c = WT_EVICT_COMMON_RATIO;
-    e1 = (double) first_bucket;
+    e1 = (double)first_bucket;
     target = (double)read_gen;
 
     n = ceil(log(1 - (target / e1) * (1 - c)) / log(c));
@@ -113,7 +112,6 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
         return WT_EVICT_NUM_BUCKETS;
 
     if (blast) {
-
         /*
          * Read generations tend to cluster together, so during each given time window all pages
          * go into the same bucket. To prevent this (and hence avoid bucket contention), we add
@@ -131,7 +129,6 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen, uint64_t
     fflush(stdout);
 #endif
     return (uint64_t)WT_MAX(0, ((int64_t)n + blast_value));
-#endif
 }
 
 /*
@@ -154,18 +151,19 @@ __evict_geo_sum(uint64_t e1, uint64_t n, double c)
 
 /*
  * __evict_page_get_bucketset --
- *     Find the home bucketset of the page if the page is already enqueued.
+ *     If the page is in the right bucketset, return true and set the bucketset return
+ *     pointer to the current bucketset. If the page is in the wrong bucketset, return
+ *     false and se the bucketset return pointer to the right bucketset.
  */
 static WT_INLINE bool
 __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
-                           WT_EVICT_BUCKETSET **bucketset, int *bucketset_level)
+                           WT_EVICT_BUCKETSET **bucketset)
 {
     WT_EVICT_HANDLE_DATA *evict_handle_data;
-    bool correct_bucketset;
+    int correct_bucketset_level;
 
     *bucketset = NULL;
-    *bucketset_level = 0;
-    correct_bucketset = false;
+    correct_bucketset_level = -1;
 
     if (!WT_DHANDLE_BTREE(dhandle)) {
 #ifdef HAVE_DIAGNOSTIC
@@ -185,32 +183,36 @@ __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT
         return false;
     }
 
-    if (page->evict_data.bucket == NULL)
+    /* Find the right bucketset level for the page */
+    if (__wt_atomic_load64(&page->evict_data.read_gen) == WT_READGEN_WONT_NEED)
+        correct_bucketset_level = WT_EVICT_LEVEL_WONT_NEED;
+    else if (!WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
+        correct_bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
+    else if (WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
+        correct_bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
+    else if (!WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
+        correct_bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
+    else if (WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
+        correct_bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
+
+    WT_ASSERT(session, correct_bucketset_level >= 0 && correct_bucketset_level < WT_EVICT_LEVELS);
+
+#if 0
+    printf("page is %s %s, read_gen = %" PRIu64 ", correct level is %d\n",
+           WT_PAGE_IS_INTERNAL(page)?"internal":"leaf",
+           __wt_page_is_modified(page)?"dirty":"clean",
+           page->evict_data.read_gen, correct_bucketset_level);
+#endif
+    if (page->evict_data.bucket == NULL) {
+        *bucketset = &evict_handle_data->evict_bucketset[correct_bucketset_level];
         return false;
+    }
 
     *bucketset =  WT_BUCKET_TO_BUCKETSET(page->evict_data.bucket);
-
-    if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_LEAF] == *bucketset) {
-        *bucketset_level = WT_EVICT_LEVEL_CLEAN_LEAF;
-        if (!WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
-            correct_bucketset = true;
-    }
-    else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_CLEAN_INTERNAL] == *bucketset) {
-        *bucketset_level = WT_EVICT_LEVEL_CLEAN_INTERNAL;
-        if (WT_PAGE_IS_INTERNAL(page) && !__wt_page_is_modified(page))
-            correct_bucketset = true;
-    }
-    else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_LEAF] == *bucketset) {
-        *bucketset_level = WT_EVICT_LEVEL_DIRTY_LEAF;
-        if (!WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
-            correct_bucketset = true;
-    }
-    else if (&evict_handle_data->evict_bucketset[WT_EVICT_LEVEL_DIRTY_INTERNAL] == *bucketset) {
-        *bucketset_level = WT_EVICT_LEVEL_DIRTY_INTERNAL;
-        if (WT_PAGE_IS_INTERNAL(page) && __wt_page_is_modified(page))
-            correct_bucketset = true;
-    }
-    return correct_bucketset;
+    if (&evict_handle_data->evict_bucketset[correct_bucketset_level] == *bucketset)
+        return true;
+    else
+        return false;
 }
 
 /*
@@ -222,7 +224,6 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
                          uint64_t *ret_id)
 {
     WT_EVICT_BUCKETSET *bucketset;
-    int bucketset_level;
     uint64_t cur_bucket_id, new_bucket_id, read_gen;
 
     if (page == NULL)
@@ -233,17 +234,22 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
 
     read_gen = __wt_atomic_load64(&page->evict_data.read_gen);
     cur_bucket_id = __wt_atomic_load64(&page->evict_data.bucket->id);
-    if (__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level) == false)
+
+    if (__evict_page_get_bucketset(session, dhandle, page, &bucketset) == false)
         return true;
 
-    new_bucket_id = __evict_destination_bucket(session, read_gen,
-                                __wt_atomic_load64(&bucketset->lowest_bucket_upper_range), false);
+    if (read_gen == WT_READGEN_WONT_NEED)
+        return false;
+
+    new_bucket_id = __evict_destination_bucket(session, page, bucketset, false);
+
     if (ret_id != NULL)
         *ret_id = new_bucket_id;
 
     if (new_bucket_id >= WT_EVICT_NUM_BUCKETS)
         return true;
 
+    /* XXX FIX THIS */
     if ((int64_t)cur_bucket_id >= WT_MAX(0, (int64_t)new_bucket_id - WT_EVICT_BLAST_RADIUS) &&
         cur_bucket_id <=  new_bucket_id + WT_EVICT_BLAST_RADIUS) {
 #if EVICT_DEBUG_PRINT
