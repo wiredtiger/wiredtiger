@@ -48,7 +48,12 @@
  *     If we want to reduce contention for buckets even further, increase the number of buckets.
  */
 #define WT_EVICT_COMMON_RATIO 0.95
-#define WT_EVICT_NUM_BUCKETS  50
+
+/*
+ * If the database fits entirely in cache, as few as 50 buckets is sufficient.
+ * In a degenerate case where all we do is evict, 5000 buckets is about right to avoid contention.
+*/
+#define WT_EVICT_NUM_BUCKETS  5000
 #define WT_EVICT_BUCKET_STARTING_RANGE 100 /* starting upper range for the first bucket */
 #define WT_EVICT_BLAST_RADIUS WT_EVICT_NUM_BUCKETS / 8
 
