@@ -349,15 +349,15 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
      * If we find a key with a timestamp larger than or equal to the specified timestamp then the
      * specified timestamp must be mixed mode.
      */
-    char tp_string[3][WT_TS_INT_STRING_SIZE];
+    char tp_string[4][WT_TS_INT_STRING_SIZE];
     WT_ASSERT_ALWAYS(session, ts == 1 || ts == WT_TS_NONE,
       "out-of-order timestamp update detected, found an existing update with key=%s, with "
       "hs_start_ts=%s, start_ts=%s, stop_ts=%s, that exists later than specified ts=%s",
       __wt_key_string(session, key->data, key->size, S2BT(session)->key_format, &key_string),
       __wt_timestamp_to_string(hs_start_ts, tp_string[0]),
       __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->start_ts, tp_string[1]),
-      __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->stop_ts, tp_string[1]),
-      __wt_timestamp_to_string(ts, tp_string[2]));
+      __wt_timestamp_to_string(twp == NULL ? WT_TS_NONE : twp->stop_ts, tp_string[2]),
+      __wt_timestamp_to_string(ts, tp_string[3]));
     return (ret);
 }
 
