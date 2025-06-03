@@ -34,13 +34,6 @@ from runner import *
 from wiredtiger import *
 from workgen import *
 
-def get_stat(session, stat):
-    stat_cursor = session.open_cursor('statistics:')
-    val = stat_cursor[stat][2]
-    stat_cursor.close()
-    return val
-
-
 def get_cache_eviction_stats(session, cache_eviction_file):
 
     if cache_eviction_file:
@@ -200,10 +193,6 @@ thread_log_read = Thread(ops)
 thread_log_read.options.session_config="isolation=snapshot"
 thread_log_read.options.throttle=60
 thread_log_read.options.throttle_burst=0
-
-ops = Operation(Operation.OP_SLEEP, "60") + \
-      Operation(Operation.OP_CHECKPOINT, "")
-checkpoint_thread = Thread(ops)
 
 ############################################################################
 # This part was added to the generated file.
