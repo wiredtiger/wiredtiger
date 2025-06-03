@@ -97,6 +97,6 @@ except:
     sys.path.insert(0, os.path.join(wt_dir, 'lang', 'python'))
     sys.path.insert(0, os.path.join(wt_builddir, 'lang', 'python'))
     import wiredtiger
-    
+
 from .core import txn, extensions_config, op_append, op_group_transaction, op_log_like, op_multi_table, op_populate_with_range, sleep, timed
 from .latency import workload_latency
