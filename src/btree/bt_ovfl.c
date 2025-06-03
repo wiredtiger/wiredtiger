@@ -42,8 +42,8 @@ __ovfl_read(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_
  *     Bring an overflow item into memory.
  */
 int
-__wt_ovfl_read(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_COMMON *unpack,
-  WT_ITEM *store)
+__wt_ovfl_read(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
 {
     WT_DECL_RET;
 
