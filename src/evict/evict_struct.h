@@ -61,9 +61,11 @@
 
 struct __wt_evict_bucket {
     WT_SPINLOCK evict_queue_lock;
+
+    WT_CACHE_LINE_PAD_BEGIN
     TAILQ_HEAD(__wt_evictbucket_qh, __wt_page) evict_queue;
     uint64_t id; /* index in the bucket set */
-    uint64_t num_items;
+    WT_CACHE_LINE_PAD_END
 };
 
 /*

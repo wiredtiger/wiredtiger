@@ -9,7 +9,7 @@
 #pragma once
 
 #define EVICT_DEBUG_PRINT 0
-
+#define RANDOM_EVICTION
 /*
  * __wt_ref_assign_page --
  *     Must be called every time we associate a new page with a ref. A page must have a back pointer
@@ -80,6 +80,13 @@ static WT_INLINE uint64_t
 __evict_destination_bucket(WT_SESSION_IMPL *session, WT_PAGE *page, WT_EVICT_BUCKETSET *bucketset,
                            bool blast)
 {
+#ifdef RANDOM_EVICTION
+    (void)session;
+    (void)page;
+    (void)bucketset;
+    (void)blast;
+    return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
+#else
     double e1, target, c, n;
     int64_t blast_value;
     uint64_t first_bucket, read_gen;
@@ -129,6 +136,7 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, WT_PAGE *page, WT_EVICT_BUC
     fflush(stdout);
 #endif
     return (uint64_t)WT_MAX(0, ((int64_t)n + blast_value));
+#endif
 }
 
 /*
@@ -237,6 +245,10 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
 
     if (__evict_page_get_bucketset(session, dhandle, page, &bucketset) == false)
         return true;
+#ifdef RANDOM_EVICTION
+    else
+        return false;
+#endif
 
     if (read_gen == WT_READGEN_WONT_NEED)
         return false;

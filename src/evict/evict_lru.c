@@ -1068,8 +1068,6 @@ __evict_get_ref(
         bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
             bucket = &bucketset->buckets[j];
-            if (__wt_atomic_load64(&bucket->num_items) == 0)
-                continue;
             if (__wt_spin_trylock(session, &bucket->evict_queue_lock) == EBUSY)
                 continue;
 
@@ -1146,7 +1144,6 @@ __evict_get_ref(
 unlock_bucket_and_done:
             if (ref != NULL) {
                 TAILQ_REMOVE(&bucket->evict_queue, page, evict_data.evict_q);
-                bucket->num_items--;
                 page->evict_data.bucket = NULL;
             }
             __wt_spin_unlock(session, &bucket->evict_queue_lock);
@@ -1815,9 +1812,7 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 
     if (!WT_EVICT_PAGE_CLEARED(page)) {
         __wt_spin_lock(session, &page->evict_data.bucket->evict_queue_lock);
-
         TAILQ_REMOVE(&page->evict_data.bucket->evict_queue, page, evict_data.evict_q);
-        page->evict_data.bucket->num_items--;
 
 #if EVICT_DEBUG_PRINT
         printf("page %p readgen %llu removed by session %d from evict structs. Bucket: %p,  next = %p, prev = %p\n",
@@ -1853,15 +1848,12 @@ __evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
 
     prev = __wt_atomic_load64(&bucketset->lowest_bucket_upper_range);
 
-#if 0 /* XXX */
 #define WT_EVICT_RENUMBERING_MULTIPLIER 2
     /*
      * Additive increase proportional to the read generation step is crucial. See comments above.
      * To reduce the frequency of renumbering, increase the renumbering multiplier.
      */
     new = prev + WT_READGEN_STEP *  WT_EVICT_RENUMBERING_MULTIPLIER;
-#endif
-    new = prev * 2;
     /*
      * If the compare and swap fails, someone else is trying to update the value at the same time.
      * We let them win the race and return. The bucket's upper range can only grow, so we are okay
@@ -2017,10 +2009,8 @@ __evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
      * Move the ref to the new bucket, unlock everything and get out.
      */
     TAILQ_REMOVE(&bucket->evict_queue, page, evict_data.evict_q);
-    bucket->num_items--;
     TAILQ_INSERT_HEAD(&new_bucket->evict_queue, page, evict_data.evict_q);
     page->evict_data.bucket = new_bucket;
-    new_bucket->num_items++;
 
 #if EVICT_DEBUG_PRINT
     printf("session %d helved shove page %p read_gen %llu from bucket %d to bucket %d\n",
@@ -2115,7 +2105,6 @@ retry:
 
     __wt_spin_lock(session, &bucket->evict_queue_lock);
     TAILQ_INSERT_TAIL(&bucket->evict_queue, page, evict_data.evict_q);
-    bucket->num_items++;
     __wt_spin_unlock(session, &bucket->evict_queue_lock);
 
     page->evict_data.bucket = bucket;
@@ -2240,12 +2229,11 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle, *best_dhandle;
     WT_EVICT *evict;
-    WT_EVICT_BUCKET *bucket;
-    WT_EVICT_BUCKETSET *bucketset;
     bool want_tree;
-    uint64_t bucket_readgen_lower_bound, max_bucketset_to_consider, min_readgen;
+
+#define EVICT_MAX_FOOTPRINT
 #ifdef EVICT_MAX_FOOTPRINT
-    uint64_t  max_cache_footprint;
+    uint64_t  bytes_inmem, max_cache_footprint;
 #endif
 
     best_dhandle = NULL;
@@ -2254,7 +2242,6 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
 #ifdef EVICT_MAX_FOOTPRINT
     max_cache_footprint = 0;
 #endif
-    min_readgen = ULONG_MAX;
 
     WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
 
@@ -2295,12 +2282,6 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
             goto next;
         }
 
-#ifdef EVICT_MAX_FOOTPRINT
-        if (__wt_bytes_inmem(dhandle) > max_cache_footprint) {
-            best_dhandle = dhandle;
-            max_cache_footprint = __wt_bytes_inmem(dhandle);
-        }
-#else
         /* Dead trees are fast-tracked. */
         if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
             best_dhandle = dhandle;
@@ -2317,36 +2298,17 @@ __evict_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
             best_dhandle = dhandle;
             break;
         }
-        /*
-         * Find smallest readgen in the bucketset that eviction will consider.
-         * We decide which bucketsets to consider starting from highest to lowest desireability
-         * for eviction, depending on eviction flags.
-         */
-        max_bucketset_to_consider = F_ISSET(evict, WT_EVICT_CACHE_UPDATES) ? WT_EVICT_LEVEL_DIRTY_INTERNAL :
-            (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) ? WT_EVICT_LEVEL_DIRTY_LEAF : WT_EVICT_LEVEL_CLEAN_LEAF);
 
-        /*
-         * In each considered bucketset find the smallest bucket that has pages and remember its
-         * read generation upper bound.
-         */
-        for (uint64_t j = 0; j <= max_bucketset_to_consider; j++) {
-            bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, j);
-            for (int k = 0; k < WT_EVICT_NUM_BUCKETS; k++) {
-                bucket = &bucketset->buckets[k];
-                if (__wt_atomic_load64(&bucket->num_items) == 0)
-                    continue;
-                else {
-                    __evict_bucket_range(session, bucket, &bucket_readgen_lower_bound, NULL);
-                    if (bucket_readgen_lower_bound < min_readgen) {
-                        min_readgen = bucket_readgen_lower_bound;
-                        best_dhandle = dhandle;
-                    }
-                    break;
-                }
-            }
+#ifdef EVICT_MAX_FOOTPRINT
+        bytes_inmem = __wt_atomic_load64(&((WT_BTREE*)dhandle->handle)->bytes_inmem);
+        if (bytes_inmem  > max_cache_footprint) {
+            best_dhandle = dhandle;
+            max_cache_footprint = bytes_inmem;
         }
+#else
+        best_dhandle = dhandle;
 #endif
-      next:
+    next:
         dhandle = TAILQ_NEXT(dhandle, q);
     }
     *dhandle_p = best_dhandle;
