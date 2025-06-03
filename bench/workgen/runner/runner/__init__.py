@@ -67,7 +67,7 @@ except:
     sys.path.insert(0, os.path.join(wt_builddir, 'bench', 'workgen'))
     try:
         import workgen
-    except: 
+    except:
         # If the WiredTiger libraries is not in our library search path,
         # we need to set it and retry.  However, the dynamic link
         # library has already cached its value, our only option is
