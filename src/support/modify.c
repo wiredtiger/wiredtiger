@@ -417,6 +417,7 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
 
     cursor = &cbt->iface;
+    __wt_update_vector_init(session, &modifies);
     /* While we have a pointer to our original modify, grab this information. */
     upd_value->tw.durable_start_ts = modify->durable_ts;
     upd_value->tw.start_txn = modify->txnid;
@@ -434,8 +435,9 @@ __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE 
         WT_RET_SUB(session, WT_ROLLBACK, WT_MODIFY_READ_UNCOMMITTED,
           "Read-uncommitted readers do not support reconstructing a record with modifies.");
 retry:
-    /* Construct full update */
-    __wt_update_vector_init(session, &modifies);
+    /* Reconstruct full update */
+    __wt_update_vector_free(&modifies);
+
     /* Find a complete update. */
     for (upd = modify; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
