@@ -165,36 +165,6 @@ get_cache_eviction_stats(s, cache_eviction_file)
 
 print('Populate complete')
 
-# Log like file, requires that logging be enabled in the connection config.
-log_name = "table:log"
-s.create(log_name, wtperf_table_config + "key_format=S,value_format=S," + compress_table_config + table_config + ",log=(enabled=true)")
-log_table = Table(log_name)
-
-ops = Operation(Operation.OP_UPDATE, tables[0])
-ops = txn(ops, 'isolation=snapshot')
-# use_commit_timestamp - Commit the transaction with commit_timestamp.
-#ops.transaction.use_commit_timestamp = True
-ops = op_multi_table(ops, tables, False)
-ops = op_log_like(ops, log_table, 0)
-thread_log_upd = Thread(ops)
-thread_log_upd.options.session_config="isolation=snapshot"
-# These operations include log_like operations, which will increase the number
-# of insert/update operations by a factor of 2.0. This may cause the
-# actual operations performed to be above the throttle.
-thread_log_upd.options.throttle=11
-thread_log_upd.options.throttle_burst=0
-
-ops = Operation(Operation.OP_SEARCH, tables[0])
-ops = txn(ops, 'isolation=snapshot')
-# use_commit_timestamp - Commit the transaction with commit_timestamp.
-#ops.transaction.use_commit_timestamp = True
-ops = op_multi_table(ops, tables, False)
-ops = op_log_like(ops, log_table, 0)
-thread_log_read = Thread(ops)
-thread_log_read.options.session_config="isolation=snapshot"
-thread_log_read.options.throttle=60
-thread_log_read.options.throttle_burst=0
-
 ############################################################################
 # This part was added to the generated file.
 # Add threads that do a bunch of operations and sleep, all in a loop.
