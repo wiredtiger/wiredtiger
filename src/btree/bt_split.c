@@ -622,7 +622,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     __wt_free(session, ref->page_del);
 
     /* Free the backing block and address. */
-    WT_TRET(__wt_ref_block_free(session, ref));
+    WT_TRET(__wt_ref_block_free(session, ref, false));
 
     /*
      * We cannot discard any ref in the prefetch queue, otherwise, the prefetch thread would read
