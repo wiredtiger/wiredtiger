@@ -2193,7 +2193,9 @@ tasks:
         vars:
           # As leader, run the set of tests that are not in the fail list.
           unit_test_parallel_ignore: test/suite/hook_disagg.fail
-          unit_test_parallel_args: -v 2 --timeout 60 --hook "disagg=(role=leader)"
+          # The timeout for this command is on a test file basis. Make the timeouts long,
+          # as there are a few files that contain a large number of slower tests.
+          unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
 
   - name: unit-test-hook-disagg-follower
     tags: ["pull_request", "python"]
