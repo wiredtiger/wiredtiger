@@ -1192,8 +1192,6 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
     conn->rec_maximum_image_build_milliseconds = 0;
     conn->rec_maximum_milliseconds = 0;
-    conn->disaggregated_storage.max_internal_delta_count = 0;
-    conn->disaggregated_storage.max_leaf_delta_count = 0;
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);

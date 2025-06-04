@@ -123,42 +123,6 @@ err:
 }
 
 /*
- * __page_inmem_tombstone --
- *     Create the actual update for a tombstone.
- */
-static int
-__page_inmem_tombstone(
-  WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
-{
-    WT_UPDATE *tombstone;
-    size_t size, total_size;
-
-    size = 0;
-    *sizep = 0;
-    *updp = NULL;
-
-    tombstone = NULL;
-    total_size = 0;
-
-    WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&unpack->tw));
-
-    WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-    total_size += size;
-    tombstone->durable_ts = unpack->tw.durable_stop_ts;
-    tombstone->start_ts = unpack->tw.stop_ts;
-    tombstone->txnid = unpack->tw.stop_txn;
-    F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
-    if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-        F_SET(tombstone, WT_UPDATE_DURABLE);
-    *updp = tombstone;
-    *sizep = total_size;
-
-    WT_STAT_CONN_DSRC_INCRV(session, cache_read_restored_tombstone_bytes, total_size);
-
-    return (0);
-}
-
-/*
  * __page_inmem_prepare_update --
  *     Create the actual update for a prepared value.
  */
@@ -207,11 +171,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
             upd->durable_ts = WT_TS_NONE;
             upd->prepare_state = WT_PREPARE_INPROGRESS;
             F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
-        } else {
+        } else
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
-                F_SET(upd, WT_UPDATE_DURABLE);
-        }
 
         tombstone->next = upd;
         *updp = tombstone;
@@ -233,20 +194,6 @@ err:
 }
 
 /*
- * __page_inmem_update --
- *     Create the actual update.
- */
-static int
-__page_inmem_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
-  WT_UPDATE **updp, size_t *sizep)
-{
-    if (unpack->tw.prepare)
-        return (__page_inmem_prepare_update(session, value, unpack, updp, sizep));
-
-    return (__page_inmem_tombstone(session, unpack, updp, sizep));
-}
-
-/*
  * __page_inmem_update_col --
  *     Shared code for calling __page_inmem_update on columns.
  */
@@ -254,7 +201,7 @@ static int
 __page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
   WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
 {
-    WT_RET(__page_inmem_update(session, value, unpack, updp, sizep));
+    WT_RET(__page_inmem_prepare_update(session, value, unpack, updp, sizep));
 
     /* Search the page and apply the modification. */
     WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
@@ -359,7 +306,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ERR(__wt_page_cell_data_ref_kv(session, page, &unpack, value));
             WT_ASSERT_ALWAYS(session, __wt_cell_type_raw(unpack.cell) != WT_CELL_VALUE_OVFL_RM,
               "Should never read an overflow removed value for a prepared update");
-            WT_ERR(__page_inmem_update(session, value, &unpack, &upd, &size));
+            WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd, &size));
             total_size += size;
 
             /* Search the page and apply the modification. */

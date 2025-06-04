@@ -432,7 +432,6 @@ struct __wt_page_modify {
     /* Dirty bytes added to the cache. */
     wt_shared uint64_t bytes_dirty;
     wt_shared uint64_t bytes_updates;
-    wt_shared uint64_t bytes_delta_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
@@ -1594,18 +1593,16 @@ struct __wt_update {
 
 /* When introducing a new flag, consider adding it to WT_UPDATE_SELECT_FOR_DS. */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DS 0x001u                       /* Update has been chosen to the data store. */
-#define WT_UPDATE_DURABLE 0x002u                  /* Update has been durable. */
-#define WT_UPDATE_HS 0x004u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x008u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x010u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DELTA 0x020u      /* Update restored from delta. */
-#define WT_UPDATE_RESTORED_FROM_DS 0x040u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x080u         /* Update restored from history store. */
-#define WT_UPDATE_RTS_DRYRUN_ABORT 0x100u         /* Used by dry run to mark a would-be abort. */
-#define WT_UPDATE_TO_DELETE_FROM_HS 0x200u /* Update needs to be deleted from history store */
-                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
-    uint16_t flags;
+#define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
+#define WT_UPDATE_HS 0x02u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x04u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x08u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x10u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x20u         /* Update restored from history store. */
+#define WT_UPDATE_RTS_DRYRUN_ABORT 0x40u         /* Used by dry run to mark a would-be abort. */
+#define WT_UPDATE_TO_DELETE_FROM_HS 0x80u        /* Update needs to be deleted from history store */
+                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 
 /* There are several cases we should select the update irrespective of visibility to write to the
  * disk image:
@@ -1630,7 +1627,7 @@ struct __wt_update {
  */
 #define WT_UPDATE_SELECT_FOR_DS                                                      \
     WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS | \
-      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DELTA | WT_UPDATE_TO_DELETE_FROM_HS
+      WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_TO_DELETE_FROM_HS
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
@@ -1642,7 +1639,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
-#define WT_UPDATE_SIZE 48
+#define WT_UPDATE_SIZE 47
 
 /*
  * If there is no value, ensure that the memory allocation size matches that returned by sizeof().

@@ -709,7 +709,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
              * which seems like asking for trouble.) Don't discard any ref has the prefetch flag,
              * the prefetch thread would crash if it sees a freed ref.
              */
-            if (!F_ISSET(btree, WT_BTREE_DISAGGREGATED) &&
+            if (next_ref != ref && WT_REF_GET_STATE(next_ref) == WT_REF_DELETED &&
               (btree->type != BTREE_COL_VAR || i != 0) &&
               !F_ISSET_ATOMIC_8(next_ref, WT_REF_FLAG_PREFETCH) &&
               __wti_delete_page_skip(session, next_ref, true) &&
@@ -1605,8 +1605,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
     WT_UPDATE **tmp;
     uint32_t i, slot;
 
-    if (!multi->supd_restore)
-        return;
+    /* If we have saved updates, we must have decided to restore them to the new page. */
+    WT_ASSERT(session, multi->supd_entries == 0 || multi->supd_restore);
 
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the
@@ -1703,12 +1703,13 @@ int
 __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_MULTI *multi,
   size_t multi_entries, WT_REF **refp, size_t *incrp, bool first, bool closing)
 {
-    WT_ADDR *addr, *old_addr;
-    WT_BTREE *btree;
+    WT_ADDR *addr;
     WT_IKEY *ikey;
     WT_REF *ref;
-    size_t key_size;
-    void *key;
+
+    WT_UNUSED(first);
+    WT_UNUSED(old_ref);
+    WT_UNUSED(multi_entries);
 
     /* There can be an address or a disk image or both. */
     WT_ASSERT(session, multi->addr.block_cookie != NULL || multi->disk_image != NULL);
@@ -1729,8 +1730,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
           WT_VRFY_DISK_EMPTY_PAGE_OK) == 0,
       "Failed to verify a disk image");
 
-    btree = S2BT(session);
-
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
     ref = *refp;
@@ -1744,17 +1743,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     switch (page->type) {
     case WT_PAGE_ROW_INT:
     case WT_PAGE_ROW_LEAF:
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && first) {
-            __wt_ref_key(old_ref->home, old_ref, &key, &key_size);
-            WT_RET(__wti_row_ikey(session, 0, key, key_size, ref));
-            if (incrp)
-                *incrp += sizeof(WT_IKEY) + key_size;
-        } else {
-            ikey = multi->key.ikey;
-            WT_RET(__wti_row_ikey(session, 0, WT_IKEY_DATA(ikey), ikey->size, ref));
-            if (incrp)
-                *incrp += sizeof(WT_IKEY) + ikey->size;
-        }
+        ikey = multi->key.ikey;
+        WT_RET(__wti_row_ikey(session, 0, WT_IKEY_DATA(ikey), ikey->size, ref));
+        if (incrp)
+            *incrp += sizeof(WT_IKEY) + ikey->size;
         break;
     default:
         ref->ref_recno = multi->key.recno;
@@ -1777,9 +1769,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
      * Copy the address: we could simply take the buffer, but that would complicate error handling,
      * freeing the reference array would have to avoid freeing the memory, and it's not worth the
      * confusion.
-     *
-     * If it is a one to one page rewrite and we skipped writing the empty delta, copy the previous
-     * address from the old ref to the new ref. Otherwise, we will lose the disk address.
      */
     if (multi->addr.block_cookie != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
@@ -1791,20 +1780,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
-    } else if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && multi_entries == 1 &&
-      old_ref->addr != NULL) {
-        old_addr = (WT_ADDR *)old_ref->addr;
-        if (!__wt_off_page(old_ref->home, old_addr))
-            ref->addr = old_addr;
-        else {
-            WT_RET(__wt_calloc_one(session, &addr));
-            ref->addr = addr;
-            WT_TIME_AGGREGATE_COPY(&addr->ta, &old_addr->ta);
-            WT_RET(__wt_memdup(
-              session, old_addr->block_cookie, old_addr->block_cookie_size, &addr->block_cookie));
-            addr->block_cookie_size = old_addr->block_cookie_size;
-            addr->type = old_addr->type;
-        }
     }
 
     /*
@@ -2308,25 +2283,18 @@ __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref)
 
 /*
  * __wt_split_rewrite --
- *     Rewrite an in-memory page with a new version. If the caller changes the ref state later, it
- *     should not change ref state in this function.
+ *     Rewrite an in-memory page with a new version.
  */
 int
-__wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool change_ref_state)
+__wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 {
-    WT_ADDR *addr;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *new;
 
     page = ref->page;
-    addr = NULL;
 
     __wt_verbose(session, WT_VERB_SPLIT, "%p: split-rewrite", (void *)ref);
-
-    /* We can only rewrite leaf pages. */
-    WT_ASSERT_ALWAYS(
-      session, F_ISSET(ref, WT_REF_FLAG_LEAF), "Rewriting internal pages is not allowed.");
 
     /*
      * This isn't a split: a reconciliation failed because we couldn't write something, and in the
@@ -2364,33 +2332,17 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi, bool 
     __wt_page_modify_clear(session, page);
     if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_SCRUB) || multi->supd_restore)
         F_SET_ATOMIC_16(page, WT_PAGE_EVICT_NO_PROGRESS);
-
-    /* If there's an address, copy it. */
-    if (multi->addr.block_cookie != NULL) {
-        WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED));
-        WT_ERR(__wt_calloc_one(session, &addr));
-        WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
-        WT_ERR(__wt_memdup(
-          session, multi->addr.block_cookie, multi->addr.block_cookie_size, &addr->block_cookie));
-        addr->block_cookie_size = multi->addr.block_cookie_size;
-        addr->type = multi->addr.type;
-        __wt_ref_addr_free(session, ref);
-        ref->addr = addr;
-    }
-
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
     ref->page = new->page;
 
-    if (change_ref_state)
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
+    WT_REF_SET_STATE(ref, WT_REF_MEM);
 
     __wt_free(session, new);
     return (0);
 
 err:
-    __wt_free(session, addr);
     __split_multi_inmem_fail(session, page, multi, new);
     return (ret);
 }

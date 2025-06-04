@@ -154,8 +154,6 @@ struct __wt_btree {
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
     u_int split_deepen_per_child; /* Entries per child when deepened */
     int split_pct;                /* Split page percent */
-    u_int delta_pct;              /* Delta page percent (of full page size) */
-    u_int max_consecutive_delta;  /* Max number of consecutive deltas */
 
     WT_COMPRESSOR *compressor;    /* Page compressor */
                                   /*
@@ -214,13 +212,12 @@ struct __wt_btree {
     (__wt_atomic_load_enum(&(btree)->syncing) != WT_BTREE_SYNC_RUNNING || \
       __wt_atomic_load_pointer(&(btree)->sync_session) == (session))
 
-    wt_shared uint64_t bytes_dirty_intl;    /* Bytes in dirty internal pages. */
-    wt_shared uint64_t bytes_dirty_leaf;    /* Bytes in dirty leaf pages. */
-    wt_shared uint64_t bytes_dirty_total;   /* Bytes ever dirtied in cache. */
-    wt_shared uint64_t bytes_inmem;         /* Cache bytes in memory. */
-    wt_shared uint64_t bytes_internal;      /* Bytes in internal pages. */
-    wt_shared uint64_t bytes_updates;       /* Bytes in updates. */
-    wt_shared uint64_t bytes_delta_updates; /* Bytes of updates reconstructed from deltas */
+    wt_shared uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
+    wt_shared uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
+    wt_shared uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
+    wt_shared uint64_t bytes_inmem;       /* Cache bytes in memory. */
+    wt_shared uint64_t bytes_internal;    /* Bytes in internal pages. */
+    wt_shared uint64_t bytes_updates;     /* Bytes in updates. */
 
     uint64_t max_upd_txn; /* Transaction ID for the latest update on the btree. */
 

@@ -458,25 +458,18 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          */
         if (mod->mod_multi_entries == 1) {
             WT_ASSERT(session, closing == false);
-            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0], true));
+            WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
     case WT_PM_REC_REPLACE:
-        /*
-         * 1-for-1 page swap: Update the parent to reference the replacement page.
-         *
-         * It's possible to see an empty disk address if the previous reconciliation skipped writing
-         * an empty delta.
-         */
-        if (mod->mod_replace.block_cookie != NULL) {
-            WT_RET(__wt_calloc_one(session, &addr));
-            *addr = mod->mod_replace;
-            mod->mod_replace.block_cookie = NULL;
-            mod->mod_replace.block_cookie_size = 0;
-            ref->addr = addr;
-        } else
-            WT_ASSERT(session, F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && ref->addr != NULL);
+        /* 1-for-1 page swap: Update the parent to reference the replacement page. */
+        WT_ASSERT(session, mod->mod_replace.block_cookie != NULL);
+        WT_RET(__wt_calloc_one(session, &addr));
+        *addr = mod->mod_replace;
+        mod->mod_replace.block_cookie = NULL;
+        mod->mod_replace.block_cookie_size = 0;
+        ref->addr = addr;
 
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
@@ -498,7 +491,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              */
             tmp = mod->mod_disk_image;
             mod->mod_disk_image = NULL;
-            ret = __wt_split_rewrite(session, ref, &multi, true);
+            ret = __wt_split_rewrite(session, ref, &multi);
             if (ret != 0) {
                 mod->mod_disk_image = tmp;
                 return (ret);
