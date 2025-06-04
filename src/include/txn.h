@@ -282,6 +282,13 @@ struct __wt_txn_snapshot {
 
 #define WT_TS_VERBOSE_PREFIX "unexpected timestamp usage: "
 
+struct __wt_txn_log {
+    uint32_t txn_logsync; /* Log sync configuration */
+
+    /* Scratch buffer for in-memory log records. */
+    WT_ITEM *logrec;
+};
+
 /*
  * WT_TXN --
  *	Per-session transaction context.
@@ -293,7 +300,7 @@ struct __wt_txn {
 
     uint32_t forced_iso; /* Isolation is currently forced. */
 
-    uint32_t txn_logsync; /* Log sync configuration */
+    WT_TXN_LOG txn_log;
 
     /* Snapshot data. */
     WT_TXN_SNAPSHOT snapshot_data;
@@ -340,9 +347,6 @@ struct __wt_txn {
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-
-    /* Scratch buffer for in-memory log records. */
-    WT_ITEM *logrec;
 
     /* Checkpoint status. */
     WT_LSN ckpt_lsn;

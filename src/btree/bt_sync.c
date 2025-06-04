@@ -32,9 +32,11 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     /*
      * This is the history store btree. As part of the checkpointing the data store, we will move
      * the older values into the history store without using any transactions, we shouldn't ignore
-     * them for consistency
+     * them for consistency. Same goes for disaggregated storage metadata.
      */
     if (WT_IS_HS(session->dhandle))
+        return (false);
+    if (WT_IS_DISAGG_META(session->dhandle))
         return (false);
 
     /* The checkpoint's snapshot includes the first dirty update on the page. */
@@ -55,7 +57,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
-            if (multi->addr.addr == NULL)
+            if (multi->addr.block_cookie == NULL)
                 return (false);
 
     /* RTS, recovery or shutdown should not leave anything dirty behind. */
@@ -353,6 +355,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             tried_eviction = false;
 
             WT_STAT_CONN_INCR(session, checkpoint_pages_reconciled);
+            WT_STAT_CONN_INCRV(session, checkpoint_pages_reconciled_bytes, page->memory_footprint);
             WT_STATP_DSRC_INCR(session, btree->dhandle->stats, btree_checkpoint_pages_reconciled);
             if (FLD_ISSET(rec_flags, WT_REC_HS))
                 WT_STAT_CONN_INCR(session, checkpoint_hs_pages_reconciled);
