@@ -2925,7 +2925,6 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (btree->type == BTREE_ROW)
             __wt_free(session, multi->key);
 
-        multi->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
 
@@ -2941,6 +2940,8 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
               session, multi->addr.block_cookie, multi->addr.block_cookie_size, false));
             __wt_free(session, multi->addr.block_cookie);
         }
+
+        multi->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     }
     __wt_free(session, mod->mod_multi);
     mod->mod_multi_entries = 0;
