@@ -2521,11 +2521,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly)
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
-                __wt_atomic_decrement_if_positive(&cache->evict_aggressive_score);
-
-                WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
-                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
-                  session->txn->rollback_reason);
+                __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
+                if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                      session->err_info.err_msg);
             }
             WT_ERR(ret);
         }
