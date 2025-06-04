@@ -2862,10 +2862,9 @@ __wti_evict_app_assist_worker(
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
                 __wt_atomic_decrement_if_positive(&evict->evict_aggressive_score);
-
-                WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
-                __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
-                  session->txn->rollback_reason);
+                if (F_ISSET(session, WT_SESSION_SAVE_ERRORS))
+                    __wt_verbose_debug1(session, WT_VERB_TRANSACTION, "rollback reason: %s",
+                      session->err_info.err_msg);
             }
             WT_ERR(ret);
         }
