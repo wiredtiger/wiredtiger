@@ -145,18 +145,6 @@ file_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this file''',
         type='category', subconfig=disaggregated_config_common + [
-            Config('delta_pct', '20', r'''
-                the size threshold (as a percentage) at which a delta will cease to be emitted
-                when reconciling a page. For example, if this is set to 20, the size of a delta
-                is 20 bytes, and the size of the full page image is 100 bytes, reconciliation
-                can emit a delta for the page (if various other preconditions are met).
-                Conversely, if the delta came to 21 bytes, reconciliation would not emit a
-                delta. Deltas larger than full pages are permitted for measurement and testing
-                reasons, and may be disallowed in future.''', min='1', max='1000'),
-            Config('max_consecutive_delta', '32', r'''
-                the max consecutive deltas allowed for a single page. The maximum value is set
-                at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
-                as well.''', min='1', max='32')
         ]
     ),
 ]
@@ -613,6 +601,10 @@ connection_runtime_config = [
             and one that will never checkpoint, it might discard log files before any checkpoint is
             done.) Ignored if set to 0''',
             min='0', max='1024'),
+        Config('page_history', 'false', r'''
+            if true, keep track of per-page usage statistics for all pages and periodically print a
+            report. Currently this works only for disaggregated storage.''',
+            type='boolean', undoc=True),
         Config('realloc_exact', 'false', r'''
             if true, reallocation of memory will only provide the exact amount requested. This
             will help with spotting memory allocation issues more easily.''',
