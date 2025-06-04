@@ -1578,8 +1578,29 @@ methods = {
             undoc=True),
         Config('dump_version', 'false', r'''
             open a version cursor, which is a debug cursor on a table that enables iteration
-            through the history of values for a given key.''',
-            type='boolean'),
+            through the history of values for all the keys.''',
+            type='category', subconfig=[
+                Config('enabled', 'false', r'''
+                    enable version cursor''',
+                    type='boolean', undoc=True),
+                Config('visible_only', 'false', r'''
+                    only dump updates that are visible to the session''',
+                    type='boolean', undoc=True),
+                Config('start_timestamp', '', r'''
+                    Only return updates with durable timestamps larger than the start timestamp. If
+                    a tombstone has a timestamp larger than the start timestamp but the associated
+                    full value has a timestamp smaller than the start timestamp, it returns the
+                    tombstone and the full value.''', undoc=True),
+                Config('timestamp_order', 'false', r'''
+                    Return the updates in timestamp order from newest to oldest and ignore duplicate
+                    updates and updates that are from the same transaction with the same timestamp.
+                    ''',
+                    type='boolean', undoc=True),
+                Config('raw_key_value', 'false', r'''
+                    Return the key, value as raw data.
+                    ''',
+                    type='boolean', undoc=True),
+        ]),
         Config('release_evict', 'false', r'''
             Configure the cursor to evict the page positioned on when the reset API call is used''',
             type='boolean'),
