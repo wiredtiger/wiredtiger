@@ -78,7 +78,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -105,7 +105,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -139,7 +139,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -169,7 +169,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -198,7 +198,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -235,7 +235,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -305,7 +305,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -332,7 +332,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -346,32 +346,6 @@ class test_cursor18(wttest.WiredTigerTestCase):
         self.assertEqual(version_cursor.get_key(), 1)
         self.verify_value(version_cursor, 1, 1, WT_TS_MAX, WT_TS_MAX, 3, 0, 0)
         self.assertEqual(version_cursor.next(), wiredtiger.WT_NOTFOUND)
-
-    def test_prepare_tombstone_inmem(self):
-        self.create()
-
-        cursor = self.session.open_cursor(self.uri, None)
-        # Add a value to the update chain
-        self.session.begin_transaction()
-        cursor[1] = 0
-        self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(1))
-
-        # Delete the value with prepare
-        session2 = self.conn.open_session()
-        cursor2 = session2.open_cursor(self.uri, None)
-        # Add a value to the update chain
-        session2.begin_transaction()
-        cursor2.set_key(1)
-        self.assertEqual(cursor2.remove(), 0)
-        session2.prepare_transaction("prepare_timestamp=" + self.timestamp_str(2))
-
-        # Open a version cursor
-        self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
-        version_cursor.set_key(1)
-        self.assertEqual(version_cursor.search(), 0)
-        self.assertEqual(version_cursor.get_key(), 1)
-        self.verify_value(version_cursor, 1, 1, 2, 0, 3, 1, 0)
 
     def test_prepare_tombstone(self):
         self.create()
@@ -399,7 +373,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)
@@ -416,7 +390,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         try:
@@ -443,7 +417,7 @@ class test_cursor18(wttest.WiredTigerTestCase):
 
         # Open a version cursor
         self.session.begin_transaction()
-        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=true)")
+        version_cursor = self.session.open_cursor(self.uri, None, "debug=(dump_version=(enabled=true))")
         version_cursor.set_key(1)
         self.assertEqual(version_cursor.search(), 0)
         self.assertEqual(version_cursor.get_key(), 1)

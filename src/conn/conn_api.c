@@ -1235,7 +1235,7 @@ err:
      * well. It needs to happen after we destroy the sweep server. Otherwise, the sweep server may
      * see a freed layered table manager.
      */
-    WT_TRET(__wt_layered_table_manager_destroy(session));
+    WT_TRET(__wti_layered_table_manager_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));

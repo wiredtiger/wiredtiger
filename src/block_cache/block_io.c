@@ -352,8 +352,8 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t mem_sz, WT_IT
     memcpy(out->mem, in, WT_BLOCK_COMPRESS_SKIP);
 
     /*
-     * TODO I'm not a big fan of casting away the const-ness of in, but the compressor interface
-     * marks it as non-const.
+     * TODO I'm not a big fan of casting away the const, but the compressor interface marks it as
+     * non-const.
      */
     ret =
       compressor->decompress(compressor, &session->iface, (uint8_t *)in + WT_BLOCK_COMPRESS_SKIP,
