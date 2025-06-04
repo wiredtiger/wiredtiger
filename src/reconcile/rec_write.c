@@ -3086,8 +3086,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              * The exception is root pages are never tracked or free'd, they
              * are checkpoints, and must be explicitly dropped.
              *
-             * TODO: Does the root work for the same way in disagg? Do we need a separate API to
-             * tell the SLS to drop the checkpoint?
+             * FIXME-WT-14700: Does the root work for the same way in disagg? Do we need a separate
+             * API to tell the SLS that we are discarding a root page?
              */
         if (__wt_ref_is_root(ref))
             break;
@@ -3114,8 +3114,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                              * The exception is root pages are never tracked or free'd, they are
                              * checkpoints, and must be explicitly dropped.
                              *
-                             * TODO: Does the root work for the same way in disagg? Do we need a
-                             * separate API to tell the SLS to drop the checkpoint?
+                             * FIXME-WT-14700: Does the root work for the same way in disagg? Do we
+                             * need a separate API to tell the SLS that we are discarding a root
+                             * page?
                              */
         if (!__wt_ref_is_root(ref))
             WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
