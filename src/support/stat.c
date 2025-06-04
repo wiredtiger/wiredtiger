@@ -49,6 +49,10 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: row-store empty values",
   "btree: row-store internal pages",
   "btree: row-store leaf pages",
+  "cache: application threads eviction requested with cache fill ratio < 25%",
+  "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
+  "cache: application threads eviction requested with cache fill ratio >= 50% and < 75%",
+  "cache: application threads eviction requested with cache fill ratio >= 75%",
   "cache: bytes currently in the cache",
   "cache: bytes dirty in the cache cumulative",
   "cache: bytes read into cache",
@@ -112,6 +116,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: number of leaf pages flattened that had deltas attached",
   "cache: number of leaf pages not flattened that had deltas attached due to failure",
   "cache: number of leaf pages read that had deltas attached",
+  "cache: number of times dirty trigger was reached",
+  "cache: number of times eviction trigger was reached",
+  "cache: number of times updates trigger was reached",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page eviction blocked due to materialization frontier",
@@ -455,6 +462,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf = 0;
+    stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_50_75 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_gt_75 = 0;
     /* not clearing cache_bytes_inuse */
     /* not clearing cache_bytes_dirty_total */
     stats->cache_bytes_read = 0;
@@ -507,6 +518,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_read_flatten_leaf_delta = 0;
     stats->cache_read_flatten_leaf_delta_fail = 0;
     stats->cache_read_leaf_delta = 0;
+    stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->cache_eviction_trigger_reached = 0;
+    stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_blocked_materialization = 0;
@@ -822,6 +836,14 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf += from->btree_row_leaf;
+    to->cache_eviction_app_threads_fill_ratio_lt_25 +=
+      from->cache_eviction_app_threads_fill_ratio_lt_25;
+    to->cache_eviction_app_threads_fill_ratio_25_50 +=
+      from->cache_eviction_app_threads_fill_ratio_25_50;
+    to->cache_eviction_app_threads_fill_ratio_50_75 +=
+      from->cache_eviction_app_threads_fill_ratio_50_75;
+    to->cache_eviction_app_threads_fill_ratio_gt_75 +=
+      from->cache_eviction_app_threads_fill_ratio_gt_75;
     to->cache_bytes_inuse += from->cache_bytes_inuse;
     to->cache_bytes_dirty_total += from->cache_bytes_dirty_total;
     to->cache_bytes_read += from->cache_bytes_read;
@@ -883,6 +905,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_read_flatten_leaf_delta += from->cache_read_flatten_leaf_delta;
     to->cache_read_flatten_leaf_delta_fail += from->cache_read_flatten_leaf_delta_fail;
     to->cache_read_leaf_delta += from->cache_read_leaf_delta;
+    to->cache_eviction_trigger_dirty_reached += from->cache_eviction_trigger_dirty_reached;
+    to->cache_eviction_trigger_reached += from->cache_eviction_trigger_reached;
+    to->cache_eviction_trigger_updates_reached += from->cache_eviction_trigger_updates_reached;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_blocked_materialization += from->cache_eviction_blocked_materialization;
@@ -1204,6 +1229,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += WT_STAT_DSRC_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_DSRC_READ(from, btree_row_internal);
     to->btree_row_leaf += WT_STAT_DSRC_READ(from, btree_row_leaf);
+    to->cache_eviction_app_threads_fill_ratio_lt_25 +=
+      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
+    to->cache_eviction_app_threads_fill_ratio_25_50 +=
+      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_25_50);
+    to->cache_eviction_app_threads_fill_ratio_50_75 +=
+      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_50_75);
+    to->cache_eviction_app_threads_fill_ratio_gt_75 +=
+      WT_STAT_DSRC_READ(from, cache_eviction_app_threads_fill_ratio_gt_75);
     to->cache_bytes_inuse += WT_STAT_DSRC_READ(from, cache_bytes_inuse);
     to->cache_bytes_dirty_total += WT_STAT_DSRC_READ(from, cache_bytes_dirty_total);
     to->cache_bytes_read += WT_STAT_DSRC_READ(from, cache_bytes_read);
@@ -1277,6 +1310,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read_flatten_leaf_delta_fail +=
       WT_STAT_DSRC_READ(from, cache_read_flatten_leaf_delta_fail);
     to->cache_read_leaf_delta += WT_STAT_DSRC_READ(from, cache_read_leaf_delta);
+    to->cache_eviction_trigger_dirty_reached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_reached += WT_STAT_DSRC_READ(from, cache_eviction_trigger_reached);
+    to->cache_eviction_trigger_updates_reached +=
+      WT_STAT_DSRC_READ(from, cache_eviction_trigger_updates_reached);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
@@ -1666,6 +1704,10 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: number of times the region was remapped via write",
   "cache: application requested eviction interrupt",
   "cache: application thread time evicting (usecs)",
+  "cache: application threads eviction requested with cache fill ratio < 25%",
+  "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
+  "cache: application threads eviction requested with cache fill ratio >= 50% and < 75%",
+  "cache: application threads eviction requested with cache fill ratio >= 75%",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -1813,6 +1855,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: number of leaf pages flattened that had deltas attached",
   "cache: number of leaf pages not flattened that had deltas attached due to failure",
   "cache: number of leaf pages read that had deltas attached",
+  "cache: number of times dirty trigger was reached",
+  "cache: number of times eviction trigger was reached",
+  "cache: number of times updates trigger was reached",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -2399,6 +2444,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: a reader raced with a prepared transaction commit and skipped an update or updates",
   "transaction: number of times overflow removed value is read",
   "transaction: oldest pinned transaction ID rolled back for eviction",
+  "transaction: oldest transaction ID rolled back for eviction",
   "transaction: prepared transactions",
   "transaction: prepared transactions committed",
   "transaction: prepared transactions currently active",
@@ -2586,6 +2632,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_remap_file_write = 0;
     stats->eviction_interupted_by_app = 0;
     stats->eviction_app_time = 0;
+    stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_50_75 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_gt_75 = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -2717,6 +2767,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_flatten_leaf_delta = 0;
     stats->cache_read_flatten_leaf_delta_fail = 0;
     stats->cache_read_leaf_delta = 0;
+    stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->cache_eviction_trigger_reached = 0;
+    stats->cache_eviction_trigger_updates_reached = 0;
     stats->eviction_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -3294,6 +3347,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_read_race_prepare_commit = 0;
     stats->txn_read_overflow_remove = 0;
     stats->txn_rollback_oldest_pinned = 0;
+    stats->txn_rollback_oldest_id = 0;
     stats->txn_prepare = 0;
     stats->txn_prepare_commit = 0;
     stats->txn_prepare_active = 0;
@@ -3471,6 +3525,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_remap_file_write += WT_STAT_CONN_READ(from, block_remap_file_write);
     to->eviction_interupted_by_app += WT_STAT_CONN_READ(from, eviction_interupted_by_app);
     to->eviction_app_time += WT_STAT_CONN_READ(from, eviction_app_time);
+    to->cache_eviction_app_threads_fill_ratio_lt_25 +=
+      WT_STAT_CONN_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
+    to->cache_eviction_app_threads_fill_ratio_25_50 +=
+      WT_STAT_CONN_READ(from, cache_eviction_app_threads_fill_ratio_25_50);
+    to->cache_eviction_app_threads_fill_ratio_50_75 +=
+      WT_STAT_CONN_READ(from, cache_eviction_app_threads_fill_ratio_50_75);
+    to->cache_eviction_app_threads_fill_ratio_gt_75 +=
+      WT_STAT_CONN_READ(from, cache_eviction_app_threads_fill_ratio_gt_75);
     to->cache_read_app_count += WT_STAT_CONN_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_CONN_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_CONN_READ(from, cache_write_app_count);
@@ -3642,6 +3704,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_flatten_leaf_delta_fail +=
       WT_STAT_CONN_READ(from, cache_read_flatten_leaf_delta_fail);
     to->cache_read_leaf_delta += WT_STAT_CONN_READ(from, cache_read_leaf_delta);
+    to->cache_eviction_trigger_dirty_reached +=
+      WT_STAT_CONN_READ(from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_reached += WT_STAT_CONN_READ(from, cache_eviction_trigger_reached);
+    to->cache_eviction_trigger_updates_reached +=
+      WT_STAT_CONN_READ(from, cache_eviction_trigger_updates_reached);
     to->eviction_timed_out_ops += WT_STAT_CONN_READ(from, eviction_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_overflow_keys);
@@ -4343,6 +4410,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_read_race_prepare_commit += WT_STAT_CONN_READ(from, txn_read_race_prepare_commit);
     to->txn_read_overflow_remove += WT_STAT_CONN_READ(from, txn_read_overflow_remove);
     to->txn_rollback_oldest_pinned += WT_STAT_CONN_READ(from, txn_rollback_oldest_pinned);
+    to->txn_rollback_oldest_id += WT_STAT_CONN_READ(from, txn_rollback_oldest_id);
     to->txn_prepare += WT_STAT_CONN_READ(from, txn_prepare);
     to->txn_prepare_commit += WT_STAT_CONN_READ(from, txn_prepare_commit);
     to->txn_prepare_active += WT_STAT_CONN_READ(from, txn_prepare_active);
