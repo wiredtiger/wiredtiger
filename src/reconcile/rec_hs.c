@@ -258,7 +258,6 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
-    WT_ITEM key_string;
     WT_TIME_WINDOW *twp = NULL;
     wt_timestamp_t hs_start_ts = WT_TS_NONE;
     uint64_t hs_counter;
@@ -267,7 +266,6 @@ __rec_hs_cursor_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btr
     int cmp;
 #endif
     WT_CLEAR(hs_key);
-    WT_CLEAR(key_string);
 #ifndef HAVE_DIAGNOSTIC
     WT_UNUSED(key);
     WT_UNUSED(btree_id);
