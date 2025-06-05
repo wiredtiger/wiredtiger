@@ -6226,8 +6226,7 @@ buildvariants:
   batchtime: 1440 # 24 hours
   expansions:
     ENABLE_TCMALLOC: 1
-    # FIXME-WT-14461: Use stable toolchain once workgen tests are fixed.
-    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v4_gcc.cmake
+    CMAKE_TOOLCHAIN_FILE: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v5_gcc.cmake
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
   tasks:
     - name: ".workgen-test"
