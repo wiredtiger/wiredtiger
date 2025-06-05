@@ -262,30 +262,3 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
 
     return (0);
 }
-
-/*
- * __wti_block_disagg_page_discard --
- *     Discard a page.
- */
-int
-__wti_block_disagg_page_discard(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, size_t addr_size)
-{
-    WT_BLOCK_DISAGG *block_disagg;
-    uint64_t checkpoint_id, lsn, page_id, reconciliation_id;
-    uint32_t checksum, size;
-
-    block_disagg = (WT_BLOCK_DISAGG *)block;
-
-    /* Crack the cookie. */
-    WT_RET(__wti_block_disagg_addr_unpack(
-      &addr, addr_size, &page_id, &lsn, &checkpoint_id, &reconciliation_id, &size, &checksum));
-
-    __wt_verbose(session, WT_VERB_BLOCK,
-      "block free: page_id %" PRIu64 ", lsn %" PRIu64 ", checkpoint_id %" PRIu64
-      ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
-      page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
-
-    /* FIXME-WT-14532: Implement the page discard logic. */
-    return (0);
-}
