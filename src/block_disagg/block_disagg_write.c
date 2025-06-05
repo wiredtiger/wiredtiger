@@ -287,5 +287,7 @@ __wti_block_disagg_page_discard(
       page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
 
     /* FIXME-WT-14532: Implement the page discard logic. */
+    WT_UNUSED(block_disagg);
+
     return (0);
 }
