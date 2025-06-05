@@ -174,6 +174,7 @@ class test_import12(test_import_base):
                     err = WT_ERROR
                 else:
                     raise e
+            self.ignoreStderrPatternIfExists(".*failed to read.*")
             # If the second create attempt failed, try again with repair=true.
             # We expect success.
             if err == WT_ERROR:
