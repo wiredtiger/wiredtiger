@@ -124,6 +124,30 @@ __evict_stats_update(WT_SESSION_IMPL *session, uint8_t flags)
     }
 }
 
+/*
+ * __evict_page_stats_update --
+ *     Update the stats of eviction statistics for a page. These statistics help monitor page
+ *     eviction behavior to help investigate why a page is not able to be evicted.
+ */
+static void
+__evict_page_stats_update(const WT_CONNECTION_IMPL *conn, WT_PAGE *page)
+{
+    /*
+     * Track the largest page size seen at eviction, it tells us something about our ability to
+     * force pages out before they're larger than the cache. We don't care about races, it's just a
+     * statistic.
+     */
+    if (__wt_atomic_loadsize(&page->memory_footprint) >
+      __wt_atomic_load64(&conn->evict->evict_max_page_size))
+        __wt_atomic_store64(
+          &conn->evict->evict_max_page_size, __wt_atomic_loadsize(&page->memory_footprint));
+
+    const uint64_t gen_gap =
+      __wt_atomic_load64(&conn->evict->evict_pass_gen) - __wt_atomic_load64(&page->evict_pass_gen);
+    if (gen_gap > __wt_atomic_load64(&conn->evict->evict_max_gen_gap))
+        __wt_atomic_store64(&conn->evict->evict_max_gen_gap, gen_gap);
+}
+
 /* !!!
  * __wt_evict --
  *     Evict a page from memory by taking exclusive access to the page.
@@ -252,16 +276,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_STATE previous_state, u
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         WT_STAT_CONN_DSRC_INCR(session, cache_eviction_internal);
 
-    /*
-     * Track the largest page size seen at eviction, it tells us something about our ability to
-     * force pages out before they're larger than the cache. We don't care about races, it's just a
-     * statistic.
-     */
-    if (__wt_atomic_loadsize(&page->memory_footprint) >
-      __wt_atomic_load64(&conn->evict->evict_max_page_size))
-        __wt_atomic_store64(
-          &conn->evict->evict_max_page_size, __wt_atomic_loadsize(&page->memory_footprint));
-
+    __evict_page_stats_update(conn, page);
     /* Figure out whether reconciliation was done on the page */
     if (__wt_page_evict_clean(page)) {
         clean_page = true;
