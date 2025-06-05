@@ -345,6 +345,7 @@ __wt_txn_snapshot_save_and_refresh(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_TXN *txn;
 
+
     txn = session->txn;
 
     WT_RET(__wt_calloc_def(session, sizeof(WT_TXN_SNAPSHOT), &txn->backup_snapshot_data));
