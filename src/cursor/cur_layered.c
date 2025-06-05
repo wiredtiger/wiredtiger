@@ -383,10 +383,11 @@ __clayered_adjust_state(
     conn = S2C(session);
     current_leader = conn->layered_table_manager.leader;
     /* Get the current checkpoint id. This only matters if we are a follower. */
-    if (!current_leader)
+    if (!current_leader) {
         WT_ACQUIRE_READ(current_checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
-    else
+    } else {
         current_checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
+    }
 
     /*
      * Has any state changed? What is not checked here is the possibility that a step down and step
