@@ -511,6 +511,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_write;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
+    int64_t eviction_allow_scrub;
     int64_t cache_bytes_hs_dirty;
     int64_t eviction_server_evict_attempt;
     int64_t eviction_worker_evict_attempt;

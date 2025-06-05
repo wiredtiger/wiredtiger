@@ -924,10 +924,9 @@ __evict_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags)
              * Scrub only if cache is under the clean eviction target or the page has high read
              * generation (the page is hot and we want to keep it in cache).
              */
-            if (can_scrub &&
-              (!__wt_evict_clean_needed(session, NULL) ||
-                ref->page->read_gen > __evict_read_gen(session))) {
+            if (can_scrub) {
                 LF_SET(WT_REC_SCRUB);
+                WT_STAT_CONN_INCR(session, eviction_allow_scrub);
             }
         }
     }

@@ -302,6 +302,7 @@ conn_stats = [
     ##########################################
     EvictStat('eviction_active_workers', 'eviction worker thread active', 'no_clear'),
     EvictStat('eviction_aggressive_set', 'eviction currently operating in aggressive mode', 'no_clear,no_scale'),
+    EvictStat('eviction_allow_scrub', 'count eviction allowing scrub'),
     EvictStat('eviction_app_attempt', 'page evict attempts by application threads'),
     EvictStat('eviction_app_dirty_attempt', 'modified page evict attempts by application threads'),
     EvictStat('eviction_app_dirty_fail', 'modified page evict failures by application threads'),
