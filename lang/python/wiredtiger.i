@@ -705,6 +705,7 @@ NOTFOUND_OK(__wt_cursor::_modify)
 NOTFOUND_OK(__wt_cursor::largest_key)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
+ANY_OK(__wt_page_log_discard_args::__wt_page_log_dicard_args)
 ANY_OK(__wt_page_log_get_args::__wt_page_log_get_args)
 ANY_OK(__wt_page_log_put_args::__wt_page_log_put_args)
 
@@ -750,6 +751,13 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_page_log::get_open_checkpoint(WT_PAGE_LOG *, int *);
 
 /* TODO: workaround for issues with getting a Python version of structs working. */
+%ignore __wt_page_log_discard_args::lsn;
+%ignore __wt_page_log_discard_args::backlink_lsn;
+%ignore __wt_page_log_discard_args::base_lsn;
+%ignore __wt_page_log_discard_args::backlink_checkpoint_id;
+%ignore __wt_page_log_discard_args::base_checkpoint_id;
+%ignore __wt_page_log_discard_args::lsn_frontier;
+%ignore __wt_page_log_discard_args::delta_count;
 %ignore __wt_page_log_put_args::backlink_lsn;
 %ignore __wt_page_log_put_args::base_lsn;
 %ignore __wt_page_log_put_args::backlink_checkpoint_id;
@@ -1461,6 +1469,7 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(Connection) __wt_connection;
 %rename(FileHandle) __wt_file_handle;
 %rename(PageLog) __wt_page_log;
+%rename(PageLogDiscardArgs) __wt_page_log_discard_args;
 %rename(PageLogGetArgs) __wt_page_log_get_args;
 %rename(PageLogHandle) __wt_page_log_handle;
 %rename(PageLogPutArgs) __wt_page_log_put_args;
