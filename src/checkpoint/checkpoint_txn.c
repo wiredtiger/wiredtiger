@@ -1339,9 +1339,9 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
      * metadata with exactly the same value. It is also possible that the table has already been
      * dropped, in which case those entries would be silently ignored.
      *
-     * FIXME: We should make this more efficient in the future, and we should also include a
-     * protection against someone creating a layered table, dropping the table, and then recreating
-     * a local table with the same name.
+     * FIXME-WT-14725: We should make this more efficient in the future, and we should also include
+     * a protection against someone creating a layered table, dropping the table, and then
+     * recreating a local table with the same name.
      */
     if (__wt_conn_is_disagg(session) && conn->layered_table_manager.leader)
         WT_ERR(__wt_disagg_copy_metadata_process(session));

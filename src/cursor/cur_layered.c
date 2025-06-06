@@ -393,7 +393,7 @@ __clayered_adjust_state(
      * Has any state changed? What is not checked here is the possibility that a step down and step
      * up have both occurred since the last check. We don't have a way to detect that (or its
      * opposite) at the moment. If we did, we'd want to issue a rollback if the stable cursor has
-     * any changes. FIXME-SLS-1607.
+     * any changes. FIXME-WT-14545.
      */
     if (current_leader != clayered->leader || current_checkpoint_id != clayered->checkpoint_id) {
         change_ingest = false;
@@ -412,10 +412,7 @@ __clayered_adjust_state(
              */
             if (!current_leader && (update || session->txn->mod_count != 0)) {
                 __wt_txn_err_set(session, WT_ROLLBACK);
-                /*
-                 * Write operations are not allowed after stepping down from leader role. TODO
-                 * replace with a sub-error code.
-                 */
+                /* Write operations are not allowed after stepping down from leader role. */
                 WT_RET(WT_ROLLBACK);
             }
 
@@ -573,8 +570,6 @@ __clayered_open_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, b
         /*
          * If the stable cursor is not set, and we've succeeded to this point, that means we've
          * deferred opening the stable cursor.
-         *
-         * TODO SLS-1052 make sure this gets set if the stable constituent appears later.
          */
         if (clayered->stable_cursor != NULL) {
             WT_ASSERT(session, WT_PREFIX_MATCH(clayered->stable_cursor->uri, "file:"));
@@ -1482,8 +1477,6 @@ __clayered_modify_int(WT_SESSION_IMPL *session, WT_CURSOR_LAYERED *clayered, con
     c->set_key(c, key);
     WT_RET(c->modify(c, entries, nentries));
 
-    /* TODO: Need something to add a log record? */
-
     return (0);
 }
 
@@ -1873,7 +1866,7 @@ __clayered_next_random(WT_CURSOR *cursor)
     WT_ERR(__clayered_enter(clayered, false, false, true));
 
     for (;;) {
-        /* TODO: consider the size of ingest table in the future. */
+        /* FIXME-WT-14736: consider the size of ingest table in the future. */
         if (clayered->stable_cursor != NULL) {
             c = clayered->stable_cursor;
             /*
@@ -1910,8 +1903,8 @@ err:
  * __clayered_modify --
  *     WT_CURSOR->modify method for the layered cursor type. This function assumes the modify will
  *     be done on the btree that we originally calculate the diff from. Currently, we only allow
- *     writes to the stable table so the assumption holds. TODO: revisit this when we enable writing
- *     to the ingest table.
+ *     writes to the stable table so the assumption holds. FIXME-WT-14737: revisit this now that
+ *     we've enabled writing to the ingest table.
  */
 static int
 __clayered_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)

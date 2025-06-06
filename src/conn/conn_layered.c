@@ -74,7 +74,7 @@ __layered_create_missing_ingest_table(
     WT_ERR(__wt_config_getones(session, layered_cfg, "key_format", &key_format));
     WT_ERR(__wt_config_getones(session, layered_cfg, "value_format", &value_format));
 
-    /* TODO Refactor this with __create_layered? */
+    /* FIXME-WT-14728: Refactor this with __create_layered? */
     WT_ERR(__wt_scr_alloc(session, 0, &ingest_config));
     WT_ERR(__wt_buf_fmt(session, ingest_config,
       "key_format=\"%.*s\",value_format=\"%.*s\","
@@ -198,7 +198,7 @@ __disagg_get_meta(
             count = 1;
             WT_RET(disagg->page_log_meta->plh_get(disagg->page_log_meta, &session->iface, page_id,
               checkpoint_id, &get_args, item, &count));
-            WT_ASSERT(session, count <= 1); /* TODO: corrupt data */
+            WT_ASSERT(session, count <= 1); /* Corrupt data. */
 
             /* Found the data. */
             if (count == 1)
@@ -364,7 +364,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             cfg[2] = NULL;
             WT_ERR(__wt_config_collapse(session, cfg, &cfg_ret));
 
-            /* TODO: Possibly check that the other parts of the metadata are identical. */
+            /* FIXME-WT-14730: check that the other parts of the metadata are identical. */
 
             /* Put our new config in */
             md_cursor->set_value(md_cursor, cfg_ret);
@@ -378,7 +378,7 @@ __disagg_pick_up_checkpoint(WT_SESSION_IMPL *session, uint64_t meta_lsn, uint64_
             __wt_free(session, cfg_ret);
         } else if (ret == WT_NOTFOUND) {
             /* New table: Insert new metadata. */
-            /* TODO: Verify that there is no btree ID conflict. */
+            /* FIXME-WT-14730: verify that there is no btree ID conflict. */
 
             /* Create the corresponding ingest table, if it does not exist. */
             if (WT_PREFIX_MATCH(metadata_key, "layered:")) {
@@ -501,7 +501,7 @@ __layered_table_manager_thread_run(WT_SESSION_IMPL *session_shared, WT_THREAD *t
 
     WT_STAT_CONN_SET(session, layered_table_manager_active, 1);
 
-    /* TODO: now we just sleep. In the future, do whatever we need to do here. */
+    /* Right now we just sleep. In the future, do whatever we need to do here. */
     __wt_sleep(1, 0);
 
     WT_STAT_CONN_SET(session, layered_table_manager_active, 0);
@@ -969,8 +969,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
         WT_ERR(__wt_config_gets(session, cfg, "disaggregated.checkpoint_meta", &cval));
         if (cval.len > 0) {
             /*
-             * TODO: currently the leader silently ignores the checkpoint_meta configuration as it
-             * may have an obsolete configuration in its base config when it is still a follower.
+             * FIXME-WT-14733: currently the leader silently ignores the checkpoint_meta
+             * configuration as it may have an obsolete configuration in its base config when it is
+             * still a follower.
              */
             if (!leader) {
                 WT_WITH_CHECKPOINT_LOCK(
@@ -1089,8 +1090,9 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
                 WT_ERR(ret);
             } else
                 /*
-                 * TODO: If we are starting with local files, get the checkpoint ID from them?
-                 * Alternatively, maybe we should just fail if the checkpoint ID is not specified?
+                 * FIXME-WT-14731: If we are starting with local files, get the checkpoint ID from
+                 * them? Alternatively, maybe we should just fail if the checkpoint ID is not
+                 * specified?
                  */
                 checkpoint_id = WT_DISAGG_CHECKPOINT_ID_NONE;
         }
@@ -1300,9 +1302,9 @@ __layered_clear_ingest_table(WT_SESSION_IMPL *session, const char *uri)
     WT_ASSERT(session, WT_SUFFIX_MATCH(uri, ".wt_ingest"));
 
     /*
-     * Truncate needs a running txn. TODO we should probably do something more like the history
-     * store and make this non-transactional -- this happens during step-up, so we know there are no
-     * other transactions running, so it's safe.
+     * Truncate needs a running txn. We should probably do something more like the history store and
+     * make this non-transactional -- this happens during step-up, so we know there are no other
+     * transactions running, so it's safe.
      */
     WT_RET(__wt_txn_begin(session, NULL));
 
@@ -1423,7 +1425,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
          * update in this case.
          */
         if (tw.durable_start_ts > last_checkpoint_timestamp) {
-            /* TODO: this is an ugly layering violation. But I can't think of a better way now. */
+            /* FIXME-WT-14732: this is an ugly layering violation. But I can't think of a better way
+             * now. */
             if (__wt_clayered_deleted(value)) {
                 /*
                  * If we use tombstone value, we should never see a real tombstone on the ingest
@@ -1439,9 +1442,8 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         } else
             WT_ASSERT(session, tombstone != NULL);
 
-        /*
-         * TODO: we can simplify the algorithm if we don't use real tombstones on the ingest table.
-         */
+        /* FIXME-WT-14732: we can simplify the algorithm if we don't use real tombstones on the
+         * ingest table. */
         if (tombstone != NULL) {
             tombstone->txnid = tw.stop_txn;
             tombstone->start_ts = tw.start_ts;
@@ -1510,12 +1512,12 @@ __layered_drain_ingest_tables(WT_SESSION_IMPL *session)
     table_count = manager->open_layered_table_count;
 
     /*
-     * TODO: shouldn't we hold this lock longer, e.g. manager->entries could get reallocated, or
-     * individual entries could get removed or freed.
+     * FIXME-WT-14734: shouldn't we hold this lock longer, e.g. manager->entries could get
+     * reallocated, or individual entries could get removed or freed.
      */
     __wt_spin_unlock(session, &manager->layered_table_lock);
 
-    /* TODO: skip empty ingest tables. */
+    /* FIXME-WT-14735: skip empty ingest tables. */
     for (i = 0; i < table_count; i++) {
         if ((entry = manager->entries[i]) != NULL) {
             WT_ERR(__layered_copy_ingest_table(internal_session, entry));
@@ -1665,9 +1667,9 @@ __layered_update_gc_ingest_tables_prune_timestamps(WT_SESSION_IMPL *session)
 
 err:
     /*
-     * TODO: we could hold lock for a shorter time. Maybe release it after getting/copying each URI,
-     * then an individual URI could be garbage collected without a lock, then re-acquire to get the
-     * next entry in the table.
+     * FIXME-WT-14735: we could hold lock for a shorter time. Maybe release it after getting/copying
+     * each URI, then an individual URI could be garbage collected without a lock, then re-acquire
+     * to get the next entry in the table.
      */
     __wt_spin_unlock(session, &manager->layered_table_lock);
 

@@ -352,8 +352,7 @@ __read_decompress(WT_SESSION_IMPL *session, const void *in, size_t mem_sz, WT_IT
     memcpy(out->mem, in, WT_BLOCK_COMPRESS_SKIP);
 
     /*
-     * TODO I'm not a big fan of casting away the const, but the compressor interface marks it as
-     * non-const.
+     * FIXME-WT-14716 Stop casting away the const. The compressor interface marks it as non-const.
      */
     ret =
       compressor->decompress(compressor, &session->iface, (uint8_t *)in + WT_BLOCK_COMPRESS_SKIP,
@@ -424,8 +423,8 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         WT_RET(__wt_calloc_def(session, 1, &tmp));
         WT_CLEAR(tmp[0]);
         /*
-         * TODO: we read garbage value for block meta from the block cache for non-disaggregated
-         * case. Pass a NULL for now.
+         * FIXME-WT-14717: we used to read garbage values for block meta from the block cache for
+         * non-disaggregated case. It's unclear if we still do -- pass a NULL for now.
          */
         WT_ERR(__wt_blkcache_read(session, &tmp[0], NULL, addr, addr_size));
         *buf_count = 1;
@@ -494,14 +493,13 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
         if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
             WT_STAT_DSRC_INCR(session, compress_read);
 
-        /* TODO: How do we want to account for deltas in these statistics? */
         WT_STAT_CONN_DSRC_INCRV(session, cache_bytes_read, dsk->mem_size);
         WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
         (void)__wt_atomic_add64(&S2C(session)->cache->bytes_read, dsk->mem_size);
     }
 
     /* Store the compressed block in the block_cache. */
-    /* TODO: Decrypt the block first. */
+    /* FIXME-WT-14718: decrypt the block first? */
     if (!skip_cache_put)
         WT_ERR(__wti_blkcache_put(
           session, ip, &results[1], count - 1, &block_meta_tmp, addr, addr_size, false));
@@ -516,7 +514,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
           session, WT_ERROR, addr, addr_size, "unencrypted block for which encryption configured"));
 
     /*
-     * TODO I think it's possible to get a cleaner handover between the decryption and decompression
+     * It might be possible to get a cleaner handover between the decryption and decompression
      * sections, possibly without a second item for the decompression. But that's a problem for
      * later.
      */
@@ -556,8 +554,7 @@ __wt_blkcache_read_multi(WT_SESSION_IMPL *session, WT_ITEM **buf, size_t *buf_co
      */
     for (i = 1; i < count; i++) {
         ip = &results[i];
-        /* TODO in principle we should end up not caring about which block manager is backing the
-         * file. */
+
         blk = WT_BLOCK_HEADER_REF_FOR_DELTAS(results[i].data);
 
         /*

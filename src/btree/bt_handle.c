@@ -491,8 +491,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool is_ckpt)
         F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
 
     /*
-     * Detect if the btree is disaggregated. TODO the file extension check should be replaced with
-     * something more robust.
+     * Detect if the btree is disaggregated. FIXME-WT-14721: the file extension check should be
+     * replaced with something more robust.
      */
     WT_RET(__wt_config_gets(session, cfg, "block_manager", &cval));
     if (strstr(btree->dhandle->name, ".wt_stable") != NULL || WT_CONFIG_LIT_MATCH("disagg", cval)) {
@@ -1136,8 +1136,8 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
      * In-memory configuration overrides any key/value sizes, there's no such thing as an overflow
      * item in an in-memory configuration.
      *
-     * TODO the disaggregated check is a workaround for the disaggregated block manager not yet
-     * supporting overflow items.
+     * FIXME-WT-14722: the disaggregated check is a workaround for the disaggregated block manager
+     * not yet supporting overflow items.
      */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) || F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
       F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {

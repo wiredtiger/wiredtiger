@@ -211,7 +211,7 @@ struct __wt_disaggregated_storage {
     int64_t ckpt_min_inuse;  /* The minimum checkpoint order in use. */
 
     /*
-     * TODO: Ideally we'd have flags passed to the IO system, which could make it all the way to the
+     * Ideally we'd have flags passed to the IO system, which could make it all the way to the
      * callers of posix_sync. But that's not possible because (1) posix_directory_sync also has no
      * way to change behavior because it doesn't have a file handle, and (2) the flags for a file
      * handle are all set up when we open the file, which can happen before disagg is set up and the
