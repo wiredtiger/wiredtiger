@@ -1252,6 +1252,10 @@ SIDESTEP_METHOD(__wt_page_log_handle, plh_get,
     WT_ITEM *results_array, u_int *results_count),
   (self, session, page_id, checkpoint_id, get_args, results_array, results_count))
 
+SIDESTEP_METHOD(__wt_page_log_handle, plh_discard,
+  (WT_SESSION *session, int page_id, int checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *discard_args),
+  (self, session, page_id, checkpoint_id, discard_args))
+
 SIDESTEP_METHOD(__wt_page_log_handle, plh_close,
   (WT_SESSION *session),
   (self, session))
