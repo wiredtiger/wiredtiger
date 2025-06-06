@@ -852,6 +852,9 @@ palm_open_handle(
     if ((palm_handle = calloc(1, sizeof(PALM_HANDLE))) == NULL)
         return (errno);
     palm_handle->iface.page_log = page_log;
+    /*
+     * FIXME-WT-14704 palm_handle->iface.plh_discard = palm_handle_discard;
+     */
     palm_handle->iface.plh_put = palm_handle_put;
     palm_handle->iface.plh_get = palm_handle_get;
     palm_handle->iface.plh_close = palm_handle_close;
