@@ -213,7 +213,7 @@ ops = txn(ops, 'isolation=snapshot')
 # use_commit_timestamp - Commit the transaction with commit_timestamp.
 ops.transaction.use_commit_timestamp = True
 ops = op_multi_table(ops, tables, False)
-ops = ops * 1000 + Operation(Operation.OP_SLEEP, "10")
+ops = ops * 10000 + Operation(Operation.OP_SLEEP, "10")
 thread_read10k_sleep10 = Thread(ops)
 thread_upd10k_sleep10.options.name = "Search"
 thread_read10k_sleep10.options.session_config="isolation=snapshot"
