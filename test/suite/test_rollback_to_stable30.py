@@ -70,7 +70,7 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
             'oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        # Write some data and prepare it.
+        # Position a cursor
         cursor = self.session.open_cursor(ds.uri)
         cursor.next()
 
@@ -80,6 +80,7 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda:self.conn.rollback_to_stable('threads=' + str(self.threads)), msg)
 
+        # Write some data and prepare it.
         self.session.begin_transaction()
 
         # Modify a row.

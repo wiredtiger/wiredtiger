@@ -67,9 +67,8 @@ __rts_check(WT_SESSION_IMPL *session)
      */
     if (cookie.ret_cursor_active)
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
-    if (cookie.ret_txn_active) {
+    if (cookie.ret_txn_active)
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active transactions");
-    }
     return (0);
 }
 /*
