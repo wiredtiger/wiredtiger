@@ -50,6 +50,11 @@ __bmd_checkpoint_pack_raw(WT_BLOCK_DISAGG *block_disagg, WT_SESSION_IMPL *sessio
           block_meta->disagg_lsn, block_meta->checkpoint_id, block_meta->reconciliation_id, size,
           checksum));
         ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+        __wt_verbose_debug1(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Checkpoint root page: root_id=%" PRIu64 " lsn=%" PRIu64 " checkpoint_id=%" PRIu64
+          " reconciliation_id=%" PRIu64 " root_size=%" PRIu32 " root_checksum=%" PRIx32,
+          block_meta->page_id, block_meta->disagg_lsn, block_meta->checkpoint_id,
+          block_meta->reconciliation_id, size, checksum);
     }
 
     return (0);
