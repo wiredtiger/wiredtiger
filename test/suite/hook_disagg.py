@@ -283,7 +283,7 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("inmem",                "In memory tests don't make sense with disagg storage"),
             ("lsm",                  "LSM is not supported with tiering"),
             ("modify_smoke_recover", "Copying WT dir doesn't copy the PALM directory"),
-            ("rollback_to_stable"),  "Rollback to stable is not needed at startup"),
+            ("rollback_to_stable",   "Rollback to stable is not needed at startup"),
             ("test_backup",          "Can't backup a disagg table"),
             ("test_compact",         "Can't compact a disagg table"),
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
