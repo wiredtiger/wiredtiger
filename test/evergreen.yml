@@ -4191,6 +4191,31 @@ tasks:
           test-name: modularity_metrics
           collection: CodeModularityMetrics
 
+  - name: tsan-warning-metrics
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 43200
+          timeout_secs: 43200
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: expansions.update
+        params:
+          updates:
+          - key: additional_env_vars
+            value: |
+              # We intentionally suppress all TSan warnings.
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp:log_path=$(git rev-parse --show-toplevel)/tsan_logs"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/cmake_build"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ${PREPARE_TEST_ENV}
+            python3 ../test/evergreen/tsan_warnings_analysis.py
+
     ###############################
     # Performance Tests for btree #
     ###############################
@@ -5506,6 +5531,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: examples-c-tsan
+    - name: tsan-warning-metrics
 
 # FIXME-WT-13256
 # This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
