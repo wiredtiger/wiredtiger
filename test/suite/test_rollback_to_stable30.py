@@ -70,7 +70,7 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
             'oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        # Position a cursor
+        # Position a cursor.
         cursor = self.session.open_cursor(ds.uri)
         cursor.next()
 
