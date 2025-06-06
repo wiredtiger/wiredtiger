@@ -64,6 +64,7 @@ test_rollback_to_stable38.py
 test_rollback_to_stable39.py
 test_rollback_to_stable41.py
 test_rollback_to_stable44.py
+test_sweep06.py
 test_tiered16.py
 test_timestamp04.py
 test_timestamp26.py
