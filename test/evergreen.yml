@@ -5531,6 +5531,7 @@ buildvariants:
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: examples-c-tsan
+    - name: tsan-warning-metrics
 
 # FIXME-WT-13256
 # This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
@@ -5580,7 +5581,6 @@ buildvariants:
     - name: catch2-test
     - name: bench-tiered-push-pull
     - name: catch2-assertions
-    - name: tsan-warning-metrics
 
 # Very minimal set without any extensions
 - name: ubuntu2004-minimal

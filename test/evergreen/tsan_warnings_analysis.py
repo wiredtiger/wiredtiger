@@ -29,7 +29,7 @@ import os
 import re, subprocess
 test_tasks = [
     "python3 ../test/suite/run.py -j 8 --ignore-stdout",
-    "ctest --test-dir test/csuite  -j 8 -LE \"long_running\"",
+    "ctest -j 8 -LE \"long_running\"",
     "bash test/format/format.sh -j 8 -t 60 rows=10000 ops=50000"
   ]
 
