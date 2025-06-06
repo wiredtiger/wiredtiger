@@ -259,11 +259,6 @@ def session_truncate_replace(orig_session_truncate, session_self, uri, start, st
     #return orig_session_truncate(session_self, uri, start, stop, config)
     skip_test("truncate on disagg tables not yet implemented")
 
-# Called to replace Session.upgrade.
-def session_upgrade_replace(orig_session_upgrade, session_self, uri, config):
-    uri = replace_uri(uri)
-    return orig_session_upgrade(session_self, uri, config)
-
 # Called to replace Session.verify
 def session_verify_replace(orig_session_verify, session_self, uri, config):
     uri = replace_uri(uri)
@@ -342,10 +337,6 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_truncate = self.Session['truncate']
         self.Session['truncate'] = (wthooks.HOOK_REPLACE, lambda s, uri, start=None, stop=None, config=None:
           session_truncate_replace(orig_session_truncate, s, uri, start, stop, config))
-
-        orig_session_upgrade = self.Session['upgrade']
-        self.Session['upgrade'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
-          session_upgrade_replace(orig_session_upgrade, s, uri, config))
 
         orig_session_verify = self.Session['verify']
         self.Session['verify'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
