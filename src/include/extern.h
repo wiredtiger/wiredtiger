@@ -1273,8 +1273,8 @@ extern int __wti_block_disagg_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, v
 extern int __wti_block_disagg_open(WT_SESSION_IMPL *session, const char *filename,
   const char *cfg[], bool forced_salvage, bool readonly, WT_BLOCK **blockp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK *block,
-  const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
+  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wti_block_disagg_read(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
   WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
