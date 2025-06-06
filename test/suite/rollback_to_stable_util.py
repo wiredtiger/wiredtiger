@@ -47,11 +47,6 @@ def get_rts_verify_path():
     return os.path.join(this_dir, '..', '..', rel_path)
 
 def verify_rts_logs():
-    # RTS is not run at startup by disagg, and there are verbose messages that confuse the checker.
-    # TODO
-    if wttest.currentTestCase().runningHook('disagg'):
-        return (0, '')
-
     binary_path = get_rts_verify_path()
     stdout_path = os.path.join(os.getcwd(), 'stdout.txt')
 
