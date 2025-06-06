@@ -2925,11 +2925,6 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (btree->type == BTREE_ROW)
             __wt_free(session, multi->key);
 
-        /*
-         * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
-         * now.
-         */
-        multi->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
 
@@ -2942,9 +2937,11 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
          */
         if (multi->addr.block_cookie != NULL) {
             WT_RET(__wt_btree_block_free(
-              session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size, false));
             __wt_free(session, multi->addr.block_cookie);
         }
+
+        multi->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     }
     __wt_free(session, mod->mod_multi);
     mod->mod_multi_entries = 0;
@@ -3088,6 +3085,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
              *
              * The exception is root pages are never tracked or free'd, they
              * are checkpoints, and must be explicitly dropped.
+             *
+             * FIXME-WT-14700: Does the root work for the same way in disagg? Do we need a separate
+             * API to tell the SLS that we are discarding a root page?
              */
         if (__wt_ref_is_root(ref))
             break;
@@ -3097,7 +3097,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
           r->multi->addr.block_cookie == NULL)
             break;
 
-        WT_RET(__wt_ref_block_free(session, ref));
+        WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3113,10 +3113,14 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                              *
                              * The exception is root pages are never tracked or free'd, they are
                              * checkpoints, and must be explicitly dropped.
+                             *
+                             * FIXME-WT-14700: Does the root work for the same way in disagg? Do we
+                             * need a separate API to tell the SLS that we are discarding a root
+                             * page?
                              */
         if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_btree_block_free(
-              session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
+            WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
+              mod->mod_replace.block_cookie_size, r->multi_next == 1));
 
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
@@ -3144,12 +3148,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     switch (r->multi_next) {
     case 0: /* Page delete */
         WT_STAT_CONN_DSRC_INCR(session, rec_page_delete);
-
-        /*
-         * TODO: We need to tell the PALI interface this page is discarded. Mark it as invalid for
-         * now.
-         */
-        ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
         /*
          * If this is the root page, we need to create a sync point. For a page to be empty, it has
@@ -3327,7 +3325,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->addr.block_cookie != NULL)
             WT_TRET(__wt_btree_block_free(
-              session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size, false));
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
 
