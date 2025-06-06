@@ -65,12 +65,12 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
   bool data_checksum, bool checkpoint_io)
 {
     WT_BLOCK_DISAGG_HEADER *blk;
-    /* WT_CONNECTION_IMPL *conn; */
+    WT_CONNECTION_IMPL *conn;
     WT_DELTA_HEADER *delta_header;
     WT_PAGE_HEADER *page_header;
     WT_PAGE_LOG_HANDLE *plhandle;
     WT_PAGE_LOG_PUT_ARGS put_args;
-    uint64_t /*checkpoint_id,*/ page_id, page_log_checkpoint_id, time_start, time_stop;
+    uint64_t checkpoint_id, page_id, page_log_checkpoint_id, time_start, time_stop;
     uint32_t checksum;
     bool is_delta;
 
@@ -79,7 +79,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     WT_ASSERT(session, block_meta != NULL);
     WT_ASSERT(session, block_meta->page_id >= WT_BLOCK_MIN_PAGE_ID);
 
-    /* conn = S2C(session); */
+    conn = S2C(session);
 
     *sizep = 0;     /* -Werror=maybe-uninitialized */
     *checksump = 0; /* -Werror=maybe-uninitialized */
@@ -107,25 +107,19 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
     /* Get the page ID. */
     page_id = block_meta->page_id;
     /* Get the checkpoint ID. */
-    /*
     WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
     WT_ASSERT_ALWAYS(session, checkpoint_id == block_meta->checkpoint_id,
       "The page checkpoint id doesn't match the current checkpoint id");
-     */
     /* Check that we are the leader (only leaders can write). */
-    /*
     WT_ASSERT_ALWAYS(
       session, conn->layered_table_manager.leader, "Trying to write the page from a follower");
-     */
     /* Check that the checkpoint ID matches the current checkpoint in the page log. */
     if (block_disagg->plhandle->page_log != NULL &&
       block_disagg->plhandle->page_log->pl_get_open_checkpoint != NULL) {
         WT_RET(block_disagg->plhandle->page_log->pl_get_open_checkpoint(
           block_disagg->plhandle->page_log, &session->iface, &page_log_checkpoint_id));
-        /*
         WT_ASSERT_ALWAYS(session, checkpoint_id == page_log_checkpoint_id,
           "The global checkpoint ID does not match the opened checkpoint in the page log");
-         */
     }
 
     /*
@@ -202,8 +196,7 @@ __wti_block_disagg_write_internal(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *blo
         F_SET(&put_args, WT_PAGE_LOG_ENCRYPTED);
 
     /* Write the block. */
-    /* WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, checkpoint_id, &put_args, buf));
-     */
+    WT_RET(plhandle->plh_put(plhandle, &session->iface, page_id, checkpoint_id, &put_args, buf));
 
     WT_STAT_CONN_INCR(session, disagg_block_put);
     WT_STAT_CONN_INCR(session, block_write);
@@ -266,6 +259,35 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
     WT_RET(__wti_block_disagg_addr_pack(&endp, block_meta->page_id, block_meta->disagg_lsn,
       block_meta->checkpoint_id, block_meta->reconciliation_id, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
+
+    return (0);
+}
+
+/*
+ * __wti_block_disagg_page_discard --
+ *     Discard a page.
+ */
+int
+__wti_block_disagg_page_discard(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, size_t addr_size)
+{
+    WT_BLOCK_DISAGG *block_disagg;
+    uint64_t checkpoint_id, lsn, page_id, reconciliation_id;
+    uint32_t checksum, size;
+
+    block_disagg = (WT_BLOCK_DISAGG *)block;
+
+    /* Crack the cookie. */
+    WT_RET(__wti_block_disagg_addr_unpack(
+      &addr, addr_size, &page_id, &lsn, &checkpoint_id, &reconciliation_id, &size, &checksum));
+
+    __wt_verbose(session, WT_VERB_BLOCK,
+      "block free: page_id %" PRIu64 ", lsn %" PRIu64 ", checkpoint_id %" PRIu64
+      ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
+      page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
+
+    /* FIXME-WT-14532: Implement the page discard logic. */
+    WT_UNUSED(block_disagg);
 
     return (0);
 }

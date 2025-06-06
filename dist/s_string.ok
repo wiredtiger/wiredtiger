@@ -611,6 +611,7 @@ ckpt
 ckptfrag
 ckptlist
 cksum
+clayered
 cloexec
 closedir
 cmd
@@ -691,6 +692,7 @@ ddd
 decile
 deciles
 decl
+decompressor
 decr
 decrementing
 decrypt
@@ -704,6 +706,7 @@ del
 dequeued
 der
 dereference
+dereferencing
 desc
 designator
 dest
@@ -825,6 +828,7 @@ fuzzutil
 fvisibility
 fwrite
 gb
+gc
 gcc
 gcp
 gdb
@@ -897,6 +901,7 @@ initsize
 initval
 inlined
 inlining
+inlock
 inmem
 inmemory
 inserters
@@ -923,6 +928,7 @@ islocked
 ispo
 isprint
 isspace
+janky
 jjj
 js
 json
@@ -1059,6 +1065,7 @@ needvalue
 negint
 nentries
 nentriesp
+ness
 newbar
 newfile
 newv
@@ -1139,6 +1146,7 @@ pid
 pindexp
 plh
 plhandle
+pluggable
 pmem
 poptable
 popthreads
@@ -1334,6 +1342,7 @@ sumv
 sunique
 sunused
 supd
+supercalafragalisticexpialadoshus
 superset
 sw
 syncop
