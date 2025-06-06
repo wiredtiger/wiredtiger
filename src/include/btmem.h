@@ -208,8 +208,8 @@ __wt_delta_header_byteswap(WT_DELTA_HEADER *dsk)
 struct __wt_addr {
     WT_TIME_AGGREGATE ta;
 
-    uint8_t *addr; /* Block-manager's cookie */
-    uint8_t size;  /* Block-manager's cookie length */
+    uint8_t *block_cookie;     /* Block-manager's cookie */
+    uint8_t block_cookie_size; /* Block-manager's cookie length */
 
 #define WT_ADDR_INT 1     /* Internal page */
 #define WT_ADDR_LEAF 2    /* Leaf page */
@@ -296,13 +296,15 @@ struct __wt_ovfl_reuse {
 #define WT_HS_KEY_FORMAT WT_UNCHECKED_STRING(IuQQ)
 #define WT_HS_VALUE_FORMAT WT_UNCHECKED_STRING(QQQu)
 /* Disable logging for history store in the metadata. */
-#define WT_HS_CONFIG                                                   \
+#define WT_HS_CONFIG_COMMON                                            \
     "key_format=" WT_HS_KEY_FORMAT ",value_format=" WT_HS_VALUE_FORMAT \
     ",block_compressor=" WT_HS_COMPRESSOR                              \
     ",log=(enabled=false)"                                             \
     ",internal_page_max=16KB"                                          \
     ",leaf_value_max=64MB"                                             \
     ",prefix_compression=false"
+#define WT_HS_CONFIG_LOCAL WT_HS_CONFIG_COMMON
+#define WT_HS_CONFIG_SHARED WT_HS_CONFIG_COMMON ",block_manager=disagg"
 
 /*
  * WT_SAVE_UPD --
@@ -353,6 +355,7 @@ struct __wt_multi {
      * memory.
      */
     void *disk_image;
+    WT_PAGE_BLOCK_META block_meta; /* the metadata for the disk image */
 
     /*
      * List of unresolved updates. Updates are either a row-store insert or update list, or
@@ -416,12 +419,19 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
+    /*
+     * Track the timestamp used for the most recent reconciliation. It's useful to avoid duplicating
+     * work when precise checkpoints are enabled, so we don't re-reconcile pages when no new content
+     * could be written.
+     */
+    wt_timestamp_t rec_pinned_stable_timestamp;
+
     /* The largest update transaction ID (approximate). */
     wt_shared uint64_t update_txn;
 
     /* Dirty bytes added to the cache. */
-    wt_shared size_t bytes_dirty;
-    wt_shared size_t bytes_updates;
+    wt_shared uint64_t bytes_dirty;
+    wt_shared uint64_t bytes_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
@@ -885,6 +895,9 @@ struct __wt_page {
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
 
+    uint64_t old_rec_lsn_max; /* The LSN associated with the page's before the most recent
+                                 reconciliation */
+    uint64_t rec_lsn_max;     /* The LSN associated with the page's most recent reconciliation */
     WT_PAGE_BLOCK_META block_meta;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -1388,6 +1401,19 @@ struct __wt_ref {
     WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
     uint64_t histoff;
 #endif
+
+    /*
+     * A counter used to track how many times a ref has changed during internal page reconciliation.
+     * The value is compared and swapped to 0 for each internal page reconciliation. If the counter
+     * has a value greater than zero, this implies that the ref has been changed concurrently and
+     * that the ref remains dirty after internal page reconciliation. It is possible for other
+     * operations such as page splits and fast-truncate to concurrently write new values to the ref,
+     * but depending on timing or race conditions, it cannot be guaranteed that these new values are
+     * included as part of the reconciliation. The page would need to be reconciled again to ensure
+     * that these modifications are included.
+     */
+    wt_shared volatile uint16_t ref_changes;
+    char pad[6]; /* Padding */
 };
 
 #ifdef HAVE_REF_TRACK
@@ -1400,9 +1426,9 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
  */
-#define WT_REF_SIZE (48 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 48
+#define WT_REF_SIZE 56
 #define WT_REF_CLEAR_SIZE (sizeof(WT_REF))
 #endif
 

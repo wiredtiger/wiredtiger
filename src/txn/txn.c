@@ -702,7 +702,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
      * If sync is turned off explicitly, clear the transaction's sync field.
      */
     if (cval.val == 0)
-        txn->txn_logsync = 0;
+        txn->txn_log.txn_logsync = 0;
 
     /* Check if prepared updates should be ignored during reads. */
     WT_ERR(__wt_conf_gets_def(session, conf, ignore_prepare, 0, &cval));
@@ -815,7 +815,7 @@ __txn_release(WT_SESSION_IMPL *session)
     __wti_txn_clear_durable_timestamp(session);
 
     /* Free the scratch buffer allocated for logging. */
-    __wt_logrec_free(session, &txn->logrec);
+    __wt_logrec_free(session, &txn->txn_log.logrec);
 
     /* Discard any memory from the session's stash that we can. */
     WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) == 0);
@@ -1297,6 +1297,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *     commit: resolve the prepared updates in memory.
      *     rollback: if the prepared update is written to the disk image, delete the whole key.
      */
+    btree = S2BT(session);
 
     /*
      * We also need to handle the on disk prepared updates if we have a prepared delete and a
@@ -1324,7 +1325,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     else if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
       !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS))
         resolve_case = RESOLVE_PREPARE_EVICTION_FAILURE;
-    else if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
+    else if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) ||
+      F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
         resolve_case = RESOLVE_UPDATE_CHAIN;
@@ -1366,13 +1368,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         }
         /* Fall through. */
     case RESOLVE_PREPARE_ON_DISK:
-        btree = S2BT(session);
-
         /*
          * Open a history store table cursor and scan the history store for the given btree and key
          * with maximum start timestamp to let the search point to the last version of the key.
          */
-        WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+        WT_ERR(__wt_curhs_open(session, btree->id, NULL, &hs_cursor));
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
         if (btree->type == BTREE_ROW)
             hs_cursor->set_key(hs_cursor, 4, btree->id, &cbt->iface.key, WT_TS_MAX, UINT64_MAX);
@@ -1712,7 +1712,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* If we are logging, write a commit log record. */
-    if (txn->logrec != NULL) {
+    if (txn->txn_log.logrec != NULL) {
         /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
         WT_ASSERT(session,
           !F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED));
@@ -1733,8 +1733,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
          * we only override with an explicit setting.
          */
         if (cval.len == 0) {
-            if (!FLD_ISSET(txn->txn_logsync, WT_LOG_SYNC_ENABLED) && !F_ISSET(txn, WT_TXN_SYNC_SET))
-                txn->txn_logsync = 0;
+            if (!FLD_ISSET(txn->txn_log.txn_logsync, WT_LOG_SYNC_ENABLED) &&
+              !F_ISSET(txn, WT_TXN_SYNC_SET))
+                txn->txn_log.txn_logsync = 0;
         } else {
             /*
              * If the caller already set sync on begin_transaction then they should not be using
@@ -1743,7 +1744,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             if (F_ISSET(txn, WT_TXN_SYNC_SET))
                 WT_ERR_MSG(session, EINVAL, "sync already set during begin_transaction");
             if (WT_CONFIG_LIT_MATCH("off", cval))
-                txn->txn_logsync = 0;
+                txn->txn_log.txn_logsync = 0;
             /*
              * We don't need to check for "on" here because that is the default to inherit from the
              * connection setting.
@@ -2031,7 +2032,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
      * turned on.
      */
-    if (txn->logrec != NULL && !FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
+    if (txn->txn_log.logrec != NULL &&
+      !FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING))
         WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
@@ -2584,9 +2586,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
     WT_TIMER timer;
     char conn_rts_cfg[16], ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
-    bool use_timestamp;
+    bool conn_is_disagg, use_timestamp;
 
     conn = S2C(session);
+    conn_is_disagg = __wt_conn_is_disagg(session);
     use_timestamp = false;
 
     __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS, "%s",
@@ -2611,7 +2614,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (use_timestamp) {
+        if (use_timestamp && !conn_is_disagg) {
             const char *rts_cfg[] = {
               WT_CONFIG_BASE(session, WT_CONNECTION_rollback_to_stable), NULL, NULL};
             if (conn->rts->cfg_threads_num != 0) {
@@ -2638,30 +2641,42 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
                   "shutdown rollback to stable has successfully finished and ran for %" PRIu64
                   " milliseconds",
                   conn->shutdown_timeline.rts_ms);
-        }
+        } else if (conn_is_disagg)
+            __wt_verbose_warning(session, WT_VERB_RTS, "%s", "skipped shutdown RTS due to disagg");
 
         s = NULL;
-        WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
-        if (s != NULL) {
-            const char *checkpoint_cfg[] = {
-              WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
+        /*
+         * Do shutdown checkpoint if we are not using disaggregated storage or the node still
+         * consider itself the leader. If it is not the real leader, the storage layer services
+         * should return an error as it is not allowed to write.
+         *
+         * FIXME-WT-14739: we should be able to do shutdown checkpoint for followers as well when we
+         * are able to skip the shared tables in checkpoint.
+         */
+        if (!conn_is_disagg || conn->layered_table_manager.leader) {
+            WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
+            if (s != NULL) {
+                const char *checkpoint_cfg[] = {
+                  WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
 
-            __wt_timer_start(session, &timer);
+                __wt_timer_start(session, &timer);
 
-            WT_TRET(__wt_checkpoint_db(s, checkpoint_cfg, true));
+                WT_TRET(__wt_checkpoint_db(s, checkpoint_cfg, true));
 
-            /*
-             * Mark the metadata dirty so we flush it on close, allowing recovery to be skipped.
-             */
-            WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
+                /*
+                 * Mark the metadata dirty so we flush it on close, allowing recovery to be skipped.
+                 */
+                WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
 
-            WT_TRET(__wt_session_close_internal(s));
+                WT_TRET(__wt_session_close_internal(s));
 
-            /* Time since the shutdown checkpoint has started. */
-            __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
-            __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
-              "shutdown checkpoint has successfully finished and ran for %" PRIu64 " milliseconds",
-              conn->shutdown_timeline.checkpoint_ms);
+                /* Time since the shutdown checkpoint has started. */
+                __wt_timer_evaluate_ms(session, &timer, &conn->shutdown_timeline.checkpoint_ms);
+                __wt_verbose_info(session, WT_VERB_RECOVERY_PROGRESS,
+                  "shutdown checkpoint has successfully finished and ran for %" PRIu64
+                  " milliseconds",
+                  conn->shutdown_timeline.checkpoint_ms);
+            }
         }
     }
 

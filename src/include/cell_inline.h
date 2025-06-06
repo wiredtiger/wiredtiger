@@ -1123,12 +1123,11 @@ __cell_redo_page_del_cleanup(
 }
 
 /*
- * __cell_unpack_window_cleanup --
+ * __cell_unpack_window_need_cleanup --
  *     Clean up cells loaded from a previous run.
  */
-static WT_INLINE void
-__cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
-  WT_CELL_UNPACK_ADDR *unpack_addr, WT_CELL_UNPACK_KV *unpack_kv)
+static WT_INLINE bool
+__cell_unpack_window_need_cleanup(WT_SESSION_IMPL *session, uint64_t dsk_write_gen)
 {
     uint64_t write_gen;
 
@@ -1166,15 +1165,38 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
     } else
         write_gen = S2BT(session)->base_write_gen;
 
-    WT_ASSERT(session, dsk->write_gen != 0);
-    if (dsk->write_gen > write_gen)
-        return;
+    WT_ASSERT(session, dsk_write_gen != 0);
+    if (dsk_write_gen > write_gen)
+        return (false);
 
     if (F_ISSET(session, WT_SESSION_DEBUG_DO_NOT_CLEAR_TXN_ID))
-        return;
+        return (false);
 
-    __cell_addr_window_cleanup(session, dsk, unpack_addr);
-    __cell_kv_window_cleanup(session, unpack_kv);
+    return (true);
+}
+
+/*
+ * __cell_unpack_window_cleanup_addr --
+ *     Clean up addr cells loaded from a previous run.
+ */
+static WT_INLINE void
+__cell_unpack_window_cleanup_addr(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unpack_addr)
+{
+    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
+        __cell_addr_window_cleanup(session, dsk, unpack_addr);
+}
+
+/*
+ * __cell_unpack_window_cleanup_kv --
+ *     Clean up kv cells loaded from a previous run.
+ */
+static WT_INLINE void
+__cell_unpack_window_cleanup_kv(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_KV *unpack_kv)
+{
+    if (__cell_unpack_window_need_cleanup(session, dsk->write_gen))
+        __cell_kv_window_cleanup(session, unpack_kv);
 }
 
 /*
@@ -1191,7 +1213,7 @@ __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
-    __cell_unpack_window_cleanup(session, dsk, unpack_addr, NULL);
+    __cell_unpack_window_cleanup_addr(session, dsk, unpack_addr);
 }
 
 /*
@@ -1230,7 +1252,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
     WT_ASSERT(session, ret == 0);
     WT_UNUSED(ret); /* Avoid "unused variable" warnings in non-debug builds. */
 
-    __cell_unpack_window_cleanup(session, dsk, NULL, unpack_value);
+    __cell_unpack_window_cleanup_kv(session, dsk, unpack_value);
 }
 
 /*
@@ -1334,8 +1356,9 @@ __wt_page_cell_data_ref_kv(
         uint32_t __i;                                                                           \
         uint8_t *__cell;                                                                        \
         for (__cell = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                                 \
-            __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));
+             --__i) {                                                                           \
+            __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));                  \
+            __cell += (unpack).__len;
 
 #define WT_CELL_FOREACH_KV(session, dsk, unpack)                                                \
     do {                                                                                        \

@@ -700,7 +700,7 @@ __wt_evict_app_assist_worker_check(
      * other resources that could block checkpoints or eviction.
      */
     WT_BTREE *btree = S2BT_SAFE(session);
-    if (btree != NULL && (F_ISSET(btree, WT_BTREE_IN_MEMORY) || WT_IS_METADATA(session->dhandle)))
+    if (btree != NULL && (F_ISSET(btree, WT_BTREE_NO_EVICT) || WT_IS_METADATA(session->dhandle)))
         return (0);
 
     /* Check if eviction is needed. */
