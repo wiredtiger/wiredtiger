@@ -291,5 +291,6 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
     discard_args.backlink_checkpoint_id = block_meta->backlink_checkpoint_id;
     discard_args.base_checkpoint_id = block_meta->base_checkpoint_id;
 
-    WT_RET(plhandle->plh_discard(plhandle, &session->iface, page_id, checkpoint_id, &discard_args));
+    return (
+      plhandle->plh_discard(plhandle, &session->iface, page_id, checkpoint_id, &discard_args));
 }

@@ -482,9 +482,12 @@ __bm_compact_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
  *     Free a block of space to the underlying file.
  */
 static int
-__bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bm_free(WT_BM *bm, WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr,
+  size_t addr_size)
 {
     WT_BLKCACHE *blkcache;
+
+    WT_UNUSED(block_meta);
 
     blkcache = &S2C(session)->blkcache;
 
@@ -500,10 +503,12 @@ __bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
  *     Free a block of space to the underlying file; readonly version.
  */
 static int
-__bm_free_readonly(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bm_free_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta,
+  const uint8_t *addr, size_t addr_size)
 {
     WT_UNUSED(addr);
     WT_UNUSED(addr_size);
+    WT_UNUSED(block_meta);
 
     return (__bm_readonly(bm, session));
 }

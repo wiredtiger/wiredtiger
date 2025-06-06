@@ -159,7 +159,8 @@ __wt_btree_block_free(
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && page_replacement)
         return (0);
 
-    return (bm->free(bm, session, addr, addr_size));
+    /* TODO. */
+    return (bm->free(bm, session, NULL, addr, addr_size));
 }
 
 /*

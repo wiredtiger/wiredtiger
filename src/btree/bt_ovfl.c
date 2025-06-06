@@ -149,5 +149,5 @@ __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
     __wt_writeunlock(session, &btree->ovfl_lock);
 
     /* Free the backing disk blocks. */
-    return (bm->free(bm, session, unpack->data, unpack->size));
+    return (bm->free(bm, session, &page->block_meta, unpack->data, unpack->size));
 }
