@@ -18,14 +18,12 @@ test_bulk01.py # times out
 test_bulk02.py
 test_cc01.py # times out
 test_cc02.py # times out
-test_cc03.py
 test_cc04.py # times out
 test_cc05.py # times out
 test_cc06.py # uses statistics we don't support in disagg
 test_checkpoint01.py
 test_checkpoint02.py # times out
 test_checkpoint07.py
-test_checkpoint08.py
 test_checkpoint09.py
 test_checkpoint10.py
 test_checkpoint11.py
@@ -72,7 +70,6 @@ test_cursor05.py
 test_cursor06.py
 test_cursor07.py
 test_cursor08.py
-test_cursor10.py
 test_cursor12.py # times out
 test_cursor13.py
 test_cursor17.py
@@ -147,7 +144,6 @@ test_prepare_hs04.py # times out
 test_recovery01.py
 test_readonly01.py
 test_readonly03.py  # WT-14582
-test_rename.py
 test_reserve.py
 test_rollback_to_stable07.py # times out
 test_rollback_to_stable10.py # times out
@@ -229,7 +225,6 @@ test_txn22.py
 test_txn23.py # times out
 test_txn24.py # times out
 test_txn27.py # times out
-test_upgrade.py
 test_util01.py
 test_util02.py # times out
 test_util03.py
@@ -241,11 +236,9 @@ test_util12.py
 test_util13.py
 test_util14.py
 test_util15.py
-test_util16.py
 test_util17.py
 test_util18.py
 test_util19.py
-test_util20.py
 test_util21.py
 test_util22.py
 test_verbose01.py
