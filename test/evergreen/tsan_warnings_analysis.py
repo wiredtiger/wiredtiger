@@ -26,25 +26,41 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 import os
-import re
-# This script must be run from WT root directory or may lead to inconsistent results.
+import re, subprocess
+test_tasks = [
+    "python3 ../test/suite/run.py -j 8 --ignore-stdout",
+    "ctest --test-dir test/csuite  -j 8 -LE \"long_running\"",
+    "bash test/format/format.sh -j 8 -t 60 rows=10000 ops=50000"
+  ]
 
-# Loop through all subdirectories recursively and search tsan logs. 
+# Run the tasks in list.
+task_list = list()
+print(test_tasks)
+for task in test_tasks:
+    try:
+        split_command = task.split()
+        # Tasks are allowed to run with maximum of three hours.
+        subprocess.run(split_command, check=True, timeout=10800)
+    except subprocess.CalledProcessError as exception:
+        print(f'Command {exception.cmd} failed with error {exception.returncode}')
+    except subprocess.TimeoutExpired as exception:
+        print(f'Command {exception.cmd} timed out')
+
+# Loop through all subdirectories recursively and search tsan logs.
 tsan_warnings_set = set()
-for dirpath, _, filenames in os.walk("."):  
-    for filename in filenames:  
-        # Check if the file starts with "tsan."  
-        if filename.startswith("tsan."):
-            full_path = os.path.join(dirpath, filename)  
-            with open(full_path, "r") as file:
-                for line in file:
-                    if (not line.startswith("SUMMARY:")):
-                        continue
-                    # Strip away the unnecessary information
-                    pattern_to_remove = r"/data/mci/.*/wiredtiger/"  
-                    cleaned_text = re.sub(pattern_to_remove, "", line).strip() 
+for tsan_log in os.listdir(".."):
+    # Check if the file starts with "tsan."
+    if tsan_log.startswith("tsan"):
+        full_path = os.path.join("..", tsan_log)
+        with open(full_path, "r") as file:
+            for line in file:
+                if (not line.startswith("SUMMARY:")):
+                    continue
+                # Strip away the unnecessary information
+                pattern_to_remove = r"/data/mci/.*/wiredtiger/"
+                cleaned_text = re.sub(pattern_to_remove, "", line).strip()
 
-                    tsan_warnings_set.add(cleaned_text)
+                tsan_warnings_set.add(cleaned_text)
 
-print("\n".join(tsan_warnings_set)) 
+print("\n".join(tsan_warnings_set))
 print(f"Overall TSAN Warnings: {len(tsan_warnings_set)}")

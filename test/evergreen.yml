@@ -1990,9 +1990,6 @@ tasks:
   - name: csuite-tests-fast
     tags: ["pull_request"]
     commands:
-      - command: timeout.update
-        params:
-          timeout_secs: 21600
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "make check directory"
@@ -3504,9 +3501,6 @@ tasks:
 
   - name: format-smoke-test
     commands:
-      - command: timeout.update
-        params:
-          timeout_secs: 21600
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -4198,43 +4192,29 @@ tasks:
           collection: CodeModularityMetrics
 
   - name: tsan-warning-metrics
-    depends_on:
-    - name: ".unit_test"
-    - name: "format-test"
-    - name: "format-stress-pull-request-test"
-    - name: "format-smoke-test"
-    - name: "csuite-tests-fast"
     commands:
-      - func: "fetch artifacts"
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: csuite-tests-fast
-          destination: wiredtiger/csuite-tests-fast
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: format-test
-          destination: wiredtiger/format-test
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: format-stress-pull-request-test
-          destination: wiredtiger/format-stress-pull-request-test
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: format-smoke-test
-          destination: wiredtiger/format-smoke-test
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: unit-test
-          destination: wiredtiger/unit-test
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 43200
+          timeout_secs: 43200
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: expansions.update
+        params:
+          updates:
+          - key: additional_env_vars
+            value: |
+              # We intentionally suppress all TSan warnings.
+              export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp:log_path=$(git rev-parse --show-toplevel)/tsan_logs"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/cmake_build"
           shell: bash
           script: |
             set -o errexit
             set -o verbose
-            ${PREPARE_PATH}
-            python3 test/evergreen/tsan_warnings_analysis.py
+            ${PREPARE_TEST_ENV}
+            python3 ../test/evergreen/tsan_warnings_analysis.py
 
     ###############################
     # Performance Tests for btree #
@@ -5570,7 +5550,7 @@ buildvariants:
     data_validation_stress_test_args: -t r -m -W 3 -D -p -n 100000 -k 100000 -C cache_size=100MB
     additional_env_vars: |
       # We intentionally suppress all TSan warnings.
-      export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp:exitcode=0:log_path=$(git rev-parse --show-toplevel)/tsan_logs"
+      export TSAN_OPTIONS="detect_deadlocks=0:report_bugs=0:report_atomic_races=0:allocator_may_return_null=1"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
     # We don't run C++ memory sanitized testing as it creates false positives. TSan also significantly increases the runtime
     # of some csuite tests, so disable the already long tests as well as tests heavily impacted by TSan.
@@ -5588,7 +5568,6 @@ buildvariants:
     - name: configure-combinations
     - name: syscall-linux
     - name: checkpoint-filetypes-test
-    - name: unit-test
     - name: unit-test-zstd
     - name: unit-test-random-seed
     - name: unit-test-hook-timestamp
