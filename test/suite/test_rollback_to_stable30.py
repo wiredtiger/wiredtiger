@@ -70,8 +70,17 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
             'oldest_timestamp=' + self.timestamp_str(1) +
             ',stable_timestamp=' + self.timestamp_str(1))
 
-        # Write some data and prepare it.
+        # Position a cursor.
         cursor = self.session.open_cursor(ds.uri)
+        cursor.next()
+
+        # Roll back to stable should fail because there's an active cursor.
+        msg = '/rollback_to_stable.*active/'
+        with self.expectedStdoutPattern('positioned cursors'):
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda:self.conn.rollback_to_stable('threads=' + str(self.threads)), msg)
+
+        # Write some data and prepare it.
         self.session.begin_transaction()
 
         # Modify a row.
@@ -93,6 +102,9 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
 
         # Commit or abort the prepared transaction.
         resolve()
+
+        # Test roll back to stable succeeds after closing all active cursors and transactions.
+        self.conn.rollback_to_stable('threads=' + str(self.threads))
 
     def test_rts_prepare_commit(self):
         self.prepare_resolve(self.session.commit_transaction)
