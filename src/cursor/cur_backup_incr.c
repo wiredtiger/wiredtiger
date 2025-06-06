@@ -42,7 +42,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
 
     /* Check if this is a file with no checkpointed content. */
     ret = __wt_meta_checkpoint(session, btree->dhandle->name, 0, &ckpt, NULL);
-    if (ret == 0 && ckpt.addr.size == 0)
+    if (ret == 0 && ckpt.addr.size == 0 && !__wt_live_restore_migration_in_progress(session))
         F_SET(cb, WT_CURBACKUP_CKPT_FAKE);
     __wt_checkpoint_free(session, &ckpt);
 
@@ -299,8 +299,8 @@ __wti_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     cb->cfg_current = othercb->cfg_current;
 
     /* All WiredTiger owned files are full file copies. */
-    if (F_ISSET(othercb->incr_src, WT_BLKINCR_FULL) ||
-      WT_PREFIX_MATCH(cb->incr_file, "WiredTiger")) {
+    if ((F_ISSET(othercb->incr_src, WT_BLKINCR_FULL) ||
+      WT_PREFIX_MATCH(cb->incr_file, "WiredTiger")) && !WT_STRING_MATCH(cb->incr_file, WT_HS_FILE, strlen(WT_HS_FILE))) {
         __wt_verbose(session, WT_VERB_BACKUP, "Forcing full file copies for %s for id %s",
           cb->incr_file, othercb->incr_src->id_str);
         F_SET(cb, WT_CURBACKUP_FORCE_FULL);

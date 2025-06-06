@@ -5,17 +5,23 @@ from wtbackup import backup_base
 
 
 # test_live_restore04.py
-# Test using the wt utility with live restore.
+# Test backup during a live restore, this test has a number of steps:
+# 1: Create a regular DB with a SimpleDataSet
+# 2: Take a full backup with incremental ID1.
+# 3: Using that full backup, copy it to the SOURCE/ path
+# 4: Begin a live restore from SOURCE/ specifying 0 background threads to avoid it completing the
+# restore.
+# 5: Take a backup of that system. If the backup granlurity matches the WiredTiger block size the
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore04(backup_base):
-    format_values = [
-        # ('column', dict(key_format='r', value_format='S')),
-        ('row_integer', dict(key_format='i', value_format='S')),
+    granularities = [
+        ('1M', dict(granularity='1M')),
+        #('4K', dict(granularity='4K')),
+        #('512K', dict(granularity='512K'))
     ]
-    scenarios = make_scenarios(format_values)
+    scenarios = make_scenarios(granularities)
     nrows = 10000
     ntables = 3
-    conn_config = 'log=(enabled)'
 
     def get_stat(self, statistic):
         stat_cursor = self.session.open_cursor("statistics:")
@@ -36,25 +42,19 @@ class test_live_restore04(backup_base):
         for i in range(self.ntables):
             uri = f'file:collection-{i}'
             uris.append(uri)
-            ds = SimpleDataSet(self, uri, self.nrows, key_format=self.key_format,
-                               value_format=self.value_format)
+            ds = SimpleDataSet(self, uri, self.nrows, key_format='i')
             ds.populate()
 
         self.session.checkpoint()
-
-        # Dump file data for later comparison.
-        # for i in range(self.ntables):
-        #     dump_out = os.path.join(util_out_path, f'{uris[i]}.out')
-        #     self.runWt(['dump', '-x', uris[i]], outfilename=dump_out)
-        config = 'incremental=(enabled,granularity=1M,this_id="ID1")'
+        config = 'incremental=(enabled,granularity='+self.granularity + ',this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
 
-        # Now make a full backup.
-        # Close the default connection.
-        os.mkdir("SOURCE") 
+        # Now take a full backup into the SOURCE directory.
+        os.mkdir("SOURCE")
         all_files = self.take_full_backup("SOURCE", bkup_c)
-        self.close_conn()
 
+        # Close the connection.
+        self.close_conn()
         # Remove everything but SOURCE / stderr / stdout / util output folder.
         for f in glob.glob("*"):
             if not f == "SOURCE" and not f == "UTIL" and not f == "stderr.txt" and not f == "stdout.txt":
@@ -62,17 +62,46 @@ class test_live_restore04(backup_base):
 
         # Open a live restore connection with no background migration threads to leave it in an
         # unfinished state.
-        self.open_conn(config="log=(enabled),statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=0)")
-        # self.setupSessionOpen()
-        os.mkdir("BACKUP")
-        self.session.breakpoint()
+        self.open_conn(config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=0),verbose=(backup:2)")
+        self.conn.set_timestamp('oldest_timestamp=1,stable_timestamp=1')
 
+        key1 = "abc"*100
+        key2 = "def"*100
+        # Do a series of smaller modifications.
         for i in uris:
             cur = self.session.open_cursor(i)
             for j in range(1, 1000):
-                cur[ds.key(j)] = "abc"*100
-        self.session.checkpoint()
-        (bkup_files, _) = self.take_incr_backup("BACKUP", 1, 2)
+                self.session.breakpoint()
+                self.session.begin_transaction()
+                cur[ds.key(j)] = key1
+                self.session.commit_transaction('commit_timestamp=2')
+                self.session.begin_transaction()
+                cur[ds.key(j)] = key2
+                self.session.commit_transaction('commit_timestamp=3')
 
+        self.conn.set_timestamp('stable_timestamp=4')
+        # Take a checkpoint.
+        self.session.checkpoint()
+        # Do an incremental backup of the current state of the database.
+        (bkup_files, _) = self.take_live_restore_incr_backup("BACKUP", "SOURCE", 1, 2)
+
+        # Debug code.
         for i in bkup_files:
             self.pr(i)
+        # Close the connection, open it on the now backed up live restore.
+        self.session.breakpoint()
+        self.close_conn()
+        self.open_conn(directory='BACKUP', config="log=(enabled),statistics=(all),verbose=(backup:2)")
+
+        # Validate that the new data is there.
+        for i in uris:
+            cur = self.session.open_cursor(i)
+            for j in range(1, 1000):
+                val = cur[ds.key(j)]
+                assert(val == key2)
+                cur.reset()
+                self.session.begin_transaction('read_timestamp=2')
+                val = cur[ds.key(j)]
+                self.pr(val)
+                assert(val == key1)
+                self.session.rollback_transaction()

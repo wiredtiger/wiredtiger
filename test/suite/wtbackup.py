@@ -423,3 +423,36 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             self.copy_file(newfile, self.home_tmp)
         bkup_c.close()
         return (file_names, file_sizes)
+
+    # Take a live restore "stitched" incremental backup. Effectively given a "source" directory,
+    # copy it in full to the destination, thens copy the relevant extents on top of those files.
+    # Stitched incremental backups don't support consolidation.
+    def take_live_restore_incr_backup(self, backup_incr_dir, src_dir, src_id=0, dest_id=0):
+        self.assertTrue(dest_id > 0 or self.bkup_id > 0)
+        if src_id == 0 and dest_id == 0:
+            src_id = self.bkup_id - 1
+            dest_id =  self.bkup_id
+        # Open the backup data source for incremental backup.
+        config = f'incremental=(src_id="ID{src_id}",this_id="ID{dest_id}")'
+        self.pr("Incremental backup cursor with config " + config)
+        shutil.copytree(src_dir, backup_incr_dir)
+        bkup_c = self.session.open_cursor('backup:', None, config)
+
+        file_sizes = []
+        file_names = []
+        self.assertEqual(1, self.backup_get_stat(stat.conn.backup_cursor_open))
+        self.assertEqual(0, self.backup_get_stat(stat.conn.backup_dup_open))
+        self.assertEqual(1, self.backup_get_stat(stat.conn.backup_incremental))
+
+
+        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+        # If that changes then this, and the use of the duplicate below can change.
+        while bkup_c.next() == 0:
+            newfile = bkup_c.get_key()
+            file_sizes += self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, None)
+            file_names.append(newfile)
+            # Copy into temp directory for tests that require further iterations of incremental backups.
+            self.copy_file(newfile, self.home_tmp)
+        bkup_c.close()
+        return (file_names, file_sizes)
