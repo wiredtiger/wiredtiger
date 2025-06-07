@@ -284,6 +284,11 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
 
     /* Send the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
+
+    /* Ignore the call if the function is not implemented. */
+    if (plhandle->plh_discard == NULL)
+        return (0);
+
     WT_PAGE_LOG_DISCARD_ARGS discard_args;
     WT_CLEAR(discard_args);
     discard_args.backlink_lsn = block_meta->backlink_lsn;
