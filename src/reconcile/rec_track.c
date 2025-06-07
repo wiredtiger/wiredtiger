@@ -343,7 +343,8 @@ __ovfl_reuse_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
             WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));
 
-        WT_RET(bm->free(bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
+        WT_RET(
+          bm->free(bm, session, &page->block_meta, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
         decr += WT_OVFL_SIZE(reuse, WT_OVFL_REUSE);
         __wt_free(session, reuse);
     }
@@ -398,7 +399,8 @@ __ovfl_reuse_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_OVERFLOW, WT_VERBOSE_DEBUG_2))
             WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));
 
-        WT_TRET(bm->free(bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
+        WT_TRET(
+          bm->free(bm, session, &page->block_meta, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
         decr += WT_OVFL_SIZE(reuse, WT_OVFL_REUSE);
         __wt_free(session, reuse);
     }
