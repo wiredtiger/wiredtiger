@@ -485,7 +485,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
         case WT_PAGE_ROW_INT:
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page ignored %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
-            /* FIXME Implement salvage in disag.*/
+            /* FIXME-WT-14740 Figure out salvage in disaggregated storage. */
             WT_ERR(bm->free(bm, session, NULL, addr, addr_size));
             continue;
         }
@@ -500,7 +500,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
         if (__wt_verify_dsk(session, as->data, buf) != 0) {
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page failed verify %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
-            /* FIXME Implement salvage in disag.*/
+            /* FIXME-WT-14740 Figure out salvage in disaggregated storage. */
             WT_ERR(bm->free(bm, session, NULL, addr, addr_size));
             continue;
         }
@@ -2484,7 +2484,7 @@ __slvg_trk_free_block(WT_SESSION_IMPL *session, WT_TRACK *trk)
     __wt_verbose(session, WT_VERB_SALVAGE, "%s blocks discarded: discard freed file bytes %" PRIu32,
       __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1), trk->trk_size);
 
-    /* FIXME Implement salvage in disag.*/
+    /* FIXME-WT-14740 Figure out salvage in disaggregated storage. */
     return (bm->free(bm, session, NULL, trk->trk_addr, trk->trk_addr_size));
 }
 
