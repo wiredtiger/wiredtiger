@@ -40,7 +40,7 @@ for task in test_tasks:
     try:
         split_command = task.split()
         # Tasks are allowed to run with maximum of three hours.
-        subprocess.run(split_command, check=True, timeout=10800)
+        subprocess.run(split_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10800)
     except subprocess.CalledProcessError as exception:
         print(f'Command {exception.cmd} failed with error {exception.returncode}')
     except subprocess.TimeoutExpired as exception:
