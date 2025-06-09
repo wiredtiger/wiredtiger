@@ -382,9 +382,12 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
      * Reconcile and discard some pages: EBUSY is returned if a page fails eviction because it's
      * unavailable, continue in that case.
      */
-    while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && __evict_update_work(session) && ret == 0)
+    while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && __evict_update_work(session) && ret == 0) {
         if ((ret = __evict_page(session)) == EBUSY)
             ret = 0;
+        if (is_server)
+            break;
+    }
 
     /* If any resources are pinned, release them now. */
     WT_TRET(__wt_session_release_resources(session));
@@ -813,7 +816,6 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
          * server does need to do some work.
          */
         __wt_atomic_add64(&evict->read_gen, 1);
-//        printf("Eviction server readgen %" PRIu64 " \n", evict->read_gen);
 
         /*
          * Update the oldest ID: we use it to decide whether pages are candidates for eviction.
@@ -2042,6 +2044,7 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
 #if EVICT_DEBUG_PRINT
     uint64_t new_lower_range;
 #endif
+
     page = ref->page;
     previous_state = WT_REF_GET_STATE(ref);
     retries = 0;
@@ -2083,9 +2086,10 @@ retry:
     dst_bucket = __evict_destination_bucket(session, page, bucketset, true); /* XXX */
 #if 0
     read_gen = page->evict_data.read_gen;
-    if (!WT_PAGE_IS_INTERNAL(page)) {
-        printf("ENQ %d, %d, \n", (int)dst_bucket, (int)read_gen);
-    }
+    if (times++ %10000 == 0)
+        if (!WT_PAGE_IS_INTERNAL(page) && read_gen != WT_READGEN_WONT_NEED) {
+            printf("ENQ %d, %d, \n", (int)dst_bucket, (int)read_gen);
+        }
 #endif
 
     if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries++ < MAX_RETRIES) {

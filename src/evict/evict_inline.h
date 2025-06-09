@@ -9,7 +9,7 @@
 #pragma once
 
 #define EVICT_DEBUG_PRINT 0
-#define RANDOM_EVICTION
+//#define RANDOM_EVICTION
 /*
  * __wt_ref_assign_page --
  *     Must be called every time we associate a new page with a ref. A page must have a back pointer
@@ -87,6 +87,25 @@ __evict_destination_bucket(WT_SESSION_IMPL *session, WT_PAGE *page, WT_EVICT_BUC
     (void)blast;
     return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
 #else
+    uint64_t read_gen;
+
+    (void)bucketset;
+    (void)blast;
+
+    read_gen = __wt_atomic_loadv64(&page->evict_data.read_gen);
+
+    /*
+     * If this is a page we won't need, it goes into a distinct bucketset, so we place it
+     * into a random bucket there.
+     */
+    if (read_gen == WT_READGEN_WONT_NEED)
+        return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
+
+//    printf("read_gen %" PRIu64 ", base = %" PRIu64 ", blast = %d, final = %" PRIu64 "\n",
+//           read_gen, read_gen / WT_READGEN_STEP, (int)session->id, (read_gen / WT_READGEN_STEP + session->id) % WT_EVICT_NUM_BUCKETS);
+    return (read_gen / WT_READGEN_STEP + session->id) % WT_EVICT_NUM_BUCKETS;
+#endif
+#if 0
     double e1, target, c, n;
     int64_t blast_value;
     uint64_t first_bucket, read_gen;
