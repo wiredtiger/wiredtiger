@@ -282,6 +282,11 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
       ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
       page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
 
+    WT_ASSERT_ALWAYS(session, page_id == block_meta->page_id,
+      "The page id %" PRIu64 " in the block meta does not match the page id %" PRIu64
+      " in the address cookie",
+      page_id, block_meta->page_id);
+
     /* Send the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
 
