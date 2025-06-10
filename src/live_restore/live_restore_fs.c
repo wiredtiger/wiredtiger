@@ -673,7 +673,7 @@ __live_restore_fh_read_source(
  *     Conflate writes to ensure alignment with incremental backup granularity.
  */
 static int
-__live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t offset, size_t len, const void *buf, char **tmp_bufp) {
+__live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t offset, size_t len, const void *buf, char **tmp_bufp, wt_off_t *tmp_offsetp, size_t *tmp_lenp) {
         /*
      * Given a write of size N, add the relevant bits from the source file so that the write is
      * equal to the incremental backup granularity of size G. To make things simple starting out we
@@ -754,7 +754,13 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
     wt_off_t left_incremental_bound = write_start - (write_start % granularity);
     wt_off_t right_incremental_bound = write_end + (granularity - (write_end % granularity));
 
-    bool start_relevant = left_incremental_bound < source_size;
+    /*
+     * The source size check here prevents us from handling any writes that are beyond the border
+     * of the source file. That said it is still very important that we conflate the write of the.
+     * directly adjacent block. E.g. if the source file is 12K and the offset of the write to be
+     * conflated 12K then we must conflate it. But a 16K write would not be conflated.
+     */
+    bool start_relevant = left_incremental_bound < source_size && offset <= source_size;
     bool end_relevant = right_incremental_bound < source_size;
     if (!start_relevant && !end_relevant)
         return (0);
@@ -820,12 +826,15 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
     const char *location = both ? "both sides of" : conflate_start ? "before" : "after";
     __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
         "Conflating write to offset (%" PRId64 ") of size (%" WT_SIZET_FMT ") reading source data from %s the write with size (%" WT_SIZET_FMT ")", offset, len, location, read_size);
-    WT_ERR(__wt_malloc(session, read_size + (!both ? len : 0), &tmp_buf));
+    size_t write_size = read_size + (!both ? len : 0);
+    WT_ERR(__wt_malloc(session, write_size, &tmp_buf));
+    *tmp_offsetp = offset;
     if (both || conflate_start) {
         /* Read the whole thing out of the source. */
         WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, conflate_read_start, read_size, tmp_buf));
         /* Copy our write into the buffer. */
         memcpy(tmp_buf + (offset - conflate_read_start), buf, len);
+        *tmp_offsetp = conflate_read_start;
     } else {
         /* Copy our write into the buffer. */
         memcpy(tmp_buf, buf, len);
@@ -834,10 +843,11 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
         /* Read the source content. */
         WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, write_end, read_size, shifted));
     }
-
-
     *tmp_bufp = tmp_buf;
+    *tmp_lenp = write_size;
 
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "Source size: %"PRId64", New offset: %" PRId64", New len: %" WT_SIZET_FMT, source_size, *tmp_offsetp, *tmp_lenp);
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "Conflate start (Y/N): %s, end (Y/N): %s, conflate read start: %" PRId64", conflate read end: %" PRId64, conflate_start ? "Y" : "N", conflate_end ? "Y" : "N", conflate_read_start, conflate_read_end);
     if (0) {
 err:
         __wt_free(session, tmp_buf);
@@ -856,21 +866,28 @@ __live_restore_fh_write_int(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t
     WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
-    char *tmp_buf = NULL;
+    char *conflate_buf = NULL;
 
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
       "Live restore lock not taken when needed");
 
-    WT_ERR(__live_restore_write_conflate(session, lr_fh, offset, len, buf, &tmp_buf));
-    WT_ERR(__live_restore_fh_write_destination(session, lr_fh, offset, len, tmp_buf != NULL ? tmp_buf : buf));
+    size_t conflate_len = 0;
+    wt_off_t conflate_offset = 0;
+    WT_ERR(__live_restore_write_conflate(session, lr_fh, offset, len, buf, &conflate_buf, &conflate_offset, &conflate_len));
+    if (conflate_buf != NULL) {
+        WT_ASSERT(session, conflate_len != 0);
+        len = conflate_len;
+        offset = conflate_offset;
+    }
+    WT_ERR(__live_restore_fh_write_destination(session, lr_fh, offset, len, conflate_buf == NULL ? buf : conflate_buf));
     if (background_thread)
         WT_STAT_CONN_INCRV(session, live_restore_bytes_copied, len);
     __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
 err:
-    __wt_free(session, tmp_buf);
-    return (0);
+    __wt_free(session, conflate_buf);
+    return (ret);
 }
 
 /*
