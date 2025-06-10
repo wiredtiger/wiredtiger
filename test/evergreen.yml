@@ -5482,7 +5482,7 @@ buildvariants:
     - name: ".lint"
     - name: ".unit_test_long"
       distros: ubuntu2004-large
-    - name: "smart-testing"
+    - name: smart-testing
     - name: compile
     - name: doc-compile
     - name: make-check-test
