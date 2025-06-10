@@ -705,7 +705,7 @@ NOTFOUND_OK(__wt_cursor::_modify)
 NOTFOUND_OK(__wt_cursor::largest_key)
 ANY_OK(__wt_modify::__wt_modify)
 ANY_OK(__wt_modify::~__wt_modify)
-ANY_OK(__wt_page_log_discard_args::__wt_page_log_dicard_args)
+ANY_OK(__wt_page_log_discard_args::__wt_page_log_discard_args)
 ANY_OK(__wt_page_log_get_args::__wt_page_log_get_args)
 ANY_OK(__wt_page_log_put_args::__wt_page_log_put_args)
 
