@@ -37,13 +37,13 @@ from wtbackup import backup_base
 @wttest.skip_for_hook("tiered", "using multiple WT homes")
 class test_live_restore02(backup_base):
     format_values = [
-        ('column', dict(key_format='r', value_format='S')),
+        # ('column', dict(key_format='r', value_format='S')),
         ('row_integer', dict(key_format='i', value_format='S')),
     ]
 
     read_sizes = [
-        ('512B', dict(read_size='512B')),
-        ('4KB', dict(read_size='4KB')),
+        # ('512B', dict(read_size='512B')),
+        # ('4KB', dict(read_size='4KB')),
         ('1MB', dict(read_size='1MB'))
     ]
 

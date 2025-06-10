@@ -649,6 +649,177 @@ __live_restore_fh_write_destination(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
 }
 
 /*
+ * __live_restore_fh_read_source --
+ *     Read data from the source directory and update appropriate statistics.
+ */
+static int
+__live_restore_fh_read_source(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *source, wt_off_t off, size_t len, void *buf)
+{
+    uint64_t time_start, time_stop;
+
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
+
+    time_start = __wt_clock(session);
+    WT_RET(source->fh_read(source, (WT_SESSION *)session, off, len, buf));
+    time_stop = __wt_clock(session);
+    __wt_stat_msecs_hist_incr_live_restore(session, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_INCR(session, live_restore_source_read_count);
+    return (0);
+}
+
+/*
+ * __live_restore_write_conflate --
+ *     Conflate writes to ensure alignment with incremental backup granularity.
+ */
+static int
+__live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh, wt_off_t offset, size_t len, const void *buf, char **tmp_bufp) {
+        /*
+     * Given a write of size N, add the relevant bits from the source file so that the write is
+     * equal to the incremental backup granularity of size G. To make things simple starting out we
+     * will assume that the incremental backup cursor granularity is the same as the live restore
+     * read size M.
+     *
+     * There are two write paths:
+     *   1: The background thread, this thread will move across size M blocks. Imagine the
+     *   background thread wants to write at offset O, length M. Now lets say a previous
+     *   write is found at offset X <  O + M, in the previous implementation it will read up to X
+     *   and thus M' will equal X-M. But in the "conflate" writes world we will always write M size
+     *   blocks and therefore should never encounter a write partway through the range of O + M.
+     *   Assert that this is true in every scenario.
+     *
+     *   Furthermore the following assertions should hold for the background thread writes entering
+     *   this function:
+     *     - They must be size M (for the above reason).
+     *     - They must be aligned to the relevant incremental backup boundary. i.e. O % G = 0.
+     *
+     *   2: The application write path, this one is significantly more tricky. Application writes are not
+     *   guaranteed to be aligned. So lets say we have an application write of size A offset Y. A
+     *   must be an allocsize multiple. A could overlap the border of a incremental backup segment,
+     *   imagine it is at offset (border)-4K, and the block is 8K. We've now dirtied two incremental
+     *   backup bits. A must either find entirely 0's in the bitmap or 1's. That is either the write
+     *   needs to do the work or it doesn't. Effectively the first write to reach the destination is
+     *   the write that will pay the cost of moving the source to the destination.
+     *
+     *   Now what happens if we have two application writes in flight at the same time for the same
+     *   file, and same incremental backup segment? By virtue of locking around the critical section
+     *   i.e. the write path, this is safe. As previously state the first write to take the lock 
+     *   pays the cost, the second write will overwrite whatever parts of the source that were moved
+     *   but that is an acceptable inefficiency to make backup a possibility.
+     *
+     *   The good news is that by forcing all the source to be moved across in unison we avoid
+     *   having to do any gross write conflating with more that two segments from the source needing
+     *   to be brought up. We would never see a bit set in the bitmap that belongs to the same
+     *   backup segment without the whole segment being set.
+     *
+     *   I was imagining a case along the lines of:
+     *   |---#---X--|
+     *   Where | is the incremental backup segment boundary, # is a previous write and X is the
+     *   intended, new write, offset. In this case we'd have 3 segments to move across which would
+     *   be painful.
+     *
+     *   There is a second reason application writes are painful, when they append to the file. If
+     *   they exist within the last relevant incremental backup segment we need to do some
+     *   cleverness to make sure we don't accidentally read parts of the source that don't exit.
+     *   Lets say we have:
+     *   |--EX--|
+     *
+     *   Where E is the end of the file, and X is the intended write location, in this case we only
+     *   want to copy up everything between E and the first |. This does raise the question of will
+     *   WiredTiger ever try and and do something like this? |--E-X--| Effectively writing in such a
+     *   way that introduces holes to the file, I believe not.
+     */
+    WT_DECL_RET;
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
+    "Live restore lock not taken when needed");
+
+    wt_off_t granularity = (wt_off_t)lr_fh->back_pointer->read_size;
+    WT_ASSERT_ALWAYS(session, granularity > 0, "Granularity must be greater than zero");
+    /*
+     * I would like to be able to assert that write length is always shorter than the granularity
+     * but that is not always true.
+     */
+    /*
+     * This code depends on WiredTiger not creating holes in files. i.e. the planned write must be
+     * next to the something that was already written.
+     *
+     * We cannot test for this as in theory the write that was written was an application write, and
+     * therefore not associated with the source file size.
+     */
+    bool conflate_start = false, conflate_end = false;
+    wt_off_t write_start = offset;
+    wt_off_t write_end = WTI_OFFSET_END(offset, len);
+    wt_off_t source_size;
+    WT_RET(lr_fh->source->fh_size(lr_fh->source, (WT_SESSION*)session, &source_size));
+    wt_off_t left_incremental_bound = write_start - (write_start % granularity);
+    wt_off_t right_incremental_bound = write_end + (granularity - (write_end % granularity));
+
+    bool start_relevant = left_incremental_bound < source_size;
+    bool end_relevant = right_incremental_bound < source_size;
+    if (!start_relevant && !end_relevant)
+        return (0);
+
+    /* Assert that the end cannot be true and start be false. */
+    WT_ASSERT_ALWAYS(session, (!end_relevant && start_relevant) || (start_relevant && end_relevant), "Computation of write location failed!");
+
+    /*
+     * Set this variable up a bit early, in the event the write is aligned we'll only read the
+     * source from the write_end onwards.
+     */
+    wt_off_t conflate_read_start = write_end;
+    wt_off_t alignment = write_start % granularity;
+    /* The write is not aligned to an incremental backup segment. */
+    if (alignment != 0) {
+        conflate_read_start = write_start - alignment;
+        conflate_start = true;
+    }
+
+    /* Similarly to above we'll only read up to the start of our write if the end is aligned. */
+    wt_off_t conflate_read_end = write_start;
+    if (end_relevant) {
+        alignment = write_end % granularity;
+        if (alignment != 0) {
+            conflate_read_end = write_end + (granularity - alignment);
+            conflate_end = true;
+        }
+    }
+
+    /* Both the start and end were aligned with the incremental backup boundary. */
+    if (!conflate_start && !conflate_end)
+        return (0);
+
+    bool both = conflate_start && conflate_end;
+    size_t read_size = (size_t)(conflate_read_end - conflate_read_start);
+    char *tmp_buf = NULL;
+    const char *location = both ? "both sides of" : conflate_start ? "before" : "after";
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+        "Conflating write to offset (%" PRId64 ") of size (%" WT_SIZET_FMT ") reading source data from %s the write with size (%" WT_SIZET_FMT ")", offset, len, location, read_size);
+    WT_ERR(__wt_malloc(session, read_size + (!both ? len : 0), &tmp_buf));
+    if (both || conflate_start) {
+        /* Read the whole thing out of the source. */
+        WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, conflate_read_start, read_size, tmp_buf));
+        /* Copy our write into the buffer. */
+        memcpy(tmp_buf + (offset - conflate_read_start), buf, len);
+    } else {
+        /* Copy our write into the buffer. */
+        memcpy(tmp_buf, buf, len);
+        /* Shift a pointer to the buffer. */
+        char *shifted = tmp_buf + len;
+        /* Read the source content. */
+        WT_ERR(__live_restore_fh_read_source(session, lr_fh->source, write_end, read_size, shifted));
+    }
+
+
+    *tmp_bufp = tmp_buf;
+
+    if (0) {
+err:
+        __wt_free(session, tmp_buf);
+    }
+    return (ret);
+}
+
+/*
  * __live_restore_fh_write_int --
  *     Write to a file. Callers of this function must hold the file handle lock.
  */
@@ -656,18 +827,23 @@ static int
 __live_restore_fh_write_int(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len,
   const void *buf, bool background_thread)
 {
+    WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
+    char *tmp_buf = NULL;
 
     lr_fh = (WTI_LIVE_RESTORE_FILE_HANDLE *)fh;
     session = (WT_SESSION_IMPL *)wt_session;
-
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
       "Live restore lock not taken when needed");
-    WT_RET(__live_restore_fh_write_destination(session, lr_fh, offset, len, buf));
+
+    WT_ERR(__live_restore_write_conflate(session, lr_fh, offset, len, buf, &tmp_buf));
+    WT_ERR(__live_restore_fh_write_destination(session, lr_fh, offset, len, tmp_buf != NULL ? tmp_buf : buf));
     if (background_thread)
         WT_STAT_CONN_INCRV(session, live_restore_bytes_copied, len);
     __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
+err:
+    __wt_free(session, tmp_buf);
     return (0);
 }
 
@@ -709,26 +885,6 @@ __live_restore_fh_read_destination(
 {
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM DEST");
     return (destination->fh_read(destination, (WT_SESSION *)session, offset, len, buf));
-}
-
-/*
- * __live_restore_fh_read_source --
- *     Read data from the source directory and update appropriate statistics.
- */
-static int
-__live_restore_fh_read_source(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *source, wt_off_t off, size_t len, void *buf)
-{
-    uint64_t time_start, time_stop;
-
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
-
-    time_start = __wt_clock(session);
-    WT_RET(source->fh_read(source, (WT_SESSION *)session, off, len, buf));
-    time_stop = __wt_clock(session);
-    __wt_stat_msecs_hist_incr_live_restore(session, WT_CLOCKDIFF_MS(time_stop, time_start));
-    WT_STAT_CONN_INCR(session, live_restore_source_read_count);
-    return (0);
 }
 
 /*
@@ -1408,8 +1564,6 @@ __wt_live_restore_clean_metadata_string(WT_SESSION_IMPL *session, char *value)
      */
     if (__wt_live_restore_migration_in_progress(session))
       return (0);
-    // WT_ASSERT_ALWAYS(session, !__wt_live_restore_migration_in_progress(session),
-    //   "Cleaning the metadata string should only be called for non-live restore file systems");
 
     ret = __wt_config_getones(session, value, "live_restore", &v);
     WT_RET_NOTFOUND_OK(ret);

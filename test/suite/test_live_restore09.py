@@ -62,7 +62,7 @@ class test_live_restore04(backup_base):
 
         # Open a live restore connection with no background migration threads to leave it in an
         # unfinished state.
-        self.open_conn(config="statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=0),verbose=(backup:2)")
+        self.open_conn(config="verbose=(live_restore:2),statistics=(all),live_restore=(enabled=true,path=\"SOURCE\",threads_max=0,read_size="+self.granularity + ")")
         self.conn.set_timestamp('oldest_timestamp=1,stable_timestamp=1')
 
         key1 = "abc"*100
@@ -91,7 +91,7 @@ class test_live_restore04(backup_base):
         # Close the connection, open it on the now backed up live restore.
         self.session.breakpoint()
         self.close_conn()
-        self.open_conn(directory='BACKUP', config="log=(enabled),statistics=(all),verbose=(backup:2)")
+        self.open_conn(directory='BACKUP', config="log=(enabled),statistics=(all)")
 
         # Validate that the new data is there.
         for i in uris:
