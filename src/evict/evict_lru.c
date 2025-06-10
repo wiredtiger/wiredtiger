@@ -1162,18 +1162,6 @@ done:
          * Increment the busy count in the btree handle to prevent it from being closed under us.
          */
         (void)__wt_atomic_addv32(&((*btreep)->evict_data.evict_busy), 1);
-
-        /*
-         * If the reference is in the first bucket, but has a high read generation, we missed a case
-         * when the page had to be upgraded to a higher bucket. This is not a critical error,
-         * because we are okay to occasionally evict a page that's not the oldest, but we must flag
-         * this in stats, because this must be debugged if happens frequently.
-         */
-        if (ref != NULL && j == 0 && bucketset != NULL &&
-          __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range) <
-            __wt_atomic_load64(&ref->page->evict_data.read_gen)) {
-            WT_STAT_CONN_INCR(session, eviction_new_page_in_old_bucket);
-        }
     } else
         WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
 
@@ -1485,7 +1473,6 @@ __wt_evict_page_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
  *
  *     Input parameter:
  *       `v`: An integer that denotes the priority level.
- *     XXX update dhandle selection logic to consider
  */
 void
 __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v)
@@ -1724,7 +1711,6 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
      */
     for (i = 0; i < WT_EVICT_LEVELS; i++) {
         bucketset = &evict_data->evict_bucketset[i];
-        bucketset->lowest_bucket_upper_range =  WT_EVICT_BUCKET_STARTING_RANGE;
         for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
             bucket = &bucketset->buckets[j];
             bucket->id = (uint64_t)j;
@@ -1736,43 +1722,6 @@ __wt_evict_init_handle_data(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     return (0);
 }
 
-/*
- * __evict_bucket_range --
- *     Get the lower and upper range of read generations hosted by this bucket.
- *     We compute the ranges using a geometric progression. See comments in the header file.
- */
-static inline void
-__evict_bucket_range(WT_SESSION_IMPL *session, WT_EVICT_BUCKET *bucket,
-                     uint64_t *min_rangep, uint64_t *max_rangep)
-{
-    WT_EVICT_BUCKETSET *bucketset;
-    uint64_t min_range, max_range, first_bucket_range;
-
-    WT_ASSERT(session, bucket != NULL);
-
-    bucketset = WT_BUCKET_TO_BUCKETSET(bucket);
-    first_bucket_range = __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range);
-
-    /*
-     * We use the sum of the geometric progression to compute the lower and upper range for the
-     * bucket. For the lower range, we sum the number of buckets that are below the current one;
-     * the number of buckets below us is the same as our bucket ID. For the upper range we use
-     * bucket ID plus one.
-     */
-
-    min_range = __evict_geo_sum(first_bucket_range, bucket->id, WT_EVICT_COMMON_RATIO);
-    max_range = __evict_geo_sum(first_bucket_range, bucket->id + 1, WT_EVICT_COMMON_RATIO) - 1;
-
-    if (min_rangep != NULL)
-        *min_rangep = min_range;
-    if (max_rangep != NULL)
-        *max_rangep = max_range;
-#if EVICT_DEBUG_PRINT
-    printf("Bucket id %d, min_range = %d, max_range = %d, first_bucket_range = %d\n",
-           (int)bucket->id, (int)min_range, (int)max_range, (int)first_bucket_range);
-    fflush(stdout);
-#endif
-}
 
 /*
  * __wt_evict_remove --
@@ -1831,42 +1780,6 @@ __wt_evict_remove(WT_SESSION_IMPL *session, WT_REF *ref, bool destroying)
 
     if (must_unlock_ref)
         WT_REF_UNLOCK(ref, previous_state);
-}
-
-/*
- * __evict_renumber_buckets --
- *     Atomically increase the lowest bucket upper bound. Upper bounds of higher buckets are
- *     implicitly derived from that of the lowest bucket, so as a result the upper bounds of all
- *     buckets are shifted up. We need to renumber the buckets every time there is a read generation
- *     that’s larger than the range accepted by the highest bucket.
- *
- *     We use a decreasing geometric progression to compute the range of read generations for each
- *     bucket. XXX Additive vs multiplicative.
- */
-static inline void
-__evict_renumber_buckets(WT_EVICT_BUCKETSET *bucketset)
-{
-    uint64_t prev, new;
-
-    prev = __wt_atomic_load64(&bucketset->lowest_bucket_upper_range);
-
-#define WT_EVICT_RENUMBERING_MULTIPLIER 2
-    /*
-     * Additive increase proportional to the read generation step is crucial. See comments above.
-     * To reduce the frequency of renumbering, increase the renumbering multiplier.
-     */
-    new = prev + WT_READGEN_STEP *  WT_EVICT_RENUMBERING_MULTIPLIER;
-    /*
-     * If the compare and swap fails, someone else is trying to update the value at the same time.
-     * We let them win the race and return. The bucket's upper range can only grow, so we are okay
-     * to lose this race.
-     */
-    __wt_atomic_casv64(&bucketset->lowest_bucket_upper_range, prev, new);
-#if 0
-    printf("Renumbered: bucketset %p new upper range is %" PRIu64 "\n",
-                           (void*)bucketset, new);
-    fflush(stdout);
-#endif
 }
 
 /*
@@ -1941,93 +1854,6 @@ __evict_page_consistency_check(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle
     return (true);
 }
 
-#if 0
-/*
- * __evict_help_organize_buckets --
- *    If we renumber buckets, pages will end up in buckets that are too young for them.
- *    Help fix this here by randomly selecting a bucket and moving a page from the top
- *    of the queue to a lower bucket if the page belongs to a lower bucket. We can tune
- *    how often we call this help function and where we call it from. If we find that
- *    calling it on the read patch causes too much contention, we can call it less
- *    frequently or not at all, or only call it from eviction threads.
- *
- *    We use try lock for buckets and the page we are trying to move, so we don't worsen
- *    contention if it is already heavy.
- */
-static void
-__evict_help_organize_buckets(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
-                              WT_EVICT_BUCKET *bucket)
-{
-    WT_EVICT_BUCKET *new_bucket;
-    WT_EVICT_BUCKETSET *bucketset;
-    WT_PAGE *page;
-    WT_REF_STATE previous_state;
-    int bucketset_level;
-    uint64_t new_bucket_id;
-
-    new_bucket = NULL;
-    new_bucket_id = 0;
-
-    if (bucket == NULL)
-        return;
-
-    /* Try to lock this bucket */
-    if (__wt_spin_trylock(session, &bucket->evict_queue_lock) == EBUSY)
-        return;
-
-    page = TAILQ_FIRST(&bucket->evict_queue);
-    if (page == NULL)
-        goto unlock_last;
-
-    WT_ASSERT(session, page->ref != NULL);
-    previous_state =  WT_REF_GET_STATE_STRICT(page->ref);
-
-    /* If page is unlocked, try to lock it */
-    if ((previous_state != WT_REF_MEM) ||
-        !WT_REF_CAS_STATE(session, page->ref, previous_state, WT_REF_LOCKED))
-        goto unlock_last;
-
-    if (bucket != page->evict_data.bucket)
-        WT_ASSERT(session, 0);
-
-    /* Ref is locked. Does it need a new bucket? */
-    if (!__evict_needs_new_bucket(session, dhandle, page, &new_bucket_id)
-        || new_bucket_id >= WT_EVICT_NUM_BUCKETS )
-        goto unlock_one_before_last;
-
-    /* We shoudn't be moving pages into lower buckets. */
-    if (new_bucket_id >= bucket->id)
-        goto unlock_one_before_last;
-
-    WT_IGNORE_RET(__evict_page_get_bucketset(session, dhandle, page, &bucketset, &bucketset_level));
-    new_bucket = &bucketset->buckets[new_bucket_id];
-
-    /* Try to lock the destination bucket */
-    if (__wt_spin_trylock(session, &new_bucket->evict_queue_lock) == EBUSY)
-        goto unlock_one_before_last;
-
-    /*
-     * We are all set. The old bucket is locked, the new one is locked and the ref is locked.
-     * Move the ref to the new bucket, unlock everything and get out.
-     */
-    TAILQ_REMOVE(&bucket->evict_queue, page, evict_data.evict_q);
-    TAILQ_INSERT_HEAD(&new_bucket->evict_queue, page, evict_data.evict_q);
-    page->evict_data.bucket = new_bucket;
-
-#if EVICT_DEBUG_PRINT
-    printf("session %d helved shove page %p read_gen %llu from bucket %d to bucket %d\n",
-           (int) session->id, (void*)page, page->evict_data.read_gen, (int)bucket->id, (int)new_bucket->id);
-    fflush(stdout);
-#endif
-    __wt_spin_unlock(session, &new_bucket->evict_queue_lock);
-
-  unlock_one_before_last:
-    WT_REF_UNLOCK(page->ref, previous_state);
-  unlock_last:
-    __wt_spin_unlock(session, &bucket->evict_queue_lock);
-}
-#endif
-
 /*
  * __wt_evict_enqueue_page --
  *     Put the page into the evict bucket corresponding to its read generation.
@@ -2040,14 +1866,10 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     WT_PAGE *page;
     WT_REF_STATE previous_state;
     bool correct_bucketset, must_unlock_ref;
-    uint64_t dst_bucket, retries;
-#if EVICT_DEBUG_PRINT
-    uint64_t new_lower_range;
-#endif
+    uint64_t dst_bucket, read_gen;
 
     page = ref->page;
     previous_state = WT_REF_GET_STATE(ref);
-    retries = 0;
 
     if (__wt_ref_is_root(ref))
         return;
@@ -2075,37 +1897,22 @@ __wt_evict_enqueue_page(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_RE
     else
         __wt_evict_remove(session, ref, false);
 
-#define MAX_RETRIES 10
     /*
      * Find the right bucket. The page's read generation may change as we are looking for the right
      * bucket. In that case, the page will end up in a lower bucket than. it should be. That's okay,
      * because we are maintaining approximately sorted order. We expect such events to be rare,
      * because read generations are updated infrequently.
      */
-retry:
-    dst_bucket = __evict_destination_bucket(session, page, bucketset, true); /* XXX */
+    read_gen = __wt_atomic_load64(&page->evict_data.read_gen);
+    dst_bucket = __evict_destination_bucket(session, read_gen);
+    bucket = &bucketset->buckets[dst_bucket];
+
 #if 0
-    read_gen = page->evict_data.read_gen;
     if (times++ %10000 == 0)
         if (!WT_PAGE_IS_INTERNAL(page) && read_gen != WT_READGEN_WONT_NEED) {
             printf("ENQ %d, %d, \n", (int)dst_bucket, (int)read_gen);
         }
 #endif
-
-    if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries++ < MAX_RETRIES) {
-        __evict_renumber_buckets(bucketset);
-        WT_STAT_CONN_INCR(session, eviction_renumbered_buckets);
-        goto retry;
-    } else if (dst_bucket >= WT_EVICT_NUM_BUCKETS && retries >= MAX_RETRIES) {
-        /*
-         * We are here if the page's read generation keeps increasing as we are renumbering
-         * buckets. This is extremely unlikely to happen, but we use this safety measure to not
-         * get stuck in this loop. We simply place the page in the highest bucket and proceed.
-         * This is okay, because all we care about is an approximate sorted order.
-         */
-        dst_bucket = WT_EVICT_NUM_BUCKETS - 1;
-    }
-    bucket = &bucketset->buckets[dst_bucket];
 
     __wt_spin_lock(session, &bucket->evict_queue_lock);
     TAILQ_INSERT_TAIL(&bucket->evict_queue, page, evict_data.evict_q);
@@ -2113,15 +1920,6 @@ retry:
 
     page->evict_data.bucket = bucket;
 
-#if EVICT_DEBUG_PRINT
-    printf(
-        "page (%s) %p type %d STATE %d read_gen %" PRId64 ": enqueued by session %d in bucket %" PRId64
-        " (%p) of bucketset %d (%p) ur: %" PRId64 "\n",
-        __wt_page_type_string(page->type), (void *)page, page->type, WT_REF_GET_STATE(page->ref),
-        page->evict_data.read_gen, (int)session->id, dst_bucket, (void *)bucket, bucketset_level,
-        (void *)bucketset, bucketset->lowest_bucket_upper_range);
-    fflush(stdout);
-#endif
 #if defined(HAVE_DIAGNOSTIC)
     //__evict_page_consistency_check(session,  page->evict_data.dhandle, page, is_new, true);
 #endif

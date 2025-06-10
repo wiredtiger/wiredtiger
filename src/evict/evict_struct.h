@@ -26,7 +26,7 @@
  * than dirty pages. If contention on bucket queue spinlocks is observed we may introduced a
  * separate bucket set per CPU, similarly to per-CPU statistics counters.
  *
- * The lowest bucket upper range tells us the maximum read generation in the lowest bucket. The
+ * XXX The lowest bucket upper range tells us the maximum read generation in the lowest bucket. The
  * upper range of the highest bucket is computed by adding the factor of the bucket range times the
  * number of remaining buckets to the lowest buckets' range. If the highest bucket range becomes too
  * small to accommodate the read generation of any page, we update the lowest bucket's range, and by
@@ -36,26 +36,15 @@
  * the job.
  */
 
-/*
- *     We use a decreasing geometric progression to compute the range of each bucket.
- *     For example, if the first bucket supports read generations in the range up to
- *     100, the next bucket will support the read generation up to 100 * c_r, where
- *     c_r is the common ratio of the progression. If c_r is 0.9, then the next bucket
- *     will support read generations between 101 and 190.
- *
- *     Using the geometric progress allows us to spread newer read generations among
- *     more buckets, so there is less contention when incrementing current read generations.
- *     If we want to reduce contention for buckets even further, increase the number of buckets.
- */
-#define WT_EVICT_COMMON_RATIO 0.95
+#include "../include/stat.h"
+/* Statistics counter slots are also set to reflect expected contention, so we reuse that value */
+#define WT_EVICT_EXPECTED_CONTENTION WT_STAT_CONN_COUNTER_SLOTS
 
 /*
  * If the database fits entirely in cache, as few as 50 buckets is sufficient.
  * In a degenerate case where all we do is evict, 5000 buckets is about right to avoid contention.
-*/
-#define WT_EVICT_NUM_BUCKETS  5000
-#define WT_EVICT_BUCKET_STARTING_RANGE 100 /* starting upper range for the first bucket */
-#define WT_EVICT_BLAST_RADIUS WT_EVICT_NUM_BUCKETS / 8
+ */
+#define WT_EVICT_NUM_BUCKETS (200 * WT_EVICT_EXPECTED_CONTENTION)
 
 #define WT_EVICT_LEVEL_WONT_NEED 0
 #define WT_EVICT_LEVEL_CLEAN_LEAF 1

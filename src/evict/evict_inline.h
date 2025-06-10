@@ -61,126 +61,68 @@ __wt_evict_cache_stuck(WT_SESSION_IMPL *session)
 }
 
 /*
- * __evict_destination_bucket --
- *       Given the read generation, find the id of its destination bucket. Since we use the
- *       geometric progression to determine the ranges of each bucket given the range of
- *       the first element, to compute the destination bucket, we calculate the number of elements,
- *       needed for the sum of those elements to exceed the target read generation. The formula is:
+ * __evict_base_bucket --
+ *      Return the base bucket for the read generation.
  *
- *       n > log (1 - (target / e1) * (1 - c)) / log (c)
+ * In a single-core world we would compute the home bucket by
+ * dividing the read generation by the read generation step, typically set to 100. So
+ * a read generation of 200 would land into bucket 2, a read generation of 5000 would
+ * land into bucket 50 etc.
  *
- *       where target is the given read generaion, e1 is the first element (upper range of the first
- *       bucket, and c is the common ratio.
+ * In a multi-core world having only a single bucket for a range of read generations
+ * would mean contention for the bucket's lock. Using smaller ranges per bucket doesn't
+ * really help, read generations of pages touched close together in time will be very
+ * similar or the same (e.g., many pages with a read generation of, say, 257).
  *
- *       This function may return a destination bucket larger than the number of buckets. That's a
- *       signal to the caller that the buckets can't hold the current read generation and we must
- *       trigger a renumbering.
+ * Instead we let a range of read generations span many buckets. The size of the span
+ * is controlled by the "expected contention" parameter. So if
+ * the expected contention is 10, then the first 10 buckets will be given to read generations
+ * 0-99, the next 10 buckets will be given to read generations 100-199, etc. A thread
+ * selects the destination bucket from the available 10 by adding its session id to the
+ * first bucket in the set of 10. If the number of cores is equal to 10 (the expected
+ * contention parameter), we never compete for the buckets.
+ *
+ * We use a modular division to wrap around to the first bucket when we exceed the
+ * length of bucket array.
  */
-static WT_INLINE uint64_t
-__evict_destination_bucket(WT_SESSION_IMPL *session, WT_PAGE *page, WT_EVICT_BUCKETSET *bucketset,
-                           bool blast)
+static uint64_t
+__evict_base_bucket(uint64_t read_gen)
 {
-#ifdef RANDOM_EVICTION
-    (void)session;
-    (void)page;
-    (void)bucketset;
-    (void)blast;
-    return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
-#else
-    uint64_t read_gen;
-
-    (void)bucketset;
-    (void)blast;
-
-    read_gen = __wt_atomic_loadv64(&page->evict_data.read_gen);
-
-    /*
-     * If this is a page we won't need, it goes into a distinct bucketset, so we place it
-     * into a random bucket there.
-     */
-    if (read_gen == WT_READGEN_WONT_NEED)
-        return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
-
-//    printf("read_gen %" PRIu64 ", base = %" PRIu64 ", blast = %d, final = %" PRIu64 "\n",
-//           read_gen, read_gen / WT_READGEN_STEP, (int)session->id, (read_gen / WT_READGEN_STEP + session->id) % WT_EVICT_NUM_BUCKETS);
-    return (read_gen / WT_READGEN_STEP + session->id) % WT_EVICT_NUM_BUCKETS;
-#endif
-#if 0
-    double e1, target, c, n;
-    int64_t blast_value;
-    uint64_t first_bucket, read_gen;
-
-    if (bucketset ==
-        &((WT_BTREE*)page->evict_data.dhandle->handle)->evict_data.evict_bucketset[WT_EVICT_LEVEL_WONT_NEED])
-        return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
-
-    first_bucket =  __wt_atomic_loadv64(&bucketset->lowest_bucket_upper_range);
-    read_gen = __wt_atomic_loadv64(&page->evict_data.read_gen);
-
-    blast_value = 0;
-    c = WT_EVICT_COMMON_RATIO;
-    e1 = (double)first_bucket;
-    target = (double)read_gen;
-
-    n = ceil(log(1 - (target / e1) * (1 - c)) / log(c));
-#if EVICT_DEBUG_PRINT
-    printf("e1 = %.2f, c =  %.2f, target =  %.2f, n =  %.2f\n", e1, c, target, n);
-#endif
-
-    /*
-     * This can happen if we fail to renumber the buckets for a very long time -- i.e.,
-     * the read generation is too large to find a valid bucket within this diminishing
-     * geometric sequence. This shouldn't happen, but we have a safeguard here to set us
-     * back on track. Returning the largest bucket value will force the caller to renumber
-     * the buckets.
-     */
-    if (isnan(n))
-        return WT_EVICT_NUM_BUCKETS;
-
-    if (blast) {
-        /*
-         * Read generations tend to cluster together, so during each given time window all pages
-         * go into the same bucket. To prevent this (and hence avoid bucket contention), we add
-         * or subtract a small delta from the computed bucket. We "blast" the page away from the
-         * mathematically computed bucket. The delta correlates with the session id,
-         * so same session is likely to land in the same bucket during each small time window.
-         * If the session has an odd id, we subtract, if it has an even id we add.
-         */
-        blast_value =
-            ((int)session->id % (WT_EVICT_BLAST_RADIUS + 1)) * (((int)session->id % 2 == 0) ? 1 : (-1));
-    }
-#if EVICT_DEBUG_PRINT
-    printf("read_gen = %llu, unblasted bucket is %lld, bv is %lld (blast is %s), session %d, blast radius %d\n",
-           read_gen, (int64_t)n, blast_value, blast?"true":"false", (int)session->id, WT_EVICT_BLAST_RADIUS);
-    fflush(stdout);
-#endif
-    return (uint64_t)WT_MAX(0, ((int64_t)n + blast_value));
-#endif
+    return (read_gen / WT_READGEN_STEP * WT_EVICT_EXPECTED_CONTENTION) % WT_EVICT_NUM_BUCKETS;
 }
 
 /*
- * __evict_geo_sum --
- *      Compute the sum of the first elements of a geometric progression given the first element
- *      and the common ratio. Used to calculate the range of read generations for eviction buckets.
- *
- *      The sum of the first N elements in the progression is:
- *
- *      S_n = e1 * (1 - c ^ n) / (1 - c)
- *
- *      where e1 is the value of the first element (the range of the first bucket) and c is
- *      the common ratio.
+ * __evict_destination_bucket --
+ *       Given the read generation, find the id of its destination bucket.
  */
 static WT_INLINE uint64_t
-__evict_geo_sum(uint64_t e1, uint64_t n, double c)
+__evict_destination_bucket(WT_SESSION_IMPL *session, uint64_t read_gen)
 {
-    return (uint64_t)((double)e1 * (1.0 - pow(c, (double)n)) / (1.0 - c));
+#ifdef RANDOM_EVICTION
+    (void)read_gen;
+    return (uint64_t)(time(NULL) ^ (unsigned)session->id) % WT_EVICT_NUM_BUCKETS;
+#else
+    uint64_t contention_adjusted_bucket;
+
+    /*
+     * If this is a page we won't need, it goes into a distinct bucketset. In that bucketset
+     * all pages have the same read generation, so we place into a randomly selected bucket.
+     */
+    if (read_gen == WT_READGEN_WONT_NEED || read_gen == WT_READGEN_EVICT_SOON)
+        return (uint64_t)(time(NULL) ^ (unsigned)pthread_self()) % WT_EVICT_NUM_BUCKETS;
+
+    contention_adjusted_bucket =
+        (__evict_base_bucket(read_gen) + session->id % WT_EVICT_EXPECTED_CONTENTION)
+        % WT_EVICT_NUM_BUCKETS;
+    return contention_adjusted_bucket;
+#endif
 }
 
 /*
  * __evict_page_get_bucketset --
  *     If the page is in the right bucketset, return true and set the bucketset return
  *     pointer to the current bucketset. If the page is in the wrong bucketset, return
- *     false and se the bucketset return pointer to the right bucketset.
+ *     false and set the bucketset return pointer to the right bucketset.
  */
 static WT_INLINE bool
 __evict_page_get_bucketset(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_PAGE *page,
@@ -251,7 +193,7 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
                          uint64_t *ret_id)
 {
     WT_EVICT_BUCKETSET *bucketset;
-    uint64_t cur_bucket_id, new_bucket_id, read_gen;
+    uint64_t cur_bucket_id, read_gen;
 
     if (page == NULL)
         return false;
@@ -259,38 +201,39 @@ __evict_needs_new_bucket(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_P
     if (__wt_atomic_load_pointer(&page->evict_data.bucket) == NULL)
         return true;
 
+    /*
+     * Ok if these turn out to be inconsistent with one another: e.g.,
+     * someone modifies the read generation before moving the page to
+     * the right bucketset. In the worst case we will leave the page
+     * in the old bucket, but it will be moved by the thread racing with us.
+     */
     read_gen = __wt_atomic_load64(&page->evict_data.read_gen);
     cur_bucket_id = __wt_atomic_load64(&page->evict_data.bucket->id);
 
     if (__evict_page_get_bucketset(session, dhandle, page, &bucketset) == false)
         return true;
+
 #ifdef RANDOM_EVICTION
-    else
-        return false;
+    return false;
 #endif
 
-    if (read_gen == WT_READGEN_WONT_NEED)
+    if (read_gen == WT_READGEN_WONT_NEED || read_gen == WT_READGEN_EVICT_SOON)
         return false;
-
-    new_bucket_id = __evict_destination_bucket(session, page, bucketset, false);
 
     if (ret_id != NULL)
-        *ret_id = new_bucket_id;
+        *ret_id = __evict_destination_bucket(session, read_gen);
 
-    if (new_bucket_id >= WT_EVICT_NUM_BUCKETS)
-        return true;
-
-    /* XXX FIX THIS */
-    if ((int64_t)cur_bucket_id >= WT_MAX(0, (int64_t)new_bucket_id - WT_EVICT_BLAST_RADIUS) &&
-        cur_bucket_id <=  new_bucket_id + WT_EVICT_BLAST_RADIUS) {
-#if EVICT_DEBUG_PRINT
-        printf("read_gen %llu, current bucket = %d, new bucket = %d, no need to move\n", read_gen,
-               (int)cur_bucket_id, (int)new_bucket_id);
-        fflush(stdout);
-#endif
+    /*
+     * If the page is somewhere between the base bucket for its current read generation and
+     * the read generation at the next step, it's in the right place.
+     */
+    if (cur_bucket_id >= __evict_base_bucket(read_gen) &&
+        cur_bucket_id < __evict_base_bucket(read_gen + WT_READGEN_STEP)) {
         return false;
     }
-    return true;
+    else {
+        return true;
+    }
 }
 
 /*
