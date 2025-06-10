@@ -4207,7 +4207,7 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-            
+
             # Explicitly configure TSAN options.
             export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp:log_path=$(git rev-parse --show-toplevel)/tsan_logs"
 
