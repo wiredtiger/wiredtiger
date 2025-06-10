@@ -993,7 +993,7 @@ __evict_get_ref(
     WT_PAGE *page;
     WT_REF *ref;
     WT_REF_STATE previous_state;
-    int i, j, max_level;
+    uint32_t i, iter, j, max_level;
     bool dhandle_list_locked;
     uint64_t loop_count;
 
@@ -1003,7 +1003,7 @@ __evict_get_ref(
     dhandle = NULL;
     dhandle_list_locked = false;
     evict = conn->evict;
-    j = 0;
+    iter = 0;
     loop_count = 0;
     max_level = 0;
     previous_state = 0;
@@ -1068,10 +1068,14 @@ __evict_get_ref(
     for (i = 0; i < max_level; i++) {
         /* XXX We always evict below the max level. Choose the max level with some probability. */
         bucketset = WT_DHANDLE_TO_BUCKETSET(dhandle, i);
-        for (j = 0; j < WT_EVICT_NUM_BUCKETS; j++) {
+        for (j = __wt_atomic_load32(&bucketset->bucket_last_considered) % WT_EVICT_NUM_BUCKETS, iter = 0;
+             iter++ < WT_EVICT_NUM_BUCKETS; j = (j+1) % WT_EVICT_NUM_BUCKETS) {
+
             bucket = &bucketset->buckets[j];
             if (__wt_spin_trylock(session, &bucket->evict_queue_lock) == EBUSY)
                 continue;
+
+            __wt_atomic_store32(&bucketset->bucket_last_considered, j);
 
             /* Iterate over the pages in the bucket until we find one that's available. */
             TAILQ_FOREACH (page, &bucket->evict_queue, evict_data.evict_q) {
@@ -1124,14 +1128,6 @@ __evict_get_ref(
                       "eviction skipped a page because skip flag was set");
 
                     continue;
-#if 0
-                } else if (i == WT_EVICT_LEVEL_WONT_NEED &&
-                           page->evict_data.read_gen != WT_READGEN_WONT_NEED) {
-                    WT_REF_UNLOCK(ref, previous_state);
-                    ref = NULL;
-
-                    continue;
-#endif
                 } else {
                     bool skip_page;
                     WT_WITH_DHANDLE(session, dhandle, skip_page = __evict_skip_page(session, ref));
@@ -1162,6 +1158,8 @@ done:
          * Increment the busy count in the btree handle to prevent it from being closed under us.
          */
         (void)__wt_atomic_addv32(&((*btreep)->evict_data.evict_busy), 1);
+        if (i == 1)
+            printf("read_gen = %d, bucket = %d\n", (int)ref->page->evict_data.read_gen, (int) j);
     } else
         WT_STAT_CONN_INCR(session, eviction_get_ref_empty);
 
@@ -1191,34 +1189,15 @@ __evict_page(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    //WT_EVICT_BUCKET *bucket;
     WT_REF *ref;
     WT_REF_STATE previous_state;
     WT_TRACK_OP_DECL;
     uint64_t time_start, time_stop;
     uint32_t flags;
     bool page_is_modified;
-//    static int notfound;
-//    static uint64_t total, times;
 
     WT_TRACK_OP_INIT(session);
-/*
-    time_start =  __wt_clock(session);
-    ret = __evict_get_ref(session, &btree, &ref, &previous_state);
-    time_stop = __wt_clock(session);
-    times++;
-    total += WT_CLOCKDIFF_NS(time_stop, time_start);
 
-    if (ret == WT_NOTFOUND)
-        notfound++;
-
-    if (times % 100000 == 0)
-    {
-        printf("average time to __evict_get_ref: %" PRIu64 ", notfound %d\n", total/times, notfound);
-    }
-    if (ret != 0)
-        return ret;
-*/
     time_start = 0;
     flags = 0;
     page_is_modified = false;
@@ -1227,13 +1206,6 @@ __evict_page(WT_SESSION_IMPL *session)
     WT_ASSERT(session,
               (WT_REF_GET_STATE(ref) == WT_REF_LOCKED
                && WT_REF_OWNER(ref) == (uint64_t)session));
-
-    /*
-     * Remember the bucket where the page came from.
-     * After we are done evicting we will help organize
-     * pages in that bucket.
-     */
-    //bucket = __wt_atomic_load_pointer(&ref->page->evict_data.bucket);
 
     /*
      * Was the page evicted by an eviction worker on an application thread?
