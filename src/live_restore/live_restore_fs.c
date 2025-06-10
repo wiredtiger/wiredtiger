@@ -771,7 +771,18 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
     /* The write is not aligned to an incremental backup segment. */
     if (alignment != 0) {
         conflate_read_start = write_start - alignment;
-        conflate_start = true;
+        bool set = false;
+        for (uint64_t i = WTI_OFFSET_TO_BIT(conflate_read_start); i < WTI_OFFSET_TO_BIT(write_start); i++) {
+            /*
+             * We can do error checking here. Given we do read conflation we should either see every
+             * bit set or no bits set.
+             */
+            if (i == WTI_OFFSET_TO_BIT(conflate_read_start))
+                set = __bit_test(lr_fh->bitmap, i);
+            WT_ASSERT_ALWAYS(session, set == __bit_test(lr_fh->bitmap, i), "Bitmap corruption detected in live restore.");
+        }
+        if (!set)
+            conflate_start = true;
     }
 
     /* Similarly to above we'll only read up to the start of our write if the end is aligned. */
@@ -779,8 +790,23 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
     if (end_relevant) {
         alignment = write_end % granularity;
         if (alignment != 0) {
-            conflate_read_end = write_end + (granularity - alignment);
-            conflate_end = true;
+            /*
+             * In theory the source file can end before the granularity block ends, control for that
+             * here.
+             */
+            conflate_read_end = WT_MAX(source_size, write_end + (granularity - alignment));
+            bool set = false;
+            for (uint64_t i = WTI_OFFSET_TO_BIT(write_end); i < WTI_OFFSET_TO_BIT(conflate_read_end); i++) {
+                /*
+                 * We can do error checking here. Given we do read conflation we should either see every
+                 * bit set or no bits set.
+                 */
+                if (i == WTI_OFFSET_TO_BIT(write_end))
+                    set = __bit_test(lr_fh->bitmap, i);
+                WT_ASSERT_ALWAYS(session, set == __bit_test(lr_fh->bitmap, i), "Bitmap corruption detected in live restore.");
+            }
+            if (!set)
+                conflate_end = true;
         }
     }
 
