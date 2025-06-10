@@ -648,16 +648,16 @@ static int
 palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *discard_args)
 {
-    /* FIXME-WT-14704: Implement this function. */
+    /* FIXME-WT-14704: Implement this function and remove from s_void. */
     PALM_HANDLE *palm_handle;
     palm_handle = (PALM_HANDLE *)plh;
 
     WT_UNUSED(session);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
-      "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", checkpoint_id=%" PRIu64
-      ", backlink_lsn=%" PRIu64 ", base_lsn=%" PRIu64 ", backlink_checkpoint_id=%" PRIu64
-      ", base_checkpoint_id=%" PRIu64 ")\n",
+      "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64
+      ", checkpoint_id=%" PRIu64 ", backlink_lsn=%" PRIu64 ", base_lsn=%" PRIu64
+      ", backlink_checkpoint_id=%" PRIu64 ", base_checkpoint_id=%" PRIu64 ")\n",
       (void *)plh, palm_handle->table_id, page_id, checkpoint_id, discard_args->backlink_lsn,
       discard_args->base_lsn, discard_args->backlink_checkpoint_id,
       discard_args->base_checkpoint_id);
