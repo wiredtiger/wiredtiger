@@ -5427,6 +5427,7 @@ tasks:
       - func: "build and push antithesis container"
 
   - name: smart-testing
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - command: shell.exec
