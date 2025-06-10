@@ -624,13 +624,17 @@ __live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_
      * If we still haven't reached the end of the read range then this is an invalid case where a
      * set bit appears after an unset bit in the range, e.g. 11000011, 00001111, or 00110011.
      */
+    WT_UNUSED(__live_restore_dump_bitmap);
+    /*
+     * TODO: This case doesn't apply anymore but does that mean we need to bring back partial read
+     * semantics?  
     if (current_bit != read_end_bit) {
         WT_IGNORE_RET(__live_restore_dump_bitmap(session, lr_fh));
         WT_ASSERT_ALWAYS(session, false,
           "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT ") found a set bit (offset: %" PRId64
           ") after a hole.",
           offset, len, WTI_BIT_TO_OFFSET(current_bit));
-    }
+    }*/
     return (false);
 }
 
@@ -751,8 +755,7 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
     wt_off_t write_end = WTI_OFFSET_END(offset, len);
     wt_off_t source_size;
     WT_RET(lr_fh->source->fh_size(lr_fh->source, (WT_SESSION*)session, &source_size));
-    wt_off_t left_incremental_bound = write_start - (write_start % granularity);
-    wt_off_t right_incremental_bound = write_end + (granularity - (write_end % granularity));
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "Checking if write needs conflation. Offset: (%" PRId64"), Len: (%" WT_SIZET_FMT")", offset, len);
 
     /*
      * The source size check here prevents us from handling any writes that are beyond the border
@@ -760,8 +763,8 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
      * directly adjacent block. E.g. if the source file is 12K and the offset of the write to be
      * conflated 12K then we must conflate it. But a 16K write would not be conflated.
      */
-    bool start_relevant = left_incremental_bound < source_size && offset <= source_size;
-    bool end_relevant = right_incremental_bound < source_size;
+    bool start_relevant = offset <= source_size;
+    bool end_relevant = write_end <= source_size;
     if (!start_relevant && !end_relevant)
         return (0);
 
@@ -800,7 +803,7 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
              * In theory the source file can end before the granularity block ends, control for that
              * here.
              */
-            conflate_read_end = WT_MAX(source_size, write_end + (granularity - alignment));
+            conflate_read_end = WT_MIN(source_size, write_end + (granularity - alignment));
             bool set = false;
             for (uint64_t i = WTI_OFFSET_TO_BIT(write_end); i < WTI_OFFSET_TO_BIT(conflate_read_end); i++) {
                 /*
