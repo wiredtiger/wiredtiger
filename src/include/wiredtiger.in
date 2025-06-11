@@ -5584,12 +5584,11 @@ struct __wt_page_log_discard_args {
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
 
-       /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-       /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+       /* Not used for now. */
        uint32_t flags;
 
        /*
-        * Output arguments, returned by the call
+        * Output arguments, returned by the call. Not used for now.
         */
        uint64_t lsn;
 };
