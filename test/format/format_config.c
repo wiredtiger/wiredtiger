@@ -754,7 +754,7 @@ dirty_eviction_config:
 
     if (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "follower") == 0) {
         WARN("%s",
-          "Setting cache.eviction_dirty_trigger=95 and cache.eviction_update_trigger=100. In "
+          "Setting cache.eviction_dirty_trigger=95 and cache.eviction_update_trigger=95. In "
           "disaggregated follower mode, these eviction trigger thresholds are increased to help "
           "avoid operation thread stalls.");
         config_single(NULL, "cache.eviction_dirty_trigger=95", false);
