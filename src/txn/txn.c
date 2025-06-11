@@ -2691,7 +2691,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 int
 __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 {
-    WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     uint64_t global_oldest;
