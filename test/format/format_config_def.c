@@ -100,6 +100,12 @@ CONFIG configuration_list[] = {{"assert.read_timestamp", "assert read_timestamp"
   {"cache.eviction_dirty_trigger", "dirty content trigger for eviction", C_IGNORE, 0, 0, 100,
     V_GLOBAL_CACHE_EVICTION_DIRTY_TRIGGER},
 
+  {"cache.eviction_updates_target", "update content target for eviction", C_IGNORE, 0, 0, 100,
+    V_GLOBAL_CACHE_EVICTION_UPDATES_TARGET},
+
+  {"cache.eviction_updates_trigger", "update content trigger for eviction", C_IGNORE, 0, 0, 100,
+    V_GLOBAL_CACHE_EVICTION_UPDATES_TRIGGER},
+
   {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024, V_GLOBAL_CACHE_MINIMUM},
 
   {"cache.maximum", "maximum cache size (MB)", C_IGNORE, 0, 0, UINT_MAX, V_GLOBAL_CACHE_MAXIMUM},

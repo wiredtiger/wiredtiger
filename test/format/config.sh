@@ -141,6 +141,10 @@ CONFIG configuration_list[] = {
 
 {"cache.eviction_dirty_trigger", "dirty content trigger for eviction", C_IGNORE, 0, 0, 100}
 
+{"cache.eviction_updates_target", "update content target for eviction", C_IGNORE, 0, 0, 100}
+
+{"cache.eviction_updates_trigger", "update content trigger for eviction", C_IGNORE, 0, 0, 100}
+
 {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024}
 
 {"cache.maximum", "maximum cache size (MB)", C_IGNORE, 0, 0, UINT_MAX}

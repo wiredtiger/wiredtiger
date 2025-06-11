@@ -694,10 +694,12 @@ config_cache(void)
     GV(CACHE) = GV(CACHE_MINIMUM);
 
     /*
-     * If it's an in-memory run, size the cache at 2x the maximum initial data set. This calculation
-     * is done in bytes, convert to megabytes before testing against the cache.
+     * If it's an in-memory run or disaggregated follower mode, size the cache at 2x the maximum
+     * initial data set. This calculation is done in bytes, convert to megabytes before testing
+     * against the cache.
      */
-    if (GV(RUNS_IN_MEMORY)) {
+    if (GV(RUNS_IN_MEMORY) ||
+      (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "follower") == 0)) {
         cache = table_sumv(V_TABLE_BTREE_KEY_MAX) + table_sumv(V_TABLE_BTREE_VALUE_MAX);
         cache *= table_sumv(V_TABLE_RUNS_ROWS);
         cache *= 2;
@@ -748,6 +750,15 @@ dirty_eviction_config:
           GV(CACHE));
         config_single(NULL, "cache.eviction_dirty_trigger=40", false);
         config_single(NULL, "cache.eviction_dirty_target=10", false);
+    }
+
+    if (g.disagg_storage_config && strcmp(GVS(DISAGG_MODE), "follower") == 0) {
+        WARN("%s",
+          "Setting cache.eviction_dirty_trigger=95 and cache.eviction_update_trigger=100. In "
+          "disaggregated follower mode, these eviction trigger thresholds are increased to help "
+          "avoid operation thread stalls.");
+        config_single(NULL, "cache.eviction_dirty_trigger=95", false);
+        config_single(NULL, "cache.eviction_updates_trigger=95", false);
     }
 }
 
@@ -1481,8 +1492,8 @@ config_disagg_storage(void)
 
     g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
     if (g.disagg_storage_config) {
-        mode = GVS(DISAGG_MODE);
         if (config_explicit(NULL, "disagg.mode")) {
+            mode = GVS(DISAGG_MODE);
             if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0)
                 testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
         } else {
