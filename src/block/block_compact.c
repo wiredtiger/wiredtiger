@@ -17,7 +17,6 @@ static void __block_dump_file_stat(WT_SESSION_IMPL *, WT_BLOCK *, bool);
 int
 __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
-
     if (block->compact_session_id != WT_SESSION_ID_INVALID)
         WT_RET_MSG(session, EBUSY,
           "Compaction already happening on data handle %s by session %" PRIu32, block->name,
