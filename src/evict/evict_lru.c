@@ -2503,16 +2503,15 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
 
         page = ref->page;
 
-        const uint64_t old_evict_pass_gen = page->evict_pass_gen;
-        page->evict_pass_gen = __wt_atomic_load64(&evict->evict_pass_gen);
-
         /* Update the maximum generation gap seen so at time of eviction. This helps track how long
          * it's been since a page was last queued for eviction. We need to update the statistic here
          * during the walk and not at __evict_page because the evict_pass_gen is reset here.
          */
-        const uint64_t gen_gap = page->evict_pass_gen - old_evict_pass_gen;
-        if (gen_gap > __wt_atomic_load64(&conn->evict->evict_max_gen_gap))
-            __wt_atomic_store64(&conn->evict->evict_max_gen_gap, gen_gap);
+        const uint64_t gen_gap = __wt_atomic_load64(&evict->evict_pass_gen) - page->evict_pass_gen;
+        if (gen_gap > __wt_atomic_load64(&evict->evict_max_gen_gap))
+            __wt_atomic_store64(&evict->evict_max_gen_gap, gen_gap);
+
+        page->evict_pass_gen = __wt_atomic_load64(&evict->evict_pass_gen);
 
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))

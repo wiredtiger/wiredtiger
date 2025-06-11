@@ -29,8 +29,8 @@ struct __wt_evict {
     uint64_t read_gen_oldest; /* Oldest read generation the eviction
                                * server saw in its last queue load */
     uint64_t evict_pass_gen;  /* Number of eviction passes */
-    wt_shared uint64_t
-      evict_max_gen_gap; /*Largest gap between the oldest page read-generation values in the cache*/
+    wt_shared uint64_t evict_max_gen_gap; /* Largest gap between page and connection evict pass
+                                             generation */
     /*
      * Eviction thread information.
      */
