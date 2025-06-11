@@ -300,16 +300,14 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
     WT_PAGE_LOG_DISCARD_ARGS discard_args;
     WT_CLEAR(discard_args);
     if (block_meta->delta_count > 0) {
-        discard_args.backlink_checkpoint_id = block_meta->base_checkpoint_id;
-        discard_args.backlink_lsn = block_meta->base_lsn;
         discard_args.base_checkpoint_id = block_meta->base_checkpoint_id;
         discard_args.base_lsn = block_meta->base_lsn;
     } else {
-        discard_args.backlink_checkpoint_id = block_meta->checkpoint_id;
-        discard_args.backlink_lsn = block_meta->disagg_lsn;
         discard_args.base_checkpoint_id = block_meta->checkpoint_id;
         discard_args.base_lsn = block_meta->disagg_lsn;
     }
+    discard_args.backlink_checkpoint_id = block_meta->checkpoint_id;
+    discard_args.backlink_lsn = block_meta->disagg_lsn;
 
     return (
       plhandle->plh_discard(plhandle, &session->iface, page_id, checkpoint_id, &discard_args));
