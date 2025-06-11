@@ -2735,7 +2735,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
         else
             WT_STAT_CONN_INCR(session, txn_rollback_oldest_pinned);
         WT_RET_SUB(
-          session, ret, WT_OLDEST_FOR_EVICTION, "Transaction has the oldest pinned transaction ID");
+          session, WT_ROLLBACK, WT_OLDEST_FOR_EVICTION, WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION);
     }
     return (0);
 }
