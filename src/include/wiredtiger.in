@@ -6280,8 +6280,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: maximum bytes configured */
 #define	WT_STAT_CONN_CACHE_BYTES_MAX			1197
 /*!
- * cache: maximum gap between oldest and newest page read-generation
- * values seen at eviction
+ * cache: maximum gap between page and connection evict pass generation
+ * seen at eviction
  */
 #define	WT_STAT_CONN_EVICTION_MAXIMUM_GEN_GAP		1198
 /*! cache: maximum milliseconds spent at a single eviction */

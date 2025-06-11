@@ -1589,7 +1589,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: leaf pages split during eviction",
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: maximum bytes configured",
-  "cache: maximum gap between oldest and newest page read-generation values seen at eviction",
+  "cache: maximum gap between page and connection evict pass generation seen at eviction",
   "cache: maximum milliseconds spent at a single eviction",
   "cache: maximum page size seen at eviction",
   "cache: modified page evict attempts by application threads",
