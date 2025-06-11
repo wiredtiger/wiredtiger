@@ -17,21 +17,19 @@ static int
 __rts_check_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
-    WT_DECL_RET;
     WT_RTS_COOKIE *cookie;
 
     WT_UNUSED(session);
-    WT_UNUSED(exit_walkp);
     cookie = (WT_RTS_COOKIE *)cookiep;
 
     /* Check if a user session has a running transaction. */
     if (F_ISSET(array_session->txn, WT_TXN_RUNNING)) {
         cookie->ret_txn_active = true;
-        WT_TRET(__wt_verbose_dump_txn(session));
+        *exit_walkp = true;
     } else if (array_session->ncursors != 0) {
         /* Check if a user session has an active file cursor. */
         cookie->ret_cursor_active = true;
-        WT_TRET(__wt_session_dump(session, array_session, true));
+        *exit_walkp = true;
     }
     return (0);
 }
@@ -43,6 +41,7 @@ static int
 __rts_check(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_RTS_COOKIE cookie;
 
     WT_CLEAR(cookie);
@@ -65,10 +64,16 @@ __rts_check(WT_SESSION_IMPL *session)
      * A new cursor may be positioned or a transaction may start after we return from this call and
      * callers should be aware of this limitation.
      */
-    if (cookie.ret_cursor_active)
+    if (cookie.ret_cursor_active) {
+        ret = EBUSY;
+        WT_TRET(__wt_verbose_dump_sessions(session, true));
         WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
-    if (cookie.ret_txn_active)
-        WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active transactions");
+    }
+    if (cookie.ret_txn_active) {
+        ret = EBUSY;
+        WT_TRET(__wt_verbose_dump_sessions(session, false));
+        WT_RET_MSG(session, ret, "rollback_to_stable illegal with active transactions");
+    }
     return (0);
 }
 /*

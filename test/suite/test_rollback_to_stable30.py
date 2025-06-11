@@ -75,7 +75,7 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
         cursor.next()
 
         # Roll back to stable should fail because there's an active cursor.
-        msg = '/rollback_to_stable.*active/'
+        msg = '/rollback_to_stable illegal with active file cursors/'
         with self.expectedStdoutPattern('positioned cursors'):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda:self.conn.rollback_to_stable('threads=' + str(self.threads)), msg)
@@ -90,8 +90,8 @@ class test_rollback_to_stable30(wttest.WiredTigerTestCase):
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10))
 
         # Roll back to stable should fail because there's an active transaction.
-        msg = '/rollback_to_stable.*active/'
-        with self.expectedStdoutPattern('transaction state dump'):
+        msg = '/rollback_to_stable illegal with active transactions/'
+        with self.expectedStdoutPattern('transaction'):
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:self.conn.rollback_to_stable('threads=' + str(self.threads)), msg)
 
