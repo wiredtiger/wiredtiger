@@ -147,8 +147,8 @@ __wt_page_is_reconciling(WT_PAGE *page)
  *     Helper function to free a block from the current tree.
  */
 static WT_INLINE int
-__wt_btree_block_free(
-  WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool page_replacement)
+__wt_btree_block_free(WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr,
+  size_t addr_size, bool page_replacement)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -159,8 +159,7 @@ __wt_btree_block_free(
     if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && page_replacement)
         return (0);
 
-    /* TODO. */
-    return (bm->free(bm, session, NULL, addr, addr_size));
+    return (bm->free(bm, session, block_meta, addr, addr_size));
 }
 
 /*
@@ -1645,7 +1644,8 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref, bool page_replacement
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
 
-    WT_ERR(__wt_btree_block_free(session, addr.addr, addr.size, page_replacement));
+    WT_ERR(__wt_btree_block_free(
+      session, &ref->page->block_meta, addr.addr, addr.size, page_replacement));
 
     if (!page_replacement && ref->page != NULL)
         ref->page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
