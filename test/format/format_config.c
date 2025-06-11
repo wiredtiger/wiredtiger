@@ -1474,12 +1474,24 @@ config_tiered_storage(void)
 static void
 config_disagg_storage(void)
 {
-    const char *page_log;
+    char buf[128];
+    const char *mode, *page_log;
 
     page_log = GVS(DISAGG_PAGE_LOG);
 
     g.disagg_storage_config = (strcmp(page_log, "off") != 0 && strcmp(page_log, "none") != 0);
     if (g.disagg_storage_config) {
+        mode = GVS(DISAGG_MODE);
+        if (config_explicit(NULL, "disagg.mode")) {
+            if (strcmp(mode, "leader") != 0 && strcmp(mode, "follower") != 0)
+                testutil_die(EINVAL, "illegal disagg.mode configuration: %s", mode);
+        } else {
+            /* Randomly assign "leader" or "follower" to disagg.mode with equal probability. */
+            testutil_snprintf(buf, sizeof(buf), "disagg.mode=%s",
+              mmrand(&g.data_rnd, 1, 100) <= 50 ? "leader" : "follower");
+            config_single(NULL, buf, false);
+        }
+
         /* Disaggregated storage requires timestamps. */
         config_off(NULL, "transaction.implicit");
         config_single(NULL, "transaction.timestamps=on", true);

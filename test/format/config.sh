@@ -187,6 +187,8 @@ CONFIG configuration_list[] = {
 
 {"disagg.page_log", "configure page log for disaggregated storage (off | palm)", C_IGNORE | C_STRING, 0, 0, 0}
 
+{"disagg.mode", "configure mode for disaggregated storage (leader | follower)", C_IGNORE | C_STRING, 0, 0, 0}
+
 {"disagg.enabled", "configure disaggregated storage", C_IGNORE | C_BOOL | C_TABLE | C_TYPE_ROW, 0, 0, 0}
 
 {"disagg.layered", "use layered URI for any disaggregated tables", C_BOOL, 100, 1, 0}
