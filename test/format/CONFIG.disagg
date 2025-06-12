@@ -9,6 +9,7 @@ disagg.enabled=1
 disagg.layered=1
 runs.source=layered
 runs.type=row-store
+runs.tables=3
 import=0
 ops.alter=0
 # FIXME-WT-14467 should fix cursor->modify for layered tables.
