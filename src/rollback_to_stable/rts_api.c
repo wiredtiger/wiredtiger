@@ -27,7 +27,7 @@ __rts_check_callback(
         cookie->ret_txn_active = true;
         *exit_walkp = true;
     } else if (array_session->ncursors != 0) {
-        /* Check if a user session has an active file cursor. */
+        /* Check if a user session has an active file cursor. */ 
         cookie->ret_cursor_active = true;
         *exit_walkp = true;
     }
