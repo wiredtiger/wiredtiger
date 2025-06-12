@@ -261,7 +261,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, uint32_t objecti
      * indicate this so that the first checkpoint is sure to set all the bits as dirty to cover the
      * header so that the header gets copied.
      */
-    if (block->size == allocsize && F_ISSET_ATOMIC_32(conn, WT_CONN_INCR_BACKUP))
+    if (block->size == allocsize && F_ISSET_ATOMIC_64(conn, WT_CONN_INCR_BACKUP))
         block->created_during_backup = true;
 
     /* Initialize the live checkpoint's lock. */
@@ -303,7 +303,7 @@ __wti_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
     WT_DECL_RET;
 
     /* If in-memory, we don't read or write the descriptor structure. */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_IN_MEMORY))
         return (0);
 
     WT_RET(__wt_scr_alloc(session, allocsize, &buf));
@@ -355,7 +355,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
     bool checksum_matched;
 
     /* If in-memory, we don't read or write the descriptor structure. */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_IN_MEMORY))
         return (0);
 
     /*
@@ -380,7 +380,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
             ret = ENOENT;
         else {
             ret = WT_ERROR;
-            F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
+            F_SET_ATOMIC_64(S2C(session), WT_CONN_DATA_CORRUPTION);
         }
         WT_RET_MSG(session, ret,
           "File %s is smaller than allocation size; file size=%" PRId64 ", alloc size=%" PRIu32,
@@ -486,7 +486,9 @@ __wt_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
 
 /*
  * __wt_block_manager_named_size --
- *     Return the size of a named file.
+ *     Return the size of a named file - this currently avoids using the block manager interface.
+ *     That should be changed - otherwise it isn't possible to have pluggable block manager
+ *     implementations.
  */
 int
 __wt_block_manager_named_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)

@@ -87,6 +87,12 @@ from packing import pack, unpack
 %typemap(in, numinputs=0) WT_PAGE_LOG_HANDLE ** (WT_PAGE_LOG_HANDLE *temp = NULL) {
 	$1 = &temp;
  }
+%typemap(in, numinputs=0) WT_PAGE_LOG ** (WT_PAGE_LOG *temp = NULL) {
+    $1 = &temp;
+ }
+%typemap(in, numinputs=0) WT_PAGE_LOG_HANDLE ** (WT_PAGE_LOG_HANDLE *temp = NULL) {
+    $1 = &temp;
+ }
 %typemap(in, numinputs=0) WT_STORAGE_SOURCE ** (WT_STORAGE_SOURCE *temp = NULL) {
 	$1 = &temp;
  }
@@ -1454,7 +1460,6 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %rename(PageLogGetArgs) __wt_page_log_get_args;
 %rename(PageLogHandle) __wt_page_log_handle;
 %rename(PageLogPutArgs) __wt_page_log_put_args;
-%rename(StorageSource) __wt_storage_source;
 %rename(StorageSource) __wt_storage_source;
 %rename(FileSystem) __wt_file_system;
 

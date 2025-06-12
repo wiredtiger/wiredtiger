@@ -52,6 +52,7 @@ func_ok()
         -e '/int __im_file_sync$/d' \
         -e '/int __im_fs_directory_list_free$/d' \
         -e '/int __im_fs_exist$/d' \
+        -e '/int __layered_modify_check$/d' \
         -e '/int __log_record_verify$/d' \
         -e '/int __log_salvage_message$/d' \
         -e '/int __page_write_gen_wrapped_check$/d' \
@@ -68,9 +69,26 @@ func_ok()
         -e '/int __win_terminate$/d' \
         -e '/int __wt_block_compact_end$/d' \
         -e '/int __wt_block_compact_start$/d' \
+        -e '/int __wt_block_disagg_checkpoint_start$/d' \
+        -e '/int __wt_block_disagg_checkpoint_unload$/d' \
+        -e '/int __wt_block_disagg_compact_end$/d' \
+        -e '/int __wt_block_disagg_compact_page_skip$/d' \
+        -e '/int __wt_block_disagg_compact_skip$/d' \
+        -e '/int __wt_block_disagg_compact_start$/d' \
         -e '/int __wt_block_disagg_manager_create$/d' \
+        -e '/int __wt_block_disagg_manager_drop$/d' \
         -e '/int __wt_block_disagg_manager_size$/d' \
+        -e '/int __wt_block_disagg_map_discard$/d' \
         -e '/int __wt_block_disagg_read$/d' \
+        -e '/int __wt_block_disagg_salvage_end$/d' \
+        -e '/int __wt_block_disagg_salvage_next$/d' \
+        -e '/int __wt_block_disagg_salvage_start$/d' \
+        -e '/int __wt_block_disagg_salvage_valid$/d' \
+        -e '/int __wt_block_disagg_sync$/d' \
+        -e '/int __wt_block_disagg_verify_addr$/d' \
+        -e '/int __wt_block_disagg_verify_end$/d' \
+        -e '/int __wt_block_disagg_verify_start$/d' \
+        -e '/int __wt_block_disagg_write_size$/d' \
         -e '/int __wt_block_manager_size$/d' \
         -e '/int __wt_block_tiered_load$/d' \
         -e '/int __wt_block_write_size$/d' \
@@ -163,8 +181,8 @@ func_ok()
         -e '/int nop_terminate$/d' \
         -e '/int os_errno$/d' \
         -e '/int palm_err$/d' \
-        -e '/int palm_kv_err$/d' \
         -e '/int palm_handle_get$/d' \
+        -e '/int palm_kv_err$/d' \
         -e '/int palm_set_last_materialized_lsn$/d' \
         -e '/int revint_terminate$/d' \
         -e '/int rotn_error$/d' \
@@ -192,6 +210,7 @@ func_ok()
         -e '/int zstd_terminate$/d' \
         -e '/int __wt_curhs_search_near_after$/d' \
         -e '/int __wt_curhs_search_near_before$/d' \
+        -e '/int __wt_layered_table_manager_thread_run/d' \
         -e '/int __wt_logrec_read$/d' \
         -e '/int __wt_logop_read$/d' \
         -e '/int __wt_logop_unpack$/d' \

@@ -34,6 +34,7 @@
     "WT_VERB_HANDLEOPS", \
     "WT_VERB_HS", \
     "WT_VERB_HS_ACTIVITY", \
+    "WT_VERB_LAYERED", \
     "WT_VERB_LIVE_RESTORE", \
     "WT_VERB_LIVE_RESTORE_PROGRESS", \
     "WT_VERB_LOG", \
@@ -58,6 +59,7 @@
     "WT_VERB_VERIFY", \
     "WT_VERB_VERSION", \
     "WT_VERB_WRITE", \
+    "WT_VERB_PAGE_DELTA", \
     /* AUTOMATIC VERBOSE ENUM STRING GENERATION STOP */ \
     }
 /* clang-format on */

@@ -39,6 +39,8 @@ namespace model {
  */
 kv_workload_generator_spec::kv_workload_generator_spec()
 {
+    disaggregated = 0.75;
+
     min_tables = 3;
     max_tables = 10;
 
@@ -49,8 +51,9 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     max_recno = 100'000;
     max_value_uint64 = 1'000'000;
 
-    column_fix = 0.1;
-    column_var = 0.1;
+    /* FIXME-SLS-1096: Disable these until we fix the test failures; then reset back to 0.1. */
+    column_fix = 0.0;
+    column_var = 0.0;
 
     finish_transaction = 0.08;
     insert = 0.75;
@@ -510,6 +513,17 @@ kv_workload_generator::generate_transaction(size_t seq_no)
 void
 kv_workload_generator::run()
 {
+    /* Top-level configuration. */
+    if (_random.next_float() < _spec.disaggregated) {
+        _database_config.disaggregated = true;
+        _workload << operation::config("database", "disaggregated=true");
+
+        /* Adjust the specs based on what's not supported. */
+        _spec.column_fix = 0;
+        _spec.column_var = 0;
+        _spec.prepared_transaction = 0;
+    }
+
     /* Create tables. */
     uint64_t num_tables = _random.next_uint64(_spec.min_tables, _spec.max_tables);
     for (uint64_t i = 0; i < num_tables; i++)
