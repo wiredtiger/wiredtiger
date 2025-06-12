@@ -56,17 +56,21 @@ def _prepend_env_path(pathvar, s):
         pass
     os.environ[pathvar] = s + last
 
+# FIXME-WT-14775: The ordering here matters for ARMV9 machines. If wiredtiger module is
+# imported before workgen a segmentation fault occurs while trying to symbolize
+# libstdc++ library.
+#
 # Initialize the python path so needed modules can be imported.
 # If the path already works, don't change it.
 try:
-    import wiredtiger
+    import workgen
 except:
-    # We'll try hard to make the importing work, we'd like to runners
-    # to be executable directly without having to set environment variables.
     sys.path.insert(0, os.path.join(wt_dir, 'lang', 'python'))
     sys.path.insert(0, os.path.join(wt_builddir, 'lang', 'python'))
+    sys.path.insert(0, os.path.join(workgen_src, 'workgen'))
+    sys.path.insert(0, os.path.join(wt_builddir, 'bench', 'workgen'))
     try:
-        import wiredtiger
+        import workgen
     except:
         # If the WiredTiger libraries is not in our library search path,
         # we need to set it and retry.  However, the dynamic link
@@ -90,11 +94,13 @@ except:
                 sys.exit(1)
 
 try:
-    import workgen
+    import wiredtiger
 except:
-    sys.path.insert(0, os.path.join(workgen_src, 'workgen'))
-    sys.path.insert(0, os.path.join(wt_builddir, 'bench', 'workgen'))
-    import workgen
+    # We'll try hard to make the importing work, we'd like to runners
+    # to be executable directly without having to set environment variables.
+    sys.path.insert(0, os.path.join(wt_dir, 'lang', 'python'))
+    sys.path.insert(0, os.path.join(wt_builddir, 'lang', 'python'))
+    import wiredtiger
 
 from .core import txn, extensions_config, op_append, op_group_transaction, op_log_like, op_multi_table, op_populate_with_range, sleep, timed
 from .latency import workload_latency
