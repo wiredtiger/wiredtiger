@@ -55,6 +55,10 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: row-store empty values",
   "btree: row-store internal pages",
   "btree: row-store leaf pages",
+  "cache: application threads eviction requested with cache fill ratio < 25%",
+  "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
+  "cache: application threads eviction requested with cache fill ratio >= 50% and < 75%",
+  "cache: application threads eviction requested with cache fill ratio >= 75%",
   "cache: bytes currently in the cache",
   "cache: bytes dirty in the cache cumulative",
   "cache: bytes read into cache",
@@ -122,8 +126,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: locate a random in-mem ref by examining all entries on the root page",
   "cache: modified pages evicted",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
-  "cache: number of times clean trigger was reached",
   "cache: number of times dirty trigger was reached",
+  "cache: number of times eviction trigger was reached",
   "cache: number of times updates trigger was reached",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -426,6 +430,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf = 0;
+    stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_50_75 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_gt_75 = 0;
     /* not clearing cache_bytes_inuse */
     /* not clearing cache_bytes_dirty_total */
     stats->cache_bytes_read = 0;
@@ -482,8 +490,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_random_sample_inmem_root = 0;
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
-    stats->cache_eviction_trigger_clean_reached = 0;
     stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->cache_eviction_trigger_reached = 0;
     stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -762,6 +770,14 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf += from->btree_row_leaf;
+    to->cache_eviction_app_threads_fill_ratio_lt_25 +=
+      from->cache_eviction_app_threads_fill_ratio_lt_25;
+    to->cache_eviction_app_threads_fill_ratio_25_50 +=
+      from->cache_eviction_app_threads_fill_ratio_25_50;
+    to->cache_eviction_app_threads_fill_ratio_50_75 +=
+      from->cache_eviction_app_threads_fill_ratio_50_75;
+    to->cache_eviction_app_threads_fill_ratio_gt_75 +=
+      from->cache_eviction_app_threads_fill_ratio_gt_75;
     to->cache_bytes_inuse += from->cache_bytes_inuse;
     to->cache_bytes_dirty_total += from->cache_bytes_dirty_total;
     to->cache_bytes_read += from->cache_bytes_read;
@@ -827,8 +843,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += from->cache_eviction_dirty;
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       from->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint;
-    to->cache_eviction_trigger_clean_reached += from->cache_eviction_trigger_clean_reached;
     to->cache_eviction_trigger_dirty_reached += from->cache_eviction_trigger_dirty_reached;
+    to->cache_eviction_trigger_reached += from->cache_eviction_trigger_reached;
     to->cache_eviction_trigger_updates_reached += from->cache_eviction_trigger_updates_reached;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
@@ -1107,6 +1123,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_row_empty_values += WT_STAT_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_READ(from, btree_row_internal);
     to->btree_row_leaf += WT_STAT_READ(from, btree_row_leaf);
+    to->cache_eviction_app_threads_fill_ratio_lt_25 +=
+      WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
+    to->cache_eviction_app_threads_fill_ratio_25_50 +=
+      WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_25_50);
+    to->cache_eviction_app_threads_fill_ratio_50_75 +=
+      WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_50_75);
+    to->cache_eviction_app_threads_fill_ratio_gt_75 +=
+      WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_gt_75);
     to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
     to->cache_bytes_dirty_total += WT_STAT_READ(from, cache_bytes_dirty_total);
     to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
@@ -1181,10 +1205,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
-    to->cache_eviction_trigger_clean_reached +=
-      WT_STAT_READ(from, cache_eviction_trigger_clean_reached);
     to->cache_eviction_trigger_dirty_reached +=
       WT_STAT_READ(from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_reached += WT_STAT_READ(from, cache_eviction_trigger_reached);
     to->cache_eviction_trigger_updates_reached +=
       WT_STAT_READ(from, cache_eviction_trigger_updates_reached);
     to->cache_eviction_blocked_overflow_keys +=
@@ -1481,6 +1504,10 @@ static const char *const __stats_connection_desc[] = {
   "truncate",
   "block-manager: number of times the region was remapped via write",
   "cache: application thread time evicting (usecs)",
+  "cache: application threads eviction requested with cache fill ratio < 25%",
+  "cache: application threads eviction requested with cache fill ratio >= 25% and < 50%",
+  "cache: application threads eviction requested with cache fill ratio >= 50% and < 75%",
+  "cache: application threads eviction requested with cache fill ratio >= 75%",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -1621,8 +1648,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: modified pages evicted",
   "cache: modified pages evicted by application threads",
   "cache: multi-block reconciliation blocked whilst checkpoint is running",
-  "cache: number of times clean trigger was reached",
   "cache: number of times dirty trigger was reached",
+  "cache: number of times eviction trigger was reached",
   "cache: number of times updates trigger was reached",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
@@ -2256,6 +2283,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
     stats->cache_eviction_app_time = 0;
+    stats->cache_eviction_app_threads_fill_ratio_lt_25 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_25_50 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_50_75 = 0;
+    stats->cache_eviction_app_threads_fill_ratio_gt_75 = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -2380,8 +2411,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_app_dirty = 0;
     stats->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint = 0;
-    stats->cache_eviction_trigger_clean_reached = 0;
     stats->cache_eviction_trigger_dirty_reached = 0;
+    stats->cache_eviction_trigger_reached = 0;
     stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
@@ -2983,6 +3014,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
     to->cache_eviction_app_time += WT_STAT_READ(from, cache_eviction_app_time);
+    to->cache_eviction_app_threads_fill_ratio_lt_25 +=
+      WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_lt_25);
+    to->cache_eviction_app_threads_fill_ratio_25_50 +=
+      WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_25_50);
+    to->cache_eviction_app_threads_fill_ratio_50_75 +=
+      WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_50_75);
+    to->cache_eviction_app_threads_fill_ratio_gt_75 +=
+      WT_STAT_READ(from, cache_eviction_app_threads_fill_ratio_gt_75);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);
@@ -3147,10 +3186,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_app_dirty += WT_STAT_READ(from, cache_eviction_app_dirty);
     to->cache_eviction_blocked_multi_block_reconcilation_during_checkpoint +=
       WT_STAT_READ(from, cache_eviction_blocked_multi_block_reconcilation_during_checkpoint);
-    to->cache_eviction_trigger_clean_reached +=
-      WT_STAT_READ(from, cache_eviction_trigger_clean_reached);
     to->cache_eviction_trigger_dirty_reached +=
       WT_STAT_READ(from, cache_eviction_trigger_dirty_reached);
+    to->cache_eviction_trigger_reached += WT_STAT_READ(from, cache_eviction_trigger_reached);
     to->cache_eviction_trigger_updates_reached +=
       WT_STAT_READ(from, cache_eviction_trigger_updates_reached);
     to->cache_timed_out_ops += WT_STAT_READ(from, cache_timed_out_ops);
