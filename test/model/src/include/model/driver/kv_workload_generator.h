@@ -72,6 +72,7 @@ struct kv_workload_generator_spec {
     /* Probabilities of operations within a transaction. */
     float finish_transaction; /* Commit, prepare, or rollback. */
     float insert;
+    float get;
     float remove;
     float set_commit_timestamp; /* If allowed. */
     float truncate;
@@ -89,6 +90,7 @@ struct kv_workload_generator_spec {
     /* The probabilities for choosing an existing key, if available. */
     float remove_existing;
     float update_existing;
+    float get_existing;
 
     /* The probability of starting a prepared transaction. */
     float prepared_transaction;
@@ -137,6 +139,7 @@ protected:
         evict,
         remove,
         update,
+        get,
     };
 
     /*

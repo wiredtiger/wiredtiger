@@ -35,6 +35,7 @@
 #include <sstream>
 #include <unistd.h>
 #include "model/driver/kv_workload_runner_wt.h"
+#include "model/data_value.h"
 #include "model/util.h"
 
 namespace model {
@@ -433,6 +434,28 @@ kv_workload_runner_wt::do_operation(const operation::insert &op)
     session_context_ptr session = txn_session(op.txn_id);
     WT_CURSOR *cursor = session->cursor(op.table_id);
     return wt_cursor_insert(cursor, op.key, op.value);
+}
+
+/*
+ * kv_workload_runner_wt::do_operation --
+ *     Execute the given workload operation in WiredTiger.
+ */
+int
+kv_workload_runner_wt::do_operation(const operation::get &op)
+{
+    std::shared_lock lock(_connection_lock);
+    session_context_ptr session = txn_session(op.txn_id);
+    WT_CURSOR *cursor = session->cursor(op.table_id);
+    int err = wt_cursor_search(cursor, op.key);
+    if(err != 0) {
+        return err;
+    }
+    data_value value = get_wt_cursor_value(cursor);
+    // std::cout << "wt " << op.key << " " << value << std::endl;
+    // if(value == NONE) {
+    //     return WT_NOTFOUND;
+    // }
+    return 0;
 }
 
 /*

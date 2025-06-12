@@ -31,6 +31,7 @@
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
+#include "model/data_value.h"
 #include "model/driver/kv_workload.h"
 #include "model/core.h"
 #include "model/kv_database.h"
@@ -193,6 +194,24 @@ protected:
     do_operation(const operation::insert &op)
     {
         return table(op.table_id)->insert(transaction(op.txn_id), op.key, op.value);
+    }
+
+    /*
+     * kv_workload_runner::do_operation --
+           Execute the given workload operation in the model.
+     */
+    int
+    do_operation(const operation::get &op)
+    {
+        try {
+            data_value value;
+            int ret = table(op.table_id)->get_ext(transaction(op.txn_id), op.key, value);
+            //std::cout << "md " << op.key << " " << value << std::endl;
+            // TODO: validation or logging of the value that was read
+            return ret;
+        } catch (wiredtiger_exception& e) {
+            return e.error();
+        }
     }
 
     /*

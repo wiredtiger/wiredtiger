@@ -54,6 +54,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     finish_transaction = 0.08;
     insert = 0.75;
+    get = 0.5; // FIXME: how do these probabilities even work?
     remove = 0.15;
     set_commit_timestamp = 0.05;
     truncate = 0.005;
@@ -69,6 +70,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     remove_existing = 0.9;
     update_existing = 0.1;
+    get_existing = 0.9;
 
     prepared_transaction = 0.25;
     max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
@@ -421,7 +423,7 @@ kv_workload_generator::generate_transaction(size_t seq_no)
     /* Add all operations. But do not actually fill in timestamps; we'll do that later. */
     bool done = false;
     while (!done) {
-        float total = _spec.finish_transaction + _spec.insert + _spec.remove +
+        float total = _spec.finish_transaction + _spec.insert + _spec.get + _spec.remove +
           _spec.set_commit_timestamp + _spec.truncate;
         probability_switch(_random.next_float() * total)
         {
@@ -456,6 +458,13 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                 data_value value = generate_value(table);
                 table->update_key(key);
                 txn << operation::insert(table->id(), txn_id, key, value);
+            }
+            probability_case(_spec.get)
+            {
+                table_context_ptr table = choose_table(txn_ptr);
+                data_value key = generate_key(table, op_category::get);
+                // key shouldn't change in ctx
+                txn << operation::get(table->id(), txn_id, key);
             }
             probability_case(_spec.remove)
             {
@@ -761,6 +770,10 @@ kv_workload_generator::generate_key(table_context_ptr table, op_category op)
 
     case op_category::update:
         p_existing = _spec.update_existing;
+        break;
+
+    case op_category::get:
+        p_existing = _spec.get_existing;
         break;
     }
 
