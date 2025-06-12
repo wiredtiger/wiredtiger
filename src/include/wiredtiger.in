@@ -5538,6 +5538,8 @@ struct __wt_page_log_put_args {
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
 
+       char dek[32]; /* an encrypted version of the key used to encrypt data */
+
        /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_LOG_COMPRESSED 0x1u
 #define WT_PAGE_LOG_DELTA 0x2u
@@ -5568,6 +5570,8 @@ struct __wt_page_log_get_args {
        uint64_t backlink_checkpoint_id;
        uint64_t base_checkpoint_id;
        uint32_t delta_count;
+
+       char dek[32]; /* an encrypted version of the key used to encrypt data */
 };
 
 /*!

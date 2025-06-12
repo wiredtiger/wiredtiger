@@ -5,6 +5,7 @@ test_alter01.py # times out
 test_alter02.py # times out
 test_alter03.py
 test_alter04.py
+test_alter05.py
 test_autoclose.py
 test_base02.py
 test_base04.py
@@ -14,18 +15,23 @@ test_bug010.py
 test_bug019.py # times out
 test_bug027.py
 test_bug029.py
+test_bug030.py
+test_bug031.py
+test_bug033.py
 test_bulk01.py # times out
 test_bulk02.py
 test_cc01.py # times out
 test_cc02.py # times out
-test_cc03.py
 test_cc04.py # times out
 test_cc05.py # times out
 test_cc06.py # uses statistics we don't support in disagg
+test_cc07.py
+test_cc08.py
+test_cc09.py
+test_cc10.py
 test_checkpoint01.py
 test_checkpoint02.py # times out
 test_checkpoint07.py
-test_checkpoint08.py
 test_checkpoint09.py
 test_checkpoint10.py
 test_checkpoint11.py
@@ -49,6 +55,7 @@ test_checkpoint30.py
 test_checkpoint32.py
 test_checkpoint33.py # times out
 test_checkpoint34.py # times out
+test_checkpoint35.py
 test_checkpoint_snapshot01.py
 test_checkpoint_snapshot02.py # times out
 test_checkpoint_snapshot03.py # times out
@@ -65,6 +72,7 @@ test_config04.py
 test_config09.py
 test_config10.py
 test_config11.py # times out
+test_config12.py
 test_cursor01.py
 test_cursor02.py
 test_cursor03.py
@@ -72,7 +80,6 @@ test_cursor05.py
 test_cursor06.py
 test_cursor07.py
 test_cursor08.py
-test_cursor10.py
 test_cursor12.py # times out
 test_cursor13.py
 test_cursor17.py
@@ -88,6 +95,8 @@ test_dump.py
 test_dump01.py
 test_dump02.py
 test_dump03.py
+test_dump04.py
+test_dump05.py
 test_dupc.py
 test_durability01.py
 test_durable_rollback_to_stable.py
@@ -98,7 +107,12 @@ test_encrypt01.py # times out
 test_encrypt04.py
 test_encrypt06.py
 test_env01.py
+test_error_info01.py
+test_error_info02.py
+test_error_info03.py
 test_eviction01.py
+test_eviction02.py
+test_eviction03.py
 test_export01.py
 test_hs01.py
 test_hs06.py # times out
@@ -111,6 +125,7 @@ test_hs21.py
 test_hs24.py # times out
 test_hs30.py
 test_hs32.py # times out
+test_hs33.py
 test_hs_evict_race01.py # times out
 test_import02.py
 test_import04.py
@@ -119,6 +134,8 @@ test_import07.py
 test_import08.py
 test_import09.py # times out
 test_import10.py
+test_import12.py
+test_live_restore04.py
 test_log03.py # times out
 test_log04.py
 test_metadata_cursor01.py
@@ -137,17 +154,19 @@ test_prepare13.py # times out
 test_prepare18.py
 test_prepare20.py
 test_prepare21.py # times out
+test_prepare22.py
 test_prepare23.py # times out
+test_prepare27.py
 test_prepare28.py
 test_prepare29.py
 test_prepare_cursor01.py
+test_prepare_hs01.py
 test_prepare_hs02.py
 test_prepare_hs03.py
 test_prepare_hs04.py # times out
-test_recovery01.py
 test_readonly01.py
 test_readonly03.py  # WT-14582
-test_rename.py
+test_recovery01.py
 test_reserve.py
 test_rollback_to_stable07.py # times out
 test_rollback_to_stable10.py # times out
@@ -189,6 +208,7 @@ test_stat06.py
 test_stat_log01.py
 test_stat_log02.py
 test_sweep03.py
+test_sweep06.py
 test_tiered16.py
 test_tiered17.py
 test_timestamp03.py # times out
@@ -229,7 +249,6 @@ test_txn22.py
 test_txn23.py # times out
 test_txn24.py # times out
 test_txn27.py # times out
-test_upgrade.py
 test_util01.py
 test_util02.py # times out
 test_util03.py
@@ -241,11 +260,9 @@ test_util12.py
 test_util13.py
 test_util14.py
 test_util15.py
-test_util16.py
 test_util17.py
 test_util18.py
 test_util19.py
-test_util20.py
 test_util21.py
 test_util22.py
 test_verbose01.py

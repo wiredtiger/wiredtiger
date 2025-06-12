@@ -209,9 +209,10 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
     # regular (not layered) object.  Otherwise we get disagg storage from the connection defaults.
     if uri.startswith("table:") \
-       and not "key_format=r" in config \
-       and not "type=lsm" in config \
        and not 'colgroups=' in config \
+       and not 'import=' in config \
+       and not 'key_format=r' in config \
+       and not 'type=lsm' in config \
        and not marked_as_non_layered(uri):
         mark_as_layered(uri)
         WiredTigerTestCase.verbose(None, 1, f'    Replacing, old uri = "{uri}"')
@@ -259,11 +260,6 @@ def session_truncate_replace(orig_session_truncate, session_self, uri, start, st
     #return orig_session_truncate(session_self, uri, start, stop, config)
     skip_test("truncate on disagg tables not yet implemented")
 
-# Called to replace Session.upgrade.
-def session_upgrade_replace(orig_session_upgrade, session_self, uri, config):
-    uri = replace_uri(uri)
-    return orig_session_upgrade(session_self, uri, config)
-
 # Called to replace Session.verify
 def session_verify_replace(orig_session_verify, session_self, uri, config):
     uri = replace_uri(uri)
@@ -287,6 +283,7 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("inmem",                "In memory tests don't make sense with disagg storage"),
             ("lsm",                  "LSM is not supported with tiering"),
             ("modify_smoke_recover", "Copying WT dir doesn't copy the PALM directory"),
+            ("rollback_to_stable",   "Rollback to stable is not needed at startup"),
             ("test_backup",          "Can't backup a disagg table"),
             ("test_compact",         "Can't compact a disagg table"),
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
@@ -294,6 +291,7 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("test_config_json",     "Disagg hook's create function can't handle a json config string"),
             ("test_cursor_big",      "Cursor caching verified with stats"),
             ("test_verify",          "Verify not supported on disagg tables (yet)"),
+            ("tiered",               "Tiered tests do not apply to disagg"),
             ("disagg",               "Disagg tests already turn on the proper stuff"),
             ("layered",               "Layered tests already turn on the proper stuff"),
         ]
@@ -342,10 +340,6 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_truncate = self.Session['truncate']
         self.Session['truncate'] = (wthooks.HOOK_REPLACE, lambda s, uri, start=None, stop=None, config=None:
           session_truncate_replace(orig_session_truncate, s, uri, start, stop, config))
-
-        orig_session_upgrade = self.Session['upgrade']
-        self.Session['upgrade'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
-          session_upgrade_replace(orig_session_upgrade, s, uri, config))
 
         orig_session_verify = self.Session['verify']
         self.Session['verify'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
