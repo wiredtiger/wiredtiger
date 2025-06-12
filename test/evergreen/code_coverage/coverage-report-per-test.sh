@@ -39,7 +39,7 @@ python3 "../metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code
 python3 "../metrixplusplus/metrix++.py" export --db-file=metrixpp.db > ../coverage_report/metrixpp.csv
 cd ..
 
-python3 test/evergreen/code_coverage/per_test_code_coverage.py -v -c test/evergreen/code_coverage/code_coverage_config.json -b "$(pwd)/build_" -j "${num_jobs}" -g "$(pwd)/coverage_data" -s
+python3 test/evergreen/code_coverage/per_test_code_coverage.py -v -c test/evergreen/code_coverage/code_coverage_per_test_config.json -b "$(pwd)/build_" -j "${num_jobs}" -g "$(pwd)/coverage_data" -s
 
 echo "Disk usage and free space for the current drive (after completing coverage tests):"
 df -h
