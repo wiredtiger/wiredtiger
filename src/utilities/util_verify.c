@@ -16,15 +16,11 @@ static int
 usage(void)
 {
     static const char *options[] = {"-a", "abort on error during verification of all tables", "-c",
-      "continue to the next page after encountering error during verification",
-      "-d config",
-      "display underlying information during verification",
-      "-L last-checkpoint-name",
+      "continue to the next page after encountering error during verification", "-d config",
+      "display underlying information during verification", "-L last-checkpoint-name",
       "Verify all the checkpoints up to and including the speficied one. "
       "If the checkpoint does not exist in any of the verified files, return an error",
-      "-S",
-      "Treat any verification problem as an error by default",
-      "-s",
+      "-S", "Treat any verification problem as an error by default", "-s",
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
       "-k",
       "display only the keys in the application data with configuration dump_blocks or dump_pages",
