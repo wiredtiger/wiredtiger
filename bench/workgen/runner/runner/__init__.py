@@ -56,6 +56,10 @@ def _prepend_env_path(pathvar, s):
         pass
     os.environ[pathvar] = s + last
 
+# FIXME-WT-14775: The ordering here matters for ARMV9 machines. If wiredtiger module is
+# imported before workgen a segmentation fault occurs while trying to symbolize
+# libstdc++ library.
+#
 # Initialize the python path so needed modules can be imported.
 # If the path already works, don't change it.
 try:
