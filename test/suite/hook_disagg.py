@@ -209,9 +209,10 @@ def session_create_replace(orig_session_create, session_self, uri, config):
     # If the test isn't creating a table (i.e., it's a column store or lsm) create it as a
     # regular (not layered) object.  Otherwise we get disagg storage from the connection defaults.
     if uri.startswith("table:") \
-       and not "key_format=r" in config \
-       and not "type=lsm" in config \
        and not 'colgroups=' in config \
+       and not 'import=' in config \
+       and not 'key_format=r' in config \
+       and not 'type=lsm' in config \
        and not marked_as_non_layered(uri):
         mark_as_layered(uri)
         WiredTigerTestCase.verbose(None, 1, f'    Replacing, old uri = "{uri}"')
@@ -282,6 +283,7 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("inmem",                "In memory tests don't make sense with disagg storage"),
             ("lsm",                  "LSM is not supported with tiering"),
             ("modify_smoke_recover", "Copying WT dir doesn't copy the PALM directory"),
+            ("rollback_to_stable",   "Rollback to stable is not needed at startup"),
             ("test_backup",          "Can't backup a disagg table"),
             ("test_compact",         "Can't compact a disagg table"),
             ("test_cursor_bound",    "Can't use cursor bounds with a disagg table"),
@@ -289,6 +291,7 @@ class DisaggHookCreator(wthooks.WiredTigerHookCreator):
             ("test_config_json",     "Disagg hook's create function can't handle a json config string"),
             ("test_cursor_big",      "Cursor caching verified with stats"),
             ("test_verify",          "Verify not supported on disagg tables (yet)"),
+            ("tiered",               "Tiered tests do not apply to disagg"),
             ("disagg",               "Disagg tests already turn on the proper stuff"),
             ("layered",               "Layered tests already turn on the proper stuff"),
         ]
