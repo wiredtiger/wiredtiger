@@ -44,7 +44,6 @@ def _show_buckets(fh, title, mult, buckets, n):
     print(s, file=fh)
 
 def _latency_buckets(fh, title, mult, buckets, n):
-    shown = False
     total = 0
     s = title + ': = '
     for count in range(0, n):
