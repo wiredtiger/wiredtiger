@@ -25,8 +25,7 @@ static int __verify_set_file_size(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
  *     Start file verification.
  */
 int
-__wt_block_verify_start(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, const char *cfg[])
+__wt_block_verify_start(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     wt_off_t size;

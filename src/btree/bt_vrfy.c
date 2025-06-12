@@ -237,15 +237,15 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     if (is_custom_last_ckpt) {
         if (WT_CONFIG_LIT_MATCH(WT_CHECKPOINT, cfg_ckpt)) {
             WT_ERR_MSG(session, ENOTSUP,
-                "Request to verify \'WiredTigerCheckpoint\' is prohibbited to avoid confusion.");
+              "Request to verify \'WiredTigerCheckpoint\' is prohibbited to avoid confusion.");
         }
 
         if (cfg_dump_offsets.len > 0)
             WT_ERR_MSG(session, ENOTSUP,
-                "Providing both \'checkpoint\' and \'dump_offsets\' is not supported");
+              "Providing both \'checkpoint\' and \'dump_offsets\' is not supported");
     }
 
-        /* Optionally dump specific block offsets. */
+    /* Optionally dump specific block offsets. */
 #ifdef HAVE_DIAGNOSTIC
     WT_ERR(__verify_config_offsets(session, &cfg_dump_offsets, &quit, vs));
 #else
@@ -281,7 +281,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     } else if (last_ckpt == NULL)
         /* Having no checkpoints to verify is fine in the general case. */
         goto done;
-
 
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, last_ckpt, cfg));
