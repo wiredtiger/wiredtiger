@@ -408,8 +408,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_verify_ckpt(self):
         """
-        Test verify in a 'wt' process with an option for a specific checkpoint verification.
-        Custom checkpoint verification.
+        Test verify in a 'wt' process provinding a custom last checkpoint. Pass named checkpoints.
         """
         tables = [self.tablename + str(i) for i in range(0, 3)]
         ckpt = 'CustomCkpt'
@@ -428,7 +427,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.checkpoint("name=" + next_ckpt) # Uncomment later, create checkpoint to be sure that data populated later is checkpointed too
 
-        self.runWt(["-v", "verify", "-C", ckpt], outfilename=self.outfile)
+        self.runWt(["-v", "verify", "-L", ckpt], outfilename=self.outfile)
 
         # The last table shouldn't be verified since it doesn't contain the specified checkpoint
         for tablename in tables[:-1]:
@@ -437,21 +436,20 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_file_not_contains(self.outfile, "table:" + tables[-1] + " - done")
 
         # This checkpoint cover all tables
-        self.runWt(["-v", "verify", "-C", next_ckpt], outfilename=self.outfile)
+        self.runWt(["-v", "verify", "-L", next_ckpt], outfilename=self.outfile)
         for tablename in tables:
             self.assertEqual(self.count_file_contains(self.outfile,
                 "table:" + tablename + " - done") , 1)
 
     def test_verify_missing_ckpt(self):
         """
-        Test verify in a 'wt' process with an option for a specific checkpoint verification.
-        Nonexistent checkpoint verification
+        Test verify in a 'wt' process provinding a custom last checkpoint. Pass invalid checkpoints.
         """
 
         def verify_missing_ckpts():
             ckpts = ["NonexistentCkpt", "WiredTigerCheckpoint.abc", "WiredTigerCheckpoint.99999"]
             for ckpt in ckpts:
-                self.runWt(["verify", "-C", ckpt], errfilename=self.errfile, failure=True)
+                self.runWt(["verify", "-L", ckpt], errfilename=self.errfile, failure=True)
                 self.check_file_content(self.errfile, "wt: session.verify: No such file or directory\n")
 
         verify_missing_ckpts()
@@ -461,8 +459,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_verify_wt_ckpt(self):
         """
-        Test verify in a 'wt' process with an option for a specific checkpoint verification.
-        WiredTiger checkpoint verification.
+        Test verify in a 'wt' process provinding a custom last checkpoint. Pass unnamed checkpoints.
         """
         self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
@@ -472,6 +469,6 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertNotEqual([], unnamed_ckpts)
 
         for ckpt in unnamed_ckpts:
-            self.runWt(["-v", "verify", "-C", ckpt], outfilename=self.outfile)
+            self.runWt(["-v", "verify", "-L", ckpt], outfilename=self.outfile)
             self.assertEqual(self.count_file_contains(self.outfile,
                 "table:" + self.tablename + " - done"), 1)

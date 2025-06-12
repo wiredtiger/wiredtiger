@@ -17,12 +17,13 @@ usage(void)
 {
     static const char *options[] = {"-a", "abort on error during verification of all tables", "-c",
       "continue to the next page after encountering error during verification",
-      "-C checkpoint-name",
-      "verify only the specified checkpoint. If the checkpoint does not exist in any of "
-      "the verified files, return an error"
       "-d config",
-      "display underlying information during verification", "-S",
-      "Treat any verification problem as an error by default"
+      "display underlying information during verification",
+      "-L last-checkpoint-name",
+      "Verify all the checkpoints up to and including the speficied one. "
+      "If the checkpoint does not exist in any of the verified files, return an error",
+      "-S",
+      "Treat any verification problem as an error by default",
       "-s",
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
       "-k",
@@ -32,8 +33,8 @@ usage(void)
       "-?", "show this message", NULL, NULL};
 
     util_usage(
-      "verify [-ackSstu] [-C checkpoint-name] [-d dump_address | dump_blocks | dump_layout | "
-      "dump_tree_shape | dump_offsets=#,# | dump_pages] [uri]",
+      "verify [-ackSstu] [-d dump_address | dump_blocks | dump_layout | dump_tree_shape | "
+      "dump_offsets=#,# | dump_pages] [-L last-checkpoint-name] [uri]",
       "options:", options);
 
     return (1);
@@ -74,15 +75,15 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     int ch;
-    char *ckpt, *dump_offsets, *key, *uri;
+    char *last_ckpt, *dump_offsets, *key, *uri;
     bool abort_on_error, check_done, dump_all_data, dump_key_data, enoent_ok;
 
     abort_on_error = check_done = dump_all_data = dump_key_data = enoent_ok = false;
-    ckpt = dump_offsets = uri = NULL;
+    last_ckpt = dump_offsets = uri = NULL;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &config));
 
-    while ((ch = __wt_getopt(progname, argc, argv, "aC:cd:kSstu?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "acd:kL:Sstu?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
@@ -90,10 +91,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         case 'c':
             WT_ERR(__wt_buf_catfmt(session_impl, config, "read_corrupt,"));
             break;
-        case 'C':
+        case 'L':
             enoent_ok = true;
-            ckpt = __wt_optarg;
-            WT_ERR(__wt_buf_catfmt(session_impl, config, "checkpoint=%s,", ckpt));
+            last_ckpt = __wt_optarg;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "last_ckpt=%s,", last_ckpt));
             break;
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
@@ -115,7 +116,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             } else if (strcmp(__wt_optarg, "dump_pages") == 0)
                 WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_pages,"));
             else
-                return (usage());
+                WT_ERR(usage());
             break;
         case 'k':
             dump_key_data = true;
@@ -136,19 +137,16 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             break;
         case '?':
             usage();
-            return (0);
+            ret = 0;
+            goto done;
         default:
-            return (usage());
+            WT_ERR(usage());
         }
 
     if (dump_all_data && dump_key_data)
         WT_ERR_MSG(session_impl, ENOTSUP, "%s",
           "-u (unredact all data), should not be set to true simultaneously with -k (unredact only "
           "keys)");
-
-    if (dump_offsets != NULL && ckpt != NULL)
-        WT_ERR_MSG((WT_SESSION_IMPL *)session, ENOTSUP, "%s",
-          "-d dump_offsets, should not be set simultaneously with -C checkpoint-name");
 
     argc -= __wt_optind;
     argv += __wt_optind;
@@ -196,10 +194,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         ret = verify_one(session, (char *)config->data, uri, enoent_ok, &check_done);
     }
 
-    /* Specific checkpoint verification requested but the checkpoint wasn't found. */
-    if (ckpt != NULL && check_done == false)
+    /* Specific last checkpoint was provided but wasn't found. */
+    if (last_ckpt != NULL && check_done == false)
         ret = util_err(session, ENOENT, "session.verify");
 
+done:
 err:
     __wt_scr_free(session_impl, &config);
     util_free(uri);

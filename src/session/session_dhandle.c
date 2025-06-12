@@ -760,7 +760,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          * to open its checkpoints while regenerating them.
          */
 
-    } while (must_resolve && (ret == WT_NOTFOUND || ret == EBUSY));
+    } while (is_unnamed_ckpt && (ret == WT_NOTFOUND || ret == EBUSY));
 
 err:
     __wt_free(session, checkpoint);

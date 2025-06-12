@@ -230,7 +230,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Check configuration strings. */
     WT_ERR(__verify_config(session, cfg, vs));
-    WT_ERR(__wt_config_gets(session, cfg, "checkpoint", &cfg_ckpt));
+    WT_ERR(__wt_config_gets(session, cfg, "last_ckpt", &cfg_ckpt));
     WT_ERR(__wt_config_gets(session, cfg, "dump_offsets", &cfg_dump_offsets));
     is_custom_last_ckpt = cfg_ckpt.len > 0;
 
@@ -242,7 +242,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         if (cfg_dump_offsets.len > 0)
             WT_ERR_MSG(session, ENOTSUP,
-              "Providing both \'checkpoint\' and \'dump_offsets\' is not supported");
+              "Providing both \'last_ckpt\' and \'dump_offsets\' is not supported");
     }
 
     /* Optionally dump specific block offsets. */
