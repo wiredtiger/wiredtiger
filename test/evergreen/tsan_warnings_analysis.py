@@ -27,20 +27,25 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 import os
 import re, subprocess
+# The script generate warnings from running WiredTiger's examples, csuite, python and test/format testing.
+#
+# Running the whole suite causes enormous number of TSAN warnings. The amount of I/O causes slowness in the
+# system leading to non-deterministic results. For now, run only the examples suite.
+
+# Configure log path in TSAN options.
+os.environ["TSAN_OPTIONS"] = "$TSAN_OPTIONS:log_path=$(git rev-parse --show-toplevel)/tsan_logs"
+
+# Start with examples suite.
 test_tasks = [
-    "python3 ../test/suite/run.py -j 8 --ignore-stdout",
-    "ctest -j 8 -LE \"long_running\"",
-    "bash test/format/format.sh -j 8 -t 60 rows=10000 ops=50000"
-  ]
+    "ctest -j 8 --test-dir examples/c"
+]
 
 # Run the tasks in list.
-task_list = list()
 print(test_tasks)
 for task in test_tasks:
     try:
-        split_command = task.split()
         # Tasks are allowed to run with maximum of three hours.
-        subprocess.run(split_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10800)
+        subprocess.run(task.split(), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60 * 60 * 3)
     except subprocess.CalledProcessError as exception:
         print(f'Command {exception.cmd} failed with error {exception.returncode}')
     except subprocess.TimeoutExpired as exception:
