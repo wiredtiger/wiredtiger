@@ -35,6 +35,9 @@ import wiredtiger, wttest
 class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_verify.a'
     nentries = 1000
+    outfile = "test_verify.out"
+    errfile = "test_verify.err"
+    params = 'key_format=S,value_format=S'
 
     # Returns the .wt file extension, or in the case
     # of tiered storage, builds the .wtobj object name.
@@ -43,13 +46,13 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
     def file_name(self, name):
         return self.initialFileName('table:' + name)
 
-    def populate(self, tablename):
+    def populate(self, tablename, base = 0):
         """
         Insert some simple entries into the table
         """
         cursor = self.session.open_cursor('table:' + tablename, None, None)
         key = ''
-        for i in range(0, self.nentries):
+        for i in range(base, base + self.nentries):
             key += str(i)
             cursor[key] = key + key
         cursor.close()
@@ -117,38 +120,67 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         fp.seek(offset)
         return fp
 
+    def extract_checkpoint_names(self, tablename):
+        metafile = "metadata.out"
+        self.runWt(["list", "-v"], outfilename=metafile)
+
+        with open(metafile, "r") as f:
+            metadata = f.read()
+
+        # Escape the filename for use in regex
+        filename = "file:" + tablename + ".wt"
+        # Capture everything after filename until the next section
+        pattern = rf"{re.escape(filename)}\n(.*?)(?=\n\S|$)"
+        match = re.search(pattern, metadata, re.DOTALL)
+
+        if not match:
+            return []
+
+        section = match.group(1)
+
+        # Find the "checkpoint=(...)" content
+        checkpoint_match = re.search(r"checkpoint=\((.*?)\)", section, re.DOTALL)
+        if not checkpoint_match:
+            return []
+
+        checkpoint_block = checkpoint_match.group(1)
+
+        # Extract all checkpoint names, which are before '='
+        checkpoint_names = re.findall(r'([\w\.]+)=\(', checkpoint_block)
+        return checkpoint_names
+
     def test_verify_process_empty(self):
         """
         Test verify in a 'wt' process, using an empty table
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         # Run verify with an empty table
-        self.runWt(["verify", "table:" + self.tablename])
+        self.runWt(["-v", "verify", "table:" + self.tablename], outfilename=self.outfile)
+        self.assertEqual(self.count_file_contains(self.outfile,
+            "table:" + self.tablename + " - done"), 1)
 
     def test_verify_process(self):
         """
         Test verify in a 'wt' process, using a populated table.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
-        self.runWt(["verify", "table:" + self.tablename])
+        self.runWt(["-v", "verify", "table:" + self.tablename], outfilename=self.outfile)
+        self.assertEqual(self.count_file_contains(self.outfile,
+            "table:" + self.tablename + " - done"), 1)
 
     def test_verify_api_empty(self):
         """
         Test verify via API, using an empty table
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.session.verify('table:' + self.tablename, None)
 
     def test_verify_api(self):
         """
         Test verify via API, using a populated table.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
         self.verifyUntilSuccess(self.session, 'table:' + self.tablename)
         self.check_populate(self.tablename)
@@ -159,8 +191,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         This is our only 'negative' test for verify using the API,
         it's uncertain that we can have reliable tests for this.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 75) as f:
             for i in range(0, 4096):
@@ -184,8 +215,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         multiple places. A verify operation with read_corrupt on should
         result in multiple checksum errors being logged.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 25) as f:
             for i in range(0, 100):
@@ -206,8 +236,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Test that verify works when the first child of an internal node is corrupted. A verify
         operation with read_corrupt on should result in a checksum errors being logged.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
 
         # wt verify -d dump_address performs a depth-first traversal of the BTree. So the first
@@ -220,7 +249,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         offset = 0
         lines = open('dump.out').readlines()
         for line in lines:
-            m = re.search('(\d+)-(\d+).*row-store leaf', line)
+            m = re.search(r'(\d+)-(\d+).*row-store leaf', line)
             if m:
                 offset = int((int(m.group(2)) - int(m.group(1)))/2)
                 break
@@ -249,8 +278,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Test verify in a 'wt' process on a table that is purposely damaged,
         with nulls at a position about 75% through.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 75) as f:
             for i in range(0, 4096):
@@ -269,8 +297,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Test verify in a 'wt' process on a table that is purposely damaged,
         with junk at a position about 25% through.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 25) as f:
             for i in range(0, 100):
@@ -290,8 +317,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         in multiple places. A verify operation with read_corrupt on should
         result in multiple checksum errors being logged.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 25) as f:
             for i in range(0, 100):
@@ -323,8 +349,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Test verify in a 'wt' process on a table that is purposely damaged,
         truncated about 75% through.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 75) as f:
             f.truncate(0)
@@ -338,8 +363,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         """
         Test verify in a 'wt' process on a zero-length table.
         """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+        self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 0) as f:
             f.truncate(0)
@@ -353,15 +377,17 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         """
         Test verify in a 'wt' process without a specific table URI argument.
         """
-        params = 'key_format=S,value_format=S'
         ntables = 3
 
         for i in range(ntables):
-            self.session.create('table:' + self.tablename + str(i), params)
+            self.session.create('table:' + self.tablename + str(i), self.params)
             self.populate(self.tablename + str(i))
         self.session.checkpoint()
 
-        self.runWt(["verify"])
+        self.runWt(["-v", "verify"], outfilename=self.outfile)
+        for i in range(ntables):
+            self.assertEqual(self.count_file_contains(self.outfile,
+                "table:" +  self.tablename + str(i) + " - done"), 1)
 
         # Purposely corrupt the last two tables. Test that verifying the database
         # with the abort option stops after seeing the first corrupted table.
@@ -370,8 +396,79 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
                 for i in range(0, 4096):
                     f.write(struct.pack('B', 0))
 
-        self.runWt(["-p", "verify", "-a"], errfilename="verifyerr.out", failure=True)
+        self.runWt(["-v", "-p", "verify", "-a"], outfilename=self.outfile,
+            errfilename="verifyerr.out", failure=True)
+
+        self.assertEqual(self.count_file_contains(self.outfile,
+            "table:" + self.tablename + "0" + " - done"), 1)
         self.assertEqual(self.count_file_contains("verifyerr.out",
-            "table:test_verify.a1: WT_ERROR"), 1)
+            "table:" + self.tablename + "1" + ": WT_ERROR"), 1)
         self.assertEqual(self.count_file_contains("verifyerr.out",
-            "table:test_verify.a2: WT_ERROR"), 0)
+            "table:" + self.tablename + "2" + ": WT_ERROR"), 0)
+
+    def test_verify_ckpt(self):
+        """
+        Test verify in a 'wt' process provinding a custom last checkpoint. Pass named checkpoints.
+        """
+        tables = [self.tablename + str(i) for i in range(0, 3)]
+        ckpt = 'CustomCkpt'
+        next_ckpt = 'NextCkpt'
+
+        for table in tables[:-1]:
+            self.session.create('table:' + table, self.params)
+            self.populate(table)
+
+        self.session.checkpoint("name=" + ckpt)
+
+        self.session.create('table:' + tables[-1], self.params)
+        self.populate(tables[-1])
+        # Insert some non-checkpointed entries to the first table
+        self.populate(tables[0], self.nentries)
+
+        self.session.checkpoint("name=" + next_ckpt) # Uncomment later, create checkpoint to be sure that data populated later is checkpointed too
+
+        self.runWt(["-v", "verify", "-L", ckpt], outfilename=self.outfile)
+
+        # The last table shouldn't be verified since it doesn't contain the specified checkpoint
+        for tablename in tables[:-1]:
+            self.assertEqual(self.count_file_contains(self.outfile,
+                "table:" + tablename + " - done") , 1)
+        self.check_file_not_contains(self.outfile, "table:" + tables[-1] + " - done")
+
+        # This checkpoint cover all tables
+        self.runWt(["-v", "verify", "-L", next_ckpt], outfilename=self.outfile)
+        for tablename in tables:
+            self.assertEqual(self.count_file_contains(self.outfile,
+                "table:" + tablename + " - done") , 1)
+
+    def test_verify_missing_ckpt(self):
+        """
+        Test verify in a 'wt' process provinding a custom last checkpoint. Pass invalid checkpoints.
+        """
+
+        def verify_missing_ckpts():
+            ckpts = ["NonexistentCkpt", "WiredTigerCheckpoint.abc", "WiredTigerCheckpoint.99999"]
+            for ckpt in ckpts:
+                self.runWt(["verify", "-L", ckpt], errfilename=self.errfile, failure=True)
+                self.check_file_content(self.errfile, "wt: session.verify: No such file or directory\n")
+
+        verify_missing_ckpts()
+        self.session.create('table:' + self.tablename, self.params)
+        self.populate(self.tablename)
+        verify_missing_ckpts()
+
+    def test_verify_wt_ckpt(self):
+        """
+        Test verify in a 'wt' process provinding a custom last checkpoint. Pass unnamed checkpoints.
+        """
+        self.session.create('table:' + self.tablename, self.params)
+        self.populate(self.tablename)
+
+        # Parse internal checkpoints from metadata
+        unnamed_ckpts = self.extract_checkpoint_names(self.tablename)
+        self.assertNotEqual([], unnamed_ckpts)
+
+        for ckpt in unnamed_ckpts:
+            self.runWt(["-v", "verify", "-L", ckpt], outfilename=self.outfile)
+            self.assertEqual(self.count_file_contains(self.outfile,
+                "table:" + self.tablename + " - done"), 1)

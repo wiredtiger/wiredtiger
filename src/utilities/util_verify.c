@@ -17,7 +17,10 @@ usage(void)
 {
     static const char *options[] = {"-a", "abort on error during verification of all tables", "-c",
       "continue to the next page after encountering error during verification", "-d config",
-      "display underlying information during verification", "-s",
+      "display underlying information during verification", "-L last-checkpoint-name",
+      "Verify all the checkpoints up to and including the specified one. "
+      "If the checkpoint does not exist in any of the verified files, return an error",
+      "-S", "Treat any verification problem as an error by default", "-s",
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
       "-k",
       "display only the keys in the application data with configuration dump_blocks or dump_pages",
@@ -27,8 +30,7 @@ usage(void)
 
     util_usage(
       "verify [-ackSstu] [-d dump_address | dump_blocks | dump_layout | dump_tree_shape | "
-      "dump_offsets=#,# "
-      "| dump_pages] [uri]",
+      "dump_offsets=#,# | dump_pages] [-L last-checkpoint-name] [uri]",
       "options:", options);
 
     return (1);
@@ -39,16 +41,21 @@ usage(void)
  *     Verify the file specified by the URI.
  */
 static int
-verify_one(WT_SESSION *session, char *config, char *uri)
+verify_one(WT_SESSION *session, char *config, char *uri, bool enoent_ok, bool *check_donep)
 {
     WT_DECL_RET;
 
-    if ((ret = session->verify(session, uri, config)) != 0)
+    if ((ret = session->verify(session, uri, config)) == 0) {
+        if (verbose)
+            /* Verbose also configures a progress counter, move to a new line before printing. */
+            printf("\n%s - done\n", uri);
+        *check_donep = true;
+    } else if (ret == ENOENT && enoent_ok)
+        /* If a specific checkpoint was provided, it might not be found in some tables. */
+        ret = 0;
+    else
         ret = util_err(session, ret, "session.verify: %s", uri);
-    else if (verbose) {
-        /* Verbose configures a progress counter, move to the next line. */
-        printf("\n");
-    }
+
     return (ret);
 }
 
@@ -64,15 +71,15 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl = (WT_SESSION_IMPL *)session;
     int ch;
-    char *dump_offsets, *key, *uri;
-    bool abort_on_error, dump_all_data, dump_key_data;
+    char *last_ckpt, *dump_offsets, *key, *uri;
+    bool abort_on_error, check_done, dump_all_data, dump_key_data, enoent_ok;
 
-    abort_on_error = dump_all_data = dump_key_data = false;
-    dump_offsets = uri = NULL;
+    abort_on_error = check_done = dump_all_data = dump_key_data = enoent_ok = false;
+    last_ckpt = dump_offsets = uri = NULL;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &config));
 
-    while ((ch = __wt_getopt(progname, argc, argv, "acd:kSstu?")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "acd:kL:Sstu?")) != EOF)
         switch (ch) {
         case 'a':
             abort_on_error = true;
@@ -100,11 +107,16 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             } else if (strcmp(__wt_optarg, "dump_pages") == 0)
                 WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_pages,"));
             else
-                return (usage());
+                WT_ERR(usage());
             break;
         case 'k':
             dump_key_data = true;
             WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_key_data,"));
+            break;
+        case 'L':
+            enoent_ok = true;
+            last_ckpt = __wt_optarg;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "last_ckpt=%s,", last_ckpt));
             break;
         case 'S':
             WT_ERR(__wt_buf_catfmt(session_impl, config, "strict,"));
@@ -121,9 +133,10 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             break;
         case '?':
             usage();
-            return (0);
+            ret = 0;
+            goto done;
         default:
-            return (usage());
+            WT_ERR(usage());
         }
 
     if (dump_all_data && dump_key_data)
@@ -159,20 +172,29 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
              */
             if (WT_PREFIX_MATCH(key, "table:") && !WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX)) {
                 if (abort_on_error)
-                    WT_ERR_ERROR_OK(verify_one(session, (char *)config->data, key), ENOTSUP, false);
+                    WT_ERR_ERROR_OK(
+                      verify_one(session, (char *)config->data, key, enoent_ok, &check_done),
+                      ENOTSUP, false);
                 else
-                    WT_TRET(verify_one(session, (char *)config->data, key));
+                    WT_TRET(verify_one(session, (char *)config->data, key, enoent_ok, &check_done));
             }
         }
+
+        /* No tables were found. */
         if (ret == WT_NOTFOUND)
             ret = 0;
     } else {
         if ((uri = util_uri(session, *argv, "table")) == NULL)
             goto err;
 
-        ret = verify_one(session, (char *)config->data, uri);
+        ret = verify_one(session, (char *)config->data, uri, enoent_ok, &check_done);
     }
 
+    /* Last checkpoint to verify was provided but wasn't found. */
+    if (last_ckpt != NULL && check_done == false)
+        ret = util_err(session, ENOENT, "session.verify");
+
+done:
 err:
     __wt_scr_free(session_impl, &config);
     util_free(uri);

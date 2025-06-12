@@ -1649,6 +1649,11 @@ methods = {
 
 'WT_SESSION.truncate' : Method([]),
 'WT_SESSION.verify' : Method([
+    Config('last_ckpt', '', r'''
+        By default verify checks all the existing checkpoints. This option limits verification to
+        checkpoints up to and including the specified one. Fails with ENOENT if the requested
+        checkpoint was not found. Can be useful for bisecting to find the first corrupted
+        checkpoint. Note: Does not work in a couple with dump_offsets.'''),
     Config('do_not_clear_txn_id', 'false', r'''
         Turn off transaction id clearing, intended for debugging and better diagnosis of crashes
         or failures. Note: History store validation is disabled when the configuration is set as
