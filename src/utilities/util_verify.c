@@ -18,7 +18,7 @@ usage(void)
     static const char *options[] = {"-a", "abort on error during verification of all tables", "-c",
       "continue to the next page after encountering error during verification", "-d config",
       "display underlying information during verification", "-L last-checkpoint-name",
-      "Verify all the checkpoints up to and including the speficied one. "
+      "Verify all the checkpoints up to and including the specified one. "
       "If the checkpoint does not exist in any of the verified files, return an error",
       "-S", "Treat any verification problem as an error by default", "-s",
       "verify against the specified timestamp", "-t", "do not clear txn ids during verification",
@@ -87,11 +87,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         case 'c':
             WT_ERR(__wt_buf_catfmt(session_impl, config, "read_corrupt,"));
             break;
-        case 'L':
-            enoent_ok = true;
-            last_ckpt = __wt_optarg;
-            WT_ERR(__wt_buf_catfmt(session_impl, config, "last_ckpt=%s,", last_ckpt));
-            break;
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
                 WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_address,"));
@@ -117,6 +112,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         case 'k':
             dump_key_data = true;
             WT_ERR(__wt_buf_catfmt(session_impl, config, "dump_key_data,"));
+            break;
+        case 'L':
+            enoent_ok = true;
+            last_ckpt = __wt_optarg;
+            WT_ERR(__wt_buf_catfmt(session_impl, config, "last_ckpt=%s,", last_ckpt));
             break;
         case 'S':
             WT_ERR(__wt_buf_catfmt(session_impl, config, "strict,"));
@@ -190,7 +190,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         ret = verify_one(session, (char *)config->data, uri, enoent_ok, &check_done);
     }
 
-    /* Specific last checkpoint was provided but wasn't found. */
+    /* Last checkpoint to verify was provided but wasn't found. */
     if (last_ckpt != NULL && check_done == false)
         ret = util_err(session, ENOENT, "session.verify");
 

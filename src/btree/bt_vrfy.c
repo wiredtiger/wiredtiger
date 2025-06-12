@@ -237,7 +237,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     if (is_custom_last_ckpt) {
         if (WT_CONFIG_LIT_MATCH(WT_CHECKPOINT, cfg_ckpt)) {
             WT_ERR_MSG(session, ENOTSUP,
-              "Request to verify \'WiredTigerCheckpoint\' is prohibbited to avoid confusion.");
+              "Request to verify \'WiredTigerCheckpoint\' is prohibited to avoid confusion.");
         }
 
         if (cfg_dump_offsets.len > 0)
