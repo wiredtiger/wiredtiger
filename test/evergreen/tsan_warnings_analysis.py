@@ -25,9 +25,9 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import os
+import os, sys
 import re, subprocess
-# The script generate warnings from running WiredTiger's examples, csuite, python and test/format testing.
+# The script intends to generate warnings from WiredTiger's examples, csuite, python and test/format testing.
 #
 # Running the whole suite causes enormous number of TSAN warnings. The amount of I/O causes slowness in the
 # system leading to non-deterministic results. For now, run only the examples suite.
@@ -50,6 +50,7 @@ for task in test_tasks:
         print(f'Command {exception.cmd} failed with error {exception.returncode}')
     except subprocess.TimeoutExpired as exception:
         print(f'Command {exception.cmd} timed out')
+        sys.exit(1)
 
 # Loop through all subdirectories recursively and search tsan logs.
 tsan_warnings_set = set()
