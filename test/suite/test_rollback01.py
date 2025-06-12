@@ -57,7 +57,7 @@ class test_rollback(error_info_util):
             evict_cursor.reset()
         evict_cursor.close()
 
-        # Position cursor in the middle. 
+        # Position cursor in the middle.
         session2 = self.conn.open_session()
         read_cursor = session2.open_cursor(self.uri)
         read_cursor.set_key("key_a" + str(10))
@@ -76,7 +76,7 @@ class test_rollback(error_info_util):
         # Let WiredTiger's accounting catch up.
         time.sleep(2)
 
-        # Perform cursor->next() which will result in the application thread being pulled into eviction 
+        # Perform cursor->next() which will result in the application thread being pulled into eviction
         # and getting rolled back. The auto retry is not expected to be performed, otherwise the test
         # will hang.
         for i in range(90):
@@ -87,7 +87,7 @@ class test_rollback(error_info_util):
                     break
                 else:
                     raise e
-        
+
         # A rollback should unposition the reader cursor.
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, read_cursor.get_key, '/requires key be set/')
