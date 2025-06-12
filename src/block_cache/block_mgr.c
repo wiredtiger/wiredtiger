@@ -848,9 +848,9 @@ __bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
  *     Start a block manager verify.
  */
 static int
-__bm_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
+__bm_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *cfg[])
 {
-    return (__wt_block_verify_start(session, bm->block, ckptbase, cfg));
+    return (__wt_block_verify_start(session, bm->block, ckpt, cfg));
 }
 
 /*

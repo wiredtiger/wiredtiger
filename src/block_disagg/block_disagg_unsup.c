@@ -213,11 +213,11 @@ __wti_block_disagg_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
  */
 int
 __wti_block_disagg_verify_start(
-  WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
+  WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckpt, const char *cfg[])
 {
     WT_UNUSED(bm);
     WT_UNUSED(session);
-    WT_UNUSED(ckptbase);
+    WT_UNUSED(ckpt);
     WT_UNUSED(cfg);
     return (0);
 }

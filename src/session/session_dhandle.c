@@ -438,7 +438,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     uint64_t stable_time;
     int64_t ds_order, hs_order;
     const char *checkpoint, *hs_checkpoint;
-    bool ckpt_running, is_hs, is_reserved_name, must_resolve;
+    bool ckpt_running, is_hs, is_reserved_name, is_unnamed_ckpt, must_resolve;
 
     ds_time = first_snapshot_time = hs_time = oldest_time = snapshot_time = stable_time = 0;
     WT_NOT_READ(ckpt_gen, 0);
@@ -447,6 +447,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
     hs_checkpoint = NULL;
     WT_NOT_READ(ckpt_running, false);
     WT_NOT_READ(is_hs, false);
+    WT_NOT_READ(is_unnamed_ckpt, false);
     WT_NOT_READ(is_reserved_name, false);
     WT_NOT_READ(must_resolve, false);
 
@@ -569,18 +570,18 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
      * Applications can use the internal reserved name "WiredTigerCheckpoint" to open the latest
      * checkpoint, but they are not allowed to directly open specific checkpoint versions, such as
      * "WiredTigerCheckpoint.6".
-     *
-     * There is no such restriction for the verification flow.
      */
     is_reserved_name = cval.len > strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
-    if (is_reserved_name && !LF_ISSET(WT_BTREE_VERIFY))
+    if (is_reserved_name)
         WT_RET_MSG(
           session, EINVAL, "the prefix \"%s\" for checkpoint cursors is reserved", WT_CHECKPOINT);
 
     /*
-     * Test for the internal checkpoint name (WiredTigerCheckpoint).
+     * Test for the internal checkpoint name (WiredTigerCheckpoint). Note: must_resolve is true in a
+     * subset of the cases where is_unnamed_ckpt is true.
      */
     must_resolve = WT_CONFIG_LIT_MATCH(WT_CHECKPOINT, cval);
+    is_unnamed_ckpt = cval.len >= strlen(WT_CHECKPOINT) && WT_PREFIX_MATCH(cval.str, WT_CHECKPOINT);
 
     /* This is the top of a retry loop. */
     do {
@@ -617,7 +618,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
              * snapshot metadata (only). If we need the name, we'll have copied it already.
              */
             WT_RET(__session_fetch_checkpoint_snapshot_wall_time(
-              session, must_resolve ? NULL : checkpoint, &first_snapshot_time));
+              session, is_unnamed_ckpt ? NULL : checkpoint, &first_snapshot_time));
         }
 
         if (must_resolve)
@@ -648,7 +649,7 @@ __wt_session_get_btree_ckpt(WT_SESSION_IMPL *session, const char *uri, const cha
          * checkpoint times) for each element.
          */
         if (ckpt_snapshot != NULL) {
-            WT_RET(__session_fetch_checkpoint_meta(session, must_resolve ? NULL : checkpoint,
+            WT_RET(__session_fetch_checkpoint_meta(session, is_unnamed_ckpt ? NULL : checkpoint,
               ckpt_snapshot, &snapshot_time, &stable_time, &oldest_time));
 
             /*

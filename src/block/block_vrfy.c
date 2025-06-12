@@ -26,11 +26,13 @@ static int __verify_set_file_size(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
  */
 int
 __wt_block_verify_start(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, const char *cfg[])
+  WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, const char *cfg[])
 {
-    WT_CKPT *ckpt, *t;
     WT_CONFIG_ITEM cval;
     wt_off_t size;
+
+    WT_ASSERT(session, block != NULL);
+    WT_ASSERT(session, ckpt != NULL);
 
     /* Configuration: strict behavior on any error. */
     WT_RET(__wt_config_gets(session, cfg, "strict", &cval));
@@ -44,18 +46,7 @@ __wt_block_verify_start(
     WT_RET(__wt_config_gets(session, cfg, "dump_tree_shape", &cval));
     block->dump_tree_shape = cval.val != 0;
 
-    /*
-     * Find the last checkpoint in the list: if there are none, or the only checkpoint we have is
-     * fake, there's no work to do. Don't complain, that's not our problem to solve.
-     */
-    ckpt = NULL;
-    WT_CKPT_FOREACH (ckptbase, t)
-        if (t->name != NULL && !F_ISSET(t, WT_CKPT_FAKE))
-            ckpt = t;
-    if (ckpt == NULL)
-        return (0);
-
-    /* Set the size of the file to the size of the last checkpoint. */
+    /* Set the size of the file to the size of the last verified checkpoint. */
     WT_RET(__verify_set_file_size(session, block, ckpt));
 
     /*
@@ -208,6 +199,7 @@ __wt_block_verify_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 int
 __wti_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
 {
+    WT_DECL_RET;
     WT_EXT *ext;
     WT_EXTLIST *el;
     uint64_t frag, frags;
@@ -220,16 +212,16 @@ __wti_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      * "seen" from the file.
      */
     if (ci->root_offset != WT_BLOCK_INVALID_OFFSET)
-        WT_RET(__verify_filefrag_add(
+        WT_ERR(__verify_filefrag_add(
           session, block, "checkpoint", ci->root_offset, (wt_off_t)ci->root_size, true));
     if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-        WT_RET(__verify_filefrag_add(
+        WT_ERR(__verify_filefrag_add(
           session, block, "alloc list", ci->alloc.offset, (wt_off_t)ci->alloc.size, true));
     if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-        WT_RET(__verify_filefrag_add(
+        WT_ERR(__verify_filefrag_add(
           session, block, "avail list", ci->avail.offset, (wt_off_t)ci->avail.size, true));
     if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-        WT_RET(__verify_filefrag_add(
+        WT_ERR(__verify_filefrag_add(
           session, block, "discard list", ci->discard.offset, (wt_off_t)ci->discard.size, true));
 
     /*
@@ -240,15 +232,15 @@ __wti_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      */
     el = &ci->alloc;
     if (el->offset != WT_BLOCK_INVALID_OFFSET) {
-        WT_RET(__wti_block_extlist_read(session, block, el, ci->file_size));
-        WT_RET(__wti_block_extlist_merge(session, block, el, &block->verify_alloc));
+        WT_ERR(__wti_block_extlist_read(session, block, el, ci->file_size));
+        WT_ERR(__wti_block_extlist_merge(session, block, el, &block->verify_alloc));
         __wti_block_extlist_free(session, el);
     }
     el = &ci->discard;
     if (el->offset != WT_BLOCK_INVALID_OFFSET) {
-        WT_RET(__wti_block_extlist_read(session, block, el, ci->file_size));
+        WT_ERR(__wti_block_extlist_read(session, block, el, ci->file_size));
         WT_EXT_FOREACH (ext, el->off)
-            WT_RET(__wti_block_off_remove_overlap(
+            WT_ERR(__wti_block_off_remove_overlap(
               session, block, &block->verify_alloc, ext->off, ext->size));
         __wti_block_extlist_free(session, el);
     }
@@ -262,7 +254,7 @@ __wti_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      */
     el = &ci->avail;
     if (el->offset != WT_BLOCK_INVALID_OFFSET) {
-        WT_RET(__wti_block_extlist_read(session, block, el, ci->file_size));
+        WT_ERR(__wti_block_extlist_read(session, block, el, ci->file_size));
         __wti_block_extlist_free(session, el);
     }
 
@@ -273,7 +265,7 @@ __wti_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      * checkpoints.
      */
     if (ci->root_offset != WT_BLOCK_INVALID_OFFSET)
-        WT_RET(__wti_block_off_remove_overlap(
+        WT_ERR(__wti_block_off_remove_overlap(
           session, block, &block->verify_alloc, ci->root_offset, ci->root_size));
 
     /*
@@ -282,7 +274,7 @@ __wti_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      * checkpoint's allocation and discard lists, then clear bits as we verify blocks. When finished
      * verifying the checkpoint, the bit list should be empty.
      */
-    WT_RET(__bit_alloc(session, block->frags, &block->fragckpt));
+    WT_ERR(__bit_alloc(session, block->frags, &block->fragckpt));
     el = &block->verify_alloc;
     WT_EXT_FOREACH (ext, el->off) {
         frag = (uint64_t)WT_wt_off_TO_FRAG(block, ext->off);
@@ -291,6 +283,10 @@ __wti_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
     }
 
     return (0);
+
+err:
+    __wt_errx(session, "checkpoint load verification failed");
+    return (ret);
 }
 
 /*

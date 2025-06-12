@@ -412,20 +412,23 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         Custom checkpoint verification.
         """
         tables = [self.tablename + str(i) for i in range(0, 3)]
-        ckptname = 'CustomCkpt'
+        ckpt = 'CustomCkpt'
+        next_ckpt = 'NextCkpt'
 
         for table in tables[:-1]:
             self.session.create('table:' + table, self.params)
             self.populate(table)
 
-        self.session.checkpoint("name=" + ckptname)
+        self.session.checkpoint("name=" + ckpt)
 
         self.session.create('table:' + tables[-1], self.params)
         self.populate(tables[-1])
         # Insert some non-checkpointed entries to the first table
         self.populate(tables[0], self.nentries)
 
-        self.runWt(["-v", "verify", "-C", ckptname], outfilename=self.outfile)
+        self.session.checkpoint("name=" + next_ckpt) # Uncomment later, create checkpoint to be sure that data populated later is checkpointed too
+
+        self.runWt(["-v", "verify", "-C", ckpt], outfilename=self.outfile)
 
         # The last table shouldn't be verified since it doesn't contain the specified checkpoint
         for tablename in tables[:-1]:
@@ -433,16 +436,28 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
                 "table:" + tablename + " - done") , 1)
         self.check_file_not_contains(self.outfile, "table:" + tables[-1] + " - done")
 
+        # This checkpoint cover all tables
+        self.runWt(["-v", "verify", "-C", next_ckpt], outfilename=self.outfile)
+        for tablename in tables:
+            self.assertEqual(self.count_file_contains(self.outfile,
+                "table:" + tablename + " - done") , 1)
+
     def test_verify_missing_ckpt(self):
         """
         Test verify in a 'wt' process with an option for a specific checkpoint verification.
         Nonexistent checkpoint verification
         """
+
+        def verify_missing_ckpts():
+            ckpts = ["NonexistentCkpt", "WiredTigerCheckpoint.abc", "WiredTigerCheckpoint.99999"]
+            for ckpt in ckpts:
+                self.runWt(["verify", "-C", ckpt], errfilename=self.errfile, failure=True)
+                self.check_file_content(self.errfile, "wt: session.verify: No such file or directory\n")
+
+        verify_missing_ckpts()
         self.session.create('table:' + self.tablename, self.params)
         self.populate(self.tablename)
-
-        self.runWt(["-v", "verify", "-C", "NonexistentCkpt"],
-            errfilename=self.errfile, failure=True)
+        verify_missing_ckpts()
 
     def test_verify_wt_ckpt(self):
         """
@@ -453,9 +468,10 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.populate(self.tablename)
 
         # Parse internal checkpoints from metadata
-        wt_checkpoints = self.extract_checkpoint_names(self.tablename)
-        self.assertNotEqual([], wt_checkpoints)
+        unnamed_ckpts = self.extract_checkpoint_names(self.tablename)
+        self.assertNotEqual([], unnamed_ckpts)
 
-        self.runWt(["-v", "verify", "-C", wt_checkpoints[0]], outfilename=self.outfile)
-        self.assertEqual(self.count_file_contains(self.outfile,
-            "table:" + self.tablename + " - done"), 1)
+        for ckpt in unnamed_ckpts:
+            self.runWt(["-v", "verify", "-C", ckpt], outfilename=self.outfile)
+            self.assertEqual(self.count_file_contains(self.outfile,
+                "table:" + self.tablename + " - done"), 1)
