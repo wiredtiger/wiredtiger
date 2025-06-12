@@ -268,8 +268,8 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
  *     Discard a page.
  */
 int
-__wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg,
-  WT_PAGE_BLOCK_META *block_meta, const uint8_t *addr, size_t addr_size)
+__wti_block_disagg_page_discard(
+  WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, const uint8_t *addr, size_t addr_size)
 {
     /* Crack the cookie. */
     uint64_t checkpoint_id, lsn, page_id, reconciliation_id;
@@ -282,12 +282,7 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
       ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
       page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
 
-    WT_ASSERT_ALWAYS(session, page_id == block_meta->page_id,
-      "The page id %" PRIu64 " in the block meta does not match the page id %" PRIu64
-      " in the address cookie",
-      page_id, block_meta->page_id);
-
-    /* Send the discard request. */
+    /* Create the discard request. */
     WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
 
     /* Ignore the call if the function is not implemented. */
@@ -299,15 +294,14 @@ __wti_block_disagg_page_discard(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block
 
     WT_PAGE_LOG_DISCARD_ARGS discard_args;
     WT_CLEAR(discard_args);
-    if (block_meta->delta_count > 0) {
-        discard_args.base_checkpoint_id = block_meta->base_checkpoint_id;
-        discard_args.base_lsn = block_meta->base_lsn;
-    } else {
-        discard_args.base_checkpoint_id = block_meta->checkpoint_id;
-        discard_args.base_lsn = block_meta->disagg_lsn;
-    }
-    discard_args.backlink_checkpoint_id = block_meta->checkpoint_id;
-    discard_args.backlink_lsn = block_meta->disagg_lsn;
+
+    /* Not used by the page server. */
+    discard_args.base_checkpoint_id = 0;
+    /* Always 0 for full page. */
+    discard_args.base_lsn = 0;
+
+    discard_args.backlink_checkpoint_id = checkpoint_id;
+    discard_args.backlink_lsn = lsn;
 
     return (
       plhandle->plh_discard(plhandle, &session->iface, page_id, checkpoint_id, &discard_args));

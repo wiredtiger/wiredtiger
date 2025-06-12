@@ -2936,8 +2936,8 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
          * confirm backing blocks we care about, and free any disk image/saved updates.
          */
         if (multi->addr.block_cookie != NULL) {
-            WT_RET(__wt_btree_block_free(session, &multi->block_meta, multi->addr.block_cookie,
-              multi->addr.block_cookie_size, false));
+            WT_RET(__wt_btree_block_free(
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size, false));
             __wt_free(session, multi->addr.block_cookie);
         }
 
@@ -3119,7 +3119,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                              * page?
                              */
         if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_btree_block_free(session, &page->block_meta, mod->mod_replace.block_cookie,
+            WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
               mod->mod_replace.block_cookie_size, r->multi_next == 1));
 
         /* Discard the replacement page's address and disk image. */
@@ -3324,8 +3324,8 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->addr.block_cookie != NULL)
-            WT_TRET(__wt_btree_block_free(session, &multi->block_meta, multi->addr.block_cookie,
-              multi->addr.block_cookie_size, false));
+            WT_TRET(__wt_btree_block_free(
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size, false));
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
 

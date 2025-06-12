@@ -134,8 +134,7 @@ static int __slvg_ovfl_reconcile(WT_SESSION_IMPL *, WT_STUFF *);
 static int __slvg_ovfl_ref(WT_SESSION_IMPL *, WT_TRACK *, bool);
 static int __slvg_ovfl_ref_all(WT_SESSION_IMPL *, WT_TRACK *);
 static int __slvg_read(WT_SESSION_IMPL *, WT_STUFF *);
-static int __slvg_reconcile_free(
-  WT_BM *, WT_SESSION_IMPL *, WT_PAGE_BLOCK_META *, const uint8_t *, size_t);
+static int __slvg_reconcile_free(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 static int __slvg_row_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
 static int __slvg_row_build_leaf(WT_SESSION_IMPL *, WT_TRACK *, WT_REF *, WT_STUFF *);
 static int __slvg_row_ovfl(WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *, uint32_t, uint32_t);
@@ -485,8 +484,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
         case WT_PAGE_ROW_INT:
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page ignored %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
-            /* FIXME-WT-14740 Figure out salvage in disaggregated storage. */
-            WT_ERR(bm->free(bm, session, NULL, addr, addr_size));
+            WT_ERR(bm->free(bm, session, addr, addr_size));
             continue;
         }
 
@@ -500,8 +498,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
         if (__wt_verify_dsk(session, as->data, buf) != 0) {
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page failed verify %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
-            /* FIXME-WT-14740 Figure out salvage in disaggregated storage. */
-            WT_ERR(bm->free(bm, session, NULL, addr, addr_size));
+            WT_ERR(bm->free(bm, session, addr, addr_size));
             continue;
         }
 
@@ -1279,7 +1276,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
     WT_SALVAGE_COOKIE *cookie, _cookie;
     uint64_t recno, skip, take;
     uint32_t save_entries;
-    int (*saved_free)(WT_BM *, WT_SESSION_IMPL *, WT_PAGE_BLOCK_META *, const uint8_t *, size_t);
+    int (*saved_free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 
     btree = S2BT(session);
     saved_free = NULL;
@@ -1899,8 +1896,7 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref, WT_S
     WT_ROW *rip;
     WT_SALVAGE_COOKIE *cookie, _cookie;
     uint32_t i, skip_start, skip_stop;
-    int cmp,
-      (*saved_free)(WT_BM *, WT_SESSION_IMPL *, WT_PAGE_BLOCK_META *, const uint8_t *, size_t);
+    int cmp, (*saved_free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 
     btree = S2BT(session);
     page = NULL;
@@ -2091,14 +2087,12 @@ __slvg_row_ovfl(
  *     Block manager replacement to update blocks reconciliation wants removed.
  */
 static int
-__slvg_reconcile_free(WT_BM *bm, WT_SESSION_IMPL *session, WT_PAGE_BLOCK_META *block_meta,
-  const uint8_t *addr, size_t addr_size)
+__slvg_reconcile_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     WT_TRACK *ovfl, *trk;
     uint32_t i;
 
     WT_UNUSED(bm);
-    WT_UNUSED(block_meta);
     trk = session->salvage_track;
 
     /*
@@ -2484,8 +2478,7 @@ __slvg_trk_free_block(WT_SESSION_IMPL *session, WT_TRACK *trk)
     __wt_verbose(session, WT_VERB_SALVAGE, "%s blocks discarded: discard freed file bytes %" PRIu32,
       __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1), trk->trk_size);
 
-    /* FIXME-WT-14740 Figure out salvage in disaggregated storage. */
-    return (bm->free(bm, session, NULL, trk->trk_addr, trk->trk_addr_size));
+    return (bm->free(bm, session, trk->trk_addr, trk->trk_addr_size));
 }
 
 /*
