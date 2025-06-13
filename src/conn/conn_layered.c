@@ -91,7 +91,7 @@ err:
 
 /*
  * __layered_create_missing_stable_table --
- *     Create a missing ingest table from an existing layered table configuration.
+ *     Create a missing stable table from an existing layered table configuration.
  */
 static int
 __layered_create_missing_stable_table(
