@@ -649,10 +649,21 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
   uint64_t checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *discard_args)
 {
     /* FIXME-WT-14704: Implement this function and remove from s_void. */
-    PALM_HANDLE *palm_handle;
-    palm_handle = (PALM_HANDLE *)plh;
+    PALM_HANDLE *palm_handle = (PALM_HANDLE *)plh;
+    PALM *palm = palm_handle->palm;
+    palm_delay(palm);
 
-    WT_UNUSED(session);
+    PALM_KV_CONTEXT context;
+    palm_init_context(palm, &context);
+
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
+    uint64_t lsn;
+    int ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &lsn);
+    if (ret == MDB_NOTFOUND) {
+        lsn = 1;
+        ret = 0;
+    }
+    PALM_KV_ERR(palm, session, ret);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64
@@ -662,7 +673,28 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
       discard_args->base_lsn, discard_args->backlink_checkpoint_id,
       discard_args->base_checkpoint_id);
 
+    /* We always write full pages for tombstones. */
+    bool is_delta = false;
+
+    /* Create the tombstone, we don't expect any other flag set. */
+    assert(discard_args->flags == WT_PAGE_LOG_TOMBSTONE);
+
+    PALM_KV_ERR(palm, session,
+      palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
+        discard_args->backlink_lsn, discard_args->base_lsn, discard_args->backlink_checkpoint_id,
+        discard_args->base_checkpoint_id, discard_args->flags, NULL));
+    PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+    discard_args->lsn = lsn;
     return (0);
+err:
+    palm_kv_rollback_transaction(&context);
+
+    PALM_VERBOSE_PRINT(palm_handle->palm,
+      "palm_handle_put(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+      ", checkpoint_id=%" PRIu64 ", is_delta=%d) returned %d\n",
+      (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta, ret);
+    return (ret);
 }
 
 static int
