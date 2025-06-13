@@ -303,6 +303,8 @@ __wti_block_disagg_page_discard(
     discard_args.backlink_checkpoint_id = checkpoint_id;
     discard_args.backlink_lsn = lsn;
 
+    F_SET(&discard_args, WT_PAGE_LOG_TOMBSTONE);
+
     return (
       plhandle->plh_discard(plhandle, &session->iface, page_id, checkpoint_id, &discard_args));
 }
