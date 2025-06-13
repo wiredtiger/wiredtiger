@@ -52,7 +52,7 @@ for task in test_tasks:
         print(f'Command {exception.cmd} timed out')
         sys.exit(1)
 
-# Loop through all subdirectories recursively and search tsan logs.
+# Loop through WT root directory and search for tsan logs.
 tsan_warnings_set = set()
 for tsan_log in os.listdir(".."):
     # Check if the file starts with "tsan."
