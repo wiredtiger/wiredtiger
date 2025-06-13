@@ -121,7 +121,8 @@ __prepared_discover_process_prepared_update(WT_SESSION_IMPL *session, WT_ITEM *k
 {
     wt_timestamp_t prepare_timestamp;
 
-    WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INIT && upd->prepare_state != WT_PREPARE_RESOLVED);
+    WT_ASSERT(
+      session, upd->prepare_state != WT_PREPARE_INIT && upd->prepare_state != WT_PREPARE_RESOLVED);
 
     /* TODO: at the moment the prepare time is overloaded, eventually this will be different */
     prepare_timestamp = upd->start_ts;
