@@ -113,6 +113,10 @@ class EvictStat(Stat):
     prefix = 'cache'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, EvictStat.prefix, desc, flags)
+class LayeredStat(Stat):
+    prefix = 'layered'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, LayeredStat.prefix, desc, flags)
 class LiveRestoreStat(Stat):
     prefix = 'live-restore'
     def __init__(self, name, desc, flags=''):
@@ -428,6 +432,7 @@ conn_stats = [
     CheckpointStat('checkpoint_handle_walked', 'most recent handles walked'),
     CheckpointStat('checkpoint_hs_pages_reconciled', 'number of history store pages caused to be reconciled'),
     CheckpointStat('checkpoint_pages_reconciled', 'number of pages caused to be reconciled'),
+    CheckpointStat('checkpoint_pages_reconciled_bytes', 'number of bytes caused to be reconciled'),
     CheckpointStat('checkpoint_pages_visited_internal', 'number of internal pages visited'),
     CheckpointStat('checkpoint_pages_visited_leaf', 'number of leaf pages visited'),
     CheckpointStat('checkpoint_prep_max', 'prepare max time (msecs)', 'no_clear,no_scale'),
@@ -542,6 +547,13 @@ conn_stats = [
     DhandleStat('dh_sweep_skip_ckpt', 'connection sweeps skipped due to checkpoint gathering handles'),
     DhandleStat('dh_sweep_tod', 'connection sweep time-of-death sets'),
     DhandleStat('dh_sweeps', 'connection sweeps'),
+
+    ##########################################
+    # Layered table statistics
+    ##########################################
+    LayeredStat('layered_table_manager_active', 'whether the layered table manager thread is currently busy doing work'),
+    LayeredStat('layered_table_manager_running', 'whether the layered table manager thread has been started'),
+    LayeredStat('layered_table_manager_tables', 'the number of tables the layered table manager has open'),
 
     ##########################################
     # Live Restore statistics
@@ -1033,14 +1045,20 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
+    CacheStat('cache_evict_split_failed_lock', 'realizing in-memory split after reconciliation failed due to internal lock busy'),
+    CacheStat('cache_eviction_ahead_of_last_materialized_lsn', 'pages evicted ahead of the page materialization frontier'),
     CacheStat('cache_eviction_app_threads_fill_ratio_25_50', 'application threads eviction requested with cache fill ratio >= 25% and < 50%'),
     CacheStat('cache_eviction_app_threads_fill_ratio_50_75', 'application threads eviction requested with cache fill ratio >= 50% and < 75%'),
     CacheStat('cache_eviction_app_threads_fill_ratio_gt_75', 'application threads eviction requested with cache fill ratio >= 75%'),
     CacheStat('cache_eviction_app_threads_fill_ratio_lt_25', 'application threads eviction requested with cache fill ratio < 25%'),
     CacheStat('cache_eviction_blocked_checkpoint', 'checkpoint blocked page eviction'),
     CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
+    CacheStat('cache_eviction_blocked_checkpoint_precise', 'precise checkpoint caused an eviction to be skipped because any dirty content needs to remain in cache'),
+    CacheStat('cache_eviction_blocked_disagg_dirty_internal_page', 'dirty internal page cannot be evicted in disaggregated storage'),
+    CacheStat('cache_eviction_blocked_disagg_next_checkpoint', 'page eviction blocked in disaggregated storage as it can only be written by the next checkpoint'),
     CacheStat('cache_eviction_blocked_hazard', 'hazard pointer blocked page eviction'),
     CacheStat('cache_eviction_blocked_internal_page_split', 'internal page split blocked its eviction'),
+    CacheStat('cache_eviction_blocked_materialization', 'page eviction blocked due to materialization frontier'),
     CacheStat('cache_eviction_blocked_multi_block_reconciliation_during_checkpoint', 'multi-block reconciliation blocked whilst checkpoint is running'),
     CacheStat('cache_eviction_blocked_no_progress', 'eviction gave up due to no progress being made'),
     CacheStat('cache_eviction_blocked_no_ts_checkpoint_race_1', 'eviction gave up due to detecting a disk value without a timestamp behind the last update on the chain'),
@@ -1097,8 +1115,10 @@ conn_dsrc_stats = [
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
+    CacheStat('cache_read_restored_tombstone_bytes', 'size of tombstones restored when reading a page'),
     CacheStat('cache_reverse_splits', 'reverse splits performed'),
     CacheStat('cache_reverse_splits_skipped_vlcs', 'reverse splits skipped because of VLCS namespace gap restrictions'),
+    CacheStat('cache_scrub_restore', 'reconciled pages scrubbed and added back to the cache clean'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
@@ -1178,6 +1198,33 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
+
+    ##########################################
+    # Layered table statistics
+    ##########################################
+    LayeredStat('layered_curs_insert', 'Layered table cursor insert operations'),
+    LayeredStat('layered_curs_next', 'Layered table cursor next operations'),
+    LayeredStat('layered_curs_next_ingest', 'Layered table cursor next operations from ingest table'),
+    LayeredStat('layered_curs_next_stable', 'Layered table cursor next operations from stable table'),
+    LayeredStat('layered_curs_prev', 'Layered table cursor prev operations'),
+    LayeredStat('layered_curs_prev_ingest', 'Layered table cursor prev operations from ingest table'),
+    LayeredStat('layered_curs_prev_stable', 'Layered table cursor prev operations from stable table'),
+    LayeredStat('layered_curs_remove', 'Layered table cursor remove operations'),
+    LayeredStat('layered_curs_search', 'Layered table cursor search operations'),
+    LayeredStat('layered_curs_search_ingest', 'Layered table cursor search operations from ingest table'),
+    LayeredStat('layered_curs_search_near', 'Layered table cursor search near operations'),
+    LayeredStat('layered_curs_search_near_ingest', 'Layered table cursor search near operations from ingest table'),
+    LayeredStat('layered_curs_search_near_stable', 'Layered table cursor search near operations from stable table'),
+    LayeredStat('layered_curs_search_stable', 'Layered table cursor search operations from stable table'),
+    LayeredStat('layered_curs_update', 'Layered table cursor update operations'),
+    LayeredStat('layered_curs_upgrade_ingest', 'Layered table cursor upgrade state for ingest table'),
+    LayeredStat('layered_curs_upgrade_stable', 'Layered table cursor upgrade state for stable table'),
+
+    LayeredStat('layered_table_manager_checkpoints', 'checkpoints performed on this table by the layered table manager'),
+    LayeredStat('layered_table_manager_checkpoints_refreshed', 'checkpoints refreshed on shared layered constituents'),
+    LayeredStat('layered_table_manager_logops_applied', 'how many log applications the layered table manager applied on this tree'),
+    LayeredStat('layered_table_manager_logops_skipped', 'how many log applications the layered table manager skipped on this tree'),
+    LayeredStat('layered_table_manager_skip_lsn', 'how many previously-applied LSNs the layered table manager skipped on this tree'),
 
     ##########################################
     # Reconciliation statistics

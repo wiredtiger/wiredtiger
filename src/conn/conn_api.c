@@ -1229,6 +1229,14 @@ err:
     WT_TRET(__wt_checkpoint_cleanup_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
 
+    /*
+     * Shut down the layered table manager thread, ideally this would be taken care of in connection
+     * close below, but it needs to precede global transaction state shutdown, so do it here as
+     * well. It needs to happen after we destroy the sweep server. Otherwise, the sweep server may
+     * see a freed layered table manager.
+     */
+    WT_TRET(__wti_layered_table_manager_destroy(session));
+
     /* Perform a final checkpoint and shut down the global transaction state. */
     WT_TRET(__wt_txn_global_shutdown(session, cfg));
 
@@ -1313,6 +1321,10 @@ __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
     WT_ERR(__wt_config_gets(session, cfg, "log", &cval));
     if (cval.val != 0)
         WT_ERR(__wt_verbose_dump_log(session));
+
+    WT_ERR(__wt_config_gets(session, cfg, "metadata", &cval));
+    if (cval.val != 0)
+        WT_ERR(__wt_verbose_dump_metadata(session));
 
     WT_ERR(__wt_config_gets(session, cfg, "sessions", &cval));
     if (cval.val != 0)
@@ -2092,7 +2104,7 @@ __debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    __wt_writelock(session, &conn->debug_log_retention_lock);
+    __wt_writelock(session, &conn->log_mgr.debug_log_retention_lock);
 
     WT_ERR(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
 
@@ -2115,7 +2127,7 @@ __debug_mode_log_retention_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn->debug_log_cnt = (uint32_t)cval.val;
 
 err:
-    __wt_writeunlock(session, &conn->debug_log_retention_lock);
+    __wt_writeunlock(session, &conn->log_mgr.debug_log_retention_lock);
     return (ret);
 }
 
@@ -2333,10 +2345,11 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
       {"disaggregated_storage", WT_VERB_DISAGGREGATED_STORAGE},
       {"error_returns", WT_VERB_ERROR_RETURNS}, {"eviction", WT_VERB_EVICTION},
       {"fileops", WT_VERB_FILEOPS}, {"generation", WT_VERB_GENERATION},
-      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"history_store", WT_VERB_HS},
-      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"live_restore", WT_VERB_LIVE_RESTORE},
-      {"live_restore_progress", WT_VERB_LIVE_RESTORE_PROGRESS}, {"metadata", WT_VERB_METADATA},
-      {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
+      {"handleops", WT_VERB_HANDLEOPS}, {"history_store", WT_VERB_HS},
+      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"layered", WT_VERB_LAYERED},
+      {"live_restore", WT_VERB_LIVE_RESTORE},
+      {"live_restore_progress", WT_VERB_LIVE_RESTORE_PROGRESS}, {"log", WT_VERB_LOG},
+      {"metadata", WT_VERB_METADATA}, {"mutex", WT_VERB_MUTEX}, {"prefetch", WT_VERB_PREFETCH},
       {"out_of_order", WT_VERB_OUT_OF_ORDER}, {"overflow", WT_VERB_OVERFLOW},
       {"read", WT_VERB_READ}, {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
       {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
@@ -3289,7 +3302,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /* Initialize connection values from stored metadata. */
     WT_ERR(__wt_meta_load_prior_state(session));
 
+    /* Open the metadata table. */
     WT_ERR(__wt_metadata_cursor(session, NULL));
+
     /*
      * Load any incremental backup information. This reads the metadata so must be done after the
      * turtle file is initialized.
@@ -3301,7 +3316,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(event_handler->handle_general(
           event_handler, &conn->iface, NULL, WT_EVENT_CONN_READY, NULL));
 
-    /* Start the worker threads and run recovery. */
+    /* Start the worker threads, run recovery, and initialize the disaggregated storage. */
     WT_ERR(__wti_connection_workers(session, cfg));
 
     /*

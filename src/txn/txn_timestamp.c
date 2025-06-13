@@ -453,9 +453,14 @@ set:
 
     if (has_stable &&
       (!txn_global->has_stable_timestamp || force || stable_ts > txn_global->stable_timestamp)) {
-        txn_global->stable_timestamp = stable_ts;
+        WT_RELEASE_WRITE(txn_global->stable_timestamp, stable_ts);
         WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
-        txn_global->has_stable_timestamp = true;
+        /*
+         * Release write requires the data and destination have exactly the same size. stdbool.h
+         * only defines true as `#define true 1` so we need a bool cast to provide proper type
+         * information.
+         */
+        WT_RELEASE_WRITE(txn_global->has_stable_timestamp, (bool)true);
         txn_global->stable_is_pinned = false;
         __wt_verbose_timestamp(session, stable_ts, "Updated global stable timestamp");
     }

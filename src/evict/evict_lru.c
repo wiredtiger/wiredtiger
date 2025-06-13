@@ -539,6 +539,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
             __wt_err(session, ETIMEDOUT, "Cache stuck for too long, giving up");
             WT_RET(__wt_verbose_dump_txn(session));
             WT_RET(__wt_verbose_dump_cache(session));
+            WT_RET(__wt_verbose_dump_metadata(session));
             return (__wt_set_return(session, ETIMEDOUT));
 #else
             if (WT_VERBOSE_ISSET(session, WT_VERB_EVICTION)) {
@@ -663,10 +664,12 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     WT_EVICT *evict;
     double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
-    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
-    uint32_t flags;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates, total_dirty, total_inmem,
+      total_updates;
+    uint32_t flags, hs_id;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -695,13 +698,26 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
      * values could lead to surprising bugs in the future.
      */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
-        uint64_t bytes_hs_dirty;
-        __wt_atomic_store64(&cache->bytes_hs, __wt_atomic_load64(&hs_tree->bytes_inmem));
-        bytes_hs_dirty = __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
-          __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
-        __wt_atomic_store64(&cache->bytes_hs_dirty, bytes_hs_dirty);
-        __wt_atomic_store64(&cache->bytes_hs_updates, __wt_atomic_load64(&hs_tree->bytes_updates));
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN)) {
+        total_dirty = total_inmem = total_updates = 0;
+        hs_id = 0;
+        for (;;) {
+            WT_RET_NOTFOUND_OK(ret = __wt_curhs_next_hs_id(session, hs_id, &hs_id));
+            if (ret == WT_NOTFOUND) {
+                ret = 0;
+                (void)ret; /* Keep the assignment to 0 just in case, but suppress clang warnings. */
+                break;
+            }
+            if (__wt_hs_get_btree(session, hs_id, &hs_tree) == 0) {
+                total_inmem += __wt_atomic_load64(&hs_tree->bytes_inmem);
+                total_dirty += __wt_atomic_load64(&hs_tree->bytes_dirty_intl) +
+                  __wt_atomic_load64(&hs_tree->bytes_dirty_leaf);
+                total_updates += __wt_atomic_load64(&hs_tree->bytes_updates);
+            }
+        }
+        __wt_atomic_store64(&cache->bytes_hs, total_inmem);
+        __wt_atomic_store64(&cache->bytes_hs_dirty, total_dirty);
+        __wt_atomic_store64(&cache->bytes_hs_updates, total_updates);
     }
 
     /*
@@ -759,10 +775,16 @@ __evict_update_work(WT_SESSION_IMPL *session)
         LF_SET(WT_EVICT_CACHE_DIRTY);
 
     /*
-     * Scrub dirty pages and keep them in cache if we are less than half way to the clean, dirty or
-     * updates triggers.
+     * Configure scrub - which reinstates clean equivalents of reconciled dirty pages. This is
+     * useful because an evicted dirty page isn't necessarily a good proxy for knowing if the page
+     * will be accessed again soon. Be more aggressive about scrubbing in disaggregated storage
+     * because the cost of retrieving a recently reconciled page is higher in that configuration. In
+     * the local storage case scrub dirty pages and keep them in cache if we are less than half way
+     * to the clean, dirty and updates triggers.
      */
-    if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
+    if (__wt_conn_is_disagg(session) && bytes_inuse < (uint64_t)(trigger * bytes_max) / 100)
+        LF_SET(WT_EVICT_CACHE_SCRUB);
+    else if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
         if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200 &&
           bytes_updates < (uint64_t)((updates_target + updates_trigger) * bytes_max) / 200)
             LF_SET(WT_EVICT_CACHE_SCRUB);
@@ -1771,6 +1793,10 @@ retry:
             WT_STAT_CONN_INCR(session, eviction_server_skip_trees_not_useful_before);
             continue;
         }
+
+        if (F_ISSET(btree, WT_BTREE_IN_MEMORY) && !F_ISSET(evict, WT_EVICT_CACHE_DIRTY))
+            continue;
+
         btree->evict_walk_skips = 0;
 
         __evict_set_saved_walk_tree(session, dhandle);
@@ -2344,9 +2370,11 @@ __evict_try_queue_page(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, WT_REF 
         goto fast;
 
     /* Skip pages we don't want. */
-    want_page = (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !modified) ||
+    want_page =
+      (F_ISSET(evict, WT_EVICT_CACHE_CLEAN) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) && !modified) ||
       (F_ISSET(evict, WT_EVICT_CACHE_DIRTY) && modified) ||
-      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && page->modify != NULL);
+      (F_ISSET(evict, WT_EVICT_CACHE_UPDATES) && !F_ISSET(btree, WT_BTREE_IN_MEMORY) &&
+        page->modify != NULL);
     if (!want_page) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_unwanted_pages);
         return;
@@ -3243,7 +3271,7 @@ __verbose_dump_cache_apply(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
 
         /* Skip if the tree is marked discarded by another thread. */
         if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          F_ISSET(dhandle, WT_DHANDLE_DISCARD))
+          F_ISSET(dhandle, WT_DHANDLE_DISCARD | WT_DHANDLE_OUTDATED))
             continue;
 
         WT_WITH_DHANDLE(session, dhandle,
