@@ -1791,6 +1791,9 @@ methods = {
         set the prepare timestamp for the updates of the current transaction. The value must
         not be older than any active read timestamps, and must be newer than the current stable
         timestamp. See @ref timestamp_prepare'''),
+    Config('prep≈are_id', '0', r'''
+        set the prepared id....           
+        ''', type='int')
 ]),
 
 'WT_SESSION.timestamp_transaction_uint' : Method([]),
