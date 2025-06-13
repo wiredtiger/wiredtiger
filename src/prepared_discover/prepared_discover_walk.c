@@ -77,46 +77,6 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
         WT_ASSERT_ALWAYS(
           session, false, "Column store prepared transaction discovery not supported");
 
-    /*
-     * Check to see if the transaction made multiple changes to the same key - they will be in the
-     * history store.
-     */
-    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
-    /*
-     * Rollback-to-stable operates exclusively (i.e., it is the only active operation in the system)
-     * outside the constraints of transactions. Therefore, there is no need for snapshot based
-     * visibility checks.
-     */
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
-
-    /*
-     * Scan the history store for the given btree and key with maximum start timestamp to let the
-     * search point to the last version of the key and start traversing backwards to find out the
-     * satisfying record according the given timestamp. Any satisfying history store record is moved
-     * into data store and removed from history store. If none of the history store records satisfy
-     * the given timestamp, the key is removed from data store.
-     */
-    hs_cursor->set_key(hs_cursor, 4, S2BT(session)->id, key, WT_TS_MAX, UINT64_MAX);
-    ret = __wt_curhs_search_near_before(session, hs_cursor);
-    for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        /* Retrieve the time window from the history cursor. */
-        __wt_hs_upd_time_window(hs_cursor, &hs_tw);
-        if (!hs_tw->prepare)
-            break;
-
-        /*
-         * Add another copy of the same transaction OP as was used for the data store prepare entry.
-         * Note that it's correct to use the key and time information that was used for the record
-         * already added from the data store. This needs to be the same, and prepared transaction
-         * resolution figures out that there are a chain of updates to deal with.
-         */
-        if (rip != NULL)
-            WT_ERR(__wti_prepared_discover_add_artifact_ondisk_row(session, tw->start_ts, tw, key));
-        else
-            WT_ASSERT_ALWAYS(
-              session, false, "Column store prepared transaction discovery not supported");
-    }
-
 err:
     if (rip == NULL || row_key == NULL)
         __wt_scr_free(session, &key);
