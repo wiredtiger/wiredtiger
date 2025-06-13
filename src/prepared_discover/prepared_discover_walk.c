@@ -121,7 +121,7 @@ __prepared_discover_process_prepared_update(WT_SESSION_IMPL *session, WT_ITEM *k
 {
     wt_timestamp_t prepare_timestamp;
 
-    WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INIT);
+    WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INIT && upd->prepare_state != WT_PREPARE_RESOLVED);
 
     /* TODO: at the moment the prepare time is overloaded, eventually this will be different */
     prepare_timestamp = upd->start_ts;
@@ -145,7 +145,7 @@ __prepared_discover_process_update_list(
          * Prepared updates must be at the start of the chain, so the first time an update that
          * hasn't been prepared is seen, it's safe to terminate the update chain traversal
          */
-        if (upd->prepare_state == WT_PREPARE_INIT) {
+        if (upd->prepare_state == WT_PREPARE_INIT || upd->prepare_state == WT_PREPARE_RESOLVED) {
             break;
         }
         WT_RET(__prepared_discover_process_prepared_update(session, key, upd));
