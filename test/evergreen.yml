@@ -4193,10 +4193,6 @@ tasks:
 
   - name: tsan-warning-metrics
     commands:
-      - command: timeout.update
-        params:
-          exec_timeout_secs: 43200
-          timeout_secs: 43200
       - func: "get project"
       - func: "compile wiredtiger"
       - command: shell.exec
