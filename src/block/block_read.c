@@ -263,23 +263,25 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 
     if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
         if (full_checksum_mismatch)
-            __wt_errx(session,
+            printf(
               "%s: potential hardware corruption, read checksum error for %" PRIu32
               "B block at offset %" PRIuMAX ": calculated block checksum of %#" PRIx32
-              " doesn't match expected checksum of %#" PRIx32,
+              " doesn't match expected checksum of %#" PRIx32 "\n",
               block->name, size, (uintmax_t)offset, __wt_checksum(buf->mem, check_size), checksum);
         else
-            __wt_errx(session,
+        printf(
               "%s: potential hardware corruption, read checksum error for %" PRIu32
               "B block at offset %" PRIuMAX ": block header checksum of %#" PRIx32
-              " doesn't match expected checksum of %#" PRIx32,
+              " doesn't match expected checksum of %#" PRIx32 "\n",
               block->name, size, (uintmax_t)offset, swap.checksum, checksum);
         WT_IGNORE_RET(__bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
     }
 
     /* Panic if a checksum fails during an ordinary read. */
     F_SET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION);
+    WT_ASSERT(session, false);
     if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
         return (WT_ERROR);
+    WT_ASSERT(session, false);
     WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
 }

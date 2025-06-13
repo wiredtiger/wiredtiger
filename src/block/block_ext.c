@@ -1227,10 +1227,10 @@ __wti_block_extlist_read(
           off + size > ckpt_size) {
 corrupted:
             __wt_scr_free(session, &tmp);
-            WT_BLOCK_RET(session, block, WT_ERROR,
-              "file contains a corrupted %s extent list, range %" PRIdMAX "-%" PRIdMAX
-              " past end-of-file",
+            printf("file contains a corrupted %s extent list, range %" PRIdMAX "-%" PRIdMAX
+              " past end-of-file\n",
               el->name, (intmax_t)off, (intmax_t)(off + size));
+            return (WT_ERROR);
         }
 
         WT_ERR(func(session, block, el, off, size));

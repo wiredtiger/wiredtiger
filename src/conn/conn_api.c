@@ -3293,7 +3293,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Load any incremental backup information. This reads the metadata so must be done after the
      * turtle file is initialized.
      */
-    WT_ERR(__wt_backup_open(session));
+    if (!__wt_live_restore_migration_in_progress(session))
+        WT_ERR(__wt_backup_open(session));
 
     F_SET_ATOMIC_32(conn, WT_CONN_MINIMAL);
     if (event_handler != NULL && event_handler->handle_general != NULL)

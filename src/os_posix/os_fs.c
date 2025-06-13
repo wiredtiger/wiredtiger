@@ -519,6 +519,11 @@ __posix_file_read(
       "read: %s, fd=%d, offset=%" PRId64 ", len=%" WT_SIZET_FMT, file_handle->name, pfh->fd, offset,
       len);
 
+#ifdef HAVE_DIAGNOSTIC
+    wt_off_t size;
+    file_handle->fh_size(file_handle, wt_session, &size);
+    WT_ASSERT(session, offset < size);
+#endif
     /* Break reads larger than 1GB into 1GB chunks. */
     nr = 0;
     for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {

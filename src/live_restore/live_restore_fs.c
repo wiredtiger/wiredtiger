@@ -512,8 +512,21 @@ __live_restore_fh_fill_bit_range(
         partial_fill = true;
         fill_end_bit = lr_fh->nbits - 1;
     }
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE%s HOLE %s: %" PRId64 "-%" PRId64,
-      partial_fill ? " PARTIAL" : "", lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
+
+    /* Only log remove hole if we actually update the bitmap. */
+    if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_LIVE_RESTORE, 3)) {
+        bool log = false;
+        for (uint64_t i = offset_bit; i <= fill_end_bit; i++) {
+            if (!__bit_test(lr_fh->bitmap, i)) {
+                log = true;
+                break;
+            }
+        }
+        if (log)
+        __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "REMOVE%s HOLE %s: %" PRId64 "-%" PRId64,
+            partial_fill ? " PARTIAL" : "", lr_fh->iface.name, offset, WTI_OFFSET_END(offset, len));
+    }
+
     __bit_nset(lr_fh->bitmap, offset_bit, fill_end_bit);
     return;
 }
@@ -627,7 +640,7 @@ __live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_
     WT_UNUSED(__live_restore_dump_bitmap);
     /*
      * TODO: This case doesn't apply anymore but does that mean we need to bring back partial read
-     * semantics?  
+     * semantics?
     if (current_bit != read_end_bit) {
         WT_IGNORE_RET(__live_restore_dump_bitmap(session, lr_fh));
         WT_ASSERT_ALWAYS(session, false,
@@ -764,7 +777,7 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
      * conflated 12K then we must conflate it. But a 16K write would not be conflated.
      */
     bool start_relevant = offset <= source_size;
-    bool end_relevant = write_end <= source_size;
+    bool end_relevant = write_end < source_size;
     if (!start_relevant && !end_relevant)
         return (0);
 
@@ -799,18 +812,15 @@ __live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HA
     if (end_relevant) {
         alignment = write_end % granularity;
         if (alignment != 0) {
-            /*
-             * In theory the source file can end before the granularity block ends, control for that
-             * here.
-             */
             conflate_read_end = WT_MIN(source_size, write_end + (granularity - alignment));
             bool set = false;
-            for (uint64_t i = WTI_OFFSET_TO_BIT(write_end); i < WTI_OFFSET_TO_BIT(conflate_read_end); i++) {
+            /* There is only  */
+            for (uint64_t i = WTI_OFFSET_TO_BIT(write_end) - 1; i < WTI_OFFSET_TO_BIT(conflate_read_end) - 1; i++) {
                 /*
                  * We can do error checking here. Given we do read conflation we should either see every
                  * bit set or no bits set.
                  */
-                if (i == WTI_OFFSET_TO_BIT(write_end))
+                if (i == WTI_OFFSET_TO_BIT(write_end) - 1)
                     set = __bit_test(lr_fh->bitmap, i);
                 WT_ASSERT_ALWAYS(session, set == __bit_test(lr_fh->bitmap, i), "Bitmap corruption detected in live restore.");
             }
@@ -2346,7 +2356,9 @@ __wt_os_live_restore_fs(
     *fsp = lr_fs->os_file_system;
     WT_ERR(__wti_live_restore_validate_directories(session, lr_fs));
     WT_ERR(__wti_live_restore_init_state(session, lr_fs));
-
+    /* Allow incremental backups to be taken, during a live restore. This hacks around the fact we
+     * won't have an incremental backup ID record in our history. */
+    WT_ASSERT(session, __wt_backup_set_blkincr(session, 0, 1048576, "ID1", 3) == 0);
     /* Now set the proper live restore file system. */
     *fsp = (WT_FILE_SYSTEM *)lr_fs;
 

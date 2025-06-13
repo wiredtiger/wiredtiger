@@ -212,8 +212,9 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # If that changes then this, and the use of the duplicate below can change.
         while bkup_c.next() == 0:
             newfile = bkup_c.get_key() if home is None else f'{self.conn.get_home()}/{bkup_c.get_key()}'
+            self.pr(f'Copy from: {newfile} to {backup_dir}')
             sz = os.path.getsize(newfile)
-            self.pr(f'Copy from: {newfile} ({sz}) to {backup_dir}')
+            self.pr(f'Copy from size: ({sz})')
             self.copy_file(newfile, backup_dir)
             all_files.append(newfile)
         if backup_cur == None:
@@ -427,13 +428,14 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Take a live restore "stitched" incremental backup. Effectively given a "source" directory,
     # copy it in full to the destination, thens copy the relevant extents on top of those files.
     # Stitched incremental backups don't support consolidation.
-    def take_live_restore_incr_backup(self, backup_incr_dir, src_dir, src_id=0, dest_id=0):
+    def take_live_restore_incr_backup(self, backup_incr_dir, src_dir, granularity, src_id=0, dest_id=0):
         self.assertTrue(dest_id > 0 or self.bkup_id > 0)
         if src_id == 0 and dest_id == 0:
             src_id = self.bkup_id - 1
             dest_id =  self.bkup_id
         # Open the backup data source for incremental backup.
         config = f'incremental=(src_id="ID{src_id}",this_id="ID{dest_id}")'
+        #config = f'incremental=(enabled,granularity='+granularity + ',src_id="ID{src_id}",this_id="ID{dest_id}")'
         self.pr("Incremental backup cursor with config " + config)
         shutil.copytree(src_dir, backup_incr_dir)
         bkup_c = self.session.open_cursor('backup:', None, config)
