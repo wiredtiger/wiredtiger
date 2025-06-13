@@ -5522,6 +5522,7 @@ buildvariants:
   tasks:
     - name: examples-c-tsan
     - name: tsan-warning-metrics
+      batchtime: 10080 # 7 days
 
 # FIXME-WT-13256
 # This variant runs all possible tasks under TSan but instructs TSan to not report any issues it
