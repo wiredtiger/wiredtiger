@@ -1711,6 +1711,7 @@ struct __wt_session {
      * @config{prepare_timestamp, set the prepare timestamp for the updates of the current
      * transaction.  The value must not be older than any active read timestamps\, and must be newer
      * than the current stable timestamp.  See @ref timestamp_prepare., a string; default empty.}
+     * @config{prepare_id, set the prepared id., an integer; default \c 0.}
      * @configend
      * @errors
      */

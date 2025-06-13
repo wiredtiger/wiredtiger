@@ -2016,6 +2016,8 @@ err:
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CONFIG_ITEM ckey, cval;
+    ckey.len = 0;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *tmp, *upd;
@@ -2036,6 +2038,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Set the prepare timestamp. */
     WT_RET(__wt_txn_set_timestamp(session, cfg, false));
+
+    /* Set the prepared id */
+    if (WT_CONFIG_LIT_MATCH("prepared_id", ckey)) {
+        WT_RET(__wt_config_gets(session, cfg, "prepared_id", &cval));
+        session->txn->prepared_id = (uint64_t)cval.val;
+    }
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
         WT_RET_MSG(session, EINVAL, "prepare timestamp is not set");
@@ -2806,7 +2814,8 @@ __wt_verbose_dump_txn_one(
         ", flags: 0x%08" PRIx32 ", isolation: %s"
         ", last saved error code: %d"
         ", last saved sub-level error code: %d"
-        ", last saved error message: %s",
+        ", last saved error message: %s"
+        ", prepared id: %" PRIu64,
         txn->id, txn->mod_count, txn->snapshot_data.snap_min, txn->snapshot_data.snap_max,
         txn->snapshot_data.snapshot_count, (char *)snapshot_buf->data,
         __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
@@ -2816,7 +2825,7 @@ __wt_verbose_dump_txn_one(
         __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
         __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), ckpt_lsn_str,
         txn->full_ckpt ? "true" : "false", txn->flags, iso_tag, txn_err_info->err,
-        txn_err_info->sub_level_err, txn_err_info->err_msg));
+        txn_err_info->sub_level_err, txn_err_info->err_msg, txn->prepared_id));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.
