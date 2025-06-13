@@ -315,6 +315,8 @@ __prepared_discover_tree_walk_skip(
     /*
      * Any other deleted page can't have prepared content that needs to be discovered, so it is safe
      * to skip it.
+     *
+     * TODO: handle prepared fast delete.
      */
     if (WT_REF_GET_STATE(ref) == WT_REF_DELETED) {
         *skipp = true;
