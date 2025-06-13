@@ -30,7 +30,7 @@ import re, subprocess
 # The script intends to generate warnings from WiredTiger's examples, csuite, python and test/format testing.
 #
 # Running the whole suite causes enormous number of TSAN warnings. The amount of I/O causes slowness in the
-# system leading to non-deterministic results. For now, run only the examples suite.
+# system leading to non-deterministic results. To ensure deterministic results run with only examples suite.
 
 # Configure log path in TSAN options.
 os.environ["TSAN_OPTIONS"] = "$TSAN_OPTIONS:log_path=$(git rev-parse --show-toplevel)/tsan_logs"
@@ -41,6 +41,7 @@ test_tasks = [
 ]
 
 # Run the tasks in list.
+print("Tasks to be executed")
 print(test_tasks)
 for task in test_tasks:
     try:
@@ -68,5 +69,6 @@ for tsan_log in os.listdir(".."):
 
                 tsan_warnings_set.add(cleaned_text)
 
+print("Unique warnings:")
 print("\n".join(tsan_warnings_set))
 print(f"Overall TSAN Warnings: {len(tsan_warnings_set)}")
