@@ -72,8 +72,8 @@ static int
 __bmd_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
     /* FIXME-WT-14699: Drop the page from the block cache. */
-
-    return (__wti_block_disagg_page_discard(session, bm->block, addr, addr_size));
+    return (
+      __wti_block_disagg_page_discard(session, (WT_BLOCK_DISAGG *)bm->block, addr, addr_size));
 }
 
 /*

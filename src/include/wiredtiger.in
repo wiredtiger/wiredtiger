@@ -78,6 +78,8 @@ struct __wt_item;       typedef struct __wt_item WT_ITEM;
 struct __wt_modify;     typedef struct __wt_modify WT_MODIFY;
 #if !defined(DOXYGEN)
 struct __wt_page_log; typedef struct __wt_page_log WT_PAGE_LOG;
+struct __wt_page_log_discard_args;
+typedef struct __wt_page_log_discard_args WT_PAGE_LOG_DISCARD_ARGS;
 struct __wt_page_log_get_args; typedef struct __wt_page_log_get_args WT_PAGE_LOG_GET_ARGS;
 struct __wt_page_log_put_args; typedef struct __wt_page_log_put_args WT_PAGE_LOG_PUT_ARGS;
 struct __wt_page_log_handle; typedef struct __wt_page_log_handle WT_PAGE_LOG_HANDLE;
@@ -5575,6 +5577,27 @@ struct __wt_page_log_get_args {
 };
 
 /*!
+ * Values given to, or returned by the WT_PAGE_LOG_HANDLE::plh_discard interface.
+ */
+struct __wt_page_log_discard_args {
+       /*
+        * Input arguments
+        */
+       uint64_t backlink_lsn;
+       uint64_t base_lsn;
+       uint64_t backlink_checkpoint_id;
+       uint64_t base_checkpoint_id;
+
+       /* Not used for now. */
+       uint32_t flags;
+
+       /*
+        * Output arguments, returned by the call. Not used for now.
+        */
+       uint64_t lsn;
+};
+
+/*!
  * The interface implemented by applications to provide handles used
  * by a page log service implementation. This interface is returned by
  * WT_PAGE_LOG::pl_open_handle .
@@ -5631,6 +5654,20 @@ struct __wt_page_log_handle {
     int (*plh_get)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
         uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *args,
         WT_ITEM *results_array, uint32_t *results_count);
+
+    /*!
+     * Discard an object into the paging/logging service.
+     *
+     * @errors
+     *
+     * @param plh the WT_PAGE_LOG_HANDLE
+     * @param session the current WiredTiger session
+     * @param page_id the page to be discarded
+     * @param checkpoint_id the checkpoint to be written to
+     * @param args additional arguments used or returned by the call, memory owned by caller
+     */
+    int (*plh_discard)(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session,
+        uint64_t page_id, uint64_t checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *args);
 
     /*!
      * Close the handle
