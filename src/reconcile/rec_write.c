@@ -139,7 +139,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      * Check that transaction time always moves forward for a given page. If this check fails,
      * reconciliation can free something that a future reconciliation will need.
      */
-    WT_ASSERT(session, WT_TXNID_LE(mod->last_oldest_id, oldest_id));
+    WT_ASSERT(session, mod->last_oldest_id <= oldest_id);
     mod->last_oldest_id = oldest_id;
 #endif
 }
@@ -413,7 +413,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      * Track the tree's maximum transaction ID (used to decide if it's safe to discard the tree) and
      * maximum timestamp.
      */
-    if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
+    if (btree->rec_max_txn < r->max_txn)
         btree->rec_max_txn = r->max_txn;
     if (btree->rec_max_timestamp < r->max_ts)
         btree->rec_max_timestamp = r->max_ts;
@@ -632,7 +632,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     if (WT_IS_METADATA(session->dhandle)) {
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
-        if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
+        if (ckpt_txn != WT_TXN_NONE && (ckpt_txn < r->last_running))
             r->last_running = ckpt_txn;
     }
     /* When operating on the history store table, we should never try history store eviction. */
@@ -912,8 +912,8 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
         WT_RET(ret);
     }
 
-    return (__wt_blkcache_write(
-      session, buf, addr, addr_sizep, compressed_sizep, checkpoint, checkpoint_io, compressed));
+    return (__wt_blkcache_write(session, buf, NULL, addr, addr_sizep, compressed_sizep, checkpoint,
+      checkpoint_io, compressed));
 }
 
 /*
@@ -2515,7 +2515,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
             __wt_checkpoint_tree_reconcile_update(session, &ta);
-            WT_RET(bm->checkpoint(bm, session, NULL, btree->ckpt, false));
+            WT_RET(bm->checkpoint(bm, session, NULL, NULL, btree->ckpt, false));
         }
 
         /*

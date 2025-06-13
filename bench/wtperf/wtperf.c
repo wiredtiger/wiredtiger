@@ -2546,7 +2546,8 @@ start_run(WTPERF *wtperf)
 
         latency_print(wtperf);
         lprintf(wtperf, 0, 1, "Search operations took %" PRIu64 " nsecs", wtperf->search_op_timer);
-        lprintf(wtperf, 0, 1, "Search operations latency %" PRIu64 " nsecs/op", wtperf->search_op_timer/wtperf->read_ops);
+        lprintf(wtperf, 0, 1, "Search operations latency %" PRIu64 " nsecs/op",
+          wtperf->search_op_timer / wtperf->read_ops);
     }
 
     if (0) {

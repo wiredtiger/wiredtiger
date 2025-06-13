@@ -120,7 +120,7 @@ __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_
 err:
     if (rip == NULL || row_key == NULL)
         __wt_scr_free(session, &key);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -383,7 +383,8 @@ __prepared_discover_tree_walk_skip(
         if (!addr->ta.prepare)
             *skipp = true;
     } else
-        WT_ASSERT_ALWAYS(session, false, "Prepared discovery walk encountered a page without a valid address");
+        WT_ASSERT_ALWAYS(
+          session, false, "Prepared discovery walk encountered a page without a valid address");
 
     return (0);
 }

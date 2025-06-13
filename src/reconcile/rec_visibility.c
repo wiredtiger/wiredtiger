@@ -601,7 +601,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
-          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? (r->last_running <= txnid) :
                                             !__txn_visible_id(session, txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
@@ -650,7 +650,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             WT_ASSERT_ALWAYS(session,
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
-            fprintf(stderr, "Reconciliation found a prepared entry with timestamp %" PRIu64 ", checkpoint timestamp: %"PRIu64"\n", upd->start_ts, S2C(session)->txn_global.checkpoint_timestamp);
+            fprintf(stderr,
+              "Reconciliation found a prepared entry with timestamp %" PRIu64
+              ", checkpoint timestamp: %" PRIu64 "\n",
+              upd->start_ts, S2C(session)->txn_global.checkpoint_timestamp);
             /*
              * Don't save the record if it's prepare time is greater than the checkpoint timestamp.
              */
@@ -685,7 +688,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             upd_select->upd = upd;
 
         /* Track the selected update transaction id and timestamp. */
-        if (WT_TXNID_LT(max_txn, txnid))
+        if (max_txn < txnid)
             max_txn = txnid;
 
         if (upd->start_ts > max_ts)
@@ -705,7 +708,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
      * memory when they have changes required to satisfy a snapshot read.
      */
-    if (WT_TXNID_LT(r->max_txn, max_txn))
+    if (r->max_txn < max_txn)
         r->max_txn = max_txn;
 
     /* Update the maximum timestamp. */

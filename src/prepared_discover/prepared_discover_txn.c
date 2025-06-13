@@ -47,7 +47,8 @@ __prepared_discover_find_or_create_transaction(
     WT_RET(__wt_txn_begin(new_session, NULL));
     new_session->txn->prepare_timestamp = prepare_transaction_id;
     /* Add it to the discovered set of sessions. */
-    txn_global->pending_prepared_sessions[txn_global->pending_prepared_sessions_count++] = new_session;
+    txn_global->pending_prepared_sessions[txn_global->pending_prepared_sessions_count++] =
+      new_session;
     *prep_sessionp = new_session;
     return (0);
 }
