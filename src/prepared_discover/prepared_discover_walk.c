@@ -43,11 +43,10 @@ static int
 __prepared_discover_process_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
   uint64_t recno, WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack)
 {
-    WT_CURSOR *hs_cursor;
     WT_DECL_RET;
     WT_ITEM *key;
     WT_PAGE *page;
-    WT_TIME_WINDOW *hs_tw, *tw;
+    WT_TIME_WINDOW *tw;
     uint8_t *memp;
 
     page = ref->page;
