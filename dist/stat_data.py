@@ -851,6 +851,7 @@ conn_stats = [
     YieldStat('page_locked_blocked', 'page acquire locked blocked'),
     YieldStat('page_read_blocked', 'page acquire read blocked'),
     YieldStat('page_sleep', 'page acquire time sleeping (usecs)'),
+    YieldStat('page_split_restart', 'page split and restart read'),
     YieldStat('prepared_transition_blocked_page', 'page access yielded due to prepare state change'),
     YieldStat('txn_release_blocked', 'connection close blocked waiting for transaction state stabilization'),
 ]
@@ -1182,6 +1183,7 @@ conn_dsrc_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_hs_wrapup_next_prev_calls', 'cursor next/prev calls during HS wrapup search_near'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_delete', 'pages deleted'),
