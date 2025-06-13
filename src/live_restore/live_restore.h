@@ -15,7 +15,7 @@
  *     File handle metadata persisted to the WiredTiger metadata file.
  */
 struct __wt_live_restore_fh_meta {
-    char *bitmap_str;
+    char *bitmap_str; 
     /*
      * The number of bits in the bitmap. We use -1 as a special case to identify when a file has
      * finished migration and no longer needs a bitmap.
