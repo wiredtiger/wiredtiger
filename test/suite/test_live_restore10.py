@@ -110,9 +110,8 @@ class test_live_restore04(backup_base):
             self.session.begin_transaction()
             cur[i] = value4
             self.session.commit_transaction('commit_timestamp=10')
-        self.session.breakpoint()
+        self.conn.set_timestamp('oldest_timestamp=1,stable_timestamp=11')
         self.session.checkpoint()
-        
         # Do an incremental backup of the current state of the database.
         if (live_restore):
             self.pr("Live restore incremental backup")
@@ -123,15 +122,18 @@ class test_live_restore04(backup_base):
             (bkup_files) = self.take_full_backup("BACKUP", None, "SOURCE_TMP")
 
 
-        # # Close the connection, open it on the now backed up data.
-        # self.close_conn()
-        # self.pr("3")
-        # self.open_conn(directory='BACKUP', config="verbose=(block:1,recovery:1,recovery_progress:1,read:3,write:3),statistics=(all)")
-        # self.pr("4")
-        # # Validate that the old data is there.
-        # self.session.breakpoint()
-        # cur = self.session.open_cursor(uri)
-        # assert(cur[1] == value3)
-        # for i in range (2, 10000):
-        #     assert(cur[i] ==  value4)
-        # self.session.checkpoint()
+        # Close the connection, open it on the now backed up data.
+        self.close_conn()
+        self.pr("3")
+        self.open_conn(directory='BACKUP', config="verbose=(block:1,recovery:1,recovery_progress:1,read:3,write:3),statistics=(all)")
+        self.pr("4")
+        # Validate that the old data is there.
+        self.session.breakpoint()
+        cur = self.session.open_cursor(uri)
+        assert(cur[1] == value3)
+        for i in range (2, 10000):
+            cur.set_key(i)
+            assert(cur.search() == 0)
+            val = cur.get_value()
+            assert(val ==  value4)
+        self.session.checkpoint()
