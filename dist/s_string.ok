@@ -1091,6 +1091,7 @@ np
 npos
 nrecs
 nsec
+nsecs
 nset
 nul
 nullptr

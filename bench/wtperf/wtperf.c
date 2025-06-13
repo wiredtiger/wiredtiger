@@ -341,6 +341,7 @@ worker(void *arg)
     size_t i, iter, modify_offset, modify_size, total_modify_size, value_len;
     int64_t delta, ops, ops_per_txn;
     uint64_t log_id, next_val, start, stop, usecs;
+    uint64_t search_start, search_stop, search_nsecs;
     uint32_t rand_val, total_table_count;
     uint8_t *op, *op_end;
     int measure_latency, nmodify, ret, truncated;
@@ -522,7 +523,11 @@ worker(void *arg)
              * thread might have updated the last record in the table but not yet finished the
              * actual insert. Count failed search in a random range as a "read".
              */
+            search_start = __wt_clock(NULL);
             ret = cursor->search(cursor);
+            search_stop = __wt_clock(NULL);
+            search_nsecs = WT_CLOCKDIFF_NS(search_stop, search_start);
+            __wt_atomic_add64(&wtperf->search_op_timer, search_nsecs);
             if (ret == 0) {
                 if ((ret = cursor->get_value(cursor, &value)) != 0) {
                     lprintf(wtperf, ret, 0, "get_value in read.");
@@ -2540,6 +2545,9 @@ start_run(WTPERF *wtperf)
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
 
         latency_print(wtperf);
+        lprintf(wtperf, 0, 1, "Search operations took %" PRIu64 " nsecs", wtperf->search_op_timer);
+        lprintf(wtperf, 0, 1, "Search operations latency %" PRIu64 " nsecs/op",
+          wtperf->search_op_timer / wtperf->read_ops);
     }
 
     if (0) {

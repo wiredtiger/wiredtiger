@@ -47,7 +47,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          * An unstable update needs to be aborted if any of the following are true:
          * 1. An update is invisible based on the checkpoint snapshot during recovery.
          * 2. The update durable timestamp is greater than the stable timestamp.
-         * 3. The update is a prepared update.
+         * 3. The update is a prepared update with a timestamp newer than the stable time.
          *
          * Usually during recovery, there are no in memory updates present on the page. But
          * whenever an unstable fast truncate operation is written to the disk, as part
@@ -56,7 +56,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          */
         txn_id_visible = __wti_rts_visibility_txn_visible_id(session, upd->txnid);
         if (!txn_id_visible || rollback_timestamp < upd->durable_ts ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+          (upd->prepare_state == WT_PREPARE_INPROGRESS && rollback_timestamp < upd->start_ts)) {
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_UPDATE_ABORT
               "rollback to stable aborting update with txnid=%" PRIu64
@@ -700,7 +700,7 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             return (0);
     } else if (tw->durable_start_ts > rollback_timestamp ||
       !__wti_rts_visibility_txn_visible_id(session, tw->start_txn) ||
-      (!WT_TIME_WINDOW_HAS_STOP(tw) && prepared)) {
+      (!WT_TIME_WINDOW_HAS_STOP(tw) && prepared && tw->start_ts > rollback_timestamp)) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           WT_RTS_VERB_TAG_ONDISK_ABORT_TW
           "on-disk update aborted with time_window=%s. "
