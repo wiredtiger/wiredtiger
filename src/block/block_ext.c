@@ -1183,19 +1183,21 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
      * to reduce the amount of work we need to do during the merge. The size lists have to match as
      * well, so this is only possible if both lists are tracking sizes, or neither are.
      */
-    // if (a->track_size == b->track_size && a->entries > b->entries) {
-    //     tmp = *a;
-    //     a->bytes = b->bytes;
-    //     b->bytes = tmp.bytes;
-    //     a->entries = b->entries;
-    //     b->entries = tmp.entries;
-    //     for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-    //         a->off[i] = b->off[i];
-    //         b->off[i] = tmp.off[i];
-    //         a->sz[i] = b->sz[i];
-    //         b->sz[i] = tmp.sz[i];
-    //     }
-    // }
+    if (a->track_size == b->track_size && a->entries > b->entries) {
+        tmp = *a;
+        a->bytes = b->bytes;
+        b->bytes = tmp.bytes;
+        a->entries = b->entries;
+        b->entries = tmp.entries;
+        for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
+            a->off[i] = b->off[i];
+            b->off[i] = tmp.off[i];
+            a->sz[i] = b->sz[i];
+            b->sz[i] = tmp.sz[i];
+            a->max_size_to_head[i] = b->max_size_to_head[i];
+            b->max_size_to_head[i] = tmp.max_size_to_head[i];
+        }
+    }
 
     WT_EXT_FOREACH (ext, a->off)
         WT_RET(__block_merge(session, block, b, ext->off, ext->size));
