@@ -33,7 +33,8 @@ import re, subprocess
 # system leading to non-deterministic results. To ensure deterministic results run with only examples suite.
 
 # Configure log path in TSAN options.
-os.environ["TSAN_OPTIONS"] = "$TSAN_OPTIONS:log_path=$(git rev-parse --show-toplevel)/tsan_logs"
+current_dir = os.getcwd()
+os.environ["TSAN_OPTIONS"] = f"$TSAN_OPTIONS:log_path={current_dir}/tsan_logs"
 
 # Start with examples suite.
 test_tasks = [
@@ -55,11 +56,10 @@ for task in test_tasks:
 
 # Loop through WT root directory and search for tsan logs.
 tsan_warnings_set = set()
-for tsan_log in os.listdir(".."):
+for tsan_log in os.listdir(current_dir):
     # Check if the file starts with "tsan."
     if tsan_log.startswith("tsan"):
-        full_path = os.path.join("..", tsan_log)
-        with open(full_path, "r") as file:
+        with open(tsan_log, "r") as file:
             for line in file:
                 if (not line.startswith("SUMMARY:")):
                     continue

@@ -4203,7 +4203,6 @@ tasks:
             set -o errexit
             set -o verbose
             ${PREPARE_TEST_ENV}
-
             python3 ../test/evergreen/tsan_warnings_analysis.py
 
     ###############################
