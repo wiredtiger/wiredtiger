@@ -2673,6 +2673,10 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 
     btree = S2BT(session);
 
+    /* Set a flag in the session to track that we're in HS wrapup */
+    F_SET(session, WT_SESSION_HS_WRAPUP);
+    session->reconcile_timeline.hs_wrapup_next_prev_calls = 0;
+
     /*
      * Sanity check: Can't insert updates into history store from the history store itself or from
      * the metadata file.
@@ -2695,7 +2699,12 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
             }
         }
 
+    WT_STAT_CONN_INCRV(session, rec_hs_wrapup_next_prev_calls,
+      session->reconcile_timeline.hs_wrapup_next_prev_calls);
+
+    F_CLR(session, WT_SESSION_HS_WRAPUP);
 err:
+    F_CLR(session, WT_SESSION_HS_WRAPUP);
     return (ret);
 }
 

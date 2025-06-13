@@ -401,6 +401,7 @@ read:
             stalled = true;
             break;
         case WT_REF_SPLIT:
+            WT_STAT_CONN_INCR(session, page_split_restart);
             return (WT_RESTART);
         case WT_REF_MEM:
             /*
