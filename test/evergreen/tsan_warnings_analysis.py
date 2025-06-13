@@ -34,7 +34,8 @@ import re, subprocess
 
 # Configure log path in TSAN options.
 current_dir = os.getcwd()
-os.environ["TSAN_OPTIONS"] = f"$TSAN_OPTIONS:log_path={current_dir}/tsan_logs"
+existing_tsan_options = os.environ.get("TSAN_OPTIONS")
+os.environ["TSAN_OPTIONS"] = f"{existing_tsan_options}:log_path={current_dir}/tsan_logs"
 
 # Start with examples suite.
 test_tasks = [
