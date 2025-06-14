@@ -62,9 +62,10 @@ struct __wt_extlist {
 
     WT_EXT *last; /* Cached last element */
 
-    wt_off_t max_size_to_head[WT_SKIP_MAXDEPTH];
+    uint32_t type;
     WT_EXT *off[WT_SKIP_MAXDEPTH]; /* Size/offset skiplists */
     WT_SIZE *sz[WT_SKIP_MAXDEPTH];
+    wt_off_t max_size_to_head[WT_SKIP_MAXDEPTH];
 };
 
 /*
@@ -77,7 +78,6 @@ struct __wt_ext {
     wt_off_t size; /* Extent's Size */
 
     uint8_t depth; /* Skip list depth */
-
     wt_off_t max_size[WT_SKIP_MAXDEPTH];
     /*
      * Variable-length array, sized by the number of skiplist elements. The first depth array
