@@ -853,9 +853,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * Sanity check that the oldest ID hasn't moved on before we have cleared our entry.
      */
     WT_ASSERT(session,
-      WT_TXNID_LE(
-        __wt_atomic_loadv64(&txn_global->oldest_id), __wt_atomic_loadv64(&txn_shared->id)) &&
-        WT_TXNID_LE(__wt_atomic_loadv64(&txn_global->oldest_id),
+      (__wt_atomic_loadv64(&txn_global->oldest_id) <= __wt_atomic_loadv64(&txn_shared->id)) &&
+        (__wt_atomic_loadv64(&txn_global->oldest_id) <=
           __wt_atomic_loadv64(&txn_shared->pinned_id)));
 
     /*
@@ -1172,6 +1171,7 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     logging = F_ISSET(&conn->log_mgr, WT_LOG_ENABLED);
 
     /* Reset the statistics tracked per checkpoint. */
+    __wt_atomic_store64(&evict->evict_max_gen_gap, 0);
     __wt_atomic_store64(&evict->evict_max_page_size, 0);
     __wt_atomic_store64(&evict->evict_max_ms, 0);
     evict->reentry_hs_eviction_ms = 0;

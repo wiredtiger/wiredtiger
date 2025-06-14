@@ -383,7 +383,7 @@ __wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
     WT_DECL_RET;
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
-    WT_ERR(__wt_blkcache_read(session, buf, addr, addr_size));
+    WT_ERR(__wt_blkcache_read(session, buf, NULL, addr, addr_size));
     ret = __wti_debug_disk(session, buf->mem, ofile, false, false);
 
 err:
@@ -444,7 +444,7 @@ __wt_debug_offset(WT_SESSION_IMPL *session, wt_off_t offset, uint32_t size, uint
      * unencrypted as necessary).
      */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_blkcache_read(session, buf, addr, WT_PTRDIFF(endp, addr)));
+    WT_ERR(__wt_blkcache_read(session, buf, NULL, addr, WT_PTRDIFF(endp, addr)));
     ret = __wti_debug_disk(session, buf->mem, ofile, dump_all_data, dump_key_data);
 
 err:
@@ -693,7 +693,7 @@ __debug_cell_kv(
     if (unpack->raw == WT_CELL_DEL)
         return (0);
 
-    WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, page_type, unpack, ds->t1) :
+    WT_RET(page == NULL ? __wt_dsk_cell_data_ref_kv(session, unpack, ds->t1) :
                           __wt_page_cell_data_ref_kv(session, page, unpack, ds->t1));
 
     /* Standard key/value cells. */
