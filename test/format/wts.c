@@ -326,6 +326,7 @@ configure_disagg_storage(const char *home, char **p, size_t max, char *ext_cfg, 
      * the options struct on a temporary basis to help create the disagg configuration.
      */
     opts.disagg_page_log = (char *)GVS(DISAGG_PAGE_LOG);
+    opts.disagg_mode = (char *)GVS(DISAGG_MODE);
     opts.home = (char *)home;
     opts.build_dir = (char *)BUILDDIR;
     opts.palm_map_size_mb = 2048; /* 2 Gigabytes for PALM map */
@@ -465,6 +466,12 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",eviction_dirty_target=%" PRIu32, GV(CACHE_EVICTION_DIRTY_TARGET));
     if (GV(CACHE_EVICTION_DIRTY_TRIGGER) != 0)
         CONFIG_APPEND(p, ",eviction_dirty_trigger=%" PRIu32, GV(CACHE_EVICTION_DIRTY_TRIGGER));
+
+    /* Eviction (updates) configuration. */
+    if (GV(CACHE_EVICTION_UPDATES_TARGET) != 0)
+        CONFIG_APPEND(p, ",eviction_updates_target=%" PRIu32, GV(CACHE_EVICTION_UPDATES_TARGET));
+    if (GV(CACHE_EVICTION_UPDATES_TRIGGER) != 0)
+        CONFIG_APPEND(p, ",eviction_updates_trigger=%" PRIu32, GV(CACHE_EVICTION_UPDATES_TRIGGER));
 
     /* Statistics log configuration. */
     sources = GVS(STATISTICS_LOG_SOURCES);
