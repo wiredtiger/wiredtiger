@@ -356,6 +356,29 @@ wt_txn_get(WT_SESSION *session, const char *uri, const model::data_value &key)
 }
 
 /*
+ * wt_txn_get_ext --
+ *     Read from WiredTiger, and return the error value.
+ */
+int
+wt_txn_get_ext(
+  WT_SESSION *session, const char *uri, const model::data_value &key, model::data_value &out)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+
+    testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
+    model::set_wt_cursor_key(cursor, key);
+    ret = cursor->search(cursor);
+    if (ret == 0)
+        out = model::get_wt_cursor_value(cursor);
+    else
+        out = model::NONE;
+
+    testutil_check(cursor->close(cursor));
+    return ret;
+}
+
+/*
  * wt_txn_insert --
  *     Write to WiredTiger.
  */

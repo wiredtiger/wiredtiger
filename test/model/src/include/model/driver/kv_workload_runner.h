@@ -198,7 +198,7 @@ protected:
 
     /*
      * kv_workload_runner::do_operation --
-           Execute the given workload operation in the model.
+     *     Execute the given workload operation in the model.
      */
     int
     do_operation(const operation::get &op)
@@ -206,10 +206,9 @@ protected:
         try {
             data_value value;
             int ret = table(op.table_id)->get_ext(transaction(op.txn_id), op.key, value);
-            //std::cout << "md " << op.key << " " << value << std::endl;
-            // TODO: validation or logging of the value that was read
+            /* TODO: validation or logging of the value that was read */
             return ret;
-        } catch (wiredtiger_exception& e) {
+        } catch (wiredtiger_exception &e) {
             return e.error();
         }
     }

@@ -124,6 +124,13 @@ void wt_txn_set_commit_timestamp(WT_SESSION *session, model::timestamp_t commit_
 model::data_value wt_txn_get(WT_SESSION *session, const char *uri, const model::data_value &key);
 
 /*
+ * wt_txn_get_ext --
+ *     Read from WiredTiger and return the error value.
+ */
+int wt_txn_get_ext(
+  WT_SESSION *session, const char *uri, const model::data_value &key, model::data_value &out);
+
+/*
  * wt_txn_insert --
  *     Write to WiredTiger.
  */
@@ -291,6 +298,18 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
 #define wt_model_txn_assert(table, uri, txn, session, key, ...) \
     wt_model_assert_equal(                                      \
       table->get(txn, key, ##__VA_ARGS__), wt_txn_get(session, uri, key, ##__VA_ARGS__));
+
+/*
+ * wt_model_txn_assert_outcome --
+ *     Check that the key has the same value in the model as in the database.
+ */
+#define wt_model_txn_assert_ext(table, uri, txn, session, key, ...)               \
+    {                                                                             \
+        model::data_value model_out, wt_out;                                      \
+        wt_model_assert_equal(table->get_ext(txn, key, model_out, ##__VA_ARGS__), \
+          wt_txn_get_ext(session, uri, key, wt_out, ##__VA_ARGS__));              \
+        wt_model_assert_equal(model_out, wt_out);                                 \
+    }
 
 /*
  * wt_model_txn_begin_both --
