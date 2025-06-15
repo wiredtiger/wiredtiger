@@ -234,26 +234,26 @@ __block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
  * __block_size_srch --
  *     Search the by-size skiplist for the specified size.
  */
-static WT_INLINE void
-__block_size_off_srch(WT_BLOCK *block, WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
-{
-    WT_SIZE **szp;
-    int i;
+// static WT_INLINE void
+// __block_size_off_srch(WT_BLOCK *block, WT_SIZE **head, wt_off_t size, WT_SIZE ***stack)
+// {
+//     WT_SIZE **szp;
+//     int i;
 
-    /*
-     * Start at the highest skip level, then go as far as possible at each level before stepping
-     * down to the next.
-     *
-     * Return a stack for an exact match or the next-largest item.
-     */
-    for (i = WT_SKIP_MAXDEPTH - 1, szp = &head[i]; i >= 0;)
-        if (*szp != NULL &&
-          ((*szp)->size < size ||
-            (*szp)->off[0]->off > (wt_off_t)(block->size - (block->size / 10))))
-            szp = &(*szp)->next[i];
-        else
-            stack[i--] = szp--;
-}
+//     /*
+//      * Start at the highest skip level, then go as far as possible at each level before stepping
+//      * down to the next.
+//      *
+//      * Return a stack for an exact match or the next-largest item.
+//      */
+//     for (i = WT_SKIP_MAXDEPTH - 1, szp = &head[i]; i >= 0;)
+//         if (*szp != NULL &&
+//           ((*szp)->size < size ||
+//             (*szp)->off[0]->off > (wt_off_t)(block->size - (block->size / 10))))
+//             szp = &(*szp)->next[i];
+//         else
+//             stack[i--] = szp--;
+// }
 
 /*
  * __block_off_srch_pair --
@@ -1201,8 +1201,6 @@ __wti_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST 
                 b->off[i] = tmp.off[i];
                 a->sz[i] = b->sz[i];
                 b->sz[i] = tmp.sz[i];
-                a->max_size_to_head[i] = b->max_size_to_head[i];
-                b->max_size_to_head[i] = tmp.max_size_to_head[i];
             }
         }
     }
