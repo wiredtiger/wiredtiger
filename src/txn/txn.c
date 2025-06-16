@@ -735,6 +735,10 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
         WT_ERR(__wti_txn_set_read_timestamp(session, read_ts));
     }
 
+    /* Claim trabsaction's prepared id */
+    WT_ERR(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
+    txn->prepared_id = (uint64_t)cval.val;
+
 err:
     if (ret != 0)
         /*
