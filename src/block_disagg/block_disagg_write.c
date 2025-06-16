@@ -269,15 +269,11 @@ __wti_block_disagg_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf
  */
 int
 __wti_block_disagg_page_discard(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, size_t addr_size)
+  WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_disagg, const uint8_t *addr, size_t addr_size)
 {
-    WT_BLOCK_DISAGG *block_disagg;
+    /* Crack the cookie. */
     uint64_t checkpoint_id, lsn, page_id, reconciliation_id;
     uint32_t checksum, size;
-
-    block_disagg = (WT_BLOCK_DISAGG *)block;
-
-    /* Crack the cookie. */
     WT_RET(__wti_block_disagg_addr_unpack(
       &addr, addr_size, &page_id, &lsn, &checkpoint_id, &reconciliation_id, &size, &checksum));
 
@@ -286,8 +282,27 @@ __wti_block_disagg_page_discard(
       ", reconciliation_id %" PRIu64 ", size %" PRIu32 ", checksum %" PRIx32,
       page_id, lsn, checkpoint_id, reconciliation_id, size, checksum);
 
-    /* FIXME-WT-14532: Implement the page discard logic. */
-    WT_UNUSED(block_disagg);
+    /* Create the discard request. */
+    WT_PAGE_LOG_HANDLE *plhandle = block_disagg->plhandle;
 
-    return (0);
+    /* Ignore the call if the function is not implemented. */
+    if (plhandle->plh_discard == NULL) {
+        __wt_verbose_warning(
+          session, WT_VERB_DISAGGREGATED_STORAGE, "%s", "plh_discard is not implemented");
+        return (0);
+    }
+
+    WT_PAGE_LOG_DISCARD_ARGS discard_args;
+    WT_CLEAR(discard_args);
+
+    /* Not used by the page server. */
+    discard_args.base_checkpoint_id = 0;
+    /* Always 0 for full page. */
+    discard_args.base_lsn = 0;
+
+    discard_args.backlink_checkpoint_id = checkpoint_id;
+    discard_args.backlink_lsn = lsn;
+
+    return (
+      plhandle->plh_discard(plhandle, &session->iface, page_id, checkpoint_id, &discard_args));
 }
