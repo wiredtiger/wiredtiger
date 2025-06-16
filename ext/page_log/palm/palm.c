@@ -648,7 +648,7 @@ static int
 palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *discard_args)
 {
-    /* FIXME-WT-14704: Implement this function and remove from s_void. */
+    WT_ITEM *tombstone = NULL;
     PALM_HANDLE *palm_handle = (PALM_HANDLE *)plh;
     PALM *palm = palm_handle->palm;
     palm_delay(palm);
@@ -676,18 +676,25 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     /* We always write full pages for tombstones. */
     bool is_delta = false;
 
-    /* TODO - Create a tombstone flag inside PALM. */
+    /* There should not be any flag set. */
+    /* TODO - Do we want a specific tombstone flag inside PALM? */
+    WT_ASSERT(session, discard_args->flags == 0);
 
+    /* Create an empty record as a tombstone. */
+    WT_ERR(__wt_scr_alloc(session, 0, &tombstone));
+
+    /* TODO - Create a tombstone flag inside PALM. */
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
         discard_args->backlink_lsn, discard_args->base_lsn, discard_args->backlink_checkpoint_id,
-        discard_args->base_checkpoint_id, discard_args->flags, NULL));
+        discard_args->base_checkpoint_id, discard_args->flags, tombstone));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
     discard_args->lsn = lsn;
     return (0);
 err:
     palm_kv_rollback_transaction(&context);
+    __wt_scr_free(session, &tombstone);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
