@@ -683,14 +683,16 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     /* Create an empty record as a tombstone. */
     WT_ERR(__wt_scr_alloc(session, 0, &tombstone));
 
-    /* TODO - Create a tombstone flag inside PALM. */
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
         discard_args->backlink_lsn, discard_args->base_lsn, discard_args->backlink_checkpoint_id,
         discard_args->base_checkpoint_id, discard_args->flags, tombstone));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+
     discard_args->lsn = lsn;
+    __wt_scr_free(session, &tombstone);
+
     return (0);
 err:
     palm_kv_rollback_transaction(&context);
