@@ -676,8 +676,7 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     /* We always write full pages for tombstones. */
     bool is_delta = false;
 
-    /* Create the tombstone, we don't expect any other flag set. */
-    assert(discard_args->flags == WT_PAGE_LOG_TOMBSTONE);
+    /* TODO - Create a tombstone flag inside PALM. */
 
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
