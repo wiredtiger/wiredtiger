@@ -691,7 +691,7 @@ err:
     palm_kv_rollback_transaction(&context);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
-      "palm_handle_put(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+      "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
       ", checkpoint_id=%" PRIu64 ", is_delta=%d) returned %d\n",
       (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta, ret);
     return (ret);
