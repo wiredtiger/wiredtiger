@@ -35,7 +35,7 @@ import re, subprocess
 # Configure log path in TSAN options.
 current_dir = os.getcwd()
 existing_tsan_options = os.environ.get("TSAN_OPTIONS")
-os.environ["TSAN_OPTIONS"] = f"{existing_tsan_options}:log_path={current_dir}/tsan_logs"
+os.environ["TSAN_OPTIONS"] = f"{existing_tsan_options}:log_path={current_dir}/tsan_logs:exitcode=0"
 
 # Start with examples suite.
 test_tasks = [
@@ -58,7 +58,7 @@ for task in test_tasks:
 # Loop through WT root directory and search for tsan logs.
 tsan_warnings_set = set()
 for tsan_log in os.listdir(current_dir):
-    # Check if the file starts with "tsan."
+    # Check if the file starts with "tsan"
     if tsan_log.startswith("tsan"):
         with open(tsan_log, "r") as file:
             for line in file:
