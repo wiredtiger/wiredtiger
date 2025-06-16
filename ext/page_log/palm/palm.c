@@ -656,6 +656,9 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     PALM_KV_CONTEXT context;
     palm_init_context(palm, &context);
 
+    /* We always write full pages for tombstones. */
+    bool is_delta = false;
+
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     uint64_t lsn;
     int ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &lsn);
@@ -673,15 +676,14 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
       discard_args->base_lsn, discard_args->backlink_checkpoint_id,
       discard_args->base_checkpoint_id);
 
-    /* We always write full pages for tombstones. */
-    bool is_delta = false;
-
     /* There should not be any flag set. */
     /* TODO - Do we want a specific tombstone flag inside PALM? */
-    WT_ASSERT(session, discard_args->flags == 0);
+    assert(discard_args->flags == 0);
 
     /* Create an empty record as a tombstone. */
-    WT_ERR(__wt_scr_alloc(session, 0, &tombstone));
+    if ((tombstone = calloc(1, sizeof(WT_ITEM))) == NULL)
+        return (errno);
+    memset(tombstone, 0, sizeof(WT_ITEM));
 
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
@@ -691,17 +693,19 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
     discard_args->lsn = lsn;
-    __wt_scr_free(session, &tombstone);
 
-    return (0);
+    if (0) {
 err:
-    palm_kv_rollback_transaction(&context);
-    __wt_scr_free(session, &tombstone);
+        palm_kv_rollback_transaction(&context);
 
-    PALM_VERBOSE_PRINT(palm_handle->palm,
-      "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
-      ", checkpoint_id=%" PRIu64 ", is_delta=%d) returned %d\n",
-      (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta, ret);
+        PALM_VERBOSE_PRINT(palm_handle->palm,
+          "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+          ", checkpoint_id=%" PRIu64 ", is_delta=%d) returned %d\n",
+          (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta, ret);
+    }
+
+    free(tombstone);
+
     return (ret);
 }
 
