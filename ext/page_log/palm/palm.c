@@ -676,9 +676,9 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
       discard_args->base_lsn, discard_args->backlink_checkpoint_id,
       discard_args->base_checkpoint_id);
 
-    /* There should not be any flag set. */
-    /* TODO - Do we want a specific tombstone flag inside PALM? */
+    /* There should not be any flag set, PALM adds its own. */
     assert(discard_args->flags == 0);
+    uint32_t flags = WT_PALM_KV_TOMBSTONE;
 
     /* Create an empty record as a tombstone. */
     if ((tombstone = calloc(1, sizeof(WT_ITEM))) == NULL)
@@ -688,7 +688,7 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
         discard_args->backlink_lsn, discard_args->base_lsn, discard_args->backlink_checkpoint_id,
-        discard_args->base_checkpoint_id, discard_args->flags, tombstone));
+        discard_args->base_checkpoint_id, flags, tombstone));
     PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
     PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
 
@@ -832,6 +832,9 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
             PALM_GET_VERIFY_EQUAL(matches.base_lsn, get_args->base_lsn);
             PALM_GET_VERIFY_EQUAL(matches.base_checkpoint_id, get_args->base_checkpoint_id);
         }
+
+        // TODO - Is it where I should check matches.flags?
+        // If WT_PALM_KV_TOMBSTONE is set, check everything is NULL and size 0 and continue or error out?
 
         last_lsn = matches.lsn;
         last_checkpoint_id = matches.checkpoint_id;

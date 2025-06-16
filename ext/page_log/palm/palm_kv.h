@@ -38,6 +38,8 @@
 #define WT_MILLION 1000000
 #endif
 
+#define WT_PALM_KV_TOMBSTONE 0x1u
+
 /*
  * This include file creates a tiny bit of abstraction for the KV database used, in case we want to
  * ever change to a different implementation.
