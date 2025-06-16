@@ -759,6 +759,8 @@ struct __wt_connection_impl {
     WT_LAYERED_TABLE_MANAGER layered_table_manager;
     WT_PAGE_HISTORY page_history;
 
+    bool preserve_prepared; /* Preserve prepared updates */
+
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */
     wt_thread_t stat_tid;          /* Statistics log thread */
