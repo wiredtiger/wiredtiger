@@ -242,7 +242,7 @@
 #define WT_CONF_ID_prefix_search 75ULL
 #define WT_CONF_ID_prepare_timestamp 142ULL
 #define WT_CONF_ID_prepared 140ULL
-#define WT_CONF_ID_prepare_id 143ULL
+#define WT_CONF_ID_prepared_id 143ULL
 #define WT_CONF_ID_preserve_prepared 294ULL
 #define WT_CONF_ID_priority 138ULL
 #define WT_CONF_ID_quota 243ULL
@@ -650,7 +650,7 @@ static const struct {
     uint64_t prefix_compression_min;
     uint64_t prefix_search;
     uint64_t prepare_timestamp;
-    uint64_t prepare_id;
+    uint64_t prepared_id;
     uint64_t preserve_prepared;
     uint64_t priority;
     uint64_t raw;
@@ -1011,7 +1011,7 @@ static const struct {
   WT_CONF_ID_prefix_compression_min,
   WT_CONF_ID_prefix_search,
   WT_CONF_ID_prepare_timestamp,
-  WT_CONF_ID_prepare_id,
+  WT_CONF_ID_prepared_id,
   WT_CONF_ID_preserve_prepared,
   WT_CONF_ID_priority,
   WT_CONF_ID_raw,

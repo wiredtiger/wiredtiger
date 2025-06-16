@@ -1427,7 +1427,7 @@ static const uint8_t confchk_WT_SESSION_open_cursor_jump[WT_CONFIG_JUMP_TABLE_SI
 static const WT_CONFIG_CHECK confchk_WT_SESSION_prepare_transaction[] = {
   {"prepare_timestamp", "string", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_STRING, 142,
     INT64_MIN, INT64_MAX, NULL},
-  {"prepare_id", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 143, INT64_MIN,
+  {"prepared_id", "int", NULL, NULL, NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 143, INT64_MIN,
     INT64_MAX, NULL},
   {NULL, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, 0, NULL}};
 
@@ -3778,7 +3778,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "readonly=false,skip_sort_check=false,statistics=,target=",
     confchk_WT_SESSION_open_cursor, 19, confchk_WT_SESSION_open_cursor_jump, 28,
     WT_CONF_SIZING_NONE, false},
-  {"WT_SESSION.prepare_transaction", "prepare_timestamp=,prepare_id=0",
+  {"WT_SESSION.prepare_transaction", "prepare_timestamp=,prepared_id=0",
     confchk_WT_SESSION_prepare_transaction, 2, confchk_WT_SESSION_prepare_transaction_jump, 29,
     WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1,
