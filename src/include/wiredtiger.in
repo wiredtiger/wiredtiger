@@ -1714,7 +1714,7 @@ struct __wt_session {
      * @config{prepared_id, set the optional prepared ID for the prepared updates of the current
      * transaction.  Multiple transactions can share a prepared transaction ID\, as long as they are
      * all guaranteed to share a decision whether to commit or abort and share the same prepare\,
-     * commit and durable timestamps.  Default value is 0 to disable this configuration option., an
+     * commit and durable timestamps.  Default value 0 ignores this configuration option., an
      * integer greater than or equal to \c 0; default \c 0.}
      * @configend
      * @errors

@@ -1800,7 +1800,7 @@ methods = {
         set the optional prepared ID for the prepared updates of the current transaction. Multiple
         transactions can share a prepared transaction ID, as long as they are all guaranteed to 
         share a decision whether to commit or abort and share the same prepare, commit and durable 
-        timestamps. Default value is 0 to disable this configuration option''', type='int', min=0)
+        timestamps. Default value 0 ignores this configuration option''', type='int', min=0)
 ]),
 
 'WT_SESSION.timestamp_transaction_uint' : Method([]),
