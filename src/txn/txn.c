@@ -2039,6 +2039,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     /* Set the prepare timestamp. */
     WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
+    session->txn->prepared_id = 0;
     /* Set the prepared id */
     if (WT_CONFIG_LIT_MATCH("prepared_id", ckey)) {
         WT_RET(__wt_config_gets(session, cfg, "prepared_id", &cval));
