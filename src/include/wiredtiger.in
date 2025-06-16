@@ -3272,6 +3272,10 @@ struct __wt_connection {
  * default, whether pre-fetch is enabled for all sessions by default., a boolean flag; default \c
  * false.}
  * @config{ ),,}
+ * @config{preserve_prepared, open connection in preserve prepare mode.  All the prepared
+ * transactions that are not yet committed or rolled back will be preserved in the database.  This
+ * is useful for applications that want to preserve prepared transactions across restarts., a
+ * boolean flag; default \c false.}
  * @config{readonly, open connection in read-only mode.  The database must exist.  All methods that
  * may modify a database are disabled.  See @ref readonly for more information., a boolean flag;
  * default \c false.}
