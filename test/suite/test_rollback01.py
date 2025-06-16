@@ -79,14 +79,17 @@ class test_rollback(error_info_util):
         # Perform cursor->next() which will result in the application thread being pulled into eviction
         # and getting rolled back. The auto retry is not expected to be performed, otherwise the test
         # will hang.
-        for i in range(90):
+        got_rollback = False
+        for i in range(80):
             try:
                 read_cursor.next()
             except wiredtiger.WiredTigerError as e:
                 if wiredtiger.wiredtiger_strerror(wiredtiger.WT_ROLLBACK) in str(e):
+                    got_rollback = True
                     break
                 else:
                     raise e
+        self.assertTrue(got_rollback, "Expected rollback to occur on cursor->next()")
 
         # A rollback should unposition the reader cursor.
         self.assertRaisesWithMessage(
