@@ -2016,8 +2016,7 @@ err:
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CONFIG_ITEM ckey, cval;
-    ckey.len = 0;
+    WT_CONFIG_ITEM cval;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *tmp, *upd;
@@ -2040,10 +2039,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
     /* Set the prepared id */
-    if (WT_CONFIG_LIT_MATCH("prepared_id", ckey)) {
-        WT_RET(__wt_config_gets(session, cfg, "prepared_id", &cval));
-        session->txn->prepared_id = (uint64_t)cval.val;
-    }
+    WT_RET(__wt_config_gets(session, cfg, "prepared_id", &cval));
+    session->txn->prepared_id = (uint64_t)cval.val;
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
         WT_RET_MSG(session, EINVAL, "prepare timestamp is not set");
