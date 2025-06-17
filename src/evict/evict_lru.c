@@ -3108,9 +3108,9 @@ done:
 /* !!!
  * __wt_evict_priority_set --
  *     Set a tree's eviction priority. A higher priority indicates less likelihood for the tree to
- *     be considered for eviction. The eviction server skips the eviction of trees with a non-
- *     zero priority unless eviction is in an aggressive state and the Btree is significantly
- *     utilizing the cache.
+ *     be considered for eviction. The eviction server skips the eviction of trees with a non-zero
+ *     priority unless eviction is in an aggressive state and the Btree is significantly utilizing
+ *     the cache.
  *
  *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
  *     to be retained in the cache.
