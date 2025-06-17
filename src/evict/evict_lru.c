@@ -2927,6 +2927,26 @@ __wti_evict_app_assist_worker(
                 break;
         }
 
+        /* Update cache metrics if we are stalling to detect a timeout quicker.*/
+        if (time_start != 0) {
+            uint64_t time_stop = __wt_clock(session);
+            uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+            WT_STAT_CONN_INCR(session, application_cache_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
+            if (!interruptible) {
+                WT_STAT_CONN_INCR(session, application_cache_uninterruptible_ops);
+                WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
+                WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
+            } else {
+                WT_STAT_CONN_INCR(session, application_cache_interruptible_ops);
+                WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
+                WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
+            }
+            session->cache_wait_us += elapsed;
+            time_start = time_stop;
+        }
+
         /*
          * Check if we have become busy.
          *
@@ -3007,8 +3027,8 @@ err:
  * __wt_evict_page_urgent --
  *     Push a page into the urgent eviction queue.
  *
- *     It is called by the eviction server if pages require immediate eviction or by the application
- *     threads as part of forced eviction when directly evicting pages is not feasible.
+ *     It is called by the eviction server if pages require immediate eviction or by the
+ * application threads as part of forced eviction when directly evicting pages is not feasible.
  *
  *     Input parameters:
  *       `ref`: A reference to the page that is being added to the urgent eviction queue.
@@ -3087,13 +3107,13 @@ done:
 
 /* !!!
  * __wt_evict_priority_set --
- *     Set a tree's eviction priority. A higher priority indicates less likelihood for the tree to
- *     be considered for eviction. The eviction server skips the eviction of trees with a non-zero
- *     priority unless eviction is in an aggressive state and the Btree is significantly utilizing
- *     the cache.
+ *     Set a tree's eviction priority. A higher priority indicates less likelihood for the tree
+ * to be considered for eviction. The eviction server skips the eviction of trees with a
+ * non-zero priority unless eviction is in an aggressive state and the Btree is significantly
+ * utilizing the cache.
  *
- *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
- *     to be retained in the cache.
+ *     At present, it is exclusively called for metadata and bloom filter files, as these are
+ * meant to be retained in the cache.
  *
  *     Input parameter:
  *       `v`: An integer that denotes the priority level.
