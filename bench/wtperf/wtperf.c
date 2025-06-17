@@ -2540,7 +2540,6 @@ start_run(WTPERF *wtperf)
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " flush_tier operations", wtperf->flush_ops);
 
         latency_print(wtperf);
-          wtperf->search_op_timer / wtperf->read_ops);
     }
 
     if (0) {
