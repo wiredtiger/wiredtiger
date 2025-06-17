@@ -22,6 +22,7 @@ __cursor_prepared_discover_next(WT_CURSOR *cursor)
     WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    size_t size;
 
     cursor_prepare = (WT_CURSOR_PREPARE_DISCOVERED *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, NULL);
@@ -31,9 +32,11 @@ __cursor_prepared_discover_next(WT_CURSOR *cursor)
         WT_ERR(WT_NOTFOUND);
     }
 
-    /* TODO: Is this the right way to set a uint64_t in a cursor item structure? */
-    cursor_prepare->iface.key.data = &cursor_prepare->list[cursor_prepare->next];
-    cursor_prepare->iface.key.size = sizeof(uint64_t);
+    WT_ERR(__wt_struct_size(
+      session, &size, cursor->key_format, cursor_prepare->list[cursor_prepare->next]));
+    WT_ERR(__wt_buf_initsize(session, &cursor->key, size));
+    WT_ERR(__wt_struct_pack(session, cursor->key.mem, size, cursor->key_format,
+      cursor_prepare->list[cursor_prepare->next]));
     ++cursor_prepare->next;
 
     F_SET(cursor, WT_CURSTD_KEY_INT);
@@ -72,10 +75,28 @@ __cursor_prepared_discover_close(WT_CURSOR *cursor)
 {
     WT_CURSOR_PREPARE_DISCOVERED *cursor_prepare;
     WT_DECL_RET;
+    WT_SESSION_IMPL *next_session;
     WT_SESSION_IMPL *session;
+    WT_TXN_GLOBAL *txn_global;
+    size_t prepared_session_cnt;
 
     cursor_prepare = (WT_CURSOR_PREPARE_DISCOVERED *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+
+    txn_global = &S2C(session)->txn_global;
+    if (txn_global->pending_prepared_sessions_allocated > 0) {
+        for (prepared_session_cnt = 0;
+             prepared_session_cnt < txn_global->pending_prepared_sessions_count;
+             prepared_session_cnt++) {
+            next_session = txn_global->pending_prepared_sessions[prepared_session_cnt];
+            if (next_session != NULL)
+                WT_ERR(__wt_session_close_internal(next_session));
+        }
+        __wt_free(session, txn_global->pending_prepared_sessions);
+        txn_global->pending_prepared_sessions_allocated = 0;
+        txn_global->pending_prepared_sessions_count = 0;
+    }
+
 err:
 
     __wt_free(session, cursor_prepare->list);
@@ -193,8 +214,8 @@ __cursor_prepared_discover_list_create(
 
     for (prepared_discovered_count = 0;
          txn_global->pending_prepared_sessions[prepared_discovered_count] != NULL;
-         ++prepared_discovered_count) {
-    }
+         ++prepared_discovered_count)
+        ;
 
     /* Leave a NULL at the end to mark the end of the list. */
     WT_RET(__wt_realloc_def(session, &cursor_prepare->list_allocated, prepared_discovered_count + 1,

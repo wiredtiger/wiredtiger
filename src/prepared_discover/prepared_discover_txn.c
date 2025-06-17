@@ -9,13 +9,13 @@
 #include "wt_internal.h"
 
 /*
- * __prepared_discover_find_or_create_transaction --
+ * __wt_prepared_discover_find_or_create_transaction --
  *     We have learned that a prepared transaction with a particular ID exists. If this is the first
  *     time it's been noticed, create a transaction corresponding to it. Otherwise return the
  *     matching transaction.
  */
-static int
-__prepared_discover_find_or_create_transaction(
+int
+__wt_prepared_discover_find_or_create_transaction(
   WT_SESSION_IMPL *session, wt_timestamp_t prepare_transaction_id, WT_SESSION_IMPL **prep_sessionp)
 {
     WT_CONNECTION_IMPL *conn;
@@ -49,6 +49,7 @@ __prepared_discover_find_or_create_transaction(
     /* Add it to the discovered set of sessions. */
     txn_global->pending_prepared_sessions[txn_global->pending_prepared_sessions_count++] =
       new_session;
+    F_SET(new_session->txn, WT_TXN_PREPARE);
     *prep_sessionp = new_session;
     return (0);
 }
@@ -64,7 +65,7 @@ __wti_prepared_discover_add_artifact_upd(
     WT_DECL_RET;
     WT_SESSION_IMPL *prep_session;
 
-    WT_RET(__prepared_discover_find_or_create_transaction(
+    WT_RET(__wt_prepared_discover_find_or_create_transaction(
       session, prepare_transaction_id, &prep_session));
 
     /* Add the update to the prepared transaction context. */
@@ -73,6 +74,8 @@ __wti_prepared_discover_add_artifact_upd(
     /* Copy the key into the transaction operation, so it can be used to find the update later. */
     WT_WITH_DHANDLE(prep_session, session->dhandle, ret = __wt_txn_op_set_key(prep_session, key));
     WT_RET(ret);
+
+    ++prep_session->txn->prepare_count;
 
     return (0);
 }
@@ -93,7 +96,7 @@ __wti_prepared_discover_add_artifact_ondisk_row(
      * code to reuse existing machinery for installing transaction operations.
      */
     WT_RET(__wt_upd_alloc(session, NULL, WT_UPDATE_STANDARD, &upd, NULL));
-    upd->txnid = tw->start_txn; /* TODO: this should probably use the prepare session ID? */
+    upd->txnid = session->txn->id;
     upd->durable_ts = tw->durable_start_ts;
     upd->start_ts = tw->start_ts;
     upd->prepare_state = WT_PREPARE_INPROGRESS;

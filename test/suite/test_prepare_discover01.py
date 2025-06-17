@@ -90,8 +90,17 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         prepared_discover_cursor = c2s1.open_cursor("prepared_discover:")
 
         print("Walking through prepared discover cursor")
+        c2s2 = conn2.open_session()
+        count = 0
         while prepared_discover_cursor.next() == 0:
-            print("Found prepared transaction with ID: " + str(prepared_discover_cursor.get_key()))
+            count += 1
+            prepared_id = prepared_discover_cursor.get_key()
+            self.assertEqual(prepared_id, 100)
+            print("Found prepared transaction with ID: " + str(prepared_id))
+            c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
+            c2s2.rollback_transaction()
+            c2s2.close()
+        self.assertEqual(count, 1)
 
         print("Closing prepared discover cursor")
         prepared_discover_cursor.close()
