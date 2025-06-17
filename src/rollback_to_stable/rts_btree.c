@@ -98,7 +98,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
          * cannot have a prepared transaction on it and a fast deleted page in the history store
          * should never be reinstantiated as it is globally visible.
          */
-        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) && !WT_IS_HS(session->dhandle)) {
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) && !WT_IS_HS(session->dhandle)) {
             WT_ASSERT(session, first_upd->type == WT_UPDATE_TOMBSTONE);
             WT_ASSERT(session,
               F_ISSET(

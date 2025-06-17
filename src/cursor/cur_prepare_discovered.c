@@ -206,7 +206,6 @@ __cursor_prepared_discover_list_create(
     uint32_t i, prepared_discovered_count;
 
     txn_global = &S2C(session)->txn_global;
-    i = prepared_discovered_count = 0;
 
     /* If no transactions were discovered, there is nothing more to do here */
     if (txn_global->pending_prepared_sessions == NULL)
