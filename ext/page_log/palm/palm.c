@@ -656,8 +656,9 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     PALM_KV_CONTEXT context;
     palm_init_context(palm, &context);
 
-    /* We always write full pages for tombstones. */
+    /* We always write full pages for tombstones, PALM has its own flag. */
     bool is_delta = false;
+    uint32_t flags = WT_PALM_KV_TOMBSTONE;
 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     uint64_t lsn;
@@ -676,9 +677,8 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
       discard_args->base_lsn, discard_args->backlink_checkpoint_id,
       discard_args->base_checkpoint_id);
 
-    /* There should not be any flag set, PALM adds its own. */
+    /* There should not be any flag set. */
     assert(discard_args->flags == 0);
-    uint32_t flags = WT_PALM_KV_TOMBSTONE;
 
     /* Create an empty record as a tombstone. */
     if ((tombstone = calloc(1, sizeof(WT_ITEM))) == NULL)
