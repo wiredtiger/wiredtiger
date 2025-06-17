@@ -2804,7 +2804,8 @@ __wt_verbose_dump_txn_one(
         ", durable_timestamp: %s"
         ", first_commit_timestamp: %s"
         ", prepare_timestamp: %s"
-        ", prepared id: %" PRIu64 ", pinned_durable_timestamp: %s"
+        ", prepared id: %" PRIu64
+        ", pinned_durable_timestamp: %s"
         ", read_timestamp: %s"
         ", checkpoint LSN: [%s]"
         ", full checkpoint: %s"
