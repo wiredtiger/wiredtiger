@@ -38,6 +38,7 @@ from wtscenario import make_scenarios
 class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_prepare_discover01'
     uri = 'table:' + tablename
+    conn_config = 'preserve_prepared=true'
 
     types = [
         ('row', dict(s_config='key_format=i,value_format=S')),
