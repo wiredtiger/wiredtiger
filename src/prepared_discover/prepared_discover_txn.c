@@ -75,7 +75,9 @@ __wti_prepared_discover_add_artifact_upd(
     WT_WITH_DHANDLE(prep_session, session->dhandle, ret = __wt_txn_op_set_key(prep_session, key));
     WT_RET(ret);
 
+#ifdef HAVE_DIAGNOSTIC
     ++prep_session->txn->prepare_count;
+#endif
 
     return (0);
 }
