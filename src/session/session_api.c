@@ -268,7 +268,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
              */
             WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
         else if (session->event_handler->handle_close != NULL &&
-          strcmp(cursor->internal_uri, WT_HS_URI) != 0)
+          !WT_IS_URI_HS(cursor->internal_uri))
             /*
              * Notify the user that we are closing the cursor handle via the registered close
              * callback.
@@ -674,6 +674,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     case 'l':
         if (WT_PREFIX_MATCH(uri, "log:"))
             WT_RET(__wt_curlog_open(session, uri, cfg, cursorp));
+        else if (WT_PREFIX_MATCH(uri, "layered:"))
+            WT_RET(__wt_clayered_open(session, uri, owner, cfg, cursorp));
         break;
 
     /*
@@ -685,9 +687,10 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
              * Open a version cursor instead of a table cursor if we are using the special debug
              * configuration.
              */
-            if ((ret = __wt_config_gets_def(session, cfg, "debug.dump_version", 0, &cval)) == 0 &&
+            if ((ret = __wt_config_gets_def(
+                   session, cfg, "debug.dump_version.enabled", 0, &cval)) == 0 &&
               cval.val) {
-                if (WT_STREQ(uri, WT_HS_URI))
+                if (WT_IS_URI_HS(uri))
                     WT_RET_MSG(session, EINVAL, "cannot open version cursor on the history store");
                 WT_RET(__wt_curversion_open(session, uri, owner, cfg, cursorp));
             } else
@@ -768,12 +771,11 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
      * There are some exceptions to this rule:
      *  - Verifying the metadata through an internal session.
      *  - The btree is being verified.
-     *  - Opening the meta file itself while performing a checkpoint.
+     *  - Opening the meta files while performing a checkpoint.
      */
     WT_ASSERT(session,
-      strcmp(uri, WT_HS_URI) == 0 ||
-        (strcmp(uri, WT_METAFILE_URI) == 0 &&
-          __wt_atomic_loadvbool(&txn_global->checkpoint_running)) ||
+      WT_IS_URI_HS(uri) ||
+        (WT_IS_URI_METADATA(uri) && __wt_atomic_loadvbool(&txn_global->checkpoint_running)) ||
         session->hs_cursor_counter == 0 || F_ISSET(session, WT_SESSION_INTERNAL) ||
         (S2BT_SAFE(session) != NULL && F_ISSET(S2BT(session), WT_BTREE_VERIFY)));
 
