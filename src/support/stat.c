@@ -2251,15 +2251,19 @@ static const char *const __stats_connection_desc[] = {
   "perf: disagg block manager read latency histogram (bucket 2) - 100-249us",
   "perf: disagg block manager read latency histogram (bucket 3) - 250-499us",
   "perf: disagg block manager read latency histogram (bucket 4) - 500-999us",
-  "perf: disagg block manager read latency histogram (bucket 5) - 1000-9999us",
-  "perf: disagg block manager read latency histogram (bucket 6) - 10000us+",
+  "perf: disagg block manager read latency histogram (bucket 5) - 1000-2499us",
+  "perf: disagg block manager read latency histogram (bucket 6) - 2500-4999us",
+  "perf: disagg block manager read latency histogram (bucket 7) - 5000-9999us",
+  "perf: disagg block manager read latency histogram (bucket 8) - 10000us+",
   "perf: disagg block manager read latency histogram total (usecs)",
   "perf: disagg block manager write latency histogram (bucket 1) - 50-99us",
   "perf: disagg block manager write latency histogram (bucket 2) - 100-249us",
   "perf: disagg block manager write latency histogram (bucket 3) - 250-499us",
   "perf: disagg block manager write latency histogram (bucket 4) - 500-999us",
-  "perf: disagg block manager write latency histogram (bucket 5) - 1000-9999us",
-  "perf: disagg block manager write latency histogram (bucket 6) - 10000us+",
+  "perf: disagg block manager write latency histogram (bucket 5) - 1000-2499us",
+  "perf: disagg block manager write latency histogram (bucket 6) - 2500-4999us",
+  "perf: disagg block manager write latency histogram (bucket 7) - 5000-9999us",
+  "perf: disagg block manager write latency histogram (bucket 8) - 10000us+",
   "perf: disagg block manager write latency histogram total (usecs)",
   "perf: file system read latency histogram (bucket 1) - 0-10ms",
   "perf: file system read latency histogram (bucket 2) - 10-49ms",
@@ -2281,29 +2285,37 @@ static const char *const __stats_connection_desc[] = {
   "perf: internal page deltas reconstruct latency histogram (bucket 2) - 100-249us",
   "perf: internal page deltas reconstruct latency histogram (bucket 3) - 250-499us",
   "perf: internal page deltas reconstruct latency histogram (bucket 4) - 500-999us",
-  "perf: internal page deltas reconstruct latency histogram (bucket 5) - 1000-9999us",
-  "perf: internal page deltas reconstruct latency histogram (bucket 6) - 10000us+",
+  "perf: internal page deltas reconstruct latency histogram (bucket 5) - 1000-2499us",
+  "perf: internal page deltas reconstruct latency histogram (bucket 6) - 2500-4999us",
+  "perf: internal page deltas reconstruct latency histogram (bucket 7) - 5000-9999us",
+  "perf: internal page deltas reconstruct latency histogram (bucket 8) - 10000us+",
   "perf: internal page deltas reconstruct latency histogram total (usecs)",
   "perf: leaf page deltas reconstruct latency histogram (bucket 1) - 0-100us",
   "perf: leaf page deltas reconstruct latency histogram (bucket 2) - 100-249us",
   "perf: leaf page deltas reconstruct latency histogram (bucket 3) - 250-499us",
   "perf: leaf page deltas reconstruct latency histogram (bucket 4) - 500-999us",
-  "perf: leaf page deltas reconstruct latency histogram (bucket 5) - 1000-9999us",
-  "perf: leaf page deltas reconstruct latency histogram (bucket 6) - 10000us+",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 5) - 1000-2499us",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 6) - 2500-4999us",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 7) - 5000-9999us",
+  "perf: leaf page deltas reconstruct latency histogram (bucket 8) - 10000us+",
   "perf: leaf page deltas reconstruct latency histogram total (usecs)",
   "perf: operation read latency histogram (bucket 1) - 0-100us",
   "perf: operation read latency histogram (bucket 2) - 100-249us",
   "perf: operation read latency histogram (bucket 3) - 250-499us",
   "perf: operation read latency histogram (bucket 4) - 500-999us",
-  "perf: operation read latency histogram (bucket 5) - 1000-9999us",
-  "perf: operation read latency histogram (bucket 6) - 10000us+",
+  "perf: operation read latency histogram (bucket 5) - 1000-2499us",
+  "perf: operation read latency histogram (bucket 6) - 2500-4999us",
+  "perf: operation read latency histogram (bucket 7) - 5000-9999us",
+  "perf: operation read latency histogram (bucket 8) - 10000us+",
   "perf: operation read latency histogram total (usecs)",
   "perf: operation write latency histogram (bucket 1) - 0-100us",
   "perf: operation write latency histogram (bucket 2) - 100-249us",
   "perf: operation write latency histogram (bucket 3) - 250-499us",
   "perf: operation write latency histogram (bucket 4) - 500-999us",
-  "perf: operation write latency histogram (bucket 5) - 1000-9999us",
-  "perf: operation write latency histogram (bucket 6) - 10000us+",
+  "perf: operation write latency histogram (bucket 5) - 1000-2499us",
+  "perf: operation write latency histogram (bucket 6) - 2500-4999us",
+  "perf: operation write latency histogram (bucket 7) - 5000-9999us",
+  "perf: operation write latency histogram (bucket 8) - 10000us+",
   "perf: operation write latency histogram total (usecs)",
   "prefetch: could not perform pre-fetch on internal page",
   "prefetch: could not perform pre-fetch on ref without the pre-fetch flag set",
@@ -3157,6 +3169,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_disaggbmread_latency_lt250 = 0;
     stats->perf_hist_disaggbmread_latency_lt500 = 0;
     stats->perf_hist_disaggbmread_latency_lt1000 = 0;
+    stats->perf_hist_disaggbmread_latency_lt2500 = 0;
+    stats->perf_hist_disaggbmread_latency_lt5000 = 0;
     stats->perf_hist_disaggbmread_latency_lt10000 = 0;
     stats->perf_hist_disaggbmread_latency_gt10000 = 0;
     stats->perf_hist_disaggbmread_latency_total_usecs = 0;
@@ -3164,6 +3178,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_disaggbmwrite_latency_lt250 = 0;
     stats->perf_hist_disaggbmwrite_latency_lt500 = 0;
     stats->perf_hist_disaggbmwrite_latency_lt1000 = 0;
+    stats->perf_hist_disaggbmwrite_latency_lt2500 = 0;
+    stats->perf_hist_disaggbmwrite_latency_lt5000 = 0;
     stats->perf_hist_disaggbmwrite_latency_lt10000 = 0;
     stats->perf_hist_disaggbmwrite_latency_gt10000 = 0;
     stats->perf_hist_disaggbmwrite_latency_total_usecs = 0;
@@ -3187,6 +3203,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_internal_reconstruct_latency_lt250 = 0;
     stats->perf_hist_internal_reconstruct_latency_lt500 = 0;
     stats->perf_hist_internal_reconstruct_latency_lt1000 = 0;
+    stats->perf_hist_internal_reconstruct_latency_lt2500 = 0;
+    stats->perf_hist_internal_reconstruct_latency_lt5000 = 0;
     stats->perf_hist_internal_reconstruct_latency_lt10000 = 0;
     stats->perf_hist_internal_reconstruct_latency_gt10000 = 0;
     stats->perf_hist_internal_reconstruct_latency_total_usecs = 0;
@@ -3194,6 +3212,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_leaf_reconstruct_latency_lt250 = 0;
     stats->perf_hist_leaf_reconstruct_latency_lt500 = 0;
     stats->perf_hist_leaf_reconstruct_latency_lt1000 = 0;
+    stats->perf_hist_leaf_reconstruct_latency_lt2500 = 0;
+    stats->perf_hist_leaf_reconstruct_latency_lt5000 = 0;
     stats->perf_hist_leaf_reconstruct_latency_lt10000 = 0;
     stats->perf_hist_leaf_reconstruct_latency_gt10000 = 0;
     stats->perf_hist_leaf_reconstruct_latency_total_usecs = 0;
@@ -3201,6 +3221,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_opread_latency_lt250 = 0;
     stats->perf_hist_opread_latency_lt500 = 0;
     stats->perf_hist_opread_latency_lt1000 = 0;
+    stats->perf_hist_opread_latency_lt2500 = 0;
+    stats->perf_hist_opread_latency_lt5000 = 0;
     stats->perf_hist_opread_latency_lt10000 = 0;
     stats->perf_hist_opread_latency_gt10000 = 0;
     stats->perf_hist_opread_latency_total_usecs = 0;
@@ -3208,6 +3230,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_opwrite_latency_lt250 = 0;
     stats->perf_hist_opwrite_latency_lt500 = 0;
     stats->perf_hist_opwrite_latency_lt1000 = 0;
+    stats->perf_hist_opwrite_latency_lt2500 = 0;
+    stats->perf_hist_opwrite_latency_lt5000 = 0;
     stats->perf_hist_opwrite_latency_lt10000 = 0;
     stats->perf_hist_opwrite_latency_gt10000 = 0;
     stats->perf_hist_opwrite_latency_total_usecs = 0;
@@ -4158,6 +4182,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt500);
     to->perf_hist_disaggbmread_latency_lt1000 +=
       WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt1000);
+    to->perf_hist_disaggbmread_latency_lt2500 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt2500);
+    to->perf_hist_disaggbmread_latency_lt5000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt5000);
     to->perf_hist_disaggbmread_latency_lt10000 +=
       WT_STAT_CONN_READ(from, perf_hist_disaggbmread_latency_lt10000);
     to->perf_hist_disaggbmread_latency_gt10000 +=
@@ -4172,6 +4200,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt500);
     to->perf_hist_disaggbmwrite_latency_lt1000 +=
       WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt1000);
+    to->perf_hist_disaggbmwrite_latency_lt2500 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt2500);
+    to->perf_hist_disaggbmwrite_latency_lt5000 +=
+      WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt5000);
     to->perf_hist_disaggbmwrite_latency_lt10000 +=
       WT_STAT_CONN_READ(from, perf_hist_disaggbmwrite_latency_lt10000);
     to->perf_hist_disaggbmwrite_latency_gt10000 +=
@@ -4206,6 +4238,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt500);
     to->perf_hist_internal_reconstruct_latency_lt1000 +=
       WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt1000);
+    to->perf_hist_internal_reconstruct_latency_lt2500 +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt2500);
+    to->perf_hist_internal_reconstruct_latency_lt5000 +=
+      WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt5000);
     to->perf_hist_internal_reconstruct_latency_lt10000 +=
       WT_STAT_CONN_READ(from, perf_hist_internal_reconstruct_latency_lt10000);
     to->perf_hist_internal_reconstruct_latency_gt10000 +=
@@ -4220,6 +4256,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt500);
     to->perf_hist_leaf_reconstruct_latency_lt1000 +=
       WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt1000);
+    to->perf_hist_leaf_reconstruct_latency_lt2500 +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt2500);
+    to->perf_hist_leaf_reconstruct_latency_lt5000 +=
+      WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt5000);
     to->perf_hist_leaf_reconstruct_latency_lt10000 +=
       WT_STAT_CONN_READ(from, perf_hist_leaf_reconstruct_latency_lt10000);
     to->perf_hist_leaf_reconstruct_latency_gt10000 +=
@@ -4230,6 +4270,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->perf_hist_opread_latency_lt250 += WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt250);
     to->perf_hist_opread_latency_lt500 += WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt500);
     to->perf_hist_opread_latency_lt1000 += WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt1000);
+    to->perf_hist_opread_latency_lt2500 += WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt2500);
+    to->perf_hist_opread_latency_lt5000 += WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt5000);
     to->perf_hist_opread_latency_lt10000 +=
       WT_STAT_CONN_READ(from, perf_hist_opread_latency_lt10000);
     to->perf_hist_opread_latency_gt10000 +=
@@ -4241,6 +4283,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->perf_hist_opwrite_latency_lt500 += WT_STAT_CONN_READ(from, perf_hist_opwrite_latency_lt500);
     to->perf_hist_opwrite_latency_lt1000 +=
       WT_STAT_CONN_READ(from, perf_hist_opwrite_latency_lt1000);
+    to->perf_hist_opwrite_latency_lt2500 +=
+      WT_STAT_CONN_READ(from, perf_hist_opwrite_latency_lt2500);
+    to->perf_hist_opwrite_latency_lt5000 +=
+      WT_STAT_CONN_READ(from, perf_hist_opwrite_latency_lt5000);
     to->perf_hist_opwrite_latency_lt10000 +=
       WT_STAT_CONN_READ(from, perf_hist_opwrite_latency_lt10000);
     to->perf_hist_opwrite_latency_gt10000 +=
