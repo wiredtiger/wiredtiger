@@ -556,6 +556,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
     WT_UPDATE *upd;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid, txnid;
+    uint8_t prepare_state;
     bool is_hs_page, seen_prepare;
 
     max_ts = WT_TS_NONE;
@@ -623,7 +624,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * Only checkpoint should ever encounter resolving prepared transactions. If it does, then
          * it needs to wait to see whether they should be included or not.
          */
-        while (upd->prepare_state == WT_PREPARE_LOCKED) {
+        WT_READ_ONCE(prepare_state, upd->prepare_state);
+        while (prepare_state == WT_PREPARE_LOCKED) {
             WT_ASSERT_ALWAYS(session, F_ISSET(r, WT_REC_CHECKPOINT),
               "Eviction should never occur on a page that has resolving prepared records.");
             /*
@@ -633,6 +635,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
              * excluded (which it must be if we are here). How to know what needs to be included?
              */
             __wt_sleep(0, 100);
+            WT_READ_ONCE(prepare_state, upd->prepare_state);
         }
 
         /*
@@ -646,41 +649,41 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * a new flag like WT_UPDATE_DS, but indicating that it's partially in the datastore).
          * Question: does this become tricky if a prepare makes multiple changes to the same key?
          */
-        if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        if (prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT_ALWAYS(session,
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
-            fprintf(stderr,
-              "Reconciliation found a prepared entry with timestamp %" PRIu64
-              ", checkpoint timestamp: %" PRIu64 "\n",
               upd->start_ts, S2C(session)->txn_global.checkpoint_timestamp);
-            /*
-             * Don't save the record if it's prepare time is greater than the checkpoint timestamp.
-             */
-            if (F_ISSET(r, WT_REC_CHECKPOINT) &&
-              upd->start_ts > S2C(session)->txn_global.checkpoint_timestamp) {
-                *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
-                *has_newer_updatesp = true;
-                seen_prepare = true;
-                continue;
-            } else {
-                /*
-                 * If we are not in eviction, we must be in salvage to reach here. Since salvage
-                 * only works on data on-disk, the prepared update must be restored from the disk.
-                 * No need for us to rollback the prepared update in salvage here. If there is still
-                 * content for that key left in the history store, rollback to stable will bring it
-                 * back to the data store later. Otherwise, it removes the key.
-                 */
-                WT_ASSERT_ALWAYS(session,
-                  F_ISSET(r, WT_REC_CHECKPOINT) || F_ISSET(r, WT_REC_EVICT) ||
-                    (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
-                      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
-                  "Should never salvage a prepared update not from disk.");
-                /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
-                WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "Should never concurrently resolve a prepared update during reconciliation if we "
-                  "are not in a checkpoint.");
-            }
+              /*
+               * Don't save the record if it's prepare time is greater than the checkpoint
+               * timestamp.
+               */
+              if (F_ISSET(r, WT_REC_CHECKPOINT) &&
+                (!S2C(session)->preserve_prepared ||
+                  upd->start_ts > S2C(session)->txn_global.checkpoint_timestamp)) {
+                  *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
+                  *has_newer_updatesp = true;
+                  seen_prepare = true;
+                  continue;
+              } else {
+                  /*
+                   * If we are not in eviction, we must be in salvage to reach here. Since salvage
+                   * only works on data on-disk, the prepared update must be restored from the disk.
+                   * No need for us to rollback the prepared update in salvage here. If there is
+                   * still content for that key left in the history store, rollback to stable will
+                   * bring it back to the data store later. Otherwise, it removes the key.
+                   */
+                  WT_ASSERT_ALWAYS(session,
+                    F_ISSET(r, WT_REC_CHECKPOINT) || F_ISSET(r, WT_REC_EVICT) ||
+                      (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
+                        F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
+                    "Should never salvage a prepared update not from disk.");
+                  /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
+                  WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
+                    "Should never concurrently resolve a prepared update during reconciliation if "
+                    "we "
+                    "are not in a checkpoint.");
+              }
         }
 
         /* Always select the newest committed update to write to disk */
