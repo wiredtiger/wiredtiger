@@ -55,7 +55,7 @@ class test_live_restore02(backup_base):
         # Ensure we have logged the live restore messages.
         live_restore_patterns = [
             r"Starting \d+ threads to restore \d+ files",
-            r"Live restore finished restoring \d+ files in \d+ seconds",
+            r"Live restore background migration finished restoring \d+ files in \d+ seconds",
             r"Live restore has finished"
         ]
         self.ignoreStdoutPattern("|".join(live_restore_patterns))
