@@ -3027,8 +3027,8 @@ err:
  * __wt_evict_page_urgent --
  *     Push a page into the urgent eviction queue.
  *
- *     It is called by the eviction server if pages require immediate eviction or by the
- * application threads as part of forced eviction when directly evicting pages is not feasible.
+ *     It is called by the eviction server if pages require immediate eviction or by the application
+ *     threads as part of forced eviction when directly evicting pages is not feasible.
  *
  *     Input parameters:
  *       `ref`: A reference to the page that is being added to the urgent eviction queue.
@@ -3107,13 +3107,13 @@ done:
 
 /* !!!
  * __wt_evict_priority_set --
- *     Set a tree's eviction priority. A higher priority indicates less likelihood for the tree
- * to be considered for eviction. The eviction server skips the eviction of trees with a
- * non-zero priority unless eviction is in an aggressive state and the Btree is significantly
- * utilizing the cache.
+ *     Set a tree's eviction priority. A higher priority indicates less likelihood for the tree to
+ *     be considered for eviction. The eviction server skips the eviction of trees with a non-
+ *     zero priority unless eviction is in an aggressive state and the Btree is significantly
+ *     utilizing the cache.
  *
- *     At present, it is exclusively called for metadata and bloom filter files, as these are
- * meant to be retained in the cache.
+ *     At present, it is exclusively called for metadata and bloom filter files, as these are meant
+ *     to be retained in the cache.
  *
  *     Input parameter:
  *       `v`: An integer that denotes the priority level.
