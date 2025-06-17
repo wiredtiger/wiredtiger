@@ -61,7 +61,6 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         c[2] = "commit ts=60"
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(60))
 
-        print("Setup global time, adding content")
         # Insert a few keys then prepare the transaction
         self.session.begin_transaction()
         c[3] = "prepare ts=100"
@@ -72,34 +71,31 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Move the stable timestamp to include the prepared transaction
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
-        print("Creating checkpoint with prepared content")
         # Create a checkpoint
         session2 = self.conn.open_session()
         session2.checkpoint()
 
-        print("Creating backup that will preserve artifacts")
+        # Creating backup that will preserve artifacts
         backup_dir = 'bkp'
         self.backup(backup_dir, session2)
 
-        print("Opening backup database")
+        # Opening backup database
         conn2 = self.wiredtiger_open(backup_dir)
 
         c2s1 = conn2.open_session()
 
-        print("Opening prepared discover cursor")
+        # Opening prepared discover cursor
         prepared_discover_cursor = c2s1.open_cursor("prepared_discover:")
 
-        print("Walking through prepared discover cursor")
+        # Walking through prepared discover cursor
         c2s2 = conn2.open_session()
         count = 0
         while prepared_discover_cursor.next() == 0:
             count += 1
             prepared_id = prepared_discover_cursor.get_key()
             self.assertEqual(prepared_id, 100)
-            print("Found prepared transaction with ID: " + str(prepared_id))
             c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
             c2s2.rollback_transaction()
         self.assertEqual(count, 1)
 
-        print("Closing prepared discover cursor")
         prepared_discover_cursor.close()
