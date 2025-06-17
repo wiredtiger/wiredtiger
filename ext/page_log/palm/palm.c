@@ -833,8 +833,8 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
             PALM_GET_VERIFY_EQUAL(matches.base_checkpoint_id, get_args->base_checkpoint_id);
         }
 
-        // TODO - Is it where I should check matches.flags?
-        // If WT_PALM_KV_TOMBSTONE is set, check everything is NULL and size 0 and continue or error out?
+        /* We should not request a page that is discarded. */
+        assert((matches.flags & WT_PALM_KV_TOMBSTONE) == 0);
 
         last_lsn = matches.lsn;
         last_checkpoint_id = matches.checkpoint_id;
