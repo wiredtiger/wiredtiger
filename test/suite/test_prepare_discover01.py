@@ -99,7 +99,6 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
             print("Found prepared transaction with ID: " + str(prepared_id))
             c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
             c2s2.rollback_transaction()
-            c2s2.close()
         self.assertEqual(count, 1)
 
         print("Closing prepared discover cursor")
