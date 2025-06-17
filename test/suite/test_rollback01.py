@@ -25,10 +25,9 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import time, wiredtiger
-from error_info_util import error_info_util
+import time, wiredtiger, wttest
 
-class test_rollback(error_info_util):
+class test_rollback(wttest.WiredTigerTestCase):
     uri = "table:test_rollback.wt"
 
     def test_wt_rollback_cursor_next_no_retry(self):
@@ -57,7 +56,7 @@ class test_rollback(error_info_util):
             evict_cursor.reset()
         evict_cursor.close()
 
-        # Position cursor in the middle.
+        # Position a read cursor in the middle.
         session2 = self.conn.open_session()
         read_cursor = session2.open_cursor(self.uri)
         read_cursor.set_key("key_a" + str(10))
@@ -91,7 +90,7 @@ class test_rollback(error_info_util):
                     raise e
         self.assertTrue(got_rollback, "Expected rollback to occur on cursor->next()")
 
-        # A rollback should unposition the reader cursor.
+        # A rollback should unposition the read cursor.
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, read_cursor.get_key, '/requires key be set/')
 
