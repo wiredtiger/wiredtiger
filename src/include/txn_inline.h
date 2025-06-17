@@ -1706,12 +1706,9 @@ __wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_tr
 {
     WT_SESSION_IMPL *prepared_session;
     WT_TXN *tmp;
-    WT_TXN_SHARED *prepared_txn_shared;
 
     WT_RET(__wt_prepared_discover_find_or_create_transaction(
       session, prepared_transaction_id, &prepared_session));
-
-    prepared_txn_shared = WT_SESSION_TXN_SHARED(prepared_session);
 
     WT_ASSERT(prepared_session, F_ISSET(prepared_session->txn, WT_TXN_PREPARE));
 
