@@ -332,7 +332,11 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
       WT_SESSION_IMPL *session, uint64_t msecs)                 \
     {                                                           \
         WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs); \
-        if (msecs < 10)                                         \
+        if (msecs < 2)                                          \
+            WT_STAT_CONN_INCR(session, stat##_lt2);             \
+        else if (msecs < 5)                                     \
+            WT_STAT_CONN_INCR(session, stat##_lt5);             \
+        else if (msecs < 10)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt10);            \
         else if (msecs < 50)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt50);            \
@@ -937,6 +941,8 @@ struct __wt_connection_stats {
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
     int64_t live_restore_source_read_count;
+    int64_t live_restore_hist_source_read_latency_lt2;
+    int64_t live_restore_hist_source_read_latency_lt5;
     int64_t live_restore_hist_source_read_latency_lt10;
     int64_t live_restore_hist_source_read_latency_lt50;
     int64_t live_restore_hist_source_read_latency_lt100;
@@ -1016,6 +1022,8 @@ struct __wt_connection_stats {
     int64_t log_compress_len;
     int64_t log_slot_coalesced;
     int64_t log_close_yields;
+    int64_t perf_hist_bmread_latency_lt2;
+    int64_t perf_hist_bmread_latency_lt5;
     int64_t perf_hist_bmread_latency_lt10;
     int64_t perf_hist_bmread_latency_lt50;
     int64_t perf_hist_bmread_latency_lt100;
@@ -1024,6 +1032,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_bmread_latency_lt1000;
     int64_t perf_hist_bmread_latency_gt1000;
     int64_t perf_hist_bmread_latency_total_msecs;
+    int64_t perf_hist_bmwrite_latency_lt2;
+    int64_t perf_hist_bmwrite_latency_lt5;
     int64_t perf_hist_bmwrite_latency_lt10;
     int64_t perf_hist_bmwrite_latency_lt50;
     int64_t perf_hist_bmwrite_latency_lt100;
@@ -1050,6 +1060,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_disaggbmwrite_latency_lt10000;
     int64_t perf_hist_disaggbmwrite_latency_gt10000;
     int64_t perf_hist_disaggbmwrite_latency_total_usecs;
+    int64_t perf_hist_fsread_latency_lt2;
+    int64_t perf_hist_fsread_latency_lt5;
     int64_t perf_hist_fsread_latency_lt10;
     int64_t perf_hist_fsread_latency_lt50;
     int64_t perf_hist_fsread_latency_lt100;
@@ -1058,6 +1070,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_fsread_latency_lt1000;
     int64_t perf_hist_fsread_latency_gt1000;
     int64_t perf_hist_fsread_latency_total_msecs;
+    int64_t perf_hist_fswrite_latency_lt2;
+    int64_t perf_hist_fswrite_latency_lt5;
     int64_t perf_hist_fswrite_latency_lt10;
     int64_t perf_hist_fswrite_latency_lt50;
     int64_t perf_hist_fswrite_latency_lt100;
