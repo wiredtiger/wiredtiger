@@ -7364,11 +7364,21 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT1000	1615
 /*!
  * perf: disagg block manager read latency histogram (bucket 5) -
- * 1000-9999us
+ * 1000-2499us
  */
 #define	WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT10000	1616
 /*!
  * perf: disagg block manager read latency histogram (bucket 6) -
+ * 2500-4999us
+ */
+#define	WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT5000	1622
+/*!
+ * perf: disagg block manager read latency histogram (bucket 7) -
+ * 5000-9999us
+ */
+#define	WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_LT10000	1623
+/*!
+ * perf: disagg block manager read latency histogram (bucket 8) -
  * 10000us+
  */
 #define	WT_STAT_CONN_PERF_HIST_DISAGGBMREAD_LATENCY_GT10000	1617
@@ -7396,11 +7406,21 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT1000	1622
 /*!
  * perf: disagg block manager write latency histogram (bucket 5) -
- * 1000-9999us
+ * 1000-2499us
  */
 #define	WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT10000	1623
 /*!
  * perf: disagg block manager write latency histogram (bucket 6) -
+ * 2500-4999us
+ */
+#define	WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT5000	1631
+/*!
+ * perf: disagg block manager write latency histogram (bucket 7) -
+ * 5000-9999us
+ */
+#define	WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_LT10000	1632
+/*!
+ * perf: disagg block manager write latency histogram (bucket 8) -
  * 10000us+
  */
 #define	WT_STAT_CONN_PERF_HIST_DISAGGBMWRITE_LATENCY_GT10000	1624
@@ -7460,11 +7480,21 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT1000	1645
 /*!
  * perf: internal page deltas reconstruct latency histogram (bucket 5) -
- * 1000-9999us
+ * 1000-2499us
  */
 #define	WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT10000	1646
 /*!
  * perf: internal page deltas reconstruct latency histogram (bucket 6) -
+ * 2500-4999us
+ */
+#define	WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT5000	1660
+/*!
+ * perf: internal page deltas reconstruct latency histogram (bucket 7) -
+ * 5000-9999us
+ */
+#define	WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_LT10000	1661
+/*!
+ * perf: internal page deltas reconstruct latency histogram (bucket 8) -
  * 10000us+
  */
 #define	WT_STAT_CONN_PERF_HIST_INTERNAL_RECONSTRUCT_LATENCY_GT10000	1647
@@ -7492,11 +7522,21 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT1000	1652
 /*!
  * perf: leaf page deltas reconstruct latency histogram (bucket 5) -
- * 1000-9999us
+ * 1000-2499us
  */
 #define	WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT10000	1653
 /*!
  * perf: leaf page deltas reconstruct latency histogram (bucket 6) -
+ * 2500-4999us
+ */
+#define	WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT5000	1669
+/*!
+ * perf: leaf page deltas reconstruct latency histogram (bucket 7) -
+ * 5000-9999us
+ */
+#define	WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_LT10000	1670
+/*!
+ * perf: leaf page deltas reconstruct latency histogram (bucket 8) -
  * 10000us+
  */
 #define	WT_STAT_CONN_PERF_HIST_LEAF_RECONSTRUCT_LATENCY_GT10000	1654
