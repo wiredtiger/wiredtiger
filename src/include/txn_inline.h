@@ -1391,9 +1391,6 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
     uint64_t prepare_txnid;
     uint8_t prepare_state;
 
-    WT_UNUSED(key);
-    WT_UNUSED(recno);
-
     prepare_txnid = WT_TXN_NONE;
 
     if (prepare_updp != NULL)
