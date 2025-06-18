@@ -55,7 +55,7 @@ buildvariants:
   name: amazon2023-perf-tests-arm64-only
   display_name: (ARMV9) Amazon Linux 2023 Performance tests (ARM64 only)
   run_on:
-    - ubuntu2004-arm64-perf-testing
+    - amazon2023-arm64-large-m8g-wt
   expansions:
     <<: *perf-tests-expansions-template
     collection: AllPerfTestsARM64_v9
