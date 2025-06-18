@@ -6193,6 +6193,11 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_METATDATA_WITH_HISTORY	1131
 /*!
  * cache: eviction server skips pages that are written with transactions
+ * greater than the checkpoint timestamp
+ */
+#define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_CHECKPOINT_TIMESTAMP	1131
+/*!
+ * cache: eviction server skips pages that are written with transactions
  * greater than the last running
  */
 #define	WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_LAST_RUNNING	1132

@@ -184,9 +184,8 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
     __wt_page_modify_set(session, page);
 
     /*
-     * Set the newest update timestamp to the approximate newest global timestamp, this is only
-     * used to optimize eviction decisions. It is approximate and that's OK.
-     * These are shared variables - more care should be taken if we choose to merge this change.
+     * Set the newest update timestamp to the approximate newest global timestamp, this is only used
+     * to optimize eviction decisions. It is approximate and that's OK.
      */
     if (S2C(session)->txn_global.newest_seen_timestamp > page->modify->newest_commit_timestamp)
         page->modify->newest_commit_timestamp = S2C(session)->txn_global.newest_seen_timestamp;
@@ -244,9 +243,8 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     __wt_page_modify_set(session, page);
 
     /*
-     * Set the newest update timestamp to the approximate newest global timestamp, this is only
-     * used to optimize eviction decisions. It is approximate and that's OK.
-     * These are shared variables - more care should be taken if we choose to merge this change.
+     * Set the newest update timestamp to the approximate newest global timestamp, this is only used
+     * to optimize eviction decisions. It is approximate and that's OK. 
      */
     if (S2C(session)->txn_global.newest_seen_timestamp > page->modify->newest_commit_timestamp)
         page->modify->newest_commit_timestamp = S2C(session)->txn_global.newest_seen_timestamp;
@@ -303,9 +301,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     __wt_page_modify_set(session, page);
 
     /*
-     * Set the newest update timestamp to the approximate newest global timestamp, this is only
-     * used to optimize eviction decisions. It is approximate and that's OK.
-     * These are shared variables - more care should be taken if we choose to merge this change.
+     * Set the newest update timestamp to the approximate newest global timestamp, this is only used
+     * to optimize eviction decisions. It is approximate and that's OK.
      */
     if (S2C(session)->txn_global.newest_seen_timestamp > page->modify->newest_commit_timestamp)
         page->modify->newest_commit_timestamp = S2C(session)->txn_global.newest_seen_timestamp;

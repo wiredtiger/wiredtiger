@@ -2024,10 +2024,10 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_last_running);
         return (true);
     } else if (F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT) &&
-        ((conn->txn_global.checkpoint_running &&
-            page->modify->newest_commit_timestamp > conn->txn_global.checkpoint_timestamp) ||
+      ((conn->txn_global.checkpoint_running &&
+         page->modify->newest_commit_timestamp > conn->txn_global.checkpoint_timestamp) ||
         (!conn->txn_global.checkpoint_running &&
-        page->modify->newest_commit_timestamp > conn->txn_global.stable_timestamp))) {
+          page->modify->newest_commit_timestamp > conn->txn_global.stable_timestamp))) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
         return (true);
     }
