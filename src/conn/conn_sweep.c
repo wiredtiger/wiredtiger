@@ -41,7 +41,7 @@ __sweep_file_dhandle_check_and_reset_tod(WT_SESSION_IMPL *session, WT_DATA_HANDL
          */
         if (ret == 0) {
             dhandle->timeofdeath = 0;
-            /* session->dhandle = NULL; */
+            session->dhandle = NULL;
             return (ret);
         }
     }
@@ -230,8 +230,6 @@ __sweep_discard_trees(WT_SESSION_IMPL *session, u_int *dead_handlesp)
 
         if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || !F_ISSET(dhandle, WT_DHANDLE_DEAD))
             continue;
-        __wt_verbose_level(
-          session, WT_VERB_COMPACT, WT_VERBOSE_WARNING, "Discarding dhandler %s", dhandle->name);
         /* If the handle is marked dead, flush it from cache. */
         WT_WITH_DHANDLE(
           session, dhandle, ret = __wt_conn_dhandle_close(session, false, false, false));
@@ -336,8 +334,8 @@ static int
 __sweep_check_session_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
-    __wt_verbose_level(session, WT_VERB_COMPACT, WT_VERBOSE_WARNING,
-      "__sweep_check_session_callback, session dhandle name %s",
+    __wt_verbose_level(session, WT_VERB_DEFAULT, WT_VERBOSE_DEBUG_3,
+      "Checking sweep, session dhandle name %s",
       session->dhandle == NULL ? "EMPTY" : session->dhandle->name);
 
     WT_SWEEP_COOKIE *cookie;

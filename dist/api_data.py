@@ -891,6 +891,7 @@ connection_runtime_config = [
             'compact',
             'compact_progress',
             'configuration',
+            'default',
             'disaggregated_storage',
             'error_returns',
             'eviction',
