@@ -429,6 +429,9 @@ struct __wt_page_modify {
     /* The largest update transaction ID (approximate). */
     wt_shared uint64_t update_txn;
 
+    /* An approximate timestamp of the newest update */
+    wt_timestamp_t newest_commit_timestamp; 
+
     /* Dirty bytes added to the cache. */
     wt_shared uint64_t bytes_dirty;
     wt_shared uint64_t bytes_updates;

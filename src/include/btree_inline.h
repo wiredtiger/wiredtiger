@@ -64,6 +64,20 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
     btree = S2BT(session);
     page = ref->page;
 
+    if (!__wt_evict_page_is_soon_or_wont_need(page))
+        return (false);
+
+    /*
+     * Don't schedule pages that will require an update-restore eviction. Wait for them to
+     * be old enough to get evicted. 
+     */
+    if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_PRECISE_CHECKPOINT) && !__wt_cache_aggressive(session) && __wt_page_is_modified(page) &&
+        ((S2C(session)->txn_global.checkpoint_running &&
+            page->modify->newest_commit_timestamp > S2C(session)->txn_global.checkpoint_timestamp) ||
+        (!S2C(session)->txn_global.checkpoint_running &&
+        page->modify->newest_commit_timestamp > S2C(session)->txn_global.stable_timestamp)))
+        return (false);
+
     /*
      * Attempt to evict pages with the special "oldest" read generation. This is set for pages that
      * grow larger than the configured memory_page_max setting, when we see many deleted items, and
@@ -74,7 +88,7 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      * checkpointed, and no other thread can help with that. Checkpoints don't rely on this code for
      * dirty eviction: that is handled explicitly in __wt_sync_file.
      */
-    if (__wt_evict_page_is_soon_or_wont_need(page) && btree->evict_disabled == 0 &&
+    if (btree->evict_disabled == 0 &&
       __wt_page_can_evict(session, ref, inmem_split) &&
       (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page)))
         return (true);
