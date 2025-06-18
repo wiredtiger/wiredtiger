@@ -34,6 +34,7 @@
 
 #include "model/data_value.h"
 #include "model/kv_checkpoint.h"
+#include "model/kv_transaction.h"
 #include "model/kv_update.h"
 
 namespace model {

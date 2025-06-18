@@ -755,7 +755,7 @@ test_transaction_prepared(void)
     testutil_check(table->insert(txn1, key3, value3));
     txn2 = database.begin_transaction();
     txn1->prepare(70);
-    testutil_assert(table->get_ext(key3, v) == WT_NOTFOUND);
+    testutil_assert(table->get_ext(txn2, key3, v) == WT_NOTFOUND);
     txn1->commit(70, 70);
     txn2->commit(70);
 
@@ -764,7 +764,7 @@ test_transaction_prepared(void)
     testutil_check(table->insert(txn1, key3, value1));
     txn1->prepare(80);
     txn2 = database.begin_transaction();
-    testutil_assert(table->get_ext(key3, v) == WT_PREPARE_CONFLICT);
+    testutil_assert(table->get_ext(txn2, key3, v) == WT_PREPARE_CONFLICT);
     txn1->commit(80, 80);
     txn2->commit(80);
 
@@ -774,7 +774,7 @@ test_transaction_prepared(void)
     txn1->prepare(90);
     txn2 = database.begin_transaction();
     txn1->commit(90, 90);
-    testutil_assert(table->get_ext(key3, v) == 0);
+    testutil_assert(table->get_ext(txn2, key3, v) == 0);
     testutil_assert(v == value2);
     txn2->commit(90);
 }
@@ -871,7 +871,7 @@ test_transaction_prepared_wt(void)
     wt_model_txn_insert_both(table, uri, txn1, session1, key3, value3);
     wt_model_txn_begin_both(txn2, session2);
     wt_model_txn_prepare_both(txn1, session1, 70);
-    wt_model_txn_assert_ext(table, uri, txn2, session2, key3); /* not found */
+    wt_model_txn_assert(table, uri, txn2, session2, key3); /* not found */
     wt_model_txn_commit_both(txn1, session1, 70, 70);
     wt_model_txn_commit_both(txn2, session2, 70, 0);
 
@@ -880,7 +880,7 @@ test_transaction_prepared_wt(void)
     wt_model_txn_insert_both(table, uri, txn1, session1, key3, value1);
     wt_model_txn_prepare_both(txn1, session1, 80);
     wt_model_txn_begin_both(txn2, session2);
-    wt_model_txn_assert_ext(table, uri, txn2, session2, key3); /* conflict */
+    wt_model_txn_assert(table, uri, txn2, session2, key3); /* conflict */
     wt_model_txn_commit_both(txn1, session1, 80, 80);
     wt_model_txn_commit_both(txn2, session2, 80, 0);
 
@@ -890,7 +890,7 @@ test_transaction_prepared_wt(void)
     wt_model_txn_prepare_both(txn1, session1, 90);
     wt_model_txn_begin_both(txn2, session2);
     wt_model_txn_commit_both(txn1, session1, 90, 90);
-    wt_model_txn_assert_ext(table, uri, txn2, session2, key3); /* success */
+    wt_model_txn_assert(table, uri, txn2, session2, key3); /* success */
     wt_model_txn_commit_both(txn2, session2, 90, 0);
 
     /* Verify. */

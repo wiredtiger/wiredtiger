@@ -32,8 +32,11 @@
 #include <list>
 #include <sstream>
 
+#include "model/core.h"
 #include "model/kv_table.h"
 #include "model/kv_table_item.h"
+#include "model/kv_transaction_snapshot.h"
+#include "model/kv_update.h"
 #include "wiredtiger.h"
 
 namespace model {
@@ -58,7 +61,7 @@ void
 kv_table_item::add_update_nolock(
   std::shared_ptr<kv_update> update, bool must_exist, bool must_not_exist)
 {
-    kv_update::timestamp_comparator cmp;
+    kv_update::commit_timestamp_comparator cmp;
 
     /* If this is a non-timestamped update, there cannot be existing timestamped updates. */
     if (update->global())
@@ -147,7 +150,7 @@ kv_table_item::contains_any(const data_value &value, kv_transaction_snapshot_ptr
   timestamp_t read_timestamp, timestamp_t stable_timestamp) const
 {
     std::lock_guard lock_guard(_lock);
-    kv_update::timestamp_comparator cmp;
+    kv_update::commit_timestamp_comparator cmp;
 
     /* Position the cursor on the update that is right after the provided timestamp. */
     auto i = std::upper_bound(_updates.begin(), _updates.end(), read_timestamp, cmp);
@@ -236,13 +239,11 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
   timestamp_t read_timestamp, timestamp_t stable_timestamp) const
 {
     std::lock_guard lock_guard(_lock);
-    kv_update::timestamp_comparator cmp;
+    /* Note: unlike other ops, we need to search by prepare timestamp, not the commit one. */
+    kv_update::prepare_timestamp_comparator cmp;
 
     if (_updates.empty())
         return NONE;
-
-    if (has_prepared_nolock(read_timestamp))
-        throw wiredtiger_exception(WT_PREPARE_CONFLICT);
 
     /*
      * See if the transaction wrote something - we read our own writes, irrespective of the read
@@ -256,27 +257,46 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
     /* Otherwise do a regular read using the transaction's read timestamp and snapshot. */
     auto i = std::upper_bound(_updates.begin(), _updates.end(), read_timestamp, cmp);
 
-    /* Return the most recent visible value. */
+    /* Non-transaction rules: return the most recent visible value. */
     if (!txn_snapshot) {
         if (stable_timestamp != k_timestamp_latest)
             throw model_exception(
               "If the stable timestamp is set, the transaction snapshot must be set also");
         while (i != _updates.begin()) {
             const std::shared_ptr<kv_update> &u = *(--i);
-            if (u->committed())
+            /* If our read timestamp predates the update being prepared, just read it. */
+            if (u->prepared() && read_timestamp < u->txn()->prepare_timestamp()) {
                 return u->value();
+            } else if (u->prepared()) {
+                /* A read timestamped after a prepare (but before commit) conflicts. */
+                throw wiredtiger_exception(WT_PREPARE_CONFLICT);
+            } else if (u->committed()) {
+                /* All else aside, committed updates before our read timestamp are visible. */
+                return u->value();
+            }
         }
         return NONE;
     } else {
+        /* Transaction read rules. */
         while (i != _updates.begin()) {
             const std::shared_ptr<kv_update> &u = *(--i);
             /*
-             * The transaction snapshot includes only committed transactions, so no need to check
-             * whether the update is actually committed.
+             * Read the update if it's in the transaction's snapshot.
              */
             if (txn_snapshot->contains(*u) && u->durable_timestamp() <= stable_timestamp) {
-                assert(u->committed());
-                return u->value();
+                /*
+                 * Only raise an error for prepared updates by transactions that weren't active when
+                 * the transaction started. Updates prepared before the start of this transaction
+                 * are ignored, unless they are also committed before this read, then they are
+                 * visible.
+                 */
+                if (u->prepared()) {
+                    throw wiredtiger_exception(WT_PREPARE_CONFLICT);
+                } else {
+                    /* Otherwise, the update must have been committed, and we read it. */
+                    assert(u->committed());
+                    return u->value();
+                }
             }
         }
         return NONE;
@@ -294,7 +314,7 @@ kv_table_item::fix_timestamps(
   txn_id_t txn_id, timestamp_t commit_timestamp, timestamp_t durable_timestamp)
 {
     std::lock_guard lock_guard(_lock);
-    kv_update::timestamp_comparator cmp;
+    kv_update::commit_timestamp_comparator cmp;
 
     /*
      * Remove matching elements from the collection of updates. Note that we cannot use
@@ -341,7 +361,7 @@ kv_table_item::has_prepared(timestamp_t timestamp) const
 bool
 kv_table_item::has_prepared_nolock(timestamp_t timestamp) const
 {
-    kv_update::timestamp_comparator cmp;
+    kv_update::commit_timestamp_comparator cmp;
 
     /*
      * Check only updates with the initial commit timestamp. An update in a prepared transaction is

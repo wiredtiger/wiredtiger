@@ -295,20 +295,12 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
  * wt_model_txn_assert --
  *     Check that the key has the same value in the model as in the database.
  */
-#define wt_model_txn_assert(table, uri, txn, session, key, ...) \
-    wt_model_assert_equal(                                      \
-      table->get(txn, key, ##__VA_ARGS__), wt_txn_get(session, uri, key, ##__VA_ARGS__));
-
-/*
- * wt_model_txn_assert_outcome --
- *     Check that the key has the same value in the model as in the database.
- */
-#define wt_model_txn_assert_ext(table, uri, txn, session, key, ...)               \
-    {                                                                             \
-        model::data_value model_out, wt_out;                                      \
-        wt_model_assert_equal(table->get_ext(txn, key, model_out, ##__VA_ARGS__), \
-          wt_txn_get_ext(session, uri, key, wt_out, ##__VA_ARGS__));              \
-        wt_model_assert_equal(model_out, wt_out);                                 \
+#define wt_model_txn_assert(table, uri, txn, session, key, ...)                     \
+    {                                                                               \
+        model::data_value __model_out, __wt_out;                                    \
+        wt_model_assert_equal(table->get_ext(txn, key, __model_out, ##__VA_ARGS__), \
+          wt_txn_get_ext(session, uri, key, __wt_out, ##__VA_ARGS__));              \
+        wt_model_assert_equal(__model_out, __wt_out);                               \
     }
 
 /*

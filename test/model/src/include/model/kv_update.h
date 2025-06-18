@@ -30,6 +30,7 @@
 
 #include <memory>
 
+#include "model/core.h"
 #include "model/data_value.h"
 #include "model/kv_transaction.h"
 
@@ -46,13 +47,13 @@ class kv_update {
 
 public:
     /*
-     * kv_update::timestamp_comparator --
-     *     The comparator that uses timestamps only.
+     * kv_update::commit_timestamp_comparator --
+     *     Comparator that uses commit timestamps.
      */
-    struct timestamp_comparator {
+    struct commit_timestamp_comparator {
 
         /*
-         * kv_update::timestamp_comparator::operator() --
+         * kv_update::commit_timestamp_comparator::operator() --
          *     Compare two updates.
          */
         bool
@@ -62,7 +63,7 @@ public:
         }
 
         /*
-         * kv_update::timestamp_comparator::operator() --
+         * kv_update::commit_timestamp_comparator::operator() --
          *     Compare the update to the given timestamp.
          */
         bool
@@ -72,7 +73,7 @@ public:
         }
 
         /*
-         * kv_update::timestamp_comparator::operator() --
+         * kv_update::commit_timestamp_comparator::operator() --
          *     Compare the update to the given timestamp.
          */
         bool
@@ -82,7 +83,7 @@ public:
         }
 
         /*
-         * kv_update::timestamp_comparator::operator() --
+         * kv_update::commit_timestamp_comparator::operator() --
          *     Compare two updates.
          */
         bool
@@ -94,7 +95,7 @@ public:
         }
 
         /*
-         * kv_update::timestamp_comparator::operator() --
+         * kv_update::commit_timestamp_comparator::operator() --
          *     Compare the update to the given timestamp.
          */
         bool
@@ -106,7 +107,7 @@ public:
         }
 
         /*
-         * kv_update::timestamp_comparator::operator() --
+         * kv_update::commit_timestamp_comparator::operator() --
          *     Compare the update to the given timestamp.
          */
         bool
@@ -115,6 +116,29 @@ public:
             if (!right) /* handle nullptr */
                 return false;
             return timestamp < right->_commit_timestamp;
+        }
+    };
+
+    /*
+     * kv_update::prepare_timestamp_comparator --
+     *     Comparator that uses prepare timestamps.
+     */
+    struct prepare_timestamp_comparator {
+        /*
+         * kv_update::prepare_timestamp_comparator::operator() --
+         *     Compare the timestamp with the associated transaction's prepare timestamp if there is
+         *     one, otherwise the commit timestamp.
+         */
+        bool
+        operator()(timestamp_t timestamp, const std::shared_ptr<kv_update> &right) const noexcept
+        {
+            if (!right)
+                return false;
+            if (right->prepared()) {
+                return timestamp < right->txn()->prepare_timestamp();
+            } else {
+                return timestamp < right->_commit_timestamp;
+            }
         }
     };
 
