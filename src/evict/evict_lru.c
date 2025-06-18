@@ -2055,7 +2055,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * hopefully they can accumulate more changes before being reconciled. Currently only for
      * disaggregated storage.
      */
-    if (__wt_conn_is_disagg(conn) && F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY) &&
+    if (__wt_conn_is_disagg(session) && F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY) &&
       page->modify->page_state < WT_EVICT_MODIFY_COUNT_MIN &&
       __wt_cache_dirty_leaf_inuse(conn->cache) <
         (uint64_t)((conn->evict->eviction_dirty_trigger - 2) * conn->cache_size) / 100)
