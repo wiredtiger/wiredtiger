@@ -53,6 +53,7 @@ func_ok()
         -e '/int __im_fs_directory_list_free$/d' \
         -e '/int __im_fs_exist$/d' \
         -e '/int __layered_modify_check$/d' \
+        -e '/int __layered_table_manager_thread_run$/d' \
         -e '/int __log_record_verify$/d' \
         -e '/int __log_salvage_message$/d' \
         -e '/int __page_write_gen_wrapped_check$/d' \
@@ -211,7 +212,6 @@ func_ok()
         -e '/int zstd_terminate$/d' \
         -e '/int __wt_curhs_search_near_after$/d' \
         -e '/int __wt_curhs_search_near_before$/d' \
-        -e '/int __wt_layered_table_manager_thread_run/d' \
         -e '/int __wt_logrec_read$/d' \
         -e '/int __wt_logop_read$/d' \
         -e '/int __wt_logop_unpack$/d' \

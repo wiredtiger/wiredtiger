@@ -628,8 +628,8 @@ __schema_open_layered_ingest(WT_SESSION_IMPL *session, WT_LAYERED_TABLE *layered
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
 
     /*
-     * TODO this is a bit of a hack. The problem is that during shutdown, all dhandles are closed.
-     * But as part of closing a layered table, we need to get the IDs of the B-Trees backing the
+     * This is a bit of a hack. The problem is that during shutdown, all dhandles are closed. But as
+     * part of closing a layered table, we need to get the IDs of the B-Trees backing the
      * constituent tables (to remove them from the manager thread). This involves dereferencing the
      * dhandle pointer, but that's been freed.
      */
@@ -664,7 +664,7 @@ __schema_open_layered(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
-    /* TODO: Setup collator information */
+    /* FIXME-WT-14738: Setup collator information. */
     layered->collator = NULL;
     layered->collator_owned = 0;
 
