@@ -624,13 +624,16 @@ __live_restore_can_service_read(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_
      * If we still haven't reached the end of the read range then this is an invalid case where a
      * set bit appears after an unset bit in the range, e.g. 11000011, 00001111, or 00110011.
      */
+    WT_UNUSED(__live_restore_dump_bitmap);
+    /*
+    This no longer holds true in the "conflate writes" world.
     if (current_bit != read_end_bit) {
         WT_IGNORE_RET(__live_restore_dump_bitmap(session, lr_fh));
         WT_ASSERT_ALWAYS(session, false,
           "Read (offset: %" PRId64 ", len: %" WT_SIZET_FMT ") found a set bit (offset: %" PRId64
           ") after a hole.",
           offset, len, WTI_BIT_TO_OFFSET(current_bit));
-    }
+    }*/
     return (false);
 }
 
@@ -649,6 +652,216 @@ __live_restore_fh_write_destination(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_F
 }
 
 /*
+ * __live_restore_fh_read_source --
+ *     Read data from the source directory and update appropriate statistics.
+ */
+static int
+__live_restore_fh_read_source(
+  WT_SESSION_IMPL *session, WT_FILE_HANDLE *source, wt_off_t off, size_t len, void *buf)
+{
+    uint64_t time_start, time_stop;
+
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
+
+    time_start = __wt_clock(session);
+    WT_RET(source->fh_read(source, (WT_SESSION *)session, off, len, buf));
+    time_stop = __wt_clock(session);
+    __wt_stat_msecs_hist_incr_live_restore(session, WT_CLOCKDIFF_MS(time_stop, time_start));
+    WT_STAT_CONN_INCR(session, live_restore_source_read_count);
+    return (0);
+}
+
+/*
+ * __live_restore_write_conflate --
+ *     Conflate writes to ensure alignment with incremental backup granularity.
+ */
+static int
+__live_restore_write_conflate(WT_SESSION_IMPL *session, WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh,
+  wt_off_t offset, size_t len, const void *buf, char **tmp_bufp, wt_off_t *tmp_offsetp,
+  size_t *tmp_lenp)
+{
+    /*
+     * Given a write of size N, add the relevant bits from the source file so that the write is
+     * equal to the incremental backup granularity of size G. To simplify the logic a little we
+     * assert that the incremental backup cursor granularity is the same as the live restore read
+     * size M.
+     *
+     * There are two write paths:
+     *   1: Live restore background threads.
+     *   2: New blocks being written as a result of application modifications.
+     *
+     * The background threads will move across M size blocks. Let's say, for example, that a
+     * background thread wants to write at offset O, length M. Now lets say a previous write is
+     * found at offset X where O < X < O + M, in the previous implementation it will read up to X
+     * and thus the read size will equal X - M. In the conflate writes worlds this no longer holds
+     * true. We will always write M size blocks and can therefore assert that we never see a write
+     * partway through the range of O + M.
+     *
+     * Furthermore the following assertions should hold for the background thread writes entering
+     * this function:
+     *   - They must be size M (for the above reason).
+     *   - They must be aligned to the relevant incremental backup boundary. i.e. O % G == 0.
+     *
+     * The background thread write path is therefore trivial in comparison to the application
+     * modification (AM) write path. AM writes are not guaranteed to be aligned. Let's say we have
+     * an AM write, offset Y, size A. must be an allocsize multiple. The range Y + A could overlap
+     * with the border of a incremental backup segment. Imagine it is at offset (border)-4K, and the
+     * block is 8K. We've now dirtied two incremental backup bits. We also need to factor in the
+     * length of the source file and ensure that we don't attempt to read beyond the end of it when
+     * conflating the range of the given incremental backup bit or bits.
+     *
+     * Similar to the background thread writes we can assert that for any AM write we must either be
+     * writing to a range of entirely 0's or 1's in the live restore bitmap.
+     *
+     * Now what happens if we have two application writes in flight at the same time for the same
+     * file, and same incremental backup segment? By virtue of locking around the critical section
+     * i.e. the write path, this is safe. Additionally the block manager live lock will be held
+     * serializing AM writes to given file.
+     *
+     * Finally, in order for the below logic to work we have a dependency on WiredTiger never
+     * creating holes in the file. If we define the source file size to be S, then we expect that
+     * the write that will conflate any content from the backup boundary up to S will be aligned
+     * with S. That is any AM write with offset Z must be either <= source_size or not requiring
+     * conflation.
+     */
+    WT_DECL_RET;
+
+    WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
+      "Live restore lock not taken when needed");
+    wt_off_t granularity = (wt_off_t)lr_fh->back_pointer->read_size;
+    WT_ASSERT_ALWAYS(session, granularity > 0, "Granularity must be greater than zero");
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_INCR_BACKUP))
+        WT_ASSERT_ALWAYS(session,
+          S2C(session)->incr_granularity == (uint64_t)lr_fh->back_pointer->read_size,
+          "The connection incremental backup granularity does not match the live restore read "
+          "size.");
+    WT_ASSERT(session, !WTI_DEST_COMPLETE(lr_fh));
+
+    /*
+     * I would like to be able to assert that write length is always shorter than the granularity
+     * but that is not always true.
+     */
+    wt_off_t source_size;
+    WT_RET(lr_fh->source->fh_size(lr_fh->source, (WT_SESSION *)session, &source_size));
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+      "Checking if write needs conflation. Offset: (%" PRId64 "), Len: (%" WT_SIZET_FMT ")", offset,
+      len);
+
+    /*
+     * The source size check here prevents us from handling any writes that are beyond the border of
+     * the source file. That said it is still very important that we conflate the write of the.
+     * directly adjacent block, e.g. if the source file is 12K and the offset of the write to be
+     * conflated 12K then we must conflate it. But a 16K write would not be conflated.
+     */
+    wt_off_t write_start = offset;
+    wt_off_t write_end = WTI_OFFSET_END(offset, len);
+    bool start_relevant = offset <= source_size;
+    bool end_relevant = write_end < source_size;
+    if (!start_relevant && !end_relevant)
+        return (0);
+
+    /* Assert that the end cannot be true and start be false. */
+    WT_ASSERT_ALWAYS(session, (!end_relevant && start_relevant) || (start_relevant && end_relevant),
+      "Computation of write location failed!");
+
+    /*
+     * Set this variable up a bit early, in the event the write is aligned we'll only read the
+     * source from the write_end onwards.
+     */
+    bool conflate_start = false, conflate_end = false;
+    wt_off_t conflate_read_start = write_end;
+    wt_off_t alignment = write_start % granularity;
+    /* The write is not aligned to an incremental backup segment. */
+    if (alignment != 0) {
+        conflate_read_start = write_start - alignment;
+        bool set = false;
+        for (uint64_t i = WTI_OFFSET_TO_BIT(conflate_read_start);
+             i < WTI_OFFSET_TO_BIT(write_start); i++) {
+            /*
+             * We can do error checking here. Given we do read conflation we should either see every
+             * bit set or no bits set.
+             */
+            if (i == WTI_OFFSET_TO_BIT(conflate_read_start))
+                set = __bit_test(lr_fh->bitmap, i);
+            WT_ASSERT_ALWAYS(session, set == __bit_test(lr_fh->bitmap, i),
+              "Bitmap corruption detected in live restore.");
+        }
+        if (!set)
+            conflate_start = true;
+    }
+
+    /* Similarly to above we'll only read up to the start of our write if the end is aligned. */
+    wt_off_t conflate_read_end = write_start;
+    if (end_relevant) {
+        alignment = write_end % granularity;
+        if (alignment != 0) {
+            conflate_read_end = WT_MIN(source_size, write_end + (granularity - alignment));
+            bool set = false;
+            for (uint64_t i = WTI_OFFSET_TO_BIT(write_end) - 1;
+                 i < WTI_OFFSET_TO_BIT(conflate_read_end) - 1; i++) {
+                /*
+                 * We can do error checking here. Given we do read conflation we should either see
+                 * every bit set or no bits set.
+                 */
+                if (i == WTI_OFFSET_TO_BIT(write_end) - 1)
+                    set = __bit_test(lr_fh->bitmap, i);
+                WT_ASSERT_ALWAYS(session, set == __bit_test(lr_fh->bitmap, i),
+                  "Bitmap corruption detected in live restore.");
+            }
+            if (!set)
+                conflate_end = true;
+        }
+    }
+
+    /* Both the start and end were aligned with the incremental backup boundary. */
+    if (!conflate_start && !conflate_end)
+        return (0);
+
+    bool both = conflate_start && conflate_end;
+    size_t read_size = (size_t)(conflate_read_end - conflate_read_start);
+    char *tmp_buf = NULL;
+    const char *location = both ? "both sides of" : conflate_start ? "before" : "after";
+    __wt_verbose_debug2(session, WT_VERB_LIVE_RESTORE,
+      "Conflating write to offset (%" PRId64 ") of size (%" WT_SIZET_FMT
+      ") reading source data from %s the write with size (%" WT_SIZET_FMT ")",
+      offset, len, location, read_size);
+    size_t write_size = read_size + (!both ? len : 0);
+    WT_ERR(__wt_malloc(session, write_size, &tmp_buf));
+    *tmp_offsetp = offset;
+    if (both || conflate_start) {
+        /* Read the whole thing out of the source. */
+        WT_ERR(__live_restore_fh_read_source(
+          session, lr_fh->source, conflate_read_start, read_size, tmp_buf));
+        /* Copy our write into the buffer. */
+        memcpy(tmp_buf + (offset - conflate_read_start), buf, len);
+        *tmp_offsetp = conflate_read_start;
+    } else {
+        /* Copy our write into the buffer. */
+        memcpy(tmp_buf, buf, len);
+        /* Shift a pointer to the buffer. */
+        char *shifted = tmp_buf + len;
+        /* Read the source content. */
+        WT_ERR(
+          __live_restore_fh_read_source(session, lr_fh->source, write_end, read_size, shifted));
+    }
+    *tmp_bufp = tmp_buf;
+    *tmp_lenp = write_size;
+
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+      "Source size: %" PRId64 ", New offset: %" PRId64 ", New len: %" WT_SIZET_FMT, source_size,
+      *tmp_offsetp, *tmp_lenp);
+    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE,
+      "Conflate start (Y/N): %s, end (Y/N): %s, conflate read start: %" PRId64
+      ", conflate read end: %" PRId64,
+      conflate_start ? "Y" : "N", conflate_end ? "Y" : "N", conflate_read_start, conflate_read_end);
+    if (0) {
+err:
+        __wt_free(session, tmp_buf);
+    }
+    return (ret);
+}
+
+/*
  * __live_restore_fh_write_int --
  *     Write to a file. Callers of this function must hold the file handle lock.
  */
@@ -656,6 +869,7 @@ static int
 __live_restore_fh_write_int(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t offset, size_t len,
   const void *buf, bool background_thread)
 {
+    WT_DECL_RET;
     WTI_LIVE_RESTORE_FILE_HANDLE *lr_fh;
     WT_SESSION_IMPL *session;
 
@@ -664,11 +878,26 @@ __live_restore_fh_write_int(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, wt_off_t
 
     WT_ASSERT_ALWAYS(session, __wt_rwlock_islocked(session, &lr_fh->lock),
       "Live restore lock not taken when needed");
-    WT_RET(__live_restore_fh_write_destination(session, lr_fh, offset, len, buf));
+
+    char *conflate_buf = NULL;
+    size_t conflate_len = 0;
+    wt_off_t conflate_offset = 0;
+    WT_ERR(__live_restore_write_conflate(
+      session, lr_fh, offset, len, buf, &conflate_buf, &conflate_offset, &conflate_len));
+    if (conflate_buf != NULL) {
+        WT_ASSERT(session, conflate_len != 0);
+        len = conflate_len;
+        offset = conflate_offset;
+    }
+    WT_ERR(__live_restore_fh_write_destination(
+      session, lr_fh, offset, len, conflate_buf == NULL ? buf : conflate_buf));
+
     if (background_thread)
         WT_STAT_CONN_INCRV(session, live_restore_bytes_copied, len);
     __live_restore_fh_fill_bit_range(lr_fh, session, offset, len);
-    return (0);
+err:
+    __wt_free(session, conflate_buf);
+    return (ret);
 }
 
 /*
@@ -709,26 +938,6 @@ __live_restore_fh_read_destination(
 {
     __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM DEST");
     return (destination->fh_read(destination, (WT_SESSION *)session, offset, len, buf));
-}
-
-/*
- * __live_restore_fh_read_source --
- *     Read data from the source directory and update appropriate statistics.
- */
-static int
-__live_restore_fh_read_source(
-  WT_SESSION_IMPL *session, WT_FILE_HANDLE *source, wt_off_t off, size_t len, void *buf)
-{
-    uint64_t time_start, time_stop;
-
-    __wt_verbose_debug3(session, WT_VERB_LIVE_RESTORE, "%s", "    READ FROM SOURCE");
-
-    time_start = __wt_clock(session);
-    WT_RET(source->fh_read(source, (WT_SESSION *)session, off, len, buf));
-    time_stop = __wt_clock(session);
-    __wt_stat_msecs_hist_incr_live_restore(session, WT_CLOCKDIFF_MS(time_stop, time_start));
-    WT_STAT_CONN_INCR(session, live_restore_source_read_count);
-    return (0);
 }
 
 /*
