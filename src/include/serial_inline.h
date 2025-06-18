@@ -244,7 +244,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
 
     /*
      * Set the newest update timestamp to the approximate newest global timestamp, this is only used
-     * to optimize eviction decisions. It is approximate and that's OK. 
+     * to optimize eviction decisions. It is approximate and that's OK.
      */
     if (S2C(session)->txn_global.newest_seen_timestamp > page->modify->newest_commit_timestamp)
         page->modify->newest_commit_timestamp = S2C(session)->txn_global.newest_seen_timestamp;
