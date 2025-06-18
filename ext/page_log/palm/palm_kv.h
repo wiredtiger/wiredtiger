@@ -38,7 +38,6 @@
 #define WT_MILLION 1000000
 #endif
 
-
 /*
  * PALM flags start at the 16th bit (0x10000u) to avoid conflicts with __wt_page_log_put_args flags,
  * starting at the next power of 2 after 0x8000 (32768).
