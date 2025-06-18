@@ -834,7 +834,8 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         }
 
         /* We should not request a page that is discarded. */
-        assert((matches.flags & WT_PALM_KV_TOMBSTONE) == 0);
+        ret = (matches.flags & WT_PALM_KV_TOMBSTONE) == 0 ? 0 : EINVAL;
+        PALM_KV_ERR(palm, session, ret);
 
         last_lsn = matches.lsn;
         last_checkpoint_id = matches.checkpoint_id;
