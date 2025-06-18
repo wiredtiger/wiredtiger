@@ -815,6 +815,7 @@ connection_runtime_config = [
             'compact',
             'compact_progress',
             'configuration',
+            'default',
             'error_returns',
             'eviction',
             'fileops',

@@ -44,7 +44,8 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
     numkv = 100
     conn_config = 'file_manager=(close_handle_minimum=10,' + \
                   'close_idle_time=0,close_scan_interval=1),' + \
-                  'statistics=(fast),'
+                  'statistics=(fast),' + \
+                  'verbose=(default:2)'
 
     types = [
         ('row', dict(tabletype='row',
