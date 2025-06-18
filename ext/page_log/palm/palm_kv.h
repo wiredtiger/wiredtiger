@@ -38,7 +38,12 @@
 #define WT_MILLION 1000000
 #endif
 
-#define WT_PALM_KV_TOMBSTONE 0x1u
+
+/*
+ * PALM flags start at the 16th bit (0x10000u) to avoid conflicts with __wt_page_log_put_args flags,
+ * starting at the next power of 2 after 0x8000 (32768).
+ */
+#define WT_PALM_KV_TOMBSTONE 0x10000u
 
 /*
  * This include file creates a tiny bit of abstraction for the KV database used, in case we want to
