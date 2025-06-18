@@ -72,7 +72,7 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      * enough to get evicted.
      */
     if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
-      !__wt_cache_aggressive(session) && __wt_page_is_modified(page) &&
+      !__wt_evict_aggressive(session) && __wt_page_is_modified(page) &&
       ((S2C(session)->txn_global.checkpoint_running &&
          page->modify->newest_commit_timestamp > S2C(session)->txn_global.checkpoint_timestamp) ||
         (!S2C(session)->txn_global.checkpoint_running &&
