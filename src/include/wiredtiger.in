@@ -5543,10 +5543,10 @@ struct __wt_page_log_put_args {
        char dek[32]; /* an encrypted version of the key used to encrypt data */
 
        /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_PAGE_LOG_COMPRESSED 0x1ull
-#define WT_PAGE_LOG_DELTA 0x2ull
-#define WT_PAGE_LOG_ENCRYPTED 0x4ull
-        /* AUTOMATIC FLAG VALUE GENERATION STOP 32768 */
+#define WT_PAGE_LOG_COMPRESSED 0x1u
+#define WT_PAGE_LOG_DELTA 0x2u
+#define WT_PAGE_LOG_ENCRYPTED 0x4u
+        /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
 
        uint32_t flags;
 

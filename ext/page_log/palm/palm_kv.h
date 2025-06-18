@@ -39,8 +39,7 @@
 #endif
 
 /*
- * PALM flags start at the 16th bit (0x10000u) to avoid conflicts with __wt_page_log_put_args flags,
- * starting at the next power of 2 after 0x8000 (32768).
+ * PALM flags start at the 16th bit (0x10000u) to avoid conflicts with __wt_page_log_put_args flags.
  */
 #define WT_PALM_KV_TOMBSTONE 0x10000u
 
