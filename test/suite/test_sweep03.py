@@ -99,7 +99,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         close1 = stat_cursor[stat.conn.dh_sweep_dead_close][2]
         stat_cursor.close()
-
+        self.ignoreStdoutPatternIfExists('session dhandle name')
         # We expect nothing to have been closed.
         self.assertEqual(close1, 0)
 
@@ -137,6 +137,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(close2, 1)
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
+        self.ignoreStdoutPatternIfExists('session dhandle name')
 
     @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_disable_idle_timeout_drop(self):
@@ -170,6 +171,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(close2, close1)
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
+        self.ignoreStdoutPatternIfExists('session dhandle name')
 
     # FIXME - WT11133 Uncomment and re-enable this test after fixing this ticket.
     # def test_force_drop_and_sweep(self):
