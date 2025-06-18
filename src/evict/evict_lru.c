@@ -2927,6 +2927,26 @@ __wti_evict_app_assist_worker(
                 break;
         }
 
+        /* Update cache metrics if we are stalling to detect a timeout quicker.*/
+        if (time_start != 0) {
+            uint64_t time_stop = __wt_clock(session);
+            uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+            WT_STAT_CONN_INCR(session, application_cache_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
+            if (!interruptible) {
+                WT_STAT_CONN_INCR(session, application_cache_uninterruptible_ops);
+                WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
+                WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
+            } else {
+                WT_STAT_CONN_INCR(session, application_cache_interruptible_ops);
+                WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
+                WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
+            }
+            session->cache_wait_us += elapsed;
+            time_start = time_stop;
+        }
+
         /*
          * Check if we have become busy.
          *
@@ -2962,14 +2982,25 @@ __wti_evict_app_assist_worker(
             evict->app_waits++;
         } else if (ret != EBUSY)
             WT_ERR(ret);
-
-        /* Update cache metrics if we are stalling to detect a timeout quicker.*/
-        time_start = __update_cache_metrics(session, time_start, interruptible);
     }
 
 err:
     if (time_start != 0) {
-        time_start = __update_cache_metrics(session, time_start, interruptible);
+        uint64_t time_stop = __wt_clock(session);
+        uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
+        WT_STAT_CONN_INCR(session, application_cache_ops);
+        WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
+        WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
+        if (!interruptible) {
+            WT_STAT_CONN_INCR(session, application_cache_uninterruptible_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
+        } else {
+            WT_STAT_CONN_INCR(session, application_cache_interruptible_ops);
+            WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
+            WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
+        }
+        session->cache_wait_us += elapsed;
         /*
          * Check if a rollback is required only if there has not been an error. Returning an error
          * takes precedence over asking for a rollback. We can not do both.
@@ -3102,43 +3133,6 @@ void
 __wt_evict_priority_clear(WT_SESSION_IMPL *session)
 {
     S2BT(session)->evict_priority = 0;
-}
-
-/*
- * __update_cache_metrics --
- *     Update the cache metrics.
- */
-int
-__update_cache_metrics(WT_SESSION_IMPL *session, uint64_t time_start, bool interruptible)
-{
-    if (time_start != 0) {
-        uint64_t time_stop = __wt_clock(session);
-        uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
-
-        WT_STAT_CONN_INCR(session, application_cache_ops);
-        WT_STAT_CONN_INCRV(session, application_cache_time, elapsed);
-        WT_STAT_SESSION_INCRV(session, cache_time, elapsed);
-
-        if (!interruptible) {
-            /* Handle uninterruptible operations. */
-            WT_STAT_CONN_INCR(session, application_cache_uninterruptible_ops);
-            WT_STAT_CONN_INCRV(session, application_cache_uninterruptible_time, elapsed);
-            WT_STAT_SESSION_INCRV(session, cache_time_mandatory, elapsed);
-        } else {
-            /* Handle interruptible operations. */
-            WT_STAT_CONN_INCR(session, application_cache_interruptible_ops);
-            WT_STAT_CONN_INCRV(session, application_cache_interruptible_time, elapsed);
-            WT_STAT_SESSION_INCRV(session, cache_time_interruptible, elapsed);
-        }
-
-        /* Update session cache wait time. */
-        session->cache_wait_us += elapsed;
-
-        /* Return the updated time_stop to the caller for reuse. */
-        return (time_stop);
-    }
-    /* No update if time_start is 0. */
-    return (time_start);
 }
 
 /*
