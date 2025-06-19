@@ -59,7 +59,6 @@ typedef struct PALM_KV_CONTEXT {
     uint32_t materialization_delay_us;
 } PALM_KV_CONTEXT;
 
-
 typedef struct PALM_KV_PAGE_MATCHES {
     PALM_KV_CONTEXT *context;
 

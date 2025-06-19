@@ -78,8 +78,7 @@
         }                                                                                        \
     }
 
-#define PALM_ENCRYPTION_EQUAL(e1, e2) \
-    (memcmp((e1).dek, (e2).dek, sizeof((e1).dek)) == 0)
+#define PALM_ENCRYPTION_EQUAL(e1, e2) (memcmp((e1).dek, (e2).dek, sizeof((e1).dek)) == 0)
 /*
  * The default cache size for LMDB. Instead of changing this here, consider setting
  * cache_size_mb=.... when loading the extension library.
@@ -119,7 +118,7 @@ typedef struct {
     uint32_t materialization_delay_ms; /* Average length of materialization delay */
     uint64_t last_materialized_lsn;    /* The last materialized LSN (0 if not set) */
     uint32_t verbose;                  /* Verbose level */
-    uint32_t verbose_msg;                  /* Send verbose messages to msg callback interface */
+    uint32_t verbose_msg;              /* Send verbose messages to msg callback interface */
 
     /*
      * Statistics are collected but not yet exposed.
@@ -150,8 +149,8 @@ static int palm_configure_int(
 static int palm_err(PALM *, WT_SESSION *, int, const char *, ...);
 
 static int palm_kv_err(PALM *, WT_SESSION *, int, const char *, ...);
-static int palm_get_dek(PALM *, WT_SESSION *, const WT_PAGE_LOG_ENCRYPTION *, uint64_t, uint64_t, bool,
-  uint64_t, WT_PAGE_LOG_ENCRYPTION *);
+static int palm_get_dek(PALM *, WT_SESSION *, const WT_PAGE_LOG_ENCRYPTION *, uint64_t, uint64_t,
+  bool, uint64_t, WT_PAGE_LOG_ENCRYPTION *);
 static void palm_init_context(PALM *, PALM_KV_CONTEXT *);
 static int palm_init_lsn(PALM *);
 
@@ -372,8 +371,9 @@ palm_kv_err(PALM *palm, WT_SESSION *session, int ret, const char *format, ...)
  *     Check or generate a DEK (encryption key).
  */
 static int
-palm_get_dek(PALM *palm, WT_SESSION *session, const WT_PAGE_LOG_ENCRYPTION *encrypt_in, uint64_t table_id,
-  uint64_t page_id, bool is_delta, uint64_t base_lsn, WT_PAGE_LOG_ENCRYPTION *encrypt_out)
+palm_get_dek(PALM *palm, WT_SESSION *session, const WT_PAGE_LOG_ENCRYPTION *encrypt_in,
+  uint64_t table_id, uint64_t page_id, bool is_delta, uint64_t base_lsn,
+  WT_PAGE_LOG_ENCRYPTION *encrypt_out)
 {
     static WT_PAGE_LOG_ENCRYPTION zero;
     WT_PAGE_LOG_ENCRYPTION tmp;
@@ -392,40 +392,41 @@ palm_get_dek(PALM *palm, WT_SESSION *session, const WT_PAGE_LOG_ENCRYPTION *encr
      * at all. Also, it gets in the way of efficient debugging.
      *
      * However, we do want to test that WiredTiger is passing along the DEK whenever it can and
-     * should. If it stopped doing so, the production page log would need to determine
-     * the DEK for itself more often, and we might not notice the error.
+     * should. If it stopped doing so, the production page log would need to determine the DEK for
+     * itself more often, and we might not notice the error.
      *
-     * So WiredTiger receives a DEK with every page get. When writing a delta for such a page,
-     * it need to pass that DEK. When writing a delta for page that it generated, retained in
-     * memory (and never needed to get back from the page log interface), it uses a zeroed DEK,
-     * that's the best it can do.
+     * So WiredTiger receives a DEK with every page get. When writing a delta for such a page, it
+     * need to pass that DEK. When writing a delta for page that it generated, retained in memory
+     * (and never needed to get back from the page log interface), it uses a zeroed DEK, that's the
+     * best it can do.
      *
-     * To test it without doing any extra KV requests, we generate a DEK for any page write
-     * that doesn't have it - a simple encoding of the table id and page id. We'd expect that
-     * if a DEK is ever passed to us in the put path, it must match the table id and page id.
-     * That tests that the correct DEK is being passed.
+     * To test it without doing any extra KV requests, we generate a DEK for any page write that
+     * doesn't have it - a simple encoding of the table id and page id. We'd expect that if a DEK is
+     * ever passed to us in the put path, it must match the table id and page id. That tests that
+     * the correct DEK is being passed.
      *
-     * To test that we're passing a DEK when we should, we compare the base_lsn to the LSN
-     * we started the run with. If the base_lsn is less than that, then WiredTiger must
-     * have previously gotten the page from the page log interface, hence the DEK should be set.
+     * To test that we're passing a DEK when we should, we compare the base_lsn to the LSN we
+     * started the run with. If the base_lsn is less than that, then WiredTiger must have previously
+     * gotten the page from the page log interface, hence the DEK should be set.
      */
 #define PALM_DEK_FORMAT ("%" PRIu64 ":%" PRIu64)
     tmp = zero;
-    if ((size_t)snprintf(&tmp.dek[0], sizeof(tmp.dek), PALM_DEK_FORMAT, table_id, page_id) > sizeof(tmp.dek))
-        assert(false);      /* should never overflow */
+    if ((size_t)snprintf(&tmp.dek[0], sizeof(tmp.dek), PALM_DEK_FORMAT, table_id, page_id) >
+      sizeof(tmp.dek))
+        assert(false); /* should never overflow */
 
     was_zeroed = PALM_ENCRYPTION_EQUAL(*encrypt_in, zero);
     if (was_zeroed)
         *encrypt_out = tmp;
     else {
         if (!PALM_ENCRYPTION_EQUAL(*encrypt_in, tmp))
-            return palm_err(palm, session, EINVAL, "encryption dek %31s does not match expected value %31s",
-              encrypt_in->dek, tmp.dek);
+            return (palm_err(palm, session, EINVAL,
+              "encryption dek %31s does not match expected value %31s", encrypt_in->dek, tmp.dek));
         PALM_VERBOSE_PRINT(palm, "palm using saved dek: %s\n", encrypt_in->dek);
     }
 
     if (was_zeroed && is_delta && base_lsn < palm->begin_lsn)
-        return palm_err(palm, session, EINVAL, "expected non-zero encryption dek");
+        return (palm_err(palm, session, EINVAL, "expected non-zero encryption dek"));
 
     return (0);
 }
@@ -481,8 +482,8 @@ palm_init_lsn(PALM *palm)
     PALM_KV_RET(palm, NULL, palm_kv_begin_transaction(&context, palm->kv_env, true));
 
     /*
-     * Get the LSN. If it's never been set, we'll get not found, but that's okay,
-     * that will leave out beginning LSN at zero, which is fine for our purposes.
+     * Get the LSN. If it's never been set, we'll get not found, but that's okay, that will leave
+     * out beginning LSN at zero, which is fine for our purposes.
      */
     ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &palm->begin_lsn);
     if (ret == MDB_NOTFOUND)
@@ -765,7 +766,7 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm_init_context(palm, &context);
 
     if ((ret = palm_get_dek(palm, session, &put_args->encryption, palm_handle->table_id, page_id,
-          is_delta, put_args->base_lsn, &encryption)) != 0)
+           is_delta, put_args->base_lsn, &encryption)) != 0)
         return (ret);
 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));

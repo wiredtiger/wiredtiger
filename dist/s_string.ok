@@ -88,6 +88,7 @@ Crummey
 CustomersPhone
 Cygwin
 DBI
+DEK
 DESC
 DEST
 DHANDLE
@@ -702,6 +703,7 @@ decryptor
 decrypts
 deflateEnd
 deflateInit
+dek
 del
 dequeued
 der
