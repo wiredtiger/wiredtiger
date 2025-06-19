@@ -140,6 +140,7 @@ test_stat03.py
 test_stat04.py
 test_stat05.py
 test_stat06.py
+test_stat13.py
 test_stat_log01.py
 test_stat_log02.py
 test_sweep03.py
@@ -151,6 +152,7 @@ test_timestamp07.py # RTS message
 test_timestamp08.py
 test_timestamp10.py
 test_timestamp12.py
+test_timestamp20.py
 test_timestamp26.py
 test_truncate05.py
 test_truncate11.py
