@@ -30,8 +30,12 @@
 
 #define PALM_VERBOSE_PRINT(palm, ...)     \
     do {                                  \
-        if ((palm)->verbose > 0)          \
-            fprintf(stderr, __VA_ARGS__); \
-    } while (0);
+        if ((palm)->verbose > 0) {        \
+            if ((palm)->verbose_msg > 0)  \
+                ((palm)->wt_api->msg_printf((palm)->wt_api, session, __VA_ARGS__)); \
+            else                                                        \
+                fprintf(stderr, __VA_ARGS__);                           \
+        }                                                               \
+    } while (0)
 
 const char *palm_verbose_item(const WT_ITEM *buf);
