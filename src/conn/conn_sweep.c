@@ -104,8 +104,7 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
             continue;
 
         __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
-        "Sweep server setting the time of death for dhandle %s",
-        dhandle->name);
+          "Sweep server setting the time of death for dhandle %s", dhandle->name);
 
         dhandle->timeofdeath = now;
         WT_STAT_CONN_INCR(session, dh_sweep_tod);
