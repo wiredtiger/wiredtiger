@@ -1221,7 +1221,7 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_hs_byte_write', 'Bytes written to the shared history store in SLS', 'size'),
     BlockDisaggStat('disagg_block_hs_get', 'Disaggregated block manager get from the shared history store in SLS'),
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
-    BlockDisaggStat('disagg_block_pages_discarded', 'Pages discarded by disaggregated block manager'),
+    BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
 
     ##########################################

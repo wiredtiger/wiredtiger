@@ -474,9 +474,9 @@ struct __wt_connection_stats {
     int64_t disagg_block_hs_byte_write;
     int64_t disagg_block_get;
     int64_t disagg_block_hs_get;
+    int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
     int64_t disagg_block_hs_put;
-    int64_t disagg_block_pages_discarded;
     int64_t block_preload;
     int64_t block_read;
     int64_t block_write;
@@ -1321,9 +1321,9 @@ struct __wt_dsrc_stats {
     int64_t disagg_block_hs_byte_write;
     int64_t disagg_block_get;
     int64_t disagg_block_hs_get;
+    int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
     int64_t disagg_block_hs_put;
-    int64_t disagg_block_pages_discarded;
     int64_t block_extension;
     int64_t block_alloc;
     int64_t block_free;

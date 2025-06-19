@@ -303,7 +303,7 @@ __wti_block_disagg_page_discard(
     discard_args.backlink_checkpoint_id = checkpoint_id;
     discard_args.backlink_lsn = lsn;
 
-    WT_STAT_CONN_INCR(session, disagg_block_pages_discarded);
+    WT_STAT_CONN_INCR(session, disagg_block_page_discard);
 
     return (
       plhandle->plh_discard(plhandle, &session->iface, page_id, checkpoint_id, &discard_args));

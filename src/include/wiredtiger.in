@@ -5927,15 +5927,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * store in SLS
  */
 #define	WT_STAT_CONN_DISAGG_BLOCK_HS_GET		1048
+/*! block-disagg: Disaggregated block manager page discard calls */
+#define	WT_STAT_CONN_DISAGG_BLOCK_PAGE_DISCARD		1049
 /*! block-disagg: Disaggregated block manager put  */
-#define	WT_STAT_CONN_DISAGG_BLOCK_PUT			1049
+#define	WT_STAT_CONN_DISAGG_BLOCK_PUT			1050
 /*!
  * block-disagg: Disaggregated block manager put to the shared history
  * store in SLS
  */
-#define	WT_STAT_CONN_DISAGG_BLOCK_HS_PUT		1050
-/*! block-disagg: Pages discarded by disaggregated block manager */
-#define	WT_STAT_CONN_DISAGG_BLOCK_PAGES_DISCARDED	1051
+#define	WT_STAT_CONN_DISAGG_BLOCK_HS_PUT		1051
 /*! block-manager: blocks pre-loaded */
 #define	WT_STAT_CONN_BLOCK_PRELOAD			1052
 /*! block-manager: blocks read */
@@ -8137,15 +8137,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * store in SLS
  */
 #define	WT_STAT_DSRC_DISAGG_BLOCK_HS_GET		2007
+/*! block-disagg: Disaggregated block manager page discard calls */
+#define	WT_STAT_DSRC_DISAGG_BLOCK_PAGE_DISCARD		2008
 /*! block-disagg: Disaggregated block manager put  */
-#define	WT_STAT_DSRC_DISAGG_BLOCK_PUT			2008
+#define	WT_STAT_DSRC_DISAGG_BLOCK_PUT			2009
 /*!
  * block-disagg: Disaggregated block manager put to the shared history
  * store in SLS
  */
-#define	WT_STAT_DSRC_DISAGG_BLOCK_HS_PUT		2009
-/*! block-disagg: Pages discarded by disaggregated block manager */
-#define	WT_STAT_DSRC_DISAGG_BLOCK_PAGES_DISCARDED	2010
+#define	WT_STAT_DSRC_DISAGG_BLOCK_HS_PUT		2010
 /*! block-manager: allocations requiring file extension */
 #define	WT_STAT_DSRC_BLOCK_EXTENSION			2011
 /*! block-manager: blocks allocated */
