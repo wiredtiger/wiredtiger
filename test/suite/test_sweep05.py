@@ -38,7 +38,7 @@ class test_sweep05(wttest.WiredTigerTestCase):
     Test detection of sessions without recent session sweep.
     '''
     conn_config = 'statistics=(all),' + \
-                  'verbose=(default:3)'
+                  'verbose=(sweep:3)'
     create_params = 'key_format=i,value_format=i'
     table_numkv = 10
     table_uri_format = 'table:test_sweep05_%s'

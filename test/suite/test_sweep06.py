@@ -42,7 +42,7 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:' + tablebase
     conn_config = 'file_manager=(close_handle_minimum=0,' + \
                   'close_idle_time=60,close_scan_interval=30),session_max=530,' + \
-                  'verbose=(default:3)'
+                  'verbose=(sweep:3)'
 
     cursor_caching = [
         ('cursor_caching_disabled', dict(cursor_caching=False)),
@@ -93,4 +93,4 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
 
         # We enabled verbose log level DEBUG_3 in this test to catch an invalid pointer in dhandle.
         # However, this also causes the log line 'session dhandle name' to appear, which we want to ignore.
-        self.ignoreStdoutPatternIfExists('session dhandle name')
+        self.ignoreStdoutPatternIfExists('sweep-server')

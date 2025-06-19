@@ -103,6 +103,10 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
         if (WT_IS_HS(dhandle))
             continue;
 
+        __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
+        "Sweep server setting the time of death for dhandle %s",
+        dhandle->name);
+
         dhandle->timeofdeath = now;
         WT_STAT_CONN_INCR(session, dh_sweep_tod);
     }
@@ -145,7 +149,9 @@ static int
 __sweep_expire_one(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-
+    __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
+      "Sweep server marked the session dhandle dead %s",
+      session->dhandle == NULL ? "EMPTY" : session->dhandle->name);
     /*
      * Acquire an exclusive lock on the handle and mark it dead.
      *
@@ -334,8 +340,8 @@ static int
 __sweep_check_session_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
-    __wt_verbose_level(session, WT_VERB_DEFAULT, WT_VERBOSE_DEBUG_3,
-      "Checking sweep, session dhandle name %s",
+    __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
+      "Sweep server checking session dhandle name %s",
       session->dhandle == NULL ? "EMPTY" : session->dhandle->name);
 
     WT_SWEEP_COOKIE *cookie;
@@ -376,7 +382,7 @@ __sweep_check_session_callback(
         if (!array_session->sweep_warning_60min) {
             array_session->sweep_warning_60min = 1;
             WT_STAT_CONN_INCR(session, no_session_sweep_60min);
-            __wt_verbose_warning(session, WT_VERB_DEFAULT,
+            __wt_verbose_warning(session, WT_VERB_SWEEP,
               "Session %" PRIu32 " (@: 0x%p name: %s) did not run a sweep for 60 minutes.",
               array_session->id, (void *)array_session,
               array_session->name == NULL ? "EMPTY" : array_session->name);
