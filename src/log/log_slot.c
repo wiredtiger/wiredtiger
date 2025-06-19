@@ -422,7 +422,8 @@ __wti_log_slot_switch(
 
         WT_RET(WT_SESSION_CHECK_PANIC(session));
         /*
-         * Stop non-critical threads during shutdown.
+         * If the connection is closing, the logging system has finish running, all threads except 
+         * for the connection closing thread can early exit.
          */
         if (session != S2C(session)->default_session &&
           F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
