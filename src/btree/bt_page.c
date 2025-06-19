@@ -599,6 +599,8 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     uint32_t i;
     void *p;
 
+    WT_UNUSED(flags);
+
     *pagep = NULL;
     page = NULL;
 

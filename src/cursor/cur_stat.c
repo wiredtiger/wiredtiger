@@ -462,6 +462,7 @@ __curstat_layered_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT
 
 done:
     __wt_curstat_dsrc_final(cst);
+
 err:
     __wt_scr_free(session, &stable_uri_buf);
     /* The constituent table dhandles have been released. Release the layered dhandle. */
