@@ -1128,6 +1128,56 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_logmgr_thread_destroy --
+ *     Destroy the log manager background threads.
+ */
+int
+__wt_logmgr_thread_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_LOG_MANAGER *log_mgr;
+
+    conn = S2C(session);
+    log_mgr = &conn->log_mgr;
+
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_LOG);
+
+    if (!F_ISSET(&conn->log_mgr, WT_LOG_ENABLED))
+        return (0);
+
+    if (log_mgr->server.tid_set) {
+        __wt_cond_signal(session, log_mgr->server.cond);
+        WT_TRET(__wt_thread_join(session, &log_mgr->server.tid));
+        log_mgr->server.tid_set = false;
+    }
+    /* Close the server thread's session. */
+    if (log_mgr->server.session != NULL) {
+        WT_TRET(__wt_session_close_internal(log_mgr->server.session));
+        log_mgr->server.session = NULL;
+    }
+    if (log_mgr->file.tid_set) {
+        __wt_cond_signal(session, log_mgr->file.cond);
+        WT_TRET(__wt_thread_join(session, &log_mgr->file.tid));
+        log_mgr->file.tid_set = false;
+    }
+    if (log_mgr->file.session != NULL) {
+        WT_TRET(__wt_session_close_internal(log_mgr->file.session));
+        log_mgr->file.session = NULL;
+    }
+    if (log_mgr->wrlsn.tid_set) {
+        __wt_cond_signal(session, log_mgr->wrlsn.cond);
+        WT_TRET(__wt_thread_join(session, &log_mgr->wrlsn.tid));
+        log_mgr->wrlsn.tid_set = false;
+    }
+    if (log_mgr->wrlsn.session != NULL) {
+        WT_TRET(__wt_session_close_internal(log_mgr->wrlsn.session));
+        log_mgr->wrlsn.session = NULL;
+    }
+    return (ret);
+}
+
+/*
  * __wt_logmgr_destroy --
  *     Destroy the log removal server thread and logging subsystem.
  */
@@ -1151,38 +1201,9 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
         __wt_free(session, log_mgr->log_path);
         return (0);
     }
-    if (log_mgr->server.tid_set) {
-        __wt_cond_signal(session, log_mgr->server.cond);
-        WT_TRET(__wt_thread_join(session, &log_mgr->server.tid));
-        log_mgr->server.tid_set = false;
-    }
-    if (log_mgr->file.tid_set) {
-        __wt_cond_signal(session, log_mgr->file.cond);
-        WT_TRET(__wt_thread_join(session, &log_mgr->file.tid));
-        log_mgr->file.tid_set = false;
-    }
-    if (log_mgr->file.session != NULL) {
-        WT_TRET(__wt_session_close_internal(log_mgr->file.session));
-        log_mgr->file.session = NULL;
-    }
-    if (log_mgr->wrlsn.tid_set) {
-        __wt_cond_signal(session, log_mgr->wrlsn.cond);
-        WT_TRET(__wt_thread_join(session, &log_mgr->wrlsn.tid));
-        log_mgr->wrlsn.tid_set = false;
-    }
-    if (log_mgr->wrlsn.session != NULL) {
-        WT_TRET(__wt_session_close_internal(log_mgr->wrlsn.session));
-        log_mgr->wrlsn.session = NULL;
-    }
 
     WT_TRET(__wti_log_slot_destroy(session));
     WT_TRET(__wti_log_close(session));
-
-    /* Close the server thread's session. */
-    if (log_mgr->server.session != NULL) {
-        WT_TRET(__wt_session_close_internal(log_mgr->server.session));
-        log_mgr->server.session = NULL;
-    }
 
     /* Destroy the condition variables now that all threads are stopped */
     __wt_cond_destroy(session, &log_mgr->server.cond);
