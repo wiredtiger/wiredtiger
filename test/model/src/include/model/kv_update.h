@@ -30,7 +30,6 @@
 
 #include <memory>
 
-#include "model/core.h"
 #include "model/data_value.h"
 #include "model/kv_transaction.h"
 

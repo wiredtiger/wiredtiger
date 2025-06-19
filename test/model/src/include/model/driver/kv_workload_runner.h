@@ -31,7 +31,6 @@
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
-#include "model/data_value.h"
 #include "model/driver/kv_workload.h"
 #include "model/core.h"
 #include "model/kv_database.h"

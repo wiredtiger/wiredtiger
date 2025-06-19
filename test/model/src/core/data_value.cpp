@@ -31,7 +31,6 @@
 #include <iostream>
 
 #include "model/data_value.h"
-#include "model/core.h"
 #include "model/util.h"
 #include "wiredtiger.h"
 

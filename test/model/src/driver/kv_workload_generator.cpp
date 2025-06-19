@@ -54,7 +54,7 @@ kv_workload_generator_spec::kv_workload_generator_spec()
 
     finish_transaction = 0.08;
     insert = 0.75;
-    get = 0.5; // FIXME: how do these probabilities even work?
+    get = 0.5;
     remove = 0.15;
     set_commit_timestamp = 0.05;
     truncate = 0.005;
@@ -463,7 +463,7 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             {
                 table_context_ptr table = choose_table(txn_ptr);
                 data_value key = generate_key(table, op_category::get);
-                // key shouldn't change in ctx
+                /* key shouldn't change in ctx */
                 txn << operation::get(table->id(), txn_id, key);
             }
             probability_case(_spec.remove)

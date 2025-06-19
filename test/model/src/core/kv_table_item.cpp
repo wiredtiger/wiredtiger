@@ -32,11 +32,8 @@
 #include <list>
 #include <sstream>
 
-#include "model/core.h"
 #include "model/kv_table.h"
 #include "model/kv_table_item.h"
-#include "model/kv_transaction_snapshot.h"
-#include "model/kv_update.h"
 #include "wiredtiger.h"
 
 namespace model {

@@ -749,8 +749,8 @@ test_transaction_prepared(void)
     txn1->rollback();
     testutil_assert(table->get(key1) == value1);
 
-    /* Overlapping transactions with prepare, special read behaviors */
-    /* Read behavior 1: newly inserted key3 is not found when insert txn is prepared  */
+    /* Overlapping transactions with prepare, special read behaviors (1-3) */
+    /* Read behavior 1: insert key3 (txn1), begin txn2, prepare txn1, txn2 can't find key3. */
     txn1 = database.begin_transaction();
     testutil_check(table->insert(txn1, key3, value3));
     txn2 = database.begin_transaction();
@@ -759,7 +759,7 @@ test_transaction_prepared(void)
     txn1->commit(70, 70);
     txn2->commit(70);
 
-    /* Read behavior 2: prepare txn1 before begin txn2 causes conflict */
+    /* Read behavior 2: insert key3 (txn1), prepare txn1, begin txn2, txn2 has read conflict. */
     txn1 = database.begin_transaction();
     testutil_check(table->insert(txn1, key3, value1));
     txn1->prepare(80);
@@ -768,7 +768,8 @@ test_transaction_prepared(void)
     txn1->commit(80, 80);
     txn2->commit(80);
 
-    /* Read behavior 3: txn2 begin between prepare and commit, get after can see update */
+    /* Read behavior 3: insert key3 (txn1), prepare txn1, begin txn2, commit txn1, txn2 can see
+     * txn1's update. */
     txn1 = database.begin_transaction();
     testutil_check(table->insert(txn1, key3, value2));
     txn1->prepare(90);
@@ -865,8 +866,8 @@ test_transaction_prepared_wt(void)
     wt_model_txn_rollback_both(txn1, session1);
     wt_model_assert(table, uri, key1, 60); /* Success. */
 
-    /* Overlapping transactions with prepare, special read behaviors */
-    /* Read behavior 1: newly inserted key3 is not found when insert txn is prepared  */
+    /* Overlapping transactions with prepare, special read behaviors (1-3) */
+    /* Read behavior 1: insert key3 (txn1), begin txn2, prepare txn1, txn2 can't find key3. */
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_insert_both(table, uri, txn1, session1, key3, value3);
     wt_model_txn_begin_both(txn2, session2);
@@ -875,7 +876,7 @@ test_transaction_prepared_wt(void)
     wt_model_txn_commit_both(txn1, session1, 70, 70);
     wt_model_txn_commit_both(txn2, session2, 70, 0);
 
-    /* Read behavior 2: prepare txn1 before begin txn2 causes conflict */
+    /* Read behavior 2: insert key3 (txn1), prepare txn1, begin txn2, txn2 has read conflict. */
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_insert_both(table, uri, txn1, session1, key3, value1);
     wt_model_txn_prepare_both(txn1, session1, 80);
@@ -884,7 +885,8 @@ test_transaction_prepared_wt(void)
     wt_model_txn_commit_both(txn1, session1, 80, 80);
     wt_model_txn_commit_both(txn2, session2, 80, 0);
 
-    /* Read behavior 3: txn2 begin between prepare and commit, get after can see update */
+    /* Read behavior 3: insert key3 (txn1), prepare txn1, begin txn2, commit txn1, txn2 can see
+     * txn1's update. */
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_insert_both(table, uri, txn1, session1, key3, value2);
     wt_model_txn_prepare_both(txn1, session1, 90);
