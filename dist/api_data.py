@@ -841,7 +841,6 @@ connection_runtime_config = [
             'compact_progress',
             'configuration',
             'default',
-            'disaggregated_storage',
             'error_returns',
             'eviction',
             'fileops',
