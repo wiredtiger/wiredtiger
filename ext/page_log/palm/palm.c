@@ -683,7 +683,6 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     /* Create an empty record as a tombstone. */
     if ((tombstone = calloc(1, sizeof(WT_ITEM))) == NULL)
         return (errno);
-    memset(tombstone, 0, sizeof(WT_ITEM));
 
     PALM_KV_ERR(palm, session,
       palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
