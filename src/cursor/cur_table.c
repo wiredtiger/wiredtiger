@@ -265,13 +265,11 @@ __curtable_next(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, NULL);
-    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, next);
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -322,13 +320,11 @@ __curtable_prev(WT_CURSOR *cursor)
 
     ctable = (WT_CURSOR_TABLE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, prev, NULL);
-    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     APPLY_CG(ctable, prev);
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_RETRYABLE_END(session, ret);
     API_END_RET(session, ret);
 }
 
@@ -440,7 +436,7 @@ __curtable_insert(WT_CURSOR *cursor)
     u_int i;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
-    CURSOR_UPDATE_API_CALL(cursor, session, ret, insert, NULL);
+    CURSOR_UPDATE_API_CALL(cursor, session, ret, insert);
     WT_ERR(__curtable_open_indices(ctable));
 
     cp = ctable->cg_cursors;
@@ -518,7 +514,7 @@ __curtable_update(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
-    CURSOR_UPDATE_API_CALL(cursor, session, ret, update, NULL);
+    CURSOR_UPDATE_API_CALL(cursor, session, ret, update);
     WT_ERR(__curtable_open_indices(ctable));
 
     /*
@@ -615,7 +611,7 @@ __curtable_reserve(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
-    CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve, NULL);
+    CURSOR_UPDATE_API_CALL(cursor, session, ret, reserve);
 
     /*
      * We don't have to open the indices here, but it makes the code similar to other cursor
@@ -996,11 +992,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WT_RET(__curtable_complete(session, table)); /* completeness check */
 
     if (table->is_simple) {
-        /*
-         * Just return a cursor on the underlying data source. Still pass in the owner - sometimes
-         * internal access methods (like layered tables) create sub-tables.
-         */
-        ret = __wt_open_cursor(session, table->cgroups[0]->source, owner, cfg, cursorp);
+        /* Just return a cursor on the underlying data source. */
+        ret = __wt_open_cursor(session, table->cgroups[0]->source, NULL, cfg, cursorp);
 
         WT_TRET(__wt_schema_release_table(session, &table));
         if (ret == 0) {

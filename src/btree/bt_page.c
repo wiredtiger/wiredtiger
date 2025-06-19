@@ -20,8 +20,8 @@ static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, u
  *     Create or read a page into the cache.
  */
 int
-__wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs,
-  WT_PAGE **pagep, uint32_t flags)
+__wt_page_alloc(
+  WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, bool alloc_refs, WT_PAGE **pagep)
 {
     WT_DECL_RET;
     WT_PAGE *page;
@@ -29,8 +29,6 @@ __wt_page_alloc(WT_SESSION_IMPL *session, uint8_t type, uint32_t alloc_entries, 
     size_t size;
     uint32_t i;
     void *p;
-
-    WT_UNUSED(flags);
 
     *pagep = NULL;
     page = NULL;
@@ -95,6 +93,7 @@ err:
                     __wt_free(session, pindex->index[i]);
                 __wt_free(session, pindex);
             }
+            __wt_free(session, page);
             return (ret);
         }
         break;
@@ -109,9 +108,6 @@ err:
     default:
         return (__wt_illegal_value(session, type));
     }
-
-    /* A new page doesn't have a page id. */
-    page->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
 
     /* Increment the cache statistics. */
     __wt_cache_page_inmem_incr(session, page, size, false);
@@ -194,12 +190,12 @@ err:
 }
 
 /*
- * __page_inmem_update_col --
- *     Shared code for calling __page_inmem_update on columns.
+ * __page_inmem_prepare_update_col --
+ *     Shared code for calling __page_inmem_prepare_update on columns.
  */
 static int
-__page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
+__page_inmem_prepare_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *cbt,
+  uint64_t recno, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack, WT_UPDATE **updp, size_t *sizep)
 {
     WT_RET(__page_inmem_prepare_update(session, value, unpack, updp, sizep));
 
@@ -210,11 +206,11 @@ __page_inmem_update_col(WT_SESSION_IMPL *session, WT_REF *ref, WT_CURSOR_BTREE *
 }
 
 /*
- * __wti_page_inmem_updates --
- *     Instantiate updates.
+ * __wti_page_inmem_prepare --
+ *     Instantiate prepared updates.
  */
 int
-__wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
+__wti_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -238,8 +234,7 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
     total_size = 0;
 
     /* We don't handle in-memory prepare resolution here. */
-    WT_ASSERT(session,
-      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_IN_MEMORY));
+    WT_ASSERT(session, !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY));
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
@@ -265,8 +260,8 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             /* For each record, create an update to resolve the prepare. */
             for (; rle > 0; --rle, ++recno) {
                 /* Create an update to resolve the prepare. */
-                WT_ERR(
-                  __page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd, &size));
+                WT_ERR(__page_inmem_prepare_update_col(
+                  session, ref, &cbt, recno, value, &unpack, &upd, &size));
                 total_size += size;
                 upd = NULL;
             }
@@ -288,7 +283,8 @@ __wti_page_inmem_updates(WT_SESSION_IMPL *session, WT_REF *ref)
             value->size = 1;
 
             /* Create an update to resolve the prepare. */
-            WT_ERR(__page_inmem_update_col(session, ref, &cbt, recno, value, &unpack, &upd, &size));
+            WT_ERR(__page_inmem_prepare_update_col(
+              session, ref, &cbt, recno, value, &unpack, &upd, &size));
             total_size += size;
             upd = NULL;
         }
@@ -339,7 +335,7 @@ err:
  */
 int
 __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
-  WT_PAGE **pagep, bool *instantiate_updp)
+  WT_PAGE **pagep, bool *preparedp)
 {
     WT_CELL_UNPACK_ADDR unpack_addr;
     WT_DECL_RET;
@@ -350,8 +346,8 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
 
     *pagep = NULL;
 
-    if (instantiate_updp != NULL)
-        *instantiate_updp = false;
+    if (preparedp != NULL)
+        *preparedp = false;
 
     dsk = image;
     alloc_entries = 0;
@@ -391,7 +387,6 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
          * Row-store internal page entries map one-to-two to the number of physical entries on the
          * page (each entry is a key and location cookie pair).
          */
-        /* if (!LF_ISSET(WT_PAGE_WITH_DELTAS)) */
         alloc_entries = dsk->u.entries / 2;
         break;
     case WT_PAGE_ROW_LEAF:
@@ -414,7 +409,7 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
     }
 
     /* Allocate and initialize a new WT_PAGE. */
-    WT_RET(__wt_page_alloc(session, dsk->type, alloc_entries, true, &page, flags));
+    WT_RET(__wt_page_alloc(session, dsk->type, alloc_entries, true, &page));
     page->dsk = dsk;
     F_SET_ATOMIC_16(page, flags);
 
@@ -430,20 +425,19 @@ __wti_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint3
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        WT_ERR(__inmem_col_fix(session, page, instantiate_updp, &size));
+        WT_ERR(__inmem_col_fix(session, page, preparedp, &size));
         break;
     case WT_PAGE_COL_INT:
         WT_ERR(__inmem_col_int(session, page, dsk->recno));
         break;
     case WT_PAGE_COL_VAR:
-        WT_ERR(__inmem_col_var(session, page, dsk->recno, instantiate_updp, &size));
+        WT_ERR(__inmem_col_var(session, page, dsk->recno, preparedp, &size));
         break;
     case WT_PAGE_ROW_INT:
-        /* if (!LF_ISSET(WT_PAGE_WITH_DELTAS)) */
         WT_ERR(__inmem_row_int(session, page, &size));
         break;
     case WT_PAGE_ROW_LEAF:
-        WT_ERR(__inmem_row_leaf(session, page, instantiate_updp));
+        WT_ERR(__inmem_row_leaf(session, page, preparedp));
         break;
     default:
         WT_ERR(__wt_illegal_value(session, page->type));
@@ -541,7 +535,7 @@ __wti_col_fix_read_auxheader(
  *     Build in-memory index for fixed-length column-store leaf pages.
  */
 static int
-__inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp, size_t *sizep)
+__inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t *sizep)
 {
     WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
@@ -551,13 +545,13 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp,
     uint64_t tmp;
     uint32_t entry_num, recno_offset, skipped;
     const uint8_t *p8;
-    bool instantiate_upd;
+    bool prepare;
     void *pv;
 
     btree = S2BT(session);
     dsk = page->dsk;
     tmp = 0;
-    instantiate_upd = false;
+    prepare = false;
 
     page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
 
@@ -600,7 +594,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp,
                 page->pg_fix_tws[entry_num].recno_offset = recno_offset;
                 page->pg_fix_tws[entry_num].cell_offset = WT_PAGE_DISK_OFFSET(page, unpack.cell);
                 if (unpack.tw.prepare)
-                    instantiate_upd = true;
+                    prepare = true;
                 entry_num++;
             } else
                 skipped++;
@@ -628,8 +622,8 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp,
     }
 
     /* Report back whether we found a prepared value. */
-    if (instantiate_updp != NULL && instantiate_upd)
-        *instantiate_updp = true;
+    if (preparedp != NULL && prepare)
+        *preparedp = true;
 
     return (0);
 }
@@ -759,7 +753,7 @@ __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
  */
 static int
 __inmem_col_var(
-  WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, bool *instantiate_updp, size_t *sizep)
+  WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, bool *preparedp, size_t *sizep)
 {
     WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
@@ -767,12 +761,12 @@ __inmem_col_var(
     size_t size;
     uint64_t rle;
     uint32_t indx, n, repeat_off;
-    bool instantiate_upd;
+    bool prepare;
     void *p;
 
     repeats = NULL;
     repeat_off = 0;
-    instantiate_upd = false;
+    prepare = false;
 
     /*
      * Walk the page, building references: the page contains unsorted value items. The value items
@@ -809,15 +803,15 @@ __inmem_col_var(
 
         /* If we find a prepare, we'll have to instantiate it in the update chain later. */
         if (unpack.tw.prepare)
-            instantiate_upd = true;
+            prepare = true;
 
         indx++;
         recno += rle;
     }
     WT_CELL_FOREACH_END;
 
-    if (instantiate_updp != NULL && instantiate_upd)
-        *instantiate_updp = true;
+    if (preparedp != NULL && prepare)
+        *preparedp = true;
 
     return (0);
 }
@@ -981,20 +975,18 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
  *     Build in-memory index for row-store leaf pages.
  */
 static int
-__inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp)
+__inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_ROW *rip;
     uint32_t best_prefix_count, best_prefix_start, best_prefix_stop;
     uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
     uint8_t smallest_prefix;
-    bool instantiate_upd;
+    bool prepare;
 
-    btree = S2BT(session);
     last_slot = 0;
-    instantiate_upd = false;
+    prepare = false;
 
     /* The code depends on the prefix count variables, other initialization shouldn't matter. */
     best_prefix_count = prefix_count = 0;
@@ -1099,14 +1091,9 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
             WT_ERR(__wt_illegal_value(session, unpack.type));
         }
 
-        /*
-         * If we find a prepare, we'll have to instantiate it in the update chain later. Also
-         * instantiate the tombstone for disaggregated storage. We need the tombstone to trace
-         * whether we have included the delete in the delta or not.
-         */
-        if (unpack.tw.prepare ||
-          (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && WT_TIME_WINDOW_HAS_STOP(&unpack.tw)))
-            instantiate_upd = true;
+        /* If we find a prepare, we'll have to instantiate it in the update chain later. */
+        if (unpack.tw.prepare)
+            prepare = true;
     }
     WT_CELL_FOREACH_END;
 
@@ -1127,8 +1114,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *instantiate_updp
     if (best_prefix_count <= 10)
         F_SET_ATOMIC_16(page, WT_PAGE_BUILD_KEYS);
 
-    if (instantiate_updp != NULL && instantiate_upd)
-        *instantiate_updp = true;
+    if (preparedp != NULL && prepare)
+        *preparedp = true;
 
 err:
     return (ret);
