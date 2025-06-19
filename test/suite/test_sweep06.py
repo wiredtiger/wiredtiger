@@ -90,3 +90,7 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
         # The expectation is that no dhandles have been closed.
         self.assertEqual(close1, 0)
         self.assertEqual(close2, 0)
+
+        # We enabled verbose log level DEBUG_3 in this test to catch an invalid pointer in dhandle.
+        # However, this also causes the log line 'session dhandle name' to appear, which we want to ignore.
+        self.ignoreStdoutPatternIfExists('session dhandle name')
