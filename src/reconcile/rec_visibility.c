@@ -629,10 +629,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             WT_ASSERT_ALWAYS(session, F_ISSET(r, WT_REC_CHECKPOINT),
               "Eviction should never occur on a page that has resolving prepared records.");
             /*
-             * TODO: This is horrible - it would be nice to figure it out and skip the record if
-             * that is safe. I'm not sure how to do that. If the transaction was prepared at a time
-             * that needs to be included in this checkpoint, but committed at a time that should be
-             * excluded (which it must be if we are here). How to know what needs to be included?
+             * FIXME: WT-14826. This while loop can be removed if we start to use the new prepared
+             * timestamp field.
              */
             __wt_sleep(0, 100);
             WT_READ_ONCE(prepare_state, upd->prepare_state);
@@ -679,8 +677,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
                   "Should never salvage a prepared update not from disk.");
                 /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
                 WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "Should never concurrently resolve a prepared update during reconciliation if "
-                  "we "
+                  "Should never concurrently resolve a prepared update during reconciliation if we "
                   "are not in a checkpoint.");
             }
         }
