@@ -648,11 +648,26 @@ static int
 palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_PAGE_LOG_DISCARD_ARGS *discard_args)
 {
-    /* FIXME-WT-14704: Implement this function and remove from s_void. */
-    PALM_HANDLE *palm_handle;
-    palm_handle = (PALM_HANDLE *)plh;
+    WT_ITEM *tombstone = NULL;
+    PALM_HANDLE *palm_handle = (PALM_HANDLE *)plh;
+    PALM *palm = palm_handle->palm;
+    palm_delay(palm);
 
-    WT_UNUSED(session);
+    PALM_KV_CONTEXT context;
+    palm_init_context(palm, &context);
+
+    /* We always write full pages for tombstones, PALM has its own flag. */
+    bool is_delta = false;
+    uint32_t flags = WT_PALM_KV_TOMBSTONE;
+
+    PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
+    uint64_t lsn;
+    int ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &lsn);
+    if (ret == MDB_NOTFOUND) {
+        lsn = 1;
+        ret = 0;
+    }
+    PALM_KV_ERR(palm, session, ret);
 
     PALM_VERBOSE_PRINT(palm_handle->palm,
       "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64
@@ -662,7 +677,35 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
       discard_args->base_lsn, discard_args->backlink_checkpoint_id,
       discard_args->base_checkpoint_id);
 
-    return (0);
+    /* There should not be any flag set. */
+    assert(discard_args->flags == 0);
+
+    /* Create an empty record as a tombstone. */
+    if ((tombstone = calloc(1, sizeof(WT_ITEM))) == NULL)
+        return (errno);
+
+    PALM_KV_ERR(palm, session,
+      palm_kv_put_page(&context, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta,
+        discard_args->backlink_lsn, discard_args->base_lsn, discard_args->backlink_checkpoint_id,
+        discard_args->base_checkpoint_id, flags, tombstone));
+    PALM_KV_ERR(palm, session, palm_kv_put_global(&context, PALM_KV_GLOBAL_REVISION, lsn + 1));
+    PALM_KV_ERR(palm, session, palm_kv_commit_transaction(&context));
+
+    discard_args->lsn = lsn;
+
+    if (0) {
+err:
+        palm_kv_rollback_transaction(&context);
+
+        PALM_VERBOSE_PRINT(palm_handle->palm,
+          "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
+          ", checkpoint_id=%" PRIu64 ", is_delta=%d) returned %d\n",
+          (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta, ret);
+    }
+
+    free(tombstone);
+
+    return (ret);
 }
 
 static int
@@ -788,6 +831,10 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
             PALM_GET_VERIFY_EQUAL(matches.base_lsn, get_args->base_lsn);
             PALM_GET_VERIFY_EQUAL(matches.base_checkpoint_id, get_args->base_checkpoint_id);
         }
+
+        /* We should not request a page that is discarded. */
+        ret = (matches.flags & WT_PALM_KV_TOMBSTONE) == 0 ? 0 : EINVAL;
+        PALM_KV_ERR(palm, session, ret);
 
         last_lsn = matches.lsn;
         last_checkpoint_id = matches.checkpoint_id;
