@@ -106,7 +106,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # that page(s) have been read from disaggregated storage and that we
     # are making changes to those changes.  The pages we receieved from DS
     # have dek (encryption keys), and when we write deltas for those pages,
-    # we want to make sure we use those encryption keys.  We do this by reading
+    # we want to make sure we use those encryption keys.  We check this by reading
     # the verbose output, looking for a message that we've used a saved key.
     #
     def test_layered45(self):
@@ -114,7 +114,8 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
         self.session.create(self.uri, cfg)
 
         # Create the follower
-        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + \
+                                           self.conn_base_config + 'disaggregated=(role="follower")')
         session_follow = conn_follow.open_session('')
 
         self.session_follow = session_follow   # Useful for convenience functions
@@ -153,7 +154,7 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         # Now, the encryption part of the test. Remove all output up to now. We've previously
         # told PALM to be verbose and we're looking for a message that we've used the
-        # encryption key. Doing a checkpoint should trigger that.  Close down the connection
+        # encryption key. Doing a checkpoint should trigger the message.  Close down the connection
         # as well, as that generates other PALM verbose output that must be ignored.
         self.cleanStderr()
         self.cleanStdout()
