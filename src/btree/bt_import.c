@@ -106,9 +106,9 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_ERR(__wt_config_collapse(session, cfg, &config_tmp));
 
     /*
-     * TODO: import needs a little thought for shared tables once we've decided how to allocate
-     * shared file IDs. It's not enough (even temporarily) to just share the allocated file ID,
-     * since if we do that it may clash with another imported shared ID.
+     * FIXME-WT-14723: import needs a little thought for shared tables once we've decided how to
+     * allocate shared file IDs. It's not enough (even temporarily) to just share the allocated file
+     * ID, since if we do that it may clash with another imported shared ID.
      */
     WT_ERR(__wt_btree_shared(session, uri, cfg, &shared));
     if (shared)

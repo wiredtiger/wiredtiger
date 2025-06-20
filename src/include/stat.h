@@ -332,7 +332,11 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
       WT_SESSION_IMPL *session, uint64_t msecs)                 \
     {                                                           \
         WT_STAT_CONN_INCRV(session, stat##_total_msecs, msecs); \
-        if (msecs < 10)                                         \
+        if (msecs < 2)                                          \
+            WT_STAT_CONN_INCR(session, stat##_lt2);             \
+        else if (msecs < 5)                                     \
+            WT_STAT_CONN_INCR(session, stat##_lt5);             \
+        else if (msecs < 10)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt10);            \
         else if (msecs < 50)                                    \
             WT_STAT_CONN_INCR(session, stat##_lt50);            \
@@ -361,6 +365,10 @@ __wt_stats_clear_dsrc(void *stats_arg, int slot)
             WT_STAT_CONN_INCR(session, stat##_lt500);           \
         else if (usecs < WT_THOUSAND)                           \
             WT_STAT_CONN_INCR(session, stat##_lt1000);          \
+        else if (usecs < 2500)                                  \
+            WT_STAT_CONN_INCR(session, stat##_lt2500);          \
+        else if (usecs < 5 * WT_THOUSAND)                       \
+            WT_STAT_CONN_INCR(session, stat##_lt5000);          \
         else if (usecs < 10 * WT_THOUSAND)                      \
             WT_STAT_CONN_INCR(session, stat##_lt10000);         \
         else                                                    \
@@ -466,6 +474,7 @@ struct __wt_connection_stats {
     int64_t disagg_block_hs_byte_write;
     int64_t disagg_block_get;
     int64_t disagg_block_hs_get;
+    int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
     int64_t disagg_block_hs_put;
     int64_t block_preload;
@@ -631,6 +640,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_bytes_max;
+    int64_t eviction_maximum_gen_gap;
     int64_t eviction_maximum_milliseconds;
     int64_t eviction_maximum_page_size;
     int64_t eviction_app_dirty_attempt;
@@ -933,6 +943,8 @@ struct __wt_connection_stats {
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
     int64_t live_restore_source_read_count;
+    int64_t live_restore_hist_source_read_latency_lt2;
+    int64_t live_restore_hist_source_read_latency_lt5;
     int64_t live_restore_hist_source_read_latency_lt10;
     int64_t live_restore_hist_source_read_latency_lt50;
     int64_t live_restore_hist_source_read_latency_lt100;
@@ -1012,6 +1024,8 @@ struct __wt_connection_stats {
     int64_t log_compress_len;
     int64_t log_slot_coalesced;
     int64_t log_close_yields;
+    int64_t perf_hist_bmread_latency_lt2;
+    int64_t perf_hist_bmread_latency_lt5;
     int64_t perf_hist_bmread_latency_lt10;
     int64_t perf_hist_bmread_latency_lt50;
     int64_t perf_hist_bmread_latency_lt100;
@@ -1020,6 +1034,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_bmread_latency_lt1000;
     int64_t perf_hist_bmread_latency_gt1000;
     int64_t perf_hist_bmread_latency_total_msecs;
+    int64_t perf_hist_bmwrite_latency_lt2;
+    int64_t perf_hist_bmwrite_latency_lt5;
     int64_t perf_hist_bmwrite_latency_lt10;
     int64_t perf_hist_bmwrite_latency_lt50;
     int64_t perf_hist_bmwrite_latency_lt100;
@@ -1032,6 +1048,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_disaggbmread_latency_lt250;
     int64_t perf_hist_disaggbmread_latency_lt500;
     int64_t perf_hist_disaggbmread_latency_lt1000;
+    int64_t perf_hist_disaggbmread_latency_lt2500;
+    int64_t perf_hist_disaggbmread_latency_lt5000;
     int64_t perf_hist_disaggbmread_latency_lt10000;
     int64_t perf_hist_disaggbmread_latency_gt10000;
     int64_t perf_hist_disaggbmread_latency_total_usecs;
@@ -1039,9 +1057,13 @@ struct __wt_connection_stats {
     int64_t perf_hist_disaggbmwrite_latency_lt250;
     int64_t perf_hist_disaggbmwrite_latency_lt500;
     int64_t perf_hist_disaggbmwrite_latency_lt1000;
+    int64_t perf_hist_disaggbmwrite_latency_lt2500;
+    int64_t perf_hist_disaggbmwrite_latency_lt5000;
     int64_t perf_hist_disaggbmwrite_latency_lt10000;
     int64_t perf_hist_disaggbmwrite_latency_gt10000;
     int64_t perf_hist_disaggbmwrite_latency_total_usecs;
+    int64_t perf_hist_fsread_latency_lt2;
+    int64_t perf_hist_fsread_latency_lt5;
     int64_t perf_hist_fsread_latency_lt10;
     int64_t perf_hist_fsread_latency_lt50;
     int64_t perf_hist_fsread_latency_lt100;
@@ -1050,6 +1072,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_fsread_latency_lt1000;
     int64_t perf_hist_fsread_latency_gt1000;
     int64_t perf_hist_fsread_latency_total_msecs;
+    int64_t perf_hist_fswrite_latency_lt2;
+    int64_t perf_hist_fswrite_latency_lt5;
     int64_t perf_hist_fswrite_latency_lt10;
     int64_t perf_hist_fswrite_latency_lt50;
     int64_t perf_hist_fswrite_latency_lt100;
@@ -1062,6 +1086,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_internal_reconstruct_latency_lt250;
     int64_t perf_hist_internal_reconstruct_latency_lt500;
     int64_t perf_hist_internal_reconstruct_latency_lt1000;
+    int64_t perf_hist_internal_reconstruct_latency_lt2500;
+    int64_t perf_hist_internal_reconstruct_latency_lt5000;
     int64_t perf_hist_internal_reconstruct_latency_lt10000;
     int64_t perf_hist_internal_reconstruct_latency_gt10000;
     int64_t perf_hist_internal_reconstruct_latency_total_usecs;
@@ -1069,6 +1095,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_leaf_reconstruct_latency_lt250;
     int64_t perf_hist_leaf_reconstruct_latency_lt500;
     int64_t perf_hist_leaf_reconstruct_latency_lt1000;
+    int64_t perf_hist_leaf_reconstruct_latency_lt2500;
+    int64_t perf_hist_leaf_reconstruct_latency_lt5000;
     int64_t perf_hist_leaf_reconstruct_latency_lt10000;
     int64_t perf_hist_leaf_reconstruct_latency_gt10000;
     int64_t perf_hist_leaf_reconstruct_latency_total_usecs;
@@ -1076,6 +1104,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_opread_latency_lt250;
     int64_t perf_hist_opread_latency_lt500;
     int64_t perf_hist_opread_latency_lt1000;
+    int64_t perf_hist_opread_latency_lt2500;
+    int64_t perf_hist_opread_latency_lt5000;
     int64_t perf_hist_opread_latency_lt10000;
     int64_t perf_hist_opread_latency_gt10000;
     int64_t perf_hist_opread_latency_total_usecs;
@@ -1083,6 +1113,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_lt250;
     int64_t perf_hist_opwrite_latency_lt500;
     int64_t perf_hist_opwrite_latency_lt1000;
+    int64_t perf_hist_opwrite_latency_lt2500;
+    int64_t perf_hist_opwrite_latency_lt5000;
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
     int64_t perf_hist_opwrite_latency_total_usecs;
@@ -1289,6 +1321,7 @@ struct __wt_dsrc_stats {
     int64_t disagg_block_hs_byte_write;
     int64_t disagg_block_get;
     int64_t disagg_block_hs_get;
+    int64_t disagg_block_page_discard;
     int64_t disagg_block_put;
     int64_t disagg_block_hs_put;
     int64_t block_extension;
