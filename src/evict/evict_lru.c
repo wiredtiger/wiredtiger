@@ -2052,13 +2052,15 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * If the cache is dirty, but not under pressure skip pages with just a few modifications
-     * hopefully they can accumulate more changes before being reconciled. Currently only for
-     * disaggregated storage.
+     * hopefully they can accumulate more changes before being reconciled. The cache has low
+     * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
+     * only for disaggregated storage.
      */
+    double pct_dirty = 0.0;
+    __wt_evict_dirty_needed(session, &pct_dirty);
     if (__wt_conn_is_disagg(session) && F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY) &&
       page->modify->page_state < WT_EVICT_MODIFY_COUNT_MIN &&
-      __wt_cache_dirty_leaf_inuse(conn->cache) <
-        (uint64_t)((conn->evict->eviction_dirty_trigger - 2) * conn->cache_size) / 100)
+      pct_dirty < (conn->evict->eviction_dirty_trigger * 0.9))
         return (true);
 
     return (false);
