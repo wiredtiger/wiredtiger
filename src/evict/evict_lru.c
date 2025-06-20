@@ -2015,6 +2015,8 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * If we are under cache pressure, allow evicting pages with newly committed updates to free
      * space. Otherwise, avoid doing that as it may thrash the cache.
      */
+    wt_timestamp_t pinned_stable_ts;
+    __wt_txn_pinned_stable_timestamp(session, &pinned_stable_ts);
     if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD) &&
       F_ISSET(txn, WT_TXN_HAS_SNAPSHOT)) {
         if (!__txn_visible_id(session, __wt_atomic_load64(&page->modify->update_txn)))
@@ -2027,7 +2029,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
       ((conn->txn_global.checkpoint_running &&
          page->modify->newest_commit_timestamp > conn->txn_global.checkpoint_timestamp) ||
         (!conn->txn_global.checkpoint_running &&
-          page->modify->newest_commit_timestamp > conn->txn_global.stable_timestamp))) {
+          page->modify->newest_commit_timestamp > pinned_stable_ts))) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
         return (true);
     }
