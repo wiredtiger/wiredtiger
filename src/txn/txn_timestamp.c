@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+#define WT_COMMIT_TS_UPDATE_THRESHOLD 10
 /*
  * __wt_txn_parse_timestamp_raw --
  *     Decodes and sets a timestamp. Don't do any checking.
@@ -658,7 +659,7 @@ __txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
 
     /* Don't be overly greedy about updating the commit timestamp, it's shared */
     WT_ACQUIRE_READ(newest_commit_ts, txn_global->newest_seen_timestamp);
-    if (commit_ts > newest_commit_ts + 10) {
+    if (commit_ts > newest_commit_ts + WT_COMMIT_TS_UPDATE_THRESHOLD) {
         /* If our update failed, someone beat us to it - no problem. */
         __wt_atomic_cas64(&txn_global->newest_seen_timestamp, newest_commit_ts, commit_ts);
     }
