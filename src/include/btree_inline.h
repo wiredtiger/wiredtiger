@@ -74,7 +74,7 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
     if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD) &&
       F_ISSET_ATOMIC_64(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
       !__wt_evict_aggressive(session) && __wt_page_is_modified(page)) {
-        double pinned_stable_ts = 0.0;
+        wt_timestamp_t pinned_stable_ts;
         __wt_txn_pinned_stable_timestamp(session, &pinned_stable_ts);
         if (page->modify->newest_commit_timestamp > pinned_stable_ts) {
             return (false);
