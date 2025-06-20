@@ -2051,8 +2051,6 @@ static WT_INLINE int __wt_page_dirty_and_evict_soon(WT_SESSION_IMPL *session, WT
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static WT_INLINE int __wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref,
   bool page_only) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
@@ -2315,6 +2313,7 @@ static WT_INLINE void __wt_op_timer_start(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_op_timer_stop(WT_SESSION_IMPL *session);
 static WT_INLINE void __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
+static WT_INLINE void __wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
 static WT_INLINE void __wt_ref_ascend(
   WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp);

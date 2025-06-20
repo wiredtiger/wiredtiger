@@ -937,12 +937,11 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
  * Set the newest update timestamp to the approximate newest global timestamp, this is only used to
  * optimize eviction decisions. It is approximate and that's OK.
  */
-static WT_INLINE int
+static WT_INLINE void
 __wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     if (S2C(session)->txn_global.newest_seen_timestamp > page->modify->newest_commit_timestamp)
         page->modify->newest_commit_timestamp = S2C(session)->txn_global.newest_seen_timestamp;
-    return (0);
 }
 
 /*
