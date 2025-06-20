@@ -191,8 +191,7 @@ kv_database::txn_snapshot_nolock(txn_id_t do_not_exclude)
         if (p.first == do_not_exclude)
             continue;
         kv_transaction_state state = p.second->state();
-        if (state != kv_transaction_state::committed && state != kv_transaction_state::prepared &&
-          state != kv_transaction_state::rolled_back)
+        if (state == kv_transaction_state::in_progress)
             active_txn_ids.insert(p.first);
     }
     return std::make_shared<kv_transaction_snapshot_by_exclusion>(

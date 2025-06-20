@@ -37,17 +37,10 @@ extern "C" {
 }
 
 /*
- * wt_get --
+ * wt_get_ext --
  *     Read from WiredTiger.
  */
-model::data_value wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
-  model::timestamp_t timestamp = model::k_timestamp_latest);
-
-/*
- * wt_get_ext --
- *     Read from WiredTiger, but also return the error code.
- */
-int wt_get_ext(WT_SESSION *session, const char *uri, const model::data_value &key,
+int wt_get(WT_SESSION *session, const char *uri, const model::data_value &key,
   model::data_value &out, model::timestamp_t timestamp = model::k_timestamp_latest);
 
 /*
@@ -253,7 +246,7 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
         model::data_value __out_model, __out_wt;                                       \
         int __ret_model, __ret_wt;                                                     \
         __ret_model = table->get_ext(key, __out_model, ##__VA_ARGS__);                 \
-        __ret_wt = wt_get_ext(session, uri, key, __out_wt, ##__VA_ARGS__);             \
+        __ret_wt = wt_get(session, uri, key, __out_wt, ##__VA_ARGS__);                 \
         wt_model_assert_equal(__ret_model, __ret_wt);                                  \
         wt_model_assert_equal_with_labels(std::move(__out_model), std::move(__out_wt), \
           "__out_model", "__out_wt"); /* To make Coverity happy. */                    \

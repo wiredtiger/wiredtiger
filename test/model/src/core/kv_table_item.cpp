@@ -236,7 +236,10 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
   timestamp_t read_timestamp, timestamp_t stable_timestamp) const
 {
     std::lock_guard lock_guard(_lock);
-    /* Note: unlike other ops, we need to search by prepare timestamp, not the commit one. */
+    /* Note: unlike other ops, we need to search by prepare timestamp and commit timestamps
+     * together, so we can consider transactions that are only prepared and not committed. The
+     * common approach is to check for prepared transactions and in that case flag a conflict, but
+     * for reads this can be incorrect. See more specific rules below. */
     kv_update::prepare_timestamp_comparator cmp;
 
     if (_updates.empty())

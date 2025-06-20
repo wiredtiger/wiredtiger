@@ -42,42 +42,9 @@ extern "C" {
  * wt_get --
  *     Read from WiredTiger.
  */
-model::data_value
-wt_get(
-  WT_SESSION *session, const char *uri, const model::data_value &key, model::timestamp_t timestamp)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    char cfg[64];
-    model::data_value out;
-
-    if (timestamp == 0)
-        testutil_check(session->begin_transaction(session, nullptr));
-    else {
-        testutil_snprintf(cfg, sizeof(cfg), "read_timestamp=%" PRIx64, timestamp);
-        testutil_check(session->begin_transaction(session, cfg));
-    }
-    testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &cursor));
-
-    model::set_wt_cursor_key(cursor, key);
-    ret = cursor->search(cursor);
-    if (ret != WT_NOTFOUND && ret != WT_ROLLBACK)
-        testutil_check(ret);
-    if (ret == 0)
-        out = model::get_wt_cursor_value(cursor);
-
-    testutil_check(cursor->close(cursor));
-    testutil_check(session->commit_transaction(session, nullptr));
-    return ret == 0 ? out : model::NONE;
-}
-
-/*
- * wt_get_ext --
- *     Read from WiredTiger, but also return the error code.
- */
 int
-wt_get_ext(WT_SESSION *session, const char *uri, const model::data_value &key,
-  model::data_value &out, model::timestamp_t timestamp)
+wt_get(WT_SESSION *session, const char *uri, const model::data_value &key, model::data_value &out,
+  model::timestamp_t timestamp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
