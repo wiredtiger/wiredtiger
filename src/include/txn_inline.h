@@ -1753,7 +1753,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     WT_RET(__wt_txn_config(session, conf));
 
     if (conf != NULL) {
-        WT_RET(__wt_conf_gets_def(session, conf, claim_prepared, 0, &cval));
+        WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
         if (cval.len != 0) {
             WT_RET(__wt_txn_parse_timestamp(
               session, "prepared_transaction_id", &prepared_transaction_id, &cval));

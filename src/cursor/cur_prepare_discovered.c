@@ -220,7 +220,7 @@ __cursor_prepared_discover_list_create(
     WT_RET(__wt_realloc_def(session, &cursor_prepare->list_allocated, prepared_discovered_count + 1,
       &cursor_prepare->list));
     for (i = 0; i < prepared_discovered_count; i++)
-        cursor_prepare->list[i] = txn_global->pending_prepared_sessions[i]->txn->prepare_timestamp;
+        cursor_prepare->list[i] = txn_global->pending_prepared_sessions[i]->txn->prepared_id;
 
     return (0);
 }

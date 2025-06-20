@@ -955,7 +955,7 @@ static const uint8_t confchk_WT_SESSION_begin_transaction_roundup_timestamps_sub
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
-  {"claim_prepared", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 134, 0,
+  {"claim_prepared_id", "int", NULL, "min=0", NULL, 0, NULL, WT_CONFIG_COMPILED_TYPE_INT, 134, 0,
     INT64_MAX, NULL},
   {"ignore_prepare", "string", NULL, "choices=[\"false\",\"force\",\"true\"]", NULL, 0, NULL,
     WT_CONFIG_COMPILED_TYPE_STRING, 135, INT64_MIN, INT64_MAX, confchk_ignore_prepare_choices},
@@ -3719,7 +3719,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "write_timestamp_usage=none",
     confchk_WT_SESSION_alter, 11, confchk_WT_SESSION_alter_jump, 18, WT_CONF_SIZING_NONE, false},
   {"WT_SESSION.begin_transaction",
-    "claim_prepared=0,ignore_prepare=false,isolation=,name=,"
+    "claim_prepared_id=0,ignore_prepare=false,isolation=,name=,"
     "no_timestamp=false,operation_timeout_ms=0,priority=0,"
     "read_timestamp=,roundup_timestamps=(prepared=false,read=false),"
     "sync=",

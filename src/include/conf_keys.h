@@ -95,7 +95,7 @@
 #define WT_CONF_ID_chunk_cache 230ULL
 #define WT_CONF_ID_chunk_cache_evict_trigger 267ULL
 #define WT_CONF_ID_chunk_size 268ULL
-#define WT_CONF_ID_claim_prepared 134ULL
+#define WT_CONF_ID_claim_prepared_id 134ULL
 #define WT_CONF_ID_close_handle_minimum 218ULL
 #define WT_CONF_ID_close_idle_time 219ULL
 #define WT_CONF_ID_close_scan_interval 220ULL
@@ -556,7 +556,7 @@ static const struct {
     uint64_t checkpoint_use_history;
     uint64_t checkpoint_wait;
     uint64_t checksum;
-    uint64_t claim_prepared;
+    uint64_t claim_prepared_id;
     uint64_t colgroups;
     uint64_t collator;
     uint64_t columns;
@@ -918,7 +918,7 @@ static const struct {
   WT_CONF_ID_checkpoint_use_history,
   WT_CONF_ID_checkpoint_wait,
   WT_CONF_ID_checksum,
-  WT_CONF_ID_claim_prepared,
+  WT_CONF_ID_claim_prepared_id,
   WT_CONF_ID_colgroups,
   WT_CONF_ID_collator,
   WT_CONF_ID_columns,

@@ -46,6 +46,7 @@ __wt_prepared_discover_find_or_create_transaction(
     WT_RET(__wt_open_internal_session(conn, "prepared_discover", true, 0, 0, &new_session));
     WT_RET(__wt_txn_begin(new_session, NULL));
     new_session->txn->prepare_timestamp = prepare_transaction_id;
+    new_session->txn->prepared_id = prepare_transaction_id;
     /* Add it to the discovered set of sessions. */
     txn_global->pending_prepared_sessions[txn_global->pending_prepared_sessions_count++] =
       new_session;

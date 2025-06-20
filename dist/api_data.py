@@ -1761,9 +1761,10 @@ methods = {
         whether to sync log records when the transaction commits, inherited from ::wiredtiger_open
         \c transaction_sync''',
         type='boolean'),
-    Config('claim_prepared', '0', r'''
-        claim a prepared transaction''',
-        min=0)
+    Config('claim_prepared_id', '0', r'''
+        allow a session to claim a prepared transaction that was restored upon restart by
+        specifying the transaction's prepared ID.''', 
+        type='int', min=0)
 ], compilable=True),
 
 'WT_SESSION.commit_transaction' : Method([
