@@ -46,49 +46,35 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
     create_session_config = 'key_format=S,value_format=S'
 
-    layered_uris = ["layered:test_layered45a", "layered:test_layered45b"]
-    all_uris = list(layered_uris)
+    uri = "layered:test_layered45a"
 
     disagg_storages = gen_disagg_storages('test_layered45', disagg_only = True)
     scenarios = make_scenarios(disagg_storages)
 
-    # Load the page log extension, which has object storage support
+    # Load the page log extension, which has disaggregated storage support
     def conn_extensions(self, extlist):
+        # Tell PALM to be verbose, and send that output to the WT
+        # extension message API.  This guarantees that it will be captured
+        # in the Python stdout file. Regular PALM verbose messages are not
+        # captured.
         self.palm_debug = True
         self.palm_config = 'verbose_msg=1'
+
         if os.name == 'nt':
             extlist.skip_if_missing = True
         DisaggConfigMixin.conn_extensions(self, extlist)
 
-    # Reset a cursor on the follower.  Generally, the test will open a layered: uri,
-    # and a reset is a signal have the cursor move to the next checkpoint. This works
-    # for layered cursors but not cursors in general.  In the m4 milestone where we don't
-    # use a layered cursor, to get similar behavior, we need to reopen the cursor.
-    def reset_follow_cursor(self, cursor):
-        cursor.reset()
-        return cursor
-
     def put_data(self, value_prefix, low = 0, high = nitems, session = None):
         if session == None:
             session = self.session   # leader by default
-        for uri in self.all_uris:
-            cursor = session.open_cursor(uri, None, None)
-            for i in range(low, high):
-                cursor[str(i)] = value_prefix + str(i)
-            cursor.close()
+        cursor = session.open_cursor(self.uri, None, None)
+        for i in range(low, high):
+            cursor[str(i)] = value_prefix + str(i)
+        cursor.close()
 
-    def check_data_follower(self, value_prefix, low = 0, high = nitems, cursors = None, uris = all_uris):
-        result_cursors = dict()
-        for uri in self.all_uris:
-            if cursors:
-                cursor = cursors[uri]
-            else:
-                cursor = self.session_follow.open_cursor(uri)
-
-            for i in range(low, high):
-                self.assertEqual(cursor[str(i)], value_prefix + str(i))
-            result_cursors[uri] = cursor
-        return result_cursors
+    def check_data(self, cursor, value_prefix, low = 0, high = nitems):
+        for i in range(low, high):
+            self.assertEqual(cursor[str(i)], value_prefix + str(i))
 
     # Scan data from low to high expecting to see all the keys and values using the given prefix.
     #
@@ -97,49 +83,35 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
     # affected by other transactions. Extending this reasoning to state changes, like picking up
     # checkpoints and stepping up to leader, cursors should similarly be unaffected by state
     # changes happening concurrently to the lifetime of the cursor.
-    def scan_data_follower(self, value_prefix, low = 0, high = nitems, cursors = None, uris = all_uris):
-        result_cursors = dict()
+    def scan_data(self, cursor, value_prefix, low = 0, high = nitems):
         if value_prefix == 'eee':
             self.session_follow.breakpoint()
-        for uri in self.all_uris:
-            if cursors:
-                cursor = cursors[uri]
-            else:
-                cursor = self.session_follow.open_cursor(uri)
+        uri = self.uri
 
-            found = 0
-            for i in range(low, high):
-                ret = cursor.next()
-                if ret == wiredtiger.WT_NOTFOUND:
-                    break
-                self.assertEqual(ret, 0)
+        found = 0
+        for i in range(low, high):
+            ret = cursor.next()
+            if ret == wiredtiger.WT_NOTFOUND:
+                break
+            self.assertEqual(ret, 0)
+            expected_key = self.keys_in_order[i]
+            self.assertEqual(cursor.get_key(), expected_key)
+            self.assertEqual(cursor.get_value(), value_prefix + expected_key)
+            found += 1
+        self.assertEqual(found, high - low)
 
-                expected_key = self.keys_in_order[i]
-                self.assertEqual(cursor.get_key(), expected_key)
-                self.assertEqual(cursor.get_value(), value_prefix + expected_key)
-                found += 1
-            result_cursors[uri] = cursor
-            self.assertEqual(found, high - low)
-        return result_cursors
-
-    def close_cursors(self, cursors):
-        for uri in self.all_uris:
-            cursor = cursors[uri]
-            cursor.close()
-
-    def reset_cursors(self, cursors):
-        for uri in self.all_uris:
-            cursor = cursors[uri]
-            cursors[uri] = self.reset_follow_cursor(cursor)
-
-    # Test more than one table.
+    # This test was copied from layered31, but has been simplified a lot.
+    # We want to establish a leader and follower, and have the follower
+    # step up to a leader and make changes.  This guarantees (on the follower),
+    # that page(s) have been read from disaggregated storage and that we
+    # are making changes to those changes.  The pages we receieved from DS
+    # have dek (encryption keys), and when we write deltas for those pages,
+    # we want to make sure we use those encryption keys.  We do this by reading
+    # the verbose output, looking for a message that we've used a saved key.
+    #
     def test_layered45(self):
-        # Create all tables in the leader
-        for uri in self.all_uris:
-            cfg = self.create_session_config
-            if not uri.startswith('layered'):
-                cfg += ',block_manager=disagg,log=(enabled=false)'
-            self.session.create(uri, cfg)
+        cfg = self.create_session_config
+        self.session.create(self.uri, cfg)
 
         # Create the follower
         conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + ',create,' + self.conn_base_config + 'disaggregated=(role="follower")')
@@ -147,129 +119,42 @@ class test_layered45(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.session_follow = session_follow   # Useful for convenience functions
 
-        #
-        # Setup: Check data in the follower normally.
-        #
-
-        # Put data to all tables, version 0
+        # Put data to the leader table
         value_prefix0 = '---'
         self.put_data(value_prefix0)
-
         self.session.checkpoint()
 
         # Check data in the follower
         self.disagg_advance_checkpoint(conn_follow)
-        cursors = self.check_data_follower(value_prefix0)
-        self.close_cursors(cursors)
+        follower_cursor = self.session_follow.open_cursor(self.uri)
+        self.check_data(follower_cursor, value_prefix0)
+        follower_cursor.close()
 
-        #
-        # Part 1: Check data in the follower, but keep the cursors open.
-        #
-
-        # Put data to all tables, version 1
-        value_prefix1 = 'aaa'
+        # Make a change on the leader, and propogate to the follower.
+        value_prefix1 = '+++'
         self.put_data(value_prefix1)
 
-        self.session.checkpoint()
-
-        # Check data in the follower
-        self.disagg_advance_checkpoint(conn_follow)
-        follower_cursors = self.check_data_follower(value_prefix1)
-        # keep the follower cursors
-
-        #
-        # Part 2: Close and reopen the cursor after picking up a checkpoint.
-        #
-
-        # Put data to all tables, version 2
-        value_prefix2 = 'bbb'
-        self.put_data(value_prefix2)
-
-        self.session.checkpoint()
-
-        # Check data in the follower
-        self.disagg_advance_checkpoint(conn_follow)
-        self.close_cursors(follower_cursors)
-        follower_cursors = self.check_data_follower(value_prefix2)
-        # keep the follower cursors
-
-        #
-        # Part 3: Reset the cursor after picking up a checkpoint.
-        #
-
-        # Put data to all tables, version 3
-        value_prefix3 = 'ccc'
-        self.put_data(value_prefix3)
-
-        self.session.checkpoint()
-
-        # Check data in the follower after a reset
-        self.disagg_advance_checkpoint(conn_follow)
-        self.reset_cursors(follower_cursors)
-        follower_cursors = self.check_data_follower(value_prefix3, cursors=follower_cursors)
-
-        #
-        # Part 4: Check that a follower's open cursor's position
-        # does not change after picking up a checkpoint.
-        #
-
-        # In scanning, do a first batch, reading half the items.
-        first_read = self.nitems // 2
-
-        # On the follower, scan and check the first half, leaving cursors open
-        self.reset_cursors(follower_cursors)
-        follower_cursors = self.scan_data_follower(value_prefix3, 0, first_read, cursors=follower_cursors)
-
-        # Make a change on the leader, and propogate to the follower.
-        value_prefix4 = 'ddd'
-        self.put_data(value_prefix4)
-
+        # Advance the checkpoint.
         self.session.checkpoint()
         self.disagg_advance_checkpoint(conn_follow)
 
-        # Check the continuation of each scan in the follower. Pure cursor scans should be insulated from state changes.
-        #
-        # Note that we are checking with layered URIs only.
-        # Non-layered URIs in this test have a hack (in reset_follow_cursors)
-        # that reopens those cursors, thus losing their position.
-        follower_cursors = self.scan_data_follower(value_prefix3, first_read, self.nitems, cursors=follower_cursors, uris=self.layered_uris)
-
-        # Now check that after closing, we get the new value
-        self.close_cursors(follower_cursors)
-        follower_cursors = self.scan_data_follower(value_prefix4, uris=self.layered_uris)
-
-        #
-        # Part 5: Check that a follower's open cursor's position
-        # does not change after stepping up to leader.
-        #
-        self.reset_cursors(follower_cursors)
-        follower_cursors = self.scan_data_follower(value_prefix4, 0, first_read, cursors=follower_cursors)
-
-        # Make a change on the leader, and propogate to the follower.
-        value_prefix5 = 'eee'
-        self.put_data(value_prefix5)
-
-        # Advance the checkpoint, but leave cursors open
-        self.session.checkpoint()
-        self.disagg_advance_checkpoint(conn_follow)
-
-        # Step up, leaving cursors open
-        # At this point, we have two connections, our old leader and the follower that is
-        # becoming the new leader. Close the old leader first so there's no confusion within this test.
+        # Step up. We have two connections, our old leader and the follower that is becoming
+        # the new leader. Close the old leader first so there's no confusion within this test.
         self.conn.close()
         conn_follow.reconfigure('disaggregated=(role="leader")')
 
-        # Check the continuation of each scan.  Again, we are checking with layered URIs only.
-        cursors = self.scan_data_follower(value_prefix4, first_read, self.nitems, cursors=follower_cursors, uris=self.layered_uris)
-
         # Now check that after closing, we get the new value
-        self.close_cursors(cursors)
-        cursors = self.scan_data_follower(value_prefix5, uris=self.layered_uris)
-        self.close_cursors(cursors)
+        follower_cursor = self.session_follow.open_cursor(self.uri)
+        self.scan_data(follower_cursor, value_prefix1)
+        follower_cursor.close()
 
-        value_prefix6 = 'fff'
-        self.put_data(value_prefix6, session = self.session_follow)
+        value_prefix2 = '!!!'
+        self.put_data(value_prefix2, session = self.session_follow)
 
+        # Now, the encryption part of the test. Remove all output up to now. We've previously
+        # told PALM to be verbose and we're looking for a message that we've used the
+        # encryption key. Doing a checkpoint should trigger that.  Close down the connection
+        # as well, as that generates other PALM verbose output that must be ignored.
         self.cleanStderr()
         self.cleanStdout()
         with self.expectedStdoutPattern('.*palm using saved dek.*', maxchars=10000):
