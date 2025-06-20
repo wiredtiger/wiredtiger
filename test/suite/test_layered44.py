@@ -28,6 +28,7 @@
 
 import os, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class
+from wiredtiger import stat
 
 # test_layered44.py
 #    Ensure that we do not read any freed pages.
@@ -58,6 +59,12 @@ class test_layered44(wttest.WiredTigerTestCase, DisaggConfigMixin):
         os.mkdir('kv_home')
         os.symlink('../kv_home', 'follower/kv_home', target_is_directory=True)
 
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
+
     # Test records into a layered tree and restarting
     def test_layered44(self):
         session_config = 'key_format=S,value_format=S'
@@ -70,6 +77,8 @@ class test_layered44(wttest.WiredTigerTestCase, DisaggConfigMixin):
         #
 
         self.session.create(self.uri, session_config)
+
+        self.assertEqual(self.get_stat(stat.conn.disagg_block_page_discard), 0)
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.nitems):
@@ -106,6 +115,8 @@ class test_layered44(wttest.WiredTigerTestCase, DisaggConfigMixin):
                 self.assertNotIn(page_number, freed_pages, f"Page {page_number} freed more than once")
                 freed_pages.add(page_number)
         self.assertGreater(len(freed_pages), 0)
+
+        self.assertGreater(self.get_stat(stat.conn.disagg_block_page_discard), 0)
 
         #
         # Part 2: Open a follower, read the data, and check that we do not read any freed pages.
