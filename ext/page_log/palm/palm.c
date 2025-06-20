@@ -147,7 +147,6 @@ static int palm_configure(PALM *, WT_CONFIG_ARG *);
 static int palm_configure_int(
   PALM *, WT_CONFIG_PARSER *, WT_CONFIG_ARG *, const char *, uint32_t *);
 static int palm_err(PALM *, WT_SESSION *, int, const char *, ...);
-
 static int palm_kv_err(PALM *, WT_SESSION *, int, const char *, ...);
 static int palm_get_dek(PALM *, WT_SESSION *, const WT_PAGE_LOG_ENCRYPTION *, uint64_t, uint64_t,
   bool, uint64_t, WT_PAGE_LOG_ENCRYPTION *);
@@ -396,14 +395,14 @@ palm_get_dek(PALM *palm, WT_SESSION *session, const WT_PAGE_LOG_ENCRYPTION *encr
      * itself more often, and we might not notice the error.
      *
      * So WiredTiger receives a DEK with every page get. When writing a delta for such a page, it
-     * need to pass that DEK. When writing a delta for page that it generated, retained in memory
-     * (and never needed to get back from the page log interface), it uses a zeroed DEK, that's the
-     * best it can do.
+     * needs to pass that DEK. One the other hand, when writing a delta for page that WiredTiger
+     * generated and wrote during the current connection, it uses a zeroed DEK, that's the best it
+     * can do.
      *
-     * To test it without doing any extra KV requests, we generate a DEK for any page write that
-     * doesn't have it - a simple encoding of the table id and page id. We'd expect that if a DEK is
-     * ever passed to us in the put path, it must match the table id and page id. That tests that
-     * the correct DEK is being passed.
+     * To test this without doing any extra KV requests, we generate and store a DEK for any page
+     * write that doesn't already have it - a simple encoding of the table id and page id. Then,
+     * we'd expect that if a DEK is ever passed to us in the put path, it must match that simple
+     * encoding. That tests that the correct DEK is being passed.
      *
      * To test that we're passing a DEK when we should, we compare the base_lsn to the LSN we
      * started the run with. If the base_lsn is less than that, then WiredTiger must have previously
