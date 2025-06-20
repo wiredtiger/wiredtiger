@@ -148,9 +148,6 @@ static int
 __sweep_expire_one(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-    __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
-      "Sweep server marked the session dhandle dead %s",
-      session->dhandle == NULL ? "EMPTY" : session->dhandle->name);
     /*
      * Acquire an exclusive lock on the handle and mark it dead.
      *
@@ -339,10 +336,6 @@ static int
 __sweep_check_session_callback(
   WT_SESSION_IMPL *session, WT_SESSION_IMPL *array_session, bool *exit_walkp, void *cookiep)
 {
-    __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
-      "Sweep server checking session dhandle name %s",
-      session->dhandle == NULL ? "EMPTY" : session->dhandle->name);
-
     WT_SWEEP_COOKIE *cookie;
     uint64_t last, last_sweep;
 
@@ -483,6 +476,9 @@ __sweep_server(void *arg)
         /*
          * Check for any "rogue" sessions, which did not run a session sweep in a long time.
          */
+        __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
+          "Sweep server performing a session check after removing %u dead handles", dead_handles);
+
         __sweep_check_session_sweep(session, now);
 
         /* Remember the last sweep time. */
