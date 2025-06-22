@@ -183,7 +183,10 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
 
-    /* Set the newest update timestamp to the approximate newest global timestamp */
+    /*
+     * Set the newest update timestamp to the approximate newest global timestamp. It's approximate
+     * and used as an eviction heuristic.
+     */
     __wt_page_modify_update_timestamp(session, page);
 
     return (0);
@@ -238,7 +241,10 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
 
-    /* Set the newest update timestamp to the approximate newest global timestamp */
+    /*
+     * Set the newest update timestamp to the approximate newest global timestamp. It's approximate
+     * and used as an eviction heuristic.
+     */
     __wt_page_modify_update_timestamp(session, page);
 
     return (0);
@@ -292,7 +298,10 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
 
-    /* Set the newest update timestamp to the approximate newest global timestamp */
+    /*
+     * Set the newest update timestamp to the approximate newest global timestamp. It's approximate
+     * and used as an eviction heuristic.
+     */
     __wt_page_modify_update_timestamp(session, page);
 
     /*
