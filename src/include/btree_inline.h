@@ -940,7 +940,7 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
 static WT_INLINE void
 __wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    if (S2C(session)->txn_global.newest_seen_timestamp > page->modify->newest_commit_timestamp)
+    if (__wt_atomic_load64(&S2C(session)->txn_global.newest_seen_timestamp) > page->modify->newest_commit_timestamp)
         page->modify->newest_commit_timestamp = S2C(session)->txn_global.newest_seen_timestamp;
 }
 

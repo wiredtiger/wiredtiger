@@ -430,7 +430,7 @@ struct __wt_page_modify {
     wt_shared uint64_t update_txn;
 
     /* An approximate timestamp of the newest update */
-    wt_timestamp_t newest_commit_timestamp;
+    wt_shared wt_timestamp_t newest_commit_timestamp;
 
     /* Dirty bytes added to the cache. */
     wt_shared uint64_t bytes_dirty;
