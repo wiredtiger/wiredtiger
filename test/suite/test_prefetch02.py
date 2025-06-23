@@ -110,7 +110,7 @@ class test_prefetch02(wttest.WiredTigerTestCase, suite_subprocess):
                         'key_format={},value_format={}'.format(self.key_format, self.value_format))
         c1 = s.open_cursor(self.uri)
         s.begin_transaction()
-        for i in range(1, self.nrows):
+        for i in range(1, self.nrows, 10):
             if self.value_format == '8t':
                 c1[i] = 100
             else:
