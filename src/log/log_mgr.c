@@ -879,9 +879,12 @@ __log_wrlsn_server(void *arg)
     }
     /*
      * On close we need to do this one more time because there could be straggling log writes that
-     * need to be written.
+     * need to be written. It is possible to return EBUSY due the database shutting down. Therefore
+     * loop until we finish the log write.
      */
-    WT_ERR(__wti_log_force_write(session, true, NULL));
+    do {
+        WT_ERR_ERROR_OK(__wti_log_force_write(session, true, NULL), EBUSY, true);
+    } while (ret == EBUSY);
     __wti_log_wrlsn(session, NULL);
     if (0) {
 err:
