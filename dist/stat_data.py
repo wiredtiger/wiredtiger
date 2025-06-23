@@ -261,6 +261,7 @@ conn_stats = [
     BlockStat('block_byte_write_leaf_disk', 'bytes written for leaf pages after compression and encryption', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
+    BlockStat('block_first_srch_linear_walk_time', 'time spent on linear walk of the available chunks in block_first_srch(usecs)', ),
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
