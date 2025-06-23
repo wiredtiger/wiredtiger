@@ -27,40 +27,39 @@
  * specific checkpoint and we got that checkpoint's write generation from the global checkpoint
  * metadata, not from per-tree information.
  */
-#define WT_WITH_CHECKPOINT(session, cbt, op)                                                \
-    do {                                                                                    \
-        WT_TXN *__saved_txn;                                                                \
-        uint64_t __saved_write_gen = (session)->checkpoint_write_gen;                       \
-        bool no_reconcile_set;                                                              \
-                                                                                            \
-        no_reconcile_set = F_ISSET((session), WT_SESSION_NO_RECONCILE);                     \
-        if ((cbt)->checkpoint_txn != NULL) {                                                \
-            __saved_txn = (session)->txn;                                                   \
-            if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                               \
-                WT_ASSERT(                                                                  \
-                  session, (cbt)->checkpoint_write_gen == (session)->checkpoint_write_gen); \
-                __saved_txn = NULL;                                                         \
-            } else {                                                                        \
-                (session)->txn = (cbt)->checkpoint_txn;                                     \
-                /* Reconciliation is disabled when reading a checkpoint. */                 \
-                F_SET((session), WT_SESSION_NO_RECONCILE);                                  \
-                if ((cbt)->checkpoint_hs_dhandle != NULL) {                                 \
-                    WT_ASSERT(session, (session)->hs_checkpoint == NULL);                   \
-                    (session)->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;    \
-                }                                                                           \
-                __saved_write_gen = (session)->checkpoint_write_gen;                        \
-                (session)->checkpoint_write_gen = (cbt)->checkpoint_write_gen;              \
-            }                                                                               \
-        } else                                                                              \
-            __saved_txn = NULL;                                                             \
-        op;                                                                                 \
-        if (__saved_txn != NULL) {                                                          \
-            (session)->txn = __saved_txn;                                                   \
-            if (!no_reconcile_set)                                                          \
-                F_CLR((session), WT_SESSION_NO_RECONCILE);                                  \
-            (session)->hs_checkpoint = NULL;                                                \
-            (session)->checkpoint_write_gen = __saved_write_gen;                            \
-        }                                                                                   \
+#define WT_WITH_CHECKPOINT(session, cbt, op)                                                  \
+    do {                                                                                      \
+        WT_TXN *__saved_txn;                                                                  \
+        uint64_t __saved_write_gen = (session)->ckpt.write_gen;                               \
+        bool no_reconcile_set;                                                                \
+                                                                                              \
+        no_reconcile_set = F_ISSET((session), WT_SESSION_NO_RECONCILE);                       \
+        if ((cbt)->checkpoint_txn != NULL) {                                                  \
+            __saved_txn = (session)->txn;                                                     \
+            if (F_ISSET(__saved_txn, WT_TXN_IS_CHECKPOINT)) {                                 \
+                WT_ASSERT(session, (cbt)->checkpoint_write_gen == (session)->ckpt.write_gen); \
+                __saved_txn = NULL;                                                           \
+            } else {                                                                          \
+                (session)->txn = (cbt)->checkpoint_txn;                                       \
+                /* Reconciliation is disabled when reading a checkpoint. */                   \
+                F_SET((session), WT_SESSION_NO_RECONCILE);                                    \
+                if ((cbt)->checkpoint_hs_dhandle != NULL) {                                   \
+                    WT_ASSERT(session, (session)->hs_checkpoint == NULL);                     \
+                    (session)->hs_checkpoint = (cbt)->checkpoint_hs_dhandle->checkpoint;      \
+                }                                                                             \
+                __saved_write_gen = (session)->ckpt.write_gen;                                \
+                (session)->ckpt.write_gen = (cbt)->checkpoint_write_gen;                      \
+            }                                                                                 \
+        } else                                                                                \
+            __saved_txn = NULL;                                                               \
+        op;                                                                                   \
+        if (__saved_txn != NULL) {                                                            \
+            (session)->txn = __saved_txn;                                                     \
+            if (!no_reconcile_set)                                                            \
+                F_CLR((session), WT_SESSION_NO_RECONCILE);                                    \
+            (session)->hs_checkpoint = NULL;                                                  \
+            (session)->ckpt.write_gen = __saved_write_gen;                                    \
+        }                                                                                     \
     } while (0)
 
 /*
@@ -178,7 +177,6 @@ __curfile_next(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, next, CUR2BT(cbt));
-    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -194,17 +192,15 @@ __curfile_next(WT_CURSOR *cursor)
 
 err:
     CURSOR_REPOSITION_END(cursor, session);
-    API_RETRYABLE_END(session, ret);
     API_END_RET_STAT(session, ret, cursor_next);
 }
 
 /*
- * __wt_curfile_next_random --
- *     WT_CURSOR->next method for the btree cursor type when configured with next_random. This is
- *     exported because it is called directly within LSM.
+ * __curfile_next_random --
+ *     WT_CURSOR->next method for the btree cursor type when configured with next_random.
  */
-int
-__wt_curfile_next_random(WT_CURSOR *cursor)
+static int
+__curfile_next_random(WT_CURSOR *cursor)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -241,7 +237,6 @@ __curfile_prev(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, ret, prev, CUR2BT(cbt));
-    API_RETRYABLE(session);
     CURSOR_REPOSITION_ENTER(cursor, session);
     WT_ERR(__cursor_copy_release(cursor));
 
@@ -256,7 +251,6 @@ __curfile_prev(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    API_RETRYABLE_END(session, ret);
     CURSOR_REPOSITION_END(cursor, session);
     API_END_RET_STAT(session, ret, cursor_prev);
 }
@@ -451,6 +445,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t time_start, time_stop;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, ret, modify);
@@ -461,7 +456,10 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     if (nentries <= 0)
         WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
+    time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_modify(cbt, entries, nentries));
+    time_stop = __wt_clock(session);
+    __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /*
      * Modify maintains a position, key and value. Unlike update, it's not always an internal value.
@@ -595,9 +593,8 @@ err:
     /*
      * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
      * the underlying functions didn't set one up. For various reasons, those functions may not have
-     * done a search and any previous value in the cursor might race with WT_CURSOR.reserve (and in
-     * cases like LSM, the reserve never encountered the original key). For simplicity, repeat the
-     * search here.
+     * done a search and any previous value in the cursor might race with WT_CURSOR.reserve. For
+     * simplicity, repeat the search here.
      */
     return (ret == 0 ? cursor->search(cursor) : ret);
 }
@@ -625,7 +622,7 @@ err:
          * If releasing the cursor fails in any way, it will be left in a state that allows it to be
          * normally closed.
          */
-        ret = __wt_cursor_cache_release(session, cursor, &released);
+        ret = __wti_cursor_cache_release(session, cursor, &released);
         if (released)
             goto done;
     }
@@ -637,7 +634,7 @@ err:
 
     /* Free the bulk-specific resources. */
     if (F_ISSET(cursor, WT_CURSTD_BULK))
-        WT_TRET(__wt_curbulk_close(session, (WT_CURSOR_BULK *)cursor));
+        WT_TRET(__wti_curbulk_close(session, (WT_CURSOR_BULK *)cursor));
 
     WT_TRET(__wt_btcur_close(cbt, false));
     /* The URI is owned by the btree handle. */
@@ -692,7 +689,7 @@ __curfile_cache(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     session = CUR2S(cursor);
 
-    WT_TRET(__wt_cursor_cache(cursor, cbt->dhandle));
+    WT_TRET(__wti_cursor_cache(cursor, cbt->dhandle));
     WT_TRET(__wt_session_release_dhandle(session));
 
     API_RET_STAT(session, ret, cursor_cache);
@@ -732,7 +729,7 @@ __curfile_reopen_int(WT_CURSOR *cursor)
         F_SET(cursor, WT_CURSTD_DEAD);
         ret = WT_NOTFOUND;
     }
-    __wt_cursor_reopen(cursor, dhandle);
+    __wti_cursor_reopen(cursor, dhandle);
 
     /*
      * The btree handle may have been reopened since we last accessed it. Reset fields in the cursor
@@ -958,13 +955,13 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_search,                               /* search */
       __curfile_search_near,                          /* search-near */
       __curfile_insert,                               /* insert */
-      __wt_cursor_modify_value_format_notsup,         /* modify */
+      __wti_cursor_modify_value_format_notsup,        /* modify */
       __curfile_update,                               /* update */
       __curfile_remove,                               /* remove */
       __curfile_reserve,                              /* reserve */
-      __wt_cursor_reconfigure,                        /* reconfigure */
-      __wt_cursor_largest_key,                        /* largest_key */
-      __wt_cursor_bound,                              /* bound */
+      __wti_cursor_reconfigure,                       /* reconfigure */
+      __wti_cursor_largest_key,                       /* largest_key */
+      __wti_cursor_bound,                             /* bound */
       __curfile_cache,                                /* cache */
       __curfile_reopen,                               /* reopen */
       __wt_cursor_checkpoint_id,                      /* checkpoint ID */
@@ -1001,7 +998,12 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
      */
     __wt_cursor_dhandle_incr_use(session);
 
-    if (WT_READING_CHECKPOINT(session)) {
+    /*
+     * We should have already set up the checkpoint cursor snapshot to read the history store unless
+     * we are reading the history store checkpoint cursor directly. Check whether we are already in
+     * a checkpoint cursor transaction.
+     */
+    if (!F_ISSET(session->txn, WT_TXN_IS_CHECKPOINT) && WT_READING_CHECKPOINT(session)) {
         /* Checkpoint cursor. */
         if (bulk)
             /* Fail now; otherwise we fail further down and then segfault trying to recover. */
@@ -1020,7 +1022,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
 
         /* Optionally skip the validation of each bulk-loaded key. */
         WT_ERR(__wt_config_gets_def(session, cfg, "skip_sort_check", 0, &cval));
-        WT_ERR(__wt_curbulk_init(session, cbulk, bitmap, cval.val == 0 ? 0 : 1));
+        WT_ERR(__wti_curbulk_init(session, cbulk, bitmap, cval.val == 0 ? 0 : 1));
     }
 
     /*
@@ -1030,16 +1032,16 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     if (cval.val != 0) {
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_seed", 0, &cval));
         if (cval.val != 0)
-            __wt_random_init_custom_seed(&cbt->rnd, (uint64_t)cval.val);
+            __wt_random_init_seed(&cbt->rnd, (uint64_t)cval.val);
         else
-            __wt_random_init_seed(session, &cbt->rnd);
+            __wt_random_init(session, &cbt->rnd);
 
         if (WT_CURSOR_RECNO(cursor))
             WT_ERR_MSG(
               session, ENOTSUP, "next_random configuration not supported for column-store objects");
 
-        __wt_cursor_set_notsup(cursor);
-        cursor->next = __wt_curfile_next_random;
+        __wti_cursor_set_notsup(cursor);
+        cursor->next = __curfile_next_random;
         cursor->reset = __curfile_reset;
 
         WT_ERR(__wt_config_gets_def(session, cfg, "next_random_sample_size", 0, &cval));
@@ -1117,7 +1119,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     /*
      * Decode the bulk configuration settings. In memory databases ignore bulk load.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
         if (cval.type == WT_CONFIG_ITEM_BOOL ||
           (cval.type == WT_CONFIG_ITEM_NUM && (cval.val == 0 || cval.val == 1))) {
@@ -1160,10 +1162,11 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * controlled by the "checkpoint_wait" config. Nothing else does an exclusive open, so the path
      * with the checkpoint lock is not otherwise reachable.
      *
-     * 2. For checkpoint cursors it is not safe to take the checkpoint lock here, because the LSM
-     * code opens checkpoint cursors while holding the schema lock and the checkpoint lock is
-     * supposed to come before the schema lock. If there should ever be some reason to do an
-     * exclusive open of a checkpoint cursor, something will have to give.
+     * 2. Historically, for checkpoint cursors, it was not safe to take the checkpoint lock here,
+     * because previously the LSM code would open a checkpoint cursor while holding the schema lock.
+     * The checkpoint lock is supposed to come before the schema lock which meant the ordering would
+     * be backwards. It is now possible although unimplemented to do an exclusive open of a
+     * checkpoint cursor if there is a good reason for it.
      *
      * 3. If we are opening a checkpoint cursor, we need two dhandles, one for the tree we're
      * actually trying to open and (unless that's itself the history store) one for the history
@@ -1172,13 +1175,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * for getting a matching set while avoiding races with a running checkpoint inside the open
      * logic (see session_dhandle.c) that we fortunately don't need to think about here.
      *
-     * 4. The LSM code also opens cursors on single-file checkpoints with no corresponding history
-     * store or snapshot information. It takes steps to make sure everything in the checkpoint is
-     * globally visible and sets checkpoint_use_history=false to indicate we shouldn't try to open
-     * the history store or retrieve the snapshot. If we were to try, we'd fail and the LSM code
-     * would get upset.
-     *
-     * 5. To avoid a proliferation of cases, and to avoid repeatedly parsing config strings, we
+     * 4. To avoid a proliferation of cases, and to avoid repeatedly parsing config strings, we
      * always pass down the return arguments for the history store dhandle and checkpoint snapshot
      * information (except for the bulk-only case and the LSM case) and pass the results on to
      * __curfile_create. We will not get anything back unless we are actually opening a checkpoint
@@ -1190,14 +1187,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * This initialization is repeated when opening the underlying data handle, which is ugly, but
      * cleanup requires the initialization have happened even if not opening a checkpoint handle.
      */
-    ckpt_snapshot.ckpt_id = 0;
-    ckpt_snapshot.oldest_ts = WT_TS_NONE;
-    ckpt_snapshot.stable_ts = WT_TS_NONE;
-    ckpt_snapshot.snapshot_write_gen = 0;
-    ckpt_snapshot.snapshot_max = WT_TXN_MAX;
-    ckpt_snapshot.snapshot_min = WT_TXN_MAX;
-    ckpt_snapshot.snapshot_txns = NULL;
-    ckpt_snapshot.snapshot_count = 0;
+    __wt_checkpoint_snapshot_clear(&ckpt_snapshot);
 
     /* Get the handle and lock it while the cursor is using it. */
     if (LF_ISSET(WT_DHANDLE_EXCLUSIVE) && checkpoint_wait)

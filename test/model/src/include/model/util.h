@@ -153,8 +153,9 @@ public:
      */
     inline ~wiredtiger_session_guard()
     {
-        if (_session != nullptr)
-            (void)_session->close(_session, nullptr);
+        if (_session == nullptr)
+            return;
+        (void)_session->close(_session, nullptr);
     }
 
     /*
@@ -522,6 +523,26 @@ parse_uint64(const std::string &str)
 }
 
 /*
+ * join --
+ *     Join two strings with a comma (or the specified separator) if need be.
+ */
+inline std::string
+join(const std::string &a, const std::string &b, const std::string &sep = ",")
+{
+    if (a.empty())
+        return b;
+    if (b.empty())
+        return a;
+    return a + sep + b;
+}
+
+/*
+ * quote --
+ *     Return a string in quotes, with appropriate escaping.
+ */
+std::string quote(const std::string &str);
+
+/*
  * starts_with --
  *     Check whether the string has the given prefix. (C++ does not have this until C++20.)
  */
@@ -598,6 +619,12 @@ wt_cursor_update(WT_CURSOR *cursor, const data_value &key, const data_value &val
     set_wt_cursor_value(cursor, value);
     return cursor->update(cursor);
 }
+
+/*
+ * wt_evict --
+ *     Evict a WiredTiger page with the given key.
+ */
+void wt_evict(WT_CONNECTION *conn, const char *uri, const data_value &key);
 
 /*
  * wt_list_tables --

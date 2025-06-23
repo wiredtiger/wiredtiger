@@ -16,6 +16,8 @@
  * object.
  */
 
+static void __gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation);
+
 /*
  * __gen_name --
  *     Return the generation name.
@@ -62,30 +64,6 @@ __wt_gen_init(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_gen --
- *     Return the resource's generation.
- */
-uint64_t
-__wt_gen(WT_SESSION_IMPL *session, int which)
-{
-    return (__wt_atomic_loadv64(&S2C(session)->generations[which]));
-}
-
-/*
- * __wt_gen_next --
- *     Switch the resource to its next generation.
- */
-void
-__wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp)
-{
-    uint64_t gen;
-
-    gen = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
-    if (genp != NULL)
-        *genp = gen;
-}
-
-/*
  * __wt_gen_next_drain --
  *     Switch the resource to its next generation, then wait for it to drain.
  */
@@ -96,7 +74,7 @@ __wt_gen_next_drain(WT_SESSION_IMPL *session, int which)
 
     v = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
 
-    __wt_gen_drain(session, which, v);
+    __gen_drain(session, which, v);
 }
 
 /*
@@ -138,11 +116,9 @@ __gen_drain_callback(
              * continue normal operation.
              */
             if (cookie->verbose_timeout_flags == true) {
-                if (cookie->base.which == WT_GEN_EVICT) {
-                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICT);
-                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICTSERVER);
-                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICT_STUCK);
-                } else if (cookie->base.which == WT_GEN_CHECKPOINT) {
+                if (cookie->base.which == WT_GEN_EVICT)
+                    WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_EVICTION);
+                else if (cookie->base.which == WT_GEN_CHECKPOINT) {
                     WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_CHECKPOINT);
                     WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_CHECKPOINT_CLEANUP);
                     WT_VERBOSE_RESTORE(session, verbose_orig_level, WT_VERB_CHECKPOINT_PROGRESS);
@@ -194,14 +170,10 @@ __gen_drain_callback(
             if (!cookie->verbose_timeout_flags &&
               (conn->gen_drain_timeout_ms < 20 ||
                 time_diff_ms > (conn->gen_drain_timeout_ms - 20))) {
-                if (cookie->base.which == WT_GEN_EVICT) {
+                if (cookie->base.which == WT_GEN_EVICT)
                     WT_VERBOSE_SET_AND_SAVE(
-                      session, verbose_orig_level, WT_VERB_EVICT, WT_VERBOSE_DEBUG_1);
-                    WT_VERBOSE_SET_AND_SAVE(
-                      session, verbose_orig_level, WT_VERB_EVICTSERVER, WT_VERBOSE_DEBUG_1);
-                    WT_VERBOSE_SET_AND_SAVE(
-                      session, verbose_orig_level, WT_VERB_EVICT_STUCK, WT_VERBOSE_DEBUG_1);
-                } else if (cookie->base.which == WT_GEN_CHECKPOINT) {
+                      session, verbose_orig_level, WT_VERB_EVICTION, WT_VERBOSE_DEBUG_1);
+                else if (cookie->base.which == WT_GEN_CHECKPOINT) {
                     WT_VERBOSE_SET_AND_SAVE(
                       session, verbose_orig_level, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1);
                     WT_VERBOSE_SET_AND_SAVE(
@@ -226,11 +198,11 @@ __gen_drain_callback(
 }
 
 /*
- * __wt_gen_drain --
+ * __gen_drain --
  *     Wait for the resource to drain.
  */
-void
-__wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
+static void
+__gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
     WT_GENERATION_DRAIN_COOKIE cookie;
 
@@ -332,16 +304,6 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
     WT_IGNORE_RET(__wt_session_array_walk(session, __gen_active_callback, false, &cookie));
 
     return (cookie.ret_active);
-}
-
-/*
- * __wt_session_gen --
- *     Return the thread's resource generation.
- */
-uint64_t
-__wt_session_gen(WT_SESSION_IMPL *session, int which)
-{
-    return (__wt_atomic_loadv64(&session->generations[which]));
 }
 
 /*

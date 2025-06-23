@@ -61,16 +61,6 @@ signal_handler(int signo)
 static void
 signal_timer(int signo)
 {
-    /*
-     * Direct I/O configurations can result in really long run times depending on how the test
-     * machine is configured. If a direct I/O run timed out, don't bother dropping core.
-     */
-    if (GV(DISK_DIRECT_IO)) {
-        fprintf(stderr, "format direct I/O configuration timed out\n");
-        fprintf(stderr, "format caught signal %d, exiting with error\n", signo);
-        fflush(stderr);
-        exit(EXIT_FAILURE);
-    }
 
     /* Note, format.sh checks for this message, so be cautious in changing the format. */
     fprintf(stderr, "format alarm timed out\n");
@@ -259,8 +249,8 @@ main(int argc, char *argv[])
      * reading configuration. There may be random seeds in the configuration, however, so we will
      * reinitialize the RNGs later.
      */
-    __wt_random_init_seed(NULL, &g.data_rnd);
-    __wt_random_init_seed(NULL, &g.extra_rnd);
+    __wt_random_init_default(&g.data_rnd);
+    __wt_random_init_default(&g.extra_rnd);
 
     /* Initialize lock to ensure single threading during failure handling. */
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));

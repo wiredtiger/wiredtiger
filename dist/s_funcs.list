@@ -5,12 +5,20 @@ __bit_ffs
 __bit_nclr
 __ovfl_discard_dump
 __ovfl_reuse_dump
+__wt_block_disagg_manager_create
+__wt_block_disagg_manager_open
+__wt_block_disagg_manager_owns_object
+__wt_bloom_create
 __wt_bloom_drop
+__wt_bloom_finalize
 __wt_bloom_get
+__wt_bloom_insert
+__wt_bloom_open
 __wt_bulk_insert_fix
 __wt_bulk_insert_row
 __wt_bulk_insert_var
 __wt_config_getone
+__wt_conn_remove_page_log
 __wt_crc32c_le
 __wt_curhs_open
 __wt_cursor_get_raw_value
@@ -23,14 +31,15 @@ __wt_debug_set_verbose
 __wt_debug_tree
 __wt_debug_tree_all
 __wt_debug_tree_shape
+# FIXME-13125 should be used by waitable_atomic
+__wt_futex_wake
+__wt_futex_wait
 __wt_lex_compare
 __wt_lex_compare_skip
 __wt_log_scan
 __wt_nlpo2
 __wt_nlpo2_round
 __wt_session_breakpoint
-__wt_stat_join_aggregate
-__wt_stat_join_clear_all
 __wt_strcat
 __wt_stream_set_no_buffer
 __wt_try_readlock
@@ -50,3 +59,5 @@ wiredtiger_unpack_item
 wiredtiger_unpack_start
 wiredtiger_unpack_str
 wiredtiger_unpack_uint
+__wt_page_from_npos
+__wt_page_from_npos_for_read

@@ -178,7 +178,7 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
      * we added cannot be discarded while visible to any running transaction, and we're a running
      * transaction, which means there can be no corresponding delete until we complete.
      */
-    __wt_cache_page_inmem_incr(session, page, new_ins_size);
+    __wt_cache_page_inmem_incr(session, page, new_ins_size, true);
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
@@ -230,7 +230,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
      * we added cannot be discarded while visible to any running transaction, and we're a running
      * transaction, which means there can be no corresponding delete until we complete.
      */
-    __wt_cache_page_inmem_incr(session, page, new_ins_size);
+    __wt_cache_page_inmem_incr(session, page, new_ins_size, true);
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
@@ -281,7 +281,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * structures we added cannot be discarded while visible to any running transaction, and we're a
      * running transaction, which means there can be no corresponding delete until we complete.
      */
-    __wt_cache_page_inmem_incr(session, page, upd_size);
+    __wt_cache_page_inmem_incr(session, page, upd_size, true);
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
@@ -310,7 +310,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      *    removing obsolete updates as part of the reconciliation process can support
      *    the optimizations to prevent needless page splits.
      */
-    if (!FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK) ||
+    if (!FLD_ISSET(S2C(session)->heuristic_controls.flags, WT_CONN_HEURISTIC_OBSOLETE_CHECK) ||
       (page->memory_footprint > (S2BT(session)->splitmempage / 2))) {
         /*
          * Check whether the transaction state has moved forward from the last time we checked for
@@ -318,7 +318,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
          */
         if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
             if (!__wt_txn_visible_all(session, txn, WT_TS_NONE)) {
-                if (__wt_random(&session->rnd) % 16 == 0) {
+                if (__wt_random(&session->rnd_random) % 16 == 0) {
                     /* Try to move the oldest ID forward and re-check. */
                     ret = __wt_txn_update_oldest(session, 0);
                     /*

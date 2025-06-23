@@ -213,7 +213,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
      * If passed fast-delete information, append the fast-delete information after the aggregated
      * timestamp information.
      */
-    if (page_del != NULL) {
+    if (page_del != NULL && __wt_process.fast_truncate_2022) {
         WT_ASSERT(session, cell_type == WT_CELL_ADDR_DEL);
 
         WT_IGNORE_RET(__wt_vpack_uint(&p, 0, page_del->txnid));
@@ -893,9 +893,8 @@ copy_cell_restart:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->timestamp));
         WT_RET(__wt_vunpack_uint(
           &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &page_del->durable_timestamp));
-        page_del->prepare_state = 0;                /* No prepare can have been in progress. */
-        page_del->previous_ref_state = WT_REF_DISK; /* The leaf page is on disk. */
-        page_del->committed = true;                 /* There is no running transaction. */
+        page_del->prepare_state = 0; /* No prepare can have been in progress. */
+        page_del->committed = true;  /* There is no running transaction. */
         page_del->selected_for_write = true;
     }
 
@@ -1153,7 +1152,7 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
      *                        durable_ts=NONE               durable_ts=NONE
      */
 
-    if (WT_READING_CHECKPOINT(session) && session->checkpoint_write_gen != 0) {
+    if (WT_READING_CHECKPOINT(session) && session->ckpt.write_gen != 0) {
         /*
          * When reading a checkpoint, override the tree's base write generation with the write
          * generation from the global metadata, which might be newer. This comes into play if the
@@ -1162,7 +1161,7 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
          * checkpoint write generation isn't set because the checkpoint is from an older version of
          * WiredTiger; in that case we use the tree's write generation and hope for the best.
          */
-        write_gen = session->checkpoint_write_gen;
+        write_gen = session->ckpt.write_gen;
         WT_ASSERT(session, write_gen >= S2BT(session)->base_write_gen);
     } else
         write_gen = S2BT(session)->base_write_gen;
@@ -1259,27 +1258,15 @@ __wt_cell_get_tw(WT_CELL_UNPACK_KV *unpack_value, WT_TIME_WINDOW **twp)
  *     Set a buffer to reference the data from an unpacked cell.
  */
 static WT_INLINE int
-__cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
-  WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
+__cell_data_ref(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
 {
-    bool decoded;
-
     /* Reference the cell's data, optionally decode it. */
     switch (unpack->type) {
     case WT_CELL_KEY:
-        store->data = unpack->data;
-        store->size = unpack->size;
-        if (page_type == WT_PAGE_ROW_INT)
-            return (0);
-        break;
     case WT_CELL_VALUE:
         store->data = unpack->data;
         store->size = unpack->size;
-        break;
-    case WT_CELL_KEY_OVFL:
-        WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
-        if (page_type == WT_PAGE_ROW_INT || decoded)
-            return (0);
         break;
     case WT_CELL_VALUE_OVFL:
         /*
@@ -1287,9 +1274,9 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
          * it may be removed by checkpoint concurrently.
          */
         __wt_timing_stress(session, WT_TIMING_STRESS_SLEEP_BEFORE_READ_OVERFLOW_ONPAGE, NULL);
-        WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
-        if (decoded)
-            return (0);
+        /* FALLTHROUGH */
+    case WT_CELL_KEY_OVFL:
+        WT_RET(__wt_ovfl_read(session, page, unpack, store));
         break;
     default:
         return (__wt_illegal_value(session, unpack->type));
@@ -1303,10 +1290,9 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
  *     Set a buffer to reference the data from an unpacked address cell.
  */
 static WT_INLINE int
-__wt_dsk_cell_data_ref_addr(
-  WT_SESSION_IMPL *session, int page_type, WT_CELL_UNPACK_ADDR *unpack, WT_ITEM *store)
+__wt_dsk_cell_data_ref_addr(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack, WT_ITEM *store)
 {
-    return (__cell_data_ref(session, NULL, page_type, (WT_CELL_UNPACK_COMMON *)unpack, store));
+    return (__cell_data_ref(session, NULL, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*
@@ -1321,12 +1307,11 @@ __wt_dsk_cell_data_ref_addr(
  *     version means it might be.
  */
 static WT_INLINE int
-__wt_dsk_cell_data_ref_kv(
-  WT_SESSION_IMPL *session, int page_type, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
+__wt_dsk_cell_data_ref_kv(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
 {
     WT_ASSERT(session, unpack != NULL);
     WT_ASSERT(session, __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
-    return (__cell_data_ref(session, NULL, page_type, (WT_CELL_UNPACK_COMMON *)unpack, store));
+    return (__cell_data_ref(session, NULL, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*
@@ -1337,7 +1322,7 @@ static WT_INLINE int
 __wt_page_cell_data_ref_kv(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *unpack, WT_ITEM *store)
 {
-    return (__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack, store));
+    return (__cell_data_ref(session, page, (WT_CELL_UNPACK_COMMON *)unpack, store));
 }
 
 /*

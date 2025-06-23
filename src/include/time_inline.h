@@ -17,14 +17,7 @@
 static WT_INLINE uint64_t
 __wt_rdtsc(void)
 {
-#if defined(__i386)
-    {
-        uint64_t x;
-
-        __asm__ volatile("rdtsc" : "=A"(x));
-        return (x);
-    }
-#elif defined(__amd64)
+#if defined(__amd64)
     {
         uint64_t a, d;
 
@@ -229,4 +222,15 @@ __wt_timer_evaluate_ms(WT_SESSION_IMPL *session, WT_TIMER *start_time, uint64_t 
     struct timespec cur_time;
     __wt_epoch(session, &cur_time);
     *time_diff_ms = WT_TIMEDIFF_MS(cur_time, *start_time);
+}
+
+/*
+ * __wt_usec_to_timespec --
+ *     Initialize to represent specified number of microseconds.
+ */
+static WT_INLINE void
+__wt_usec_to_timespec(time_t usec, struct timespec *tsp)
+{
+    tsp->tv_sec = usec / WT_MILLION;
+    tsp->tv_nsec = (usec % WT_MILLION) * WT_THOUSAND;
 }

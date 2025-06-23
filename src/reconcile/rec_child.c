@@ -7,14 +7,15 @@
  */
 
 #include "wt_internal.h"
-
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 /*
  * __rec_child_deleted --
  *     Handle pages with leaf pages in the WT_REF_DELETED state.
  */
 static int
 __rec_child_deleted(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_MODIFY_STATE *cmsp)
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
 {
     WT_PAGE_DELETED *page_del;
     uint8_t prepare_state;
@@ -23,7 +24,7 @@ __rec_child_deleted(
     visible = visible_all = false;
     page_del = ref->page_del;
 
-    cmsp->state = WT_CHILD_IGNORE;
+    cmsp->state = WTI_CHILD_IGNORE;
 
     /*
      * If there's no page-delete structure, the truncate must be globally visible. Discard any
@@ -67,7 +68,7 @@ __rec_child_deleted(
      */
     if (page_del->selected_for_write && !visible_all) {
         cmsp->del = *page_del;
-        cmsp->state = WT_CHILD_PROXY;
+        cmsp->state = WTI_CHILD_PROXY;
         return (0);
     }
 
@@ -96,7 +97,7 @@ __rec_child_deleted(
          */
         if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_EVICT))
             return (__wt_set_return(session, EBUSY));
-        cmsp->state = WT_CHILD_ORIGINAL;
+        cmsp->state = WTI_CHILD_ORIGINAL;
         r->leave_dirty = true;
         return (0);
     }
@@ -129,7 +130,7 @@ __rec_child_deleted(
           "In progress prepares should never be seen in eviction");
         WT_ASSERT(session, !visible_all);
 
-        cmsp->state = WT_CHILD_ORIGINAL;
+        cmsp->state = WTI_CHILD_ORIGINAL;
         r->leave_dirty = true;
         return (0);
     }
@@ -143,25 +144,26 @@ __rec_child_deleted(
      * cells to the page. Copy out the current fast-truncate information for that function.
      */
     if (!visible_all) {
-        /*
-         * Internal pages with deletes that aren't globally visible cannot be evicted if we don't
-         * write the page_del information, we don't have sufficient information to restore the
-         * page's information if subsequently read (we wouldn't know which transactions should see
-         * the original page and which should see the deleted page).
-         */
-        if (F_ISSET(r, WT_REC_EVICT))
-            return (__wt_set_return(session, EBUSY));
+        if (!__wt_process.fast_truncate_2022) {
+            /*
+             * Internal pages with deletes that aren't globally visible cannot be evicted if we
+             * don't write the page_del information, we don't have sufficient information to restore
+             * the page's information if subsequently read (we wouldn't know which transactions
+             * should see the original page and which should see the deleted page).
+             */
+            if (F_ISSET(r, WT_REC_EVICT))
+                return (__wt_set_return(session, EBUSY));
 
-        /*
-         * It is wrong to leave the page clean after checkpoint if we cannot write the deleted pages
-         * to disk in eviction. If we do so, the next eviction will discard the page without
-         * reconcile it again and we lose the time point information of the non-obsolete deleted
-         * pages.
-         */
-        r->leave_dirty = true;
-
+            /*
+             * It is wrong to leave the page clean after checkpoint if we cannot write the deleted
+             * pages to disk in eviction. If we do so, the next eviction will discard the page
+             * without reconcile it again and we lose the time point information of the non-obsolete
+             * deleted pages.
+             */
+            r->leave_dirty = true;
+        }
         cmsp->del = *page_del;
-        cmsp->state = WT_CHILD_PROXY;
+        cmsp->state = WTI_CHILD_PROXY;
         page_del->selected_for_write = true;
         return (0);
     }
@@ -185,12 +187,12 @@ __rec_child_deleted(
 }
 
 /*
- * __wt_rec_child_modify --
+ * __wti_rec_child_modify --
  *     Return if the internal page's child references any modifications.
  */
 int
-__wt_rec_child_modify(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_MODIFY_STATE *cmsp)
+__wti_rec_child_modify(
+  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
 {
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
@@ -199,7 +201,7 @@ __wt_rec_child_modify(
     cmsp->hazard = false;
 
     /* Default to using the original child address. */
-    cmsp->state = WT_CHILD_ORIGINAL;
+    cmsp->state = WTI_CHILD_ORIGINAL;
 
     /*
      * This function is called when walking an internal page to decide how to handle child pages
@@ -283,7 +285,7 @@ __wt_rec_child_modify(
              */
             if (cmsp->hazard == false) {
                 ret = __wt_page_in(session, ref,
-                  WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT);
+                  WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL_OP | WT_READ_NO_WAIT);
                 if (ret == WT_NOTFOUND) {
                     ret = 0;
                     break;
@@ -298,7 +300,7 @@ __wt_rec_child_modify(
              */
             mod = ref->page->modify;
             if (mod != NULL && mod->rec_result != 0) {
-                cmsp->state = WT_CHILD_MODIFIED;
+                cmsp->state = WTI_CHILD_MODIFIED;
                 goto done;
             }
 
@@ -354,7 +356,7 @@ __wt_rec_child_modify(
              * have an address and we ignore it, it's not part of the checkpoint.
              */
             if (ref->addr == NULL)
-                cmsp->state = WT_CHILD_IGNORE;
+                cmsp->state = WTI_CHILD_IGNORE;
             goto done;
 
         case WT_REF_SPLIT:

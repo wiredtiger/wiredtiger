@@ -8,6 +8,9 @@
 
 #include "wt_internal.h"
 
+#define WT_CONFLICT_BACKUP_MSG "the table is currently performing backup and cannot be dropped"
+#define WT_CONFLICT_DHANDLE_MSG "another thread is currently holding the data handle of the table"
+
 /*
  * __drop_file --
  *     Drop a file.
@@ -19,7 +22,9 @@ __drop_file(
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     const char *filename;
-    bool remove_files;
+    char *metadata_cfg = NULL;
+    bool id_found, remove_files;
+    uint32_t id = 0;
 
     WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
     remove_files = cval.val != 0;
@@ -27,22 +32,45 @@ __drop_file(
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
 
-    WT_RET(__wt_schema_backup_check(session, filename));
+    if ((ret = __wti_schema_backup_check(session, filename)) == EBUSY)
+        WT_RET_SUB(session, ret, WT_CONFLICT_BACKUP, WT_CONFLICT_BACKUP_MSG);
+    WT_RET(ret);
+
     /* Close all btree handles associated with this file. */
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
+    if (ret == EBUSY)
+        WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
     WT_RET(ret);
+
+    /* Get file id that will be used to truncate history store for the file. */
+    id_found = __wt_metadata_search(session, uri, &metadata_cfg) == 0 &&
+      __wt_config_getones(session, metadata_cfg, "id", &cval) == 0;
+    if (id_found)
+        id = (uint32_t)cval.val;
 
     /* Remove the metadata entry (ignore missing items). */
     WT_TRET(__wt_metadata_remove(session, uri));
-    if (!remove_files)
-        return (ret);
+    if (remove_files)
+        /*
+         * Schedule the remove of the underlying physical file when the drop completes.
+         */
+        WT_TRET(__wt_meta_track_drop(session, filename));
 
     /*
-     * Schedule the remove of the underlying physical file when the drop completes.
+     * Truncate history store for the dropped file if we can find its id from the metadata, this is
+     * a best-effort operation, as we don't fail drop if truncate returns an error. There is no
+     * history store to truncate for in-memory database, and we should not call truncate if
+     * connection is not ready for history store operations.
      */
-    WT_TRET(__wt_meta_track_drop(session, filename));
-
+    WT_ERR(ret);
+    if (id_found && !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READY))
+        if (__wt_hs_btree_truncate(session, id) != 0)
+            __wt_verbose_warning(
+              session, WT_VERB_HS, "Failed to truncate history store for the file: %s", uri);
+err:
+    __wt_free(session, metadata_cfg);
     return (ret);
 }
 
@@ -83,7 +111,7 @@ __drop_index(
     WT_INDEX *idx;
 
     /* If we can get the index, detach it from the table. */
-    if ((ret = __wt_schema_get_index(session, uri, true, force, &idx)) == 0)
+    if ((ret = __wti_schema_get_index(session, uri, true, force, &idx)) == 0)
         WT_TRET(__wt_schema_drop(session, idx->source, cfg, check_visibility));
 
     WT_TRET(__wt_metadata_remove(session, uri));
@@ -117,16 +145,18 @@ __drop_table(
     /*
      * Open the table so we can drop its column groups and indexes.
      *
-     * Ideally we would keep the table locked exclusive across the drop, but for now we rely on the
-     * global table lock to prevent the table being reopened while it is being dropped. One issue is
-     * that the WT_WITHOUT_LOCKS macro can drop and reacquire the global table lock, avoiding
-     * deadlocks while waiting for LSM operation to quiesce.
+     * FIXME-WT-13812: Investigate table locking during session->drop Ideally we would keep the
+     * table locked exclusive across the drop, but for now we rely on the global table lock to
+     * prevent the table being reopened while it is being dropped.
      *
      * Temporarily getting the table exclusively serves the purpose of ensuring that cursors on the
      * table that are already open must at least be closed before this call proceeds.
      */
-    WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
-    WT_ERR(__wt_schema_release_table_gen(session, &table, true));
+    ret = __wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table);
+    if (ret == EBUSY)
+        WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
+    WT_ERR(ret);
+    WT_ERR(__wti_schema_release_table_gen(session, &table, true));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
 
     if (force && !table->is_simple) {
@@ -161,7 +191,7 @@ __drop_table(
     }
 
     /* Make sure the table data handle is closed. */
-    WT_ERR(__wt_schema_release_table_gen(session, &table, true));
+    WT_ERR(__wti_schema_release_table_gen(session, &table, true));
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
     F_SET(&table->iface, WT_DHANDLE_DISCARD);
     if (WT_META_TRACKING(session)) {
@@ -211,7 +241,10 @@ __drop_tiered(
 
     name = NULL;
     /* Get the tiered data handle. */
-    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    ret = __wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE);
+    if (ret == EBUSY)
+        WT_RET_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
+    WT_RET(ret);
     got_dhandle = true;
     tiered = (WT_TIERED *)session->dhandle;
     /*
@@ -236,6 +269,8 @@ __drop_tiered(
     got_dhandle = false;
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force, check_visibility));
+    if (ret == EBUSY)
+        WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
     WT_ERR(ret);
 
     /*
@@ -256,6 +291,8 @@ __drop_tiered(
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
+        if (ret == EBUSY)
+            WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
         if (remove_files) {
@@ -273,6 +310,8 @@ __drop_tiered(
         WT_WITHOUT_DHANDLE(session,
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force, false)));
+        if (ret == EBUSY)
+            WT_ERR_SUB(session, ret, WT_CONFLICT_DHANDLE, WT_CONFLICT_DHANDLE_MSG);
         WT_ERR(ret);
         WT_ERR(__wt_metadata_remove(session, tier->name));
     } else
@@ -355,8 +394,6 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
         ret = __drop_file(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "index:"))
         ret = __drop_index(session, uri, force, cfg, check_visibility);
-    else if (WT_PREFIX_MATCH(uri, "lsm:"))
-        ret = __wt_lsm_tree_drop(session, uri, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __drop_table(session, uri, force, cfg, check_visibility);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
@@ -374,7 +411,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], bool
     if (ret == WT_NOTFOUND || ret == ENOENT)
         ret = force ? 0 : ENOENT;
 
-    if (F_ISSET(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_BACKUP_PARTIAL_RESTORE))
         WT_TRET(__wt_meta_track_off(session, false, ret != 0));
     else
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
@@ -402,8 +439,8 @@ __wt_schema_drop(
      */
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
-    WT_RET(__wt_schema_internal_session(session, &int_session));
+    WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_drop(int_session, uri, cfg, check_visibility);
-    WT_TRET(__wt_schema_session_release(session, int_session));
+    WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
 }

@@ -465,12 +465,10 @@ main(int argc, char *argv[])
      */
     TABLE_INFO table_data[] = {{"file:aaa-file.SS", "key_format=S,value_format=S", false},
       {"file:bbb-file.rS", "key_format=r,value_format=S", false},
-      {"lsm:ccc-lsm.SS", "key_format=S,value_format=S", false},
       {"table:ddd-table.SS", "key_format=S,value_format=S", false},
       {"table:eee-table.rS", "key_format=r,value_format=S", false},
       {"file:fff-file.SS", "key_format=S,value_format=S", false},
       {"file:ggg-file.rS", "key_format=r,value_format=S", false},
-      {"lsm:hhh-lsm.SS", "key_format=S,value_format=S", false},
       {"table:iii-table.SS", "key_format=S,value_format=S", false},
       {"table:jjj-table.rS", "key_format=r,value_format=S", false},
       {CORRUPT, "key_format=S,value_format=S", false}, {NULL, NULL, false}};
@@ -480,7 +478,7 @@ main(int argc, char *argv[])
     char copy_from[1024], save_path[1024];
 
     /* Bypass this test for ASAN builds */
-    if (testutil_is_flag_set("TESTUTIL_BYPASS_ASAN"))
+    if (testutil_is_flag_set("TESTUTIL_BYPASS_ASAN") || testutil_is_flag_set("TESTUTIL_TSAN"))
         return (EXIT_SUCCESS);
 
     opts = &_opts;

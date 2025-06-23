@@ -247,9 +247,6 @@ real_checkpointer(THREAD_DATA *td)
     verify_ts = WT_TS_NONE;
     flush_tier = false;
 
-    if (!g.opts.running)
-        return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
-
     while (g.ntables > g.ntables_created && g.opts.running)
         __wt_yield();
 
@@ -475,13 +472,6 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
     }
 
     for (i = 0; i < g.ntables; i++) {
-        /*
-         * TODO: LSM doesn't currently support reading from checkpoints.
-         */
-        if (g.cookies[i].type == LSM && use_checkpoint) {
-            cursors[i] = NULL;
-            continue;
-        }
         testutil_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", i);
         if ((ret = session->open_cursor(session, next_uri, NULL, ckpt, &cursors[i])) != 0) {
             (void)log_print_err("verify_consistency:session.open_cursor", ret, 1);
@@ -489,20 +479,13 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
         }
     }
 
-    /* Pick a reference table: the first table that's not FLCS and not LSM, if possible; else 0. */
+    /* Pick a reference table: the first table that's not FLCS, if possible; else 0. */
     reference_table = 0;
     for (i = 0; i < g.ntables; i++)
-        if (g.cookies[i].type != FIX && g.cookies[i].type != LSM) {
+        if (g.cookies[i].type != FIX) {
             reference_table = i;
             break;
         }
-
-    /* There's no way to verify LSM-only runs. */
-    if (cursors[reference_table] == NULL) {
-        printf("LSM-only, skipping verification\n");
-        fflush(stdout);
-        goto err;
-    }
 
     while (ret == 0) {
         /* Advance the reference table's cursor. */
@@ -520,11 +503,6 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts, bool use_check
             if (i == reference_table)
                 continue;
 
-            /*
-             * TODO: LSM doesn't currently support reading from checkpoints.
-             */
-            if (g.cookies[i].type == LSM)
-                continue;
             t_ret = do_cursor_next(g.cookies[i].type, cursors[i]);
             if (t_ret != 0 && t_ret != WT_NOTFOUND) {
                 ret = t_ret;

@@ -6,19 +6,16 @@ include:
 variables:
 # Template for perf-tasks
 - &perf-tasks-template
-  batchtime: 360 # 6 hours
-  expansions: &ubuntu2004-perf-tests-expansions-template
+  batchtime: 1440 # 1 day
+  expansions: &perf-tests-expansions-template
     additional_env_vars: export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$WT_BUILDDIR/test/utility/"
-    CC_OPTIMIZE_LEVEL: -DCC_OPTIMIZE_LEVEL=-O3
-    HAVE_DIAGNOSTIC: -DHAVE_DIAGNOSTIC=0
-    ENABLE_TCMALLOC: 0
+    ENABLE_TCMALLOC: 1
+    CMAKE_BUILD_TYPE: -DCMAKE_BUILD_TYPE=Release
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     database: WTPerformanceDataDB
   tasks:
     - name: compile
     - ".btree-perf"
-    # FIXME-WT-8867 Disable LSM perf tests till the support for LSM is restored.
-    # - ".lsm-perf"
     - ".stress-perf"
     - ".checkpoint-perf"
     - ".evict-perf"
@@ -31,6 +28,8 @@ variables:
       distros: ubuntu2004-wt-large
     - name: ".cppsuite-perf-test"
     - name: many-dhandle-stress
+    - name: prefetch-off-verify
+    - name: prefetch-on-verify
 
 # Build variants that need to be run only on the develop branch.
 buildvariants:
@@ -40,17 +39,29 @@ buildvariants:
   run_on:
     - ubuntu2004-perf-testing
   expansions:
-    <<: *ubuntu2004-perf-tests-expansions-template
+    <<: *perf-tests-expansions-template
     collection: AllPerfTests
 
 - <<: *perf-tasks-template
-  name: ubuntu2004-perf-tests-arm64
-  display_name: Ubuntu 20.04 Performance tests (ARM64)
+  name: amazon2023-perf-tests-arm64
+  display_name: (ARMV9) Amazon Linux 2023 Performance tests (ARM64)
   run_on:
-    - ubuntu2004-arm64-perf-testing
+   - amazon2023-arm64-large-m8g-wt
   expansions:
-    <<: *ubuntu2004-perf-tests-expansions-template
-    collection: AllPerfTestsARM64
+    <<: *perf-tests-expansions-template
+    collection: AllPerfTestsARM64_v9
+
+- <<: *perf-tasks-template
+  name: amazon2023-perf-tests-arm64-only
+  display_name: (ARMV9) Amazon Linux 2023 Performance tests (ARM64 only)
+  run_on:
+    - amazon2023-arm64-large-m8g-wt
+  expansions:
+    <<: *perf-tests-expansions-template
+    collection: AllPerfTestsARM64_v9
+  tasks:
+    - name: compile
+    - ".cppsuite-perf-test-arm"
 
 - name: documentation-update
   display_name: "~ Documentation update"
@@ -59,7 +70,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     ENABLE_TCMALLOC: 0
-    doc_update_branches: develop,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
+    doc_update_branches: develop,mongodb-8.0,mongodb-7.0,mongodb-6.0,mongodb-5.0,mongodb-4.4,mongodb-4.2
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
     - name: doc-update
@@ -71,13 +82,20 @@ buildvariants:
   expansions:
     ENABLE_TCMALLOC: 0
     database: WTCodeStatisticsDB
-    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
+    num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: coverage-report
+    - name: coverage-report-python
       distros: ubuntu2004-arm64-large
+    - name: coverage-report-other
+      distros: ubuntu2004-arm64-large
+    - name: coverage-report-per-test
+      distros: ubuntu2004-arm64-large
+      activate: false # Launch only manually for now
     - name: coverage-report-catch2
+    - name: generate-coverage-report
     - name: cyclomatic-complexity
     - name: code-change-report
+    - name: modularity_metrics
 
 - name: compatibility-tests-less-frequent
   display_name: Compatibility tests (less frequent)

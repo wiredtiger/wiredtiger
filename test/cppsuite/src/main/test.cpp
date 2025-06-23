@@ -149,12 +149,23 @@ test::run()
     cache_max_wait_ms = std::chrono::milliseconds(_config->get_int(CACHE_MAX_WAIT_MS));
     db_create_config += ",cache_max_wait_ms=" + std::to_string(cache_max_wait_ms.count());
 
+    /* Set in_memory if the test requires it. */
+    if (_config->get_bool(IN_MEMORY))
+        db_create_config += ",in_memory=true";
+
+    db_create_config +=
+      ",file_manager=(close_scan_interval=" + std::to_string(_config->get_int(SWEEP_INTERVAL)) +
+      ")";
+
     /* Add the user supplied wiredtiger open config. */
     db_create_config += "," + _args.wt_open_config;
 
+    /* Clean up any pre-existing test artifacts. */
+    std::string home = _args.home.empty() ? DEFAULT_DIR : _args.home;
+    testutil_remove(home.c_str());
+
     /* Create connection. */
-    connection_manager::instance().create(
-      db_create_config, _args.home.empty() ? DEFAULT_DIR : _args.home);
+    connection_manager::instance().create(db_create_config, home);
 
     /* Load each component. They have to be all loaded first before being able to run. */
     for (const auto &it : _components)

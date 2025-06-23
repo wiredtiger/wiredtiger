@@ -15,9 +15,6 @@ add_subdirectory(collators/revint)
 # Build the encryptor extensions.
 add_subdirectory(encryptors/nop)
 
-# Build the extractor extensions.
-add_subdirectory(extractors/csv)
-
 # We currently don't support these tests extensions on non-POSIX systems since they are designed around the
 # existence of POSIX utilities or certain system headers e.g Linux signals.
 if(WT_POSIX)
@@ -25,12 +22,15 @@ if(WT_POSIX)
     add_subdirectory(encryptors/rotn)
     add_subdirectory(encryptors/sodium)
 
+    # Build the page log extensions.
+    add_subdirectory(page_log/palm)
+
     # Build the storage_sources extensions.
     add_subdirectory(storage_sources/dir_store)
     if(ENABLE_S3)
         add_subdirectory(storage_sources/s3_store)
     endif()
-    
+
     if(ENABLE_GCP)
         add_subdirectory(storage_sources/gcp_store)
     endif()

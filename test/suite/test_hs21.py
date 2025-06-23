@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 # We want to ensure that when an active history file is idle closed we can continue reading the
 # correct version of data and their base write generation hasn't changed (since we haven't
 # restarted the system).
-@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_hs21(wttest.WiredTigerTestCase):
     # Configure handle sweeping to occur within a specific amount of time.
     conn_config = 'file_manager=(close_handle_minimum=0,close_idle_time=2,close_scan_interval=1),' + \
@@ -179,7 +179,7 @@ class test_hs21(wttest.WiredTigerTestCase):
             stat_cursor.reset()
             curr_files_open = stat_cursor[stat.conn.file_open][2]
             curr_dhandles_removed = stat_cursor[stat.conn.dh_sweep_remove][2]
-            curr_dhandle_sweep_closes = stat_cursor[stat.conn.dh_sweep_close][2]
+            curr_dhandle_sweep_closes = stat_cursor[stat.conn.dh_sweep_dead_close][2]
 
             self.printVerbose(3, "==== loop " + str(sleep))
             self.printVerbose(3, "Number of files open: " + str(curr_files_open))
@@ -192,7 +192,7 @@ class test_hs21(wttest.WiredTigerTestCase):
                 break
 
         stat_cursor.reset()
-        final_dhandle_sweep_closes = stat_cursor[stat.conn.dh_sweep_close][2]
+        final_dhandle_sweep_closes = stat_cursor[stat.conn.dh_sweep_dead_close][2]
         stat_cursor.close()
         # We want to assert our active history files have all been closed.
         self.assertGreaterEqual(final_dhandle_sweep_closes, self.numfiles)

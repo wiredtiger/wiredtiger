@@ -30,8 +30,7 @@
 #endif /* CODE_COVERAGE_MEASUREMENT */
 
 /*
- * Quiet compiler warnings about unused function parameters and variables, and unused function
- * return values.
+ * Explicitly suppress compiler warnings about unused variables, and function parameters.
  */
 #define WT_UNUSED(var) (void)(var)
 #define WT_NOT_READ(v, val) \
@@ -39,24 +38,17 @@
         (v) = (val);        \
         (void)(v);          \
     } while (0);
-#define WT_IGNORE_RET(call)                \
-    do {                                   \
-        uintmax_t __ignored_ret;           \
-        __ignored_ret = (uintmax_t)(call); \
-        WT_UNUSED(__ignored_ret);          \
-    } while (0)
-#define WT_IGNORE_RET_BOOL(call)  \
-    do {                          \
-        bool __ignored_ret;       \
-        __ignored_ret = (call);   \
-        WT_UNUSED(__ignored_ret); \
-    } while (0)
-#define WT_IGNORE_RET_PTR(call)    \
-    do {                           \
-        const void *__ignored_ret; \
-        __ignored_ret = (call);    \
-        WT_UNUSED(__ignored_ret);  \
-    } while (0)
+
+/*
+ * Explicitly suppress: warning unused result.
+ *
+ * Simply casting to void as in WT_UNUSED will not suppress this warning on the current version of
+ * gcc (11.3.0) used for the server build.
+ *
+ * This workaround works with every supported toolchain, and does not employ unused temporary values
+ * that are then detected by Coverity.
+ */
+#define WT_IGNORE_RET(call) ((void)!(call))
 
 #define WT_DIVIDER "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
@@ -108,6 +100,7 @@
 /* Min, max. */
 #define WT_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define WT_MAX(a, b) ((a) < (b) ? (b) : (a))
+#define WT_CLAMP(x, low, high) (WT_MIN(WT_MAX((x), (low)), (high)))
 
 /* Ceil for unsigned/positive real numbers. */
 #define WT_CEIL_POS(a) ((a) - (double)(uintmax_t)(a) > 0.0 ? (uintmax_t)(a) + 1 : (uintmax_t)(a))
@@ -327,7 +320,7 @@ FLD_AREALLSET(uint64_t field, uint64_t mask)
 
 /* Check if a string matches a suffix. */
 #define WT_SUFFIX_MATCH(str, sfx) \
-    (strlen(str) >= strlen(sfx) && strcmp(&str[strlen(str) - strlen(sfx)], sfx) == 0)
+    (strlen(str) >= strlen(sfx) && strcmp(&(str)[strlen(str) - strlen(sfx)], sfx) == 0)
 
 /* Check if a string matches a prefix, and move past it. */
 #define WT_PREFIX_SKIP(str, pfx) (WT_PREFIX_MATCH(str, pfx) ? ((str) += strlen(pfx), 1) : 0)
@@ -490,5 +483,18 @@ union __wt_rand_state {
             WT_ERR(__wt_buf_extend(session, buf, (buf)->size + __len + 1));     \
         }                                                                       \
     } while (0)
-
+/*
+ * __wt_atomic_decrement_if_positive --
+ *     Use compare and swap to atomically decrement value by 1 if it's positive.
+ */
+static WT_INLINE void
+__wt_atomic_decrement_if_positive(uint32_t *valuep)
+{
+    uint32_t old_value;
+    do {
+        old_value = __wt_atomic_load32(valuep);
+        if (old_value == 0)
+            break;
+    } while (!__wt_atomic_cas32(valuep, old_value, old_value - 1));
+}
 #endif /* __WT_MISC_H */

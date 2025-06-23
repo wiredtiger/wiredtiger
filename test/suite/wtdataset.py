@@ -49,7 +49,6 @@ class BaseDataSet(object):
         self.key_format = kwargs.get('key_format', 'S')
         self.value_format = kwargs.get('value_format', 'S')
         self.config = kwargs.get('config', '')
-        self.projection = kwargs.get('projection', '')
 
         # If the timestamp generator is not set, get it from the test case.
         self.timestamp = kwargs.get('timestamp', testcase.getTimestamp())
@@ -105,10 +104,6 @@ class BaseDataSet(object):
 
     def postfill_create(self):
         pass
-
-    @classmethod
-    def is_lsm(cls):
-        return False
 
     def populate(self, create=True, variant=1):
         self.testcase.pr('populate variant ' + str(variant) + ': ' + self.uri + ' with '
@@ -169,7 +164,7 @@ class BaseDataSet(object):
 
     def check(self, variant=1):
         self.testcase.pr('check variant ' + str(variant) + ': ' + self.uri)
-        cursor = self.open_cursor(self.uri + self.projection)
+        cursor = self.open_cursor(self.uri)
         self.check_cursor(cursor, variant)
         cursor.close()
 
@@ -201,20 +196,6 @@ class SimpleDataSet(BaseDataSet):
             self.testcase.assertEqual(val, self.value(i, variant))
         self.testcase.assertEqual(i, self.rows)
 
-class SimpleLSMDataSet(SimpleDataSet):
-    """
-    SimpleLSMDataSet is identical to SimpleDataSet, but using LSM files
-    via the type=lsm configuration.
-    """
-    def __init__(self, testcase, uri, rows, **kwargs):
-        kwargs['config'] = kwargs.get('config', '') + ',type=lsm'
-        super(SimpleLSMDataSet, self).__init__(
-            testcase, uri, rows, **kwargs)
-
-    @classmethod
-    def is_lsm(cls):
-        return True
-
 class SimpleIndexDataSet(SimpleDataSet):
     """
     SimpleIndexDataSet is identical to SimpleDataSet, adding one index
@@ -243,20 +224,6 @@ class SimpleIndexDataSet(SimpleDataSet):
             ik = (v, k)  # The index key is columns=(v,k).
             self.testcase.assertEqual(v, idxcursor[ik])
         idxcursor.close()
-
-class SimpleIndexLSMDataSet(SimpleIndexDataSet):
-    """
-    SimpleIndexLSMDataSet is identical to SimpleIndexDataSet, but
-    using LSM files.
-    """
-    def __init__(self, testcase, uri, rows, **kwargs):
-        kwargs['config'] = kwargs.get('config', '') + ',type=lsm'
-        super(SimpleIndexLSMDataSet, self).__init__(
-            testcase, uri, rows, **kwargs)
-
-    @classmethod
-    def is_lsm(cls):
-        return True
 
 class ComplexDataSet(BaseDataSet):
     """
@@ -352,109 +319,6 @@ class ComplexDataSet(BaseDataSet):
             self.testcase.assertEqual(s3, v[2])
             self.testcase.assertEqual(s4, v[3])
         self.testcase.assertEqual(i, self.rows)
-
-class ComplexLSMDataSet(ComplexDataSet):
-    """
-    ComplexLSMDataSet is identical to ComplexDataSet, but using LSM files.
-    """
-    def __init__(self, testcase, uri, rows, **kwargs):
-        kwargs['cgconfig'] = kwargs.get('cgconfig', '') + ',type=lsm'
-        super(ComplexLSMDataSet, self).__init__(
-            testcase, uri, rows, **kwargs)
-
-    @classmethod
-    def is_lsm(cls):
-        return True
-
-class ProjectionDataSet(SimpleDataSet):
-    """
-    ProjectionDataSet creates a table with predefined data identical to
-    SimpleDataSet (single key and value), but when checking it, uses
-    a cursor with a projection.
-    """
-    def __init__(self, testcase, uri, rows, **kwargs):
-        kwargs['config'] = kwargs.get('config', '') + ',columns=(k,v0)'
-        kwargs['projection'] = '(v0,v0,v0)'
-        super(ProjectionDataSet, self).__init__(testcase, uri, rows, **kwargs)
-
-    # A value suitable for checking the value returned by a cursor.
-    def comparable_value(self, i, variant=1):
-        v0 = self.value(i, variant)
-        return [v0, v0, v0]
-
-    def check_cursor(self, cursor, variant=1):
-        i = 0
-        for key, got0, got1, got2 in cursor:
-            i += 1
-            self.testcase.assertEqual(key, self.key(i))
-            if cursor.value_format == '8t' and got0 == 0:    # deleted
-                continue
-            self.testcase.assertEqual([got0, got1, got2],
-                self.comparable_value(i, variant))
-        self.testcase.assertEqual(i, self.rows)
-
-class ProjectionIndexDataSet(BaseDataSet):
-    """
-    ProjectionIndexDataSet creates a table with three values and
-    an index.  Checks are made against a projection of the main table
-    and a projection of the index.
-    """
-    def __init__(self, testcase, uri, rows, **kwargs):
-        self.origconfig = kwargs.get('config', '')
-        self.indexname = 'index:' + uri.split(":")[1] +  ':index0'
-        kwargs['config'] = self.origconfig + ',columns=(k,v0,v1,v2)'
-        kwargs['value_format'] = kwargs.get('value_format', 'SiS')
-        kwargs['projection'] = '(v1,v2,v0)'
-        super(ProjectionIndexDataSet, self).__init__(
-            testcase, uri, rows, **kwargs)
-
-    def value(self, i, variant=1):
-        iv = variant * i
-        return ('v0:' + str(iv), iv*iv, 'v2:' + str(iv))
-
-    # Suitable for checking the value returned by a cursor using a projection.
-    def comparable_value(self, i, variant=1):
-        iv = variant * i
-        return [iv*iv, 'v2:' + str(iv), 'v0:' + str(iv)]
-
-    def create(self):
-        super(ProjectionIndexDataSet, self).create()
-        self.testcase.session.create(self.indexname, 'columns=(v2,v1),' +
-            self.origconfig)
-
-    def check_cursor(self, cursor, variant=1):
-        i = 0
-        for key, got0, got1, got2 in cursor:
-            i += 1
-            self.testcase.assertEqual(key, self.key(i))
-            if cursor.value_format == '8t' and got0 == 0:    # deleted
-                continue
-            self.testcase.assertEqual([got0, got1, got2],
-                self.comparable_value(i, variant))
-        self.testcase.assertEqual(i, self.rows)
-
-    def check_index_cursor(self, cursor, variant=1):
-        for i in range(1, self.rows + 1):
-            k = self.key(i)
-            v = self.value(i, variant)
-            ik = (v[2], v[1])  # The index key is (v2,v2)
-            expect = [v[1],k,v[2],v[0]]
-            self.testcase.assertEqual(expect, cursor[ik])
-
-    def check(self, variant=1):
-        BaseDataSet.check(self, variant)
-
-        # Check values in the index.
-        idxcursor = self.open_cursor(
-            self.indexname + '(v1,k,v2,v0)')
-        self.check_index_cursor(idxcursor, variant)
-        idxcursor.close()
-
-    def index_count(self):
-        return 1
-
-    def index_name(self, i):
-        return self.indexname
 
 # A data set based on ComplexDataSet that allows large values (depending on a multiplier),
 # the ability to update keys with different values, and track the expected value for each key.

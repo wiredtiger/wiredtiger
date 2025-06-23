@@ -17,4 +17,4 @@ endif()
 
 
 # Run this during a "ctest check" smoke test.
-set_tests_properties(test_fops PROPERTIES LABELS "check")
+set_tests_properties(test_fops PROPERTIES LABELS "check;sanitizer_long")

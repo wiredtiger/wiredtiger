@@ -295,7 +295,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
     /* Copy the data to a separate folder for debugging purpose. */
     testutil_assert(getcwd(pwd, sizeof(pwd)) != NULL);
     testutil_check(chdir(home));
-    testutil_copy_data(home); /* This function assumes we are inside the home directory. */
+    testutil_copy_data(); /* We are in the same directory as the home */
     testutil_check(chdir(pwd));
 
     key = 0;
@@ -317,7 +317,7 @@ recover_validate(const char *home, uint32_t num_records, uint64_t file_size, uin
 
     /* Seed the random number generator */
     v = (uint32_t)getpid() + num_records + (2 * counter);
-    __wt_random_init_custom_seed(&rnd, v);
+    __wt_random_init_seed(&rnd, v);
 
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
     val_1_size = MAX_VALUE_SIZE;
@@ -414,7 +414,7 @@ populate(WT_SESSION *session, uint32_t num_records, uint32_t counter)
 
     /* Seed the random number generator */
     v = (uint32_t)getpid() + num_records + (2 * counter);
-    __wt_random_init_custom_seed(&rnd, v);
+    __wt_random_init_seed(&rnd, v);
 
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
     for (i = 0; i < num_records; i++) {

@@ -264,7 +264,8 @@ test_workload_crash(void)
              << model::operation::commit_transaction(2, 25, 26)
              << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
              << model::operation::remove(k_table1_id, 1, key1) << model::operation::checkpoint()
-             << model::operation::crash() << model::operation::begin_transaction(1)
+             << model::operation::checkpoint_crash(123) << model::operation::crash()
+             << model::operation::begin_transaction(1)
              << model::operation::insert(k_table1_id, 1, key3, value3)
              << model::operation::prepare_transaction(1, 23)
              << model::operation::commit_transaction(1, 24, 25)
@@ -293,11 +294,24 @@ test_workload_crash(void)
 static void
 test_workload_generator(void)
 {
-    std::shared_ptr<model::kv_workload> workload = model::kv_workload_generator::generate();
+    int retries = 0;
 
-    /* Run the workload in the model and in WiredTiger, then verify. */
-    std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
-    verify_workload(*workload, opts, test_home, ENV_CONFIG);
+    while (true) {
+        try {
+            std::shared_ptr<model::kv_workload> workload = model::kv_workload_generator::generate();
+
+            /* Run the workload in the model and in WiredTiger, then verify. */
+            std::string test_home = std::string(home) + DIR_DELIM_STR + "generator";
+            verify_workload(*workload, opts, test_home, ENV_CONFIG);
+
+            break;
+        } catch (model::known_issue_exception &) {
+            /* Try again. */
+        }
+
+        if (retries++ > 10)
+            throw model::model_exception("Too many retries for workload generation");
+    }
 }
 
 /*
@@ -322,8 +336,8 @@ test_workload_parse(void)
              << model::operation::rollback_transaction(2)
              << model::operation::set_stable_timestamp(22) << model::operation::begin_transaction(1)
              << model::operation::remove(k_table1_id, 1, model::data_value((uint64_t)1))
-             << model::operation::checkpoint() << model::operation::crash()
-             << model::operation::begin_transaction(1)
+             << model::operation::checkpoint() << model::operation::checkpoint_crash(123)
+             << model::operation::crash() << model::operation::begin_transaction(1)
              << model::operation::insert(
                   k_table1_id, 1, model::data_value((uint64_t)3), model::data_value((uint64_t)3))
              << model::operation::truncate(
@@ -358,6 +372,8 @@ test_workload_parse(void)
       model::operation::any(model::operation::checkpoint()));
     testutil_assert(model::operation::parse("checkpoint(\"test\")") ==
       model::operation::any(model::operation::checkpoint("test")));
+    testutil_assert(model::operation::parse("checkpoint_crash(123)") ==
+      model::operation::any(model::operation::checkpoint_crash(123)));
     testutil_assert(model::operation::parse("commit_transaction(1)") ==
       model::operation::any(model::operation::commit_transaction(1)));
     testutil_assert(model::operation::parse("commit_transaction(1, 2)") ==

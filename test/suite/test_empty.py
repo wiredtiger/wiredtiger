@@ -32,7 +32,7 @@ from wtscenario import make_scenarios
 
 # test_empty.py
 #       Test that empty objects don't write anything other than a single sector.
-@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Looks at wt file names and uses column store")
+@wttest.skip_for_hook("tiered", "Fails with tiered storage; looks at wt file names and uses column store")
 class test_empty(wttest.WiredTigerTestCase):
     name = 'test_empty'
 
@@ -51,4 +51,4 @@ class test_empty(wttest.WiredTigerTestCase):
         name = self.name
         if self.type == "table:":
             name = name + '.wt'
-        self.assertEquals(os.stat(name).st_size, 4*1024)
+        self.assertEqual(os.stat(name).st_size, 4*1024)

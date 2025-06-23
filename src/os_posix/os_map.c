@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_posix_map --
+ * __wti_posix_map --
  *     Map a file into memory.
  */
 int
-__wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_regionp, size_t *lenp,
+__wti_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_regionp, size_t *lenp,
   void **mapped_cookiep)
 {
     WT_FILE_HANDLE_POSIX *pfh;
@@ -26,13 +26,6 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_regionp
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)fh;
-
-    /*
-     * Mapping isn't possible if direct I/O configured for the file, the Linux open(2) documentation
-     * says applications should avoid mixing mmap(2) of files with direct I/O to the same files.
-     */
-    if (pfh->direct_io)
-        return (__wt_set_return(session, ENOTSUP));
 
     /*
      * There's no locking here to prevent the underlying file from changing underneath us, our
@@ -61,11 +54,11 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void **mapped_regionp
 
 #ifdef HAVE_POSIX_MADVISE
 /*
- * __wt_posix_map_preload --
+ * __wti_posix_map_preload --
  *     Cause a section of a memory map to be faulted in.
  */
 int
-__wt_posix_map_preload(
+__wti_posix_map_preload(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *map, size_t length, void *mapped_cookie)
 {
     WT_BM *bm;
@@ -113,11 +106,11 @@ __wt_posix_map_preload(
 
 #ifdef HAVE_POSIX_MADVISE
 /*
- * __wt_posix_map_discard --
+ * __wti_posix_map_discard --
  *     Discard a chunk of the memory map.
  */
 int
-__wt_posix_map_discard(
+__wti_posix_map_discard(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map, size_t length, void *mapped_cookie)
 {
     WT_CONNECTION_IMPL *conn;
@@ -144,11 +137,11 @@ __wt_posix_map_discard(
 #endif
 
 /*
- * __wt_posix_unmap --
+ * __wti_posix_unmap --
  *     Remove a memory mapping.
  */
 int
-__wt_posix_unmap(
+__wti_posix_unmap(
   WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_region, size_t len, void *mapped_cookie)
 {
     WT_SESSION_IMPL *session;

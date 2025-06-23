@@ -52,11 +52,11 @@ __tiered_common_config(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STO
 }
 
 /*
- * __wt_tiered_bucket_config --
+ * __wti_tiered_bucket_config --
  *     Given a configuration, (re)configure the bucket storage and return that structure.
  */
 int
-__wt_tiered_bucket_config(
+__wti_tiered_bucket_config(
   WT_SESSION_IMPL *session, const char *cfg[], WT_BUCKET_STORAGE **bstoragep)
 {
     WT_BUCKET_STORAGE *bstorage, *new;
@@ -174,7 +174,7 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     prev_bstorage = conn->bstorage;
 
     if (!reconfig)
-        WT_RET(__wt_tiered_bucket_config(session, cfg, &conn->bstorage));
+        WT_RET(__wti_tiered_bucket_config(session, cfg, &conn->bstorage));
     else
         WT_ERR(__tiered_common_config(session, cfg, conn->bstorage));
 
@@ -186,7 +186,7 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
       session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->bstorage->bucket_prefix);
 
     /* Check for incompatible configuration options. */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY))
         WT_ERR_MSG(session, EINVAL,
           "the \"in_memory\" connection configuration is not compatible with tiered storage");
 

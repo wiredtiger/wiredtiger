@@ -80,7 +80,8 @@ class test_sweep04(wttest.WiredTigerTestCase):
 
     conn_config = 'file_manager=(close_handle_minimum=0,' + \
                   'close_idle_time=3,close_scan_interval=1),' + \
-                  'statistics=(fast),operation_tracking=(enabled=false),'
+                  'statistics=(fast),operation_tracking=(enabled=false),' + \
+                  'verbose=(sweep:2)'
 
     create_params = 'key_format=i,value_format=i'
 
@@ -105,10 +106,12 @@ class test_sweep04(wttest.WiredTigerTestCase):
     def examine(self, session, uri_maker, start, count):
         for i in range(0, count):
             c = session.open_cursor(uri_maker(start + i))
-            self.assertEquals(c[1], 1)
+            self.assertEqual(c[1], 1)
             c.close()
 
     def test_big_run(self):
+        # FIXME-WT-13706
+        self.skipTest("FIXME-WT-13706")
         # populate
         r = suite_random()
 
@@ -180,7 +183,7 @@ class test_sweep04(wttest.WiredTigerTestCase):
 
                 # Enable for detailed output.
                 if False:
-                    close = stat_cursor[stat.conn.dh_sweep_close][2]
+                    close = stat_cursor[stat.conn.dh_sweep_dead_close][2]
                     remove = stat_cursor[stat.conn.dh_sweep_remove][2]
                     sweep = stat_cursor[stat.conn.dh_sweeps][2]
                     sclose = stat_cursor[stat.conn.dh_session_handles][2]

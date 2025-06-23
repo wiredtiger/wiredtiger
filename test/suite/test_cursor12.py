@@ -45,12 +45,9 @@ class test_cursor12(wttest.WiredTigerTestCase):
     ]
     types = [
         ('file', dict(uri='file:modify')),
-        ('lsm', dict(uri='lsm:modify')),
         ('table', dict(uri='table:modify')),
     ]
-    # Skip record number keys with LSM.
-    scenarios = filter_scenarios(make_scenarios(types, keyfmt, valuefmt),
-        lambda name, d: not ('lsm' in d['uri'] and d['keyfmt'] == 'r'))
+    scenarios = make_scenarios(types, keyfmt, valuefmt)
 
     # List with original value, final value, and modifications to get
     # there.
@@ -222,7 +219,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
         for i in self.list:
             c.set_key(ds.key(row))
             c.set_value(self.make_value(i['o']))
-            self.assertEquals(c.update(), 0)
+            self.assertEqual(c.update(), 0)
             c.reset()
 
             self.session.begin_transaction("isolation=snapshot")
@@ -232,15 +229,15 @@ class test_cursor12(wttest.WiredTigerTestCase):
                 mod = wiredtiger.Modify(j[0], j[1], j[2])
                 mods.append(mod)
             mods = self.fix_mods(mods)
-            self.assertEquals(c.modify(mods), 0)
+            self.assertEqual(c.modify(mods), 0)
             self.session.commit_transaction()
             c.reset()
 
             c.set_key(ds.key(row))
-            self.assertEquals(c.search(), 0)
+            self.assertEqual(c.search(), 0)
             v = c.get_value()
             expect = self.make_value(i['f'])
-            self.assertEquals(self.nulls_to_spaces(v), expect)
+            self.assertEqual(self.nulls_to_spaces(v), expect)
 
             if not single:
                 row = row + 1
@@ -254,10 +251,10 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c = ds.open_cursor()
         for i in self.list:
             c.set_key(ds.key(row))
-            self.assertEquals(c.search(), 0)
+            self.assertEqual(c.search(), 0)
             v = c.get_value()
             expect = self.make_value(i['f'])
-            self.assertEquals(self.nulls_to_spaces(v), expect)
+            self.assertEqual(self.nulls_to_spaces(v), expect)
 
             if not single:
                 row = row + 1
@@ -339,7 +336,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
         self.modify_confirm(ds, False)
 
     # Check that we can perform a large number of modifications to a record.
-    @wttest.skip_for_hook("timestamp", "crashes on commit_transaction or connection close")  # FIXME-WT-9809
+    @wttest.skip_for_hook("timestamp", "Crashes on commit_transaction or connection close")
     def test_modify_many(self):
         ds = SimpleDataSet(self,
             self.uri, 20, key_format=self.keyfmt, value_format=self.valuefmt)
@@ -350,7 +347,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c.set_key(ds.key(10))
         orig = self.make_value('abcdefghijklmnopqrstuvwxyz')
         c.set_value(orig)
-        self.assertEquals(c.update(), 0)
+        self.assertEqual(c.update(), 0)
         for i in range(0, 50000):
             new = self.make_value("".join([random.choice(string.digits) \
                 for i in range(5)]))
@@ -359,12 +356,12 @@ class test_cursor12(wttest.WiredTigerTestCase):
             mod = wiredtiger.Modify(new, 10, 5)
             mods.append(mod)
             mods = self.fix_mods(mods)
-            self.assertEquals(c.modify(mods), 0)
+            self.assertEqual(c.modify(mods), 0)
         self.session.commit_transaction()
 
         c.set_key(ds.key(10))
-        self.assertEquals(c.search(), 0)
-        self.assertEquals(c.get_value(), orig)
+        self.assertEqual(c.search(), 0)
+        self.assertEqual(c.get_value(), orig)
 
     # Check that modify returns not-found after a delete.
     def test_modify_delete(self):
@@ -374,7 +371,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
         c = ds.open_cursor()
         c.set_key(ds.key(10))
-        self.assertEquals(c.remove(), 0)
+        self.assertEqual(c.remove(), 0)
 
         self.session.begin_transaction("isolation=snapshot")
         mods = []
@@ -400,7 +397,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c = ds.open_cursor()
         c.set_key(ds.key(30))
         c.set_value(ds.value(30))
-        self.assertEquals(c.insert(), 0)
+        self.assertEqual(c.insert(), 0)
 
         # Test that we can successfully modify our own record.
         mods = []

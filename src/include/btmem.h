@@ -13,8 +13,8 @@
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_READ_CACHE 0x0001u
 #define WT_READ_IGNORE_CACHE_SIZE 0x0002u
-#define WT_READ_NOTFOUND_OK 0x0004u
-#define WT_READ_NO_GEN 0x0008u
+#define WT_READ_INTERNAL_OP 0x0004u /* Internal operations don't bump a page's readgen */
+#define WT_READ_NOTFOUND_OK 0x0008u
 #define WT_READ_NO_SPLIT 0x0010u
 #define WT_READ_NO_WAIT 0x0020u
 #define WT_READ_PREFETCH 0x0040u
@@ -28,19 +28,16 @@
 #define WT_READ_WONT_NEED 0x4000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
-/* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_REC_APP_EVICTION_SNAPSHOT 0x001u
-#define WT_REC_CALL_URGENT 0x002u
-#define WT_REC_CHECKPOINT 0x004u
-#define WT_REC_CHECKPOINT_RUNNING 0x008u
-#define WT_REC_CLEAN_AFTER_REC 0x010u
-#define WT_REC_EVICT 0x020u
-#define WT_REC_HS 0x040u
-#define WT_REC_IN_MEMORY 0x080u
-#define WT_REC_SCRUB 0x100u
-#define WT_REC_VISIBILITY_ERR 0x200u
-#define WT_REC_VISIBLE_ALL 0x400u
-/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+#define WT_READ_EVICT_WALK_FLAGS \
+    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_INTERNAL_OP | WT_READ_NO_WAIT
+#define WT_READ_EVICT_READ_FLAGS WT_READ_EVICT_WALK_FLAGS | WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK
+#define WT_READ_DATA_FLAGS WT_READ_NO_SPLIT | WT_READ_SKIP_INTL
+
+/*
+ * Helper: in order to read a Btree without triggering eviction we have to ignore the cache size and
+ * disable splits.
+ */
+#define WT_READ_NO_EVICT (WT_READ_IGNORE_CACHE_SIZE | WT_READ_NO_SPLIT)
 
 /*
  * WT_PAGE_HEADER --
@@ -127,6 +124,82 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 #define WT_PAGE_HEADER_BYTE_SIZE(btree) ((u_int)(WT_PAGE_HEADER_SIZE + (btree)->block_header))
 #define WT_PAGE_HEADER_BYTE(btree, dsk) \
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
+
+/*
+ * WT_DELTA_HEADER --
+ *	A delta is a durable record of changes to a page since the previous delta or full-page image
+ * was recorded. It is composed of a WT_DELTA_HEADER, followed by a variable number of delta
+ * entries. The number of entries does not explicitly appear, it is inferred by the size of the
+ * overall delta. Each delta entry has a one header 'flags' byte (flags from WT_DELTA_CELL_UNPACK),
+ * followed by up to 4 timestamps as indicated by the flags, followed by the key size and the key
+ * bytes. If the WT_DELTA_LEAF_IS_DELETE flag is not set, the entry then includes the value size and
+ * the value bytes.
+ */
+struct __wt_delta_header {
+    uint64_t write_gen; /* 0-7: write generation */
+    /*
+     * Memory size of the delta.
+     */
+    uint32_t mem_size; /* 08-11: in-memory size */
+
+    union {
+        uint32_t entries; /* 12-15: number of cells on page */
+        uint32_t datalen; /* 12-15: overflow data length */
+    } u;
+
+    uint8_t version; /* 16: version */
+
+    uint8_t type; /* 17: page type */
+
+    uint8_t flags; /* 18: flags */
+
+    uint8_t unused; /* 19: unused padding */
+};
+
+/*
+ * WT_DELTA_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler
+ * inserts padding it will break the world.
+ */
+#define WT_DELTA_HEADER_SIZE 20
+
+/*
+ * The number of deltas for a base page must be strictly less than or equal to WT_DELTA_LIMIT.
+ * Though we have made the number of consecutive deltas adjustable through the max_consecutive_delta
+ * config, 32 remains the maximum value we support. Thus WT_DELTA_LIMIT can be used to size arrays
+ * that contain the base page plus all associated deltas.
+ */
+#define WT_DELTA_LIMIT 32
+
+/*
+ * WT_DELTA_HEADER_BYTE --
+ * WT_DELTA_HEADER_BYTE_SIZE --
+ *	The first usable data byte on the block (past the combined headers).
+ */
+#define WT_DELTA_HEADER_BYTE_SIZE(btree) ((u_int)(WT_DELTA_HEADER_SIZE + (btree)->block_header))
+#define WT_DELTA_HEADER_BYTE(btree, dsk) \
+    ((void *)((uint8_t *)(dsk) + WT_DELTA_HEADER_BYTE_SIZE(btree)))
+
+/*
+ * A variant of WT_BLOCK_HEADER_REF that must be used with deltas. XXX It's a hack, needed because
+ * the block manager's header is not first.
+ */
+#define WT_BLOCK_HEADER_REF_FOR_DELTAS(dsk) ((void *)((uint8_t *)(dsk) + WT_DELTA_HEADER_SIZE))
+
+/*
+ * __wt_delta_header_byteswap --
+ *     Handle big- and little-endian transformation of a page header.
+ */
+static WT_INLINE void
+__wt_delta_header_byteswap(WT_DELTA_HEADER *dsk)
+{
+#ifdef WORDS_BIGENDIAN
+    dsk->write_gen = __wt_bswap64(dsk->write_gen);
+    dsk->mem_size = __wt_bswap64(dsk->mem_size);
+    dsk->u.entries = __wt_bswap32(dsk->u.entries);
+#else
+    WT_UNUSED(dsk);
+#endif
+}
 
 /*
  * WT_ADDR --
@@ -222,9 +295,11 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_HS_KEY_FORMAT WT_UNCHECKED_STRING(IuQQ)
 #define WT_HS_VALUE_FORMAT WT_UNCHECKED_STRING(QQQu)
+/* Disable logging for history store in the metadata. */
 #define WT_HS_CONFIG                                                   \
     "key_format=" WT_HS_KEY_FORMAT ",value_format=" WT_HS_VALUE_FORMAT \
     ",block_compressor=" WT_HS_COMPRESSOR                              \
+    ",log=(enabled=false)"                                             \
     ",internal_page_max=16KB"                                          \
     ",leaf_value_max=64MB"                                             \
     ",prefix_compression=false"
@@ -239,6 +314,25 @@ struct __wt_save_upd {
     WT_UPDATE *onpage_upd;
     WT_UPDATE *onpage_tombstone;
     bool restore; /* Whether to restore this saved update chain */
+};
+
+/*
+ * WT_PAGE_BLOCK_META --
+ *  Block management metadata associated with a page.
+ */
+struct __wt_page_block_meta {
+    uint64_t page_id;
+    uint64_t checkpoint_id;
+    uint64_t reconciliation_id;
+
+    uint64_t backlink_lsn;
+    uint64_t base_lsn;
+    uint64_t backlink_checkpoint_id;
+    uint64_t base_checkpoint_id;
+    uint32_t delta_count;
+    uint64_t disagg_lsn;
+
+    uint32_t checksum;
 };
 
 /*
@@ -317,12 +411,12 @@ struct __wt_page_modify {
     /* Avoid checking for obsolete updates during checkpoints. */
     uint64_t obsolete_check_txn;
 
-    /* The largest transaction seen on the page by reconciliation. */
+    /* The largest transaction and timestamp seen on the page by reconciliation. */
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
     /* The largest update transaction ID (approximate). */
-    uint64_t update_txn;
+    wt_shared uint64_t update_txn;
 
     /* Dirty bytes added to the cache. */
     wt_shared size_t bytes_dirty;
@@ -449,8 +543,8 @@ struct __wt_page_modify {
     bool instantiated;        /* True if this is a newly instantiated page. */
     WT_UPDATE **inst_updates; /* Update list for instantiated page with unresolved truncate. */
 
-#define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
-#define WT_PAGE_TRYLOCK(s, p) __wt_spin_trylock((s), &(p)->modify->page_lock)
+#define WT_PAGE_LOCK(s, p) __wt_spin_lock_track((s), &(p)->modify->page_lock)
+#define WT_PAGE_TRYLOCK(s, p) __wt_spin_trylock_track((s), &(p)->modify->page_lock)
 #define WT_PAGE_UNLOCK(s, p) __wt_spin_unlock((s), &(p)->modify->page_lock)
     WT_SPINLOCK page_lock; /* Page's spinlock */
 
@@ -615,17 +709,38 @@ struct __wt_page {
  * but it's not always required: for example, if a page is locked for splitting, or being created or
  * destroyed.
  */
-#define WT_INTL_INDEX_GET_SAFE(page) ((page)->u.intl.__index)
+#ifdef TSAN_BUILD
+/*
+ * TSan doesn't detect the acquire/release barriers used in our normal WT_INTL_INDEX_* functions, so
+ * use __atomic intrinsics instead. We can use __atomics here as MSVC doesn't support TSan.
+ */
+#define WT_INTL_INDEX_GET_SAFE(page, pindex)                                   \
+    do {                                                                       \
+        (pindex) = __atomic_load_n(&(page)->u.intl.__index, __ATOMIC_ACQUIRE); \
+    } while (0)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
-        (pindex) = WT_INTL_INDEX_GET_SAFE(page);                          \
+        WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
     } while (0)
-#define WT_INTL_INDEX_SET(page, v)      \
-    do {                                \
-        WT_RELEASE_BARRIER();           \
-        ((page)->u.intl.__index) = (v); \
+#define WT_INTL_INDEX_SET(page, v)                                        \
+    do {                                                                  \
+        __atomic_store_n(&(page)->u.intl.__index, (v), __ATOMIC_RELEASE); \
     } while (0)
+#else
+/* Use WT_ACQUIRE_READ to enforce acquire semantics rather than relying on address dependencies. */
+#define WT_INTL_INDEX_GET_SAFE(page, pindex) WT_ACQUIRE_READ((pindex), (page)->u.intl.__index)
+#define WT_INTL_INDEX_GET(session, page, pindex)                          \
+    do {                                                                  \
+        WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
+        WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
+    } while (0)
+#define WT_INTL_INDEX_SET(page, v)                               \
+    do {                                                         \
+        WT_RELEASE_BARRIER();                                    \
+        __wt_atomic_store_pointer(&(page)->u.intl.__index, (v)); \
+    } while (0)
+#endif
 
 /*
  * Macro to walk the list of references in an internal page.
@@ -760,7 +875,7 @@ struct __wt_page {
  * outside of the special range.
  */
 #define WT_READGEN_NOTSET 0
-#define WT_READGEN_OLDEST 1
+#define WT_READGEN_EVICT_SOON 1
 #define WT_READGEN_WONT_NEED 2
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
@@ -768,6 +883,8 @@ struct __wt_page {
 
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
+
+    WT_PAGE_BLOCK_META block_meta;
 
 #ifdef HAVE_DIAGNOSTIC
 #define WT_SPLIT_SAVE_STATE_MAX 3
@@ -804,6 +921,19 @@ struct __wt_page_walk_skip_stats {
     size_t total_del_pages_skipped;
     size_t total_inmem_del_pages_skipped;
 };
+
+/*
+ * Type used by WT_REF::state and valid values.
+ *
+ * Declared well before __wt_ref struct as the type is used in other structures in this header.
+ */
+typedef uint8_t WT_REF_STATE;
+
+#define WT_REF_DISK 0    /* Page is on disk */
+#define WT_REF_DELETED 1 /* Page is on disk, but deleted */
+#define WT_REF_LOCKED 2  /* Page locked for exclusive access */
+#define WT_REF_MEM 3     /* Page is in cache and valid */
+#define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
 
 /*
  * Prepare states.
@@ -1010,12 +1140,6 @@ struct __wt_page_deleted {
     wt_shared volatile uint8_t prepare_state;
 
     /*
-     * The previous state of the WT_REF; if the fast-truncate transaction is rolled back without the
-     * page first being instantiated, this is the state to which the WT_REF returns.
-     */
-    uint8_t previous_ref_state;
-
-    /*
      * If the fast-truncate transaction has committed. If we're forced to instantiate the page, and
      * the committed flag isn't set, we have to create an update structure list for the transaction
      * to resolve in a subsequent commit. (This is tricky: if the transaction is rolled back, the
@@ -1025,6 +1149,31 @@ struct __wt_page_deleted {
 
     /* Flag to indicate fast-truncate is written to disk. */
     bool selected_for_write;
+};
+
+/*
+ * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
+ * create temporary space in which to store them. (Locations can't be much larger than this anyway,
+ * they must fit onto the minimum size page because a reference to an overflow page is itself a
+ * location.)
+ */
+#define WT_ADDR_MAX_COOKIE 255 /* Maximum address cookie */
+
+/*
+ * WT_ADDR_COPY --
+ *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
+ * copy of the WT_REF address information.
+ */
+struct __wt_addr_copy {
+    uint8_t type;
+
+    uint8_t addr[WT_ADDR_MAX_COOKIE];
+    uint8_t size;
+
+    WT_TIME_AGGREGATE ta;
+
+    WT_PAGE_DELETED del; /* Fast-truncate page information */
+    bool del_set;
 };
 
 /*
@@ -1085,12 +1234,6 @@ struct __wt_ref {
                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     wt_shared uint8_t flags_atomic; /* Atomic flags, use F_*_ATOMIC_8 */
 
-#define WT_REF_DISK 0    /* Page is on disk */
-#define WT_REF_DELETED 1 /* Page is on disk, but deleted */
-#define WT_REF_LOCKED 2  /* Page locked for exclusive access */
-#define WT_REF_MEM 3     /* Page is in cache and valid */
-#define WT_REF_SPLIT 4   /* Parent page split (WT_REF dead) */
-
     /*
      * Ref state: Obscure the field name as this field shouldn't be accessed directly. The public
      * interface is made up of five functions:
@@ -1102,7 +1245,7 @@ struct __wt_ref {
      *
      * For more details on these functions see ref_inline.h.
      */
-    wt_shared volatile uint8_t __state;
+    wt_shared volatile WT_REF_STATE __state;
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
@@ -1606,15 +1749,15 @@ struct __wt_insert {
 /*
  * Atomically allocate and swap a structure or array into place.
  */
-#define WT_PAGE_ALLOC_AND_SWAP(s, page, dest, v, count)                      \
-    do {                                                                     \
-        if (((v) = (dest)) == NULL) {                                        \
-            WT_ERR(__wt_calloc_def(s, count, &(v)));                         \
-            if (__wt_atomic_cas_ptr(&(dest), NULL, v))                       \
-                __wt_cache_page_inmem_incr(s, page, (count) * sizeof(*(v))); \
-            else                                                             \
-                __wt_free(s, v);                                             \
-        }                                                                    \
+#define WT_PAGE_ALLOC_AND_SWAP(s, page, dest, v, count)                             \
+    do {                                                                            \
+        if (((v) = (dest)) == NULL) {                                               \
+            WT_ERR(__wt_calloc_def(s, count, &(v)));                                \
+            if (__wt_atomic_cas_ptr(&(dest), NULL, v))                              \
+                __wt_cache_page_inmem_incr(s, page, (count) * sizeof(*(v)), false); \
+            else                                                                    \
+                __wt_free(s, v);                                                    \
+        }                                                                           \
     } while (0)
 
 /*

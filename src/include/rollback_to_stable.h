@@ -31,6 +31,7 @@
 #define WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT "[INSERT_LIST_UPDATE_ABORT] "
 #define WT_RTS_VERB_TAG_KEY_CLEAR_REMOVE "[KEY_CLEAR_REMOVE] "
 #define WT_RTS_VERB_TAG_KEY_REMOVED "[KEY_REMOVED] "
+#define WT_RTS_VERB_TAG_NO_STABLE "[NO_STABLE] "
 #define WT_RTS_VERB_TAG_ONDISK_ABORT_CHECK "[ONDISK_ABORT_CHECK] "
 #define WT_RTS_VERB_TAG_ONDISK_ABORT_TW "[ONDISK_ABORT_TW] "
 #define WT_RTS_VERB_TAG_ONDISK_KEY_ROLLBACK "[ONDISK_KEY_ROLLBACK] "
@@ -56,13 +57,14 @@
 #define WT_RTS_VERB_TAG_UPDATE_CHAIN_VERIFY "[UPDATE_CHAIN_VERIFY] "
 #define WT_RTS_VERB_TAG_WAIT_THREADS "[WAIT_THREADS] "
 
-#define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid)                                           \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && S2C(session)->recovery_ckpt_snap_min != 0 && \
+#define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid)        \
+    (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) && \
+      S2C(session)->recovery_ckpt_snap_min != 0 &&          \
       (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
 #define WT_VERB_RECOVERY_RTS(session)                                                              \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                                                   \
+    (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) ?                                         \
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS})) : \
         WT_DECL_VERBOSE_MULTI_CATEGORY(((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS})))
 
@@ -84,6 +86,7 @@
             WT_STAT_CONN_DSRC_INCR(session, stat##_dryrun); \
     } while (0)
 
+#define WT_RTS_MAX_WORKERS 10
 /*
  * WT_RTS_WORK_UNIT --
  *  RTS thread operating work unit.
@@ -107,6 +110,9 @@ struct __wt_rollback_to_stable {
     /* RTS thread information. */
     WT_THREAD_GROUP thread_group;
     uint32_t threads_num;
+
+    /* The configuration of RTS worker threads at the connection level. */
+    uint32_t cfg_threads_num;
 
     /* Locked: RTS system work queue. */
     TAILQ_HEAD(__wt_rts_qh, __wt_rts_work_unit) rtsqh;

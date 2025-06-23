@@ -73,7 +73,8 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      * Make sure this session has a cached history store cursor, otherwise we can deadlock with a
      * session wanting exclusive access to a handle: that session will have a handle list write lock
      * and will be waiting on eviction to drain, we'll be inside eviction waiting on a handle list
-     * read lock to open a history store cursor.
+     * read lock to open a history store cursor. If we are recovering metadata, we aren't ready to
+     * open the history store, and we can't deadlock because we are single threaded.
      *
      * The test for the no-reconciliation flag is necessary because the session may already be doing
      * history store operations and if we open/close the existing history store cursor, we can
@@ -89,7 +90,8 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      *
      * FIXME-WT-6037: This isn't reasonable and needs a better fix.
      */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(session, WT_SESSION_NO_RECONCILE) ||
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_RECOVERING_METADATA) ||
+      F_ISSET(session, WT_SESSION_NO_RECONCILE) ||
       (session->dhandle != NULL && WT_IS_METADATA(S2BT(session)->dhandle)) ||
       session == conn->default_session)
         return (0);
@@ -1230,18 +1232,18 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
-      __wt_cursor_get_raw_key_value_notsup,           /* get-raw-key-value */
+      __wti_cursor_get_raw_key_value_notsup,          /* get-raw-key-value */
       __curhs_set_key,                                /* set-key */
       __curhs_set_value,                              /* set-value */
       __curhs_compare,                                /* compare */
-      __wt_cursor_equals_notsup,                      /* equals */
+      __wti_cursor_equals_notsup,                     /* equals */
       __curhs_next,                                   /* next */
       __curhs_prev,                                   /* prev */
       __curhs_reset,                                  /* reset */
       __wt_cursor_notsup,                             /* search */
       __curhs_search_near,                            /* search-near */
       __curhs_insert,                                 /* insert */
-      __wt_cursor_modify_value_format_notsup,         /* modify */
+      __wti_cursor_modify_value_format_notsup,        /* modify */
       __curhs_update,                                 /* update */
       __curhs_remove,                                 /* remove */
       __wt_cursor_notsup,                             /* reserve */

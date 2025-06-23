@@ -227,7 +227,8 @@ __cursor_enter(WT_SESSION_IMPL *session)
      * If there are no other cursors positioned in the session, check whether the cache is full.
      */
     if (session->ncursors == 0)
-        WT_RET(__wt_cache_eviction_check(session, false, false, NULL));
+        WT_RET_ONLY(
+          __wt_evict_app_assist_worker_check(session, false, false, true, NULL), WT_ROLLBACK);
     ++session->ncursors;
     return (0);
 }
@@ -292,7 +293,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      */
     if (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD) {
         WT_RET(__wt_page_dirty_and_evict_soon(session, cbt->ref));
-        WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
+        WT_STAT_CONN_INCR(session, eviction_force_delete);
     }
     cbt->page_deleted_count = 0;
 

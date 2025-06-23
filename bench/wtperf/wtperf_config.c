@@ -251,6 +251,12 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
                 workp->modify_force_update = v.val;
                 continue;
             }
+            if (STRING_MATCH("reopen_cursor", k.str, k.len)) {
+                if (v.type != WT_CONFIG_ITEM_BOOL)
+                    goto err;
+                workp->reopen_cursor = v.val;
+                continue;
+            }
             if (STRING_MATCH("ops_per_txn", k.str, k.len)) {
                 if ((workp->ops_per_txn = v.val) < 0)
                     goto err;
@@ -719,22 +725,11 @@ config_sanity(WTPERF *wtperf)
 
     /*
      * When backup functionalities are enabled, wtperf needs to use copy functions to write backup
-     * files. Direct I/O is not compatible with programs interacting with OS system-level copy
-     * functions, thus direct I/O and read only cannot be enabled along with backup.
+     * files. Therefore, read only cannot be enabled along with backup.
      */
     if (opts->backup_interval != 0)
-        if (strstr(opts->conn_config, "direct_io") || opts->readonly) {
-            fprintf(stderr, "direct_io and readonly cannot be used when backup is configured.\n");
-            return (EINVAL);
-        }
-
-    /*
-     * When tiered functionalities are enabled, wtperf expects to write to a bucket store. Direct
-     * I/O is not compatible with programs interacting with OS system-level copy functions.
-     */
-    if (opts->tiered_flush_interval != 0)
-        if (strstr(opts->conn_config, "direct_io")) {
-            fprintf(stderr, "direct_io cannot be used when tiered storage is configured.\n");
+        if (opts->readonly) {
+            fprintf(stderr, "Readonly cannot be used when backup is configured.\n");
             return (EINVAL);
         }
 

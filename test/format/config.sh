@@ -22,10 +22,10 @@ typedef struct {
 
 #define C_BOOL 0x001u        /* Boolean (true if roll of 1-to-100 is <= CONFIG->min) */
 #define C_IGNORE 0x002u      /* Not a simple randomization, configured specially */
-#define C_STRING 0x004u      /* String (rather than integral) */
-#define C_TABLE 0x008u       /* Value is per table, not global */
-#define C_TYPE_FIX 0x010u    /* Value is only relevant to FLCS */
-#define C_TYPE_LSM 0x020u    /* Value is only relevant to LSM */
+#define C_POW2 0x004u        /* Value must be power of 2 */
+#define C_STRING 0x008u      /* String (rather than integral) */
+#define C_TABLE 0x010u       /* Value is per table, not global */
+#define C_TYPE_FIX 0x020u    /* Value is only relevant to FLCS */
 #define C_TYPE_ROW 0x040u    /* Value is only relevant to RS */
 #define C_TYPE_VAR 0x080u    /* Value is only relevant to VLCS */
 #define C_ZERO_NOTSET 0x100u /* Ignore zero values */
@@ -81,9 +81,15 @@ CONFIG configuration_list[] = {
 
 {"backup", "configure backups", C_BOOL, 20, 0, 0}
 
-{"backup.incremental", "backup type (off | block | log)", C_IGNORE | C_STRING, 0, 0, 0}
+{"backup.incremental", "backup type (off | block)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"backup.incr_granularity", "incremental backup block granularity (KB)", 0x0, 4, 16384, 16384}
+
+{"backup.live_restore", "configure backup live restore recovery", C_BOOL, 25, 0, 0}
+
+{"backup.live_restore_read_size", "live restore read size (KB power of 2)", C_POW2, 1, 16384, 16384}
+
+{"backup.live_restore_threads", "number of live restore worker threads", 0x0, 0, 12, 12}
 
 {"block_cache", "enable the block cache", C_BOOL, 10, 0, 0}
 
@@ -127,8 +133,6 @@ CONFIG configuration_list[] = {
 
 {"btree.value_min", "minimum value size", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 0, 20, 4096}
 
-{"buffer_alignment", "buffer alignment (off | on), on configures to 512", C_BOOL, 5, 0, 0}
-
 {"cache", "cache size (MB)", 0x0, 1, 100, 100 * 1024}
 
 {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100}
@@ -138,6 +142,8 @@ CONFIG configuration_list[] = {
 {"cache.eviction_dirty_trigger", "dirty content trigger for eviction", C_IGNORE, 0, 0, 100}
 
 {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024}
+
+{"cache.maximum", "maximum cache size (MB)", C_IGNORE, 0, 0, UINT_MAX}
 
 {"checkpoint", "checkpoint type (on | off | wiredtiger)", C_IGNORE | C_STRING, 0, 0, 0}
 
@@ -156,6 +162,8 @@ CONFIG configuration_list[] = {
 {"chunk_cache.type", "cache location (DRAM | FILE)", C_STRING | C_IGNORE, 0, 0, 0}
 
 {"compact.free_space_target", "free space target for compaction (MB)", 0x0, 1, 100, UINT_MAX}
+
+{"debug.background_compact", "background compaction processes files more often", C_BOOL, 5, 0, 0}
 
 {"debug.checkpoint_retention", "adjust log removal to retain the log records", 0x0, 0, 10, 1024}
 
@@ -179,8 +187,6 @@ CONFIG configuration_list[] = {
 
 {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0}
 
-{"disk.direct_io", "configure direct I/O for data objects", C_BOOL | C_IGNORE, 0, 0, 1}
-
 {"disk.encryption", "encryption type (off | rotn-7)", C_IGNORE | C_STRING, 0, 0, 0}
 
 {"disk.firstfit", "configure first-fit allocation", C_BOOL | C_TABLE, 10, 0, 0}
@@ -188,6 +194,8 @@ CONFIG configuration_list[] = {
 {"disk.mmap", "configure mmap operations (reads only)", C_BOOL, 90, 0, 0}
 
 {"disk.mmap_all", "configure mmap operations (read and write)", C_BOOL, 5, 0, 0}
+
+{"eviction.evict_use_softptr", "use soft pointers instead of hard hazard pointers in eviction", C_BOOL, 20, 0, 0}
 
 /* Test format can only handle 32 tables so we use a maximum value of 32 here. */
 {"file_manager.close_handle_minimum", "number of handles open before the file manager will look for handles to close", 0x0, 0, 32, 32}
@@ -219,21 +227,9 @@ CONFIG configuration_list[] = {
 
 {"logging.remove", "configure log file removal", C_BOOL, 50, 0, 0}
 
-{"lsm.auto_throttle", "throttle LSM inserts", C_BOOL | C_TABLE | C_TYPE_LSM, 90, 0, 0}
+{"obsolete_cleanup.method", "obsolete cleanup strategy", C_IGNORE | C_STRING, 0, 0, 0}
 
-{"lsm.bloom", "configure bloom filters", C_BOOL | C_TABLE | C_TYPE_LSM, 95, 0, 0}
-
-{"lsm.bloom_bit_count", "number of bits per item for bloom filters", C_TABLE | C_TYPE_LSM, 4, 64, WT_THOUSAND}
-
-{"lsm.bloom_hash_count", "number of hash values per item for bloom filters", C_TABLE | C_TYPE_LSM, 4, 32, 100}
-
-{"lsm.bloom_oldest", "configure bloom_oldest=true", C_BOOL | C_TABLE | C_TYPE_LSM, 10, 0, 0}
-
-{"lsm.chunk_size", "LSM chunk size (MB)", C_TABLE | C_TYPE_LSM, 1, 10, 100}
-
-{"lsm.merge_max", "maximum number of chunks to include in an LSM merge operation", C_TABLE | C_TYPE_LSM, 4, 20, 100}
-
-{"lsm.worker_threads", "number of LSM worker threads", C_TYPE_LSM, 3, 4, 20}
+{"obsolete_cleanup.wait", "obsolete cleanup interval in seconds", 0x0, 1, 3600, 100000}
 
 {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0}
 
@@ -271,6 +267,8 @@ CONFIG configuration_list[] = {
 
 {"ops.verify", "configure verify", C_BOOL, 100, 1, 0}
 
+{"prefetch", "configure prefetch", C_BOOL, 50, 0, 0}
+
 {"quiet", "quiet run (same as -q)", C_BOOL | C_IGNORE, 0, 0, 1}
 
 {"random.data_seed", "set random seed for data operations", 0x0, 0, 0, UINT_MAX}
@@ -287,7 +285,7 @@ CONFIG configuration_list[] = {
 
 {"runs.rows", "number of rows", C_TABLE, 10, M(1), M(100)}
 
-{"runs.source", "data source type (file | lsm | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
+{"runs.source", "data source type (file | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
 {"runs.tables", "number of tables", 0x0, 1, 32, V_MAX_TABLES_CONFIG}
 
@@ -326,6 +324,8 @@ CONFIG configuration_list[] = {
 {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0}
 
 {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0}
+
+{"stress.prefetch_delay", "stress prefetch delay", C_BOOL, 2, 0, 0}
 
 {"stress.prepare_resolution_1", "stress prepare resolution (#1)", C_BOOL, 2, 0, 0}
 

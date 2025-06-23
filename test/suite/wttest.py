@@ -121,7 +121,7 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
     # conn_extensions can be overridden to add a list of extensions to load.
     # Each entry is a string (directory and extension name) and optional config.
     # Example:
-    #    conn_extensions = ('extractors/csv_extractor',
+    #    conn_extensions = ('collators/reverse',
     #                       'test/fail_fs={allow_writes=100}')
     conn_extensions = ()
 
@@ -756,16 +756,6 @@ class WiredTigerTestCase(abstract_test_case.AbstractWiredTigerTestCase):
         while True:
             try:
                 session.verify(uri, config)
-                return
-            except wiredtiger.WiredTigerError as err:
-                if str(err) != os.strerror(errno.EBUSY):
-                    raise err
-                session.checkpoint()
-
-    def upgradeUntilSuccess(self, session, uri, config=None):
-        while True:
-            try:
-                session.upgrade(uri, config)
                 return
             except wiredtiger.WiredTigerError as err:
                 if str(err) != os.strerror(errno.EBUSY):

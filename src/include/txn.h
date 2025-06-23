@@ -21,10 +21,10 @@
  * the session get rollback reason API call. Users of the API could have a dependency on the format
  * of these messages so changing them must be done with care.
  */
-#define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "transaction rolled back because of cache overflow"
-#define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
+#define WT_TXN_ROLLBACK_REASON_CACHE_OVERFLOW "Cache capacity has overflown"
+#define WT_TXN_ROLLBACK_REASON_CONFLICT "Write conflict between concurrent operations"
 #define WT_TXN_ROLLBACK_REASON_OLDEST_FOR_EVICTION \
-    "oldest pinned transaction ID rolled back for eviction"
+    "Transaction has the oldest pinned transaction ID"
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
@@ -52,12 +52,16 @@ typedef enum {
 } WT_VISIBLE_TYPE;
 
 /*
+ * Enumeration used to track the context of reconstructing modifies within a update list.
+ */
+typedef enum { WT_OPCTX_TRANSACTION, WT_OPCTX_RECONCILATION } WT_OP_CONTEXT;
+
+/*
  * Transaction ID comparison dealing with edge cases.
  *
  * WT_TXN_ABORTED is the largest possible ID (never visible to a running transaction), WT_TXN_NONE
  * is smaller than any possible ID (visible to all running transactions).
  */
-#define WT_TXNID_LE(t1, t2) ((t1) <= (t2))
 
 #define WT_TXNID_LT(t1, t2) ((t1) < (t2))
 
@@ -188,6 +192,15 @@ struct __wt_txn_global {
     wt_shared volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
 
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
+
+    /*
+     * A list of prepared transactions that are available to be claimed. Populated by a prepared
+     * transactions cursor, and cleaned up when the cursor is closed. No need for concurrency
+     * control on making changes to the list.
+     */
+    WT_SESSION_IMPL **pending_prepared_sessions;
+    size_t pending_prepared_sessions_allocated;
+    u_int pending_prepared_sessions_count;
 };
 
 typedef enum __wt_txn_isolation {
@@ -285,6 +298,8 @@ struct __wt_txn_snapshot {
 struct __wt_txn {
     uint64_t id;
 
+    uint64_t prepared_id;
+
     WT_TXN_ISOLATION isolation;
 
     uint32_t forced_iso; /* Isolation is currently forced. */
@@ -348,8 +363,6 @@ struct __wt_txn {
 
     /* Timeout */
     uint64_t operation_timeout_us;
-
-    const char *rollback_reason; /* If rollback, the reason */
 
 /*
  * WT_TXN_HAS_TS_COMMIT --

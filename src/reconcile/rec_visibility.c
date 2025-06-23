@@ -7,13 +7,15 @@
  */
 
 #include "wt_internal.h"
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 
 /*
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.
  */
 static WT_INLINE int
-__rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+__rec_update_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, bool supd_restore, size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
@@ -41,13 +43,13 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_
 
 /*
  * __rec_delete_hs_upd_save --
- *     Save an update into a WT_DELETE_HS_UPD list to delete it from the history store later.
+ *     Save an update into a WTI_DELETE_HS_UPD list to delete it from the history store later.
  */
 static WT_INLINE int
-__rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+__rec_delete_hs_upd_save(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
   WT_UPDATE *upd, WT_UPDATE *tombstone)
 {
-    WT_DELETE_HS_UPD *delete_hs_upd;
+    WTI_DELETE_HS_UPD *delete_hs_upd;
 
     WT_RET(__wt_realloc_def(
       session, &r->delete_hs_upd_allocated, r->delete_hs_upd_next + 1, &r->delete_hs_upd));
@@ -70,11 +72,14 @@ static int
 __rec_append_orig_value(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
     bool tombstone_globally_visible;
+
+    conn = S2C(session);
 
     WT_ASSERT_ALWAYS(session,
       upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare,
@@ -105,7 +110,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
           unpack->tw.start_txn == upd->txnid && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
@@ -160,7 +165,15 @@ __rec_append_orig_value(
 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
-            tombstone->txnid = unpack->tw.stop_txn;
+            /*
+             * When reconciling during recovery, we need to clear the transaction id as we haven't
+             * done so when we read the page into memory to avoid using the transaction id from the
+             * previous run.
+             */
+            if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+                tombstone->txnid = WT_TXN_NONE;
+            else
+                tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
@@ -190,7 +203,15 @@ __rec_append_orig_value(
           unpack->cell == NULL || __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
         WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
         total_size += size;
-        append->txnid = unpack->tw.start_txn;
+        /*
+         * When reconciling during recovery, we need to clear the transaction id as we haven't done
+         * so when we read the page into memory to avoid using the transaction id from the previous
+         * run.
+         */
+        if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+            append->txnid = WT_TXN_NONE;
+        else
+            append->txnid = unpack->tw.start_txn;
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
@@ -204,7 +225,7 @@ __rec_append_orig_value(
     /* Append the new entry into the update list. */
     WT_RELEASE_WRITE_WITH_BARRIER(upd->next, append);
 
-    __wt_cache_page_inmem_incr(session, page, total_size);
+    __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     if (0) {
 err:
@@ -220,8 +241,8 @@ err:
  *     Find and save the update that needs to be deleted from the history store later
  */
 static int
-__rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
-  WT_ROW *rip, WT_UPDATE_SELECT *upd_select)
+__rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
+  WT_ROW *rip, WTI_UPDATE_SELECT *upd_select)
 {
     WT_UPDATE *delete_tombstone, *delete_upd, *visible_all_upd;
     bool delete_hs_upd_found;
@@ -256,7 +277,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
          * globally visible concurrently with the update chain processing, this might be allowed to
          * access the freed updates further in the reconciliation code.
          */
-        if (FLD_ISSET(S2C(session)->heuristic_controls, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
+        if (FLD_ISSET(S2C(session)->heuristic_controls.flags, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
           !F_ISSET(r, WT_REC_EVICT) && delete_upd != upd_select->tombstone &&
           visible_all_upd == NULL && __wt_txn_upd_visible_all(session, delete_upd) &&
           WT_UPDATE_DATA_VALUE(delete_upd))
@@ -278,7 +299,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
  *     Return if we need to save the update chain
  */
 static WT_INLINE bool
-__rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select,
+__rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELECT *upd_select,
   WT_CELL_UNPACK_KV *vpack, bool has_newer_updates)
 {
     WT_UPDATE *upd;
@@ -320,8 +341,8 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT 
      * 2. On-disk entry exists.
      * 3. Valid updates exist in the update chain to be written to the history store.
      */
-    supd_restore =
-      F_ISSET(r, WT_REC_EVICT) && (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+    supd_restore = F_ISSET(r, WT_REC_EVICT) &&
+      (has_newer_updates || F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY));
 
     if (!supd_restore && vpack == NULL && upd_select->upd != NULL) {
         upd = upd_select->upd;
@@ -378,7 +399,7 @@ __timestamp_no_ts_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
  *     time.
  */
 static int
-__rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *select_upd,
+__rec_validate_upd_chain(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *select_upd,
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *prev_upd, *upd;
@@ -481,22 +502,39 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * reconciliations ondisk value that we will be comparing against.
      */
     if (vpack != NULL && !vpack->tw.prepare) {
-        WT_ASSERT_ALWAYS(session,
-          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts ||
-            prev_upd->durable_ts >= vpack->tw.durable_start_ts,
-          "Durable timestamps cannot be out of order for prepared updates");
-        WT_ASSERT_ALWAYS(session,
-          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-            prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
-            prev_upd->durable_ts >= vpack->tw.durable_stop_ts,
-          "Durable timestamps cannot be out of order for prepared updates");
-        if (prev_upd->start_ts < vpack->tw.start_ts ||
-          (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
-            WT_ASSERT(session, prev_upd->start_ts == WT_TS_NONE);
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
-            return (EBUSY);
-        }
+        if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw))
+            WT_ASSERT_ALWAYS(session,
+              prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                prev_upd->start_ts == prev_upd->durable_ts ||
+                prev_upd->durable_ts >= vpack->tw.durable_stop_ts,
+              "Stop: Durable timestamps cannot be out of order for prepared updates");
+        else
+            WT_ASSERT_ALWAYS(session,
+              prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                prev_upd->start_ts == prev_upd->durable_ts ||
+                prev_upd->durable_ts >= vpack->tw.durable_start_ts,
+              "Start: Durable timestamps cannot be out of order for prepared updates");
+
+        if (prev_upd->start_ts == WT_TS_NONE) {
+            if (vpack->tw.start_ts != WT_TS_NONE ||
+              (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && vpack->tw.stop_ts != WT_TS_NONE)) {
+                WT_STAT_CONN_DSRC_INCR(session, cache_eviction_blocked_no_ts_checkpoint_race_1);
+                return (EBUSY);
+            }
+        } else
+            /*
+             * Rollback to stable may recover updates from the history store that is out of order to
+             * the on-disk value. Normally these updates have the WT_UPDATE_RESTORED_FROM_HS flag on
+             * them. However, in rare cases, if the newer update becomes globally visible, the
+             * restored update may be removed by the obsolete check. This may lead to an out of
+             * order edge case but it is benign. Check the global visibility of the update and
+             * ignore this case.
+             */
+            WT_ASSERT(session,
+              __wt_txn_upd_visible_all(session, prev_upd) ||
+                (prev_upd->start_ts >= vpack->tw.start_ts &&
+                  (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
+                    prev_upd->start_ts >= vpack->tw.stop_ts)));
     }
 
     return (0);
@@ -531,13 +569,14 @@ __rec_calc_upd_memsize(WT_UPDATE *onpage_upd, WT_UPDATE *tombstone, size_t upd_m
  *     Select the update to write to disk image.
  */
 static int
-__rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd,
-  WT_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp,
+__rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_upd,
+  WTI_UPDATE_SELECT *upd_select, WT_UPDATE **first_txn_updp, bool *has_newer_updatesp,
   size_t *upd_memsizep)
 {
     WT_UPDATE *upd;
     wt_timestamp_t max_ts;
     uint64_t max_txn, session_txnid, txnid;
+    uint8_t prepare_state;
     bool is_hs_page, seen_prepare;
 
     max_ts = WT_TS_NONE;
@@ -583,7 +622,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
          * ok to undo the work of the previous reconciliations.
          */
         if (!F_ISSET(upd, WT_UPDATE_SELECT_FOR_DS) && !is_hs_page &&
-          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? (r->last_running <= txnid) :
                                             !__txn_visible_id(session, txnid))) {
             /*
              * Rare case: metadata writes at read uncommitted isolation level, eviction may see a
@@ -601,31 +640,65 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             continue;
         }
 
-        /* Ignore prepared updates if it is checkpoint. */
-        if (upd->prepare_state == WT_PREPARE_LOCKED ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        /*
+         * Only checkpoint should ever encounter resolving prepared transactions. If it does, then
+         * it needs to wait to see whether they should be included or not.
+         */
+        WT_READ_ONCE(prepare_state, upd->prepare_state);
+        while (prepare_state == WT_PREPARE_LOCKED) {
+            WT_ASSERT_ALWAYS(session, F_ISSET(r, WT_REC_CHECKPOINT),
+              "Eviction should never occur on a page that has resolving prepared records.");
+            /*
+             * FIXME: WT-14826. This while loop can be removed if we start to use the new prepared
+             * timestamp field.
+             */
+            __wt_sleep(0, 100);
+            WT_READ_ONCE(prepare_state, upd->prepare_state);
+        }
+
+        /*
+         * An interesting case this code will need to deal with is the case where a prepare (start)
+         * timestamp is old enough that it should be included in a checkpoint, but the commit
+         * timestamp is new enough that it should be excluded. If non-precise checkpoints are
+         * configured, the full record can be included and rollback-to-stable will fix up content on
+         * recovery (it will need to be able to do that for out-front evictions anyway). For precise
+         * checkpoints the reconciliation code will need to write a record as it was before it was
+         * committed, and also leave the page/update in a state that makes sense (i.e: we might need
+         * a new flag like WT_UPDATE_DS, but indicating that it's partially in the datastore).
+         * Question: does this become tricky if a prepare makes multiple changes to the same key?
+         */
+        if (prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT_ALWAYS(session,
               upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid,
               "Cannot have two different prepared transactions active on the same key");
-            if (F_ISSET(r, WT_REC_CHECKPOINT)) {
+            /*
+             * Don't save the record if it's prepare time is greater than the checkpoint timestamp
+             * when preserve prepared is enabled.
+             */
+            if (F_ISSET(r, WT_REC_CHECKPOINT) &&
+              (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
+                upd->start_ts > S2C(session)->txn_global.checkpoint_timestamp)) {
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
                 seen_prepare = true;
                 continue;
             } else {
                 /*
-                 * For prepared updates written to the date store in salvage, we write the same
-                 * prepared value to the data store. If there is still content for that key left in
-                 * the history store, rollback to stable will bring it back to the data store.
-                 * Otherwise, it removes the key.
+                 * If we are not in eviction, we must be in salvage to reach here. Since salvage
+                 * only works on data on-disk, the prepared update must be restored from the disk.
+                 * No need for us to rollback the prepared update in salvage here. If there is still
+                 * content for that key left in the history store, rollback to stable will bring it
+                 * back to the data store later. Otherwise, it removes the key.
                  */
                 WT_ASSERT_ALWAYS(session,
-                  F_ISSET(r, WT_REC_EVICT) ||
+                  F_ISSET(r, WT_REC_CHECKPOINT) || F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                       F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)),
-                  "rec_upd_select found an in-progress prepared update");
+                  "Should never salvage a prepared update not from disk.");
+                /* Prepared updates cannot be resolved concurrently to eviction and salvage. */
                 WT_ASSERT_ALWAYS(session, upd->prepare_state == WT_PREPARE_INPROGRESS,
-                  "rec_upd_select found an in-progress prepared update");
+                  "Should never concurrently resolve a prepared update during reconciliation if we "
+                  "are not in a checkpoint.");
             }
         }
 
@@ -634,7 +707,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
             upd_select->upd = upd;
 
         /* Track the selected update transaction id and timestamp. */
-        if (WT_TXNID_LT(max_txn, txnid))
+        if (max_txn < txnid)
             max_txn = txnid;
 
         if (upd->start_ts > max_ts)
@@ -654,7 +727,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
      * memory when they have changes required to satisfy a snapshot read.
      */
-    if (WT_TXNID_LT(r->max_txn, max_txn))
+    if (r->max_txn < max_txn)
         r->max_txn = max_txn;
 
     /* Update the maximum timestamp. */
@@ -681,7 +754,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *first_upd
  */
 static int
 __rec_fill_tw_from_upd_select(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select)
 {
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *last_upd, *tombstone, *upd;
@@ -781,7 +854,9 @@ __rec_fill_tw_from_upd_select(
          */
         if (last_upd->next != NULL) {
             WT_ASSERT_ALWAYS(session,
-              last_upd->next->txnid == vpack->tw.start_txn &&
+              last_upd->next->txnid ==
+                  (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_NONE :
+                                                                         vpack->tw.start_txn) &&
                 last_upd->next->start_ts == vpack->tw.start_ts &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
               "Tombstone is globally visible, but the tombstoned update is on the update "
@@ -810,12 +885,12 @@ __rec_fill_tw_from_upd_select(
 }
 
 /*
- * __wt_rec_upd_select --
+ * __wti_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
 int
-__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
-  WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
+__wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins, WT_ROW *rip,
+  WT_CELL_UNPACK_KV *vpack, WTI_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd;
@@ -826,7 +901,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      * The "saved updates" return value is used independently of returning an update we can write,
      * both must be initialized.
      */
-    WT_UPDATE_SELECT_INIT(upd_select);
+    WTI_UPDATE_SELECT_INIT(upd_select);
 
     page = r->page;
     first_txn_upd = onpage_upd = upd = NULL;
@@ -871,6 +946,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (first_txn_upd == NULL) {
         WT_ASSERT_ALWAYS(session, upd == NULL,
           "__wt_rec_upd_select has selected an update when none are present on the update chain");
+        if (first_upd != NULL)
+            r->cache_upd_chain_all_aborted = true;
         return (0);
     }
 
@@ -963,7 +1040,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          * eviction, or for cases that don't support history store, such as an in-memory database.
          */
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
-          (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+          (has_newer_updates || F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY));
 
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
         WT_RET(__rec_update_save(
@@ -981,12 +1058,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (upd_select->tombstone != NULL)
         F_SET(upd_select->tombstone, WT_UPDATE_DS);
 
-    /*
-     * Set statistics for update restore evictions. Update restore eviction debug mode forces update
-     * restores to both committed or uncommitted changes.
-     */
-    if (supd_restore || F_ISSET(r, WT_REC_SCRUB))
-        r->cache_write_restore = true;
+    /* Track whether we need to do update restore eviction. */
+    if (supd_restore)
+        r->cache_write_restore_invisible = true;
 
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.
@@ -1013,7 +1087,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
       !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_RET(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
-    __wt_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
+    __wti_rec_time_window_clear_obsolete(session, upd_select, NULL, r);
 
     WT_ASSERT(
       session, upd_select->tw.stop_txn != WT_TXN_MAX || upd_select->tw.stop_ts == WT_TS_MAX);

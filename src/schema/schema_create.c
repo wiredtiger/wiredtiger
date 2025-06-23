@@ -9,50 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_direct_io_size_check --
- *     Return a size from the configuration, complaining if it's insufficient for direct I/O.
- */
-int
-__wt_direct_io_size_check(
-  WT_SESSION_IMPL *session, const char **cfg, const char *config_name, uint32_t *allocsizep)
-{
-    WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
-    uint32_t allocsize;
-
-    *allocsizep = 0;
-
-    conn = S2C(session);
-
-    WT_RET(__wt_config_gets(session, cfg, config_name, &cval));
-    allocsize = (uint32_t)cval.val;
-
-    /*
-     * This function exists as a place to hang this comment: if direct I/O is configured, page sizes
-     * must be at least as large as any buffer alignment as well as a multiple of the alignment.
-     * Linux gets unhappy if you configure direct I/O and then don't do I/O in alignments and units
-     * of its happy place. Ideally, we'd fail if an application set an allocation size incompatible
-     * with the direct I/O size, while silently adjusting internal files using a default allocation
-     * size, but this function is too far down in the call stack to distinguish between the two. We
-     * document that setting a larger buffer alignment than the allocation size silently increases
-     * the allocation size: direct I/O isn't a heavily used feature, that should be sufficient.
-     */
-    if (conn->buffer_alignment != 0 &&
-      FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT | WT_DIRECT_IO_DATA)) {
-
-        if (allocsize < conn->buffer_alignment)
-            allocsize = (uint32_t)conn->buffer_alignment;
-        if (allocsize % conn->buffer_alignment != 0)
-            WT_RET_MSG(session, EINVAL,
-              "when direct I/O is configured for data files, the %s size must be at least as large "
-              "as the buffer alignment, as well as a multiple of the buffer alignment",
-              config_name);
-    }
-    *allocsizep = allocsize;
-    return (0);
-}
-
-/*
  * __check_imported_ts --
  *     Check the aggregated timestamps for each checkpoint in a file that we've imported. By
  *     default, we're not allowed to import files with timestamps ahead of the oldest timestamp
@@ -108,7 +64,7 @@ __check_imported_ts(
 
 err:
     if (ckptbase != NULL)
-        __wt_meta_ckptlist_free(session, &ckptbase);
+        __wt_ckptlist_free(session, &ckptbase);
     return (ret);
 }
 
@@ -189,8 +145,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             WT_IGNORE_RET(__wt_fs_remove(session, filename, true, false));
     }
 
-    /* Sanity check the allocation size. */
-    WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
+    WT_ERR(__wt_config_gets(session, filecfg, "allocation_size", &cval));
+    allocsize = (uint32_t)cval.val;
 
     /*
      * If we are importing an existing object rather than creating a new one, there are two possible
@@ -219,6 +175,16 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         import_repair =
           __wt_config_getones(session, config, "import.repair", &cval) == 0 && cval.val != 0;
         if (!import_repair) {
+            /*
+             * Check if the user wants to avoid panic if the system detects the metadata for this
+             * table is not valid. Set the quiet flag on corruption to avoid panic. This setting
+             * allows the system to not panic the entire database but lets the caller handle the
+             * error on this specific file in their own way (such as another call with repair=true).
+             */
+            if (__wt_config_getones(session, config, "import.panic_corrupt", &cval) == 0 &&
+              cval.val == 0)
+                F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+
             if (__wt_config_getones(session, config, "import.file_metadata", &cval) == 0 &&
               cval.len != 0) {
                 /*
@@ -318,6 +284,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         WT_ERR(__wt_session_release_dhandle(session));
 
 err:
+    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     __wt_scr_free(session, &buf);
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);
@@ -327,11 +294,11 @@ err:
 }
 
 /*
- * __wt_schema_colgroup_source --
+ * __schema_colgroup_source --
  *     Get the URI of the data source for a column group.
  */
-int
-__wt_schema_colgroup_source(
+static int
+__schema_colgroup_source(
   WT_SESSION_IMPL *session, WT_TABLE *table, const char *cgname, const char *config, WT_ITEM *buf)
 {
     WT_CONFIG_ITEM cval;
@@ -594,7 +561,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
             WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
             *cfgp++ = confbuf.data;
         } else {
-            WT_ERR(__wt_schema_colgroup_source(session, table, cgname, config, &namebuf));
+            WT_ERR(__schema_colgroup_source(session, table, cgname, config, &namebuf));
             source = namebuf.data;
             WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
             *cfgp++ = confbuf.data;
@@ -625,7 +592,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
 
         if (!exists) {
             WT_ERR(__wt_metadata_insert(session, name, cgconf));
-            WT_ERR(__wt_schema_open_colgroups(session, table));
+            WT_ERR(__wti_schema_open_colgroups(session, table));
         }
 
         /* Reset the last filled configuration for the next column group. */
@@ -647,11 +614,11 @@ err:
 }
 
 /*
- * __wt_schema_index_source --
+ * __schema_index_source --
  *     Get the URI of the data source for an index.
  */
-int
-__wt_schema_index_source(
+static int
+__schema_index_source(
   WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname, const char *config, WT_ITEM *buf)
 {
     WT_CONFIG_ITEM cval;
@@ -692,7 +659,7 @@ __fill_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
     wt_session = &session->iface;
     tcur = NULL;
     icur = NULL;
-    WT_RET(__wt_schema_open_colgroups(session, table));
+    WT_RET(__wti_schema_open_colgroups(session, table));
 
     /*
      * If the column groups have not been completely created, there cannot be data inserted yet, and
@@ -724,12 +691,10 @@ static int
 __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const char *config)
 {
     WT_CONFIG kcols, pkcols;
-    WT_CONFIG_ITEM ckey, cval, icols, kval;
-    WT_DECL_PACK_VALUE(pv);
+    WT_CONFIG_ITEM ckey, cval, icols;
     WT_DECL_RET;
     WT_INDEX *idx;
     WT_ITEM confbuf, extra_cols, fmt, namebuf;
-    WT_PACK pack;
     WT_TABLE *table;
     size_t tlen;
     u_int i, npublic_cols;
@@ -737,7 +702,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     const char *cfg[4] = {WT_CONFIG_BASE(session, index_meta), NULL, NULL, NULL};
     const char *idxname, *source, *sourceconf, *tablename;
     const char *sourcecfg[] = {config, NULL, NULL};
-    bool exists, have_extractor;
+    bool exists;
 
     sourceconf = NULL;
     idxconf = origconf = NULL;
@@ -745,7 +710,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     WT_CLEAR(fmt);
     WT_CLEAR(extra_cols);
     WT_CLEAR(namebuf);
-    exists = have_extractor = false;
+    exists = false;
 
     tablename = name;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "index:");
@@ -790,45 +755,26 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
         WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
         source = namebuf.data;
     } else {
-        WT_ERR(__wt_schema_index_source(session, table, idxname, config, &namebuf));
+        WT_ERR(__schema_index_source(session, table, idxname, config, &namebuf));
         source = namebuf.data;
 
         /* Add the source name to the index config before collapsing. */
         WT_ERR(__wt_buf_catfmt(session, &confbuf, ",source=\"%s\"", source));
     }
 
-    if (__wt_config_getones_none(session, config, "extractor", &cval) == 0 && cval.len != 0) {
-        have_extractor = true;
-        /*
-         * Custom extractors must supply a key format; convert not-found errors to EINVAL for the
-         * application.
-         */
-        if ((ret = __wt_config_getones(session, config, "key_format", &kval)) != 0)
-            WT_ERR_MSG(session, ret == WT_NOTFOUND ? EINVAL : 0,
-              "%s: custom extractors require a key_format", name);
-    }
-
     /* Calculate the key/value formats. */
     WT_CLEAR(icols);
-    if (__wt_config_getones(session, config, "columns", &icols) != 0 && !have_extractor)
+    if (__wt_config_getones(session, config, "columns", &icols) != 0)
         WT_ERR_MSG(session, EINVAL, "%s: requires 'columns' configuration", name);
 
     /*
-     * Count the public columns using the declared columns for normal indices or the key format for
-     * custom extractors.
+     * Count the public columns using the declared columns.
      */
     npublic_cols = 0;
-    if (!have_extractor) {
-        __wt_config_subinit(session, &kcols, &icols);
-        while ((ret = __wt_config_next(&kcols, &ckey, &cval)) == 0)
-            ++npublic_cols;
-        WT_ERR_NOTFOUND_OK(ret, false);
-    } else {
-        WT_ERR(__pack_initn(session, &pack, kval.str, kval.len));
-        while ((ret = __pack_next(&pack, &pv)) == 0)
-            ++npublic_cols;
-        WT_ERR_NOTFOUND_OK(ret, false);
-    }
+    __wt_config_subinit(session, &kcols, &icols);
+    while ((ret = __wt_config_next(&kcols, &ckey, &cval)) == 0)
+        ++npublic_cols;
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
      * The key format for an index is somewhat subtle: the application specifies a set of columns
@@ -842,12 +788,8 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
         /*
          * If the primary key column is already in the secondary key, don't add it again.
          */
-        if (__wt_config_subgetraw(session, &icols, &ckey, &cval) == 0) {
-            if (have_extractor)
-                WT_ERR_MSG(session, EINVAL,
-                  "an index with a custom extractor may not include primary key columns");
+        if (__wt_config_subgetraw(session, &icols, &ckey, &cval) == 0)
             continue;
-        }
         WT_ERR(__wt_buf_catfmt(session, &extra_cols, "%.*s,", (int)ckey.len, ckey.str));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -855,13 +797,8 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     /* Index values are empty: all columns are packed into the index key. */
     WT_ERR(__wt_buf_fmt(session, &fmt, "value_format=,key_format="));
 
-    if (have_extractor) {
-        WT_ERR(__wt_buf_catfmt(session, &fmt, "%.*s", (int)kval.len, kval.str));
-        WT_CLEAR(icols);
-    }
-
     /*
-     * Construct the index key format, or append the primary key columns for custom extractors.
+     * Construct the index key format.
      */
     WT_ERR(__wt_struct_reformat(
       session, table, icols.str, icols.len, (const char *)extra_cols.data, false, &fmt));
@@ -1068,12 +1005,11 @@ __create_object(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
 }
 
 /*
- * __wt_tiered_tree_create --
+ * __create_tiered_tree --
  *     Create a tiered tree structure for the given name.
  */
-int
-__wt_tiered_tree_create(
-  WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
+static int
+__create_tiered_tree(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
     const char *cfg[] = {WT_CONFIG_BASE(session, tier_meta), NULL, NULL};
 
@@ -1116,7 +1052,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
      * We're creating a tiered table. Set the initial tiers list to empty. Opening the table will
      * cause us to create our first file or tiered object.
      */
-    if (!F_ISSET(conn, WT_CONN_READONLY)) {
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_READONLY)) {
         if (session->import_list != NULL) {
             WT_RET(__wt_find_import_metadata(session, uri, &metadata));
             free_metadata = false;
@@ -1139,7 +1075,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
 
         WT_ERR(__wt_metadata_insert(session, uri, metadata));
     }
-    WT_ERR(__wt_schema_get_tiered_uri(session, uri, WT_DHANDLE_EXCLUSIVE, &tiered));
+    WT_ERR(__wti_schema_get_tiered_uri(session, uri, WT_DHANDLE_EXCLUSIVE, &tiered));
     if (WT_META_TRACKING(session)) {
         WT_WITH_DHANDLE(session, &tiered->iface, ret = __wt_meta_track_handle_lock(session, true));
         WT_ERR(ret);
@@ -1147,7 +1083,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     }
 
 err:
-    WT_TRET(__wt_schema_release_tiered(session, &tiered));
+    WT_TRET(__wti_schema_release_tiered(session, &tiered));
     __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
     if (free_metadata)
@@ -1427,8 +1363,6 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
         ret = __create_colgroup(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "file:"))
         ret = __create_file(session, uri, exclusive, config);
-    else if (WT_PREFIX_MATCH(uri, "lsm:"))
-        ret = __wt_lsm_tree_create(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "index:"))
         ret = __create_index(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "object:"))
@@ -1436,7 +1370,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __create_table(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "tier:"))
-        ret = __wt_tiered_tree_create(session, uri, exclusive, config);
+        ret = __create_tiered_tree(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
         ret = __create_tiered(session, uri, exclusive, config);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
@@ -1485,8 +1419,8 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
      */
     WT_ASSERT(session, __wt_spin_locked(session, &S2C(session)->schema_lock));
 
-    WT_RET(__wt_schema_internal_session(session, &int_session));
+    WT_RET(__wti_schema_internal_session(session, &int_session));
     ret = __schema_create(int_session, uri, config);
-    WT_TRET(__wt_schema_session_release(session, int_session));
+    WT_TRET(__wti_schema_session_release(session, int_session));
     return (ret);
 }

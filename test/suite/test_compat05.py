@@ -35,7 +35,7 @@ from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
-@wttest.skip_for_hook("tiered", "FIXME-WT-9809 - Fails for tiered")
+@wttest.skip_for_hook("tiered", "Fails with tiered storage")
 class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
     remove_values = [
         ('archive-false', dict(remove_arg = 'archive=false', removed = False)),
@@ -81,4 +81,4 @@ class test_compat05(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
 
         # Assert the first log is there or not there.
-        self.assertEquals(self.check_remove(), self.removed)
+        self.assertEqual(self.check_remove(), self.removed)

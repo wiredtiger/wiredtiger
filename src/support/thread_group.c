@@ -36,7 +36,7 @@ __thread_run(void *arg)
  */
 err:
     if (thread->stop_func != NULL)
-        ret = thread->stop_func(session, thread);
+        WT_TRET(thread->stop_func(session, thread));
 
     if (ret != 0 && F_ISSET(thread, WT_THREAD_PANIC_FAIL))
         WT_IGNORE_RET(__wt_panic(session, ret, "Unrecoverable utility thread error"));
@@ -47,10 +47,11 @@ err:
      * 2.  When the connection is closing.
      * 3.  When a shutdown has been requested via clearing the run flag.
      * 4.  When an error has occurred and the connection panic flag is set.
+     * 5.  When live restore threads terminate themselves.
      */
     WT_ASSERT(session,
       !F_ISSET(thread, WT_THREAD_RUN) ||
-        F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_PANIC | WT_CONN_RECOVERING));
+        F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING | WT_CONN_PANIC | WT_CONN_RECOVERING));
 
     return (WT_THREAD_RET_VALUE);
 }

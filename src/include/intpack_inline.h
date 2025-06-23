@@ -80,6 +80,16 @@
     } while (0)
 #endif
 
+#ifdef __GNUC__
+#if __GNUC__ == 14
+/*
+ * !!!
+ * GCC with -Warray-bounds complains about calls to __wt_vunpack_uint in this file.
+ * This is a GCC compiler bug referenced in https://gcc.gnu.org/bugzilla/show_bug.cgi?id=117829.
+ */
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
+#endif
 /*
  * __wt_vpack_posint --
  *     Packs a positive variable-length integer in the specified location.

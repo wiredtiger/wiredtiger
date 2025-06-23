@@ -8,36 +8,6 @@
 
 #include "wt_internal.h"
 
-#define WT_MODIFY_FOREACH_BEGIN(mod, p, nentries, napplied)                    \
-    do {                                                                       \
-        const size_t *__p = p;                                                 \
-        const uint8_t *__data = (const uint8_t *)(__p + (size_t)(nentries)*3); \
-        int __i;                                                               \
-        for (__i = 0; __i < (nentries); ++__i) {                               \
-            memcpy(&(mod).data.size, __p++, sizeof(size_t));                   \
-            memcpy(&(mod).offset, __p++, sizeof(size_t));                      \
-            memcpy(&(mod).size, __p++, sizeof(size_t));                        \
-            (mod).data.data = __data;                                          \
-            __data += (mod).data.size;                                         \
-            if (__i < (napplied))                                              \
-                continue;
-
-#define WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, napplied, datasz) \
-    do {                                                              \
-        const size_t *__p = (p) + (size_t)(nentries)*3;               \
-        const uint8_t *__data = (const uint8_t *)__p + datasz;        \
-        int __i;                                                      \
-        for (__i = (napplied); __i < (nentries); ++__i) {             \
-            memcpy(&(mod).size, --__p, sizeof(size_t));               \
-            memcpy(&(mod).offset, --__p, sizeof(size_t));             \
-            memcpy(&(mod).data.size, --__p, sizeof(size_t));          \
-            (mod).data.data = (__data -= (mod).data.size);
-
-#define WT_MODIFY_FOREACH_END \
-    }                         \
-    }                         \
-    while (0)
-
 /*
  * __wt_modify_idempotent --
  *     Check if a modify operation is idempotent.
@@ -46,14 +16,13 @@ bool
 __wt_modify_idempotent(const void *modify)
 {
     WT_MODIFY mod;
-    size_t tmp;
-    const size_t *p;
-    int nentries;
+    size_t nentries;
+    const uint8_t *p;
 
     /* Get the number of modify entries. */
     p = modify;
-    memcpy(&tmp, p++, sizeof(size_t));
-    nentries = (int)tmp;
+    memcpy(&nentries, p, sizeof(nentries));
+    p += sizeof(nentries);
 
     WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
         /*
@@ -129,7 +98,8 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **
 static int
 __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, bool sformat)
 {
-    size_t data_size, item_offset, offset, size;
+    size_t data_size, offset, size;
+    size_t item_offset;
     uint8_t *to;
     const uint8_t *data, *from;
 
@@ -137,21 +107,10 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
     data_size = modify->data.size;
     offset = modify->offset;
     size = modify->size;
-
-    /*
-     * Grow the buffer to the maximum size we'll need. This is pessimistic because it ignores
-     * replacement bytes, but it's a simpler calculation.
-     *
-     * Grow the buffer first. This function is often called using a cursor buffer referencing
-     * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
-     * ensure the buffer's value is in buffer-local memory.
-     *
-     * Because the buffer may reference an overflow item, the data may not start at the start of the
-     * buffer's memory and we have to correct for that.
-     */
     item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
-    WT_RET(__wt_buf_grow(
-      session, value, item_offset + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0)));
+
+    WT_ASSERT_ALWAYS(session,
+      value->memsize >= item_offset + offset + data_size + (sformat ? 1 : 0), "buffer overflow");
 
     /*
      * Fast-path the common case, where we're overwriting a set of bytes that already exist in the
@@ -232,8 +191,8 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
  *     remaining ones are sorted and non-overlapping.
  */
 static void
-__modify_fast_path(WT_ITEM *value, const size_t *p, int nentries, int *nappliedp, bool *overlapp,
-  size_t *dataszp, size_t *destszp)
+__modify_fast_path(WT_ITEM *value, const uint8_t *p, size_t nentries, size_t *nappliedp,
+  bool *overlapp, size_t *dataszp, size_t *destszp)
 {
     WT_MODIFY current, prev;
     size_t datasz, destoff;
@@ -315,8 +274,8 @@ __modify_fast_path(WT_ITEM *value, const size_t *p, int nentries, int *nappliedp
  *     and none of the changes overlap.
  */
 static void
-__modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t *p, int nentries,
-  int napplied, size_t datasz, size_t destsz)
+__modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const uint8_t *p,
+  size_t nentries, size_t napplied, size_t datasz, size_t destsz)
 {
     WT_MODIFY current;
     size_t sz;
@@ -356,17 +315,17 @@ __wt_modify_apply_item(
   WT_SESSION_IMPL *session, const char *value_format, WT_ITEM *value, const void *modify)
 {
     WT_MODIFY mod;
-    size_t datasz, destsz, item_offset, tmp;
-    const size_t *p;
-    int napplied, nentries;
+    size_t datasz, destsz, napplied, nentries;
+    size_t item_offset;
+    const uint8_t *p;
     bool overlap, sformat;
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
      */
     p = modify;
-    memcpy(&tmp, p++, sizeof(size_t));
-    nentries = (int)tmp;
+    memcpy(&nentries, p, sizeof(nentries));
+    p += sizeof(nentries);
 
     /*
      * Modifies can only be applied on a single value field. Make sure we are not applying modifies
@@ -374,17 +333,6 @@ __wt_modify_apply_item(
      */
     WT_ASSERT(session, value_format[1] == '\0');
     sformat = value_format[0] == 'S';
-
-    /*
-     * Grow the buffer first. This function is often called using a cursor buffer referencing
-     * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
-     * ensure the buffer's value is in buffer-local memory.
-     *
-     * Because the buffer may reference an overflow item, the data may not start at the start of the
-     * buffer's memory and we have to correct for that.
-     */
-    item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
-    WT_RET(__wt_buf_grow(session, value, item_offset + value->size));
 
     /*
      * Decrement the size to discard the trailing nul (done after growing the buffer to ensure it
@@ -402,9 +350,9 @@ __wt_modify_apply_item(
         goto done;
 
     if (!overlap) {
-        /* Grow the buffer first, correcting for the data offset. */
-        WT_RET(__wt_buf_grow(
-          session, value, item_offset + WT_MAX(destsz, value->size) + (sformat ? 1 : 0)));
+        item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
+        WT_ASSERT_ALWAYS(
+          session, value->memsize >= item_offset + destsz + (sformat ? 1 : 0), "buffer overflow");
 
         __modify_apply_no_overlap(session, value, p, nentries, napplied, datasz, destsz);
         goto done;
@@ -432,8 +380,16 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
+    size_t max_memsize;
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
+
+    __wt_modify_max_memsize_unpacked(
+      entries, nentries, cursor->value_format, cursor->value.size, &max_memsize);
+
+    WT_ERR(__wt_buf_set_and_grow(
+      CUR2S(cursor), &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
+
     WT_ERR(
       __wt_modify_apply_item(CUR2S(cursor), cursor->value_format, &cursor->value, modify->data));
 
@@ -447,14 +403,15 @@ err:
  *     Takes an in-memory modify and populates an update value with the reconstructed full value.
  */
 int
-__wt_modify_reconstruct_from_upd_list(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *modify, WT_UPDATE_VALUE *upd_value)
+__wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  WT_UPDATE *modify, WT_UPDATE_VALUE *upd_value, WT_OP_CONTEXT context)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
     WT_UPDATE_VECTOR modifies;
+    size_t base_value_size, item_offset, max_memsize;
     bool onpage_retry;
 
     WT_ASSERT(session, modify->type == WT_UPDATE_MODIFY);
@@ -465,9 +422,24 @@ __wt_modify_reconstruct_from_upd_list(
     upd_value->tw.start_txn = modify->txnid;
     onpage_retry = true;
 
-retry:
-    /* Construct full update */
+    /*
+     * It is possible that a read-uncommitted reader can not reconstruct a full value. This is
+     * because a snapshot isolation writer can abort the updates in parallel and leave the reader
+     * with an update list that does not contain enough information to reconstruct the full value.
+     * It is impossible to distinguish if an aborted modify or update happened prior to the call of
+     * the function, or if it is being done in parallel. In this case, we will return back to the
+     * user with a rollback error.
+     */
+    if (context == WT_OPCTX_TRANSACTION && session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
+        WT_RET_SUB(session, WT_ROLLBACK, WT_MODIFY_READ_UNCOMMITTED,
+          "Read-uncommitted readers do not support reconstructing a record with modifies.");
+
+    /* Initial modifies vector initialization. */
     __wt_update_vector_init(session, &modifies);
+retry:
+    /* When retrying, the vector might already contain allocated memory that should be released. */
+    __wt_update_vector_free(&modifies);
+
     /* Find a complete update. */
     for (upd = modify; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
@@ -479,6 +451,7 @@ retry:
         if (upd->type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_update_vector_push(&modifies, upd));
     }
+
     /*
      * If there's no full update, the base item is the on-page item. If the update is a tombstone,
      * the base item is an empty item.
@@ -511,12 +484,26 @@ retry:
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
          * the stop time point should be unset.
          */
-        WT_ASSERT(session,
-          tw.stop_txn == WT_TXN_MAX && tw.stop_ts == WT_TS_MAX && tw.durable_stop_ts == WT_TS_NONE);
+        WT_ASSERT(session, !WT_TIME_WINDOW_HAS_STOP(&tw));
+        item_offset = WT_DATA_IN_ITEM(&upd_value->buf) ?
+          WT_PTRDIFF(upd_value->buf.data, upd_value->buf.mem) :
+          0;
+        base_value_size = upd_value->buf.size + item_offset;
     } else {
         /* The base update must not be a tombstone. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-        WT_ERR(__wt_buf_set(session, &upd_value->buf, upd->data, upd->size));
+        base_value_size = upd->size;
+    }
+
+    if (modifies.size > 0) {
+        __wt_modifies_max_memsize(&modifies, cursor->value_format, base_value_size, &max_memsize);
+
+        if (upd == NULL)
+            WT_ERR(__wt_buf_set_and_grow(
+              session, &upd_value->buf, upd_value->buf.data, upd_value->buf.size, max_memsize));
+        else
+            WT_ERR(
+              __wt_buf_set_and_grow(session, &upd_value->buf, upd->data, upd->size, max_memsize));
     }
     /* Once we have a base item, roll forward through any visible modify updates. */
     while (modifies.size > 0) {

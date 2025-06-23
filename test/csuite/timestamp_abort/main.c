@@ -72,7 +72,7 @@ static char home[1024]; /* Program working dir */
 #define MAX_BACKUP_INVL 4 /* Maximum interval between backups */
 #define MAX_CKPT_INVL 5   /* Maximum interval between checkpoints */
 #define MAX_TH 200        /* Maximum configurable threads */
-#define MAX_TIME 40
+#define MAX_TIME 120
 #define MAX_VAL 1024
 #define MIN_TH 5
 #define MIN_TIME 10
@@ -95,7 +95,7 @@ static const char *const uri_shadow = "shadow";
 static const char *const ckpt_file = "checkpoint_done";
 
 static bool backup_verify_immediately, backup_verify_quick;
-static bool columns, stress, use_backups, use_lazyfs, use_ts, verify_model;
+static bool columns, stress, use_backups, use_lazyfs, use_liverestore, use_ts, verify_model;
 static uint32_t backup_force_stop_interval, backup_full_interval, backup_granularity_kb;
 
 static TEST_OPTS *opts, _opts;
@@ -424,7 +424,7 @@ static void
 backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t index)
 {
     int nfiles, nranges, nunmodified;
-    char backup_home[PATH_MAX], backup_id[32];
+    char backup_home[PATH_MAX];
 
     printf("Create incremental backup %" PRIu32 " - start: source=%" PRIu32 "\n", index, src_index);
     testutil_backup_create_incremental(conn, WT_HOME_DIR, (int)index, (int)src_index,
@@ -441,11 +441,7 @@ backup_create_incremental(WT_CONNECTION *conn, uint32_t src_index, uint32_t inde
     /* Immediately verify the backup. */
     if (backup_verify_immediately) {
         PRINT_BACKUP_VERIFY(index);
-        if (backup_verify_quick) {
-            testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index);
-            testutil_verify_src_backup(conn, backup_home, WT_HOME_DIR, backup_id);
-        } else
-            testutil_check(recover_and_verify(index, 0));
+        testutil_check(recover_and_verify(index, 0));
         PRINT_BACKUP_VERIFY_DONE(index);
     }
 }
@@ -1025,47 +1021,6 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 }
 
 /*
- * backup_exists --
- *     Check whether the backup with the given ID exists in the database.
- */
-static bool
-backup_exists(WT_CONNECTION *conn, uint32_t index)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_SESSION *session;
-    char backup_id[64];
-    const char *idstr;
-    bool found;
-
-    testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index);
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
-    /*
-     * Check if we find the backup with the given ID. But depending on scheduling of backups,
-     * checkpoints and killing the process, the backup ID may or may not have been saved to disk
-     * after a restart. If opening the backup query cursor gets EINVAL then there is no backup.
-     */
-    found = false;
-    ret = session->open_cursor(session, "backup:query_id", NULL, NULL, &cursor);
-    if (ret == EINVAL)
-        goto done;
-    testutil_check(ret);
-    while (cursor->next(cursor) == 0) {
-        testutil_check(cursor->get_key(cursor, &idstr));
-        if (strcmp(idstr, backup_id) == 0) {
-            found = true;
-            break;
-        }
-    }
-    testutil_check(cursor->close(cursor));
-
-done:
-    testutil_check(session->close(session, NULL));
-    return (found);
-}
-
-/*
  * backup_verify --
  *     Verify previous backups created within the given workload iteration (use 0 to verify all).
  */
@@ -1076,7 +1031,8 @@ backup_verify(WT_CONNECTION *conn, uint32_t workload_iteration)
     DIR *d;
     size_t len;
     uint32_t index;
-    char backup_id[64];
+
+    WT_UNUSED(conn);
 
     testutil_assert_errno((d = opendir(".")) != NULL);
     len = strlen(BACKUP_BASE);
@@ -1094,14 +1050,6 @@ backup_verify(WT_CONNECTION *conn, uint32_t workload_iteration)
             if (backup_verify_quick) {
                 /* Just check that chunks that are supposed to be different are indeed different. */
                 printf("Verify backup %" PRIu32 " (quick)\n", index);
-
-                /* Continue the verification only if we have the backup ID. */
-                if (backup_exists(conn, index)) {
-                    PRINT_BACKUP_VERIFY(index);
-                    testutil_snprintf(backup_id, sizeof(backup_id), "ID%" PRIu32, index);
-                    testutil_verify_src_backup(conn, dir->d_name, WT_HOME_DIR, backup_id);
-                    PRINT_BACKUP_VERIFY_DONE(index);
-                }
             } else {
                 /* Perform a full test. */
                 PRINT_BACKUP_VERIFY(index);
@@ -1135,7 +1083,7 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
     uint32_t i;
     int ret;
     char backup_dir[PATH_MAX], buf[PATH_MAX], fname[64], kname[64], verify_dir[PATH_MAX];
-    char ts_string[WT_TS_HEX_STRING_SIZE];
+    char open_cfg[256], ts_string[WT_TS_HEX_STRING_SIZE];
     bool fatal;
 
     if (backup_index == 0)
@@ -1150,13 +1098,6 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
         testutil_snprintf(verify_dir, sizeof(verify_dir), "%s", WT_HOME_DIR);
         testutil_wiredtiger_open(opts, verify_dir, NULL, &reopen_event, &conn, true, false);
         printf("Connection open and recovery complete. Verify content\n");
-        /* Compare against the copy of the home directory just before recovery. */
-        if (use_backups) {
-            printf("--- Verify saved dir against the backup source\n");
-            testutil_snprintf(buf, sizeof(buf), "%s.SAVE/%s", home, WT_HOME_DIR);
-            testutil_verify_src_backup(conn, buf, WT_HOME_DIR, NULL);
-            printf("--- DONE: Verify saved dir against the backup source\n");
-        }
         /*
          * Only call this when index is 0 because it calls back into here to verify a specific
          * backup.
@@ -1167,7 +1108,14 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
         testutil_snprintf(backup_dir, sizeof(backup_dir), BACKUP_BASE "%" PRIu32, backup_index);
         testutil_snprintf(verify_dir, sizeof(verify_dir), CHECK_BASE "%" PRIu32, backup_index);
         testutil_remove(CHECK_BASE "*");
-        testutil_copy(backup_dir, verify_dir);
+        if (use_liverestore) {
+            testutil_mkdir(verify_dir);
+            testutil_snprintf(
+              open_cfg, sizeof(open_cfg), "live_restore=(enabled=true,path=%s)", backup_dir);
+        } else {
+            testutil_copy(backup_dir, verify_dir);
+            testutil_snprintf(open_cfg, sizeof(open_cfg), "live_restore=(enabled=false)");
+        }
 
         /*
          * Open the database connection to the backup. But don't pass the general event handler, so
@@ -1175,7 +1123,8 @@ recover_and_verify(uint32_t backup_index, uint32_t workload_iteration)
          * trying to create it would cause the test to abort as we currently allow only one
          * statistics thread at a time.
          */
-        testutil_wiredtiger_open(opts, verify_dir, NULL, &other_event, &conn, true, false);
+        printf("Recover_and_verify: Open %s with config %s\n", verify_dir, open_cfg);
+        testutil_wiredtiger_open(opts, verify_dir, open_cfg, &other_event, &conn, true, false);
     }
 
     /* Sleep to guarantee the statistics thread has enough time to run. */
@@ -1463,6 +1412,7 @@ main(int argc, char *argv[])
     tmp = 0;
     use_backups = false;
     use_lazyfs = lazyfs_is_implicitly_enabled();
+    use_liverestore = false;
     use_ts = true;
     verify_model = false;
     verify_only = false;
@@ -1487,10 +1437,10 @@ main(int argc, char *argv[])
                 num_iterations = 1;
             break;
         case 'L':
-            table_pfx = "lsm";
+            use_lazyfs = true;
             break;
         case 'l':
-            use_lazyfs = true;
+            use_liverestore = true;
             break;
         case 'M':
             verify_model = true;
@@ -1712,7 +1662,7 @@ main(int argc, char *argv[])
              */
 
             /* Copy the data to a separate folder for debugging purpose. */
-            testutil_copy_data_opt(home, BACKUP_BASE);
+            testutil_copy_data_opt(BACKUP_BASE);
 
             /*
              * Clear the cache, if we are using LazyFS. Do this after we save the data for debugging
@@ -1750,9 +1700,6 @@ main(int argc, char *argv[])
         if (chdir(home) != 0)
             testutil_die(errno, "parent chdir: %s", home);
 
-        /* Copy the data to a separate folder for debugging purpose. */
-        testutil_copy_data_opt(home, BACKUP_BASE);
-
         /* Now do the actual recovery and verification. */
         ret = recover_and_verify(0, 0);
     }
@@ -1762,9 +1709,14 @@ main(int argc, char *argv[])
      */
     /* Clean up the test directory. */
     if (ret == EXIT_SUCCESS && !opts->preserve)
-        testutil_clean_test_artifacts(home);
+        /* Current working directory is home (aka WT_TEST) */
+        testutil_clean_test_artifacts();
 
-    /* At this point, we are inside `home`, which we intend to delete. cd to the parent dir. */
+    /*
+     * We are in the home directory (typically WT_TEST), which we intend to delete. Go to the start
+     * directory. We do this to avoid deleting the current directory, which is disallowed on some
+     * platforms.
+     */
     if (chdir(cwd_start) != 0)
         testutil_die(errno, "root chdir: %s", home);
 

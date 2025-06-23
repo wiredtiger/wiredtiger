@@ -43,7 +43,9 @@ namespace model {
 enum class kv_workload_sequence_type {
     none,
     checkpoint,
+    checkpoint_crash,
     crash,
+    evict,
     restart,
     rollback_to_stable,
     set_oldest_timestamp,

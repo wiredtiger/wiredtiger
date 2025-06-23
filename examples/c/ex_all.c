@@ -37,7 +37,6 @@
 static const char *home;
 
 static void add_collator(WT_CONNECTION *conn);
-static void add_extractor(WT_CONNECTION *conn);
 static void backup(WT_SESSION *session);
 static void checkpoint_ops(WT_SESSION *session);
 static void connection_ops(WT_CONNECTION *conn);
@@ -491,17 +490,6 @@ checkpoint_ops(WT_SESSION *session)
     /* Checkpoint of the database, creating a named snapshot. */
     error_check(session->checkpoint(session, "name=June01"));
 
-    /*
-     * Checkpoint a list of objects. JSON parsing requires quoting the list of target URIs.
-     */
-    error_check(session->checkpoint(session, "target=(\"table:table1\",\"table:table2\")"));
-
-    /*
-     * Checkpoint a list of objects, creating a named snapshot. JSON parsing requires quoting the
-     * list of target URIs.
-     */
-    error_check(session->checkpoint(session, "target=(\"table:mytable\"),name=midnight"));
-
     /* Checkpoint the database, discarding all previous snapshots. */
     error_check(session->checkpoint(session, "drop=(from=all)"));
 
@@ -517,21 +505,7 @@ checkpoint_ops(WT_SESSION *session)
      * Checkpoint the database, discarding all snapshots before and including "midnight".
      */
     error_check(session->checkpoint(session, "drop=(to=midnight)"));
-
-    /*
-     * Create a checkpoint of a table, creating the "July01" snapshot and discarding the "May01" and
-     * "June01" snapshots. JSON parsing requires quoting the list of target URIs.
-     */
-    error_check(
-      session->checkpoint(session, "target=(\"table:mytable\"),name=July01,drop=(May01,June01)"));
     /*! [Checkpoint examples] */
-
-    /*! [JSON quoting example] */
-    /*
-     * Checkpoint a list of objects. JSON parsing requires quoting the list of target URIs.
-     */
-    error_check(session->checkpoint(session, "target=(\"table:table1\",\"table:table2\")"));
-    /*! [JSON quoting example] */
 }
 
 static void
@@ -769,10 +743,6 @@ session_ops(WT_SESSION *session)
 
         error_check(session->checkpoint(session, NULL));
 
-        /*! [Upgrade a table] */
-        error_check(session->upgrade(session, "table:mytable", NULL));
-        /*! [Upgrade a table] */
-
         /*! [Verify a table] */
         error_check(session->verify(session, "table:mytable", NULL));
         /*! [Verify a table] */
@@ -1004,31 +974,6 @@ add_collator(WT_CONNECTION *conn)
     /*! [WT_COLLATOR register] */
 }
 
-/*! [WT_EXTRACTOR] */
-static int
-my_extract(WT_EXTRACTOR *extractor, WT_SESSION *session, const WT_ITEM *key, const WT_ITEM *value,
-  WT_CURSOR *result_cursor)
-{
-    /* Unused parameters */
-    (void)extractor;
-    (void)session;
-    (void)key;
-
-    result_cursor->set_key(result_cursor, value);
-    return (result_cursor->insert(result_cursor));
-}
-/*! [WT_EXTRACTOR] */
-
-static void
-add_extractor(WT_CONNECTION *conn)
-{
-    /*! [WT_EXTRACTOR register] */
-    static WT_EXTRACTOR my_extractor = {my_extract, NULL, NULL};
-
-    error_check(conn->add_extractor(conn, "my_extractor", &my_extractor, NULL));
-    /*! [WT_EXTRACTOR register] */
-}
-
 static void
 connection_ops(WT_CONNECTION *conn)
 {
@@ -1042,7 +987,6 @@ connection_ops(WT_CONNECTION *conn)
 #endif
 
     add_collator(conn);
-    add_extractor(conn);
 
     /*! [Reconfigure a connection] */
     error_check(conn->reconfigure(conn, "eviction_target=75"));
@@ -1161,15 +1105,14 @@ backup(WT_SESSION *session)
     /*! [backup log duplicate]*/
     /* Open the backup data source. */
     error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
+    /*! [JSON quoting example] */
     /* Open a duplicate cursor for additional log files. */
+    /*
+     * JSON parsing requires quoting a URI that contains a colon.
+     */
     error_check(session->open_cursor(session, NULL, cursor, "target=(\"log:\")", &dup_cursor));
+    /*! [JSON quoting example] */
     /*! [backup log duplicate]*/
-
-    /*! [incremental backup]*/
-    /* Open the backup data source for log-based incremental backup. */
-    error_check(session->open_cursor(session, "backup:", NULL, "target=(\"log:\")", &cursor));
-    /*! [incremental backup]*/
-    error_check(cursor->close(cursor));
 
     /*! [incremental block backup]*/
     /* Open the backup data source for block-based incremental backup. */
@@ -1255,16 +1198,6 @@ main(int argc, char *argv[])
       secretkey);
     error_check(wiredtiger_open(home, NULL, conf, &conn));
     /*! [Configure sodium extension] */
-    error_check(conn->close(conn, NULL));
-
-    /*
-     * This example code gets run, and direct I/O might not be available, causing the open to fail.
-     * The documentation requires code snippets, use #ifdef's to avoid running it.
-     */
-    /* Might Not Run: direct I/O may not be available. */
-    /*! [Configure direct_io for data files] */
-    error_check(wiredtiger_open(home, NULL, "create,direct_io=[data]", &conn));
-    /*! [Configure direct_io for data files] */
     error_check(conn->close(conn, NULL));
 #endif
 

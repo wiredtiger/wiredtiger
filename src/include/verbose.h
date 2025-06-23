@@ -25,19 +25,18 @@
     "WT_VERB_COMPACT_PROGRESS", \
     "WT_VERB_CONFIGURATION", \
     "WT_VERB_DEFAULT", \
+    "WT_VERB_DISAGGREGATED_STORAGE", \
     "WT_VERB_ERROR_RETURNS", \
-    "WT_VERB_EVICT", \
-    "WT_VERB_EVICTSERVER", \
-    "WT_VERB_EVICT_STUCK", \
+    "WT_VERB_EVICTION", \
     "WT_VERB_EXTENSION", \
     "WT_VERB_FILEOPS", \
     "WT_VERB_GENERATION", \
     "WT_VERB_HANDLEOPS", \
     "WT_VERB_HS", \
     "WT_VERB_HS_ACTIVITY", \
+    "WT_VERB_LIVE_RESTORE", \
+    "WT_VERB_LIVE_RESTORE_PROGRESS", \
     "WT_VERB_LOG", \
-    "WT_VERB_LSM", \
-    "WT_VERB_LSM_MANAGER", \
     "WT_VERB_MUTEX", \
     "WT_VERB_METADATA", \
     "WT_VERB_OUT_OF_ORDER", \
@@ -49,6 +48,7 @@
     "WT_VERB_RECOVERY_PROGRESS", \
     "WT_VERB_RTS", \
     "WT_VERB_SALVAGE", \
+    "WT_VERB_SWEEP", \
     "WT_VERB_SHARED_CACHE", \
     "WT_VERB_SPLIT", \
     "WT_VERB_TEMPORARY", \
@@ -225,16 +225,23 @@ struct __wt_verbose_multi_category {
  *     Display a verbose message, given a set of multiple verbose categories. A verbose message will
  *     be displayed if at least one category in the set satisfies the required verbosity level.
  */
-#define __wt_verbose_level_multi(session, multi_category, level, fmt, ...)                    \
-    do {                                                                                      \
-        uint32_t __v_idx;                                                                     \
-        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {                          \
-            if (WT_VERBOSE_LEVEL_ISSET(session, multi_category.categories[__v_idx], level)) { \
-                __wt_verbose_worker(                                                          \
-                  session, multi_category.categories[__v_idx], level, fmt, __VA_ARGS__);      \
-                break;                                                                        \
-            }                                                                                 \
-        }                                                                                     \
+#define __wt_verbose_level_multi(session, multi_category, level, fmt, ...)                        \
+    do {                                                                                          \
+        uint32_t __v_idx;                                                                         \
+        /*                                                                                        \
+         * multi_category can be a ternary expression that returns one of two structs. If we call \
+         * it 3 times in this macro then we're evaluating that ternary 3 times and could return a \
+         * different value on a second call. Save it into a local variable to make sure we're     \
+         * working with a constant value.                                                         \
+         */                                                                                       \
+        WT_VERBOSE_MULTI_CATEGORY __multi_category = multi_category;                              \
+        for (__v_idx = 0; __v_idx < __multi_category.cnt; __v_idx++) {                            \
+            if (WT_VERBOSE_LEVEL_ISSET(session, __multi_category.categories[__v_idx], level)) {   \
+                __wt_verbose_worker(                                                              \
+                  session, __multi_category.categories[__v_idx], level, fmt, __VA_ARGS__);        \
+                break;                                                                            \
+            }                                                                                     \
+        }                                                                                         \
     } while (0)
 
 /*
@@ -242,14 +249,21 @@ struct __wt_verbose_multi_category {
  *     Display a verbose message, given a set of multiple verbose categories using the default
  *     verbosity level.
  */
-#define __wt_verbose_multi(session, multi_category, fmt, ...)                    \
-    do {                                                                         \
-        uint32_t __v_idx;                                                        \
-        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {             \
-            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) { \
-                __wt_verbose_worker(session, multi_category.categories[__v_idx], \
-                  WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);                   \
-                break;                                                           \
-            }                                                                    \
-        }                                                                        \
+#define __wt_verbose_multi(session, multi_category, fmt, ...)                                     \
+    do {                                                                                          \
+        uint32_t __v_idx;                                                                         \
+        /*                                                                                        \
+         * multi_category can be a ternary expression that returns one of two structs. If we call \
+         * it 3 times in this macro then we're evaluating that ternary 3 times and could return a \
+         * different value on a second call. Save it into a local variable to make sure we're     \
+         * working with a constant value.                                                         \
+         */                                                                                       \
+        WT_VERBOSE_MULTI_CATEGORY __multi_category = multi_category;                              \
+        for (__v_idx = 0; __v_idx < __multi_category.cnt; __v_idx++) {                            \
+            if (WT_VERBOSE_ISSET(session, __multi_category.categories[__v_idx])) {                \
+                __wt_verbose_worker(session, __multi_category.categories[__v_idx],                \
+                  WT_VERBOSE_LEVEL_DEFAULT, fmt, __VA_ARGS__);                                    \
+                break;                                                                            \
+            }                                                                                     \
+        }                                                                                         \
     } while (0)

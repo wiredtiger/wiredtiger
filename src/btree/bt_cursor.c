@@ -169,8 +169,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
      * whether we correctly resolved the transaction becomes hard. It is easier to skip this check
      * in that instance.
      */
-    if (__wt_atomic_load64(&cbt->ref->page->read_gen) == WT_READGEN_OLDEST &&
-      !F_ISSET(session->txn, WT_TXN_PREPARE))
+    if (__wt_evict_page_is_soon(cbt->ref->page) && !F_ISSET(session->txn, WT_TXN_PREPARE))
         return (false);
 
     return (true);
@@ -183,13 +182,9 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
 static WT_INLINE int
 __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 {
-    WT_BM *bm;
-    WT_BTREE *btree;
+    WT_BTREE *btree = S2BT(session);
+    WT_BM *bm = btree->bm;
     WT_DECL_RET;
-    size_t size;
-
-    btree = S2BT(session);
-    bm = btree->bm;
 
     if (btree->type == BTREE_COL_FIX) {
         /* Fixed-size column-stores take a single byte. */
@@ -213,7 +208,7 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
           kv->size, WT_BTREE_MAX_OBJECT_SIZE);
 
     /* Check what the block manager can actually write. */
-    size = kv->size;
+    size_t size = kv->size;
     if ((ret = bm->write_size(bm, session, &size)) != 0)
         WT_RET_MSG(
           session, ret, "item size of %" WT_SIZET_FMT " refused by block manager", kv->size);
@@ -249,12 +244,8 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
 static int
 __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool check_bounds)
 {
-    WT_ITEM tmp_key;
-    WT_SESSION_IMPL *session;
-    bool key_out_of_bounds;
-
-    key_out_of_bounds = false;
-    session = CUR2S(cbt);
+    WT_SESSION_IMPL *session = CUR2S(cbt);
+    bool key_out_of_bounds = false;
 
     if (cbt->ins == NULL)
         return (0);
@@ -262,6 +253,7 @@ __cursor_valid_insert(WT_CURSOR_BTREE *cbt, WT_ITEM *key, bool *valid, bool chec
     if (check_bounds && WT_CURSOR_BOUNDS_SET(&cbt->iface)) {
         /* Get the insert list key. */
         if (key == NULL && CUR2BT(cbt)->type == BTREE_ROW) {
+            WT_ITEM tmp_key;
             tmp_key.data = WT_INSERT_KEY(cbt->ins);
             tmp_key.size = WT_INSERT_KEY_SIZE(cbt->ins);
             WT_RET(__btcur_bounds_contains_key(
@@ -490,11 +482,11 @@ __cursor_valid_col(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
 }
 
 /*
- * __wt_cursor_valid --
+ * __wti_cursor_valid --
  *     Return if the cursor references a valid key/value pair.
  */
 int
-__wt_cursor_valid(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
+__wti_cursor_valid(WT_CURSOR_BTREE *cbt, bool *valid, bool check_bounds)
 {
     *valid = false;
 
@@ -714,18 +706,18 @@ __cursor_reposition_timing_stress(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_EVICT_REPOSITION) &&
-      __wt_random(&session->rnd) % 10 == 0)
+      __wt_random(&session->rnd_random) % 10 == 0)
         return (true);
 
     return (false);
 }
 
 /*
- * __wt_btcur_evict_reposition --
+ * __wti_btcur_evict_reposition --
  *     Try to evict the page and reposition the cursor on the saved key.
  */
 int
-__wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
+__wti_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -745,7 +737,7 @@ __wt_btcur_evict_reposition(WT_CURSOR_BTREE *cbt)
      * unlike read committed isolation level.
      */
     if (session->txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(session->txn, WT_TXN_RUNNING) &&
-      (__wt_page_evict_soon_check(session, cbt->ref, NULL) ||
+      (__wt_evict_page_soon_check(session, cbt->ref, NULL) ||
         __cursor_reposition_timing_stress(session))) {
 
         WT_STAT_CONN_DSRC_INCR(session, cursor_reposition);
@@ -828,7 +820,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             WT_ERR(__cursor_col_search(cbt, cbt->ref, &leaf_found));
 
         if (leaf_found && cbt->compare == 0)
-            WT_ERR(__wt_cursor_valid(cbt, &valid, false));
+            WT_ERR(__wti_cursor_valid(cbt, &valid, false));
     }
     if (!valid) {
         WT_ERR(__wt_cursor_func_init(cbt, true));
@@ -839,7 +831,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
 
         if (cbt->compare == 0)
-            WT_ERR(__wt_cursor_valid(cbt, &valid, false));
+            WT_ERR(__wti_cursor_valid(cbt, &valid, false));
     }
 
     if (valid)
@@ -873,7 +865,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 #endif
 
     if (ret == 0)
-        WT_ERR(__wt_btcur_evict_reposition(cbt));
+        WT_ERR(__wti_btcur_evict_reposition(cbt));
 
 err:
     if (ret != 0) {
@@ -968,7 +960,7 @@ __btcur_search_near_row_pinned_page(WT_CURSOR_BTREE *cbt, bool *validp)
      */
     if (leaf_found &&
       (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-        WT_RET(__wt_cursor_valid(cbt, validp, true));
+        WT_RET(__wti_cursor_valid(cbt, validp, true));
 
     return (0);
 }
@@ -1036,7 +1028,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
         else
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
-        WT_ERR(__wt_cursor_valid(cbt, &valid, true));
+        WT_ERR(__wti_cursor_valid(cbt, &valid, true));
     }
 
     /*
@@ -1073,7 +1065,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     }
 
     if (ret == 0)
-        WT_ERR(__wt_btcur_evict_reposition(cbt));
+        WT_ERR(__wti_btcur_evict_reposition(cbt));
 err:
     if (ret == 0 && exactp != NULL)
         *exactp = exact;
@@ -1197,7 +1189,7 @@ retry:
          * If not overwriting, fail if the key exists, else insert the key/value pair.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) && cbt->compare == 0) {
-            WT_ERR(__wt_cursor_valid(cbt, &valid, false));
+            WT_ERR(__wti_cursor_valid(cbt, &valid, false));
             if (valid)
                 goto duplicate;
         }
@@ -1229,7 +1221,7 @@ retry:
                  * Even so, we still have to call the cursor validity check function so we return
                  * the found value for any duplicate key, and for FLCS we need to set 0 explicitly.
                  */
-                WT_ERR(__wt_cursor_valid(cbt, &valid, false));
+                WT_ERR(__wti_cursor_valid(cbt, &valid, false));
                 if (valid)
                     goto duplicate;
                 if (btree->type == BTREE_COL_FIX) {
@@ -1442,10 +1434,10 @@ retry:
         if (cbt->compare == 0) {
             /*
              * If we find a matching record, check whether an update would conflict. Do this before
-             * checking if the update is visible in __wt_cursor_valid, or we can miss conflicts.
+             * checking if the update is visible in __wti_cursor_valid, or we can miss conflicts.
              */
             WT_ERR(__curfile_update_check(cbt));
-            WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, &valid, true));
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, true));
             WT_ERR(ret);
             if (!valid)
                 WT_ERR(WT_NOTFOUND);
@@ -1458,11 +1450,11 @@ retry:
         if (cbt->compare == 0) {
             /*
              * If we find a matching record, check whether an update would conflict. Do this before
-             * checking if the update is visible in __wt_cursor_valid, or we can miss conflicts.
+             * checking if the update is visible in __wti_cursor_valid, or we can miss conflicts.
              */
             WT_ERR(__curfile_update_check(cbt));
 
-            WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, &valid, true));
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, true));
             WT_ERR(ret);
             if (!valid && btree->type != BTREE_COL_FIX)
                 WT_ERR(WT_NOTFOUND);
@@ -1478,14 +1470,22 @@ retry:
             ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else if (__cursor_fix_implicit(btree, cbt)) {
             /*
-             * Creating a record past the end of the tree in a fixed-length column-store implicitly
-             * fills the gap with empty records, delete the record.
+             * We are deleting an implicitly created record, which exists because we have previously
+             * added a record with a higher recno, and FLCS fills the gap with implicit records.
+             * Deleting an implicit record doesn't make sense, and as such, this is a no-op. An
+             * implicit record returns 0 when searched for. If we were to add a tombstone here, it
+             * would mean that the search returns WT_NOTFOUND, which would be then translated back
+             * into 0. Since we would return 0 either way, we choose to not add a tombstone here.
+             *
+             * Not adding a tombstone (unlike what this code did previously) fixes reconciliation
+             * behavior with regards to prepared transactions. Prepared transactions must save
+             * updates when reconciling the update chain, but a single tombstone on the chain cannot
+             * be saved; doing so would cause an assertion to fire.
              *
              * Correct the btree cursor's location: the search will have pointed us at the
              * previous/next item, and that's not correct.
              */
             cbt->recno = cursor->recno;
-            ret = __cursor_col_modify(cbt, NULL, WT_UPDATE_TOMBSTONE);
         } else
             WT_ERR(WT_NOTFOUND);
     }
@@ -1626,12 +1626,12 @@ retry:
         /*
          * If not overwriting, fail if the key does not exist. If we find a matching record, check
          * whether an update would conflict. Do this before checking if the update is visible in
-         * __wt_cursor_valid, or we can miss conflicts.
+         * __wti_cursor_valid, or we can miss conflicts.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
             WT_ERR(__curfile_update_check(cbt));
             if (cbt->compare == 0) {
-                WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, &valid, false));
+                WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, false));
                 WT_ERR(ret);
                 if (!valid)
                     WT_ERR(WT_NOTFOUND);
@@ -1643,7 +1643,7 @@ retry:
         /*
          * If not overwriting, fail if the key does not exist. If we find a matching record, check
          * whether an update would conflict. Do this before checking if the update is visible in
-         * __wt_cursor_valid, or we can miss conflicts.
+         * __wti_cursor_valid, or we can miss conflicts.
          *
          * Creating a record past the end of the tree in a fixed-length column-store implicitly
          * fills the gap with empty records. Update the record in that case, the record exists.
@@ -1656,7 +1656,7 @@ retry:
                  * the FLCS cursor validity check cannot return "does not exist", the update is OK.
                  */
                 if (btree->type != BTREE_COL_FIX) {
-                    WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, &valid, false));
+                    WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wti_cursor_valid(cbt, &valid, false));
                     WT_ERR(ret);
                     if (!valid)
                         WT_ERR(WT_NOTFOUND);
@@ -1798,7 +1798,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    size_t new, orig;
+    size_t max_memsize, new, orig;
     bool overwrite;
 
     cursor = &cbt->iface;
@@ -1835,6 +1835,12 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
         WT_ERR(__wt_btcur_search(cbt));
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
+
+    __wt_modify_max_memsize_unpacked(
+      entries, nentries, cursor->value_format, cursor->value.size, &max_memsize);
+
+    WT_ERR(__wt_buf_set_and_grow(
+      session, &cursor->value, cursor->value.data, cursor->value.size, max_memsize));
 
     orig = cursor->value.size;
     WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &cursor->value, modify->data));
@@ -2170,7 +2176,7 @@ __wt_btcur_range_truncate(WT_TRUNCATE_INFO *trunc_info)
 
     session = trunc_info->session;
     btree = CUR2BT(trunc_info->start);
-    logging = __wt_log_op(session);
+    logging = __wt_txn_log_op_check(session);
     start = (WT_CURSOR_BTREE *)trunc_info->start;
     stop = (WT_CURSOR_BTREE *)trunc_info->stop;
 
@@ -2299,13 +2305,13 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
 }
 
 /*
- * __wt_btcur_bounds_position --
+ * __wti_btcur_bounds_position --
  *     An unpositioned bounded cursor need to start its cursor next and prev walk from the lower or
  *     upper bound depending on which direction it is going. This function calls cursor row search
  *     or cursor col search to position the cursor appropriately.
  */
 int
-__wt_btcur_bounds_position(
+__wti_btcur_bounds_position(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next, bool *need_walkp)
 {
 
@@ -2335,7 +2341,7 @@ __wt_btcur_bounds_position(
              */
             if (F_ISSET(
                   cursor, next ? WT_CURSTD_BOUND_LOWER_INCLUSIVE : WT_CURSTD_BOUND_UPPER_INCLUSIVE))
-                WT_RET(__wt_cursor_valid(cbt, &valid, false));
+                WT_RET(__wti_cursor_valid(cbt, &valid, false));
             else
                 *need_walkp = true;
         } else if ((cbt->compare > 0 && next) || (cbt->compare < 0 && !next)) {
@@ -2347,7 +2353,7 @@ __wt_btcur_bounds_position(
              * call to cursor valid and have it only check a single bound, but we would need to
              * indicate the bound and direction.
              */
-            WT_RET(__wt_cursor_valid(cbt, &valid, true));
+            WT_RET(__wti_cursor_valid(cbt, &valid, true));
         } else {
             /*
              * In the case of a next traversal we are positioned before the lower bounded, in the
@@ -2365,7 +2371,7 @@ __wt_btcur_bounds_position(
     } else {
         /* Column store bound comparisons are fast and don't require optimization. */
         WT_RET(__cursor_col_search(cbt, NULL, NULL));
-        WT_RET(__wt_cursor_valid(cbt, &valid, true));
+        WT_RET(__wti_cursor_valid(cbt, &valid, true));
     }
 
     /*

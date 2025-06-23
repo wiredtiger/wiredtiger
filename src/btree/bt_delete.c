@@ -99,15 +99,15 @@
  */
 
 /*
- * __wt_delete_page --
+ * __wti_delete_page --
  *     If deleting a range, try to delete the page without instantiating it.
  */
 int
-__wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
+__wti_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
     WT_DECL_RET;
-    uint8_t previous_state;
+    WT_REF_STATE previous_state;
 
     *skipp = false;
 
@@ -135,7 +135,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     if (previous_state != WT_REF_DISK)
         return (0);
 
-    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+    if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
         return (0);
 
     /*
@@ -194,13 +194,21 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      */
     WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
-    /* Allocate and initialize the page-deleted structure. */
-    WT_ERR(__wt_calloc_one(session, &ref->page_del));
-    ref->page_del->previous_ref_state = previous_state;
-
-    /* History store truncation is non-transactional. */
-    if (!WT_IS_HS(session->dhandle))
+    /*
+     * Allocate and initialize `page_del` for pages, excluding those in the history store.
+     *
+     * A `null` `page_del` means that a fast-truncated page is globally visible. Since truncation in
+     * the history store is non-transactional and applies only to globally visible pages, ensure
+     * that `page_del` remains null for history store pages.
+     *
+     * An exception is selective backup, which can truncate non-globally visible history store
+     * pages. However, since this data is intended for permanent discard, it can also be treated as
+     * globally visible without causing issues.
+     */
+    if (!WT_IS_HS(session->dhandle)) {
+        WT_ERR(__wt_calloc_one(session, &ref->page_del));
         WT_ERR(__wt_txn_modify_page_delete(session, ref));
+    }
 
     *skipp = true;
     WT_STAT_CONN_DSRC_INCR(session, rec_page_delete_fast);
@@ -213,7 +221,7 @@ err:
     __wt_free(session, ref->page_del);
 
     /* Return the page to its previous state. */
-    WT_REF_SET_STATE(ref, previous_state);
+    WT_REF_SET_STATE(ref, WT_REF_DISK);
     return (ret);
 }
 
@@ -224,9 +232,9 @@ err:
 int
 __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_REF_STATE current_state;
     WT_UPDATE **updp;
     uint64_t sleep_usecs, yield_count;
-    uint8_t current_state;
     bool locked;
 
     /* Lock the reference. We cannot access ref->page_del except when locked. */
@@ -267,7 +275,11 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
      * the update list to be null to be conservative.
      */
     if (current_state == WT_REF_DELETED) {
-        current_state = ref->page_del->previous_ref_state;
+        /*
+         * When fast truncate succeeds it moves a WT_REF from WT_REF_DISK to WT_REF_DELETED. Thus
+         * the reverse operation is to return the state to WT_REF_DISK.
+         */
+        current_state = WT_REF_DISK;
         /*
          * Don't set the WT_PAGE_DELETED transaction ID to aborted; instead, just discard the
          * structure. This avoids having to check for an aborted delete in other situations.
@@ -372,11 +384,11 @@ __wt_delete_redo_window_cleanup(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_delete_page_skip --
+ * __wti_delete_page_skip --
  *     If iterating a cursor, skip deleted pages that are either visible to us or globally visible.
  */
 bool
-__wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
+__wti_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
     bool discard, skip;
 
@@ -539,7 +551,7 @@ __instantiate_col_var(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *pa
                 WT_ASSERT(session, cbt.slot == WT_COL_SLOT(page, cip));
 
                 /* Attach the tombstone, using the update-restore path. */
-                WT_ERR(__wt_col_modify(&cbt, recno + j, NULL, upd, WT_UPDATE_INVALID, true, true));
+                WT_ERR(__wt_col_modify(&cbt, recno + j, NULL, &upd, WT_UPDATE_INVALID, true, true));
                 /* Null the pointer so we don't free it twice. */
                 upd = NULL;
             }
@@ -591,7 +603,7 @@ __instantiate_row(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_d
     /* Walk the page entries, giving each one a tombstone. */
     WT_ROW_FOREACH (page, rip, i) {
         /* Retrieve the stop time point from the page's row. */
-        __wt_read_row_time_window(session, page, rip, &tw);
+        __wti_read_row_time_window(session, page, rip, &tw);
 
         WT_RET(__instantiate_tombstone(session, page_del, update_list, countp, &tw, &upd, &size));
         if (upd != NULL) {
@@ -604,7 +616,7 @@ __instantiate_row(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_DELETED *page_d
         WT_ASSERT(session, WT_ROW_INSERT(page, rip) == NULL);
     }
 
-    __wt_cache_page_inmem_incr(session, page, total_size);
+    __wt_cache_page_inmem_incr(session, page, total_size, false);
 
     /*
      * Note that the label is required by the alloc-and-swap macro. There isn't anything we need to
@@ -616,11 +628,11 @@ err:
 }
 
 /*
- * __wt_delete_page_instantiate --
- *     Instantiate an entirely deleted row-store leaf page.
+ * __wti_delete_page_instantiate --
+ *     Instantiate an entirely deleted leaf page. Note that FLCS is not supported.
  */
 int
-__wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
+__wti_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_DECL_RET;
     WT_PAGE *page;

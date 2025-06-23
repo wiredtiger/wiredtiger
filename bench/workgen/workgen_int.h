@@ -313,6 +313,16 @@ struct SleepOperationInternal : OperationInternal {
     virtual uint64_t sync_time_us() const;
 };
 
+struct VerifyOperationInternal : OperationInternal {
+    std::string verify_session_config;
+
+    VerifyOperationInternal() : OperationInternal(), verify_session_config() {}
+    VerifyOperationInternal(const VerifyOperationInternal &other) :
+        OperationInternal(other), verify_session_config(other.verify_session_config) {}
+    virtual void parse_config(const std::string &config);
+    virtual int run(ThreadRunner *runner, WT_SESSION *session);
+};
+
 struct TableInternal {
     tint_t _tint;
     uint32_t _context_count;
@@ -347,7 +357,7 @@ private:
     int create_all(WT_CONNECTION *conn, Context *context);
     int create_table(
       WT_SESSION *session, const std::string &config, const std::string &uri, bool mirror_enabled);
-    void final_report(timespec &);
+    void final_report(timespec &runsecs, timespec &totalsecs);
     void schedule_table_for_drop(const std::map<std::string, tint_t>::iterator &itr,
       std::vector<std::string> &pending_delete);
     void get_stats(Stats *stats);

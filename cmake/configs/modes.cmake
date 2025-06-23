@@ -53,6 +53,7 @@ function(define_build_mode mode)
         set(CMAKE_REQUIRED_LIBRARIES "${DEFINE_BUILD_LIBS}")
         list(APPEND linker_flags "${DEFINE_BUILD_LIBS}")
     endif()
+
     # Check if the compiler flags are available to ensure its a valid build mode.
     if(DEFINE_BUILD_C_COMPILER_FLAGS)
         check_c_compiler_flag("${DEFINE_BUILD_C_COMPILER_FLAGS}" HAVE_BUILD_MODE_C_FLAGS)

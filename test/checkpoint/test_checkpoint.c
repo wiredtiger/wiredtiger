@@ -191,9 +191,6 @@ main(int argc, char *argv[])
             case 'f':
                 ttype = FIX;
                 break;
-            case 'l':
-                ttype = LSM;
-                break;
             case 'm':
                 ttype = MIX;
                 break;
@@ -267,9 +264,6 @@ main(int argc, char *argv[])
             g.cookies[i].id = i;
             if (ttype == MIX) {
                 g.cookies[i].type = (table_type)((i % MAX_TABLE_TYPE) + 1);
-                /* LSM is not supported with tiered storage. Just use ROW. */
-                if (g.opts.tiered_storage && g.cookies[i].type == LSM)
-                    g.cookies[i].type = ROW;
             } else
                 g.cookies[i].type = ttype;
             testutil_snprintf(
@@ -568,7 +562,7 @@ flcs_encode_value(size_t offset, char digit)
 static void
 flcs_decode_value(uint8_t value, size_t *offsetp, char *digitp)
 {
-    static const char digits[4] = "2357";
+    static const char digits[] = "2357";
 
     value -= FLCS_OFFSET;
 
@@ -658,8 +652,6 @@ type_to_string(table_type type)
         return ("COL");
     if (type == FIX)
         return ("FIX");
-    if (type == LSM)
-        return ("LSM");
     if (type == ROW)
         return ("ROW");
     if (type == MIX)
@@ -701,7 +693,7 @@ usage(void)
       "\t\t6: evict_reposition_timing_stress\n"
       "\t\t7: failpoint_eviction_split\n"
       "\t-T specify a table configuration\n"
-      "\t-t set a file type ( col | mix | row | lsm )\n"
+      "\t-t set a file type ( col | mix | row )\n"
       "\t-v verify only\n"
       "\t-W set number of worker threads\n"
       "\t-X race timestamp updates with checkpoints\n"

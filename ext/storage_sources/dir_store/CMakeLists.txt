@@ -1,6 +1,7 @@
 project(dir_store C)
 
 set(sources "dir_store.c")
+
 add_library(wiredtiger_dir_store MODULE ${sources})
 
 target_include_directories(

@@ -283,7 +283,7 @@ __eventv(WT_SESSION_IMPL *session, bool is_json, int error, const char *func, in
           p, remain, "\"ts_usec\":%" PRIuMAX ",", (uintmax_t)ts.tv_nsec / WT_THOUSAND);
         WT_ERROR_APPEND(p, remain, "\"thread\":\"%s\",", tid);
     } else
-        WT_ERROR_APPEND(p, remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
+        WT_ERROR_APPEND(p, remain, "[%" PRIuMAX ":%.6" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
           (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
 
     /* Error prefix. */
@@ -539,7 +539,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_end(ap);
 
     /* If the connection has already panicked, just return the error. */
-    if (conn != NULL && F_ISSET(conn, WT_CONN_PANIC))
+    if (conn != NULL && F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC))
         return (WT_PANIC);
 
     /*
@@ -565,7 +565,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * dropping a core and returning an error.
      */
     if (conn != NULL &&
-      (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) ||
+      (!F_ISSET_ATOMIC_32(conn, WT_CONN_DATA_CORRUPTION) ||
         FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT)))
         __wt_abort(session);
 #endif
@@ -578,7 +578,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
 #ifndef HAVE_UNITTEST_ASSERTS
     /* Panic the connection. */
     if (conn != NULL)
-        F_SET(conn, WT_CONN_PANIC);
+        F_SET_ATOMIC_32(conn, WT_CONN_PANIC);
 #endif
     /*
      * !!!
@@ -594,9 +594,10 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
  *     Conditionally log the source of an error code and return the error.
  */
 int
-__wt_set_return_func(WT_SESSION_IMPL *session, const char *func, int line, int err)
+__wt_set_return_func(
+  WT_SESSION_IMPL *session, const char *func, int line, int err, const char *strerr)
 {
-    __wt_verbose(session, WT_VERB_ERROR_RETURNS, "%s: %d Error: %d", func, line, err);
+    __wt_verbose(session, WT_VERB_ERROR_RETURNS, "%s: %d Error: %d %s", func, line, err, strerr);
     return (err);
 }
 
@@ -736,7 +737,7 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
 int
 __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY))
         WT_RET_MSG(session, ENOTSUP, "%s%snot supported for in-memory configurations",
           tag == NULL ? "" : tag, tag == NULL ? "" : ": ");
     return (0);
@@ -762,10 +763,12 @@ __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTR
     if (WT_PREFIX_MATCH(uri, "backup:") || WT_PREFIX_MATCH(uri, "colgroup:") ||
       WT_PREFIX_MATCH(uri, "config:") || WT_PREFIX_MATCH(uri, "file:") ||
       WT_PREFIX_MATCH(uri, "index:") || WT_PREFIX_MATCH(uri, "log:") ||
-      WT_PREFIX_MATCH(uri, "lsm:") || WT_PREFIX_MATCH(uri, "object:") ||
-      WT_PREFIX_MATCH(uri, "statistics:") || WT_PREFIX_MATCH(uri, "table:") ||
-      WT_PREFIX_MATCH(uri, "tiered:"))
+      WT_PREFIX_MATCH(uri, "object:") || WT_PREFIX_MATCH(uri, "statistics:") ||
+      WT_PREFIX_MATCH(uri, "table:") || WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_object_unsupported(session, uri));
+
+    if (WT_PREFIX_MATCH(uri, "lsm:"))
+        WT_RET_MSG(session, ENOTSUP, "lsm object type no longer supported: %s", uri);
 
     WT_RET_MSG(session, ENOTSUP, "unknown object type: %s", uri);
 }

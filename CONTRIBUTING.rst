@@ -74,8 +74,10 @@ existing example in the source code and copy it.
   are longer if possible. This applies to function signatures too
   (exceptions are possible here). If in doubt, Clang-Format will
   handle this for you.
-* Functions used across multiple files begin with a ``__wt_`` prefix,
-  where prefix is a sub-system identifier (e.g log or btree)
+* Functions used across multiple files across directories and sub-systems
+  begin with a ``__wt_`` prefix, where prefix is a sub-system identifier (e.g log or btree)
+* Functions used across multiple files but within a sub-system directory
+  begin with a ``__wti_`` prefix, where prefix is a sub-system identifier (e.g log or btree)
 * Static functions should begin with an `__` prefix, where prefix is a
   sub-system identifier (e.g log or btree)
 * In a function declaration, the return value should be on a separate
@@ -107,11 +109,11 @@ existing example in the source code and copy it.
   WiredTiger structures (``WT_SESSION`` and ``WT_CONNECTION`` are
   "wt_session" and "wt_conn", ``WT_SESSION_IMPL`` and
   ``WT_CONNECTION_IMPL`` are "session" and "conn)
-* Variable declaration blocks should not contain initializers
-* Variable initialisation should be in a block at the beginning of a
-  function.
-* Variable initializations should follow either alphabetical order or
-  variable declaration order.
+* It is strongly preferred, but not required, that variables are declared
+  and initialized where they are first used, i.e. the scope of each variable
+  should be as limited as possible.
+* Initializing a variable at the time it is declared should be preferred
+  to declaring separately from initialisation.
 * For the cases where the initialization isn't required, but a
   compiler wants it, tag them with this comment
   ``/* -Werror=maybe-uninitialized */``

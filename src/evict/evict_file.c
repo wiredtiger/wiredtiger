@@ -8,9 +8,20 @@
 
 #include "wt_internal.h"
 
-/*
+/* !!!
  * __wt_evict_file --
- *     Discard pages for a specific file.
+ *     Evict all pages for a specific tree/file. Traverse through the tree and either evict or
+ *     discard pages based on the specified sync operation. Before calling this function, ensure
+ *     exclusive access to the tree by using `__wt_evict_file_exclusive_on`.
+ *
+ *     Input parameter:
+ *       `syncop`: The sync operation to perform, with only two legal options:
+ *         - `WT_SYNC_CLOSE`: Evict the tree and reconcile dirty pages, ensuring that all changes
+ *            are durably written to disk.
+ *         - `WT_SYNC_DISCARD`: Discard both clean and dirty pages, bypassing reconciliation.
+ *
+ *     Return an error code from failed reconciliation, inability to evict a page, or other issues
+ *     encountered during this process.
  */
 int
 __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
@@ -71,7 +82,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * for the history store file itself. Also metadata file doesn't have any associated
              * history.
              */
-            rec_flags = WT_REC_EVICT | WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBLE_ALL;
+            rec_flags = WT_REC_EVICT | WT_REC_EVICT_CALL_CLOSING | WT_REC_CLEAN_AFTER_REC |
+              WT_REC_VISIBLE_ALL;
             if (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(dhandle))
                 rec_flags |= WT_REC_HS;
             WT_ERR(__wt_reconcile(session, ref, NULL, rec_flags));
@@ -97,7 +109,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * not exhaustive, but provides basic checking on the page's status.
              */
             WT_ASSERT(session,
-              F_ISSET(dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING) ||
+              F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+                F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) ||
                 __wt_page_can_evict(session, ref, NULL));
             __wt_ref_out(session, ref);
             break;
@@ -114,6 +127,8 @@ err:
         if (next_ref != NULL)
             WT_TRET(__wt_page_release(session, next_ref, walk_flags));
     }
-
+#ifdef HAVE_DIAGNOSTIC
+    WT_CONN_CLOSE_ABORT(session, ret);
+#endif
     return (ret);
 }

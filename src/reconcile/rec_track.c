@@ -5,8 +5,9 @@
  *
  * See the file LICENSE for redistribution information.
  */
-
 #include "wt_internal.h"
+#include "reconcile_private.h"
+#include "reconcile_inline.h"
 
 /*
  * Estimated memory cost for a structure on the overflow lists, the size of the structure plus two
@@ -15,11 +16,11 @@
 #define WT_OVFL_SIZE(p, s) (sizeof(s) + 2 * sizeof(void *) + (p)->addr_size + (p)->value_size)
 
 /*
- * __wt_ovfl_track_init --
+ * __ovfl_track_init --
  *     Initialize the overflow tracking structure.
  */
-int
-__wt_ovfl_track_init(WT_SESSION_IMPL *session, WT_PAGE *page)
+static int
+__ovfl_track_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     return (__wt_calloc_one(session, &page->modify->ovfl_track));
 }
@@ -124,7 +125,7 @@ __wt_ovfl_discard_add(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
     WT_OVFL_TRACK *track;
 
     if (page->modify->ovfl_track == NULL)
-        WT_RET(__wt_ovfl_track_init(session, page));
+        WT_RET(__ovfl_track_init(session, page));
 
     track = page->modify->ovfl_track;
     WT_RET(__wt_realloc_def(
@@ -408,12 +409,12 @@ __ovfl_reuse_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_ovfl_reuse_search --
+ * __wti_ovfl_reuse_search --
  *     Search the page's list of overflow records for a match.
  */
 int
-__wt_ovfl_reuse_search(WT_SESSION_IMPL *session, WT_PAGE *page, uint8_t **addrp, size_t *addr_sizep,
-  const void *value, size_t value_size)
+__wti_ovfl_reuse_search(WT_SESSION_IMPL *session, WT_PAGE *page, uint8_t **addrp,
+  size_t *addr_sizep, const void *value, size_t value_size)
 {
     WT_OVFL_REUSE **head, *reuse;
 
@@ -442,11 +443,11 @@ __wt_ovfl_reuse_search(WT_SESSION_IMPL *session, WT_PAGE *page, uint8_t **addrp,
 }
 
 /*
- * __wt_ovfl_reuse_add --
+ * __wti_ovfl_reuse_add --
  *     Add a new entry to the page's list of overflow records tracked for reuse.
  */
 int
-__wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr, size_t addr_size,
+__wti_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr, size_t addr_size,
   const void *value, size_t value_size)
 {
     WT_OVFL_REUSE **head, *reuse, **stack[WT_SKIP_MAXDEPTH];
@@ -455,7 +456,7 @@ __wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr
     u_int i, skipdepth;
 
     if (page->modify->ovfl_track == NULL)
-        WT_RET(__wt_ovfl_track_init(session, page));
+        WT_RET(__ovfl_track_init(session, page));
 
     head = page->modify->ovfl_track->ovfl_reuse;
 
@@ -482,7 +483,7 @@ __wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr
     memcpy(p, value, value_size);
     F_SET(reuse, WT_OVFL_REUSE_INUSE | WT_OVFL_REUSE_JUST_ADDED);
 
-    __wt_cache_page_inmem_incr(session, page, WT_OVFL_SIZE(reuse, WT_OVFL_REUSE));
+    __wt_cache_page_inmem_incr(session, page, WT_OVFL_SIZE(reuse, WT_OVFL_REUSE), false);
 
     /* Insert the new entry into the skiplist. */
     __ovfl_reuse_skip_search_stack(head, stack, value, value_size);
@@ -519,11 +520,11 @@ __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_ovfl_track_wrapup --
+ * __wti_ovfl_track_wrapup --
  *     Resolve the page's overflow tracking on reconciliation success.
  */
 int
-__wt_ovfl_track_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wti_ovfl_track_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_OVFL_TRACK *track;
 
@@ -541,11 +542,11 @@ __wt_ovfl_track_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __wt_ovfl_track_wrapup_err --
+ * __wti_ovfl_track_wrapup_err --
  *     Resolve the page's overflow tracking on reconciliation error.
  */
 int
-__wt_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wti_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_OVFL_TRACK *track;
 
@@ -573,5 +574,11 @@ int
 __ut_ovfl_discard_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     return (__ovfl_discard_wrapup(session, page));
+}
+
+int
+__ut_ovfl_track_init(WT_SESSION_IMPL *session, WT_PAGE *page)
+{
+    return (__ovfl_track_init(session, page));
 }
 #endif

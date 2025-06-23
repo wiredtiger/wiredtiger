@@ -18,10 +18,10 @@ static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT
 static int
 __block_extlist_setup(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
 {
-    WT_RET(__wt_block_extlist_init(session, &ci->alloc, name, "alloc", false));
-    WT_RET(__wt_block_extlist_init(session, &ci->avail, name, "avail", true));
-    WT_RET(__wt_block_extlist_init(session, &ci->discard, name, "discard", false));
-    WT_RET(__wt_block_extlist_init(session, &ci->ckpt_avail, name, "ckpt_avail", true));
+    WT_RET(__wti_block_extlist_init(session, &ci->alloc, name, "alloc", false));
+    WT_RET(__wti_block_extlist_init(session, &ci->avail, name, "avail", true));
+    WT_RET(__wti_block_extlist_init(session, &ci->discard, name, "discard", false));
+    WT_RET(__wti_block_extlist_init(session, &ci->ckpt_avail, name, "ckpt_avail", true));
 
     return (0);
 }
@@ -33,19 +33,19 @@ __block_extlist_setup(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *n
 static int
 __block_extlist_reset(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
 {
-    __wt_block_ckpt_destroy(session, ci);
+    __wti_block_ckpt_destroy(session, ci);
     WT_RET(__block_extlist_setup(session, ci, name));
 
     return (0);
 }
 
 /*
- * __wt_block_ckpt_init --
+ * __wti_block_ckpt_init --
  *     Return the address cookie for the root page of a checkpoint. Also initialize extent lists if
  *     we are loading the live checkpoint in a writable file.
  */
 int
-__wt_block_ckpt_init(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
+__wti_block_ckpt_init(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci, const char *name)
 {
     WT_CLEAR(*ci);
 
@@ -78,7 +78,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     ci = NULL;
 
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_1))
-        __wt_ckpt_verbose(session, block, "load", NULL, addr, addr_size);
+        __wti_ckpt_verbose(session, block, "load", NULL, addr, addr_size);
 
     /*
      * There's a single checkpoint in the file that can be written, all of the others are read-only.
@@ -87,7 +87,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
      */
     if (checkpoint) {
         ci = &_ci;
-        WT_ERR(__wt_block_ckpt_init(session, ci, "checkpoint"));
+        WT_ERR(__wti_block_ckpt_init(session, ci, "checkpoint"));
     } else {
         /*
          * We depend on the btree level for locking: things will go bad fast if we open the live
@@ -101,7 +101,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
           "%s: attempt to re-open live file", block->name);
 
         ci = &block->live;
-        WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
+        WT_ERR(__wti_block_ckpt_init(session, ci, "live"));
     }
 
     /*
@@ -112,7 +112,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         ci->file_size = block->allocsize;
     else {
         /* Crack the checkpoint cookie. */
-        WT_ERR(__wt_block_ckpt_unpack(session, block, addr, addr_size, ci));
+        WT_ERR(__wti_block_ckpt_unpack(session, block, addr, addr_size, ci));
 
         /* Verify sets up next. */
         if (block->verify) {
@@ -121,7 +121,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
              * Until then, an attempt to verify a tiered table should return before getting here.
              */
             WT_ASSERT(session, block->objectid == 0 && ci->root_objectid == 0);
-            WT_ERR(__wt_verify_ckpt_load(session, block, ci));
+            WT_ERR(__wti_verify_ckpt_load(session, block, ci));
         }
 
         /* Read any root page. */
@@ -149,7 +149,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
              * Rolling a checkpoint forward requires the avail list, the blocks from which we can
              * allocate.
              */
-            WT_ERR(__wt_block_extlist_read_avail(session, block, &ci->avail, ci->file_size));
+            WT_ERR(__wti_block_extlist_read_avail(session, block, &ci->avail, ci->file_size));
         }
     }
 
@@ -160,7 +160,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
      * might possibly make it relevant here, but it's unlikely enough I don't bother).
      */
     if (!checkpoint)
-        WT_ERR(__wt_block_truncate(session, block, ci->file_size));
+        WT_ERR(__wti_block_truncate(session, block, ci->file_size));
 
     if (0) {
 err:
@@ -170,12 +170,12 @@ err:
          * only allocated memory was in the service of verify, clean that up.
          */
         if (block->verify)
-            WT_TRET(__wt_verify_ckpt_unload(session, block));
+            WT_TRET(__wti_verify_ckpt_unload(session, block));
     }
 
     /* Checkpoints don't need the original information, discard it. */
     if (checkpoint)
-        __wt_block_ckpt_destroy(session, ci);
+        __wti_block_ckpt_destroy(session, ci);
 
     return (ret);
 }
@@ -191,7 +191,7 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 
     /* Verify cleanup. */
     if (block->verify)
-        WT_TRET(__wt_verify_ckpt_unload(session, block));
+        WT_TRET(__wti_verify_ckpt_unload(session, block));
 
     /*
      * If it's the live system, truncate to discard any extended blocks and discard the active
@@ -199,10 +199,10 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
      * readers active in other checkpoints.
      */
     if (!checkpoint) {
-        WT_TRET(__wt_block_truncate(session, block, block->size));
+        WT_TRET(__wti_block_truncate(session, block, block->size));
 
         __wt_spin_lock(session, &block->live_lock);
-        __wt_block_ckpt_destroy(session, &block->live);
+        __wti_block_ckpt_destroy(session, &block->live);
         block->live_open = false;
         __wt_spin_unlock(session, &block->live_lock);
     }
@@ -211,12 +211,12 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 }
 
 /*
- * __wt_block_ckpt_destroy --
+ * __wti_block_ckpt_destroy --
  *     Clear a checkpoint structure. Free the extent lists, but leave the rest of the state intact
  *     in case the caller is re-using it.
  */
 void
-__wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
+__wti_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 {
     /*
      * We should hold the live lock here when running on the live checkpoint. But there is no easy
@@ -224,12 +224,12 @@ __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
      */
 
     /* Discard the extent lists. */
-    __wt_block_extlist_free(session, &ci->alloc);
-    __wt_block_extlist_free(session, &ci->avail);
-    __wt_block_extlist_free(session, &ci->discard);
-    __wt_block_extlist_free(session, &ci->ckpt_alloc);
-    __wt_block_extlist_free(session, &ci->ckpt_avail);
-    __wt_block_extlist_free(session, &ci->ckpt_discard);
+    __wti_block_extlist_free(session, &ci->alloc);
+    __wti_block_extlist_free(session, &ci->avail);
+    __wti_block_extlist_free(session, &ci->discard);
+    __wti_block_extlist_free(session, &ci->ckpt_alloc);
+    __wti_block_extlist_free(session, &ci->ckpt_avail);
+    __wti_block_extlist_free(session, &ci->ckpt_discard);
 }
 
 /*
@@ -250,7 +250,7 @@ __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
           "%s: an unexpected checkpoint start: the checkpoint has already started or was "
           "configured for salvage",
           block->name);
-        __wt_blkcache_set_readonly(session);
+        __wt_bm_set_readonly(session);
         break;
     case WT_CKPT_NONE:
         block->ckpt_state = WT_CKPT_INPROGRESS;
@@ -274,7 +274,7 @@ __wt_block_checkpoint(
     ci = &block->live;
 
     /* Switch to first-fit allocation. */
-    __wt_block_configure_first_fit(block, true);
+    __wti_block_configure_first_fit(block, true);
 
     /*
      * Write the root page: it's possible for there to be a checkpoint of
@@ -289,7 +289,7 @@ __wt_block_checkpoint(
         ci->root_offset = WT_BLOCK_INVALID_OFFSET;
         ci->root_objectid = ci->root_size = ci->root_checksum = 0;
     } else {
-        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_offset, &ci->root_size,
+        WT_ERR(__wti_block_write_off(session, block, buf, &ci->root_offset, &ci->root_size,
           &ci->root_checksum, data_checksum, true, false));
         ci->root_objectid = block->objectid;
     }
@@ -298,17 +298,17 @@ __wt_block_checkpoint(
      * Checkpoints are potentially reading/writing/merging lots of blocks, pre-allocate structures
      * for this thread's use.
      */
-    WT_ERR(__wt_block_ext_prealloc(session, 250));
+    WT_ERR(__wti_block_ext_prealloc(session, 250));
 
     /* Process the checkpoint list, deleting and updating as required. */
     ret = __ckpt_process(session, block, ckptbase);
 
     /* Discard any excessive memory we've allocated. */
-    WT_TRET(__wt_block_ext_discard(session, 250));
+    WT_TRET(__wti_block_ext_discard(session, 250));
 
 /* Restore the original allocation plan. */
 err:
-    __wt_block_configure_first_fit(block, false);
+    __wti_block_configure_first_fit(block, false);
 
     return (ret);
 }
@@ -337,8 +337,8 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bo
     WT_RET(__wt_calloc(session, 1, sizeof(WT_BLOCK_CKPT), &ckpt->bpriv));
 
     ci = ckpt->bpriv;
-    WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
-    WT_RET(__wt_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
+    WT_RET(__wti_block_ckpt_init(session, ci, ckpt->name));
+    WT_RET(__wti_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
 
     /* Extent lists from non-local objects aren't useful, we're going to skip them. */
     if (ci->root_objectid != block->objectid) {
@@ -346,8 +346,8 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bo
         return (0);
     }
 
-    WT_RET(__wt_block_extlist_read(session, block, &ci->alloc, ci->file_size));
-    WT_RET(__wt_block_extlist_read(session, block, &ci->discard, ci->file_size));
+    WT_RET(__wti_block_extlist_read(session, block, &ci->alloc, ci->file_size));
+    WT_RET(__wti_block_extlist_read(session, block, &ci->discard, ci->file_size));
 
     return (0);
 }
@@ -368,7 +368,7 @@ __ckpt_extlist_fblocks(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el
      * list is used to decide if the file can be truncated, and we can't truncate any part of the
      * file that contains a previous checkpoint's extents.
      */
-    return (__wt_block_insert_ext(session, block, &block->live.ckpt_avail, el->offset, el->size));
+    return (__wti_block_insert_ext(session, block, &block->live.ckpt_avail, el->offset, el->size));
 }
 
 /*
@@ -391,7 +391,7 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
         case WT_CKPT_DELETE | WT_CKPT_FAKE:
         case WT_CKPT_FAKE:
             break;
-        case WT_CKPT_ADD | WT_CKPT_BLOCK_MODS:
+        case WT_CKPT_ADD | WT_CKPT_BLOCK_MODS_LIST:
         case WT_CKPT_ADD:
             if (ckpt[1].name == NULL)
                 break;
@@ -402,24 +402,30 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
     return (0);
 }
 
+/* At the default granularity, this is enough for blocks in a 2G file. */
+#define WT_BLOCK_MODS_LIST_MIN 128 /* Initial bits for bitmap. */
+
 /*
- * __ckpt_add_blkmod_entry --
- *     Add an offset/length entry to the bitstring based on granularity.
+ * __ckpt_mod_blkmod_entry --
+ *     Modify an offset/length entry to the bitstring based on granularity. We may either set or
+ *     clear the bits represented by the offset/length.
  */
 static int
-__ckpt_add_blkmod_entry(
-  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
+__ckpt_mod_blkmod_entry(
+  WT_SESSION_IMPL *session, WT_CKPT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len, bool set)
 {
-    uint64_t end_bit, start_bit;
+    wt_off_t clr_len, clr_off;
+    uint64_t adj, end_bit, gran, start_bit;
     uint32_t end_buf_bytes, end_rdup_bits, end_rdup_bytes;
 
-    WT_ASSERT(session, blk_mod->granularity != 0);
+    gran = blk_mod->granularity;
+    WT_ASSERT(session, gran != 0);
     /*
      * Figure out the starting and ending locations in the bitmap based on its granularity and our
      * offset and length. The bit locations are zero-based; be careful translating to sizes.
      */
-    start_bit = (uint64_t)offset / blk_mod->granularity;
-    end_bit = (uint64_t)(offset + len - 1) / blk_mod->granularity;
+    start_bit = (uint64_t)offset / gran;
+    end_bit = (uint64_t)(offset + len - 1) / gran;
     WT_ASSERT(session, end_bit < UINT32_MAX);
     /* We want to grow the bitmap by 64 bits, or 8 bytes at a time. */
     end_rdup_bits = WT_MAX(__wt_rduppo2((uint32_t)end_bit + 1, 64), WT_BLOCK_MODS_LIST_MIN);
@@ -447,44 +453,83 @@ __ckpt_add_blkmod_entry(
     /* Make sure we're not going to run past the end of the bitmap */
     WT_ASSERT(session, blk_mod->bitstring.size >= __bitstr_size((uint32_t)blk_mod->nbits));
     WT_ASSERT(session, end_bit < blk_mod->nbits);
-    /* Set all the bits needed to record this offset/length pair. */
-    __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
+    /* Change all the bits needed to record this offset/length pair. */
+    if (set)
+        __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
+    else {
+        /*
+         * We can only clear full ranges represented by bits. Ignore any partial ranges at the
+         * beginning and end of the offset/length range but clear any full bit ranges in between.
+         */
+        adj = (uint64_t)offset % gran;
+        /*
+         * Adjust partial ranges at the beginning and the end of the offset/length range. Round up
+         * the offset to the next granularity boundary.
+         */
+        if (adj != 0)
+            adj = gran - adj;
+        clr_off = offset + (wt_off_t)adj;
+        /*
+         * Deduct any initial partial length from the overall length. Then round it down with
+         * integer division to a granularity multiple.
+         */
+        clr_len = ((len - (wt_off_t)adj) / (wt_off_t)gran) * (wt_off_t)gran;
+        WT_ASSERT(session, clr_off % (wt_off_t)gran == 0);
+        WT_ASSERT(session, clr_len % (wt_off_t)gran == 0);
+        if (clr_len > 0) {
+            /* Calculate the new full bits we can clear. */
+            start_bit = (uint64_t)clr_off / gran;
+            end_bit = (uint64_t)(clr_off + clr_len - 1) / gran;
+            WT_ASSERT(session, end_bit >= start_bit);
+            WT_STAT_CONN_INCRV(session, backup_bits_clr, end_bit - start_bit + 1);
+            __bit_nclr(blk_mod->bitstring.mem, start_bit, end_bit);
+        }
+    }
     return (0);
 }
 
 /*
- * __ckpt_add_blk_mods_alloc --
- *     Add the checkpoint's allocated blocks to all valid incremental backup source identifiers.
+ * __ckpt_live_blkmods --
+ *     For all incremental backup identifiers, clear the checkpoint's discarded blocks from the
+ *     bitmap and add in the allocated blocks.
  */
 static int
-__ckpt_add_blk_mods_alloc(
-  WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci, WT_BLOCK *block)
+__ckpt_live_blkmods(
+  WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci, WT_BLOCK *block, bool set)
 {
-    WT_BLOCK_MODS *blk_mod;
     WT_CKPT *ckpt;
+    WT_CKPT_BLOCK_MODS *blk_mod;
     WT_EXT *ext;
     u_int i;
 
     if (&block->live == ci)
         WT_ASSERT_SPINLOCK_OWNED(session, &block->live_lock);
 
+    /* Find the live checkpoints. */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (F_ISSET(ckpt, WT_CKPT_ADD))
             break;
     }
     /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
-    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
+    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS_LIST))
         return (0);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];
         /* If there is no information at this entry, we're done. */
-        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
+        if (!F_ISSET(blk_mod, WT_CKPT_BLOCK_MODS_VALID))
             continue;
 
-        if (block->created_during_backup)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, 0, block->allocsize));
-        WT_EXT_FOREACH (ext, ci->alloc.off) {
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
+        if (set) {
+            if (block->created_during_backup)
+                WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, 0, block->allocsize, true));
+            WT_EXT_FOREACH (ext, ci->alloc.off) {
+                WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, true));
+            }
+        } else {
+            /* Clear any bits from the merged avail list. */
+            WT_EXT_FOREACH (ext, ci->avail.off) {
+                WT_RET(__ckpt_mod_blkmod_entry(session, blk_mod, ext->off, ext->size, false));
+            }
         }
     }
     block->created_during_backup = false;
@@ -498,8 +543,8 @@ __ckpt_add_blk_mods_alloc(
 static int
 __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci)
 {
-    WT_BLOCK_MODS *blk_mod;
     WT_CKPT *ckpt;
+    WT_CKPT_BLOCK_MODS *blk_mod;
     u_int i;
 
     WT_CKPT_FOREACH (ckptbase, ckpt) {
@@ -507,20 +552,23 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
             break;
     }
     /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
-    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
+    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS_LIST))
         return (0);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];
         /* If there is no information at this entry, we're done. */
-        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
+        if (!F_ISSET(blk_mod, WT_CKPT_BLOCK_MODS_VALID))
             continue;
 
         if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
-        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
+            WT_RET(
+              __ckpt_mod_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size, true));
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
+            WT_RET(
+              __ckpt_mod_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size, true));
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_mod_blkmod_entry(
+              session, blk_mod, ci->discard.offset, ci->discard.size, true));
     }
     return (0);
 }
@@ -575,7 +623,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
           "%s: an unexpected checkpoint attempt: the checkpoint was never started or has already "
           "completed",
           block->name);
-        __wt_blkcache_set_readonly(session);
+        __wt_bm_set_readonly(session);
         break;
     case WT_CKPT_SALVAGE:
         /* Salvage doesn't use the standard checkpoint APIs. */
@@ -597,10 +645,10 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * waiting allows the btree layer to continue eviction sooner. As for the checkpoint-available
      * list, make sure they get cleaned out.
      */
-    __wt_block_extlist_free(session, &ci->ckpt_avail);
-    WT_RET(__wt_block_extlist_init(session, &ci->ckpt_avail, "live", "ckpt_avail", true));
-    __wt_block_extlist_free(session, &ci->ckpt_alloc);
-    __wt_block_extlist_free(session, &ci->ckpt_discard);
+    __wti_block_extlist_free(session, &ci->ckpt_avail);
+    WT_RET(__wti_block_extlist_init(session, &ci->ckpt_avail, "live", "ckpt_avail", true));
+    __wti_block_extlist_free(session, &ci->ckpt_alloc);
+    __wti_block_extlist_free(session, &ci->ckpt_discard);
 
     /*
      * To delete a checkpoint, we need checkpoint information for it and the subsequent checkpoint
@@ -668,10 +716,10 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ckpt_size -= ci->discard.bytes;
 
     /*
-     * Record the checkpoint's allocated blocks. Do so before skipping any processing and before
+     * Record the checkpoint's blocks for backup. Do so before skipping any processing and before
      * possibly merging in blocks from any previous checkpoint.
      */
-    WT_ERR(__ckpt_add_blk_mods_alloc(session, ckptbase, ci, block));
+    WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block, true));
 
     /* Skip the additional processing if we aren't deleting checkpoints. */
     if (!deleting)
@@ -694,7 +742,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
             continue;
 
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
-            __wt_ckpt_verbose(session, block, "delete", ckpt->name, ckpt->raw.data, ckpt->raw.size);
+            __wti_ckpt_verbose(
+              session, block, "delete", ckpt->name, ckpt->raw.data, ckpt->raw.size);
 
         /*
          * Find the checkpoint into which we'll roll this checkpoint's blocks: it's the next real
@@ -721,7 +770,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          */
         if (a->root_offset != WT_BLOCK_INVALID_OFFSET)
             WT_ERR(
-              __wt_block_insert_ext(session, block, &a->discard, a->root_offset, a->root_size));
+              __wti_block_insert_ext(session, block, &a->discard, a->root_offset, a->root_size));
 
         /*
          * Free the blocks used to hold the "from" checkpoint's extent lists, including the avail
@@ -735,9 +784,9 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          * Roll the "from" alloc and discard extent lists into the "to" checkpoint's lists.
          */
         if (a->alloc.entries != 0)
-            WT_ERR(__wt_block_extlist_merge(session, block, &a->alloc, &b->alloc));
+            WT_ERR(__wti_block_extlist_merge(session, block, &a->alloc, &b->alloc));
         if (a->discard.entries != 0)
-            WT_ERR(__wt_block_extlist_merge(session, block, &a->discard, &b->discard));
+            WT_ERR(__wti_block_extlist_merge(session, block, &a->discard, &b->discard));
 
         /*
          * If the "to" checkpoint is also being deleted, we're done with it, it's merged into some
@@ -751,13 +800,16 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
          * Find blocks for re-use: wherever the "to" checkpoint's allocate and discard lists
          * overlap, move the range to the live system's checkpoint available list.
          */
-        WT_ERR(__wt_block_extlist_overlap(session, block, b));
+        WT_ERR(__wti_block_extlist_overlap(session, block, b));
 
         /*
          * If we're updating the live system's information, we're done.
          */
-        if (F_ISSET(next_ckpt, WT_CKPT_ADD))
+        if (F_ISSET(next_ckpt, WT_CKPT_ADD)) {
+            /* Clear any possible blocks that are now available after merging. */
+            WT_ERR(__ckpt_live_blkmods(session, ckptbase, ci, block, false));
             continue;
+        }
 
         /*
          * We have to write the "to" checkpoint's extent lists out in new blocks, and update its
@@ -779,7 +831,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 
 live_update:
     /* Truncate the file if that's possible. */
-    WT_ERR(__wt_block_extlist_truncate(session, block, &ci->avail));
+    WT_ERR(__wti_block_extlist_truncate(session, block, &ci->avail));
 
     /* Update the final, added checkpoint based on the live system. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
@@ -819,9 +871,9 @@ live_update:
      * resetting the original, then doing the work later.
      */
     ci->ckpt_alloc = ci->alloc;
-    WT_ERR(__wt_block_extlist_init(session, &ci->alloc, "live", "alloc", false));
+    WT_ERR(__wti_block_extlist_init(session, &ci->alloc, "live", "alloc", false));
     ci->ckpt_discard = ci->discard;
-    WT_ERR(__wt_block_extlist_init(session, &ci->discard, "live", "discard", false));
+    WT_ERR(__wti_block_extlist_init(session, &ci->discard, "live", "discard", false));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -841,7 +893,7 @@ live_update:
 err:
     if (ret != 0 && fatal) {
         ret = __wt_panic(session, ret, "%s: fatal checkpoint failure", block->name);
-        __wt_blkcache_set_readonly(session);
+        __wt_bm_set_readonly(session);
     }
 
     __wt_spin_unlock_if_owned(session, &block->live_lock);
@@ -849,7 +901,7 @@ err:
     /* Discard any checkpoint information we loaded. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if ((ci = ckpt->bpriv) != NULL)
-            __wt_block_ckpt_destroy(session, ci);
+            __wti_block_ckpt_destroy(session, ci);
 
     return (ret);
 }
@@ -873,16 +925,16 @@ __ckpt_update(
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check the extent list combinations for overlaps. */
-    WT_RET(__wt_block_extlist_check(session, &ci->alloc, &ci->avail));
-    WT_RET(__wt_block_extlist_check(session, &ci->discard, &ci->avail));
-    WT_RET(__wt_block_extlist_check(session, &ci->alloc, &ci->discard));
+    WT_RET(__wti_block_extlist_check(session, &ci->alloc, &ci->avail));
+    WT_RET(__wti_block_extlist_check(session, &ci->discard, &ci->avail));
+    WT_RET(__wti_block_extlist_check(session, &ci->alloc, &ci->discard));
 #endif
     /*
      * Write the checkpoint's alloc and discard extent lists. Note these blocks never appear on the
      * system's allocation list, checkpoint extent blocks don't appear on any extent lists.
      */
-    WT_RET(__wt_block_extlist_write(session, block, &ci->alloc, NULL));
-    WT_RET(__wt_block_extlist_write(session, block, &ci->discard, NULL));
+    WT_RET(__wti_block_extlist_write(session, block, &ci->alloc, NULL));
+    WT_RET(__wti_block_extlist_write(session, block, &ci->discard, NULL));
 
     /*
      * If this is the final block, we append an incomplete copy of the checkpoint information to the
@@ -894,7 +946,7 @@ __ckpt_update(
          */
         WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
         endp = ckpt->raw.mem;
-        WT_RET(__wt_block_ckpt_pack(session, block, &endp, ci, true));
+        WT_RET(__wti_block_ckpt_pack(session, block, &endp, ci, true));
         ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
         /*
@@ -922,7 +974,7 @@ __ckpt_update(
      */
     if (is_live) {
         block->final_ckpt = ckpt;
-        ret = __wt_block_extlist_write(session, block, &ci->avail, &ci->ckpt_avail);
+        ret = __wti_block_extlist_write(session, block, &ci->avail, &ci->ckpt_avail);
         block->final_ckpt = NULL;
         WT_RET(ret);
     }
@@ -963,11 +1015,11 @@ __ckpt_update(
     /* Copy the COMPLETE checkpoint information into the checkpoint. */
     WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
     endp = ckpt->raw.mem;
-    WT_RET(__wt_block_ckpt_pack(session, block, &endp, ci, false));
+    WT_RET(__wti_block_ckpt_pack(session, block, &endp, ci, false));
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
     if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_CHECKPOINT, WT_VERBOSE_DEBUG_2))
-        __wt_ckpt_verbose(session, block, "create", ckpt->name, ckpt->raw.data, ckpt->raw.size);
+        __wti_ckpt_verbose(session, block, "create", ckpt->name, ckpt->raw.data, ckpt->raw.size);
 
     return (0);
 }
@@ -999,29 +1051,29 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
           "%s: an unexpected checkpoint resolution: the checkpoint was never started or completed, "
           "or configured for salvage",
           block->name);
-        __wt_blkcache_set_readonly(session);
+        __wt_bm_set_readonly(session);
         break;
     case WT_CKPT_PANIC_ON_FAILURE:
         if (!failed)
             break;
         ret = __wt_panic(
           session, EINVAL, "%s: the checkpoint failed, the system must restart", block->name);
-        __wt_blkcache_set_readonly(session);
+        __wt_bm_set_readonly(session);
         break;
     }
     WT_ERR(ret);
 
-    if ((ret = __wt_block_extlist_merge(session, block, &ci->ckpt_avail, &ci->avail)) != 0) {
+    if ((ret = __wti_block_extlist_merge(session, block, &ci->ckpt_avail, &ci->avail)) != 0) {
         ret = __wt_panic(
           session, ret, "%s: fatal checkpoint failure during extent list merge", block->name);
-        __wt_blkcache_set_readonly(session);
+        __wt_bm_set_readonly(session);
     }
     __wt_spin_unlock(session, &block->live_lock);
 
     /* Discard the lists remaining after the checkpoint call. */
-    __wt_block_extlist_free(session, &ci->ckpt_avail);
-    __wt_block_extlist_free(session, &ci->ckpt_alloc);
-    __wt_block_extlist_free(session, &ci->ckpt_discard);
+    __wti_block_extlist_free(session, &ci->ckpt_avail);
+    __wti_block_extlist_free(session, &ci->ckpt_alloc);
+    __wti_block_extlist_free(session, &ci->ckpt_discard);
 
     __wt_spin_lock(session, &block->live_lock);
 done:
@@ -1034,9 +1086,9 @@ err:
 
 #ifdef HAVE_UNITTEST
 int
-__ut_ckpt_add_blkmod_entry(
-  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
+__ut_ckpt_mod_blkmod_entry(
+  WT_SESSION_IMPL *session, WT_CKPT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
 {
-    return (__ckpt_add_blkmod_entry(session, blk_mod, offset, len));
+    return (__ckpt_mod_blkmod_entry(session, blk_mod, offset, len, true));
 }
 #endif

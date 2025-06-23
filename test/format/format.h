@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include "math.h"
 #include "test_util.h"
 
 #ifdef HAVE_SETRLIMIT
@@ -89,6 +90,9 @@
 #define REALLOC_MAX_TABLES 5 /* maximum number of tables with realloc_exact and realloc_malloc */
 #define STR(s) #s
 #define XSTR(s) STR(s)
+
+/* Session configuration to enable prefetch. */
+#define SESSION_PREFETCH_CFG_ON "prefetch=(enabled=true)"
 
 #include "config.h"
 extern CONFIG configuration_list[];
@@ -251,10 +255,8 @@ typedef struct {
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
-#define INCREMENTAL_BLOCK 1
-#define INCREMENTAL_LOG 2
-#define INCREMENTAL_OFF 3
-    u_int backup_incr_flag; /* Incremental backup configuration */
+    bool backup_incr;   /* Incremental backup */
+    bool backup_verify; /* Verifying backup */
 
     WT_RAND_STATE data_rnd;  /* Global RNG state for data operations */
     WT_RAND_STATE extra_rnd; /* Global RNG state for extra operations */
@@ -304,7 +306,6 @@ typedef struct {
     uint32_t prefix_len_max;
 
     bool column_store_config;           /* At least one column-store table configured */
-    bool lsm_config;                    /* At least one LSM data source configured */
     bool multi_table_config;            /* If configuring multiple tables */
     bool tiered_storage_config;         /* If tiered storage is configured */
     bool transaction_timestamps_config; /* If transaction timestamps configured on any table */
@@ -398,6 +399,7 @@ typedef struct {
     uint64_t last; /* truncate range */
     WT_ITEM *lastkey, _lastkey;
 
+    bool ignore_prepare;   /* read with ignore_prepare */
     bool repeatable_reads; /* if read ops repeatable */
     bool repeatable_wrap;  /* if circular buffer wrapped */
     uint64_t opid;         /* Operation ID */
@@ -446,6 +448,7 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void cursor_dump_page(WT_CURSOR *, const char *);
+bool enable_session_prefetch(void);
 void fclose_and_clear(FILE **);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
@@ -468,7 +471,7 @@ void snap_track(TINFO *, thread_op);
 void table_dump_page(WT_SESSION *, const char *, TABLE *, uint64_t, const char *);
 void table_verify(TABLE *, void *);
 void timestamp_init(void);
-uint64_t timestamp_maximum_committed(void);
+uint64_t timestamp_minimum_committed(void);
 void timestamp_once(WT_SESSION *, bool, bool);
 void replay_adjust_key(TINFO *, uint64_t);
 uint64_t replay_commit_ts(TINFO *);

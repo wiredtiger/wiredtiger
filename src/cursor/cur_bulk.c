@@ -291,11 +291,11 @@ err:
 }
 
 /*
- * __wt_curbulk_init --
+ * __wti_curbulk_init --
  *     Initialize a bulk cursor.
  */
 int
-__wt_curbulk_init(
+__wti_curbulk_init(
   WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool bitmap, bool skip_sort_check)
 {
     WT_CURSOR *cursor;
@@ -305,7 +305,7 @@ __wt_curbulk_init(
     cbt = &cbulk->cbt;
 
     /* Bulk cursors only support insert and close (reset is a no-op). */
-    __wt_cursor_set_notsup(cursor);
+    __wti_cursor_set_notsup(cursor);
     switch (CUR2BT(cbt)->type) {
     case BTREE_COL_FIX:
         cursor->insert = bitmap ? __curbulk_insert_fix_bitmap : __curbulk_insert_fix;
@@ -343,11 +343,11 @@ __wt_curbulk_init(
 }
 
 /*
- * __wt_curbulk_close --
+ * __wti_curbulk_close --
  *     Close a bulk cursor.
  */
 int
-__wt_curbulk_close(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+__wti_curbulk_close(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
     WT_DECL_RET;
 
