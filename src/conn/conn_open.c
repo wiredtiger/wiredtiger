@@ -124,7 +124,6 @@ __wti_connection_close(WT_CONNECTION_IMPL *conn)
      * is outside the conditional because we allocate the log path so that printlog can run without
      * running logging or recovery.
      */
-    WT_TRET(__wt_logmgr_thread_destroy(session));
     if (ret == 0 && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED) &&
       F_ISSET(&conn->log_mgr, WT_LOG_RECOVER_DONE))
         WT_TRET(__wt_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
