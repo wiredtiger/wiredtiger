@@ -192,7 +192,7 @@
 
 #define FLD_SET_ATOMIC_64(field, mask)                                             \
     do {                                                                           \
-        uint32_t __orig;                                                           \
+        uint64_t __orig;                                                           \
         if (FLD_ISSET_ATOMIC_64((field), (mask)))                                  \
             break;                                                                 \
         do {                                                                       \
@@ -222,7 +222,7 @@
 
 #define FLD_CLR_ATOMIC_64(field, mask)                                                \
     do {                                                                              \
-        uint32_t __orig;                                                              \
+        uint64_t __orig;                                                              \
         if (!FLD_ISSET_ATOMIC_64((field), (mask)))                                    \
             break;                                                                    \
         do {                                                                          \
