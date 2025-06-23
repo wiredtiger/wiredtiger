@@ -44,7 +44,8 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
     numkv = 100
     conn_config = 'file_manager=(close_handle_minimum=10,' + \
                   'close_idle_time=0,close_scan_interval=1),' + \
-                  'statistics=(fast),'
+                  'statistics=(fast),' + \
+                  'verbose=(sweep:3)'
 
     types = [
         ('row', dict(tabletype='row',
@@ -99,7 +100,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         close1 = stat_cursor[stat.conn.dh_sweep_dead_close][2]
         stat_cursor.close()
-
+        self.ignoreStdoutPatternIfExists('sweep-server')
         # We expect nothing to have been closed.
         self.assertEqual(close1, 0)
 
@@ -137,6 +138,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(close2, 1)
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
+        self.ignoreStdoutPatternIfExists('sweep-server')
 
     @wttest.skip_for_hook("tiered", "Fails with tiered storage")
     def test_disable_idle_timeout_drop(self):
@@ -170,6 +172,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(close2, close1)
         # Ensure that any space was reclaimed from cache.
         self.assertLess(cache2, cache1)
+        self.ignoreStdoutPatternIfExists('sweep-server')
 
     # FIXME - WT11133 Uncomment and re-enable this test after fixing this ticket.
     # def test_force_drop_and_sweep(self):
