@@ -2026,7 +2026,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
     } else if (F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         wt_timestamp_t pinned_stable_ts;
         __wt_txn_pinned_stable_timestamp(session, &pinned_stable_ts);
-        if (page->modify->newest_commit_timestamp > pinned_stable_ts) {
+        if (__wt_atomic_load64(&page->modify->newest_commit_timestamp) > pinned_stable_ts) {
             WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
             return (true);
         }
