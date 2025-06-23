@@ -110,7 +110,7 @@ __rec_append_orig_value(
          * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
          * update to the time window.
          */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
+        if (F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
           unpack->tw.start_txn == upd->txnid && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
@@ -170,7 +170,7 @@ __rec_append_orig_value(
              * done so when we read the page into memory to avoid using the transaction id from the
              * previous run.
              */
-            if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+            if (F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING))
                 tombstone->txnid = WT_TXN_NONE;
             else
                 tombstone->txnid = unpack->tw.stop_txn;
@@ -208,7 +208,7 @@ __rec_append_orig_value(
          * so when we read the page into memory to avoid using the transaction id from the previous
          * run.
          */
-        if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+        if (F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING))
             append->txnid = WT_TXN_NONE;
         else
             append->txnid = unpack->tw.start_txn;
@@ -322,7 +322,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_UPDATE_SELEC
      * 3. Valid updates exist in the update chain to be written to the history store.
      */
     supd_restore = F_ISSET(r, WT_REC_EVICT) &&
-      (has_newer_updates || F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY));
+      (has_newer_updates || F_ISSET_ATOMIC_64(S2C(session), WT_CONN_IN_MEMORY));
 
     if (!supd_restore && vpack == NULL && upd_select->upd != NULL) {
         upd = upd_select->upd;
@@ -656,7 +656,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
              * when preserve prepared is enabled.
              */
             if (F_ISSET(r, WT_REC_CHECKPOINT) &&
-              (!S2C(session)->preserve_prepared ||
+              (!F_ISSET_ATOMIC_64(S2C(session), WT_CONN_PRESERVE_PREPARED) ||
                 upd->start_ts > S2C(session)->txn_global.checkpoint_timestamp)) {
                 *upd_memsizep += WT_UPDATE_MEMSIZE(upd);
                 *has_newer_updatesp = true;
@@ -835,7 +835,7 @@ __rec_fill_tw_from_upd_select(
         if (last_upd->next != NULL) {
             WT_ASSERT_ALWAYS(session,
               last_upd->next->txnid ==
-                  (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_NONE :
+                  (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_RECOVERING) ? WT_TXN_NONE :
                                                                          vpack->tw.start_txn) &&
                 last_upd->next->start_ts == vpack->tw.start_ts &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL,
@@ -1020,7 +1020,7 @@ __wti_rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins,
          * eviction, or for cases that don't support history store, such as an in-memory database.
          */
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
-          (has_newer_updates || F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY));
+          (has_newer_updates || F_ISSET_ATOMIC_64(S2C(session), WT_CONN_IN_MEMORY));
 
         upd_memsize = __rec_calc_upd_memsize(onpage_upd, upd_select->tombstone, upd_memsize);
         WT_RET(__rec_update_save(
