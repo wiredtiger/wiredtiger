@@ -280,9 +280,7 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
         /* Transaction read rules. */
         while (i != _updates.begin()) {
             const std::shared_ptr<kv_update> &u = *(--i);
-            /*
-             * Read the update if it's in the transaction's snapshot.
-             */
+            /* Read the update if it's in the transaction's snapshot. */
             if (txn_snapshot->contains(*u) && u->durable_timestamp() <= stable_timestamp) {
                 /*
                  * Only raise an error for prepared updates by transactions that weren't active when
