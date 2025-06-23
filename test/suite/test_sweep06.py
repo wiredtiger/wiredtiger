@@ -51,6 +51,12 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios(cursor_caching)
 
+    # We enabled verbose log level DEBUG_3 in this test to catch an invalid pointer in dhandle.
+    # However, this also causes the log line 'session dhandle name' to appear, which we want to ignore.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ignoreStdoutPattern('WT_VERB_SWEEP')
+
     def insert(self, i, start, rows):
         session = self.conn.open_session()
         uri = self.uri + str(i)
@@ -90,7 +96,3 @@ class test_sweep06(wttest.WiredTigerTestCase, suite_subprocess):
         # The expectation is that no dhandles have been closed.
         self.assertEqual(close1, 0)
         self.assertEqual(close2, 0)
-
-        # We enabled verbose log level DEBUG_3 in this test to catch an invalid pointer in dhandle.
-        # However, this also causes the log line 'session dhandle name' to appear, which we want to ignore.
-        self.ignoreStdoutPatternIfExists('sweep-server')
