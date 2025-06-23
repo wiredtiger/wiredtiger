@@ -3162,7 +3162,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
           "pre-fetching cannot be enabled if pre-fetching is configured as unavailable");
 
     WT_ERR(__wt_config_gets(session, cfg, "preserve_prepared", &cval));
-    conn->preserve_prepared = cval.val != 0;
+    if (cval.val)
+        F_SET_ATOMIC_32(conn, WT_CONN_PRESERVE_PREPARED);
 
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
