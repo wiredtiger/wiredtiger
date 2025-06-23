@@ -1743,6 +1743,11 @@ struct __wt_session {
      * amount of time.  If WiredTiger notices the limit has been exceeded\, an operation may return
      * a WT_ROLLBACK error.  Default is to have no limit., an integer greater than or equal to \c 0;
      * default \c 0.}
+     * @config{rollback_timestamp, set the rollback timestamp for the current transaction.  This is
+     * valid only for prepared transactions under the preserve_prepared config.  For prepared
+     * transactions\, a commit timestamp is required\, must not be older than the prepare
+     * timestamp\, and can be set only once.  See @ref timestamp_txn_api and @ref
+     * timestamp_prepare., a string; default empty.}
      * @configend
      * @errors
      */
@@ -1808,6 +1813,11 @@ struct __wt_session {
      * @config{read_timestamp, read using the specified timestamp.  The value must not be older than
      * the current oldest timestamp.  This can only be set once for a transaction.  See @ref
      * timestamp_txn_api., a string; default empty.}
+     * @config{rollback_timestamp, set the rollback timestamp for the current transaction.  This is
+     * valid only for prepared transactions under the preserve_prepared config.  For prepared
+     * transactions\, a commit timestamp is required\, must not be older than the prepare
+     * timestamp\, and can be set only once.  See @ref timestamp_txn_api and @ref
+     * timestamp_prepare., a string; default empty.}
      * @configend
      * @errors
      */

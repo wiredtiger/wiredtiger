@@ -946,6 +946,57 @@ __wti_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
 }
 
 /*
+ * __txn_set_rollback_timestamp --
+ *     Validate and set the rollback timestamp of a transaction.
+ */
+static int
+__txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_ts)
+{
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t oldest_ts, stable_ts;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+
+    txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
+
+    if (!F_ISSET(txn, WT_TXN_PREPARE))
+        WT_RET_MSG(session, EINVAL, "rollback timestamp is set for an non-prepared transaction");
+
+    if (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED))
+        WT_RET_MSG(
+          session, EINVAL, "rollback timestamp is set when the preserve_prepared config is off");
+
+    if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
+        WT_RET_MSG(session, EINVAL, "rollback timestamp is already set");
+
+    if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        WT_RET_MSG(session, EINVAL,
+          "commit timestamp should not have been set before the rollback timestamp");
+
+    if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+        WT_RET_MSG(session, EINVAL,
+          "durable timestamp should not have been set before the rollback timestamp");
+
+    __txn_assert_after_reads(session, "rollback", rollback_ts);
+
+    /*
+     * Check whether the rollback timestamp is less than the stable timestamp.
+     */
+    stable_ts = txn_global->stable_timestamp;
+    if (rollback_ts <= stable_ts) {
+        WT_RET_MSG(session, EINVAL,
+          "rollback timestamp %s is not newer than the stable timestamp %s",
+          __wt_timestamp_to_string(rollback_ts, ts_string[0]),
+          __wt_timestamp_to_string(stable_ts, ts_string[1]));
+    }
+    txn->rollback_timestamp = rollback_ts;
+    F_SET(txn, WT_TXN_HAS_TX_ROLLBACK);
+
+    return (0);
+}
+
+/*
  * __wt_txn_set_timestamp --
  *     Parse a request to set a timestamp in a transaction.
  */
@@ -957,7 +1008,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN *txn;
-    wt_timestamp_t commit_ts, durable_ts, prepare_ts, read_ts;
+    wt_timestamp_t commit_ts, durable_ts, prepare_ts, read_ts, rollback_ts;
     bool set_ts;
 
     conn = S2C(session);
@@ -970,7 +1021,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
      * If no commit or durable timestamp is set here, set to any previously set values and validate
      * them, the stable timestamp might have moved forward since they were successfully set.
      */
-    commit_ts = durable_ts = prepare_ts = read_ts = WT_TS_NONE;
+    commit_ts = durable_ts = prepare_ts = read_ts = rollback_ts = WT_TS_NONE;
     if (commit && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         commit_ts = txn->commit_timestamp;
     if (commit && F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
@@ -998,10 +1049,24 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
             } else if (WT_CONFIG_LIT_MATCH("read_timestamp", ckey)) {
                 WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
                 set_ts = true;
+            } else if (WT_CONFIG_LIT_MATCH("rollback_timestamp", ckey)) {
+                WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
+                set_ts = true;
             }
         }
         WT_RET_NOTFOUND_OK(ret);
     }
+
+    if (commit)
+        if (rollback_timestamp != NULL)
+            WT_RET_MSG(session, EINVAL, "rollback timestamp is set for commit");
+        else {
+            if (commit_timestamp != NULL)
+                WT_RET_MSG(session, EINVAL, "commit timestamp is set for rollback");
+
+            if (durable_timestamp != NULL)
+                WT_RET_MSG(session, EINVAL, "durable timestamp is set for rollback");
+        }
 
     /* Look for a commit timestamp. */
     if (commit_ts != WT_TS_NONE)
@@ -1022,6 +1087,9 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
     /* Look for a prepare timestamp. */
     if (prepare_ts != WT_TS_NONE)
         WT_RET(__txn_set_prepare_timestamp(session, prepare_ts));
+
+    if (rollback_timestamp != WT_TS_NONE)
+        WT_RET(__txn_set_rollback_timestamp(session, rollback_ts));
 
     /* Timestamps are only logged in debugging mode. */
     if (set_ts && FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_TABLE_LOGGING) &&

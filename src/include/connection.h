@@ -586,8 +586,6 @@ struct __wt_connection_impl {
     bool prefetch_auto_on;
     bool prefetch_available;
 
-    bool preserve_prepared; /* Preserve prepared updates */
-
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */
     wt_thread_t stat_tid;          /* Statistics log thread */
@@ -826,6 +824,7 @@ struct __wt_connection_impl {
 #define WT_CONN_OPTRACK 0x00080000u
 #define WT_CONN_PANIC 0x00100000u
 #define WT_CONN_PREFETCH_RUN 0x00200000u
+#define WT_CONN_PRESERVE_PREPARED 0x00200000u
 #define WT_CONN_READONLY 0x00400000u
 #define WT_CONN_READY 0x00800000u
 #define WT_CONN_RECONFIGURING 0x01000000u

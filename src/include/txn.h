@@ -337,6 +337,12 @@ struct __wt_txn {
     wt_timestamp_t prepare_timestamp;
 
     /*
+     * Timestamp copied into updates created by this transaction, when this transaction is rolled
+     * back. Only valid for prepared transactions under the preserve_prepared config.
+     */
+    wt_timestamp_t rollback_timestamp;
+
+    /*
      * Timestamps used for reading via a checkpoint cursor instead of txn_shared->read_timestamp and
      * the current oldest/pinned timestamp, respectively.
      */
@@ -384,6 +390,7 @@ struct __wt_txn {
 #define WT_TXN_HAS_TS_COMMIT 0x000010u
 #define WT_TXN_HAS_TS_DURABLE 0x000020u
 #define WT_TXN_HAS_TS_PREPARE 0x000040u
+#define WT_TXN_HAS_TX_ROLLBACK 0x000040u
 #define WT_TXN_IGNORE_PREPARE 0x000080u
 #define WT_TXN_IS_CHECKPOINT 0x000100u
 #define WT_TXN_PREPARE 0x000200u
