@@ -422,7 +422,7 @@ __wti_log_slot_switch(
 
         WT_RET(WT_SESSION_CHECK_PANIC(session));
         /*
-         * If the connection is closing, the logging system has finish running, all threads except 
+         * If the connection is closing, the logging system has finish running, all threads except
          * for the connection closing thread can early exit.
          */
         if (session != S2C(session)->default_session &&
