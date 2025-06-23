@@ -272,7 +272,7 @@ struct __wt_name_flag {
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
-#define WT_CONN_CHECK_PANIC(conn) (F_ISSET_ATOMIC_64(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
+#define WT_CONN_CHECK_PANIC(conn) (F_ISSET_ATOMIC_32(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
 #define WT_SESSION_CHECK_PANIC(session) WT_CONN_CHECK_PANIC(S2C(session))
 
 /*
@@ -339,7 +339,7 @@ struct __wt_name_flag {
  */
 #define WT_CONN_SET_INCR_BACKUP(conn)                     \
     do {                                                  \
-        F_SET_ATOMIC_64((conn), WT_CONN_INCR_BACKUP);     \
+        F_SET_ATOMIC_32((conn), WT_CONN_INCR_BACKUP);     \
         F_SET(&(conn)->log_mgr, WT_LOG_INCR_BACKUP);      \
         WT_STAT_CONN_SET(session, backup_incremental, 1); \
     } while (0)
@@ -586,6 +586,8 @@ struct __wt_connection_impl {
     bool prefetch_auto_on;
     bool prefetch_available;
 
+    bool preserve_prepared; /* Preserve prepared updates */
+
 #define WT_STATLOG_FILENAME "WiredTigerStat.%d.%H"
     WT_SESSION_IMPL *stat_session; /* Statistics log session */
     wt_thread_t stat_tid;          /* Statistics log thread */
@@ -802,41 +804,40 @@ struct __wt_connection_impl {
     uint32_t server_flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x000000001ull
-#define WT_CONN_CACHE_CURSORS 0x000000002ull
-#define WT_CONN_CACHE_POOL 0x000000004ull
-#define WT_CONN_CALL_LOG_ENABLED 0x000000008ull
-#define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x000000010ull
-#define WT_CONN_CKPT_GATHER 0x000000020ull
-#define WT_CONN_CKPT_SYNC 0x000000040ull
-#define WT_CONN_CLOSING 0x000000080ull
-#define WT_CONN_CLOSING_CHECKPOINT 0x000000100ull
-#define WT_CONN_CLOSING_NO_MORE_OPENS 0x000000200ull
-#define WT_CONN_COMPATIBILITY 0x000000400ull
-#define WT_CONN_DATA_CORRUPTION 0x000000800ull
-#define WT_CONN_EVICTION_RUN 0x000001000ull
-#define WT_CONN_HS_OPEN 0x000002000ull
-#define WT_CONN_INCR_BACKUP 0x000004000ull
-#define WT_CONN_IN_MEMORY 0x000008000ull
-#define WT_CONN_LEAK_MEMORY 0x000010000ull
-#define WT_CONN_LIVE_RESTORE_FS 0x000020000ull
-#define WT_CONN_MINIMAL 0x000040000ull
-#define WT_CONN_OPTRACK 0x000080000ull
-#define WT_CONN_PANIC 0x000100000ull
-#define WT_CONN_PREFETCH_RUN 0x000200000ull
-#define WT_CONN_PRESERVE_PREPARED 0x000400000ull
-#define WT_CONN_READONLY 0x000800000ull
-#define WT_CONN_READY 0x001000000ull
-#define WT_CONN_RECONFIGURING 0x002000000ull
-#define WT_CONN_RECOVERING 0x004000000ull
-#define WT_CONN_RECOVERING_METADATA 0x008000000ull
-#define WT_CONN_RECOVERY_COMPLETE 0x010000000ull
-#define WT_CONN_RTS_THREAD_RUN 0x020000000ull
-#define WT_CONN_SALVAGE 0x040000000ull
-#define WT_CONN_TIERED_FIRST_FLUSH 0x080000000ull
-#define WT_CONN_WAS_BACKUP 0x100000000ull
-    /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
-    wt_shared uint64_t flags_atomic;
+#define WT_CONN_BACKUP_PARTIAL_RESTORE 0x00000001u
+#define WT_CONN_CACHE_CURSORS 0x00000002u
+#define WT_CONN_CACHE_POOL 0x00000004u
+#define WT_CONN_CALL_LOG_ENABLED 0x00000008u
+#define WT_CONN_CKPT_CLEANUP_RECLAIM_SPACE 0x00000010u
+#define WT_CONN_CKPT_GATHER 0x00000020u
+#define WT_CONN_CKPT_SYNC 0x00000040u
+#define WT_CONN_CLOSING 0x00000080u
+#define WT_CONN_CLOSING_CHECKPOINT 0x00000100u
+#define WT_CONN_CLOSING_NO_MORE_OPENS 0x00000200u
+#define WT_CONN_COMPATIBILITY 0x00000400u
+#define WT_CONN_DATA_CORRUPTION 0x00000800u
+#define WT_CONN_EVICTION_RUN 0x00001000u
+#define WT_CONN_HS_OPEN 0x00002000u
+#define WT_CONN_INCR_BACKUP 0x00004000u
+#define WT_CONN_IN_MEMORY 0x00008000u
+#define WT_CONN_LEAK_MEMORY 0x00010000u
+#define WT_CONN_LIVE_RESTORE_FS 0x00020000u
+#define WT_CONN_MINIMAL 0x00040000u
+#define WT_CONN_OPTRACK 0x00080000u
+#define WT_CONN_PANIC 0x00100000u
+#define WT_CONN_PREFETCH_RUN 0x00200000u
+#define WT_CONN_READONLY 0x00400000u
+#define WT_CONN_READY 0x00800000u
+#define WT_CONN_RECONFIGURING 0x01000000u
+#define WT_CONN_RECOVERING 0x02000000u
+#define WT_CONN_RECOVERING_METADATA 0x04000000u
+#define WT_CONN_RECOVERY_COMPLETE 0x08000000u
+#define WT_CONN_RTS_THREAD_RUN 0x10000000u
+#define WT_CONN_SALVAGE 0x20000000u
+#define WT_CONN_TIERED_FIRST_FLUSH 0x40000000u
+#define WT_CONN_WAS_BACKUP 0x80000000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    wt_shared uint32_t flags_atomic;
 };
 
 /*
@@ -863,5 +864,5 @@ struct __wt_sweep_cookie {
  * came from. This is strictly to be used for debugging purposes.
  */
 #define WT_CONN_CLOSE_ABORT(s, ret)                                                    \
-    if (F_ISSET_ATOMIC_64(S2C(s), WT_CONN_CLOSING) && (ret != 0) && (ret != WT_PANIC)) \
+    if (F_ISSET_ATOMIC_32(S2C(s), WT_CONN_CLOSING) && (ret != 0) && (ret != WT_PANIC)) \
         __wt_abort(s);

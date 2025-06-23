@@ -67,7 +67,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * WT_SYNC_DISCARD loop.
      */
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-      F_ISSET_ATOMIC_64(S2C(session), WT_CONN_CLOSING))
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
         __wt_page_modify_clear(session, page);
 
     WT_ASSERT_ALWAYS(session, !__wt_page_is_modified(page), "Attempting to discard dirty page");
@@ -105,7 +105,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
      * If discarding the page as part of process exit, the application may configure to leak the
      * memory rather than do the work.
      */
-    if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_LEAK_MEMORY))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_LEAK_MEMORY))
         return;
 
     /* Free the page modification information. */

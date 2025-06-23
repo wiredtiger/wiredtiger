@@ -90,7 +90,7 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
      *
      * FIXME-WT-6037: This isn't reasonable and needs a better fix.
      */
-    if (F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY | WT_CONN_RECOVERING_METADATA) ||
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_RECOVERING_METADATA) ||
       F_ISSET(session, WT_SESSION_NO_RECONCILE) ||
       (session->dhandle != NULL && WT_IS_METADATA(S2BT(session)->dhandle)) ||
       session == conn->default_session)
