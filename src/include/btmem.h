@@ -1537,6 +1537,12 @@ struct __wt_update {
     wt_timestamp_t durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
 
+    /* 
+     * Prepared transaction fields
+     */
+    uint64_t prepared_id;
+    wt_timestamp_t prepare_ts;
+    
     /*
      * The durable timestamp of the previous update in the update chain. This timestamp is used for
      * diagnostic checks only, and could be removed to reduce the size of the structure should that
