@@ -205,8 +205,8 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          *
          * As updating timestamp might not be an atomic operation, we will manage using state.
          *
-         * TODO: we can remove the prepare locked state once we separate the prepared
-         * timestamp and commit timestamp.
+         * TODO: we can remove the prepare locked state once we separate the prepared timestamp and
+         * commit timestamp.
          */
         upd->prepare_state = WT_PREPARE_LOCKED;
         WT_RELEASE_BARRIER();
