@@ -835,7 +835,7 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
                 /* Free obsolete updates if exist. */
                 if (FLD_ISSET(
                       S2C(session)->heuristic_controls.flags, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
-                  !F_ISSET(r, WT_REC_EVICT) && upd->next != NULL)
+                  upd->next != NULL)
                     __wt_free_obsolete_updates(session, r->page, upd);
                 break;
             }

@@ -299,6 +299,11 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if (upd->next == NULL || exclusive)
         return (0);
 
+    /* Skip obsolete check randomly when the aggressive check is enabled. */
+    if (FLD_SET(S2C(session)->heuristic_controls.flags, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
+      __wt_random(&session->rnd_random) % 2 == 0)
+        return (0);
+
     /*
      * Check whether the transaction state has moved forward from the last time we checked for
      * obsolete updates to avoid unnecessary traversal.
