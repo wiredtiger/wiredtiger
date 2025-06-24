@@ -1673,7 +1673,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
     /* Set the commit and the durable timestamps. */
-    WT_ERR(__wt_txn_set_timestamp(session, cfg, true, false));
+    WT_ERR(__wt_txn_set_timestamp(session, cfg, true));
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -2005,7 +2005,7 @@ err:
         WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
-    WT_TRET(__wt_txn_rollback(session, cfg));
+    WT_TRET(__wt_txn_rollback(session, cfg, false));
     return (ret);
 }
 
@@ -2036,7 +2036,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
-    WT_RET(__wt_txn_set_timestamp(session, cfg, false, false));
+    WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
     /* Set the prepared id */
     WT_RET(__wt_config_gets(session, cfg, "prepared_id", &cval));
@@ -2153,7 +2153,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
  *     Roll back the current transaction.
  */
 int
-__wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -2180,7 +2180,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TRET(__txn_config_operation_timeout(session, cfg, true));
 
     /* Set the rollback timestamp. */
-    WT_RET(__wt_txn_set_timestamp(session, cfg, false, true));
+    if (api_call)
+        WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each

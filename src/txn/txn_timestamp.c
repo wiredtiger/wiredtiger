@@ -1002,7 +1002,7 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
  *     Parse a request to set a timestamp in a transaction.
  */
 int
-__wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit, bool rollback)
+__wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
@@ -1063,14 +1063,14 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit,
             WT_RET_MSG(session, EINVAL, "rollback timestamp is set for commit");
 
     /* Look for a commit timestamp. */
-    if (!rollback && commit_ts != WT_TS_NONE)
+    if (commit_ts != WT_TS_NONE)
         WT_RET(__txn_set_commit_timestamp(session, commit_ts));
 
     /*
      * Look for a durable timestamp. Durable timestamp should be set only after setting the commit
      * timestamp.
      */
-    if (!rollback && durable_ts != WT_TS_NONE)
+    if (durable_ts != WT_TS_NONE)
         WT_RET(__txn_set_durable_timestamp(session, durable_ts));
     __txn_publish_durable_timestamp(session);
 
