@@ -72,8 +72,7 @@ __wt_evict_page_soon_check(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_sp
      * enough to get evicted.
      */
     if (!F_ISSET(S2C(session)->evict, WT_EVICT_CACHE_DIRTY_HARD | WT_EVICT_CACHE_UPDATES_HARD) &&
-      F_ISSET_ATOMIC_64(S2C(session), WT_CONN_PRECISE_CHECKPOINT) &&
-      !__wt_evict_aggressive(session) && __wt_page_is_modified(page)) {
+      F_ISSET_ATOMIC_64(S2C(session), WT_CONN_PRECISE_CHECKPOINT) && __wt_page_is_modified(page)) {
         wt_timestamp_t pinned_stable_ts;
         __wt_txn_pinned_stable_timestamp(session, &pinned_stable_ts);
         if (__wt_atomic_load64(&page->modify->newest_commit_timestamp) > pinned_stable_ts) {
@@ -930,21 +929,6 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
     else
         __wt_page_modify_set(session, parent);
     return (0);
-}
-
-/*
- * __wt_page_modify_update_timestamp --
- *     Set the newest update timestamp to the approximate newest global timestamp, this is only used
- *     to optimize eviction decisions. It is approximate and that's OK.
- */
-static WT_INLINE void
-__wt_page_modify_update_timestamp(WT_SESSION_IMPL *session, WT_PAGE *page)
-{
-    /* Race is OK here as it is an approximate value. */
-    wt_timestamp_t newest_seen_timestamp =
-      __wt_atomic_load64(&S2C(session)->txn_global.newest_seen_timestamp);
-    if (newest_seen_timestamp > page->modify->newest_commit_timestamp)
-        __wt_atomic_store64(&page->modify->newest_commit_timestamp, newest_seen_timestamp);
 }
 
 /*
