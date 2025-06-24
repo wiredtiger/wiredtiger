@@ -284,8 +284,10 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         current_state = WT_REF_DISK;
 
-        /* TODO: handle prepared rollback here. We can no longer free the page del structure if it
-         * is a prepared transaction. */
+        /*
+         * TODO: handle prepared rollback here. We can no longer free the page del structure if it
+         * is a prepared transaction.
+         */
 
         /*
          * Don't set the WT_PAGE_DELETED transaction ID to aborted; instead, just discard the

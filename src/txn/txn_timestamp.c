@@ -1060,16 +1060,9 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
         WT_RET_NOTFOUND_OK(ret);
     }
 
-    if (commit) {
+    if (commit)
         if (rollback_ts != WT_TS_NONE)
             WT_RET_MSG(session, EINVAL, "rollback timestamp is set for commit");
-    } else if (F_ISSET(txn, WT_TXN_PREPARE)) {
-        if (commit_ts != WT_TS_NONE)
-            WT_RET_MSG(session, EINVAL, "commit timestamp is set for rollback");
-
-        if (durable_ts != WT_TS_NONE)
-            WT_RET_MSG(session, EINVAL, "durable timestamp is set for rollback");
-    }
 
     /* Look for a commit timestamp. */
     if (commit_ts != WT_TS_NONE)
