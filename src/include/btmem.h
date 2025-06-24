@@ -1135,6 +1135,12 @@ struct __wt_page_deleted {
     wt_timestamp_t durable_timestamp;
 
     /*
+     * Prepared transaction fields
+     */
+    uint64_t prepared_id;
+    wt_timestamp_t prepare_ts;
+
+    /*
      * The prepare state is used for transaction prepare to manage visibility and propagating the
      * prepare state to the updates generated at instantiation time.
      */
