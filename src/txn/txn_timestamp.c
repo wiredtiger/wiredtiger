@@ -1053,7 +1053,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
                 WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
                 set_ts = true;
             } else if (WT_CONFIG_LIT_MATCH("rollback_timestamp", ckey)) {
-                WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
+                WT_RET(__wt_txn_parse_timestamp(session, "rollback", &rollback_ts, &cval));
                 set_ts = true;
             }
         }
