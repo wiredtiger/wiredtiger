@@ -957,7 +957,7 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t oldest_ts, stable_ts;
+    wt_timestamp_t stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     txn = session->txn;
