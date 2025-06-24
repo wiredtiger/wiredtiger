@@ -812,7 +812,8 @@ typedef enum {
     WT_TS_TXN_TYPE_COMMIT, /*!< Commit timestamp. */
     WT_TS_TXN_TYPE_DURABLE, /*!< Durable timestamp. */
     WT_TS_TXN_TYPE_PREPARE, /*!< Prepare timestamp. */
-    WT_TS_TXN_TYPE_READ /*!< Read timestamp. */
+    WT_TS_TXN_TYPE_READ, /*!< Read timestamp. */
+    WT_TS_TXN_TYPE_ROLLBACK /*!< Rollback timestamp. */
 } WT_TS_TXN_TYPE;
 
 /*!

@@ -607,6 +607,9 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
         if (!F_ISSET(txn, WT_TXN_PREPARE))
             WT_RET_MSG(
               session, EINVAL, "commit timestamp must not be set before transaction is prepared");
+        if (!F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
+            WT_RET_MSG(session, EINVAL,
+              "rollback timestamp and commit timestamp should not be set together");
     }
 
     return (0);
@@ -971,12 +974,12 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
         WT_RET_MSG(session, EINVAL, "rollback timestamp is already set");
 
     if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-        WT_RET_MSG(session, EINVAL,
-          "commit timestamp should not have been set before the rollback timestamp");
+        WT_RET_MSG(
+          session, EINVAL, "commit timestamp and rollback timestamp should not be set together");
 
     if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-        WT_RET_MSG(session, EINVAL,
-          "durable timestamp should not have been set before the rollback timestamp");
+        WT_RET_MSG(
+          session, EINVAL, "durable timestamp and rollback timestamp should not be set together");
 
     __txn_assert_after_reads(session, "rollback", rollback_ts);
 
@@ -991,7 +994,7 @@ __txn_set_rollback_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t rollback_t
           __wt_timestamp_to_string(stable_ts, ts_string[1]));
     }
     txn->rollback_timestamp = rollback_ts;
-    F_SET(txn, WT_TXN_HAS_TX_ROLLBACK);
+    F_SET(txn, WT_TXN_HAS_TS_ROLLBACK);
 
     return (0);
 }
@@ -1057,16 +1060,16 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
         WT_RET_NOTFOUND_OK(ret);
     }
 
-    if (commit)
-        if (rollback_timestamp != NULL)
+    if (commit) {
+        if (rollback_ts != WT_TS_NONE)
             WT_RET_MSG(session, EINVAL, "rollback timestamp is set for commit");
-        else {
-            if (commit_timestamp != NULL)
-                WT_RET_MSG(session, EINVAL, "commit timestamp is set for rollback");
+    } else {
+        if (commit_ts != WT_TS_NONE)
+            WT_RET_MSG(session, EINVAL, "commit timestamp is set for prepare or rollback");
 
-            if (durable_timestamp != NULL)
-                WT_RET_MSG(session, EINVAL, "durable timestamp is set for rollback");
-        }
+        if (durable_ts != WT_TS_NONE)
+            WT_RET_MSG(session, EINVAL, "durable timestamp is set for prepare or rollback");
+    }
 
     /* Look for a commit timestamp. */
     if (commit_ts != WT_TS_NONE)
@@ -1088,7 +1091,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool commit)
     if (prepare_ts != WT_TS_NONE)
         WT_RET(__txn_set_prepare_timestamp(session, prepare_ts));
 
-    if (rollback_timestamp != WT_TS_NONE)
+    if (rollback_ts != WT_TS_NONE)
         WT_RET(__txn_set_rollback_timestamp(session, rollback_ts));
 
     /* Timestamps are only logged in debugging mode. */
@@ -1114,7 +1117,7 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
 
     conn = S2C(session);
 
-    if (ts == 0) {
+    if (ts == WT_TS_NONE) {
         /* Quiet warnings from both gcc and clang about this variable. */
         WT_NOT_READ(name, "unknown");
         switch (which) {
@@ -1129,6 +1132,9 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
             break;
         case WT_TS_TXN_TYPE_READ:
             name = "read";
+            break;
+        case WT_TS_TXN_TYPE_ROLLBACK:
+            name = "rollback";
             break;
         }
         WT_RET_MSG(session, EINVAL, "illegal %s timestamp: zero not permitted", name);
@@ -1146,6 +1152,9 @@ __wt_txn_set_timestamp_uint(WT_SESSION_IMPL *session, WT_TS_TXN_TYPE which, wt_t
         break;
     case WT_TS_TXN_TYPE_READ:
         WT_RET(__wti_txn_set_read_timestamp(session, ts));
+        break;
+    case WT_TS_TXN_TYPE_ROLLBACK:
+        WT_RET(__txn_set_rollback_timestamp(session, ts));
         break;
     }
     __txn_publish_durable_timestamp(session);
