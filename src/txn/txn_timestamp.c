@@ -607,7 +607,7 @@ __txn_validate_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *commit
         if (!F_ISSET(txn, WT_TXN_PREPARE))
             WT_RET_MSG(
               session, EINVAL, "commit timestamp must not be set before transaction is prepared");
-        if (!F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
+        if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK))
             WT_RET_MSG(session, EINVAL,
               "rollback timestamp and commit timestamp should not be set together");
     }
