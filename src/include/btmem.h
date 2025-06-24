@@ -1134,9 +1134,7 @@ struct __wt_page_deleted {
     wt_timestamp_t timestamp; /* Timestamps */
     wt_timestamp_t durable_timestamp;
 
-    /*
-     * Prepared transaction fields
-     */
+    /* Prepared transaction fields */
     uint64_t prepared_id;
     wt_timestamp_t prepare_ts;
 
@@ -1543,9 +1541,7 @@ struct __wt_update {
     wt_timestamp_t durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
 
-    /*
-     * Prepared transaction fields
-     */
+    /* Prepared transaction fields */
     uint64_t prepared_id;
     wt_timestamp_t prepare_ts;
 
