@@ -2057,7 +2057,7 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * only for disaggregated storage.
      */
     if (__wt_conn_is_disagg(session) && F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY) &&
-      page->modify->page_state < WT_EVICT_MODIFY_COUNT_MIN) {
+      __wt_atomic_load32(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
         double pct_dirty = 0.0;
         WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
         if (pct_dirty < (conn->evict->eviction_dirty_trigger * 0.9))
