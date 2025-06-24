@@ -2024,7 +2024,7 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
     cfg[1] = config;
 #endif
 
-    ret = __wt_txn_set_timestamp(session, cfg, false);
+    ret = __wt_txn_set_timestamp(session, cfg, false, false);
 err:
 #ifdef HAVE_CALL_LOG
     WT_TRET(__wt_call_log_timestamp_transaction(session, config, ret));

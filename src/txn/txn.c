@@ -1673,7 +1673,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
     /* Set the commit and the durable timestamps. */
-    WT_ERR(__wt_txn_set_timestamp(session, cfg, true));
+    WT_ERR(__wt_txn_set_timestamp(session, cfg, true, false));
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -2036,7 +2036,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET_MSG(session, EINVAL, "a prepared transaction cannot include a logged table");
 
     /* Set the prepare timestamp. */
-    WT_RET(__wt_txn_set_timestamp(session, cfg, false));
+    WT_RET(__wt_txn_set_timestamp(session, cfg, false, false));
 
     /* Set the prepared id */
     WT_RET(__wt_config_gets(session, cfg, "prepared_id", &cval));
@@ -2180,7 +2180,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TRET(__txn_config_operation_timeout(session, cfg, true));
 
     /* Set the rollback timestamp. */
-    WT_RET(__wt_txn_set_timestamp(session, cfg, false));
+    WT_RET(__wt_txn_set_timestamp(session, cfg, false, true));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
