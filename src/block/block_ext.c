@@ -105,7 +105,7 @@ __block_first_srch(WT_SESSION_IMPL *session, WT_EXT **head, wt_off_t size, WT_EX
 
     uint64_t time_stop = __wt_clock(session);
     uint64_t elapsed = WT_CLOCKDIFF_US(time_stop, time_start);
-    WT_STAT_CONN_SET(session, block_first_srch_linear_walk_time, elapsed);
+    WT_STAT_CONN_SET(session, block_first_srch_walk_time, elapsed);
 
     if (ext == NULL)
         return (false);

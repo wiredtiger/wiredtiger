@@ -5932,10 +5932,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! block-manager: number of times the region was remapped via write */
 #define	WT_STAT_CONN_BLOCK_REMAP_FILE_WRITE		1073
 /*!
- * block-manager: time spent on linear walk of the available chunks in
- * block_first_srch(usecs)
+ * block-manager: time spent on the most recent linear walk of extents
+ * during first-fit allocation(usecs)
  */
-#define	WT_STAT_CONN_BLOCK_FIRST_SRCH_LINEAR_WALK_TIME	1074
+#define	WT_STAT_CONN_BLOCK_FIRST_SRCH_WALK_TIME		1074
 /*! cache: application requested eviction interrupt */
 #define	WT_STAT_CONN_EVICTION_INTERUPTED_BY_APP		1075
 /*! cache: application thread time evicting (usecs) */
