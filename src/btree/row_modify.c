@@ -408,8 +408,10 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UP
      * subsequent to it, other threads of control will terminate their walk in this element. Save a
      * reference to the list we will discard, and terminate the list.
      */
-    if (first != NULL && (next = first->next) != NULL)
+    if (first != NULL && (next = first->next) != NULL) {
         __wt_free_obsolete_updates(session, page, first);
+        WT_STAT_CONN_DSRC_INCR(session, cache_obsolete_updates_freed_during_update_obsolete_check);
+    }
 
     /*
      * Force evict a page when there are more than WT_THOUSAND updates to a single item. Increasing

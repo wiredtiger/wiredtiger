@@ -299,40 +299,54 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if (upd->next == NULL || exclusive)
         return (0);
 
-    /* Skip obsolete check randomly when the aggressive check is enabled. */
-    if (FLD_ISSET(S2C(session)->heuristic_controls.flags, WT_CONN_HEURISTIC_OBSOLETE_CHECK) &&
-      __wt_random(&session->rnd_random) % 2 == 0)
-        return (0);
-
     /*
-     * Check whether the transaction state has moved forward from the last time we checked for
-     * obsolete updates to avoid unnecessary traversal.
+     * We would like to call __wt_txn_update_oldest only in the event that there are further updates
+     * to this page, the check against WT_TXN_NONE is used as an indicator of there being further
+     * updates on this page.
+     * Look for obsolete updates when any of the following conditions are satisfied:
+     * 1. If the obsolete check optimization is disabled.
+     *
+     * 2. If the page size exceeds 50% of the largest split page size that btree is
+     *    permitted to allow. The reason for selecting the 50% page size limit is to
+     *    reduce the number of obsolete calls by half and also not impact the cache
+     *    size by holding all those unnecessary obsolete updates. The alternative of
+     *    removing obsolete updates as part of the reconciliation process can support
+     *    the optimizations to prevent needless page splits.
      */
-    if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
-        if (!__wt_txn_visible_all(session, txn, WT_TS_NONE)) {
-            if (__wt_random(&session->rnd_random) % 16 == 0) {
-                /* Try to move the oldest ID forward and re-check. */
-                ret = __wt_txn_update_oldest(session, 0);
-                /*
-                 * We cannot proceed if we fail here as we have inserted the updates to the
-                 * update chain. Panic instead. Currently, we don't ever return any error from
-                 * __wt_txn_visible_all. We can catch it if we start to do so in the future and
-                 * properly handle it.
-                 */
-                if (ret != 0)
-                    WT_RET_PANIC(
-                      session, ret, "fail to update oldest after serializing the updates");
+    if (!FLD_ISSET(S2C(session)->heuristic_controls.flags, WT_CONN_HEURISTIC_OBSOLETE_CHECK) ||
+      (__wt_random(&session->rnd_random) % 16 == 0) ||
+      (page->memory_footprint > (S2BT(session)->splitmempage / 2))) {
 
-                if (!__wt_txn_visible_all(session, txn, WT_TS_NONE))
+        /*
+         * Check whether the transaction state has moved forward from the last time we checked for
+         * obsolete updates to avoid unnecessary traversal.
+         */
+        if ((txn = page->modify->obsolete_check_txn) != WT_TXN_NONE) {
+            if (!__wt_txn_visible_all(session, txn, WT_TS_NONE)) {
+                if (__wt_random(&session->rnd_random) % 16 == 0) {
+                    /* Try to move the oldest ID forward and re-check. */
+                    ret = __wt_txn_update_oldest(session, 0);
+                    /*
+                     * We cannot proceed if we fail here as we have inserted the updates to the
+                     * update chain. Panic instead. Currently, we don't ever return any error from
+                     * __wt_txn_visible_all. We can catch it if we start to do so in the future and
+                     * properly handle it.
+                     */
+                    if (ret != 0)
+                        WT_RET_PANIC(
+                          session, ret, "fail to update oldest after serializing the updates");
+
+                    if (!__wt_txn_visible_all(session, txn, WT_TS_NONE))
+                        return (0);
+                } else
                     return (0);
-            } else
-                return (0);
+            }
+
+            page->modify->obsolete_check_txn = WT_TXN_NONE;
         }
 
-        page->modify->obsolete_check_txn = WT_TXN_NONE;
+        __wt_update_obsolete_check(session, cbt, upd->next);
     }
-
-    __wt_update_obsolete_check(session, cbt, upd->next);
 
     return (0);
 }

@@ -287,8 +287,10 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
       "If we delete a tombstone from the history store, we must also delete the update.");
 
     /* Free obsolete updates if exist. */
-    if (!delete_hs_upd_found && visible_all_upd != NULL && visible_all_upd->next != NULL)
+    if (!delete_hs_upd_found && visible_all_upd != NULL && visible_all_upd->next != NULL) {
         __wt_free_obsolete_updates(session, r->page, visible_all_upd);
+        WT_STAT_CONN_DSRC_INCR(session, cache_obsolete_updates_freed_during_reconcile);
+    }
 
     return (0);
 }
