@@ -1208,8 +1208,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     else {
         /* Rollback timestamp should only be set when preserve prepared is enabled. */
         WT_ASSERT(session,
-          !(F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) ^
-            F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK)));
+          !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READY) ||
+            (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK)) ||
+            (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              !F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK)));
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
           "rollback resolving prepared transaction with txnid: %" PRIu64
           " and prepared timestamp: %s and rollback timestamp: %s",
