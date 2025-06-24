@@ -706,6 +706,8 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
+    upd->prepared_id = txn->prepared_id;
+    upd->prepare_ts = txn->prepare_timestamp;
     ret = __wt_txn_op_set_timestamp(session, op, false);
     if (ret != 0)
         __wt_txn_unmodify(session);
