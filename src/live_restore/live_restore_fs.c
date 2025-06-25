@@ -1927,7 +1927,7 @@ __live_restore_fs_remove(
     if (layer == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION) {
         WT_ERR(__live_restore_fs_backing_filename(
           session, lr_fs, WTI_LIVE_RESTORE_FS_LAYER_DESTINATION, name, &path));
-        lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, path, flags);
+        WT_ERR(lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, path, flags));
     }
 
     /*
