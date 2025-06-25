@@ -625,8 +625,11 @@ static int
 __txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
 {
     WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t newest_commit_ts;
 
     txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
 
     if (txn->isolation != WT_ISO_SNAPSHOT)
         WT_RET_MSG(session, EINVAL,
@@ -652,6 +655,15 @@ __txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
      */
     if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
         txn->durable_timestamp = commit_ts;
+
+/* Used to define the granularity at which the shared global recent commit timestamp is updated. */
+#define WT_COMMIT_TS_UPDATE_THRESHOLD 10
+    /* Don't be overly greedy about updating the commit timestamp, it's shared */
+    WT_ACQUIRE_READ(newest_commit_ts, txn_global->newest_seen_timestamp);
+    if (commit_ts > newest_commit_ts + WT_COMMIT_TS_UPDATE_THRESHOLD) {
+        /* If our update failed, someone beat us to it - no problem. */
+        __wt_atomic_cas64(&txn_global->newest_seen_timestamp, newest_commit_ts, commit_ts);
+    }
 
     F_SET(txn, WT_TXN_HAS_TS_COMMIT);
     return (0);
