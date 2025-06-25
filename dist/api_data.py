@@ -1850,7 +1850,7 @@ methods = {
         min=0),
     Config('rollback_timestamp', '', r'''
         set the rollback timestamp for the current transaction. This is valid only for prepared
-        transactions under the preserve_prepared config. For prepared transactions, a commit
+        transactions under the preserve_prepared config. For prepared transactions, a rollback
         timestamp is required, must not be older than the prepare timestamp, and can be set only
         once. See @ref timestamp_txn_api and @ref timestamp_prepare'''),
 ]),
