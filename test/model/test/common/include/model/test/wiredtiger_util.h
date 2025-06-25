@@ -112,15 +112,9 @@ void wt_txn_set_commit_timestamp(WT_SESSION *session, model::timestamp_t commit_
 
 /*
  * wt_txn_get --
- *     Read from WiredTiger.
- */
-model::data_value wt_txn_get(WT_SESSION *session, const char *uri, const model::data_value &key);
-
-/*
- * wt_txn_get_ext --
  *     Read from WiredTiger and return the error value.
  */
-int wt_txn_get_ext(
+int wt_txn_get(
   WT_SESSION *session, const char *uri, const model::data_value &key, model::data_value &out);
 
 /*
@@ -129,6 +123,12 @@ int wt_txn_get_ext(
  */
 int wt_txn_insert(WT_SESSION *session, const char *uri, const model::data_value &key,
   const model::data_value &value, bool overwrite = true);
+
+/*
+ * wt_txn_remove --
+ *     Delete from WiredTiger.
+ */
+int wt_txn_remove(WT_SESSION *session, const char *uri, const model::data_value &key);
 
 /*
  * wt_ckpt_get --
@@ -292,7 +292,7 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
     {                                                                               \
         model::data_value __model_out, __wt_out;                                    \
         wt_model_assert_equal(table->get_ext(txn, key, __model_out, ##__VA_ARGS__), \
-          wt_txn_get_ext(session, uri, key, __wt_out, ##__VA_ARGS__));              \
+          wt_txn_get(session, uri, key, __wt_out, ##__VA_ARGS__));                  \
         wt_model_assert_equal(__model_out, __wt_out);                               \
     }
 
@@ -357,12 +357,20 @@ wt_rollback_to_stable(WT_CONNECTION *conn)
     }
 
 /*
- * wt_model_insert_both --
+ * wt_model_txn_insert_both --
  *     Insert both into the model and the database.
  */
 #define wt_model_txn_insert_both(table, uri, txn, session, key, value, ...) \
     wt_model_assert_equal(table->insert(txn, key, value, ##__VA_ARGS__),    \
       wt_txn_insert(session, uri, key, value, ##__VA_ARGS__));
+
+/*
+ * wt_model_txn_remove_both --
+ *     Remove both from the model and the database.
+ */
+#define wt_model_txn_remove_both(table, uri, txn, session, key, ...) \
+    wt_model_assert_equal(                                           \
+      table->remove(txn, key, ##__VA_ARGS__), wt_txn_remove(session, uri, key, ##__VA_ARGS__));
 
 /*
  * wt_model_ckpt_assert --

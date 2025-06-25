@@ -87,6 +87,8 @@ const model::data_value key6("Key 6");
 const model::data_value recno1((uint64_t)1);
 const model::data_value recno2((uint64_t)2);
 const model::data_value recno3((uint64_t)3);
+const model::data_value recno4((uint64_t)4);
+const model::data_value recno5((uint64_t)5);
 
 /* Values. */
 const model::data_value value1("Value 1");
@@ -535,6 +537,9 @@ test_transaction_column_fix_wt(void)
     /* Transactions. */
     model::kv_transaction_ptr txn1, txn2;
 
+    /* Throwaway output parameter. */
+    model::data_value v;
+
     /* Create the test's home directory and database. */
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -656,6 +661,37 @@ test_transaction_column_fix_wt(void)
     wt_model_txn_insert_both(table, uri, txn2, session2, recno1, byte4); /* No conflict. */
     wt_model_txn_commit_both(txn2, session2, 90);
     wt_model_assert(table, uri, recno1);
+
+    /* Insert recno5, having never touched recno4 up to this point. */
+    wt_model_insert_both(table, uri, recno5, byte1);
+    /* Removing recno4, which has never been inserted, should be a no-op and should not cause a
+     * prepare conflict with the read in txn2 below. */
+    wt_model_txn_begin_both(txn1, session1);
+    wt_model_txn_remove_both(table, uri, txn1, session1, recno4);
+    wt_model_txn_prepare_both(txn1, session1, 100);
+    wt_model_txn_begin_both(txn2, session2);
+    testutil_assert(table->get(recno4) == model::ZERO);
+    wt_model_txn_assert(table, uri, txn2, session2, recno4); /* Zero. */
+    wt_model_txn_commit_both(txn1, session1, 100, 100);
+    wt_model_txn_commit_both(txn2, session2, 100);
+
+    /* Double check we agree on recno5. */
+    wt_model_assert(table, uri, recno5);
+
+    /* Insert and then immediately remove recno4. */
+    wt_model_insert_both(table, uri, recno4, byte2);
+    wt_model_remove_both(table, uri, recno4);
+    wt_model_assert(table, uri, recno4);
+    /* Removing recno4, which is not currently present, counts as a write if recno4 was ever written
+     * to, and will cause a prepare conflict in txn2 below. */
+    wt_model_txn_begin_both(txn1, session1);
+    wt_model_txn_remove_both(table, uri, txn1, session1, recno4);
+    wt_model_txn_prepare_both(txn1, session1, 110);
+    wt_model_txn_begin_both(txn2, session2);
+    testutil_assert(table->get_ext(recno4, v) == WT_PREPARE_CONFLICT);
+    wt_model_txn_assert(table, uri, txn2, session2, recno4); /* Conflict. */
+    wt_model_txn_commit_both(txn1, session1, 110, 110);
+    wt_model_txn_commit_both(txn2, session2, 110);
 
     /* Verify. */
     testutil_assert(table->verify_noexcept(conn));
