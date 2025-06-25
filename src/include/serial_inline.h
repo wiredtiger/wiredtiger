@@ -244,12 +244,11 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
  */
 static WT_INLINE int
 __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
-  WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
+  WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size)
 {
     WT_DECL_RET;
     WT_UPDATE *upd;
     wt_timestamp_t prev_upd_ts;
-    uint64_t txn;
 
     /* Clear references to memory we now own and must free on error. */
     upd = *updp;

@@ -200,7 +200,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value,
         upd->next = old_upd;
 
         /* Serialize the update. */
-        WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, exclusive));
+        WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size));
     } else {
         /*
          * Allocate the insert array as necessary.

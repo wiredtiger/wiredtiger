@@ -2074,7 +2074,7 @@ static WT_INLINE int __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *val
 static WT_INLINE int __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp,
   size_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
-  WT_PAGE *page, WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
+  WT_PAGE *page, WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static WT_INLINE int __wt_vfprintf(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt,
   va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
