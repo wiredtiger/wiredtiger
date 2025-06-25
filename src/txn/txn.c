@@ -2179,7 +2179,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
     /* Configure the timeout for this rollback operation. */
     WT_TRET(__txn_config_operation_timeout(session, cfg, true));
 
-    /* Set the rollback timestamp. */
+    /* Set the rollback timestamp if it is an user api call. */
     if (api_call)
         WT_RET(__wt_txn_set_timestamp(session, cfg, false));
 
