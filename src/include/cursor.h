@@ -474,6 +474,7 @@ struct __wt_cursor_version {
     /* The previous traversed update's start_ts will become the stop_ts. */
     wt_timestamp_t upd_stop_ts;
 
+    /* Don't show the user any keys from before this time. */
     wt_timestamp_t start_timestamp;
 
 #define WT_CURVERSION_UPDATE_CHAIN 0

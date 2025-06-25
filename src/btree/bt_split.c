@@ -1711,6 +1711,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_REF *old_ref, WT_PAGE *page, WT_M
     size_t key_size;
     void *key;
 
+    WT_UNUSED(first);
+    WT_UNUSED(old_ref);
+    WT_UNUSED(multi_entries);
+
     /* There can be an address or a disk image or both. */
     WT_ASSERT(session, multi->addr.block_cookie != NULL || multi->disk_image != NULL);
 

@@ -147,8 +147,8 @@ __drop_layered(
     WT_ERR(__wt_schema_drop(session, ingest_uri, cfg, check_visibility));
 
     /*
-     * TODO: as part of the bigger garbage-collection picture, we should eventually find a way to
-     * tell PALI that this was dropped.
+     * FIXME-WT-14503: as part of the bigger garbage-collection picture, we should eventually find a
+     * way to tell PALI that this was dropped.
      */
     WT_ERR(__wt_schema_drop(session, stable_uri, cfg, check_visibility));
 
@@ -157,7 +157,6 @@ __drop_layered(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, true, check_visibility));
     WT_ERR(ret);
     WT_ERR(__wt_metadata_remove(session, uri));
-    /* TODO SLS-1052 drop from the shared metadata table. */
 
     /* No need for a meta track drop, since the top-level table has no underlying files to remove.
      */
