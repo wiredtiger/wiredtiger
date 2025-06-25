@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-#define WT_COMMIT_TS_UPDATE_THRESHOLD 10
 /*
  * __wt_txn_parse_timestamp_raw --
  *     Decodes and sets a timestamp. Don't do any checking.
@@ -657,6 +656,8 @@ __txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
     if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
         txn->durable_timestamp = commit_ts;
 
+/* Used to define the granularity at which the shared global recent commit timestamp is updated. */
+#define WT_COMMIT_TS_UPDATE_THRESHOLD 10
     /* Don't be overly greedy about updating the commit timestamp, it's shared */
     WT_ACQUIRE_READ(newest_commit_ts, txn_global->newest_seen_timestamp);
     if (commit_ts > newest_commit_ts + WT_COMMIT_TS_UPDATE_THRESHOLD) {
