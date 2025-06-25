@@ -1816,9 +1816,9 @@ struct __wt_session {
      * timestamp_txn_api., a string; default empty.}
      * @config{rollback_timestamp, set the rollback timestamp for the current transaction.  This is
      * valid only for prepared transactions under the preserve_prepared config.  For prepared
-     * transactions\, a commit timestamp is required\, must not be older than the prepare
-     * timestamp\, and can be set only once.  See @ref timestamp_txn_api and @ref
-     * timestamp_prepare., a string; default empty.}
+     * transactions\, a rollback timestamp is required\, must not be older than the prepare
+     * timestamp and the stable timestamp\, and can be set only once.  See @ref timestamp_txn_api
+     * and @ref timestamp_prepare., a string; default empty.}
      * @configend
      * @errors
      */
