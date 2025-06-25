@@ -264,11 +264,9 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
               "If the stable timestamp is set, the transaction snapshot must be set also");
         while (i != _updates.begin()) {
             const std::shared_ptr<kv_update> &u = *(--i);
-            /* If our read timestamp predates the update being prepared, just read it. */
-            if (u->prepared() && read_timestamp < u->txn()->prepare_timestamp()) {
-                return u->value();
-            } else if (u->prepared()) {
-                /* A read timestamped after a prepare (but before commit) conflicts. */
+            /* If our read timestamp can see a prepared commit, raise a conflict (due to how our
+             * std::upper_bound works, we can only see prepares before our timestamps). */
+            if (u->prepared()) {
                 throw wiredtiger_exception(WT_PREPARE_CONFLICT);
             } else if (u->committed()) {
                 /* All else aside, committed updates before our read timestamp are visible. */

@@ -190,9 +190,12 @@ protected:
      *     Execute the given workload operation in the model.
      */
     int
-    do_operation(const operation::insert &op)
+    do_operation(const operation::get &op)
     {
-        return table(op.table_id)->insert(transaction(op.txn_id), op.key, op.value);
+        data_value value;
+        int ret = table(op.table_id)->get_ext(transaction(op.txn_id), op.key, value);
+        /* TODO: validation or logging of the value that was read */
+        return ret;
     }
 
     /*
@@ -200,16 +203,9 @@ protected:
      *     Execute the given workload operation in the model.
      */
     int
-    do_operation(const operation::get &op)
+    do_operation(const operation::insert &op)
     {
-        try {
-            data_value value;
-            int ret = table(op.table_id)->get_ext(transaction(op.txn_id), op.key, value);
-            /* TODO: validation or logging of the value that was read */
-            return ret;
-        } catch (wiredtiger_exception &e) {
-            return e.error();
-        }
+        return table(op.table_id)->insert(transaction(op.txn_id), op.key, op.value);
     }
 
     /*

@@ -167,14 +167,14 @@ parse(const char *str)
         CHECK_NUM_ARGS(2);
         return evict(parse_uint64(args[0]), data_value(parse_uint64(args[1])));
     }
+    if (name == "get") {
+        CHECK_NUM_ARGS(3);
+        return get(parse_uint64(args[0]), parse_uint64(args[1]), data_value(parse_uint64(args[2])));
+    }
     if (name == "insert") {
         CHECK_NUM_ARGS(4);
         return insert(parse_uint64(args[0]), parse_uint64(args[1]),
           data_value(parse_uint64(args[2])), data_value(parse_uint64(args[3])));
-    }
-    if (name == "get") {
-        CHECK_NUM_ARGS(3);
-        return get(parse_uint64(args[0]), parse_uint64(args[1]), data_value(parse_uint64(args[2])));
     }
     if (name == "nop") {
         CHECK_NUM_ARGS(0);

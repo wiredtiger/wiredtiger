@@ -451,6 +451,13 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                     txn << operation::commit_transaction(txn_id);
                 done = true;
             }
+            probability_case(_spec.get)
+            {
+                table_context_ptr table = choose_table(txn_ptr);
+                data_value key = generate_key(table, op_category::get);
+                /* A get operation shouldn't affect context. */
+                txn << operation::get(table->id(), txn_id, key);
+            }
             probability_case(_spec.insert)
             {
                 table_context_ptr table = choose_table(txn_ptr);
@@ -458,13 +465,6 @@ kv_workload_generator::generate_transaction(size_t seq_no)
                 data_value value = generate_value(table);
                 table->update_key(key);
                 txn << operation::insert(table->id(), txn_id, key, value);
-            }
-            probability_case(_spec.get)
-            {
-                table_context_ptr table = choose_table(txn_ptr);
-                data_value key = generate_key(table, op_category::get);
-                /* A get operation shouldn't affect context. */
-                txn << operation::get(table->id(), txn_id, key);
             }
             probability_case(_spec.remove)
             {
