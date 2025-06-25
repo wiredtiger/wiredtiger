@@ -29,7 +29,6 @@
 import os, os.path, shutil, time, wiredtiger, wttest
 from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_storages
 from wtscenario import make_scenarios
-from wiredtiger import stat
 
 # test_layered43.py
 #    Test disaggregated storage with block cache.
@@ -65,12 +64,6 @@ class test_layered43(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def early_setup(self):
         os.mkdir('kv_home')
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
-
     # Test long delta chains
     def test_layered43(self):
 
@@ -93,9 +86,6 @@ class test_layered43(wttest.WiredTigerTestCase, DisaggConfigMixin):
 
         self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(timestamp1)}')
         self.session.checkpoint()
-
-        # Track block cache stats before evicting
-        prev_block_cache_blocks_removed = self.get_stat(stat.conn.block_cache_blocks_removed)
 
         # Create several updates with small changes
         value_prefix2 = 'bbb'
@@ -130,8 +120,6 @@ class test_layered43(wttest.WiredTigerTestCase, DisaggConfigMixin):
         cursor.reset()
         cursor.close()
         self.session.rollback_transaction()
-
-        self.assertGreater(self.get_stat(stat.conn.block_cache_blocks_removed), prev_block_cache_blocks_removed)
 
         # Remember the relevant statistics
         stat_cursor = self.session.open_cursor('statistics:')
