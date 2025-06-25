@@ -1530,11 +1530,9 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
         if (__wt_page_is_modified(page))
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_dirty);
         else if (page->modify != NULL)
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_clean_with_mod);
+            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_updates);
         else
             WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_clean);
-        if (page->modify != NULL && page->modify->bytes_updates != 0)
-            WT_STAT_CONN_DSRC_INCR(session, cache_eviction_pages_queued_updates);
     }
     queue->evict_current = queue->evict_queue;
     __wt_spin_unlock(session, &queue->evict_lock);
@@ -2434,7 +2432,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     WT_TXN *txn;
     uint64_t internal_pages_already_queued, internal_pages_queued, internal_pages_seen;
     uint64_t min_pages, pages_already_queued, pages_queued, pages_seen, refs_walked;
-    uint64_t pages_seen_clean, pages_seen_clean_with_mod, pages_seen_dirty, pages_seen_updates;
+    uint64_t pages_seen_clean, pages_seen_dirty, pages_seen_updates;
     uint32_t evict_walk_period, target_pages, walk_flags;
     int restarts;
     bool give_up, queued, urgent_queued;
@@ -2491,7 +2489,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
      * case we are appending and only the last page in the file is live.
      */
     internal_pages_already_queued = internal_pages_queued = internal_pages_seen = 0;
-    pages_seen_clean = pages_seen_clean_with_mod = pages_seen_dirty = pages_seen_updates = 0;
+    pages_seen_clean = pages_seen_dirty = pages_seen_updates = 0;
     for (evict_entry = start, pages_already_queued = pages_queued = pages_seen = refs_walked = 0;
          evict_entry < end && (ret == 0 || ret == WT_NOTFOUND);
          last_parent = ref == NULL ? NULL : ref->home,
@@ -2535,11 +2533,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
         if (__wt_page_is_modified(page))
             ++pages_seen_dirty;
         else if (page->modify != NULL)
-            ++pages_seen_clean_with_mod;
+            ++pages_seen_updates;
         else
             ++pages_seen_clean;
-        if (page->modify != NULL && page->modify->bytes_updates != 0)
-            ++pages_seen_updates;
 
         /* Count internal pages seen. */
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
@@ -2632,8 +2628,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WTI_EVICT_QUEUE *queue, u_int max_en
     WT_STAT_CONN_INCRV(session, eviction_internal_pages_queued, internal_pages_queued);
     WT_STAT_CONN_DSRC_INCR(session, eviction_walk_passes);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_clean, pages_seen_clean);
-    WT_STAT_CONN_DSRC_INCRV(
-      session, cache_eviction_pages_seen_clean_with_mod, pages_seen_clean_with_mod);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_dirty, pages_seen_dirty);
     WT_STAT_CONN_DSRC_INCRV(session, cache_eviction_pages_seen_updates, pages_seen_updates);
     return (0);
