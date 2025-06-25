@@ -1702,8 +1702,6 @@ extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_snapshot_release_and_restore(WT_SESSION_IMPL *session);
 extern void __wt_txn_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_txn_truncate_end(WT_SESSION_IMPL *session);
-extern void __wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd);
 extern void __wt_update_vector_clear(WT_UPDATE_VECTOR *updates);
 extern void __wt_update_vector_free(WT_UPDATE_VECTOR *updates);
 extern void __wt_update_vector_init(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates);

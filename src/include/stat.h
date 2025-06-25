@@ -577,7 +577,6 @@ struct __wt_connection_stats {
     int64_t eviction_force_hs_success;
     int64_t eviction_force_clean;
     int64_t eviction_force_dirty;
-    int64_t eviction_force_long_update_list;
     int64_t eviction_force_delete;
     int64_t eviction_force;
     int64_t eviction_force_fail;
@@ -628,7 +627,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_trigger_updates_reached;
     int64_t cache_obsolete_updates_freed_during_hs_insert;
     int64_t cache_obsolete_updates_freed_during_reconcile;
-    int64_t cache_obsolete_updates_freed_during_update_obsolete_check;
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -1305,7 +1303,6 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_trigger_updates_reached;
     int64_t cache_obsolete_updates_freed_during_hs_insert;
     int64_t cache_obsolete_updates_freed_during_reconcile;
-    int64_t cache_obsolete_updates_freed_during_update_obsolete_check;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;

@@ -712,12 +712,7 @@ connection_runtime_config = [
             Config('obsolete_tw_btree_max', '100', r'''
                 maximum number of btrees that can be checked for obsolete time window cleanup in a
                 single checkpoint''',
-                min=0, max=500000),
-            Config('obsolete_check_aggressive', 'true', r'''
-               if true, more aggressively reclaim obsolete updates from update chains in memory.
-               This can increase contention in concurrent applications with the benefit of
-               improving cache effectiveness.''',
-               type='boolean'),
+                min=0, max=500000)
         ]),
     Config('history_store', '', r'''
         history store configuration options''',

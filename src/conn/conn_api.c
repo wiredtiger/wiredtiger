@@ -2275,12 +2275,6 @@ __wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_tw_btree_max", &cval));
     conn->heuristic_controls.obsolete_tw_btree_max = (uint32_t)cval.val;
 
-    WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_check_aggressive", &cval));
-    if (cval.val)
-        FLD_SET(conn->heuristic_controls.flags, WT_CONN_HEURISTIC_OBSOLETE_CHECK);
-    else
-        FLD_CLR(conn->heuristic_controls.flags, WT_CONN_HEURISTIC_OBSOLETE_CHECK);
-
     return (0);
 }
 

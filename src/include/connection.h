@@ -173,9 +173,6 @@ struct __wt_heuristic_controls {
 
     /* Maximum number of btrees that can be processed per checkpoint. */
     uint32_t obsolete_tw_btree_max;
-
-#define WT_CONN_HEURISTIC_OBSOLETE_CHECK 0x1u
-    uint32_t flags; /* Heuristic controls flags */
 };
 
 /*

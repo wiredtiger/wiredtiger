@@ -116,7 +116,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: number of times updates trigger was reached",
   "cache: obsolete updates freed during history store insert",
   "cache: obsolete updates freed during reconciliation",
-  "cache: obsolete updates freed during update obsolete check",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
@@ -469,7 +468,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_obsolete_updates_freed_during_hs_insert = 0;
     stats->cache_obsolete_updates_freed_during_reconcile = 0;
-    stats->cache_obsolete_updates_freed_during_update_obsolete_check = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
@@ -811,8 +809,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
       from->cache_obsolete_updates_freed_during_hs_insert;
     to->cache_obsolete_updates_freed_during_reconcile +=
       from->cache_obsolete_updates_freed_during_reconcile;
-    to->cache_obsolete_updates_freed_during_update_obsolete_check +=
-      from->cache_obsolete_updates_freed_during_update_obsolete_check;
     to->cache_eviction_blocked_overflow_keys += from->cache_eviction_blocked_overflow_keys;
     to->cache_read_overflow += from->cache_read_overflow;
     to->cache_eviction_deepen += from->cache_eviction_deepen;
@@ -1168,8 +1164,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_obsolete_updates_freed_during_hs_insert);
     to->cache_obsolete_updates_freed_during_reconcile +=
       WT_STAT_DSRC_READ(from, cache_obsolete_updates_freed_during_reconcile);
-    to->cache_obsolete_updates_freed_during_update_obsolete_check +=
-      WT_STAT_DSRC_READ(from, cache_obsolete_updates_freed_during_update_obsolete_check);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_DSRC_READ(from, cache_eviction_blocked_overflow_keys);
     to->cache_read_overflow += WT_STAT_DSRC_READ(from, cache_read_overflow);
@@ -1571,7 +1565,6 @@ static const char *const __stats_connection_desc[] = {
   "store cursor open",
   "cache: forced eviction - pages evicted that were clean count",
   "cache: forced eviction - pages evicted that were dirty count",
-  "cache: forced eviction - pages selected because of a large number of updates to a single item",
   "cache: forced eviction - pages selected because of too many deleted items count",
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
@@ -1628,7 +1621,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: number of times updates trigger was reached",
   "cache: obsolete updates freed during history store insert",
   "cache: obsolete updates freed during reconciliation",
-  "cache: obsolete updates freed during update obsolete check",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow keys on a multiblock row-store page blocked its eviction",
   "cache: overflow pages read into cache",
@@ -2408,7 +2400,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_force_hs_success = 0;
     stats->eviction_force_clean = 0;
     stats->eviction_force_dirty = 0;
-    stats->eviction_force_long_update_list = 0;
     stats->eviction_force_delete = 0;
     stats->eviction_force = 0;
     stats->eviction_force_fail = 0;
@@ -2459,7 +2450,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_trigger_updates_reached = 0;
     stats->cache_obsolete_updates_freed_during_hs_insert = 0;
     stats->cache_obsolete_updates_freed_during_reconcile = 0;
-    stats->cache_obsolete_updates_freed_during_update_obsolete_check = 0;
     stats->eviction_timed_out_ops = 0;
     stats->cache_eviction_blocked_overflow_keys = 0;
     stats->cache_read_overflow = 0;
@@ -3240,7 +3230,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->eviction_force_hs_success += WT_STAT_CONN_READ(from, eviction_force_hs_success);
     to->eviction_force_clean += WT_STAT_CONN_READ(from, eviction_force_clean);
     to->eviction_force_dirty += WT_STAT_CONN_READ(from, eviction_force_dirty);
-    to->eviction_force_long_update_list += WT_STAT_CONN_READ(from, eviction_force_long_update_list);
     to->eviction_force_delete += WT_STAT_CONN_READ(from, eviction_force_delete);
     to->eviction_force += WT_STAT_CONN_READ(from, eviction_force);
     to->eviction_force_fail += WT_STAT_CONN_READ(from, eviction_force_fail);
@@ -3306,8 +3295,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_obsolete_updates_freed_during_hs_insert);
     to->cache_obsolete_updates_freed_during_reconcile +=
       WT_STAT_CONN_READ(from, cache_obsolete_updates_freed_during_reconcile);
-    to->cache_obsolete_updates_freed_during_update_obsolete_check +=
-      WT_STAT_CONN_READ(from, cache_obsolete_updates_freed_during_update_obsolete_check);
     to->eviction_timed_out_ops += WT_STAT_CONN_READ(from, eviction_timed_out_ops);
     to->cache_eviction_blocked_overflow_keys +=
       WT_STAT_CONN_READ(from, cache_eviction_blocked_overflow_keys);
