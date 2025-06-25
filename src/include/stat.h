@@ -625,8 +625,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_trigger_dirty_reached;
     int64_t cache_eviction_trigger_reached;
     int64_t cache_eviction_trigger_updates_reached;
-    int64_t cache_obsolete_updates_freed_during_hs_insert;
-    int64_t cache_obsolete_updates_freed_during_reconcile;
+    int64_t cache_obsolete_updates_removed;
     int64_t eviction_timed_out_ops;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
@@ -1301,8 +1300,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_trigger_dirty_reached;
     int64_t cache_eviction_trigger_reached;
     int64_t cache_eviction_trigger_updates_reached;
-    int64_t cache_obsolete_updates_freed_during_hs_insert;
-    int64_t cache_obsolete_updates_freed_during_reconcile;
+    int64_t cache_obsolete_updates_removed;
     int64_t cache_eviction_blocked_overflow_keys;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;

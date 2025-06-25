@@ -277,7 +277,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
          * update chain processing, this might be allowed to access the freed updates further in the
          * reconciliation code.
          */
-        if (visible_all_upd == NULL && delete_upd->next != NULL &&
+        if (!F_ISSET(r, WT_REC_EVICT) && visible_all_upd == NULL && delete_upd->next != NULL &&
           __wt_txn_upd_visible_all(session, delete_upd) && WT_UPDATE_DATA_VALUE(delete_upd))
             visible_all_upd = delete_upd;
     }
@@ -289,7 +289,7 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
     if (!delete_hs_upd_found && visible_all_upd != NULL &&
       visible_all_upd != upd_select->tombstone) {
         __wt_free_obsolete_updates(session, r->page, visible_all_upd);
-        WT_STAT_CONN_DSRC_INCR(session, cache_obsolete_updates_freed_during_reconcile);
+        WT_STAT_CONN_DSRC_INCR(session, cache_obsolete_updates_removed);
     }
 
     return (0);

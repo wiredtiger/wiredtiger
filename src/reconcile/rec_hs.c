@@ -831,14 +831,8 @@ __wti_rec_hs_insert_updates(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_MULTI
              * No need to continue if we found a first self contained value that is globally
              * visible.
              */
-            if (__wt_txn_upd_visible_all(session, upd) && WT_UPDATE_DATA_VALUE(upd)) {
-                /* Free obsolete updates if exist. */
-                if (upd->next != NULL) {
-                    __wt_free_obsolete_updates(session, r->page, upd);
-                    WT_STAT_CONN_DSRC_INCR(session, cache_obsolete_updates_freed_during_hs_insert);
-                }
+            if (__wt_txn_upd_visible_all(session, upd) && WT_UPDATE_DATA_VALUE(upd))
                 break;
-            }
 
             /*
              * If we've reached a full update and it's in the history store we don't need to
