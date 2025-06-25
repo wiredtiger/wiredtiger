@@ -52,24 +52,28 @@
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
  */
-#define WT_TIME_WINDOW_SET_START(tw, upd)                          \
-    do {                                                           \
-        (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts; \
-        if ((upd)->durable_ts != WT_TS_NONE)                       \
-            (tw)->durable_start_ts = (upd)->durable_ts;            \
-        (tw)->start_txn = (upd)->txnid;                            \
+#define WT_TIME_WINDOW_SET_START(session, tw, upd)                                            \
+    do {                                                                                      \
+        (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts;                            \
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && (tw)->prepare == 1) \
+            (tw)->start_ts = (upd)->prepare_ts;                                               \
+        if ((upd)->durable_ts != WT_TS_NONE)                                                  \
+            (tw)->durable_start_ts = (upd)->durable_ts;                                       \
+        (tw)->start_txn = (upd)->txnid;                                                       \
     } while (0)
 
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
  */
-#define WT_TIME_WINDOW_SET_STOP(tw, upd)                         \
-    do {                                                         \
-        (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts; \
-        if ((upd)->durable_ts != WT_TS_NONE)                     \
-            (tw)->durable_stop_ts = (upd)->durable_ts;           \
-        (tw)->stop_txn = (upd)->txnid;                           \
+#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                                             \
+    do {                                                                                      \
+        (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts;                              \
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && (tw)->prepare == 1) \
+            (tw)->stop_ts = (upd)->prepare_ts;                                                \
+        if ((upd)->durable_ts != WT_TS_NONE)                                                  \
+            (tw)->durable_stop_ts = (upd)->durable_ts;                                        \
+        (tw)->stop_txn = (upd)->txnid;                                                        \
     } while (0)
 
 /* Copy the start values of a time window from another time window. */
