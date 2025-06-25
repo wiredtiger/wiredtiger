@@ -46,7 +46,7 @@ class test_timestamp27_preserve_prepared_off(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(100)),
             '/rollback timestamp is set for an non-prepared transaction/')
-        
+
     def test_prepared(self):
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50))
@@ -69,12 +69,12 @@ class test_timestamp27_preserve_prepared_on(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
         self.session.rollback_transaction('rollback_timestamp=' + self.timestamp_str(100)),
             '/rollback timestamp is set for an non-prepared transaction/')
-        
+
     def test_prepared(self):
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50))
         self.session.timestamp_transaction('rollback_timestamp=' + self.timestamp_str(100))
-    
+
     def test_rollback_timestamp_lt_stable(self):
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50))
@@ -82,7 +82,7 @@ class test_timestamp27_preserve_prepared_on(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
         self.session.timestamp_transaction('rollback_timestamp=' + self.timestamp_str(90)),
             '/is not newer than the stable timestamp/')
-    
+
     def test_rollback_timestamp_eq_stable(self):
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50))
@@ -90,14 +90,14 @@ class test_timestamp27_preserve_prepared_on(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
         self.session.timestamp_transaction('rollback_timestamp=' + self.timestamp_str(100)),
             '/is not newer than the stable timestamp/')
-    
+
     def test_rollback_timestamp_with_commit_timestamp(self):
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
         self.session.timestamp_transaction('rollback_timestamp=' + self.timestamp_str(100) + ",commit_timestamp=" + self.timestamp_str(100)),
             '/commit timestamp and rollback timestamp should not be set together/')
-    
+
     def test_rollback_timestamp_with_commit_timestamp(self):
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50))
