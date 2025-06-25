@@ -135,11 +135,16 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
          *   - an update operation with a ingest cursor, or
          *   - a read operation and the cursor is open for reading.
          */
-         if (!external_state_change &&
-          ((update && clayered->ingest_cursor != NULL) ||
-            (!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ))))
+        if ((!external_state_change && !update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
             break;
 
+        if (!external_state_change && update && clayered->ingest_cursor != NULL) {
+            if (!F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE) &&
+              F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
+                break;
+            else if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
+                break;
+        }
         WT_WITH_SCHEMA_LOCK(session, ret = __clayered_open_cursors(session, clayered, update));
 
         /*
@@ -151,7 +156,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
         external_state_change = false;
         WT_RET(ret);
     }
-        
+
     if (!F_ISSET(clayered, WT_CLAYERED_ACTIVE)) {
         /*
          * Opening this layered cursor has opened a number of btree cursors, ensure other code
@@ -1693,14 +1698,7 @@ __clayered_reserve(WT_CURSOR *cursor)
 
     /* WT_CURSOR.reserve is update-without-overwrite and a special value. */
     F_CLR(cursor, WT_CURSTD_OVERWRITE);
-    if (clayered->flags == 0)
-        WT_RET(__wt_msg(session, "before %u", clayered->flags));
     WT_ERR(__clayered_enter(clayered, false, true, false));
-    if (clayered->flags == 1) {
-        WT_RET(__wt_msg(session, "after %u", clayered->flags));
-        WT_ERR(__clayered_enter(clayered, false, true, false));
-    }
-
     WT_ERR(__clayered_lookup(session, clayered, &value));
     /*
      * Copy the key out, since the insert resets non-primary chunk cursors which our lookup may have
