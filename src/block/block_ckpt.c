@@ -1084,6 +1084,44 @@ err:
     return (ret);
 }
 
+/*
+ * __wti_block_checkpoint_extlist_dump --
+ *     Dump all of the available checkpoints extent lists.
+ */
+int
+__wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_BLOCK_CKPT *ci;
+    WT_CKPT *ckpt_iter, *ckptbase;
+    WT_DECL_RET;
+    size_t ckpt_bytes_allocated;
+
+    WT_RET(__wt_meta_ckptlist_get(
+      session, session->dhandle->name, false, &ckptbase, &ckpt_bytes_allocated));
+    WT_CKPT_FOREACH (ckptbase, ckpt_iter) {
+        WT_ERR(__wt_calloc(session, 1, sizeof(WT_BLOCK_CKPT), &ci));
+        WT_ERR(__wti_block_ckpt_init(session, ci, ckpt_iter->name));
+        WT_ERR(
+          __wti_block_ckpt_unpack(session, block, ckpt_iter->raw.data, ckpt_iter->raw.size, ci));
+
+        WT_ERR(__wti_block_extlist_read(session, block, &ci->alloc, ci->file_size));
+        WT_ERR(__wti_block_extlist_dump(session, block, &ci->alloc));
+
+        WT_ERR(__wti_block_extlist_read(session, block, &ci->avail, ci->file_size));
+        WT_ERR(__wti_block_extlist_dump(session, block, &ci->avail));
+
+        WT_ERR(__wti_block_extlist_read(session, block, &ci->discard, ci->file_size));
+        WT_ERR(__wti_block_extlist_dump(session, block, &ci->discard));
+    }
+
+err:
+    __wt_free(session, ci);
+    __wt_free(session, ckptbase);
+    __wt_free(session, ckpt_iter);
+
+    return (ret);
+}
+
 #ifdef HAVE_UNITTEST
 int
 __ut_ckpt_mod_blkmod_entry(
