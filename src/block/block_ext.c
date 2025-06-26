@@ -1507,6 +1507,7 @@ __wti_block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
     WT_DECL_RET;
     WT_EXT *ext;
     WT_VERBOSE_LEVEL level;
+    uint32_t ext_count, printed_ext_logs, num_ext_logs;
 
     if (!block->verify_layout &&
       !WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_3) &&
@@ -1526,15 +1527,15 @@ __wti_block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
     if (el->entries == 0)
         goto done;
 
+    ext_count = printed_ext_logs = 0;
 #define NUM_EXTENTS_PER_LOG 100
-    uint32_t ext_count = 0;
-    uint32_t printed_ext_logs = 0;
-    uint32_t num_ext_logs = el->entries / NUM_EXTENTS_PER_LOG;
+    num_ext_logs = el->entries / NUM_EXTENTS_PER_LOG;
+
     WT_ERR(__wt_scr_alloc(session, 0, &ext_buf));
     WT_EXT_FOREACH (ext, el->off) {
 
-        WT_ERR(
-          __wt_buf_catfmt(session, ext_buf, "%" PRIuMAX "-%" PRIuMAX ",", ext->off, ext->size));
+        WT_ERR(__wt_buf_catfmt(session, ext_buf, "%" PRIuMAX "-%" PRIuMAX ",", (uintmax_t)ext->off,
+          (uintmax_t)ext->size));
         ++ext_count;
 
         if (ext_count == NUM_EXTENTS_PER_LOG) {
