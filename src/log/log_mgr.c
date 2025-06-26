@@ -440,8 +440,9 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WTI_LOG *log, uint32_t backup_fil
         log->min_fileid = min_lognum;
     }
 
+    /* Encourage race conditions in log subsystem during database shutdown. */
     if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING) &&
-      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CLOSE_STRESS_LOG)) {
+      FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CLOSE_STRESS_LOG)) {
         for (int i = 0; i < 100; i++)
             WT_IGNORE_RET(__wt_log_printf(session, "Stress for concurrency control"));
     }
