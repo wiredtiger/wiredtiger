@@ -2067,7 +2067,8 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
      * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
      * only for disaggregated storage.
      */
-#define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD 0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
+#define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
+    0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
     if (__wt_conn_is_disagg(session) &&
       __wt_atomic_load32(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
         double pct_dirty = 0.0, pct_updates = 0.0;
@@ -2075,12 +2076,15 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
             WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
-            low_pressure = (pct_dirty < (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+            low_pressure = (pct_dirty <
+              (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
         }
 
         if (F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
             WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
-            low_pressure = low_pressure || (pct_updates < (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+            low_pressure = low_pressure ||
+              (pct_updates <
+                (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
         }
 
         if (low_pressure)
