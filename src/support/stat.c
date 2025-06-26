@@ -73,11 +73,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction gave up due to no progress being made",
   "cache: eviction walk pages queued that had updates",
   "cache: eviction walk pages queued that were clean",
-  "cache: eviction walk pages queued that were clean with modifications",
   "cache: eviction walk pages queued that were dirty",
   "cache: eviction walk pages seen that had updates",
   "cache: eviction walk pages seen that were clean",
-  "cache: eviction walk pages seen that were clean with modifications",
   "cache: eviction walk pages seen that were dirty",
   "cache: eviction walk passes of a file",
   "cache: eviction walk target pages histogram - 0-9",
@@ -437,11 +435,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_blocked_no_progress = 0;
     stats->cache_eviction_pages_queued_updates = 0;
     stats->cache_eviction_pages_queued_clean = 0;
-    stats->cache_eviction_pages_queued_clean_with_mod = 0;
     stats->cache_eviction_pages_queued_dirty = 0;
     stats->cache_eviction_pages_seen_updates = 0;
     stats->cache_eviction_pages_seen_clean = 0;
-    stats->cache_eviction_pages_seen_clean_with_mod = 0;
     stats->cache_eviction_pages_seen_dirty = 0;
     stats->eviction_walk_passes = 0;
     stats->cache_eviction_target_page_lt10 = 0;
@@ -779,12 +775,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_blocked_no_progress += from->cache_eviction_blocked_no_progress;
     to->cache_eviction_pages_queued_updates += from->cache_eviction_pages_queued_updates;
     to->cache_eviction_pages_queued_clean += from->cache_eviction_pages_queued_clean;
-    to->cache_eviction_pages_queued_clean_with_mod +=
-      from->cache_eviction_pages_queued_clean_with_mod;
     to->cache_eviction_pages_queued_dirty += from->cache_eviction_pages_queued_dirty;
     to->cache_eviction_pages_seen_updates += from->cache_eviction_pages_seen_updates;
     to->cache_eviction_pages_seen_clean += from->cache_eviction_pages_seen_clean;
-    to->cache_eviction_pages_seen_clean_with_mod += from->cache_eviction_pages_seen_clean_with_mod;
     to->cache_eviction_pages_seen_dirty += from->cache_eviction_pages_seen_dirty;
     to->eviction_walk_passes += from->eviction_walk_passes;
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
@@ -1131,15 +1124,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, cache_eviction_pages_queued_updates);
     to->cache_eviction_pages_queued_clean +=
       WT_STAT_DSRC_READ(from, cache_eviction_pages_queued_clean);
-    to->cache_eviction_pages_queued_clean_with_mod +=
-      WT_STAT_DSRC_READ(from, cache_eviction_pages_queued_clean_with_mod);
     to->cache_eviction_pages_queued_dirty +=
       WT_STAT_DSRC_READ(from, cache_eviction_pages_queued_dirty);
     to->cache_eviction_pages_seen_updates +=
       WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_updates);
     to->cache_eviction_pages_seen_clean += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_clean);
-    to->cache_eviction_pages_seen_clean_with_mod +=
-      WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_clean_with_mod);
     to->cache_eviction_pages_seen_dirty += WT_STAT_DSRC_READ(from, cache_eviction_pages_seen_dirty);
     to->eviction_walk_passes += WT_STAT_DSRC_READ(from, eviction_walk_passes);
     to->cache_eviction_target_page_lt10 += WT_STAT_DSRC_READ(from, cache_eviction_target_page_lt10);
@@ -1559,11 +1548,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction walk most recent sleeps for checkpoint handle gathering",
   "cache: eviction walk pages queued that had updates",
   "cache: eviction walk pages queued that were clean",
-  "cache: eviction walk pages queued that were clean with modifications",
   "cache: eviction walk pages queued that were dirty",
   "cache: eviction walk pages seen that had updates",
   "cache: eviction walk pages seen that were clean",
-  "cache: eviction walk pages seen that were clean with modifications",
   "cache: eviction walk pages seen that were dirty",
   "cache: eviction walk restored - had to walk this many pages",
   "cache: eviction walk restored position",
@@ -2405,11 +2392,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->eviction_walk_sleeps = 0;
     stats->cache_eviction_pages_queued_updates = 0;
     stats->cache_eviction_pages_queued_clean = 0;
-    stats->cache_eviction_pages_queued_clean_with_mod = 0;
     stats->cache_eviction_pages_queued_dirty = 0;
     stats->cache_eviction_pages_seen_updates = 0;
     stats->cache_eviction_pages_seen_clean = 0;
-    stats->cache_eviction_pages_seen_clean_with_mod = 0;
     stats->cache_eviction_pages_seen_dirty = 0;
     stats->npos_evict_walk_max = 0;
     stats->eviction_restored_pos = 0;
@@ -3237,15 +3222,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, cache_eviction_pages_queued_updates);
     to->cache_eviction_pages_queued_clean +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_queued_clean);
-    to->cache_eviction_pages_queued_clean_with_mod +=
-      WT_STAT_CONN_READ(from, cache_eviction_pages_queued_clean_with_mod);
     to->cache_eviction_pages_queued_dirty +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_queued_dirty);
     to->cache_eviction_pages_seen_updates +=
       WT_STAT_CONN_READ(from, cache_eviction_pages_seen_updates);
     to->cache_eviction_pages_seen_clean += WT_STAT_CONN_READ(from, cache_eviction_pages_seen_clean);
-    to->cache_eviction_pages_seen_clean_with_mod +=
-      WT_STAT_CONN_READ(from, cache_eviction_pages_seen_clean_with_mod);
     to->cache_eviction_pages_seen_dirty += WT_STAT_CONN_READ(from, cache_eviction_pages_seen_dirty);
     if ((v = WT_STAT_CONN_READ(from, npos_evict_walk_max)) > to->npos_evict_walk_max)
         to->npos_evict_walk_max = v;

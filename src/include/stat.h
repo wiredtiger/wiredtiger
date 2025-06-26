@@ -548,11 +548,9 @@ struct __wt_connection_stats {
     int64_t eviction_walk_sleeps;
     int64_t cache_eviction_pages_queued_updates;
     int64_t cache_eviction_pages_queued_clean;
-    int64_t cache_eviction_pages_queued_clean_with_mod;
     int64_t cache_eviction_pages_queued_dirty;
     int64_t cache_eviction_pages_seen_updates;
     int64_t cache_eviction_pages_seen_clean;
-    int64_t cache_eviction_pages_seen_clean_with_mod;
     int64_t cache_eviction_pages_seen_dirty;
     int64_t npos_evict_walk_max;
     int64_t eviction_restored_pos;
@@ -1273,11 +1271,9 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_blocked_no_progress;
     int64_t cache_eviction_pages_queued_updates;
     int64_t cache_eviction_pages_queued_clean;
-    int64_t cache_eviction_pages_queued_clean_with_mod;
     int64_t cache_eviction_pages_queued_dirty;
     int64_t cache_eviction_pages_seen_updates;
     int64_t cache_eviction_pages_seen_clean;
-    int64_t cache_eviction_pages_seen_clean_with_mod;
     int64_t cache_eviction_pages_seen_dirty;
     int64_t eviction_walk_passes;
     int64_t cache_eviction_target_page_lt10;
