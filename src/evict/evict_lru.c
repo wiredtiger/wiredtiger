@@ -97,11 +97,6 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 
     read_gen += btree->evict_priority;
 
-/*
- * For pages that are getting random updates (often index pages), try not to reconcile them too
- * often. It makes better use of I/O if they accumulate more changes between reconciliations
- */
-#define WT_EVICT_MODIFY_COUNT_MIN 15 /* Number of modifications since the prior reconciliation */
 #define WT_EVICT_INTL_SKEW WT_THOUSAND
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         read_gen += WT_EVICT_INTL_SKEW;
@@ -2061,6 +2056,11 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
         }
     }
 
+    /*
+     * For pages that are getting random updates (often index pages), try not to reconcile them too
+     * often. It makes better use of I/O if they accumulate more changes between reconciliations
+     */
+#define WT_EVICT_MODIFY_COUNT_MIN 15 /* Number of modifications since the prior reconciliation */
     /*
      * If the cache is dirty, but not under pressure skip pages with just a few modifications
      * hopefully they can accumulate more changes before being reconciled. The cache has low
