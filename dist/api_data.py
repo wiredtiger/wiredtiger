@@ -588,6 +588,10 @@ connection_runtime_config = [
             if true, act as if eviction is being run in parallel to checkpoint. We should return
             EBUSY in eviction if we detect any timestamp ordering issue.''',
             type='boolean'),
+        Config('conn_close_stress_log_printf', 'true', r'''
+            if true, during connection close stress the log subsystem to encourage race conditions
+            using the log printf function''',
+            type='boolean'),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
