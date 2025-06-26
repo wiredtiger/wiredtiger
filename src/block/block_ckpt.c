@@ -1116,8 +1116,6 @@ __wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
 err:
     __wt_free(session, ci);
-    __wt_free(session, ckptbase);
-    __wt_free(session, ckpt_iter);
 
     return (ret);
 }
