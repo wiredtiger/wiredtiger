@@ -984,6 +984,9 @@ __log_server(void *arg)
         force_write_timediff = WT_CLOCKDIFF_MS(time_stop, force_write_time_start);
     }
 
+    do {
+        WT_ERR_ERROR_OK(__wti_log_force_write(session, false, &did_work), EBUSY, false);
+    } while (ret == EBUSY);
     if (0) {
 err:
         WT_IGNORE_RET(__wt_panic(session, ret, "log server error"));
