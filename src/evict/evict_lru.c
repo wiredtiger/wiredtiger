@@ -1804,6 +1804,17 @@ retry:
         }
 
         /*
+         * If the cache walk flags have changed since the prior eviction pass on this tree then
+         * reset the walk effectiveness tracking. Imagine a case where only dirty content has been
+         * looked for and this tree doesn't have much dirty content. Then eviction starts looking
+         * for clean content - this tree might be a cornucopia of good clean candidate pages.
+         */
+        if (btree->last_evict_walk_flags != evict->flags) {
+            __wt_atomic_store32(&btree->evict_walk_period, 0);
+            btree->last_evict_walk_flags = evict->flags;
+        }
+
+        /*
          * If we are filling the queue, skip files that haven't been useful in the past.
          */
         evict_walk_period = __wt_atomic_load32(&btree->evict_walk_period);
