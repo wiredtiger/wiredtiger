@@ -42,8 +42,8 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
     table_config = 'key_format=i,value_format=S,allocation_size=512B,leaf_page_max=4KB'
 
     def remove(self, uri):
-        """ 
-        Create holes in the file to ensure there is elements in the extent list. 
+        """
+        Create holes in the file to ensure there is elements in the extent list.
         """
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.num_kv):
@@ -75,22 +75,22 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
 
     def test_corrupt01(self):
-        # Create and populate the table. 
+        # Create and populate the table.
         self.session.create(self.uri, self.table_config)
         self.insert(self.uri)
         self.session.checkpoint()
-        
+
         # Remove some keys to create holes in the file.
         self.remove(self.uri)
         self.session.checkpoint()
 
         self.conn.close()
-        
+
         # Dump the block information to a file.
         dump_file = 'dump_output.txt'
         self.runWt(
-            ['verify', '-d', 'dump_address', self.uri], 
-            outfilename=dump_file, 
+            ['verify', '-d', 'dump_address', self.uri],
+            outfilename=dump_file,
             closeconn=False
         )
 
@@ -118,19 +118,19 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
         with open(file_name, 'r+b') as f:
             f.seek(int(addr_start))
             f.write(b'BAD_VALUE')
-            
-            
+
+
         # Dump the block information to a file.
         verify_output = 'verify_output.txt'
         verify_err = 'verify_err.txt'
         self.runWt(
-            ['verify', self.uri], 
-            outfilename=verify_output, 
+            ['verify', self.uri],
+            outfilename=verify_output,
             errfilename=verify_err,
             closeconn=False,
             failure=True,
         )
-        
+
         # Check the verify error output for the expected extent list log messages.
         with open(verify_err, 'r', encoding='utf-8') as f:
             content = f.read()
