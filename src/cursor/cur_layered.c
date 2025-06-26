@@ -128,22 +128,26 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
     }
 
     WT_RET(__clayered_adjust_state(clayered, update, iteration, &external_state_change));
+
     for (;;) {
         /*
          * Continue on to open if the state of the world just got updated.
-         * Otherwise stop when we are up-to-date, as long as this is:
-         *   - an update operation with a ingest cursor, or
+         * Otherwise stop when we are up-to-date, as the conditions are met:
+         *   - an update operation with an ingest cursor with overwrite flag enabled
          *   - a read operation and the cursor is open for reading.
+         *   - a reserve operation (update with no overwrite flag) with an ingest
+         * cursor and the cursor is open for reading.
          */
-        if ((!external_state_change && !update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
-            break;
-
-        if (!external_state_change && update && clayered->ingest_cursor != NULL) {
-            if (!F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE) &&
-              F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
+        if (!external_state_change) {
+            if ((!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
                 break;
-            else if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
-                break;
+            else if (update && clayered->ingest_cursor != NULL) {
+                if (!F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE) &&
+                  F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
+                    break;
+                else if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
+                    break;
+            }
         }
         WT_WITH_SCHEMA_LOCK(session, ret = __clayered_open_cursors(session, clayered, update));
 
