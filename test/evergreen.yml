@@ -5432,6 +5432,7 @@ buildvariants:
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
+    - name: unit-test-hook-timing-stress-log
     - name: unit-test-hook-timestamp
     - name: test-prepare-hs03-hook-timestamp
     - name: spinlock-gcc-test
@@ -5919,6 +5920,7 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large
+    - name: unit-test-hook-timing-stress-log
     - name: unit-test-zstd
     - name: wtperf-test
 
