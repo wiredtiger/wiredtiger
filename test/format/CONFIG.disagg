@@ -7,7 +7,6 @@ checkpoint.precise=1
 disagg.page_log=palm
 disagg.enabled=1
 disagg.layered=1
-disagg.mode=leader
 runs.source=layered
 runs.type=row-store
 runs.tables=3
