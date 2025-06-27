@@ -664,8 +664,10 @@ test_transaction_column_fix_wt(void)
 
     /* Insert recno5, having never touched recno4 up to this point. */
     wt_model_insert_both(table, uri, recno5, byte1);
-    /* Removing recno4, which has never been inserted, should be a no-op and should not cause a
-     * prepare conflict with the read in txn2 below. */
+    /*
+     * Removing recno4, which has never been inserted, should be a no-op and should not cause a
+     * prepare conflict with the read in txn2 below.
+     */
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_remove_both(table, uri, txn1, session1, recno4);
     wt_model_txn_prepare_both(txn1, session1, 100);
@@ -682,8 +684,10 @@ test_transaction_column_fix_wt(void)
     wt_model_insert_both(table, uri, recno4, byte2);
     wt_model_remove_both(table, uri, recno4);
     wt_model_assert(table, uri, recno4);
-    /* Removing recno4, which is not currently present, counts as a write if recno4 was ever written
-     * to, and will cause a prepare conflict in txn2 below. */
+    /*
+     * Removing recno4, which is not currently present, counts as a write if recno4 was ever written
+     * to, and will cause a prepare conflict in txn2 below.
+     */
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_remove_both(table, uri, txn1, session1, recno4);
     wt_model_txn_prepare_both(txn1, session1, 110);
@@ -804,8 +808,10 @@ test_transaction_prepared(void)
     txn1->commit(80, 80);
     txn2->commit(80);
 
-    /* Read behavior 3: insert key3 (txn1), prepare txn1, begin txn2, commit txn1, txn2 can see
-     * txn1's update. */
+    /*
+     * Read behavior 3: insert key3 (txn1), prepare txn1, begin txn2, commit txn1, txn2 can see
+     * txn1's update.
+     */
     txn1 = database.begin_transaction();
     testutil_check(table->insert(txn1, key3, value2));
     txn1->prepare(90);
@@ -921,8 +927,10 @@ test_transaction_prepared_wt(void)
     wt_model_txn_commit_both(txn1, session1, 80, 80);
     wt_model_txn_commit_both(txn2, session2, 80, 0);
 
-    /* Read behavior 3: insert key3 (txn1), prepare txn1, begin txn2, commit txn1, txn2 can see
-     * txn1's update. */
+    /*
+     * Read behavior 3: insert key3 (txn1), prepare txn1, begin txn2, commit txn1, txn2 can see
+     * txn1's update.
+     */
     wt_model_txn_begin_both(txn1, session1);
     wt_model_txn_insert_both(table, uri, txn1, session1, key3, value2);
     wt_model_txn_prepare_both(txn1, session1, 90);

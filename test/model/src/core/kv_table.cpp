@@ -235,10 +235,12 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
     if (item == nullptr)
         return WT_NOTFOUND;
 
-    /* If the table keys are recnos and the item only has the implicit 0 value required by recno
+    /*
+     * If the table keys are recnos and the item only has the implicit 0 value required by recno
      * semantics, then the item we found isn't actually in the database. It should continue to be 0,
      * as that is what removals look like with recnos, and this remove should succeed while doing
-     * nothing. */
+     * nothing.
+     */
     if (_config.type == kv_table_type::column_fix && item->implicit()) {
         return 0;
     }

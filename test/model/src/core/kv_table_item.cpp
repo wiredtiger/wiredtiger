@@ -236,10 +236,12 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
   timestamp_t read_timestamp, timestamp_t stable_timestamp) const
 {
     std::lock_guard lock_guard(_lock);
-    /* Note: unlike other ops, we need to search by prepare timestamp and commit timestamps
+    /*
+     * Note: unlike other ops, we need to search by prepare timestamp and commit timestamps
      * together, so we can consider transactions that are only prepared and not committed. The
      * common approach is to check for prepared transactions and in that case flag a conflict, but
-     * for reads this can be incorrect. See more specific rules below. */
+     * for reads this can be incorrect. See more specific rules below.
+     */
     kv_update::prepare_timestamp_comparator cmp;
 
     if (_updates.empty())
@@ -264,8 +266,10 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
               "If the stable timestamp is set, the transaction snapshot must be set also");
         while (i != _updates.begin()) {
             const std::shared_ptr<kv_update> &u = *(--i);
-            /* If our read timestamp can see a prepared commit, raise a conflict (due to how our
-             * std::upper_bound works, we can only see prepares before our timestamps). */
+            /*
+             * If our read timestamp can see a prepared commit, raise a conflict (due to how our
+             * std::upper_bound works, we can only see prepares before our timestamps).
+             */
             if (u->prepared()) {
                 throw wiredtiger_exception(WT_PREPARE_CONFLICT);
             } else if (u->committed()) {

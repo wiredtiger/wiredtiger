@@ -194,11 +194,15 @@ test_checkpoint(void)
       txn1->set_commit_timestamp(62), model::wiredtiger_abort_exception);
     txn1->rollback();
 
-    /* Add some data in a transaction, prepare it, checkpoint, commit, then crash. On restart, the
-     * checkpoint should not have the prepared transaction's write. */
-    /* Note: this is hard run against WT in this test suite because, if WT is shut down with a
+    /*
+     * Add some data in a transaction, prepare it, checkpoint, commit, then crash. On restart, the
+     * checkpoint should not have the prepared transaction's write.
+     */
+    /*
+     * Note: this is hard run against WT in this test suite because, if WT is shut down with a
      * prepared transaction, WT will abort the entire process. See
-     * test/model/workloads/WT-14832.workload to reproduce it with the runner. */
+     * test/model/workloads/WT-14832.workload to reproduce it with the runner.
+     */
     txn1 = database.begin_transaction();
     testutil_check(table->insert(txn1, key6, value1));
     txn1->prepare(65);

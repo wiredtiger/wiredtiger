@@ -53,8 +53,8 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     column_var = 0.1;
 
     finish_transaction = 0.08;
-    insert = 0.75;
     get = 0.5;
+    insert = 0.75;
     remove = 0.15;
     set_commit_timestamp = 0.05;
     truncate = 0.005;
@@ -68,9 +68,9 @@ kv_workload_generator_spec::kv_workload_generator_spec()
     set_oldest_timestamp = 0.1;
     set_stable_timestamp = 0.2;
 
+    get_existing = 0.9;
     remove_existing = 0.9;
     update_existing = 0.1;
-    get_existing = 0.9;
 
     prepared_transaction = 0.25;
     max_delay_after_prepare = 25; /* FIXME-WT-13232 This must be a small number until it's fixed. */
@@ -423,7 +423,7 @@ kv_workload_generator::generate_transaction(size_t seq_no)
     /* Add all operations. But do not actually fill in timestamps; we'll do that later. */
     bool done = false;
     while (!done) {
-        float total = _spec.finish_transaction + _spec.insert + _spec.get + _spec.remove +
+        float total = _spec.finish_transaction + _spec.get + _spec.insert + _spec.remove +
           _spec.set_commit_timestamp + _spec.truncate;
         probability_switch(_random.next_float() * total)
         {
@@ -764,16 +764,16 @@ kv_workload_generator::generate_key(table_context_ptr table, op_category op)
         p_existing = 1.0;
         break;
 
+    case op_category::get:
+        p_existing = _spec.get_existing;
+        break;
+
     case op_category::remove:
         p_existing = _spec.remove_existing;
         break;
 
     case op_category::update:
         p_existing = _spec.update_existing;
-        break;
-
-    case op_category::get:
-        p_existing = _spec.get_existing;
         break;
     }
 

@@ -194,15 +194,19 @@ kv_database::txn_snapshot_nolock(txn_id_t do_not_exclude, bool is_checkpoint)
         kv_transaction_state state = p.second->state();
 
         if (state == kv_transaction_state::prepared) {
-            /* Checkpoints should ignore prepared transactions. They are not restored during
-             * recovery. */
+            /*
+             * Checkpoints should ignore prepared transactions. They are not restored during
+             * recovery.
+             */
             if (is_checkpoint) {
                 active_txn_ids.insert(p.first);
             }
         } else if (state == kv_transaction_state::in_progress) {
-            /* Outside of checkpoints, prepared transactions can be visible under some
+            /*
+             * Outside of checkpoints, prepared transactions can be visible under some
              * circumstances, and the specific read / update / etc operations should handle the
-             * possibility of prepared transactions. */
+             * possibility of prepared transactions.
+             */
             active_txn_ids.insert(p.first);
         }
     }

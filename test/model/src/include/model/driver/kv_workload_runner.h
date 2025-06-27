@@ -194,7 +194,7 @@ protected:
     {
         data_value value;
         int ret = table(op.table_id)->get_ext(transaction(op.txn_id), op.key, value);
-        /* TODO: validation or logging of the value that was read */
+        /* FIXME-WT-14832 actually use the value we read. */
         return ret;
     }
 
