@@ -1229,8 +1229,10 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
             return (WT_VISIBLE_TRUE);
 
         upd_visible = __wt_txn_visible(session, upd->txnid,
-          F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) ? upd->prepare_ts :
-                                                                       upd->start_ts,
+          F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              prepare_state == WT_PREPARE_INPROGRESS ?
+            upd->prepare_ts :
+            upd->start_ts,
           upd->durable_ts);
 
         /*

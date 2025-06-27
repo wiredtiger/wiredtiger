@@ -141,10 +141,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     upd->durable_ts = unpack->tw.durable_start_ts;
     upd->start_ts = unpack->tw.start_ts;
     upd->txnid = unpack->tw.start_txn;
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED))
-        upd->prepare_ts = unpack->tw.start_ts;
-    else
-        upd->prepare_ts = WT_TS_NONE;
+    upd->prepare_ts = unpack->tw.prepare_ts;
     /*
      * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
      * to ensure that written prepared delete operation must be removed from the data store, when
@@ -157,10 +154,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->txnid = unpack->tw.stop_txn;
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
         tombstone->start_ts = unpack->tw.stop_ts;
-        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED))
-            tombstone->prepare_ts = unpack->tw.stop_ts;
-        else
-            tombstone->prepare_ts = WT_TS_NONE;
+        tombstone->prepare_ts = unpack->tw.prepare_ts;
+        tombstone->prepared_id = unpack->tw.prepared_txn;
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
 
         /*
@@ -168,9 +163,10 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
          * by comparing both the transaction and timestamps as the transaction information gets lost
          * after restart.
          */
-        if (unpack->tw.start_ts == unpack->tw.stop_ts &&
-          unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
-          unpack->tw.start_txn == unpack->tw.stop_txn) {
+        if ((unpack->tw.start_ts == unpack->tw.stop_ts &&
+              unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
+              unpack->tw.start_txn == unpack->tw.stop_txn) ||
+          WT_TIME_WINDOW_HAS_PREPARE(&unpack->tw)) {
             upd->durable_ts = WT_TS_NONE;
             upd->prepare_state = WT_PREPARE_INPROGRESS;
             F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
