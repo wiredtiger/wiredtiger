@@ -1228,7 +1228,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
               upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);
 
-        upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts, upd->durable_ts);
+        upd_visible = __wt_txn_visible(session, upd->txnid, F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) ? upd->prepare_ts : upd->start_ts, upd->durable_ts);
 
         /*
          * The visibility check is only valid if the update does not change state. If the state does
