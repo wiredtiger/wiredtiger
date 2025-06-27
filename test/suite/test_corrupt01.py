@@ -76,11 +76,11 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
     def test_corrupt01(self):
         # Create and populate the table.
         self.session.create(self.uri, self.table_config)
-        self.insert(self.uri)
+        self.insert()
         self.session.checkpoint()
 
         # Remove some keys to create holes in the file.
-        self.remove(self.uri)
+        self.remove()
         self.session.checkpoint()
 
         self.conn.close()
@@ -131,7 +131,7 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
         )
 
         # Check the verify error output for the expected extent list log messages.
-        with open(verify_err, 'r', encoding='utf-8') as f:
+        with open(verify_output, 'r', encoding='utf-8') as f:
             content = f.read()
             self.assertTrue('extent list' in content)
             self.assertTrue('alloc log' in content)
