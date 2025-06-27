@@ -1516,7 +1516,7 @@ __wti_block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
         return (0);
 
     if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))
-        level = WT_VERBOSE_ERROR;
+        level = WT_VERBOSE_WARNING;
     else
         level = WT_VERBOSE_DEBUG_3;
 
