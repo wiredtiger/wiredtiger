@@ -1497,7 +1497,8 @@ err:
 /*
  * __wti_block_extlist_dump --
  *     Dump an extent list as verbose messages. Large extent lists are dumped in chunks to avoid
- *     verbose message size limits.
+ *     verbose message size limits. Only printed with WT_VERB_BLOCK level 3, or if data corruption
+ *     is detected.
  */
 int
 __wti_block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el)

@@ -29,7 +29,6 @@
 import random
 import re
 from suite_subprocess import suite_subprocess
-import wiredtiger
 import wttest
 
 # test_corrupt01.py
@@ -41,9 +40,9 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
     num_kv = 10000
     table_config = 'key_format=i,value_format=S,allocation_size=512B,leaf_page_max=4KB'
 
-    def remove(self, uri):
+    def remove(self):
         """
-        Create holes in the file to ensure there is elements in the extent list.
+        Create holes in the file to ensure there are elements in the extent list.
         """
         cursor = self.session.open_cursor(self.uri, None, None)
         for i in range(self.num_kv):
@@ -52,7 +51,7 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
                 cursor.remove()
         cursor.close()
 
-    def insert(self, uri):
+    def insert(self):
         """
         Insert key value pairs with random size values. This helps create more fragmented blocks
         and therefore a larger extent list.
@@ -65,7 +64,7 @@ class test_corrupt01(wttest.WiredTigerTestCase, suite_subprocess):
             cursor[i] = value
         cursor.close()
 
-    def read(self, uri):
+    def read(self):
         """
         Read all key value pairs to ensure we eventually read the corrupted block.
         """

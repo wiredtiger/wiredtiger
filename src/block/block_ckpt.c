@@ -1098,8 +1098,9 @@ __wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     WT_RET(__wt_meta_ckptlist_get(
       session, session->dhandle->name, false, &ckptbase, &ckpt_bytes_allocated));
+    WT_ERR(__wt_calloc(session, 1, sizeof(WT_BLOCK_CKPT), &ci));
     WT_CKPT_FOREACH (ckptbase, ckpt_iter) {
-        WT_ERR(__wt_calloc(session, 1, sizeof(WT_BLOCK_CKPT), &ci));
+        memset(ci, 0, sizeof(WT_BLOCK_CKPT));
         WT_ERR(__wti_block_ckpt_init(session, ci, ckpt_iter->name));
         WT_ERR(
           __wti_block_ckpt_unpack(session, block, ckpt_iter->raw.data, ckpt_iter->raw.size, ci));
