@@ -2147,7 +2147,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --hook hook_timing_stress_log_conn_close
+          unit_test_args: -v 2 --hook timing_stress_log_conn_close
 
   - name: unit-test-hook-tiered
     tags: ["python"]
