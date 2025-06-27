@@ -1617,6 +1617,7 @@ extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_release_handle(
   WT_SESSION_IMPL *session, WT_BLOCK *block, bool *last_release);
+extern void __wt_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size);
 extern void __wt_block_compact_get_progress_stats(
   WT_SESSION_IMPL *session, WT_BM *bm, uint64_t *pages_reviewedp);
 extern void __wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block);
@@ -1777,7 +1778,6 @@ extern void __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wti_blkcache_get(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
   WT_BLKCACHE_ITEM **blkcache_retp, bool *foundp, bool *skip_cache_putp);
 extern void __wti_blkcache_get_read_handle(WT_BLOCK *block);
-extern void __wti_blkcache_remove(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size);
 extern void __wti_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci);
 extern void __wti_block_configure_first_fit(WT_BLOCK *block, bool on);
 extern void __wti_block_disagg_header_byteswap_copy(
