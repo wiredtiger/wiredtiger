@@ -437,7 +437,7 @@ kv_workload_runner_wt::do_operation(const operation::get &op)
         return ret;
     }
     data_value value = get_wt_cursor_value(cursor);
-    /* FIXME-WT-14832 actually use the value we read. */
+    /* FIXME-WT-14863 actually use the value we read. */
     return 0;
 }
 
