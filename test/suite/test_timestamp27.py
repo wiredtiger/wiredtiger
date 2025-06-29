@@ -107,8 +107,7 @@ class test_timestamp27_preserve_prepared_on(wttest.WiredTigerTestCase):
             '/commit timestamp and rollback timestamp should not be set together/')
 
     def test_prepare_timestamp_before_stable_timestamp(self):
-        self.session.begin_transaction("roundup_timestamps=(prepare=true)")
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(100))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(50)),
+        self.session.begin_transaction("roundup_timestamps=(prepare=true)"),
             '/cannot round up prepare timestamp to the oldest timestamp when the preserve prepare config is on/')
