@@ -1347,12 +1347,15 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  *     visible).
  */
 static WT_INLINE int
-__wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
-  WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
+__wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
+  uint64_t recno, WT_UPDATE *upd, WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
 {
     WT_VISIBLE_TYPE upd_visible;
     uint64_t prepare_txnid;
     uint8_t prepare_state;
+
+    WT_UNUSED(key);
+    WT_UNUSED(recno);
 
     prepare_txnid = WT_TXN_NONE;
 
@@ -1473,9 +1476,10 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static WT_INLINE int
-__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_txn_read_upd_list(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
 {
-    return (__wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL));
+    return (__wt_txn_read_upd_list_internal(session, cbt, key, recno, upd, NULL, NULL));
 }
 
 /*
@@ -1498,7 +1502,8 @@ __wt_txn_read(
     read_onpage = prepare_retry = true;
 
 retry:
-    WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
+    WT_RET(
+      __wt_txn_read_upd_list_internal(session, cbt, key, recno, upd, &prepare_upd, &restored_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
         return (0);
@@ -1580,7 +1585,8 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
+    if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
       !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
@@ -1762,7 +1768,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 
     txn = session->txn;
     txn->isolation = session->isolation;
-    txn->txn_logsync = S2C(session)->log_mgr.txn_logsync;
+    txn->txn_log.txn_logsync = S2C(session)->log_mgr.txn_logsync;
     txn->commit_timestamp = WT_TS_NONE;
     txn->durable_timestamp = WT_TS_NONE;
     txn->first_commit_timestamp = WT_TS_NONE;

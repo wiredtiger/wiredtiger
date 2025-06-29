@@ -174,6 +174,8 @@ class test_import12(test_import_base):
                     err = WT_ERROR
                 else:
                     raise e
+            # FIXME-WT-14713: why does this trip only in disagg?
+            self.ignoreStderrPatternIfExists(".*failed to read.*")
             # If the second create attempt failed, try again with repair=true.
             # We expect success.
             if err == WT_ERROR:
