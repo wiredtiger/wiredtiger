@@ -31,10 +31,10 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CAPACITY *cap;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    uint64_t chunkcache, total;
+    uint64_t chunkcache, ckpt, evict, log, read, total;
 
     conn = S2C(session);
-    chunkcache = total = 0;
+    chunkcache = ckpt = evict = log = read = total = 0;
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
     if (cval.val != 0) {
@@ -70,24 +70,26 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
         /*
          * We've been given a total capacity, set the capacity of all the subsystems.
          */
-        cap->ckpt = WT_CAPACITY_SYS(total, WT_CAP_CKPT);
-        cap->evict = WT_CAPACITY_SYS(total, WT_CAP_EVICT);
-        cap->log = WT_CAPACITY_SYS(total, WT_CAP_LOG);
-        cap->read = WT_CAPACITY_SYS(total, WT_CAP_READ);
+        ckpt = WT_CAPACITY_SYS(total, WT_CAP_CKPT);
+        evict = WT_CAPACITY_SYS(total, WT_CAP_EVICT);
+        log = WT_CAPACITY_SYS(total, WT_CAP_LOG);
+        read = WT_CAPACITY_SYS(total, WT_CAP_READ);
+
+        __wt_atomic_store64(&cap->ckpt, ckpt);
+        __wt_atomic_store64(&cap->evict, evict);
+        __wt_atomic_store64(&cap->log, log);
+        __wt_atomic_store64(&cap->read, read);
 
         /*
          * Set the threshold to the percent of our capacity to periodically asynchronously flush
          * what we've written.
          */
-        cap->threshold = ((cap->ckpt + cap->evict + cap->log) / 100) * WT_CAPACITY_PCT;
+        cap->threshold = ((ckpt + log + evict) / 100) * WT_CAPACITY_PCT;
         if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
             cap->threshold = WT_CAPACITY_MIN_THRESHOLD;
         WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
     } else
         WT_STAT_CONN_SET(session, capacity_threshold, 0);
-
-    if (chunkcache != 0)
-        cap->chunkcache = chunkcache;
 
     return (0);
 }
@@ -302,7 +304,7 @@ __throttle_chunkcache(WT_SESSION_IMPL *session, WT_CAPACITY *cap, uint64_t bytes
     struct timespec now;
     uint64_t capacity, now_ns, *reservation, res_value, sleep_us;
 
-    capacity = cap->chunkcache;
+    capacity = __wt_atomic_load64(&cap->chunkcache);
     reservation = &cap->reservation_chunkcache;
 
     WT_STAT_CONN_INCRV(session, capacity_bytes_chunkcache, bytes);
@@ -368,25 +370,25 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
         __throttle_chunkcache(session, cap, bytes);
         return;
     case WT_THROTTLE_CKPT:
-        capacity = cap->ckpt;
+        capacity = __wt_atomic_load64(&cap->ckpt);
         reservation = &cap->reservation_ckpt;
         WT_STAT_CONN_INCRV(session, capacity_bytes_ckpt, bytes);
         WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
         break;
     case WT_THROTTLE_EVICT:
-        capacity = cap->evict;
+        capacity = __wt_atomic_load64(&cap->evict);
         reservation = &cap->reservation_evict;
         WT_STAT_CONN_INCRV(session, capacity_bytes_evict, bytes);
         WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
         break;
     case WT_THROTTLE_LOG:
-        capacity = cap->log;
+        capacity = __wt_atomic_load64(&cap->log);
         reservation = &cap->reservation_log;
         WT_STAT_CONN_INCRV(session, capacity_bytes_log, bytes);
         WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
         break;
     case WT_THROTTLE_READ:
-        capacity = cap->read;
+        capacity = __wt_atomic_load64(&cap->read);
         reservation = &cap->reservation_read;
         WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
         break;
@@ -432,22 +434,22 @@ again:
         best_res = now_ns - WT_BILLION / 2;
         if (type != WT_THROTTLE_CKPT && (this_res = cap->reservation_ckpt) < best_res) {
             steal = &cap->reservation_ckpt;
-            steal_capacity = cap->ckpt;
+            steal_capacity = __wt_atomic_load64(&cap->ckpt);
             best_res = this_res;
         }
         if (type != WT_THROTTLE_EVICT && (this_res = cap->reservation_evict) < best_res) {
             steal = &cap->reservation_evict;
-            steal_capacity = cap->evict;
+            steal_capacity = __wt_atomic_load64(&cap->evict);
             best_res = this_res;
         }
         if (type != WT_THROTTLE_LOG && (this_res = cap->reservation_log) < best_res) {
             steal = &cap->reservation_log;
-            steal_capacity = cap->log;
+            steal_capacity = __wt_atomic_load64(&cap->log);
             best_res = this_res;
         }
         if (type != WT_THROTTLE_READ && (this_res = cap->reservation_read) < best_res) {
             steal = &cap->reservation_read;
-            steal_capacity = cap->read;
+            steal_capacity = __wt_atomic_load64(&cap->read);
             best_res = this_res;
         }
 
