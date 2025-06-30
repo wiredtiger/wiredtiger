@@ -317,6 +317,10 @@ __wt_evict_page_cache_bytes_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
               session, &btree->bytes_dirty_leaf, modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
             __wt_cache_decr_check_uint64(
               session, &cache->bytes_dirty_leaf, modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
+            __wt_cache_decr_check_uint64(session, &btree->bytes_delta_updates,
+              modify->bytes_delta_updates, "WT_BTREE.bytes_delta_updates");
+            __wt_cache_decr_check_uint64(session, &cache->bytes_delta_updates,
+              modify->bytes_delta_updates, "WT_CACHE.bytes_delta_updates");
         }
     }
 

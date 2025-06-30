@@ -115,9 +115,21 @@ connection_disaggregated_config_common = [
     Config('checkpoint_meta', '', r'''
         the checkpoint metadata from which to start (or restart) the node''',
         undoc=True),
+    Config('flatten_leaf_page_delta', 'false', r'''
+        When enabled, page read rewrites the leaf pages with deltas to a new
+        disk image if successful''',
+        type='boolean', undoc=True),
+    Config('internal_page_delta', 'true', r'''
+        When enabled, reconciliation writes deltas for internal pages
+        instead of writing entire pages every time''',
+        type='boolean', undoc=True),
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
+    Config('leaf_page_delta', 'true', r'''
+        When enabled, reconciliation writes deltas for leaf pages
+        instead of writing entire pages every time''',
+        type='boolean', undoc=True),
     Config('lose_all_my_data', 'false', r'''
         This setting skips file system syncs, and will cause data loss outside of a
         disaggregated storage context.''',
@@ -145,6 +157,18 @@ file_disaggregated_config = [
     Config('disaggregated', '', r'''
         configure disaggregated storage for this file''',
         type='category', subconfig=disaggregated_config_common + [
+            Config('delta_pct', '20', r'''
+                the size threshold (as a percentage) at which a delta will cease to be emitted
+                when reconciling a page. For example, if this is set to 20, the size of a delta
+                is 20 bytes, and the size of the full page image is 100 bytes, reconciliation
+                can emit a delta for the page (if various other preconditions are met).
+                Conversely, if the delta came to 21 bytes, reconciliation would not emit a
+                delta. Deltas larger than full pages are permitted for measurement and testing
+                reasons, and may be disallowed in future.''', min='1', max='1000'),
+            Config('max_consecutive_delta', '32', r'''
+                the max consecutive deltas allowed for a single page. The maximum value is set
+                at 32 (WT_DELTA_LIMIT). If we need to change that, please change WT_DELTA_LIMIT
+                as well.''', min='1', max='32')
         ]
     ),
 ]
@@ -907,6 +931,7 @@ connection_runtime_config = [
             'mutex',
             'out_of_order',
             'overflow',
+            'page_delta',
             'prefetch',
             'read',
             'reconcile',

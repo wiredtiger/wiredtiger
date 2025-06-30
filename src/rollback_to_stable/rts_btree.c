@@ -66,7 +66,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
               WT_RTS_VERB_TAG_UPDATE_ABORT "rollback to stable aborting update with txnid=%" PRIu64
                                            ", txnid_not_visible=%s"
                                            ", stable_timestamp=%s < durable_timestamp=%s: %s, "
-                                           "prepare_state=%s, flags 0x%" PRIx8,
+                                           "prepare_state=%s, flags 0x%" PRIx16,
               upd->txnid, !txn_id_visible ? "true" : "false",
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
@@ -84,7 +84,7 @@ __rts_btree_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *firs
             __wt_verbose_level_multi(session, WT_VERB_RECOVERY_RTS(session), WT_VERBOSE_DEBUG_4,
               WT_RTS_VERB_TAG_STABLE_UPDATE_FOUND
               "stable update found with txnid=%" PRIu64
-              ", stable_timestamp=%s,  durable_timestamp=%s, flags 0x%" PRIx8,
+              ", stable_timestamp=%s,  durable_timestamp=%s, flags 0x%" PRIx16,
               upd->txnid, __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[0]), upd->flags);
             break;
@@ -778,6 +778,8 @@ __rts_btree_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
             upd->durable_ts = tw->durable_start_ts;
             upd->start_ts = tw->start_ts;
             F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
+            if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED))
+                F_SET(upd, WT_UPDATE_DURABLE);
             WT_RTS_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
             __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
               WT_RTS_VERB_TAG_KEY_CLEAR_REMOVE
