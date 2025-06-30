@@ -141,7 +141,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     upd->durable_ts = unpack->tw.durable_start_ts;
     upd->start_ts = unpack->tw.start_ts;
     upd->txnid = unpack->tw.start_txn;
-    upd->prepare_ts = unpack->tw.prepare_ts;
+
     /*
      * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
      * to ensure that written prepared delete operation must be removed from the data store, when
@@ -165,8 +165,9 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
          */
         if ((unpack->tw.start_ts == unpack->tw.stop_ts &&
               unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
-              unpack->tw.start_txn == unpack->tw.stop_txn) ||
-          WT_TIME_WINDOW_HAS_PREPARE(&unpack->tw)) {
+              unpack->tw.start_txn == unpack->tw.stop_txn)) {
+            upd->prepared_id = unpack->tw.prepared_id;
+            upd->prepare_ts = unpack->tw.prepare_ts;
             upd->durable_ts = WT_TS_NONE;
             upd->prepare_state = WT_PREPARE_INPROGRESS;
             F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
@@ -177,6 +178,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         *updp = tombstone;
     } else {
         upd->prepared_id = unpack->tw.prepared_id;
+        upd->prepare_ts = unpack->tw.prepare_ts;
         upd->durable_ts = WT_TS_NONE;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);

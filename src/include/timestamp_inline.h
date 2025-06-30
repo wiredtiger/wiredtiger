@@ -9,17 +9,17 @@
 #pragma once
 
 /* Initialize the fields in a time window to their defaults. */
-#define WT_TIME_WINDOW_INIT(tw)              \
-    do {                                     \
-        (tw)->durable_start_ts = WT_TS_NONE; \
-        (tw)->start_ts = WT_TS_NONE;         \
-        (tw)->start_txn = WT_TXN_NONE;       \
-        (tw)->durable_stop_ts = WT_TS_NONE;  \
-        (tw)->stop_ts = WT_TS_MAX;           \
-        (tw)->stop_txn = WT_TXN_MAX;         \
-        (tw)->prepare = 0;                   \
-        (tw)->prepare_ts = WT_TS_NONE;       \
-        (tw)->prepared_id = WT_TXN_NONE;     \
+#define WT_TIME_WINDOW_INIT(tw)                  \
+    do {                                         \
+        (tw)->durable_start_ts = WT_TS_NONE;     \
+        (tw)->start_ts = WT_TS_NONE;             \
+        (tw)->start_txn = WT_TXN_NONE;           \
+        (tw)->durable_stop_ts = WT_TS_NONE;      \
+        (tw)->stop_ts = WT_TS_MAX;               \
+        (tw)->stop_txn = WT_TXN_MAX;             \
+        (tw)->prepare = 0;                       \
+        (tw)->prepare_ts = WT_TS_NONE;           \
+        (tw)->prepared_id = WT_PREPARED_ID_NONE; \
     } while (0)
 
 /* Copy the values from one time window structure to another. */
@@ -30,7 +30,7 @@
     ((tw)->durable_start_ts == WT_TS_NONE && (tw)->start_ts == WT_TS_NONE &&              \
       (tw)->start_txn == WT_TXN_NONE && (tw)->durable_stop_ts == WT_TS_NONE &&            \
       (tw)->stop_ts == WT_TS_MAX && (tw)->stop_txn == WT_TXN_MAX && (tw)->prepare == 0 && \
-      (tw)->prepare_ts == WT_TS_NONE && (tw)->prepared_id == WT_TXN_NONE)
+      (tw)->prepare_ts == WT_TS_NONE && (tw)->prepared_id == WT_PREPARED_ID_NONE)
 
 /* Check if the start time window is set. */
 #define WT_TIME_WINDOW_HAS_START(tw) \
@@ -38,10 +38,6 @@
 
 /* Check if the stop time window is set. */
 #define WT_TIME_WINDOW_HAS_STOP(tw) ((tw)->stop_txn != WT_TXN_MAX || (tw)->stop_ts != WT_TS_MAX)
-
-/* Check if the prepare time window is set. */
-#define WT_TIME_WINDOW_HAS_PREPARE(tw) \
-    ((tw)->prepare == 1 && ((tw)->prepare_ts != WT_TS_NONE || (tw)->prepared_id != WT_TXN_NONE))
 
 /* Return true if the time windows are the same. */
 #define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                           \
@@ -60,32 +56,36 @@
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
  */
-#define WT_TIME_WINDOW_SET_START(session, tw, upd)                                              \
-    do {                                                                                        \
-        (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts;                              \
-        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && (tw)->prepare == 1) { \
-            (tw)->prepare_ts = (upd)->prepare_ts;                                               \
-            (tw)->prepared_id = (upd)->prepared_id;                                             \
-        }                                                                                       \
-        if ((upd)->durable_ts != WT_TS_NONE)                                                    \
-            (tw)->durable_start_ts = (upd)->durable_ts;                                         \
-        (tw)->start_txn = (upd)->txnid;                                                         \
+#define WT_TIME_WINDOW_SET_START(session, tw, upd)                                        \
+    do {                                                                                  \
+        (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts;                        \
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&                 \
+          ((upd)->prepare_ts == WT_TS_NONE || (upd)->prepared_id == WT_PREPARED_ID_NONE)) { \
+            (tw)->prepare_ts = (upd)->prepare_ts;                                         \
+            (tw)->prepared_id = (upd)->prepared_id;                                       \
+        }                                                                                 \
+                                                                                          \
+        if ((upd)->durable_ts != WT_TS_NONE)                                              \
+            (tw)->durable_start_ts = (upd)->durable_ts;                                   \
+        (tw)->start_txn = (upd)->txnid;                                                   \
     } while (0)
 
 /*
  * Set the start values of a time window from those in an update structure. Durable timestamp can be
  * 0 for prepared updates, in those cases use the prepared timestamp as durable timestamp.
  */
-#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                                               \
-    do {                                                                                        \
-        (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts;                                \
-        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && (tw)->prepare == 1) { \
-            (tw)->prepare_ts = (upd)->prepare_ts;                                               \
-            (tw)->prepared_id = (upd)->prepared_id;                                             \
-        }                                                                                       \
-        if ((upd)->durable_ts != WT_TS_NONE)                                                    \
-            (tw)->durable_stop_ts = (upd)->durable_ts;                                          \
-        (tw)->stop_txn = (upd)->txnid;                                                          \
+#define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                                         \
+    do {                                                                                  \
+        (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts;                          \
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&                 \
+          ((upd)->prepare_ts == WT_TS_NONE || (upd)->prepared_id == WT_PREPARED_ID_NONE)) { \
+            (tw)->prepare_ts = (upd)->prepare_ts;                                         \
+            (tw)->prepared_id = (upd)->prepared_id;                                       \
+        }                                                                                 \
+                                                                                          \
+        if ((upd)->durable_ts != WT_TS_NONE)                                              \
+            (tw)->durable_stop_ts = (upd)->durable_ts;                                    \
+        (tw)->stop_txn = (upd)->txnid;                                                    \
     } while (0)
 
 /* Copy the start values of a time window from another time window. */
