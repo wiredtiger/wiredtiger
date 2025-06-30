@@ -431,6 +431,9 @@ struct __wt_page_modify {
     /* The largest update transaction ID (approximate). */
     wt_shared uint64_t update_txn;
 
+    /* An approximate timestamp of the newest update */
+    wt_shared wt_timestamp_t newest_commit_timestamp;
+
     /* Dirty bytes added to the cache. */
     wt_shared uint64_t bytes_dirty;
     wt_shared uint64_t bytes_updates;
@@ -566,17 +569,20 @@ struct __wt_page_modify {
  * The page state is incremented when a page is modified.
  *
  * WT_PAGE_CLEAN --
- *	The page is clean.
+ *     The page is clean.
+ */
+/*
  * WT_PAGE_DIRTY_FIRST --
- *	The page is in this state after the first operation that marks a
- *	page dirty, or when reconciliation is checking to see if it has
- *	done enough work to be able to mark the page clean.
- * WT_PAGE_DIRTY --
- *	Two or more updates have been added to the page.
+ *     The page is in this state after the first operation that marks a page dirty, or when
+ *     reconciliation is checking to see if it has done enough work to be able to mark the page
+ *     clean.
+ */
+/*
+ * page_state --
+ *     Number of updates added to the page.
  */
 #define WT_PAGE_CLEAN 0
 #define WT_PAGE_DIRTY_FIRST 1
-#define WT_PAGE_DIRTY 2
     wt_shared uint32_t page_state;
 
 #define WT_PM_REC_EMPTY 1      /* Reconciliation: no replacement */
@@ -1153,6 +1159,10 @@ struct __wt_page_deleted {
     wt_timestamp_t timestamp; /* Timestamps */
     wt_timestamp_t durable_timestamp;
 
+    /* Prepared transaction fields */
+    uint64_t prepared_id;
+    wt_timestamp_t prepare_ts;
+
     /*
      * The prepare state is used for transaction prepare to manage visibility and propagating the
      * prepare state to the updates generated at instantiation time.
@@ -1569,6 +1579,10 @@ struct __wt_update {
     wt_timestamp_t durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
 
+    /* Prepared transaction fields */
+    uint64_t prepared_id;
+    wt_timestamp_t prepare_ts;
+
     /*
      * The durable timestamp of the previous update in the update chain. This timestamp is used for
      * diagnostic checks only, and could be removed to reduce the size of the structure should that
@@ -1647,7 +1661,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
-#define WT_UPDATE_SIZE 48
+#define WT_UPDATE_SIZE 64
 
 /*
  * If there is no value, ensure that the memory allocation size matches that returned by sizeof().

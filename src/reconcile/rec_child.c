@@ -66,7 +66,7 @@ __rec_child_deleted(
                     visible = false;
             }
 
-            if (visible && F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+            if (visible && F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
               page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
                 visible = false;
 
@@ -74,7 +74,7 @@ __rec_child_deleted(
         } else if (F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
             visible = __wt_page_del_visible(session, page_del, true);
 
-            if (visible && F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT) &&
+            if (visible && F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
               page_del->durable_timestamp > r->rec_start_pinned_stable_ts)
                 visible = false;
 
@@ -165,24 +165,6 @@ __rec_child_deleted(
      * cells to the page. Copy out the current fast-truncate information for that function.
      */
     if (!visible_all) {
-        if (!__wt_process.fast_truncate_2022) {
-            /*
-             * Internal pages with deletes that aren't globally visible cannot be evicted if we
-             * don't write the page_del information, we don't have sufficient information to restore
-             * the page's information if subsequently read (we wouldn't know which transactions
-             * should see the original page and which should see the deleted page).
-             */
-            if (F_ISSET(r, WT_REC_EVICT))
-                return (__wt_set_return(session, EBUSY));
-
-            /*
-             * It is wrong to leave the page clean after checkpoint if we cannot write the deleted
-             * pages to disk in eviction. If we do so, the next eviction will discard the page
-             * without reconcile it again and we lose the time point information of the non-obsolete
-             * deleted pages.
-             */
-            r->leave_dirty = true;
-        }
         cmsp->del = *page_del;
         cmsp->state = WTI_CHILD_PROXY;
         page_del->selected_for_write = true;

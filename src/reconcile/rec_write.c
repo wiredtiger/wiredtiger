@@ -52,6 +52,23 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     else if (page->memory_footprint > WT_MEGABYTE)
         WT_STAT_CONN_DSRC_INCR(session, rec_pages_size_1MB_to_10MB);
 
+    if (page->modify->page_state <= 5)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le5);
+    else if (page->modify->page_state <= 10)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le10);
+    else if (page->modify->page_state <= 20)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le20);
+    else if (page->modify->page_state <= 50)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le50);
+    else if (page->modify->page_state <= 100)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le100);
+    else if (page->modify->page_state <= 200)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le200);
+    else if (page->modify->page_state <= 500)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le500);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_gt500);
+
     /*
      * Sanity check flags.
      *
@@ -652,7 +669,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     __wt_txn_pinned_timestamp(session, &r->rec_start_pinned_ts);
     r->rec_start_oldest_id = __wt_txn_oldest_id(session);
 
-    if (F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT))
         __wt_txn_pinned_stable_timestamp(session, &r->rec_start_pinned_stable_ts);
     else
         r->rec_start_pinned_stable_ts = WT_TS_NONE;
@@ -675,7 +692,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         WT_ACQUIRE_READ_WITH_BARRIER(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && (ckpt_txn < r->last_running))
             r->last_running = ckpt_txn;
-    } else if (F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT) && LF_ISSET(WT_REC_EVICT)) {
+    } else if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) && LF_ISSET(WT_REC_EVICT)) {
         /*
          * If we race with checkpoint start and read an obsolete global checkpoint gen, we will
          * wrongly not pin the checkpoint transaction. Ensure the read order here.
@@ -802,7 +819,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * they shouldn't open new dhandles. In those cases we won't ever need to blow away history
      * store content, so we can skip this.
      */
-    r->hs_clear_on_tombstone = F_ISSET_ATOMIC_64(conn, WT_CONN_HS_OPEN) &&
+    r->hs_clear_on_tombstone = F_ISSET_ATOMIC_32(conn, WT_CONN_HS_OPEN) &&
       !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
       !WT_IS_METADATA(btree->dhandle);
 
@@ -935,7 +952,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_PAGE_BLOCK_META *block_me
 
         /* In-memory databases shouldn't write pages. */
         WT_ASSERT_ALWAYS(session,
-          !F_ISSET_ATOMIC_64(S2C(session), WT_CONN_IN_MEMORY) &&
+          !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) &&
             !F_ISSET(btree, WT_BTREE_IN_MEMORY),
           "Attempted to write page to disk when WiredTiger is configured to be in-memory");
 
@@ -2024,8 +2041,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHU
     }
 
     /* Set the fast-truncate proxy cell information flag. */
-    if ((page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT) &&
-      __wt_process.fast_truncate_2022)
+    if ((page->type == WT_PAGE_COL_INT || page->type == WT_PAGE_ROW_INT))
         F_SET(dsk, WT_PAGE_FT_UPDATE);
 
     dsk->unused = 0;

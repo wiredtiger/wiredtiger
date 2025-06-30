@@ -65,7 +65,7 @@ __wt_txn_log_op_check(WT_SESSION_IMPL *session)
         return (false);
 
     /* No logging during recovery. */
-    if (F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING))
+    if (F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
         return (false);
 
     return (true);
@@ -204,6 +204,9 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
          * encounter a prepared update resulting in prepare conflict.
          *
          * As updating timestamp might not be an atomic operation, we will manage using state.
+         *
+         * TODO: we can remove the prepare locked state once we separate the prepared timestamp and
+         * commit timestamp.
          */
         upd->prepare_state = WT_PREPARE_LOCKED;
         WT_RELEASE_BARRIER();
@@ -211,8 +214,10 @@ __txn_apply_prepare_state_update(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool 
         upd->durable_ts = txn->durable_timestamp;
         WT_RELEASE_WRITE_WITH_BARRIER(upd->prepare_state, WT_PREPARE_RESOLVED);
     } else {
-        /* Set prepare timestamp. */
+        /* Set prepare timestamp and id. */
         upd->start_ts = txn->prepare_timestamp;
+        upd->prepare_ts = txn->prepare_timestamp;
+        upd->prepared_id = txn->prepared_id;
 
         /*
          * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
@@ -246,7 +251,8 @@ __txn_apply_prepare_state_page_del(WT_SESSION_IMPL *session, WT_PAGE_DELETED *pa
     } else {
         /* Set prepare timestamp. */
         page_del->timestamp = txn->prepare_timestamp;
-
+        page_del->prepare_ts = txn->prepare_timestamp;
+        page_del->prepared_id = txn->prepared_id;
         /*
          * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
          * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
@@ -561,7 +567,7 @@ __wt_txn_timestamp_usage_check(
      * Do not check for timestamp usage in recovery. We don't expect recovery to be using timestamps
      * when applying commits, and it is possible that timestamps may be out-of-order in log replay.
      */
-    if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_RECOVERING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
     /* Check for disallowed timestamps. */
@@ -781,7 +787,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      */
     WT_ACQUIRE_READ_WITH_BARRIER(oldest_id, txn_global->oldest_id);
 
-    if (!F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
       F_ISSET(S2BT(session), WT_BTREE_LOGGED)) {
         /*
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
@@ -836,7 +842,7 @@ __wt_txn_pinned_stable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinne
      */
     WT_ACQUIRE_READ(pinned_stable_ts, txn_global->stable_timestamp);
 
-    if (!F_ISSET_ATOMIC_64(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT)) {
         *pinned_stable_tsp = pinned_stable_ts;
         return;
     }
@@ -986,7 +992,7 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
      */
-    if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_CLOSING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING))
         return (true);
 
     if (!__txn_visible_all_id(session, id))
@@ -1271,7 +1277,20 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     bool upd_visible;
 
     for (;; __wt_yield()) {
-        /* Prepare state change is in progress, yield and try again. */
+        /*
+         * TODO: we can remove the prepare locked state and the check here once we separate the
+         * prepared timestamp and commit timestamp.
+         */
+        if (upd->txnid == WT_TXN_ABORTED)
+            return (WT_VISIBLE_FALSE);
+
+        /*
+         * Prepare state change is in progress, yield and try again.
+         *
+         *
+         * TODO: we can remove the prepare locked state and the check here once we separate the
+         * prepared timestamp and commit timestamp.
+         */
         WT_ACQUIRE_READ_WITH_BARRIER(prepare_state, upd->prepare_state);
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
@@ -1491,7 +1510,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
              * If we see an update that is not visible to the reader and it is restored from delta,
              * we should search the history store.
              */
-            if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_HS_OPEN) &&
+            if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
               !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
                 __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
                 WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format,
@@ -1637,7 +1656,7 @@ retry:
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (!F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY) &&
-      F_ISSET_ATOMIC_64(S2C(session), WT_CONN_HS_OPEN) &&
+      F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
       !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         /*
          * Stressing this code path may slow down the system too much. To minimize the impact, sleep
@@ -1747,13 +1766,75 @@ __txn_clear_bytes_dirty(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __txn_remove_from_global_table --
+ *     Remove the transaction id from the global transaction table.
+ */
+static WT_INLINE void
+__txn_remove_from_global_table(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_DIAGNOSTIC
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *txn_shared;
+
+    txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+
+    WT_ASSERT(session, txn->id >= __wt_atomic_loadv64(&txn_global->last_running));
+    WT_ASSERT(
+      session, txn->id != WT_TXN_NONE && __wt_atomic_loadv64(&txn_shared->id) != WT_TXN_NONE);
+#else
+    WT_TXN_SHARED *txn_shared;
+
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+#endif
+    WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, WT_TXN_NONE);
+}
+
+/*
+ * __wt_txn_claim_prepared_txn --
+ *     Claim a prepared transaction.
+ */
+static WT_INLINE int
+__wt_txn_claim_prepared_txn(WT_SESSION_IMPL *session, wt_timestamp_t prepared_transaction_id)
+{
+    WT_SESSION_IMPL *prepared_session;
+    WT_TXN *tmp;
+
+    WT_RET(__wt_prepared_discover_find_or_create_transaction(
+      session, prepared_transaction_id, &prepared_session));
+
+    WT_ASSERT(prepared_session, F_ISSET(prepared_session->txn, WT_TXN_PREPARE));
+
+    /* Release our snapshot in case it is keeping data pinned. */
+    __wt_txn_release_snapshot(prepared_session);
+
+    /*
+     * Clear the transaction's ID from the global table, to facilitate prepared data visibility, but
+     * not from local transaction structure.
+     */
+    if (F_ISSET(prepared_session->txn, WT_TXN_HAS_ID))
+        __txn_remove_from_global_table(prepared_session);
+
+    /* Exchange transactions */
+    tmp = session->txn;
+    session->txn = prepared_session->txn;
+    prepared_session->txn = tmp;
+
+    return (0);
+}
+
+/*
  * __wt_txn_begin --
  *     Begin a transaction.
  */
 static WT_INLINE int
 __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
 {
+    WT_CONFIG_ITEM cval;
     WT_TXN *txn;
+    wt_timestamp_t prepared_transaction_id;
 
     txn = session->txn;
     txn->isolation = session->isolation;
@@ -1765,6 +1846,16 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
     WT_RET(__wt_txn_config(session, conf));
+
+    if (conf != NULL) {
+        WT_RET(__wt_conf_gets_def(session, conf, claim_prepared_id, 0, &cval));
+        if (cval.len != 0) {
+            WT_RET(__wt_txn_parse_timestamp(
+              session, "prepared_transaction_id", &prepared_transaction_id, &cval));
+            WT_RET(__wt_txn_claim_prepared_txn(session, prepared_transaction_id));
+            return (0);
+        }
+    }
 
     /*
      * Allocate a snapshot if required or update the existing snapshot. Do not update the existing
@@ -1786,7 +1877,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, WT_CONF *conf)
     }
 
     F_SET(txn, WT_TXN_RUNNING);
-    if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_READONLY))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
 
     WT_ASSERT_ALWAYS(
@@ -1951,7 +2042,7 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
         return (0);
 
     /* Skip checks during recovery. */
-    if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_RECOVERING))
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING))
         return (0);
 
     /* Verify if the table should always or never use a read timestamp. */

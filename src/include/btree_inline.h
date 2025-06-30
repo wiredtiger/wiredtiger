@@ -743,8 +743,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
      * The page state can only ever be incremented above dirty by the number of concurrently running
      * threads, so the counter will never approach the point where it would wrap.
      */
-    if (__wt_atomic_load32(&page->modify->page_state) < WT_PAGE_DIRTY &&
-      __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
+    if (__wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
         __wt_cache_dirty_incr(session, page);
 
         __wt_evict_page_first_dirty(session, page);
@@ -798,7 +797,7 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
             WT_ASSERT_ALWAYS(session, !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE), "%s",
               "A btree is marked dirty during RTS");
             WT_ASSERT_ALWAYS(session,
-              !F_ISSET_ATOMIC_64(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT),
+              !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_RECOVERING | WT_CONN_CLOSING_CHECKPOINT),
               "%s", "A btree is marked dirty during recovery or shutdown");
         }
         S2BT(session)->modified = true;
@@ -836,7 +835,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (__wt_page_is_modified(page)) {
         WT_ASSERT_ALWAYS(session,
           F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-            F_ISSET_ATOMIC_64(S2C(session), WT_CONN_CLOSING) || !__wt_page_is_reconciling(page),
+            F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) || !__wt_page_is_reconciling(page),
           "Illegal attempt to mark a page clean that is being reconciled");
 
         /*
