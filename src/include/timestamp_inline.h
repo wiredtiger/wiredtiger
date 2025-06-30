@@ -59,8 +59,8 @@
 #define WT_TIME_WINDOW_SET_START(session, tw, upd)                                        \
     do {                                                                                  \
         (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts;                        \
-        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&                 \
-          ((upd)->prepare_ts == WT_TS_NONE || (upd)->prepared_id == WT_PREPARED_ID_NONE)) { \
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && (upd)->prepared_id > (tw)->prepared_id) { \
+            WT_ASSERT(session, (upd)->prepare_ts > (tw)->prepare_ts);                     \
             (tw)->prepare_ts = (upd)->prepare_ts;                                         \
             (tw)->prepared_id = (upd)->prepared_id;                                       \
         }                                                                                 \
@@ -77,8 +77,8 @@
 #define WT_TIME_WINDOW_SET_STOP(session, tw, upd)                                         \
     do {                                                                                  \
         (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts;                          \
-        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&                 \
-          ((upd)->prepare_ts == WT_TS_NONE || (upd)->prepared_id == WT_PREPARED_ID_NONE)) { \
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && (upd)->prepared_id > (tw)->prepared_id) { \
+            WT_ASSERT(session, (upd)->prepare_ts > (tw)->prepare_ts);                     \
             (tw)->prepare_ts = (upd)->prepare_ts;                                         \
             (tw)->prepared_id = (upd)->prepared_id;                                       \
         }                                                                                 \
