@@ -694,8 +694,13 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
      * rounded up.
      */
     WT_ERR(__wt_conf_gets_def(session, conf, Roundup_timestamps.prepared, 0, &cval));
-    if (cval.val)
+    if (cval.val) {
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED))
+            WT_ERR_MSG(session, EINVAL,
+              "cannot round up prepare timestamp to the oldest timestamp when the preserve prepare "
+              "config is on");
         F_SET(txn, WT_TXN_TS_ROUND_PREPARED);
+    }
 
     /* Check if read timestamp needs to be rounded up. */
     WT_ERR(__wt_conf_gets_def(session, conf, Roundup_timestamps.read, 0, &cval));
