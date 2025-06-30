@@ -1737,7 +1737,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
     /* FIXME-WT-14553: Implement verify for disagg. */
     if (__wt_conn_is_disagg(session)) {
-        __wt_verbose_warning(session, WT_VERB_VERIFY, "%s", "skipped verify due to disagg");
+        __wt_verbose_info(session, WT_VERB_VERIFY, "%s", "skipped verify due to disagg");
         goto err;
     }
 
