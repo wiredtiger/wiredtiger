@@ -19,6 +19,7 @@
         (tw)->stop_txn = WT_TXN_MAX;         \
         (tw)->prepare = 0;                   \
         (tw)->prepare_ts = WT_TXN_NONE;      \
+        (tw)->prepared_txn = WT_TXN_NONE;    \
     } while (0)
 
 /* Copy the values from one time window structure to another. */
@@ -40,7 +41,7 @@
 
 /* Check if the prepare time window is set. */
 #define WT_TIME_WINDOW_HAS_PREPARE(tw) \
-    ((tw)->prepare == 1 && ((tw)->prepare_ts != WT_TS_NONE || (tw)->start_txn != WT_TXN_NONE))
+    ((tw)->prepare == 1 && ((tw)->prepare_ts != WT_TS_NONE || (tw)->prepared_txn != WT_TXN_NONE))
 
 /* Return true if the time windows are the same. */
 #define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                           \
