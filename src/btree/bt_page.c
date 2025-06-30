@@ -155,7 +155,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->prepare_state = WT_PREPARE_INPROGRESS;
         tombstone->start_ts = unpack->tw.stop_ts;
         tombstone->prepare_ts = unpack->tw.prepare_ts;
-        tombstone->prepared_id = unpack->tw.prepared_txn;
+        tombstone->prepared_id = unpack->tw.prepared_id;
         F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
 
         /*
@@ -176,6 +176,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->next = upd;
         *updp = tombstone;
     } else {
+        upd->prepared_id = unpack->tw.prepared_id;
         upd->durable_ts = WT_TS_NONE;
         upd->prepare_state = WT_PREPARE_INPROGRESS;
         F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);

@@ -18,8 +18,8 @@
         (tw)->stop_ts = WT_TS_MAX;           \
         (tw)->stop_txn = WT_TXN_MAX;         \
         (tw)->prepare = 0;                   \
-        (tw)->prepare_ts = WT_TXN_NONE;      \
-        (tw)->prepared_txn = WT_TXN_NONE;    \
+        (tw)->prepare_ts = WT_TS_NONE;       \
+        (tw)->prepared_id = WT_TXN_NONE;     \
     } while (0)
 
 /* Copy the values from one time window structure to another. */
@@ -30,7 +30,7 @@
     ((tw)->durable_start_ts == WT_TS_NONE && (tw)->start_ts == WT_TS_NONE &&              \
       (tw)->start_txn == WT_TXN_NONE && (tw)->durable_stop_ts == WT_TS_NONE &&            \
       (tw)->stop_ts == WT_TS_MAX && (tw)->stop_txn == WT_TXN_MAX && (tw)->prepare == 0 && \
-      (tw)->prepare_ts == WT_TXN_NONE)
+      (tw)->prepare_ts == WT_TS_NONE && (tw)->prepared_id == WT_TXN_NONE)
 
 /* Check if the start time window is set. */
 #define WT_TIME_WINDOW_HAS_START(tw) \
@@ -41,14 +41,15 @@
 
 /* Check if the prepare time window is set. */
 #define WT_TIME_WINDOW_HAS_PREPARE(tw) \
-    ((tw)->prepare == 1 && ((tw)->prepare_ts != WT_TS_NONE || (tw)->prepared_txn != WT_TXN_NONE))
+    ((tw)->prepare == 1 && ((tw)->prepare_ts != WT_TS_NONE || (tw)->prepared_id != WT_TXN_NONE))
 
 /* Return true if the time windows are the same. */
 #define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                           \
     ((tw1)->durable_start_ts == (tw2)->durable_start_ts && (tw1)->start_ts == (tw2)->start_ts &&  \
       (tw1)->start_txn == (tw2)->start_txn && (tw1)->durable_stop_ts == (tw2)->durable_stop_ts && \
       (tw1)->stop_ts == (tw2)->stop_ts && (tw1)->stop_txn == (tw2)->stop_txn &&                   \
-      (tw1)->prepare == (tw2)->prepare && (tw1)->prepare_ts == (tw2)->prepare_ts)
+      (tw1)->prepare == (tw2)->prepare && (tw1)->prepare_ts == (tw2)->prepare_ts &&               \
+      (tw1)->prepared_id == (tw2)->prepared_id)
 
 /* Return true if the stop time windows are the same. */
 #define WT_TIME_WINDOWS_STOP_EQUAL(tw1, tw2)                                                 \
@@ -64,7 +65,7 @@
         (tw)->durable_start_ts = (tw)->start_ts = (upd)->start_ts;                              \
         if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && (tw)->prepare == 1) { \
             (tw)->prepare_ts = (upd)->prepare_ts;                                               \
-            (tw)->prepared_txn = (upd)->prepared_id;                                            \
+            (tw)->prepared_id = (upd)->prepared_id;                                             \
         }                                                                                       \
         if ((upd)->durable_ts != WT_TS_NONE)                                                    \
             (tw)->durable_start_ts = (upd)->durable_ts;                                         \
@@ -80,7 +81,7 @@
         (tw)->durable_stop_ts = (tw)->stop_ts = (upd)->start_ts;                                \
         if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) && (tw)->prepare == 1) { \
             (tw)->prepare_ts = (upd)->prepare_ts;                                               \
-            (tw)->prepared_txn = (upd)->prepared_id;                                            \
+            (tw)->prepared_id = (upd)->prepared_id;                                             \
         }                                                                                       \
         if ((upd)->durable_ts != WT_TS_NONE)                                                    \
             (tw)->durable_stop_ts = (upd)->durable_ts;                                          \
@@ -95,7 +96,7 @@
         (dest)->start_txn = (source)->start_txn;               \
         (dest)->prepare = (source)->prepare;                   \
         (dest)->prepare_ts = (source)->prepare_ts;             \
-        (dest)->prepared_txn = (source)->prepared_txn;         \
+        (dest)->prepared_id = (source)->prepared_id;           \
     } while (0)
 
 /* Copy the stop values of a time window from another time window. */
@@ -106,7 +107,7 @@
         (dest)->stop_txn = (source)->stop_txn;               \
         (dest)->prepare = (source)->prepare;                 \
         (dest)->prepare_ts = (source)->prepare_ts;           \
-        (dest)->prepared_txn = (source)->prepared_txn;       \
+        (dest)->prepared_id = (source)->prepared_id;         \
     } while (0)
 
 /*
