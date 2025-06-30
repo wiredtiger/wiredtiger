@@ -62,33 +62,6 @@ __snapsort(uint64_t *array, uint32_t size)
 }
 
 /*
- * __txn_remove_from_global_table --
- *     Remove the transaction id from the global transaction table.
- */
-static WT_INLINE void
-__txn_remove_from_global_table(WT_SESSION_IMPL *session)
-{
-#ifdef HAVE_DIAGNOSTIC
-    WT_TXN *txn;
-    WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *txn_shared;
-
-    txn = session->txn;
-    txn_global = &S2C(session)->txn_global;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
-
-    WT_ASSERT(session, txn->id >= __wt_atomic_loadv64(&txn_global->last_running));
-    WT_ASSERT(
-      session, txn->id != WT_TXN_NONE && __wt_atomic_loadv64(&txn_shared->id) != WT_TXN_NONE);
-#else
-    WT_TXN_SHARED *txn_shared;
-
-    txn_shared = WT_SESSION_TXN_SHARED(session);
-#endif
-    WT_RELEASE_WRITE_WITH_BARRIER(txn_shared->id, WT_TXN_NONE);
-}
-
-/*
  * __txn_sort_snapshot --
  *     Sort a snapshot for faster searching and set the min/max bounds.
  */
@@ -1135,6 +1108,10 @@ err:
 static void
 __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bool commit)
 {
+    WT_TXN *txn;
+
+    txn = session->txn;
+
     /*
      * Aborted updates can exist in the update chain of our transaction. Generally this will occur
      * due to a reserved update. As such we should skip over these updates entirely.
@@ -1153,7 +1130,20 @@ __txn_resolve_prepared_update_chain(WT_SESSION_IMPL *session, WT_UPDATE *upd, bo
     __txn_resolve_prepared_update_chain(session, upd->next, commit);
 
     if (!commit) {
-        upd->txnid = WT_TXN_ABORTED;
+        if (F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK)) {
+            /*
+             * As updating timestamp might not be an atomic operation, we will manage using state.
+             *
+             * TODO: we can remove the prepare locked state once we separate the prepared timestamp
+             * and commit timestamp.
+             */
+            upd->prepare_state = WT_PREPARE_LOCKED;
+            WT_RELEASE_BARRIER();
+            upd->start_ts = txn->rollback_timestamp;
+            upd->durable_ts = WT_TS_NONE;
+            WT_RELEASE_WRITE_WITH_BARRIER(upd->txnid, WT_TXN_ABORTED);
+        } else
+            upd->txnid = WT_TXN_ABORTED;
         WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
         return;
     }
@@ -1215,10 +1205,20 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]),
           __wt_timestamp_to_string(txn->durable_timestamp, ts_string[2]));
-    else
+    else {
+        /* Rollback timestamp should only be set when preserve prepared is enabled. */
+        WT_ASSERT(session,
+          !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_READY) ||
+            (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK)) ||
+            (!F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+              !F_ISSET(txn, WT_TXN_HAS_TS_ROLLBACK)));
         __wt_verbose_debug2(session, WT_VERB_TRANSACTION,
-          "rollback resolving prepared transaction with txnid: %" PRIu64 " and timestamp: %s",
-          txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]));
+          "rollback resolving prepared transaction with txnid: %" PRIu64
+          " and prepared timestamp: %s and rollback timestamp: %s",
+          txn->id, __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(txn->rollback_timestamp, ts_string[1]));
+    }
 
     /*
      * Aborted updates can exist in the update chain of our transaction due to reserved update. All
@@ -1325,7 +1325,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     else if (first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS) &&
       !F_ISSET(first_committed_upd, WT_UPDATE_TO_DELETE_FROM_HS))
         resolve_case = RESOLVE_PREPARE_EVICTION_FAILURE;
-    else if (F_ISSET_ATOMIC_64(S2C(session), WT_CONN_IN_MEMORY) ||
+    else if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_IN_MEMORY) ||
       F_ISSET(btree, WT_BTREE_IN_MEMORY))
         resolve_case = RESOLVE_IN_MEMORY;
     else
@@ -1715,7 +1715,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     if (txn->txn_log.logrec != NULL) {
         /* Assert environment and tree are logging compatible, the fast-check is short-hand. */
         WT_ASSERT(session,
-          !F_ISSET_ATOMIC_64(conn, WT_CONN_RECOVERING) && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED));
+          !F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING) && F_ISSET(&conn->log_mgr, WT_LOG_ENABLED));
 
         /*
          * The default sync setting is inherited from the connection, but can be overridden by an
@@ -2006,7 +2006,7 @@ err:
         WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_session_reset_cursors(session, false));
-    WT_TRET(__wt_txn_rollback(session, cfg));
+    WT_TRET(__wt_txn_rollback(session, cfg, false));
     return (ret);
 }
 
@@ -2155,7 +2155,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
  *     Roll back the current transaction.
  */
 int
-__wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[], bool api_call)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -2181,6 +2181,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     /* Configure the timeout for this rollback operation. */
     WT_TRET(__txn_config_operation_timeout(session, cfg, true));
 
+    /* Set the rollback timestamp if it is an user api call. */
+    if (api_call)
+        WT_RET(__wt_txn_set_timestamp(session, cfg, false));
+
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
      * page within each file are done at the same time.
@@ -2196,6 +2200,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         /* Metadata updates should never be rolled back. */
         WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
         if (WT_IS_METADATA(op->btree->dhandle))
+            continue;
+
+        /* If this is a rollback during shutdown, prepared transaction work should not be a undone
+         */
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_CLOSING) && prepare)
             continue;
 
         switch (op->type) {
@@ -2606,7 +2615,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
      * before shutting down all the subsystems. We have shut down all user sessions, but send in
      * true for waiting for internal races.
      */
-    F_SET_ATOMIC_64(conn, WT_CONN_CLOSING_CHECKPOINT);
+    F_SET_ATOMIC_32(conn, WT_CONN_CLOSING_CHECKPOINT);
     WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     ckpt_cfg = "use_timestamp=false";
     if (cval.val != 0) {
@@ -2614,7 +2623,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
         if (conn->txn_global.has_stable_timestamp)
             use_timestamp = true;
     }
-    if (!F_ISSET_ATOMIC_64(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY | WT_CONN_PANIC)) {
+    if (!F_ISSET_ATOMIC_32(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY | WT_CONN_PANIC)) {
         /*
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
