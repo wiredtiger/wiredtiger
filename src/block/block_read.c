@@ -288,7 +288,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
     WT_IGNORE_RET(__wti_block_extlist_dump(session, block, &block->live.discard));
 
     /* Dump the rest of the extent lists associated with any other valid checkpoints in the file. */
-    WT_IGNORE_RET(__wti_block_checkpoint_extlist_dump(session, block));
+    WT_IGNORE_RET(__wti_block_checkpoint_extlist_dump(session, block, offset));
 
     if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
         return (WT_ERROR);

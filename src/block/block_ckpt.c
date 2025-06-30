@@ -1086,10 +1086,13 @@ err:
 
 /*
  * __wti_block_checkpoint_extlist_dump --
- *     Dump all of the available checkpoints extent lists.
+ *     Dump all of the available checkpoints extent lists, excluding the specified offset. Extent
+ *     offsets should never be 0, as that is the offset of the file header. Therefore, an
+ *     exclude_offset value of 0 can be set to ensure that all extent blocks are dumped.
  */
 int
-__wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
+__wti_block_checkpoint_extlist_dump(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t exclude_offset)
 {
     WT_BLOCK_CKPT *ci;
     WT_CKPT *ckpt_iter, *ckptbase;
@@ -1105,14 +1108,20 @@ __wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
         WT_ERR(
           __wti_block_ckpt_unpack(session, block, ckpt_iter->raw.data, ckpt_iter->raw.size, ci));
 
-        WT_ERR(__wti_block_extlist_read(session, block, &ci->alloc, ci->file_size));
-        WT_ERR(__wti_block_extlist_dump(session, block, &ci->alloc));
+        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET && ci->alloc.offset != exclude_offset) {
+            WT_ERR(__wti_block_extlist_read(session, block, &ci->alloc, ci->file_size));
+            WT_ERR(__wti_block_extlist_dump(session, block, &ci->alloc));
+        }
 
-        WT_ERR(__wti_block_extlist_read(session, block, &ci->avail, ci->file_size));
-        WT_ERR(__wti_block_extlist_dump(session, block, &ci->avail));
+        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET && ci->avail.offset != exclude_offset) {
+            WT_ERR(__wti_block_extlist_read(session, block, &ci->avail, ci->file_size));
+            WT_ERR(__wti_block_extlist_dump(session, block, &ci->avail));
+        }
 
-        WT_ERR(__wti_block_extlist_read(session, block, &ci->discard, ci->file_size));
-        WT_ERR(__wti_block_extlist_dump(session, block, &ci->discard));
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET && ci->discard.offset != exclude_offset) {
+            WT_ERR(__wti_block_extlist_read(session, block, &ci->discard, ci->file_size));
+            WT_ERR(__wti_block_extlist_dump(session, block, &ci->discard));
+        }
     }
 
 err:
