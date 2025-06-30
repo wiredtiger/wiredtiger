@@ -311,6 +311,14 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: average length of delta chain on internal page with deltas",
   "reconciliation: average length of delta chain on leaf page with deltas",
+  "reconciliation: changes since prior reconciliation (bucket 1) between 1 and 5",
+  "reconciliation: changes since prior reconciliation (bucket 2) between 6 and 10",
+  "reconciliation: changes since prior reconciliation (bucket 3) between 11 and 20",
+  "reconciliation: changes since prior reconciliation (bucket 4) between 21 and 50",
+  "reconciliation: changes since prior reconciliation (bucket 5) between 51 and 100",
+  "reconciliation: changes since prior reconciliation (bucket 6) between 101 and 200",
+  "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
+  "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: dictionary matches",
   "reconciliation: empty deltas skipped in disaggregated storage",
   "reconciliation: fast-path pages deleted",
@@ -716,6 +724,14 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_average_internal_page_delta_chain_length = 0;
     stats->rec_average_leaf_page_delta_chain_length = 0;
+    stats->rec_page_mods_le5 = 0;
+    stats->rec_page_mods_le10 = 0;
+    stats->rec_page_mods_le20 = 0;
+    stats->rec_page_mods_le50 = 0;
+    stats->rec_page_mods_le100 = 0;
+    stats->rec_page_mods_le200 = 0;
+    stats->rec_page_mods_le500 = 0;
+    stats->rec_page_mods_gt500 = 0;
     stats->rec_dictionary = 0;
     stats->rec_skip_empty_deltas = 0;
     stats->rec_page_delete_fast = 0;
@@ -1121,6 +1137,14 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_average_internal_page_delta_chain_length +=
       from->rec_average_internal_page_delta_chain_length;
     to->rec_average_leaf_page_delta_chain_length += from->rec_average_leaf_page_delta_chain_length;
+    to->rec_page_mods_le5 += from->rec_page_mods_le5;
+    to->rec_page_mods_le10 += from->rec_page_mods_le10;
+    to->rec_page_mods_le20 += from->rec_page_mods_le20;
+    to->rec_page_mods_le50 += from->rec_page_mods_le50;
+    to->rec_page_mods_le100 += from->rec_page_mods_le100;
+    to->rec_page_mods_le200 += from->rec_page_mods_le200;
+    to->rec_page_mods_le500 += from->rec_page_mods_le500;
+    to->rec_page_mods_gt500 += from->rec_page_mods_gt500;
     to->rec_dictionary += from->rec_dictionary;
     to->rec_skip_empty_deltas += from->rec_skip_empty_deltas;
     to->rec_page_delete_fast += from->rec_page_delete_fast;
@@ -1560,6 +1584,14 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_DSRC_READ(from, rec_average_internal_page_delta_chain_length);
     to->rec_average_leaf_page_delta_chain_length +=
       WT_STAT_DSRC_READ(from, rec_average_leaf_page_delta_chain_length);
+    to->rec_page_mods_le5 += WT_STAT_DSRC_READ(from, rec_page_mods_le5);
+    to->rec_page_mods_le10 += WT_STAT_DSRC_READ(from, rec_page_mods_le10);
+    to->rec_page_mods_le20 += WT_STAT_DSRC_READ(from, rec_page_mods_le20);
+    to->rec_page_mods_le50 += WT_STAT_DSRC_READ(from, rec_page_mods_le50);
+    to->rec_page_mods_le100 += WT_STAT_DSRC_READ(from, rec_page_mods_le100);
+    to->rec_page_mods_le200 += WT_STAT_DSRC_READ(from, rec_page_mods_le200);
+    to->rec_page_mods_le500 += WT_STAT_DSRC_READ(from, rec_page_mods_le500);
+    to->rec_page_mods_gt500 += WT_STAT_DSRC_READ(from, rec_page_mods_gt500);
     to->rec_dictionary += WT_STAT_DSRC_READ(from, rec_dictionary);
     to->rec_skip_empty_deltas += WT_STAT_DSRC_READ(from, rec_skip_empty_deltas);
     to->rec_page_delete_fast += WT_STAT_DSRC_READ(from, rec_page_delete_fast);
@@ -2399,6 +2431,14 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: average length of delta chain on internal page with deltas",
   "reconciliation: average length of delta chain on leaf page with deltas",
+  "reconciliation: changes since prior reconciliation (bucket 1) between 1 and 5",
+  "reconciliation: changes since prior reconciliation (bucket 2) between 6 and 10",
+  "reconciliation: changes since prior reconciliation (bucket 3) between 11 and 20",
+  "reconciliation: changes since prior reconciliation (bucket 4) between 21 and 50",
+  "reconciliation: changes since prior reconciliation (bucket 5) between 51 and 100",
+  "reconciliation: changes since prior reconciliation (bucket 6) between 101 and 200",
+  "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
+  "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
   "reconciliation: empty deltas skipped in disaggregated storage",
   "reconciliation: fast-path pages deleted",
   "reconciliation: full internal pages written instead of a page delta",
@@ -3338,6 +3378,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_average_internal_page_delta_chain_length = 0;
     stats->rec_average_leaf_page_delta_chain_length = 0;
+    stats->rec_page_mods_le5 = 0;
+    stats->rec_page_mods_le10 = 0;
+    stats->rec_page_mods_le20 = 0;
+    stats->rec_page_mods_le50 = 0;
+    stats->rec_page_mods_le100 = 0;
+    stats->rec_page_mods_le200 = 0;
+    stats->rec_page_mods_le500 = 0;
+    stats->rec_page_mods_gt500 = 0;
     stats->rec_skip_empty_deltas = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_full_image_internal = 0;
@@ -4429,6 +4477,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_CONN_READ(from, rec_average_internal_page_delta_chain_length);
     to->rec_average_leaf_page_delta_chain_length +=
       WT_STAT_CONN_READ(from, rec_average_leaf_page_delta_chain_length);
+    to->rec_page_mods_le5 += WT_STAT_CONN_READ(from, rec_page_mods_le5);
+    to->rec_page_mods_le10 += WT_STAT_CONN_READ(from, rec_page_mods_le10);
+    to->rec_page_mods_le20 += WT_STAT_CONN_READ(from, rec_page_mods_le20);
+    to->rec_page_mods_le50 += WT_STAT_CONN_READ(from, rec_page_mods_le50);
+    to->rec_page_mods_le100 += WT_STAT_CONN_READ(from, rec_page_mods_le100);
+    to->rec_page_mods_le200 += WT_STAT_CONN_READ(from, rec_page_mods_le200);
+    to->rec_page_mods_le500 += WT_STAT_CONN_READ(from, rec_page_mods_le500);
+    to->rec_page_mods_gt500 += WT_STAT_CONN_READ(from, rec_page_mods_gt500);
     to->rec_skip_empty_deltas += WT_STAT_CONN_READ(from, rec_skip_empty_deltas);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_page_full_image_internal += WT_STAT_CONN_READ(from, rec_page_full_image_internal);

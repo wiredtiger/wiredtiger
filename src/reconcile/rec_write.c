@@ -52,6 +52,23 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     else if (page->memory_footprint > WT_MEGABYTE)
         WT_STAT_CONN_DSRC_INCR(session, rec_pages_size_1MB_to_10MB);
 
+    if (page->modify->page_state <= 5)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le5);
+    else if (page->modify->page_state <= 10)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le10);
+    else if (page->modify->page_state <= 20)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le20);
+    else if (page->modify->page_state <= 50)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le50);
+    else if (page->modify->page_state <= 100)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le100);
+    else if (page->modify->page_state <= 200)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le200);
+    else if (page->modify->page_state <= 500)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le500);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_gt500);
+
     /*
      * Sanity check flags.
      *
