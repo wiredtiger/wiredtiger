@@ -478,7 +478,7 @@ palm_init_lsn(PALM *palm)
     int ret;
 
     palm_init_context(palm, &context);
-    PALM_KV_RET(palm, NULL, palm_kv_begin_transaction(&context, palm->kv_env, true));
+    PALM_KV_RET(palm, NULL, palm_kv_begin_transaction(&context, palm->kv_env, false));
 
     /*
      * Get the LSN. If it's never been set, we'll get not found, but that's okay, that will leave
