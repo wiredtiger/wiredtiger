@@ -230,14 +230,14 @@ thread_read10k_sleep10.options.session_config="isolation=snapshot"
 #Configure only the expected % of read operations
 #15% update workload to hit the cache update trigger threshold
 read_ops = 85
-#Calculate the write operations based on configured write operations.
-write_ops = (100 - read_ops)
 
-#Calculate threads for read operations
+#Specify number of threads for workload
 total_thread_num = 128
 log_read_thread_num = 1
 log_write_thread_num = 1
+#Calculate threads for read operations based on % of read operations
 read_thread_num = int(((read_ops * total_thread_num) / 100))
+#Remaining threads for write operations
 write_thread_num = (total_thread_num - read_thread_num)
 
 cache_workload = Workload(context,\
