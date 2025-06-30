@@ -1917,26 +1917,22 @@ __live_restore_fs_remove(
     path = NULL;
 
     WT_RET(__live_restore_fs_find_layer(fs, session, name, &layer));
-    if (layer == WTI_LIVE_RESTORE_FS_LAYER_NONE)
+    switch (layer) {
+    case WTI_LIVE_RESTORE_FS_LAYER_NONE:
         return (ENOENT);
-
-    /*
-     * It's possible to call remove on a file that hasn't yet been created in the destination. In
-     * these cases we only need to create the stop file.
-     */
-    if (layer == WTI_LIVE_RESTORE_FS_LAYER_DESTINATION) {
+    case WTI_LIVE_RESTORE_FS_LAYER_DESTINATION:
         WT_ERR(__live_restore_fs_backing_filename(
           session, lr_fs, WTI_LIVE_RESTORE_FS_LAYER_DESTINATION, name, &path));
-        lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, path, flags);
+        WT_ERR(lr_fs->os_file_system->fs_remove(lr_fs->os_file_system, wt_session, path, flags));
+        /* FALLTHROUGH */
+    case WTI_LIVE_RESTORE_FS_LAYER_SOURCE:
+        /*
+         * It's possible to call remove on a file that hasn't yet been created in the destination.
+         * In these cases we only need to create the stop file.
+         */
+        WT_ERR(__live_restore_fs_create_stop_file(fs, session, name, flags));
+        break;
     }
-
-    /*
-     * The stop file here is useful as it tells us that we will never need to look in the source for
-     * this file in the future. One such case is when a file is created, removed and then created
-     * again with the same name.
-     */
-    WT_ERR(__live_restore_fs_create_stop_file(fs, session, name, flags));
-
 err:
     __wt_free(session, path);
     return (ret);
