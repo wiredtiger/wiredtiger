@@ -31,7 +31,7 @@
 # [END_TAGS]
 
 # hook_timing_stress_log_conn_close.py
-#     python run.py --hook hook_timing_stress_log_conn_close base01
+#     python run.py --hook hook_timing_stress_log_conn_close
 #
 # This hook is used to add timing stress "conn_close_stress_log_printf" to all python tests
 

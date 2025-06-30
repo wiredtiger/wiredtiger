@@ -887,8 +887,8 @@ __log_wrlsn_server(void *arg)
     }
     /*
      * On close we need to do this one more time because there could be straggling log writes that
-     * need to be written. It is possible to return EBUSY due the database shutting down. Therefore
-     * loop until we finish the log write.
+     * need to be written. It is possible to return EBUSY due to the database shutting down.
+     * Therefore loop until we finish the log write.
      */
     do {
         WT_ERR_ERROR_OK(__wti_log_force_write(session, true, NULL), EBUSY, true);
@@ -992,8 +992,13 @@ __log_server(void *arg)
         force_write_timediff = WT_CLOCKDIFF_MS(time_stop, force_write_time_start);
     }
 
+    /*
+     * On close, force out buffered writes to move the write_lsn forward. The write_lsn needs to be
+     * updated to avoid hangs from the wrlsn thread. It is possible to return EBUSY due to the
+     * database shutting down. Therefore loop until we finish the log write.
+     */
     do {
-        WT_ERR_ERROR_OK(__wti_log_force_write(session, false, &did_work), EBUSY, false);
+        WT_ERR_ERROR_OK(__wti_log_force_write(session, false, &did_work), EBUSY, true);
     } while (ret == EBUSY);
     if (0) {
 err:
