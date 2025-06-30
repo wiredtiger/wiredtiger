@@ -400,8 +400,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYP
      * consider one subsystem may be turned off at some point in the future. If this subsystem is
      * not throttled there's nothing to do.
      */
-    if (total_capacity == 0 || capacity == 0 ||
-      F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
+    if (total_capacity == 0 || capacity == 0 || F_ISSET_ATOMIC_32(conn, WT_CONN_RECOVERING))
         return;
 
     /*
