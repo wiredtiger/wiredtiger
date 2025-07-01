@@ -80,7 +80,7 @@ def _latency_plot(box, ch, left, width, arr, merge, scale):
             y += 1
 
 def _latency_op_plot(fh, name, ch, t):
-    #process and plot the latency buckets
+    # process and plot the latency buckets
     us = t.us()
     ms = t.ms()
     sec = t.sec()
