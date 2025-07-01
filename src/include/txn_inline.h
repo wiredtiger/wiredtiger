@@ -1459,7 +1459,8 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
              * we should search the history store.
              */
             if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_HS_OPEN) &&
-              !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
+              !F_ISSET(session->dhandle,
+                WT_DHANDLE_HS | WT_DHANDLE_IS_METADATA | WT_DHANDLE_DISAGG_META)) {
                 __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH, NULL);
                 WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format,
                   recno, cbt->upd_value, &cbt->upd_value->buf));

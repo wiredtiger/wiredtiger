@@ -425,7 +425,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
      */
     mod->rec_max_txn = r->max_txn;
     mod->rec_max_timestamp = r->max_ts;
-    mod->rec_pinned_stable_timestamp = r->rec_start_pinned_stable_ts;
 
     page->old_rec_lsn_max = page->rec_lsn_max;
     /* Track the page's most recent LSN. */
@@ -2415,6 +2414,235 @@ __rec_set_updates_durable(WT_BTREE *btree, WT_MULTI *multi)
 }
 
 /*
+ * __rec_write_delta --
+ *     Write a delta to storage
+ */
+static int
+__rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, uint8_t *addr,
+  size_t *addr_sizep, size_t *compressed_sizep)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_MULTI *multi;
+    WT_PAGE *page;
+    WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_MODIFY *mod;
+    uint64_t checkpoint_id, delta_pct;
+
+    conn = S2C(session);
+    page = r->page;
+    mod = page->modify;
+    multi = &r->multi[r->multi_next];
+    block_meta = &r->ref->page->block_meta;
+
+    WT_ASSERT(session, block_meta->checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+    multi->block_meta = *block_meta;
+    WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+    /* The first delta needs to explicitly initialize the base LSN and checkpoint id. */
+    if (multi->block_meta.delta_count == 0) {
+        multi->block_meta.base_lsn = multi->block_meta.disagg_lsn;
+        multi->block_meta.base_checkpoint_id = multi->block_meta.checkpoint_id;
+    }
+    WT_ASSERT(session,
+      multi->block_meta.base_lsn > 0 ||
+        multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+    multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
+    multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
+    if (checkpoint_id != multi->block_meta.checkpoint_id) {
+        WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
+        multi->block_meta.checkpoint_id = checkpoint_id;
+        multi->block_meta.reconciliation_id = 0;
+    } else
+        ++multi->block_meta.reconciliation_id;
+    ++multi->block_meta.delta_count;
+
+    /* Get the checkpoint ID. */
+    WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, addr_sizep,
+      compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
+    /* Turn off compression adjustment for delta. */
+    *compressed_sizep = 0;
+
+    delta_pct = (r->delta.size * 100) / chunk->image.size;
+    if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
+
+        /*
+         * If we decide to write the delta we packed, track the number of bytes saved by avoiding
+         * writing the full page image.
+         *
+         * Also track how large the delta is compared to the full page image.
+         */
+        WT_STAT_CONN_INCRV(
+          session, block_byte_write_saved_delta_intl, chunk->image.size - r->delta.size);
+
+        if (delta_pct <= 20)
+            WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt20);
+        else if (delta_pct <= 40)
+            WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt40);
+        else if (delta_pct <= 60)
+            WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt60);
+        else if (delta_pct <= 80)
+            WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt80);
+        else if (delta_pct <= 100)
+            WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt100);
+        else
+            WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
+
+        /* Increase this count only when we write the first delta. */
+        if (multi->block_meta.delta_count == 1)
+            WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_internal_deltas);
+
+        if (multi->block_meta.delta_count >
+          __wt_atomic_load64(&conn->disaggregated_storage.max_internal_delta_count))
+            __wt_atomic_store64(
+              &conn->disaggregated_storage.max_internal_delta_count, multi->block_meta.delta_count);
+    } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
+        WT_STAT_CONN_INCRV(
+          session, block_byte_write_saved_delta_leaf, chunk->image.size - r->delta.size);
+
+        if (delta_pct <= 20)
+            WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
+        else if (delta_pct <= 40)
+            WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt40);
+        else if (delta_pct <= 60)
+            WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt60);
+        else if (delta_pct <= 80)
+            WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt80);
+        else if (delta_pct <= 100)
+            WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt100);
+        else
+            WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
+
+        /* Increase this count only when we write the first delta. */
+        if (multi->block_meta.delta_count == 1)
+            WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_leaf_deltas);
+
+        if (multi->block_meta.delta_count >
+          __wt_atomic_load64(&conn->disaggregated_storage.max_leaf_delta_count))
+            __wt_atomic_store64(
+              &conn->disaggregated_storage.max_leaf_delta_count, multi->block_meta.delta_count);
+    }
+
+    return (0);
+}
+
+/*
+ * __rec_write_image --
+ *     Write a full disk image to storage
+ */
+static int
+__rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chunk, uint8_t *addr,
+  size_t *addr_sizep, size_t *compressed_sizep, bool last_block)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_MULTI *multi;
+    WT_PAGE *page;
+    WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_MODIFY *mod;
+    uint64_t checkpoint_id;
+
+    conn = S2C(session);
+    page = r->page;
+    mod = page->modify;
+    multi = &r->multi[r->multi_next];
+    block_meta = &r->ref->page->block_meta;
+
+    /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
+    if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
+        multi->block_meta = *block_meta;
+        /*
+         * Full page's backlink is the previous full page. If the previous page is a delta, use the
+         * base as the new backlink. Otherwise, use the previous page as the backlink.
+         */
+        if (multi->block_meta.delta_count > 0) {
+            WT_ASSERT(session,
+              multi->block_meta.base_lsn > 0 ||
+                multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
+            multi->block_meta.backlink_checkpoint_id = multi->block_meta.base_checkpoint_id;
+            multi->block_meta.backlink_lsn = multi->block_meta.base_lsn;
+        } else {
+            multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
+            multi->block_meta.backlink_lsn = multi->block_meta.disagg_lsn;
+        }
+        multi->block_meta.delta_count = 0;
+        multi->block_meta.base_lsn = 0;
+        multi->block_meta.base_checkpoint_id = 0;
+        WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
+        if (checkpoint_id != multi->block_meta.checkpoint_id) {
+            WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
+            multi->block_meta.checkpoint_id = checkpoint_id;
+            multi->block_meta.reconciliation_id = 0;
+        } else
+            ++multi->block_meta.reconciliation_id;
+    } else
+        __wt_page_block_meta_assign(session, &multi->block_meta);
+    WT_RET(__rec_write(session, &chunk->image, &multi->block_meta, addr, addr_sizep,
+      compressed_sizep, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
+
+    if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
+        WT_STAT_CONN_INCR(session, rec_page_full_image_internal);
+    else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))
+        WT_STAT_CONN_INCR(session, rec_page_full_image_leaf);
+
+    return (0);
+}
+
+/*
+ * __rec_copy_prev_addr --
+ *     Copy the address cookie of the previous written page
+ */
+static int
+__rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
+{
+    WT_MULTI *multi;
+    WT_PAGE *page;
+    WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_MODIFY *mod;
+
+    page = r->page;
+    mod = page->modify;
+    multi = &r->multi[r->multi_next];
+    block_meta = &r->ref->page->block_meta;
+
+    switch (mod->rec_result) {
+    case 0:
+        WT_ASSERT(session, r->ref->addr != NULL);
+        break;
+    case WT_PM_REC_EMPTY: /* Page deleted */
+        WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");
+        break;
+    case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
+        multi->block_meta = page->block_meta;
+        if (mod->mod_replace.block_cookie != NULL) {
+            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
+            WT_RET(__wt_memdup(session, mod->mod_replace.block_cookie,
+              mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
+            multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
+            multi->addr.type = mod->mod_replace.type;
+        } else
+            WT_ASSERT(session, r->ref->addr != NULL);
+        break;
+    case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
+        WT_ASSERT(session, mod->mod_multi_entries == 1);
+        multi->block_meta = mod->mod_multi->block_meta;
+        if (mod->mod_multi->addr.block_cookie != NULL) {
+            WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_multi->addr.ta);
+            WT_RET(__wt_memdup(session, mod->mod_multi->addr.block_cookie,
+              mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
+            multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
+            multi->addr.type = mod->mod_multi->addr.type;
+        } else
+            WT_ASSERT(session, r->ref->addr != NULL);
+        break;
+    default:
+        return (__wt_illegal_value(session, mod->rec_result));
+    }
+    WT_STAT_CONN_DSRC_INCR(session, rec_skip_empty_deltas);
+
+    return (0);
+}
+
+/*
  * __rec_split_write --
  *     Write a disk block out for the split helper functions.
  */
@@ -2429,7 +2657,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_PAGE_BLOCK_META *block_meta;
     WT_PAGE_MODIFY *mod;
     size_t addr_size, compressed_size;
-    uint64_t checkpoint_id, delta_pct;
     uint8_t addr[WT_ADDR_MAX_COOKIE];
     bool build_delta;
 #ifdef HAVE_DIAGNOSTIC
@@ -2525,8 +2752,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         r->wrapup_checkpoint = &chunk->image;
 
         /*
-         * We need to assign a new page id for the root every time. We don't support delta for
-         * internal page yet.
+         * We need to assign a new page id for the root every time. We don't support delta for root
+         * page yet.
          */
         __wt_page_block_meta_assign(session, &r->wrapup_checkpoint_block_meta);
 
@@ -2583,171 +2810,16 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
         /* Avoid writing an empty delta. */
         if (header->u.entries == 0) {
             /* Copy the previous written page's address if we skip writing. */
-            switch (mod->rec_result) {
-            case 0:
-                WT_ASSERT(session, r->ref->addr != NULL);
-                break;
-            case WT_PM_REC_EMPTY: /* Page deleted */
-                WT_ASSERT_ALWAYS(session, false, "write delta for a new page.");
-                break;
-            case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
-                multi->block_meta = page->block_meta;
-                if (mod->mod_replace.block_cookie != NULL) {
-                    WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_replace.ta);
-                    WT_RET(__wt_memdup(session, mod->mod_replace.block_cookie,
-                      mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
-                    multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
-                    multi->addr.type = mod->mod_replace.type;
-                } else
-                    WT_ASSERT(session, r->ref->addr != NULL);
-                break;
-            case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
-                WT_ASSERT(session, mod->mod_multi_entries == 1);
-                multi->block_meta = mod->mod_multi->block_meta;
-                if (mod->mod_multi->addr.block_cookie != NULL) {
-                    WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &mod->mod_multi->addr.ta);
-                    WT_RET(__wt_memdup(session, mod->mod_multi->addr.block_cookie,
-                      mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
-                    multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
-                    multi->addr.type = mod->mod_multi->addr.type;
-                } else
-                    WT_ASSERT(session, r->ref->addr != NULL);
-                break;
-            default:
-                return (__wt_illegal_value(session, mod->rec_result));
-            }
-            WT_STAT_CONN_DSRC_INCR(session, rec_skip_empty_deltas);
+            WT_RET(__rec_copy_prev_addr(session, r));
             goto copy_image;
         }
 
         /* We must only have one delta. Building deltas for split case is a future thing. */
         WT_ASSERT(session, last_block);
-        WT_ASSERT(session, block_meta->checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-        multi->block_meta = *block_meta;
-        WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
-        /* The first delta needs to explicitly initialize the base LSN and checkpoint id. */
-        if (multi->block_meta.delta_count == 0) {
-            multi->block_meta.base_lsn = multi->block_meta.disagg_lsn;
-            multi->block_meta.base_checkpoint_id = multi->block_meta.checkpoint_id;
-        }
-        WT_ASSERT(session,
-          multi->block_meta.base_lsn > 0 ||
-            multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-        multi->block_meta.backlink_lsn = block_meta->disagg_lsn;
-        multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
-        if (checkpoint_id != multi->block_meta.checkpoint_id) {
-            WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
-            multi->block_meta.checkpoint_id = checkpoint_id;
-            multi->block_meta.reconciliation_id = 0;
-        } else
-            ++multi->block_meta.reconciliation_id;
-        ++multi->block_meta.delta_count;
-
-        /* Get the checkpoint ID. */
-        WT_RET(__wt_blkcache_write(session, &r->delta, &multi->block_meta, addr, &addr_size,
-          &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
-        /* Turn off compression adjustment for delta. */
-        compressed_size = 0;
-
-        delta_pct = (r->delta.size * 100) / chunk->image.size;
-        if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL)) {
-            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_internal);
-
-            /*
-             * If we decide to write the delta we packed, track the number of bytes saved by
-             * avoiding writing the full page image.
-             *
-             * Also track how large the delta is compared to the full page image.
-             */
-            WT_STAT_CONN_INCRV(
-              session, block_byte_write_saved_delta_intl, chunk->image.size - r->delta.size);
-
-            if (delta_pct <= 20)
-                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt20);
-            else if (delta_pct <= 40)
-                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt40);
-            else if (delta_pct <= 60)
-                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt60);
-            else if (delta_pct <= 80)
-                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt80);
-            else if (delta_pct <= 100)
-                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_lt100);
-            else
-                WT_STAT_CONN_INCR(session, block_byte_write_intl_delta_gt100);
-
-            /* Increase this count only when we write the first delta. */
-            if (multi->block_meta.delta_count == 1)
-                WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_internal_deltas);
-
-            if (multi->block_meta.delta_count >
-              __wt_atomic_load64(&conn->disaggregated_storage.max_internal_delta_count))
-                __wt_atomic_store64(&conn->disaggregated_storage.max_internal_delta_count,
-                  multi->block_meta.delta_count);
-        } else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
-            WT_STAT_CONN_DSRC_INCR(session, rec_page_delta_leaf);
-            WT_STAT_CONN_INCRV(
-              session, block_byte_write_saved_delta_leaf, chunk->image.size - r->delta.size);
-
-            if (delta_pct <= 20)
-                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt20);
-            else if (delta_pct <= 40)
-                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt40);
-            else if (delta_pct <= 60)
-                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt60);
-            else if (delta_pct <= 80)
-                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt80);
-            else if (delta_pct <= 100)
-                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_lt100);
-            else
-                WT_STAT_CONN_INCR(session, block_byte_write_leaf_delta_gt100);
-
-            /* Increase this count only when we write the first delta. */
-            if (multi->block_meta.delta_count == 1)
-                WT_STAT_CONN_DSRC_INCR(session, rec_pages_with_leaf_deltas);
-
-            if (multi->block_meta.delta_count >
-              __wt_atomic_load64(&conn->disaggregated_storage.max_leaf_delta_count))
-                __wt_atomic_store64(
-                  &conn->disaggregated_storage.max_leaf_delta_count, multi->block_meta.delta_count);
-        }
+        WT_RET(__rec_write_delta(session, r, chunk, addr, &addr_size, &compressed_size));
     } else {
-        /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
-        if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
-            multi->block_meta = *block_meta;
-            /*
-             * Full page's backlink is the previous full page. If the previous page is a delta, use
-             * the base as the new backlink. Otherwise, use the previous page as the backlink.
-             */
-            if (multi->block_meta.delta_count > 0) {
-                WT_ASSERT(session,
-                  multi->block_meta.base_lsn > 0 ||
-                    multi->block_meta.base_checkpoint_id >= WT_DISAGG_CHECKPOINT_ID_FIRST);
-                multi->block_meta.backlink_checkpoint_id = multi->block_meta.base_checkpoint_id;
-                multi->block_meta.backlink_lsn = multi->block_meta.base_lsn;
-            } else {
-                multi->block_meta.backlink_checkpoint_id = multi->block_meta.checkpoint_id;
-                multi->block_meta.backlink_lsn = multi->block_meta.disagg_lsn;
-            }
-            multi->block_meta.delta_count = 0;
-            multi->block_meta.base_lsn = 0;
-            multi->block_meta.base_checkpoint_id = 0;
-            WT_ACQUIRE_READ(checkpoint_id, conn->disaggregated_storage.global_checkpoint_id);
-            if (checkpoint_id != multi->block_meta.checkpoint_id) {
-                WT_ASSERT(session, checkpoint_id > multi->block_meta.checkpoint_id);
-                multi->block_meta.checkpoint_id = checkpoint_id;
-                multi->block_meta.reconciliation_id = 0;
-            } else
-                ++multi->block_meta.reconciliation_id;
-        } else
-            __wt_page_block_meta_assign(session, &multi->block_meta);
-        WT_RET(__rec_write(session, &chunk->image, &multi->block_meta, addr, &addr_size,
-          &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
-
-        if (F_ISSET(r->ref, WT_REF_FLAG_INTERNAL))
-            WT_STAT_CONN_INCR(session, rec_page_full_image_internal);
-        else if (F_ISSET(r->ref, WT_REF_FLAG_LEAF))
-            WT_STAT_CONN_INCR(session, rec_page_full_image_leaf);
-
+        WT_RET(
+          __rec_write_image(session, r, chunk, addr, &addr_size, &compressed_size, last_block));
 #ifdef HAVE_DIAGNOSTIC
         verify_image = true;
 #endif
@@ -2917,8 +2989,6 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
               session, multi->addr.block_cookie, multi->addr.block_cookie_size));
             __wt_free(session, multi->addr.block_cookie);
         }
-
-        multi->block_meta.page_id = WT_BLOCK_INVALID_PAGE_ID;
     }
     __wt_free(session, mod->mod_multi);
     mod->mod_multi_entries = 0;
