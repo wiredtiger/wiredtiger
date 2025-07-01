@@ -422,6 +422,7 @@ palm_get_dek(PALM *palm, WT_SESSION *session, const WT_PAGE_LOG_ENCRYPTION *encr
             return (palm_err(palm, session, EINVAL,
               "encryption dek %31s does not match expected value %31s", encrypt_in->dek, tmp.dek));
         PALM_VERBOSE_PRINT(palm, "palm using saved dek: %s\n", encrypt_in->dek);
+        *encrypt_out = *encrypt_in;
     }
 
     if (was_zeroed && is_delta && base_lsn < palm->begin_lsn)
@@ -887,6 +888,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
   uint64_t checkpoint_id, WT_PAGE_LOG_GET_ARGS *get_args, WT_ITEM *results_array,
   uint32_t *results_count)
 {
+    static WT_PAGE_LOG_ENCRYPTION zero_encryption;
     PALM *palm;
     PALM_KV_CONTEXT context;
     PALM_HANDLE *palm_handle;
@@ -894,6 +896,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     uint32_t count, i;
     uint64_t last_checkpoint_id, last_lsn, lsn;
     int ret;
+    bool zeroed_encryption, was_zeroed_encryption;
 
     count = 0;
     last_checkpoint_id = 0;
@@ -916,6 +919,8 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     PALM_KV_ERR(palm, session,
       palm_kv_get_page_matches(
         &context, palm_handle->table_id, page_id, lsn, checkpoint_id, &matches));
+    get_args->encryption = zero_encryption;
+    was_zeroed_encryption = true;
     for (count = 0; count < *results_count; ++count) {
         if (!palm_kv_next_page_match(&matches))
             break;
@@ -949,11 +954,16 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         get_args->backlink_checkpoint_id = matches.backlink_checkpoint_id;
         get_args->base_checkpoint_id = matches.base_checkpoint_id;
         get_args->encryption = matches.encryption;
-        static WT_PAGE_LOG_ENCRYPTION zero;
-        if (PALM_ENCRYPTION_EQUAL(get_args->encryption, zero))
+        zeroed_encryption = PALM_ENCRYPTION_EQUAL(get_args->encryption, zero_encryption);
+        if (zeroed_encryption)
             PALM_VERBOSE_PRINT(palm, "palm got zero dek%s\n", "");
         else
             PALM_VERBOSE_PRINT(palm, "palm got non-zero dek: %s\n", get_args->encryption.dek);
+        if (zeroed_encryption && !was_zeroed_encryption) {
+            ret = palm_err(palm, session, EINVAL,
+              "base dek is not zeroed, delta encryption is zero and should not be");
+            goto err;
+        }
         get_args->delta_count = count;
     }
     /* Did the caller give us enough output entries to hold all the results? */
