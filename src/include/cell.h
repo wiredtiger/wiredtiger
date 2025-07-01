@@ -172,17 +172,15 @@ struct __wt_delta_cell_int {
  */
 struct __wt_delta_cell_leaf {
     /*
-     * Maximum of 47 bytes:
+     * Maximum of 65 bytes:
      *  1: cell descriptor byte
-     * 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
+     * 54: 6 timestamps		(uint64_t encoding, max 9 bytes)
      *  5: key length		(uint32_t encoding, max 5 bytes)
-     *  5: key length		(uint32_t encoding, max 5 bytes)
+     *  5: value length		(uint32_t encoding, max 5 bytes)
      *
-     * This calculation is pessimistic: the prefix compression count and 64V value overlap, and the
-     * validity window, 64V value, fast-delete information and data length are all optional in some
-     * or even most cases.
+     * This calculation is pessimistic: the timestamps are optional.
      */
-    uint8_t __chunk[47];
+    uint8_t __chunk[65];
 };
 
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
