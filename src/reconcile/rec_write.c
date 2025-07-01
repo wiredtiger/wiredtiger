@@ -2533,7 +2533,6 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
     WT_PAGE *page;
-    WT_PAGE_BLOCK_META *block_meta;
     uint64_t checkpoint_id;
 
     conn = S2C(session);
