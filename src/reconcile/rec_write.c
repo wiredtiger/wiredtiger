@@ -2533,15 +2533,17 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
     WT_PAGE *page;
+    WT_PAGE_BLOCK_META *block_meta;
     uint64_t checkpoint_id;
 
     conn = S2C(session);
     page = r->page;
     multi = &r->multi[r->multi_next - 1];
+    block_meta = &page->block_meta;
 
     /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
     if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
-        multi->block_meta = page->block_meta;
+        multi->block_meta = *block_meta;
         /*
          * Full page's backlink is the previous full page. If the previous page is a delta, use the
          * base as the new backlink. Otherwise, use the previous page as the backlink.
