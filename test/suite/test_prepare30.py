@@ -43,17 +43,11 @@ class test_prepare30(wttest.WiredTigerTestCase):
 
     def test_prepare30(self):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
-        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
         uri = 'table:test_prepare31'
         create_params = 'key_format=i,value_format=S'
         self.session.create(uri, create_params)
-
-        # Insert some data.
         ts = 100
-        cursor = self.session.open_cursor(uri)
-        key = 1
         self.session.begin_transaction()
-        cursor[key] = 'aaa'
 
         if self.expected_error:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
