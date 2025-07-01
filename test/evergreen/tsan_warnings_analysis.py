@@ -70,7 +70,7 @@ for tsan_log in os.listdir(current_dir):
 
                 # Strip away the column line information.
                 pattern_to_remove = r':(\d+):\d+'
-                cleaned_text = re.sub(pattern_to_remove, r':\1', line).strip()
+                cleaned_text = re.sub(pattern_to_remove, r':\1', cleaned_text).strip()
 
                 tsan_warnings_set.add(cleaned_text)
 
