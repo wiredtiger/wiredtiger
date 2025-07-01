@@ -34,7 +34,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t chunkcache, ckpt, evict, log, read, total;
 
     conn = S2C(session);
-    chunkcache = ckpt = evict = log = read = total = 0;
+    chunkcache = total = 0;
 
     WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
     if (cval.val != 0) {
@@ -66,30 +66,32 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
     cap = &conn->capacity;
     cap->chunkcache = chunkcache;
     __wt_atomic_store64(&cap->total, total);
-    if (total != 0) {
-        /*
-         * We've been given a total capacity, set the capacity of all the subsystems.
-         */
-        ckpt = WT_CAPACITY_SYS(total, WT_CAP_CKPT);
-        evict = WT_CAPACITY_SYS(total, WT_CAP_EVICT);
-        log = WT_CAPACITY_SYS(total, WT_CAP_LOG);
-        read = WT_CAPACITY_SYS(total, WT_CAP_READ);
-
-        __wt_atomic_store64(&cap->ckpt, ckpt);
-        __wt_atomic_store64(&cap->evict, evict);
-        __wt_atomic_store64(&cap->log, log);
-        __wt_atomic_store64(&cap->read, read);
-
-        /*
-         * Set the threshold to the percent of our capacity to periodically asynchronously flush
-         * what we've written.
-         */
-        cap->threshold = ((ckpt + log + evict) / 100) * WT_CAPACITY_PCT;
-        if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
-            cap->threshold = WT_CAPACITY_MIN_THRESHOLD;
-        WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
-    } else
+    if (total == 0) {
         WT_STAT_CONN_SET(session, capacity_threshold, 0);
+        return (0);
+    }
+
+    /*
+     * We've been given a total capacity, set the capacity of all the subsystems.
+     */
+    ckpt = WT_CAPACITY_SYS(total, WT_CAP_CKPT);
+    evict = WT_CAPACITY_SYS(total, WT_CAP_EVICT);
+    log = WT_CAPACITY_SYS(total, WT_CAP_LOG);
+    read = WT_CAPACITY_SYS(total, WT_CAP_READ);
+
+    __wt_atomic_store64(&cap->ckpt, ckpt);
+    __wt_atomic_store64(&cap->evict, evict);
+    __wt_atomic_store64(&cap->log, log);
+    __wt_atomic_store64(&cap->read, read);
+
+    /*
+     * Set the threshold to the percent of our capacity to periodically asynchronously flush what
+     * we've written.
+     */
+    cap->threshold = ((ckpt + log + evict) / 100) * WT_CAPACITY_PCT;
+    if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
+        cap->threshold = WT_CAPACITY_MIN_THRESHOLD;
+    WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
 
     return (0);
 }
