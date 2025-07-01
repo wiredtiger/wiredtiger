@@ -69,13 +69,11 @@ __block_disagg_read_multiple(WT_SESSION_IMPL *session, WT_BLOCK_DISAGG *block_di
     WT_DECL_RET;
     WT_ITEM *current;
     WT_PAGE_LOG_GET_ARGS get_args;
-    uint64_t time_start, time_stop;
+    uint64_t time_diff, time_start, time_stop;
     uint32_t i, orig_count, retry;
     int32_t last, result;
     uint8_t compatible_version, expected_magic;
     bool is_delta;
-
-    time_start = __wt_clock(session);
 
     retry = 0;
 
@@ -122,10 +120,42 @@ reread:
     /*
      * Output buffers do not need to be pre-allocated, the PALI interface does that.
      */
+    time_start = __wt_clock(session);
     WT_ERR(block_disagg->plhandle->plh_get(block_disagg->plhandle, &session->iface, page_id,
       checkpoint_id, &get_args, results_array, results_count));
 
     WT_ASSERT(session, *results_count <= WT_DELTA_LIMIT + 1);
+
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    if (time_diff < 250)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt250us);
+    else if (time_diff < 500)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt500us);
+    else if (time_diff < 750)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt750us);
+    else if (time_diff < 1000)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt1000us);
+    else if (time_diff < 1250)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt1250us);
+    else if (time_diff < 1500)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt1500us);
+    else if (time_diff < 1750)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt1750us);
+    else if (time_diff < 2000)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt2000us);
+    else if (time_diff < 2500)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt2500us);
+    else if (time_diff < 3000)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt3000us);
+    else if (time_diff < 4000)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt4000us);
+    else if (time_diff < 5000)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt5000us);
+    else if (time_diff < 10000)
+        WT_STAT_CONN_INCR(session, disagg_block_read_lt10000us);
+    else
+        WT_STAT_CONN_INCR(session, disagg_block_read_gte10000us);
 
     if (*results_count == 0) {
         /*

@@ -9,6 +9,20 @@ static const char *const __stats_dsrc_desc[] = {
   "backup: total modified incremental blocks without compressed data",
   "block-disagg: Bytes read from the shared history store in SLS",
   "block-disagg: Bytes written to the shared history store in SLS",
+  "block-disagg: Disaggregated block get latency 1000-1249us",
+  "block-disagg: Disaggregated block get latency 1250-1499us",
+  "block-disagg: Disaggregated block get latency 1500-1749us",
+  "block-disagg: Disaggregated block get latency 1750-1999us",
+  "block-disagg: Disaggregated block get latency 2000-2499us",
+  "block-disagg: Disaggregated block get latency 250-499us",
+  "block-disagg: Disaggregated block get latency 2500-2999us",
+  "block-disagg: Disaggregated block get latency 3000-3999us",
+  "block-disagg: Disaggregated block get latency 4000-4999us",
+  "block-disagg: Disaggregated block get latency 500-749us",
+  "block-disagg: Disaggregated block get latency 5000-9999us",
+  "block-disagg: Disaggregated block get latency 750-999us",
+  "block-disagg: Disaggregated block get latency < 250us",
+  "block-disagg: Disaggregated block get latency >= 10000us",
   "block-disagg: Disaggregated block manager get",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
@@ -439,6 +453,20 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->backup_blocks_uncompressed = 0;
     stats->disagg_block_hs_byte_read = 0;
     stats->disagg_block_hs_byte_write = 0;
+    stats->disagg_block_read_lt1250us = 0;
+    stats->disagg_block_read_lt1500us = 0;
+    stats->disagg_block_read_lt1750us = 0;
+    stats->disagg_block_read_lt2000us = 0;
+    stats->disagg_block_read_lt2500us = 0;
+    stats->disagg_block_read_lt500us = 0;
+    stats->disagg_block_read_lt3000us = 0;
+    stats->disagg_block_read_lt4000us = 0;
+    stats->disagg_block_read_lt5000us = 0;
+    stats->disagg_block_read_lt750us = 0;
+    stats->disagg_block_read_lt10000us = 0;
+    stats->disagg_block_read_lt1000us = 0;
+    stats->disagg_block_read_lt250us = 0;
+    stats->disagg_block_read_gte10000us = 0;
     stats->disagg_block_get = 0;
     stats->disagg_block_hs_get = 0;
     stats->disagg_block_page_discard = 0;
@@ -820,6 +848,20 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->backup_blocks_uncompressed += from->backup_blocks_uncompressed;
     to->disagg_block_hs_byte_read += from->disagg_block_hs_byte_read;
     to->disagg_block_hs_byte_write += from->disagg_block_hs_byte_write;
+    to->disagg_block_read_lt1250us += from->disagg_block_read_lt1250us;
+    to->disagg_block_read_lt1500us += from->disagg_block_read_lt1500us;
+    to->disagg_block_read_lt1750us += from->disagg_block_read_lt1750us;
+    to->disagg_block_read_lt2000us += from->disagg_block_read_lt2000us;
+    to->disagg_block_read_lt2500us += from->disagg_block_read_lt2500us;
+    to->disagg_block_read_lt500us += from->disagg_block_read_lt500us;
+    to->disagg_block_read_lt3000us += from->disagg_block_read_lt3000us;
+    to->disagg_block_read_lt4000us += from->disagg_block_read_lt4000us;
+    to->disagg_block_read_lt5000us += from->disagg_block_read_lt5000us;
+    to->disagg_block_read_lt750us += from->disagg_block_read_lt750us;
+    to->disagg_block_read_lt10000us += from->disagg_block_read_lt10000us;
+    to->disagg_block_read_lt1000us += from->disagg_block_read_lt1000us;
+    to->disagg_block_read_lt250us += from->disagg_block_read_lt250us;
+    to->disagg_block_read_gte10000us += from->disagg_block_read_gte10000us;
     to->disagg_block_get += from->disagg_block_get;
     to->disagg_block_hs_get += from->disagg_block_hs_get;
     to->disagg_block_page_discard += from->disagg_block_page_discard;
@@ -1227,6 +1269,20 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->backup_blocks_uncompressed += WT_STAT_DSRC_READ(from, backup_blocks_uncompressed);
     to->disagg_block_hs_byte_read += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_read);
     to->disagg_block_hs_byte_write += WT_STAT_DSRC_READ(from, disagg_block_hs_byte_write);
+    to->disagg_block_read_lt1250us += WT_STAT_DSRC_READ(from, disagg_block_read_lt1250us);
+    to->disagg_block_read_lt1500us += WT_STAT_DSRC_READ(from, disagg_block_read_lt1500us);
+    to->disagg_block_read_lt1750us += WT_STAT_DSRC_READ(from, disagg_block_read_lt1750us);
+    to->disagg_block_read_lt2000us += WT_STAT_DSRC_READ(from, disagg_block_read_lt2000us);
+    to->disagg_block_read_lt2500us += WT_STAT_DSRC_READ(from, disagg_block_read_lt2500us);
+    to->disagg_block_read_lt500us += WT_STAT_DSRC_READ(from, disagg_block_read_lt500us);
+    to->disagg_block_read_lt3000us += WT_STAT_DSRC_READ(from, disagg_block_read_lt3000us);
+    to->disagg_block_read_lt4000us += WT_STAT_DSRC_READ(from, disagg_block_read_lt4000us);
+    to->disagg_block_read_lt5000us += WT_STAT_DSRC_READ(from, disagg_block_read_lt5000us);
+    to->disagg_block_read_lt750us += WT_STAT_DSRC_READ(from, disagg_block_read_lt750us);
+    to->disagg_block_read_lt10000us += WT_STAT_DSRC_READ(from, disagg_block_read_lt10000us);
+    to->disagg_block_read_lt1000us += WT_STAT_DSRC_READ(from, disagg_block_read_lt1000us);
+    to->disagg_block_read_lt250us += WT_STAT_DSRC_READ(from, disagg_block_read_lt250us);
+    to->disagg_block_read_gte10000us += WT_STAT_DSRC_READ(from, disagg_block_read_gte10000us);
     to->disagg_block_get += WT_STAT_DSRC_READ(from, disagg_block_get);
     to->disagg_block_hs_get += WT_STAT_DSRC_READ(from, disagg_block_hs_get);
     to->disagg_block_page_discard += WT_STAT_DSRC_READ(from, disagg_block_page_discard);
@@ -1720,6 +1776,20 @@ static const char *const __stats_connection_desc[] = {
   "block-cache: total bytes inserted on write path",
   "block-disagg: Bytes read from the shared history store in SLS",
   "block-disagg: Bytes written to the shared history store in SLS",
+  "block-disagg: Disaggregated block get latency 1000-1249us",
+  "block-disagg: Disaggregated block get latency 1250-1499us",
+  "block-disagg: Disaggregated block get latency 1500-1749us",
+  "block-disagg: Disaggregated block get latency 1750-1999us",
+  "block-disagg: Disaggregated block get latency 2000-2499us",
+  "block-disagg: Disaggregated block get latency 250-499us",
+  "block-disagg: Disaggregated block get latency 2500-2999us",
+  "block-disagg: Disaggregated block get latency 3000-3999us",
+  "block-disagg: Disaggregated block get latency 4000-4999us",
+  "block-disagg: Disaggregated block get latency 500-749us",
+  "block-disagg: Disaggregated block get latency 5000-9999us",
+  "block-disagg: Disaggregated block get latency 750-999us",
+  "block-disagg: Disaggregated block get latency < 250us",
+  "block-disagg: Disaggregated block get latency >= 10000us",
   "block-disagg: Disaggregated block manager get",
   "block-disagg: Disaggregated block manager get from the shared history store in SLS",
   "block-disagg: Disaggregated block manager page discard calls",
@@ -2703,6 +2773,20 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_bytes_insert_write = 0;
     stats->disagg_block_hs_byte_read = 0;
     stats->disagg_block_hs_byte_write = 0;
+    stats->disagg_block_read_lt1250us = 0;
+    stats->disagg_block_read_lt1500us = 0;
+    stats->disagg_block_read_lt1750us = 0;
+    stats->disagg_block_read_lt2000us = 0;
+    stats->disagg_block_read_lt2500us = 0;
+    stats->disagg_block_read_lt500us = 0;
+    stats->disagg_block_read_lt3000us = 0;
+    stats->disagg_block_read_lt4000us = 0;
+    stats->disagg_block_read_lt5000us = 0;
+    stats->disagg_block_read_lt750us = 0;
+    stats->disagg_block_read_lt10000us = 0;
+    stats->disagg_block_read_lt1000us = 0;
+    stats->disagg_block_read_lt250us = 0;
+    stats->disagg_block_read_gte10000us = 0;
     stats->disagg_block_get = 0;
     stats->disagg_block_hs_get = 0;
     stats->disagg_block_page_discard = 0;
@@ -3623,6 +3707,20 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_bytes_insert_write += WT_STAT_CONN_READ(from, block_cache_bytes_insert_write);
     to->disagg_block_hs_byte_read += WT_STAT_CONN_READ(from, disagg_block_hs_byte_read);
     to->disagg_block_hs_byte_write += WT_STAT_CONN_READ(from, disagg_block_hs_byte_write);
+    to->disagg_block_read_lt1250us += WT_STAT_CONN_READ(from, disagg_block_read_lt1250us);
+    to->disagg_block_read_lt1500us += WT_STAT_CONN_READ(from, disagg_block_read_lt1500us);
+    to->disagg_block_read_lt1750us += WT_STAT_CONN_READ(from, disagg_block_read_lt1750us);
+    to->disagg_block_read_lt2000us += WT_STAT_CONN_READ(from, disagg_block_read_lt2000us);
+    to->disagg_block_read_lt2500us += WT_STAT_CONN_READ(from, disagg_block_read_lt2500us);
+    to->disagg_block_read_lt500us += WT_STAT_CONN_READ(from, disagg_block_read_lt500us);
+    to->disagg_block_read_lt3000us += WT_STAT_CONN_READ(from, disagg_block_read_lt3000us);
+    to->disagg_block_read_lt4000us += WT_STAT_CONN_READ(from, disagg_block_read_lt4000us);
+    to->disagg_block_read_lt5000us += WT_STAT_CONN_READ(from, disagg_block_read_lt5000us);
+    to->disagg_block_read_lt750us += WT_STAT_CONN_READ(from, disagg_block_read_lt750us);
+    to->disagg_block_read_lt10000us += WT_STAT_CONN_READ(from, disagg_block_read_lt10000us);
+    to->disagg_block_read_lt1000us += WT_STAT_CONN_READ(from, disagg_block_read_lt1000us);
+    to->disagg_block_read_lt250us += WT_STAT_CONN_READ(from, disagg_block_read_lt250us);
+    to->disagg_block_read_gte10000us += WT_STAT_CONN_READ(from, disagg_block_read_gte10000us);
     to->disagg_block_get += WT_STAT_CONN_READ(from, disagg_block_get);
     to->disagg_block_hs_get += WT_STAT_CONN_READ(from, disagg_block_hs_get);
     to->disagg_block_page_discard += WT_STAT_CONN_READ(from, disagg_block_page_discard);

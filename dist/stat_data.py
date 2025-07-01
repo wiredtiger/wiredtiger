@@ -1232,6 +1232,20 @@ conn_dsrc_stats = [
     BlockDisaggStat('disagg_block_hs_put', 'Disaggregated block manager put to the shared history store in SLS'),
     BlockDisaggStat('disagg_block_page_discard', 'Disaggregated block manager page discard calls'),
     BlockDisaggStat('disagg_block_put', 'Disaggregated block manager put '),
+    BlockDisaggStat('disagg_block_read_gte10000us', 'Disaggregated block get latency >= 10000us'),
+    BlockDisaggStat('disagg_block_read_lt10000us', 'Disaggregated block get latency 5000-9999us'),
+    BlockDisaggStat('disagg_block_read_lt1000us', 'Disaggregated block get latency 750-999us'),
+    BlockDisaggStat('disagg_block_read_lt1250us', 'Disaggregated block get latency 1000-1249us'),
+    BlockDisaggStat('disagg_block_read_lt1500us', 'Disaggregated block get latency 1250-1499us'),
+    BlockDisaggStat('disagg_block_read_lt1750us', 'Disaggregated block get latency 1500-1749us'),
+    BlockDisaggStat('disagg_block_read_lt2000us', 'Disaggregated block get latency 1750-1999us'),
+    BlockDisaggStat('disagg_block_read_lt2500us', 'Disaggregated block get latency 2000-2499us'),
+    BlockDisaggStat('disagg_block_read_lt250us', 'Disaggregated block get latency < 250us'),
+    BlockDisaggStat('disagg_block_read_lt3000us', 'Disaggregated block get latency 2500-2999us'),
+    BlockDisaggStat('disagg_block_read_lt4000us', 'Disaggregated block get latency 3000-3999us'),
+    BlockDisaggStat('disagg_block_read_lt5000us', 'Disaggregated block get latency 4000-4999us'),
+    BlockDisaggStat('disagg_block_read_lt500us', 'Disaggregated block get latency 250-499us'),
+    BlockDisaggStat('disagg_block_read_lt750us', 'Disaggregated block get latency 500-749us'),
 
     ##########################################
     # Cursor API error statistics
