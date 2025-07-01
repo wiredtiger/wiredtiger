@@ -2534,12 +2534,10 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
-    WT_PAGE_MODIFY *mod;
     uint64_t checkpoint_id;
 
     conn = S2C(session);
     page = r->page;
-    mod = page->modify;
     multi = &r->multi[r->multi_next - 1];
     block_meta = &page->block_meta;
 
@@ -2592,13 +2590,11 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
 {
     WT_MULTI *multi;
     WT_PAGE *page;
-    WT_PAGE_BLOCK_META *block_meta;
     WT_PAGE_MODIFY *mod;
 
     page = r->page;
     mod = page->modify;
     multi = &r->multi[r->multi_next - 1];
-    block_meta = &page->block_meta;
 
     switch (mod->rec_result) {
     case 0:
