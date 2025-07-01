@@ -3095,8 +3095,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                              * page?
                              */
         if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
-              mod->mod_replace.block_cookie_size));
+            WT_RET(__wt_btree_block_free(
+              session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
 
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
