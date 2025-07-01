@@ -2660,7 +2660,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     page = r->page;
     mod = page->modify;
     build_delta = false;
-    block_meta = &r->ref->page->block_meta;
+    block_meta = &page->block_meta;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
