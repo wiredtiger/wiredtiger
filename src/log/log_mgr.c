@@ -642,13 +642,13 @@ __log_file_server(void *arg)
          * Writers will set the log close lsn first and then the log close file handle, so we need
          * to read them in the reverse order to see a consistent state.
          */
-        WT_ACQUIRE_READ_WITH_BARRIER(close_fh, log->log_close_fh);
+        WT_ACQUIRE_READ(close_fh, log->log_close_fh);
         if (close_fh != NULL) {
             WT_ERR(__wti_log_extract_lognum(session, close_fh->name, &filenum));
             /*
              * The closing file handle should have a correct close LSN.
              */
-            WT_ASSERT(session, log->log_close_lsn.l.file == filenum);
+            WT_ASSERT(session, __wt_atomic_loadv32(&log->log_close_lsn.l.file) == filenum);
 
             if (__wt_log_cmp(&log->write_lsn, &log->log_close_lsn) >= 0) {
                 /*
@@ -658,7 +658,7 @@ __log_file_server(void *arg)
                  */
                 WT_ASSIGN_LSN(&close_end_lsn, &log->log_close_lsn);
                 WT_FULL_BARRIER();
-                log->log_close_fh = NULL;
+                __wt_atomic_store_pointer(&log->log_close_fh, NULL);
                 /*
                  * Set the close_end_lsn to the LSN immediately after ours. That is, the beginning
                  * of the next log file. We need to know the LSN file number of our own close in
