@@ -297,7 +297,7 @@ __wti_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, ui
 
         /* Dump the rest of the extent lists associated with any other valid checkpoints in the
          * file. */
-        WT_IGNORE_RET(__wti_block_checkpoint_extlist_dump(session, block, offset));
+        WT_IGNORE_RET(__wti_block_checkpoint_extlist_dump(session, block));
 
         F_CLR(session, WT_SESSION_DUMP_EXTLIST);
     }
