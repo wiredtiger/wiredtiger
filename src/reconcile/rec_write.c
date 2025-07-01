@@ -2425,10 +2425,12 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_MODIFY *mod;
     uint64_t checkpoint_id, delta_pct;
 
     conn = S2C(session);
     page = r->page;
+    mod = page->modify;
     multi = &r->multi[r->multi_next];
     block_meta = &r->ref->page->block_meta;
 
