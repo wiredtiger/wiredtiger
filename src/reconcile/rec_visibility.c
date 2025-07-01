@@ -629,7 +629,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             WT_ASSERT_ALWAYS(session, F_ISSET(r, WT_REC_CHECKPOINT),
               "Eviction should never occur on a page that has resolving prepared records.");
             /*
-             * FIXME: WT-14826. This while loop can be removed if we start to use the new prepared
+             * FIXME: WT-14897. This while loop can be removed if we start to use the new prepared
              * timestamp field.
              */
             __wt_sleep(0, 100);
