@@ -43,7 +43,7 @@ def _show_buckets(fh, title, mult, buckets, n):
             shown = True
     print(s, file=fh)
 
-def _latency_buckets(fh, title, mult, buckets, n):
+def _latency_buckets(fh, title, buckets, n):
     total = 0
     s = title + ': = '
     for count in range(0, n):
@@ -79,29 +79,11 @@ def _latency_plot(box, ch, left, width, arr, merge, scale):
             nch -= 1.0
             y += 1
 
-def _latency_optype(fh, plot, name, ch, t):
-    if t.ops == 0:
-        return
-    if t.latency_ops == 0:
-        print('**** ' + name + ' operations: ' + str(t.ops), file=fh)
-        return
-    print('**** ' + name + ' operations: ' + str(t.ops) + \
-          ', latency operations: ' + str(t.latency_ops), file=fh)
-    print('  avg: ' + str(t.latency/t.latency_ops) + \
-          ', min: ' + str(t.min_latency) + ', max: ' + str(t.max_latency),
-          file=fh)
-
+def _latency_op_plot(fh, name, ch, t):
+    #process and plot the latency buckets
     us = t.us()
     ms = t.ms()
     sec = t.sec()
-    print('', file=fh)
-    _latency_buckets(fh, name + ' us count ', 1, us, 1000)
-    _latency_buckets(fh, name + ' ms count ', 1000, ms, 1000)
-    _latency_buckets(fh, name + ' sec count ', 1000000, sec, 100)
-    print('', file=fh)
-    if plot == False:
-       return
-
     _latency_preprocess(us, 40)
     _latency_preprocess(ms, 40)
     _latency_preprocess(sec, 4)
@@ -127,6 +109,32 @@ def _latency_optype(fh, plot, name, ch, t):
     _show_buckets(fh, name + ' ms', 1000, ms, 1000)
     _show_buckets(fh, name + ' sec', 1000000, sec, 100)
     print('', file=fh)
+
+
+def _latency_optype(fh, plot, name, ch, t):
+    if t.ops == 0:
+        return
+    if t.latency_ops == 0:
+        print('**** ' + name + ' operations: ' + str(t.ops), file=fh)
+        return
+    print('**** ' + name + ' operations: ' + str(t.ops) + \
+          ', latency operations: ' + str(t.latency_ops), file=fh)
+    print('  avg: ' + str(t.latency/t.latency_ops) + \
+          ', min: ' + str(t.min_latency) + ', max: ' + str(t.max_latency),
+          file=fh)
+
+    us = t.us()
+    ms = t.ms()
+    sec = t.sec()
+    print('', file=fh)
+    _latency_buckets(fh, name + ' us count ', us, 1000)
+    _latency_buckets(fh, name + ' ms count ', ms, 1000)
+    _latency_buckets(fh, name + ' sec count ', sec, 100)
+    print('', file=fh)
+
+    if plot == True:
+       _latency_op_plot(fh, name, ch, t)
+
 
 def workload_latency(workload, outfilename = None, plot = False):
     if outfilename:
