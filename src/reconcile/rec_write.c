@@ -2646,6 +2646,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     WT_MULTI *multi;
     WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
+    WT_PAGE_MODIFY *mod;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_ADDR_MAX_COOKIE];
     bool build_delta;
@@ -2656,6 +2657,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     conn = S2C(session);
     btree = S2BT(session);
     page = r->page;
+    mod = page->modify;
     build_delta = false;
     block_meta = &page->block_meta;
 #ifdef HAVE_DIAGNOSTIC
