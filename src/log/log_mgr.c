@@ -441,9 +441,9 @@ __compute_min_lognum(WT_SESSION_IMPL *session, WTI_LOG *log, uint32_t backup_fil
     }
 
     /* Encourage race conditions in log subsystem during database shutdown. */
-    if (F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING) &&
-      FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CLOSE_STRESS_LOG)) {
-        for (int i = 0; i < 100; i++)
+    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CLOSE_STRESS_LOG) &&
+      F_ISSET_ATOMIC_32(conn, WT_CONN_CLOSING)) {
+        for (int i = 0; i < 50; i++)
             WT_IGNORE_RET(__wt_log_printf(session, "DEBUG: Stress for concurrency control"));
     }
 #endif
