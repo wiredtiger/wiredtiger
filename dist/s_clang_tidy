@@ -56,7 +56,6 @@ args="$args,-readability-magic-numbers"
 args="$args,-readability-named-parameter"
 args="$args,-readability-non-const-parameter"
 args="$args,-readability-uppercase-literal-suffix"
-args="$args,-clang-analyzer-core.CallAndMessage" # FIXME: WT-14872
 
 # Only specify -header once.
 f=src/btree/bt_compact.c
