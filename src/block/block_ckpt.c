@@ -1097,14 +1097,14 @@ __wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_DECL_RET;
     size_t ckpt_bytes_allocated;
 
-    ci = NULL;
     ckptbase = NULL;
 
     WT_ERR(__wt_meta_ckptlist_get(
       session, session->dhandle->name, false, &ckptbase, &ckpt_bytes_allocated));
-    WT_ERR(__wt_calloc_one(session, &ci));
     WT_CKPT_FOREACH (ckptbase, ckpt_iter) {
-        memset(ci, 0, sizeof(WT_BLOCK_CKPT));
+        WT_ERR(__wt_calloc(session, 1, sizeof(WT_BLOCK_CKPT), &ckpt_iter->bpriv));
+        ci = ckpt_iter->bpriv;
+
         WT_ERR(__wti_block_ckpt_init(session, ci, ckpt_iter->name));
         WT_ERR(
           __wti_block_ckpt_unpack(session, block, ckpt_iter->raw.data, ckpt_iter->raw.size, ci));
@@ -1126,8 +1126,12 @@ __wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
     }
 
 err:
+    /* Discard any checkpoint information we loaded. */
+    WT_CKPT_FOREACH (ckptbase, ckpt_iter)
+        if ((ci = ckpt_iter->bpriv) != NULL)
+            __wti_block_ckpt_destroy(session, ci);
+
     __wt_ckptlist_free(session, &ckptbase);
-    __wt_free(session, ci);
 
     return (ret);
 }
