@@ -37,7 +37,7 @@ inc="-I${t_pfx}build/config -I${t_pfx}build/include -Isrc/include"
 
 args="-checks=*"
 args="$args,-android-cloexec-fopen"
-args="$args,-clang-analyzer-core.NullDereference"
+# args="$args,-clang-analyzer-core.NullDereference" # FIXME: WT-14872
 args="$args,-clang-analyzer-optin.performance.Padding"
 args="$args,-clang-analyzer-valist.Uninitialized"
 args="$args,-cppcoreguidelines-avoid-magic-numbers"
