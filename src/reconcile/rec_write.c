@@ -2423,10 +2423,12 @@ __rec_write_delta(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
 {
     WT_CONNECTION_IMPL *conn;
     WT_MULTI *multi;
+    WT_PAGE *page;
     WT_PAGE_BLOCK_META *block_meta;
     uint64_t checkpoint_id, delta_pct;
 
     conn = S2C(session);
+    page = r->page;
     multi = &r->multi[r->multi_next];
     block_meta = &r->ref->page->block_meta;
 
@@ -2541,7 +2543,7 @@ __rec_write_image(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WTI_REC_CHUNK *chu
     page = r->page;
     mod = page->modify;
     multi = &r->multi[r->multi_next];
-    block_meta = &page->block_meta;
+    block_meta = &r->ref->page->block_meta;
 
     /* If we split the page, create a new page id. Otherwise, reuse the existing page id. */
     if (last_block && r->multi_next == 1 && block_meta->page_id != WT_BLOCK_INVALID_PAGE_ID) {
@@ -2598,7 +2600,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
     page = r->page;
     mod = page->modify;
     multi = &r->multi[r->multi_next];
-    block_meta = &page->block_meta;
+    block_meta = &r->ref->page->block_meta;
 
     switch (mod->rec_result) {
     case 0:
