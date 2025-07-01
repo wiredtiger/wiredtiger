@@ -255,7 +255,7 @@ __rec_row_merge(
     key = &r->k;
     val = &r->v;
 
-    /* TODO: build delta for split pages. */
+    /* FIXME-WT-14880: build delta for split pages. */
     if (*build_delta && mod->mod_multi_entries > 1 && ref_changes > 0) {
         *build_delta = false;
         r->delta.size = 0;
@@ -382,7 +382,7 @@ __wti_rec_row_int(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
-        /* TODO: build delta for split pages. */
+        /* FIXME-WT-14880: build delta for split pages. */
         if (build_delta && r->multi_next > 0) {
             build_delta = false;
             r->delta.size = 0;

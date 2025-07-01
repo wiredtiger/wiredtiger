@@ -215,7 +215,7 @@ __wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
             if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
                 break;
 
-            /* TODO: support delta for fast truncate. */
+            /* FIXME-WT-14879: support delta for fast truncate. */
             if (build_delta != NULL) {
                 *build_delta = false;
                 r->delta.size = 0;

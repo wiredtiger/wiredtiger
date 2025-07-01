@@ -484,7 +484,7 @@ __wti_page_reconstruct_deltas(
          * We may be in a reconciliation already. Don't rewrite in this case as reconciliation is
          * not reentrant.
          *
-         * TODO: this should go away when we use an algorithm to directly rewrite delta.
+         * FIXME-WT-14885: this should go away when we use an algorithm to directly rewrite delta.
          */
         if (F_ISSET(&S2C(session)->disaggregated_storage, WT_DISAGG_FLATTEN_LEAF_PAGE_DELTA) &&
           !__wt_rec_in_progress(session)) {
