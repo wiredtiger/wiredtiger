@@ -41,13 +41,29 @@
 #error "Clang versions 3.5 and earlier are unsupported by WiredTiger"
 #endif
 
-#define WT_ATOMIC_CAS(ptr, oldp, newv) \
-    __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)             \
-    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg) \
-    {                                                                   \
-        return (WT_ATOMIC_CAS(vp, &old, newv));                         \
+typedef enum {
+    WT_RELAXED = __ATOMIC_RELAXED,
+    WT_ACQUIRE = __ATOMIC_ACQUIRE,
+    WT_RELEASE = __ATOMIC_RELEASE,
+    WT_ACQ_REL = __ATOMIC_ACQ_REL,
+    WT_SEQ_CST = __ATOMIC_SEQ_CST
+} WT_MEM_ORDER;
+
+#define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)                                  \
+    static inline bool __wt_atomic_cas_order_##name(                                         \
+      vp_arg, old_arg, newv_arg, WT_MEM_ORDER on_success, WT_MEM_ORDER on_failure)           \
+    {                                                                                        \
+        return (__atomic_compare_exchange_n(vp, &old, newv, false, on_success, on_failure)); \
+    }                                                                                        \
+    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg)                      \
+    {                                                                                        \
+        return (__wt_atomic_cas_order_##name(vp, old, newv, WT_SEQ_CST, WT_SEQ_CST));        \
+    }                                                                                        \
+    static inline bool __wt_atomic_cas_relaxed_##name(vp_arg, old_arg, newv_arg)             \
+    {                                                                                        \
+        return (__wt_atomic_cas_order_##name(vp, old, newv, WT_RELAXED, WT_RELAXED));        \
     }
+
 WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t newv)
 WT_ATOMIC_CAS_FUNC(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t newv)
 WT_ATOMIC_CAS_FUNC(16, uint16_t *vp, uint16_t old, uint16_t newv)
@@ -68,7 +84,7 @@ WT_ATOMIC_CAS_FUNC(size, size_t *vp, size_t old, size_t newv)
 static inline bool
 __wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 {
-    return (WT_ATOMIC_CAS((void **)vp, &old, newv));
+    return (__atomic_compare_exchange_n((void **)vp, &old, newv, false, WT_SEQ_CST, WT_SEQ_CST));
 }
 
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                                                  \

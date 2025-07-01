@@ -153,9 +153,8 @@ static int
 __reconcile_post_wrapup(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page, uint32_t flags, bool *page_lockedp)
 {
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
+    WT_BTREE *btree = S2BT(session);
+    uint64_t rec_multiblock_max = 0;
 
     /* Ensure that we own the lock before unlocking the page, as we unlock it unconditionally. */
     WT_ASSERT_SPINLOCK_OWNED(session, &page->modify->page_lock);
@@ -183,8 +182,11 @@ __reconcile_post_wrapup(
         if (r->rec_page_cell_with_prepared_txn)
             WT_STAT_CONN_INCR(session, rec_pages_with_prepare);
     }
-    if (r->multi_next > btree->rec_multiblock_max)
-        btree->rec_multiblock_max = r->multi_next;
+
+    do {
+        rec_multiblock_max = __wt_atomic_load32(&btree->rec_multiblock_max);
+    } while (r->multi_next > rec_multiblock_max &&
+      !__wt_atomic_cas_relaxed_32(&btree->rec_multiblock_max, rec_multiblock_max, r->multi_next));
 
     /* Clean up the reconciliation structure. */
     WT_RET(__rec_cleanup(session, r));

@@ -37,6 +37,8 @@
 #define WT_GCC_FUNC_ATTRIBUTE(x)
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
+typedef enum { WT_RELAXED, WT_ACQUIRE, WT_RELEASE, WT_ACQ_REL, WT_SEQ_CST } WT_MEM_ORDER;
+
 #define WT_ATOMIC_FUNC(name, ret, type, s, t)                                                      \
     static inline ret __wt_atomic_add##name(type *vp, type v)                                      \
     {                                                                                              \
@@ -54,6 +56,22 @@
     {                                                                                              \
         return (                                                                                   \
           _InterlockedCompareExchange##s((t *)(vp), (t)(new_val), (t)(old_val)) == (t)(old_val));  \
+    }                                                                                              \
+    /*                                                                                             \
+     * !!!                                                                                         \
+     * All the orders for CAS operations on Windows are strengthened to sequential consistency     \
+     * since Windows doesn't have equivalents for some of them (e.g. relaxed).                     \
+     * Additionally, Windows is considered a lower-priority platform generally poor atomics        \
+     * support.                                                                                    \
+     */                                                                                            \
+    static inline bool __wt_atomic_cas_order_##name(                                               \
+      vp_arg, old_arg, newv_arg, WT_MEM_ORDER on_success, WT_MEM_ORDER on_failure)                 \
+    {                                                                                              \
+        return (__wt_atomic_cas##name(vp, old, newv, false));                                      \
+    }                                                                                              \
+    static inline bool __wt_atomic_cas_relaxed_##name(vp_arg, old_arg, newv_arg)                   \
+    {                                                                                              \
+        return (__wt_atomic_cas##name(vp, old, newv));                                             \
     }                                                                                              \
     /*                                                                                             \
      * !!!                                                                                         \
