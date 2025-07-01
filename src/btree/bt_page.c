@@ -133,7 +133,7 @@ __page_merge_internal_delta_with_base_image(WT_SESSION_IMPL *session, WT_REF *re
     WT_ITEM base_key_buf, delta_key_buf;
     WT_PAGE *page;
     WT_REF **refs;
-    size_t base_entries, estimated_entries, final_entries, i, j, k;
+    size_t i, j, k, base_entries, estimated_entries, final_entries;
     int cmp;
 
     final_entries = i = j = k = 0;
@@ -235,9 +235,9 @@ __page_merge_internal_deltas(WT_SESSION_IMPL *session, WT_CELL_UNPACK_DELTA_INT 
   uint32_t start, uint32_t end, size_t *sizes, WT_CELL_UNPACK_DELTA_INT ***deltas_merged,
   size_t *size)
 {
-    WT_CELL_UNPACK_DELTA_INT **left, **merged, **right;
+    WT_CELL_UNPACK_DELTA_INT **left, **right, **merged;
     size_t left_size, right_size;
-    uint32_t i, mid;
+    uint32_t mid, i;
 
     WT_ASSERT(session, start <= end);
     left = right = merged = NULL;
@@ -370,7 +370,7 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
     WT_ITEM key, value;
     WT_PAGE *page;
     WT_ROW *rip;
-    WT_UPDATE *first_upd, *standard_value, *tombstone, *upd;
+    WT_UPDATE *first_upd, *upd, *standard_value, *tombstone;
     size_t size, tmp_size, total_size;
 
     header = (WT_DELTA_HEADER *)delta->data;
@@ -391,8 +391,9 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
 
         /* Search the page and apply the modification. */
         WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
-        /* Deltas are applied from newest to oldest, ignore keys that have already got a delta
-         * update. */
+        /*
+         * We apply deltas from newest to oldest, ignore keys that have already got a delta update.
+         */
         if (cbt.compare == 0) {
             if (cbt.ins != NULL) {
                 if (cbt.ins->upd != NULL && F_ISSET(cbt.ins->upd, WT_UPDATE_RESTORED_FROM_DELTA))

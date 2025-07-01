@@ -120,14 +120,14 @@ connection_disaggregated_config_common = [
         disk image if successful''',
         type='boolean', undoc=True),
     Config('internal_page_delta', 'true', r'''
-        When enabled, reconciliation may write deltas for internal pages
+        When enabled, reconciliation writes deltas for internal pages
         instead of writing entire pages every time''',
         type='boolean', undoc=True),
     Config('last_materialized_lsn', '', r'''
         the page LSN indicating that all pages up until this LSN are available for reading''',
         type='int', undoc=True),
     Config('leaf_page_delta', 'true', r'''
-        When enabled, reconciliation may write deltas for leaf pages
+        When enabled, reconciliation writes deltas for leaf pages
         instead of writing entire pages every time''',
         type='boolean', undoc=True),
     Config('lose_all_my_data', 'false', r'''
