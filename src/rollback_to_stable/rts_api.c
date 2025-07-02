@@ -64,11 +64,14 @@ __rts_check(WT_SESSION_IMPL *session)
      * A new cursor may be positioned or a transaction may start after we return from this call and
      * callers should be aware of this limitation.
      */
-    if (cookie.ret_cursor_active)
-        WT_RET_MSG(session, EBUSY, "rollback_to_stable illegal with active file cursors");
+    if (cookie.ret_cursor_active) {
+        ret = EBUSY;
+        WT_TRET(__wt_verbose_dump_sessions(session, true));
+        WT_RET_MSG(session, ret, "rollback_to_stable illegal with active file cursors");
+    }
     if (cookie.ret_txn_active) {
         ret = EBUSY;
-        WT_TRET(__wt_verbose_dump_txn(session));
+        WT_TRET(__wt_verbose_dump_sessions(session, false));
         WT_RET_MSG(session, ret, "rollback_to_stable illegal with active transactions");
     }
     return (0);
@@ -291,6 +294,9 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
         WT_RET_NOTFOUND_OK(ret);
     }
 
+    /* Disable RTS for now if we want to preserve prepared. */
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED))
+        return (0);
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want
      * to cache all of them forever, plus (b) can't guarantee that no other method will be called

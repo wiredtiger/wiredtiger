@@ -144,24 +144,6 @@ __rec_child_deleted(
      * cells to the page. Copy out the current fast-truncate information for that function.
      */
     if (!visible_all) {
-        if (!__wt_process.fast_truncate_2022) {
-            /*
-             * Internal pages with deletes that aren't globally visible cannot be evicted if we
-             * don't write the page_del information, we don't have sufficient information to restore
-             * the page's information if subsequently read (we wouldn't know which transactions
-             * should see the original page and which should see the deleted page).
-             */
-            if (F_ISSET(r, WT_REC_EVICT))
-                return (__wt_set_return(session, EBUSY));
-
-            /*
-             * It is wrong to leave the page clean after checkpoint if we cannot write the deleted
-             * pages to disk in eviction. If we do so, the next eviction will discard the page
-             * without reconcile it again and we lose the time point information of the non-obsolete
-             * deleted pages.
-             */
-            r->leave_dirty = true;
-        }
         cmsp->del = *page_del;
         cmsp->state = WTI_CHILD_PROXY;
         page_del->selected_for_write = true;
@@ -191,8 +173,8 @@ __rec_child_deleted(
  *     Return if the internal page's child references any modifications.
  */
 int
-__wti_rec_child_modify(
-  WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref, WTI_CHILD_MODIFY_STATE *cmsp)
+__wti_rec_child_modify(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_REF *ref,
+  WTI_CHILD_MODIFY_STATE *cmsp, bool *build_delta)
 {
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
@@ -232,6 +214,12 @@ __wti_rec_child_modify(
              */
             if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
                 break;
+
+            /* FIXME-WT-14879: support delta for fast truncate. */
+            if (build_delta != NULL) {
+                *build_delta = false;
+                r->delta.size = 0;
+            }
             ret = __rec_child_deleted(session, r, ref, cmsp);
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
             goto done;

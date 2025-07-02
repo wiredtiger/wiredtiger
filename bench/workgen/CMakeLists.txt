@@ -63,6 +63,11 @@ target_include_directories(
 )
 target_link_libraries(workgen_cpp test_util)
 
+# For some reason, libstdc++ symbols collide when running workgen under the V5 toolchain 
+# on armv9 machines. Therefore prevent symbols from being exported inside the workgen cpp
+# library as a workaround. 
+target_link_options(workgen_cpp PRIVATE "-Wl,--exclude-libs,ALL")  
+
 set_property(TARGET workgen_cpp PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Manually specify the interface name '_workgen' over a generated name.
