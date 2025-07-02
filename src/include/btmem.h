@@ -422,6 +422,9 @@ struct __wt_page_modify {
      */
     wt_timestamp_t rec_pinned_stable_timestamp;
 
+    /* An approximate timestamp of the newest update */
+    wt_shared wt_timestamp_t newest_commit_timestamp;
+
     /* The largest update transaction ID (approximate). */
     wt_shared uint64_t update_txn;
 
