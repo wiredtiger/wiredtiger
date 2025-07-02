@@ -42,6 +42,7 @@
     "WT_VERB_METADATA", \
     "WT_VERB_OUT_OF_ORDER", \
     "WT_VERB_OVERFLOW", \
+    "WT_VERB_PAGE_DELTA", \
     "WT_VERB_PREFETCH", \
     "WT_VERB_READ", \
     "WT_VERB_RECONCILE", \
