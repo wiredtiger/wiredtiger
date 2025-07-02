@@ -515,7 +515,7 @@ palm_init_lsn(PALM *palm)
 
     /*
      * Get the LSN. If it's never been set, we'll get not found, but that's okay, that will leave
-     * out beginning LSN at zero, which is fine for our purposes.
+     * our beginning LSN at zero, which is fine for our purposes.
      */
     ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &palm->begin_lsn);
     if (ret == MDB_NOTFOUND)
