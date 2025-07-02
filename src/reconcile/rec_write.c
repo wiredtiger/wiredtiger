@@ -657,10 +657,15 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     else
         r->rec_start_pinned_stable_ts = WT_TS_NONE;
 
-    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT))
+    /*
+     * We need the braces here -- certain clang versions turn __atomic_load_n under TSan into
+     * multiple statements.
+     */
+    if (F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT)) {
         WT_ACQUIRE_READ(r->rec_prune_timestamp, btree->prune_timestamp);
-    else
+    } else {
         r->rec_prune_timestamp = WT_TS_NONE;
+    }
 
     /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
