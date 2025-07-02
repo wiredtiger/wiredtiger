@@ -175,6 +175,10 @@ def is_layered(uri):
 
 # If the uri has been marked as layered, then transform to a layered uri
 def replace_uri(uri):
+    # Handle statistics: or statistics:<uri>
+    stat_prefix = 'statistics:'
+    if uri.startswith(stat_prefix):
+        return 'statistics:' + replace_uri(uri[len(stat_prefix):])
     if is_layered(uri):
         return uri.replace("table:", "layered:")
     else:
