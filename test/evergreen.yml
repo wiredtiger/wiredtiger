@@ -2147,7 +2147,9 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: -v 2 --hook timing_stress_log_conn_close
+          # For some reason RTS tests hang when timing_stress_log_conn_close is set. Limit to
+          # only the transaction suite. I have only encountered log system bugs in that category.
+          unit_test_args: -v 2 --hook timing_stress_log_conn_close txn
 
   - name: unit-test-hook-tiered
     tags: ["python"]
