@@ -118,7 +118,7 @@ typedef struct {
     uint32_t materialization_delay_ms; /* Average length of materialization delay */
     uint64_t last_materialized_lsn;    /* The last materialized LSN (0 if not set) */
     uint32_t verbose;                  /* Verbose level */
-    uint32_t verbose_msg;              /* Send verbose messages to msg callback interface */
+    bool verbose_msg;                  /* Send verbose messages to msg callback interface */
 
     /*
      * Statistics are collected but not yet exposed.
@@ -144,6 +144,7 @@ typedef struct palm_handle {
  * Forward function declarations for internal functions
  */
 static int palm_configure(PALM *, WT_CONFIG_ARG *);
+static int palm_configure_bool(PALM *, WT_CONFIG_PARSER *, WT_CONFIG_ARG *, const char *, bool *);
 static int palm_configure_int(
   PALM *, WT_CONFIG_PARSER *, WT_CONFIG_ARG *, const char *, uint32_t *);
 static int palm_err(PALM *, WT_SESSION *, int, const char *, ...);
@@ -197,7 +198,7 @@ palm_configure(PALM *palm, WT_CONFIG_ARG *config)
         goto err;
     if ((ret = palm_configure_int(palm, env_parser, config, "verbose", &palm->verbose)) != 0)
         goto err;
-    if ((ret = palm_configure_int(palm, env_parser, config, "verbose_msg", &palm->verbose_msg)) !=
+    if ((ret = palm_configure_bool(palm, env_parser, config, "verbose_msg", &palm->verbose_msg)) !=
       0)
         goto err;
 
@@ -207,6 +208,37 @@ err:
         if (ret == 0)
             ret = t_ret;
     }
+    return (ret);
+}
+
+/*
+ * palm_configure_bool
+ *     Look for a particular configuration key, and return its boolean value.
+ */
+static int
+palm_configure_bool(
+  PALM *palm, WT_CONFIG_PARSER *env_parser, WT_CONFIG_ARG *config, const char *key, bool *valuep)
+{
+    WT_CONFIG_ITEM v;
+    int ret;
+
+    ret = 0;
+
+    /*
+     * Environment configuration overrides configuration used with loading the library, so check
+     * that first.
+     */
+    if ((ret = env_parser->get(env_parser, key, &v)) == 0 ||
+      (ret = palm->wt_api->config_get(palm->wt_api, NULL, config, key, &v)) == 0) {
+        if (v.len == 0 || (v.type != WT_CONFIG_ITEM_NUM && v.type != WT_CONFIG_ITEM_BOOL))
+            ret = palm_err(palm, NULL, EINVAL, "force_error config arg: bool required");
+        else
+            *valuep = (v.val != 0);
+    } else if (ret == WT_NOTFOUND)
+        ret = 0;
+    else
+        ret = palm_err(palm, NULL, EINVAL, "WT_API->config_get");
+
     return (ret);
 }
 
