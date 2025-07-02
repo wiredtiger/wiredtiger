@@ -1582,16 +1582,6 @@ tasks:
         vars:
           directory: examples/c
 
-  - name: examples-c-tsan
-    tags: ["pull_request"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "make check directory"
-        vars:
-          directory: examples/c
-          ctest_extra_args: -E "(ex_all|ex_backup|ex_backup_block)" -j ${num_jobs}
-
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
     commands:
@@ -5459,7 +5449,7 @@ buildvariants:
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: examples-c-tsan
+    - name: examples-c-test
     - name: tsan-warning-metrics
       batchtime: 10080 # 7 days
 
@@ -6282,7 +6272,7 @@ buildvariants:
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: examples-c-tsan
+    - name: examples-c-test
 
 - name: amazon2023-armv9-msan
   display_name: "(ARMV9) Amazon Linux 2023 MSAN"
