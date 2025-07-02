@@ -28,7 +28,7 @@
 
 #pragma once
 
-#define PALM_VERBOSE_PRINT(palm, ...)                                               \
+#define PALM_VERBOSE_PRINT(palm, session, ...)                                      \
     do {                                                                            \
         if ((palm)->verbose > 0) {                                                  \
             if ((palm)->verbose_msg)                                                \

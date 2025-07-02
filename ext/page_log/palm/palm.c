@@ -331,7 +331,7 @@ palm_delay(PALM *palm, WT_SESSION *session)
     if (palm->force_delay != 0 &&
       (palm->object_gets + palm->object_puts) % palm->force_delay == 0) {
         us = palm_compute_delay_us(palm, (uint64_t)palm->delay_ms * WT_THOUSAND);
-        PALM_VERBOSE_PRINT(palm,
+        PALM_VERBOSE_PRINT(palm, session,
           "Artificial delay %" PRIu64 " microseconds after %" PRIu64 " object reads, %" PRIu64
           " object writes\n",
           us, palm->object_gets, palm->object_puts);
@@ -340,7 +340,7 @@ palm_delay(PALM *palm, WT_SESSION *session)
     if (palm->force_error != 0 &&
       (palm->object_gets + palm->object_puts) % palm->force_error == 0) {
         us = palm_compute_delay_us(palm, (uint64_t)palm->error_ms * WT_THOUSAND);
-        PALM_VERBOSE_PRINT(palm,
+        PALM_VERBOSE_PRINT(palm, session,
           "Artificial error returned after %" PRIu64 " microseconds sleep, %" PRIu64
           " object reads, %" PRIu64 " object writes\n",
           us, palm->object_gets, palm->object_puts);
@@ -391,7 +391,7 @@ palm_kv_err(PALM *palm, WT_SESSION *session, int ret, const char *format, ...)
         wt_api->err_printf(wt_api, session, "palm: error overflow");
     lmdb_error = mdb_strerror(ret);
     wt_api->err_printf(wt_api, session, "palm LMDB: %s: %s", lmdb_error, buf);
-    PALM_VERBOSE_PRINT(palm, "palm LMDB: %s: %s\n", lmdb_error, buf);
+    PALM_VERBOSE_PRINT(palm, session, "palm LMDB: %s: %s\n", lmdb_error, buf);
     va_end(ap);
 
     return (WT_ERROR);
@@ -453,7 +453,7 @@ palm_get_dek(PALM *palm, WT_SESSION *session, const WT_PAGE_LOG_ENCRYPTION *encr
         if (!PALM_ENCRYPTION_EQUAL(*encrypt_in, tmp))
             return (palm_err(palm, session, EINVAL,
               "encryption dek %31s does not match expected value %31s", encrypt_in->dek, tmp.dek));
-        PALM_VERBOSE_PRINT(palm, "palm using saved dek: %s\n", encrypt_in->dek);
+        PALM_VERBOSE_PRINT(palm, session, "palm using saved dek: %s\n", encrypt_in->dek);
         *encrypt_out = *encrypt_in;
     }
 
@@ -803,7 +803,7 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
     }
     PALM_KV_ERR(palm, session, ret);
 
-    PALM_VERBOSE_PRINT(palm_handle->palm,
+    PALM_VERBOSE_PRINT(palm_handle->palm, session,
       "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64
       ", checkpoint_id=%" PRIu64 ", backlink_lsn=%" PRIu64 ", base_lsn=%" PRIu64
       ", backlink_checkpoint_id=%" PRIu64 ", base_checkpoint_id=%" PRIu64 ")\n",
@@ -831,7 +831,7 @@ palm_handle_discard(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_
 err:
         palm_kv_rollback_transaction(&context);
 
-        PALM_VERBOSE_PRINT(palm_handle->palm,
+        PALM_VERBOSE_PRINT(palm_handle->palm, session,
           "palm_handle_discard(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
           ", checkpoint_id=%" PRIu64 ", is_delta=%d) returned %d\n",
           (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta, ret);
@@ -874,7 +874,7 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     }
     PALM_KV_ERR(palm, session, ret);
 
-    PALM_VERBOSE_PRINT(palm_handle->palm,
+    PALM_VERBOSE_PRINT(palm_handle->palm, session,
       "palm_handle_put(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
       ", checkpoint_id=%" PRIu64 ", backlink_lsn=%" PRIu64 ", base_lsn=%" PRIu64
       ", backlink_checkpoint_id=%" PRIu64 ", base_checkpoint_id=%" PRIu64
@@ -895,7 +895,7 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 err:
     palm_kv_rollback_transaction(&context);
 
-    PALM_VERBOSE_PRINT(palm_handle->palm,
+    PALM_VERBOSE_PRINT(palm_handle->palm, session,
       "palm_handle_put(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
       ", checkpoint_id=%" PRIu64 ", is_delta=%d) returned %d\n",
       (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, is_delta, ret);
@@ -943,7 +943,7 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
     palm_init_context(palm, &context);
 
-    PALM_VERBOSE_PRINT(palm_handle->palm,
+    PALM_VERBOSE_PRINT(palm_handle->palm, session,
       "palm_handle_get(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
       ", checkpoint_id=%" PRIu64 ")...\n",
       (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id);
@@ -988,9 +988,10 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
         get_args->encryption = matches.encryption;
         zeroed_encryption = PALM_ENCRYPTION_EQUAL(get_args->encryption, zero_encryption);
         if (zeroed_encryption)
-            PALM_VERBOSE_PRINT(palm, "palm got zero dek%s\n", "");
+            PALM_VERBOSE_PRINT(palm, session, "palm got zero dek%s\n", "");
         else
-            PALM_VERBOSE_PRINT(palm, "palm got non-zero dek: %s\n", get_args->encryption.dek);
+            PALM_VERBOSE_PRINT(
+              palm, session, "palm got non-zero dek: %s\n", get_args->encryption.dek);
         if (zeroed_encryption && !was_zeroed_encryption) {
             ret = palm_err(palm, session, EINVAL,
               "base dek is not zeroed, delta encryption is zero and should not be");
@@ -1007,15 +1008,15 @@ palm_handle_get(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
 
 err:
     palm_kv_rollback_transaction(&context);
-    PALM_VERBOSE_PRINT(palm_handle->palm,
+    PALM_VERBOSE_PRINT(palm_handle->palm, session,
       "palm_handle_get(plh=%p, table_id=%" PRIu64 ", page_id=%" PRIu64 ", lsn=%" PRIu64
       ", checkpoint_id=%" PRIu64 ") returns %d (in %d parts)\n",
       (void *)plh, palm_handle->table_id, page_id, lsn, checkpoint_id, ret, (int)count);
     if (ret == 0) {
         for (i = 0; i < count; ++i)
-            PALM_VERBOSE_PRINT(
-              palm_handle->palm, "   part %d: %s\n", (int)i, palm_verbose_item(&results_array[i]));
-        PALM_VERBOSE_PRINT(palm_handle->palm,
+            PALM_VERBOSE_PRINT(palm_handle->palm, session, "   part %d: %s\n", (int)i,
+              palm_verbose_item(&results_array[i]));
+        PALM_VERBOSE_PRINT(palm_handle->palm, session,
           "   metadata: backlink_lsn=%" PRIu64 ", base_lsn=%" PRIu64
           ", backlink_checkpoint_id=%" PRIu64 ", base_checkpoint_id=%" PRIu64 "\n",
           get_args->backlink_lsn, get_args->base_lsn, get_args->backlink_checkpoint_id,
