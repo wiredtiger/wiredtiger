@@ -42,7 +42,11 @@ import wthooks
 # Called to manipulate args for wiredtiger_open
 def wiredtiger_open_args(ignored_self, args):
     args = list(args)    # convert from a readonly tuple to a writeable list
-    args[-1] += ',,,timing_stress_for_test=[conn_close_stress_log_printf],,,'   # modify the last arg
+    if (len(args) == 1):
+        return args
+
+    if "timing_stress_for_test" in args[1]:
+        return args
     return args
 
 # Every hook file must have one or more classes descended from WiredTigerHook
