@@ -663,7 +663,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
             WT_ASSERT_ALWAYS(session, F_ISSET(r, WT_REC_CHECKPOINT),
               "Eviction should never occur on a page that has resolving prepared records.");
             /*
-             * FIXME: WT-14826. This while loop can be removed if we start to use the new prepared
+             * FIXME: WT-14897. This while loop can be removed if we start to use the new prepared
              * timestamp field.
              */
             __wt_sleep(0, 100);
@@ -822,7 +822,7 @@ __rec_fill_tw_from_upd_select(
      * that the value is visible to any timestamp/transaction id ahead of it.
      */
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_TIME_WINDOW_SET_STOP(select_tw, upd);
+        WT_TIME_WINDOW_SET_STOP(session, select_tw, upd);
         tombstone = upd_select->tombstone = upd;
 
         /* Find the update this tombstone applies to. */
@@ -840,7 +840,7 @@ __rec_fill_tw_from_upd_select(
 
     if (upd != NULL)
         /* The beginning of the validity window is the selected update's time point. */
-        WT_TIME_WINDOW_SET_START(select_tw, upd);
+        WT_TIME_WINDOW_SET_START(session, select_tw, upd);
     else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
         WT_ASSERT_ALWAYS(
           session, tombstone != NULL, "The only contents of the update list is a single tombstone");
@@ -891,7 +891,7 @@ __rec_fill_tw_from_upd_select(
               "Tombstone is globally visible, but the tombstoned update is on the update "
               "chain");
             upd_select->upd = last_upd->next;
-            WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
+            WT_TIME_WINDOW_SET_START(session, select_tw, last_upd->next);
         } else {
             /*
              * It's possible that onpage value is not appended if the tombstone becomes globally

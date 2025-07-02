@@ -215,7 +215,7 @@ __wti_rec_incr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, uint32_t v, size_t si
 
 /*
  * __wti_rec_kv_copy --
- *     Copy a key/value cell and buffer pair. TODO: ensure memory safety on the pointer.
+ *     Copy a key/value cell and buffer pair. FIXME-WT-14887: ensure memory safety on the pointer.
  */
 static WT_INLINE void
 __wti_rec_kv_copy(WT_SESSION_IMPL *session, uint8_t *p, WTI_REC_KV *kv)

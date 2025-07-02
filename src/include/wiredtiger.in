@@ -9401,6 +9401,7 @@ typedef enum {
     WT_VERB_METADATA,               /*!< Metadata messages. */
     WT_VERB_OUT_OF_ORDER,
     WT_VERB_OVERFLOW,
+    WT_VERB_PAGE_DELTA,
     WT_VERB_PREFETCH,
     WT_VERB_READ,
     WT_VERB_RECONCILE,            /*!< Reconcile messages. */
@@ -9419,7 +9420,6 @@ typedef enum {
     WT_VERB_VERIFY,                 /*!< Verify messages. */
     WT_VERB_VERSION,                /*!< Version messages. */
     WT_VERB_WRITE,
-    WT_VERB_PAGE_DELTA,
 /* VERBOSE ENUM STOP */
     WT_VERB_NUM_CATEGORIES
 } WT_VERBOSE_CATEGORY;

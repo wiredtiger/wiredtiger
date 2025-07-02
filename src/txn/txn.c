@@ -694,8 +694,13 @@ __wt_txn_config(WT_SESSION_IMPL *session, WT_CONF *conf)
      * rounded up.
      */
     WT_ERR(__wt_conf_gets_def(session, conf, Roundup_timestamps.prepared, 0, &cval));
-    if (cval.val)
+    if (cval.val) {
+        if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED))
+            WT_ERR_MSG(session, EINVAL,
+              "cannot round up prepare timestamp to the oldest timestamp when the preserve prepare "
+              "config is on");
         F_SET(txn, WT_TXN_TS_ROUND_PREPARED);
+    }
 
     /* Check if read timestamp needs to be rounded up. */
     WT_ERR(__wt_conf_gets_def(session, conf, Roundup_timestamps.read, 0, &cval));
@@ -2042,6 +2047,11 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Set the prepared id */
     WT_RET(__wt_config_gets(session, cfg, "prepared_id", &cval));
+
+    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED) &&
+      (uint64_t)cval.val == WT_PREPARED_ID_NONE) {
+        WT_RET_MSG(session, EINVAL, "prepared_id need to be set with preserve_prepared flag on");
+    }
     session->txn->prepared_id = (uint64_t)cval.val;
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
