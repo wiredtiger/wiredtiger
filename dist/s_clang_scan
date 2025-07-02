@@ -6,7 +6,9 @@ setup_trap 'rm -rf $t_out $t_out_filtered $t_build $t_diff_filtered'
 
 t_out=__wt.$$.out
 t_out_filtered=__wt.$$.out_filtered
+t_out_errors=__wt.$$.out_errors
 t_diff_filtered=__wt.$$.diff_filtered
+t_diff_result=__wt.$$.diff_result
 t_build=__s_clang_scan_tmp_build
 
 echo "$0: running scan-build in $PWD"
@@ -43,16 +45,28 @@ cat dist/s_clang_scan.diff | sed '/^#/d' | LC_ALL=C sort > $t_diff_filtered
 # colon, followed by the string "error:" or "warning:".
 cat $t_out |
     grep -E '^[a-z\./].*error: |^[a-z\./].*warning: ' |
-    sed -e 's/^.*wiredtiger/wiredtiger/' |
+    sed -e 's/^.*wiredtiger/wiredtiger/' > $t_out_errors
+cat $t_out_errors |
     sed -e 's/:.*:.*://' |
     LC_ALL=C sort > $t_out_filtered
-diff $t_diff_filtered $t_out_filtered > /dev/null && exit 0
 
-echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-echo 'scan-build output differs from expected, see the difference below:'
+diff $t_diff_filtered $t_out_filtered > $t_diff_result && exit 0
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+echo 'scan-build output differs from expected:'
 echo '<<<<<<<<<< Expected >>>>>>>>>> Current'
-echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-diff $t_diff_filtered $t_out_filtered
-echo "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
-echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+cat $t_diff_result
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+# Since we compare lines after stripping certain parts, it can be difficult to identify
+# the original source of the warnings. To recover the line numbers, we search for the
+# unexpected diff entries in the original output.
+echo 'that could be related to the following output entries:'
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+grep '^>' "$t_diff_result" | sed 's/^> *//' | while read line; do
+    path=$(echo "$line" | awk '{print $1}')
+    msg=$(echo "$line" | cut -d' ' -f2-)
+    grep -F "$path:" "$t_out_errors" | grep -F "$msg"
+done
+echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 exit 1
