@@ -245,8 +245,12 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
   WT_ROW *rip, WTI_UPDATE_SELECT *upd_select)
 {
     WT_UPDATE *delete_tombstone, *delete_upd, *visible_all_upd;
+    wt_timestamp_t prune_timestamp;
+    uint64_t oldest_id;
     bool delete_hs_upd_found;
 
+    WT_ACQUIRE_READ(prune_timestamp, S2BT(session)->prune_timestamp);
+    oldest_id = __wt_txn_oldest_id(session);
     delete_tombstone = NULL;
     visible_all_upd = NULL;
     delete_hs_upd_found = false;
@@ -276,9 +280,16 @@ __rec_find_and_save_delete_hs_upd(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT
          * before the tombstone, due to the tombstone being globally visible concurrently with the
          * update chain processing, this might be allowed to access the freed updates further in the
          * reconciliation code.
+         *
+         * If a table has garbage collection enabled, then trim updates as possible. We should check
+         * the logic here - it might be possible to do something more aggressive?
          */
         if (!F_ISSET(r, WT_REC_EVICT) && visible_all_upd == NULL && delete_upd->next != NULL &&
-          __wt_txn_upd_visible_all(session, delete_upd) && WT_UPDATE_DATA_VALUE(delete_upd))
+          (__wt_txn_upd_visible_all(session, delete_upd) ||
+            (F_ISSET(S2BT(session), WT_BTREE_GARBAGE_COLLECT) &&
+              (WT_TXNID_LT(delete_upd->txnid, oldest_id) && prune_timestamp != WT_TS_NONE &&
+                delete_upd->durable_ts <= prune_timestamp)) &&
+              WT_UPDATE_DATA_VALUE(delete_upd)))
             visible_all_upd = delete_upd;
     }
 
