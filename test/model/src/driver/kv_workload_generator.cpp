@@ -454,6 +454,14 @@ kv_workload_generator::generate_transaction(size_t seq_no)
             probability_case(_spec.get)
             {
                 table_context_ptr table = choose_table(txn_ptr);
+                /*
+                 * FIXME-WT-14903 Under FLCS, get operations expose some relatively complex effects.
+                 * For instance, eviction changes implicit records to explicit. To re-enable this,
+                 * check that all FLCS interactions are accounted for.
+                 */
+                if (table->type() == kv_table_type::column_fix)
+                    break;
+
                 data_value key = generate_key(table, op_category::get);
                 /* A get operation shouldn't affect context. */
                 txn << operation::get(table->id(), txn_id, key);
