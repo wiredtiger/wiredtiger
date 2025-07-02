@@ -2,7 +2,7 @@
 
 . `dirname -- ${BASH_SOURCE[0]}`/common_functions.sh
 cd_top
-setup_trap 'rm -rf $t_out $t_out_filtered $t_build $t_diff_filtered'
+setup_trap 'rm -rf __wt.$$.* $t_build'
 
 t_out=__wt.$$.out
 t_out_filtered=__wt.$$.out_filtered
@@ -64,8 +64,8 @@ echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 echo 'that could be related to the following output entries:'
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 grep '^>' "$t_diff_result" | sed 's/^> *//' | while read line; do
-    path=$(echo "$line" | awk '{print $1}')
-    msg=$(echo "$line" | cut -d' ' -f2-)
+    path=${line%% *} # Cut off all at the first space
+    msg=${line#* } # Cut off all up to the first space
     grep -F "$path:" "$t_out_errors" | grep -F "$msg"
 done
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
