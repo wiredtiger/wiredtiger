@@ -322,7 +322,7 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
             cell_type = WT_CELL_ADDR_LEAF_NO;
             break;
         }
-        WT_ASSERT(session, addr->size != 0);
+        WT_ASSERT(session, addr->block_cookie_size != 0);
         ta = &addr->ta;
     } else {
         cell_type = vpack->type;
@@ -356,8 +356,8 @@ __wti_rec_cell_build_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_ADDR *a
      */
     if (vpack == NULL) {
         WT_ASSERT(session, addr != NULL);
-        val->buf.data = addr->addr;
-        val->buf.size = addr->size;
+        val->buf.data = addr->block_cookie;
+        val->buf.size = addr->block_cookie_size;
     } else {
         WT_ASSERT(session, addr == NULL);
         val->buf.data = vpack->data;
