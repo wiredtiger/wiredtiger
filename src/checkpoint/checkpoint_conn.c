@@ -27,9 +27,9 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 
     WT_RET(__wt_config_gets(session, cfg, "checkpoint.precise", &cval));
     /*
-     * TODO: Disaggregated storage should only support precise checkpoint but mongod is not ready
-     * for that yet. Enable precise checkpoint automatically for disaggregated storage in the
-     * future.
+     * FIXME-WT-14721: Disaggregated storage should only support precise checkpoint but mongod is
+     * not ready for that yet. Enable precise checkpoint automatically for disaggregated storage in
+     * the future.
      */
     if (cval.val)
         F_SET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT);

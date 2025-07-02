@@ -252,7 +252,7 @@
 #define WT_CONF_ID_pinned 204ULL
 #define WT_CONF_ID_prealloc 258ULL
 #define WT_CONF_ID_prealloc_init_count 259ULL
-#define WT_CONF_ID_precise 200ULL
+#define WT_CONF_ID_precise 199ULL
 #define WT_CONF_ID_prefix_compression 48ULL
 #define WT_CONF_ID_prefix_compression_min 49ULL
 #define WT_CONF_ID_prefix_search 92ULL
@@ -338,7 +338,7 @@
 #define WT_CONF_ID_verify_metadata 326ULL
 #define WT_CONF_ID_version 71ULL
 #define WT_CONF_ID_visible_only 121ULL
-#define WT_CONF_ID_wait 199ULL
+#define WT_CONF_ID_wait 200ULL
 #define WT_CONF_ID_write_through 327ULL
 #define WT_CONF_ID_write_timestamp 5ULL
 #define WT_CONF_ID_write_timestamp_usage 11ULL
