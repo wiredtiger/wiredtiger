@@ -36,7 +36,7 @@ $scan $args ninja wt > ../$t_out 2>&1
 cd ..
 
 # Strip comments from the diff file.
-cat dist/s_clang_scan.diff | sed '/^#/d' | LC_ALL=C sort > $t_diff_filtered
+cat dist/s_clang_scan.diff | sed '/^#/d' > $t_diff_filtered
 
 # Compare the set of errors/warnings and exit success when they're expected.
 # clang_scan outputs errors/warnings with a leading file path followed by a
@@ -45,7 +45,7 @@ cat $t_out |
     grep -E '^[a-z\./].*error: |^[a-z\./].*warning: ' |
     sed -e 's/^.*wiredtiger/wiredtiger/' |
     sed -e 's/:.*:.*://' |
-    LC_ALL=C sort > $t_out_filtered
+    sort > $t_out_filtered
 diff $t_diff_filtered $t_out_filtered > /dev/null && exit 0
 
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
