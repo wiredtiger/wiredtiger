@@ -723,9 +723,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_UPDATE *first_up
          * stable timestamp behind the shared checkpoint timestamp. Check the update flag to write
          * it anyway.
          *
-         * TODO: currently we only support this mode from startup. If we want to enable this through
-         * reconfiguration, we need to ensure we have run a rollback to stable before we run the
-         * first checkpoint with the precise mode.
+         * FIXME-WT-14902: currently we only support this mode from startup. If we want to enable
+         * this through reconfiguration, we need to ensure we have run a rollback to stable before
+         * we run the first checkpoint with the precise mode.
          */
         if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT) &&
           !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DELTA) &&
