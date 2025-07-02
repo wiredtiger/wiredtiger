@@ -391,8 +391,10 @@ __page_reconstruct_leaf_delta(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *de
 
         /* Search the page and apply the modification. */
         WT_ERR(__wt_row_search(&cbt, &key, true, ref, true, NULL));
-        /* Deltas are applied from newest to oldest, ignore keys that have already got a delta
-         * update. */
+        /*
+         * Deltas are applied from newest to oldest, ignore keys that have already got a delta
+         * update.
+         */
         if (cbt.compare == 0) {
             if (cbt.ins != NULL) {
                 if (cbt.ins->upd != NULL && F_ISSET(cbt.ins->upd, WT_UPDATE_RESTORED_FROM_DELTA))

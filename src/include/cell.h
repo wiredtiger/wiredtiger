@@ -174,9 +174,9 @@ struct __wt_delta_cell_leaf {
     /*
      * Maximum of 65 bytes:
      *  1: cell descriptor byte
-     * 54: 6 timestamps		(uint64_t encoding, max 9 bytes)
-     *  5: key length		(uint32_t encoding, max 5 bytes)
-     *  5: value length		(uint32_t encoding, max 5 bytes)
+     * 54: 4 timestamps and 2 transaction ids		(uint64_t encoding, max 9 bytes)
+     *  5: key length		                        (uint32_t encoding, max 5 bytes)
+     *  5: value length		                        (uint32_t encoding, max 5 bytes)
      *
      * This calculation is pessimistic: the timestamps are optional.
      */
