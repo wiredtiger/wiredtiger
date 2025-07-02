@@ -863,8 +863,9 @@ palm_handle_put(WT_PAGE_LOG_HANDLE *plh, WT_SESSION *session, uint64_t page_id,
     palm_init_context(palm, &context);
 
     /* Check or initialize the encryption field. */
-    PALM_KV_RET(palm_get_dek(palm, session, &put_args->encryption, palm_handle->table_id, page_id,
-      is_delta, put_args->base_lsn, &encryption));
+    PALM_KV_RET(palm, session,
+      palm_get_dek(palm, session, &put_args->encryption, palm_handle->table_id, page_id, is_delta,
+        put_args->base_lsn, &encryption));
 
     PALM_KV_RET(palm, session, palm_kv_begin_transaction(&context, palm->kv_env, false));
     ret = palm_kv_get_global(&context, PALM_KV_GLOBAL_REVISION, &lsn);
