@@ -131,12 +131,8 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
 
     for (;;) {
         /*
-         * Continue on to open if the state of the world just got updated.
-         * Otherwise stop when we are up-to-date, as the conditions are met:
-         *   - an update operation with an ingest cursor with overwrite flag enabled
-         *   - a read operation and the cursor is open for reading.
-         *   - a reserve operation (update with no overwrite flag) with an ingest
-         * cursor and the cursor is open for reading.
+         * Ensure that the cursor has the correct state and configuration. If the conditions are
+         * met, avoid taking the schema lock and early exit.
          */
         if (!external_state_change) {
             if ((!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
