@@ -3202,7 +3202,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
         if (!__wt_ref_is_root(ref)) {
             /* We have skipped writing a delta. The latest block is on the ref. */
             if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && mod->mod_replace.block_cookie == NULL) {
-                WT_ASSERT(session, ref->addr != NULL);
                 /*
                  * We need to retain the block address if we skipped writing an empty delta again.
                  * Free the block address otherwise.
