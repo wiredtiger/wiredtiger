@@ -496,6 +496,19 @@ __wt_time_value_validate(
           "value time window has a durable start time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
+    if (tw->prepare && F_ISSET_ATOMIC_32(S2C(session), WT_CONN_PRESERVE_PREPARED)) {
+        if (tw->prepare_ts == WT_TS_NONE)
+            WT_TIME_VALIDATE_RET(session,
+              "value time window is prepared and has preserve_prepared enabled but has no prepare "
+              "timestamp; time window %s",
+              __wt_time_window_to_string(tw, time_string[0]));
+        if (tw->prepared_id == WT_PREPARED_ID_NONE)
+            WT_TIME_VALIDATE_RET(session,
+              "value time window is prepared and has preserve_prepared enabled but has no prepared "
+              "id; time window %s",
+              __wt_time_window_to_string(tw, time_string[0]));
+        /* should i also check whether prepare_ts is larger than start_ts? */
+    }
     /*
      * Optionally validate the time window against a parent's time window.
      *
