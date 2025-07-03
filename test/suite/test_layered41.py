@@ -34,7 +34,7 @@ from helper_disagg import DisaggConfigMixin, disagg_test_class, gen_disagg_stora
 from wtscenario import make_scenarios
 
 # test_layered41.py
-#    Test layered table metadata has logging disabled.
+#    Test duplicate key.
 @disagg_test_class
 class test_layered41(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = ',disaggregated=(page_log=palm),'

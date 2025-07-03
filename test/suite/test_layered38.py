@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 @disagg_test_class
 class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
     conn_base_config = ',create,cache_size=10GB,statistics=(all),statistics_log=(wait=1,json=true,on_close=true),' \
-                 + 'disaggregated=(page_log=palm,lose_all_my_data=true),'
+                 + 'disaggregated=(page_log=palm,lose_all_my_data=true),checkpoint=(precise=true),'
 
     disagg_storages = gen_disagg_storages('test_layered38', disagg_only = True)
 
@@ -55,7 +55,7 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
     def evict_ingest(self, session, ts):
         # Trigger eviction on the ingest table
         evict_cursor = session.open_cursor("file:test_layered38.wt_ingest", None, "debug=(release_evict)")
-        for i in (1, self.nitems):
+        for i in range(1, self.nitems):
             session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
             evict_cursor.set_key(str(i))
             ret = evict_cursor.search()
@@ -65,12 +65,16 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
         evict_cursor.close()
 
     # Return the number of items in the ingest table.
-    def count_ingest(self, session):
+    def count_ingest(self, session, ts=None):
+        if ts != None:
+            session.begin_transaction(f'read_timestamp={self.timestamp_str(ts)}')
         cursor = session.open_cursor(self.ingest_uri)
         count = 0
         for k,v in cursor:
             count += 1
         cursor.close()
+        if ts != None:
+            session.rollback_transaction()
         return count
 
     def test_gc_ingest_table(self):
@@ -117,7 +121,7 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
         oplog.check(self, session_follow, 0, self.nitems)
 
         # At this point, everything in the ingest table is redundant, as it's
-        # also in the stable table on the follower.  However, it cannot be removed
+        # also in the stable table on the follower. However, it cannot be removed
         # as there is a cursor open.
         self.evict_ingest(session_follow, ts)
         count = self.count_ingest(session_follow)
@@ -129,4 +133,99 @@ class test_layered38(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Now eviction should remove all the items from the ingest table.
         self.evict_ingest(session_follow, ts)
         count = self.count_ingest(session_follow)
+        self.assertEqual(count, 0)
+
+    def test_gc_ingest_table_with_remove(self):
+        # Create the oplog
+        oplog = Oplog(value_size=500)
+
+        # Create the table on leader and tell oplog about it
+        self.session.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
+        t = oplog.add_uri(self.uri)
+
+        # Create the follower and create its table
+        # To keep this test relatively easy, we're only using a single URI.
+        conn_follow = self.wiredtiger_open('follower', self.extensionsConfig() + self.conn_base_config + 'disaggregated=(role="follower")')
+        session_follow = conn_follow.open_session('')
+        session_follow.create(self.uri, "allocation_size=512,leaf_page_max=512,key_format=S,value_format=S")
+
+        # Load the data for oplog
+        oplog.insert(t, self.nitems)
+
+        ts = oplog.last_timestamp()
+
+        # Remove the data
+        oplog.remove(t, self.nitems)
+
+        # Apply the insert to the leader WT.
+        oplog.apply(self, self.session, 0, self.nitems)
+
+        # Apply the delete to the leader WT after checkpoint.
+        oplog.apply(self, self.session, self.nitems, self.nitems)
+        oplog.check(self, self.session, 0, 2 * self.nitems)
+
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(ts)}')
+
+        # On the follower -
+        # Apply all the entries to follower
+        oplog.apply(self, session_follow, 0, 2 * self.nitems)
+        oplog.check(self, session_follow, 0, 2 * self.nitems)
+
+        # Ensure everything is in the ingest table
+        count = self.count_ingest(session_follow)
+        self.assertEqual(count, self.nitems)
+
+        # Hold a cursor open on the layered table, and on the ingest as well.
+        session_follow2 = conn_follow.open_session('')
+        hold_cursor = session_follow2.open_cursor(self.uri)
+        hold_cursor.next()
+
+        # Take a checkpoint and advance it, make sure everything is still good
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(conn_follow)
+        oplog.check(self, session_follow, 0, 2 * self.nitems)
+
+        # At this point, the inserts in the ingest table are redundant but the delets are not.
+        self.evict_ingest(session_follow, ts)
+        count = self.count_ingest(session_follow, ts)
+        self.assertEqual(count, self.nitems)
+
+        # Close the cursor held open.
+        hold_cursor.close()
+
+        # Eviction still cannot remove all the records from the ingest table because the deletes
+        # are not in the stable table.
+        self.evict_ingest(session_follow, ts)
+        count = self.count_ingest(session_follow, ts)
+        self.assertEqual(count, self.nitems)
+
+        # Hold a cursor open on the layered table, and on the ingest as well.
+        hold_cursor = session_follow2.open_cursor(self.uri)
+        hold_cursor.next()
+
+        new_ts = oplog.last_timestamp()
+        self.conn.set_timestamp(f'stable_timestamp={self.timestamp_str(new_ts)}')
+
+        # Take a new checkpoint and advance it, make sure everything is still good
+        self.session.checkpoint()
+        self.disagg_advance_checkpoint(conn_follow)
+        oplog.check(self, session_follow, 0, 2 * self.nitems)
+
+        # At this point, everything in the ingest table is redundant, as it's
+        # also in the stable table on the follower. However, it cannot be removed
+        # as there is a cursor open.
+        self.evict_ingest(session_follow, ts)
+        count = self.count_ingest(session_follow, ts)
+        self.assertEqual(count, self.nitems)
+
+        # Close the cursor held open.
+        hold_cursor.close()
+
+        # Trigger advance checkpoint code again to set the prune timestamp to the last
+        # checkpoint timestamp. We couldn't do that because there was a cursor holding the old content.
+        self.disagg_advance_checkpoint(conn_follow)
+
+        # Now eviction should remove all the items from the ingest table.
+        self.evict_ingest(session_follow, ts)
+        count = self.count_ingest(session_follow, ts)
         self.assertEqual(count, 0)
