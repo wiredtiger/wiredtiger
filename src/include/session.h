@@ -203,10 +203,14 @@ struct __wt_session_impl {
         uint64_t image_build_finish;
         uint64_t hs_wrapup_start;
         uint64_t hs_wrapup_finish;
-        uint64_t hs_wrapup_next_prev_calls;
         uint64_t reconcile_finish;
         uint64_t total_reentry_hs_eviction_time;
     } reconcile_timeline;
+
+    /* Record statistics in an reconciliation. */
+    struct __wt_reconcile_stats {
+        uint64_t hs_wrapup_next_prev_calls;
+    } reconcile_stats;
 
     /*
      * Record the important timestamps of each stage in an eviction. If an eviction takes a long

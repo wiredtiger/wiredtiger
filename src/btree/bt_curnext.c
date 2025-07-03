@@ -789,8 +789,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_PAGE_WALK_SKIP_STATS walk_skip_stats;
     WT_SESSION_IMPL *session;
     size_t skipped, total_skipped;
-    uint64_t time_start;
-    uint32_t flags;
+    uint64_t time_start, loop_start_time, loop_time_total;
+    uint32_t flags, loop_iterations;
     bool key_out_of_bounds, need_walk, newpage, repositioned, restart;
 
     cursor = &cbt->iface;
@@ -800,12 +800,14 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     walk_skip_stats.total_del_pages_skipped = 0;
     walk_skip_stats.total_inmem_del_pages_skipped = 0;
     WT_NOT_READ(time_start, 0);
+    loop_iterations = 0;
+    loop_time_total = 0;
 
     WT_STAT_CONN_DSRC_INCR(session, cursor_next);
 
     /* Track next calls during HS wrapup */
     if (F_ISSET(session, WT_SESSION_HS_WRAPUP)) {
-        session->reconcile_timeline.hs_wrapup_next_prev_calls++;
+        session->reconcile_stats.hs_wrapup_next_prev_calls++;
     }
 
     flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL; /* tree walk flags */
@@ -846,6 +848,10 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     for (newpage = false;; newpage = true, restart = false) {
+        /* Start timing this loop iteration */
+        loop_start_time = __wt_clock(session);
+        loop_iterations++;
+
         /* Calls with key only flag should never restart. */
         WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY) || !restart);
         WT_PAGE *page = cbt->ref == NULL ? NULL : cbt->ref->page;
@@ -915,6 +921,13 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
                 continue;
             }
         }
+
+        /* Update loop time spent every 100 iterations */
+        if (loop_iterations % 100 == 0) {
+            uint64_t current_time = __wt_clock(session);
+            loop_time_total += WT_CLOCKDIFF_US(current_time, loop_start_time);
+        }
+
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
          * and only saw deleted records, try to evict the page when we release it. Otherwise
@@ -957,6 +970,12 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     }
 
 done:
+    /* Record final loop metrics */
+    if (loop_iterations > 1) {
+        WT_STAT_CONN_DSRC_INCRV(session, cursor_next_loop_iterations, loop_iterations);
+        if (loop_time_total > 0)
+            WT_STAT_CONN_DSRC_INCRV(session, cursor_next_loop_time_us, loop_time_total);
+    }
 err:
     if (total_skipped != 0) {
         if (total_skipped < 100)

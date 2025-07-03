@@ -251,7 +251,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor next calls that skip due to a globally visible history store tombstone",
   "cursor: cursor next calls that skip greater than 1 and fewer than 100 entries",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
+  "cursor: cursor next loop time (usecs)",
   "cursor: cursor next random calls that return an error",
+  "cursor: cursor next total loop iterations",
   "cursor: cursor prev calls that return an error",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
@@ -665,7 +667,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_next_hs_tombstone = 0;
     stats->cursor_next_skip_lt_100 = 0;
     stats->cursor_next_skip_ge_100 = 0;
+    stats->cursor_next_loop_time_us = 0;
     stats->cursor_next_random_error = 0;
+    stats->cursor_next_loop_iterations = 0;
     stats->cursor_prev_error = 0;
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
@@ -1077,7 +1081,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_next_hs_tombstone += from->cursor_next_hs_tombstone;
     to->cursor_next_skip_lt_100 += from->cursor_next_skip_lt_100;
     to->cursor_next_skip_ge_100 += from->cursor_next_skip_ge_100;
+    to->cursor_next_loop_time_us += from->cursor_next_loop_time_us;
     to->cursor_next_random_error += from->cursor_next_random_error;
+    to->cursor_next_loop_iterations += from->cursor_next_loop_iterations;
     to->cursor_prev_error += from->cursor_prev_error;
     to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
@@ -1521,7 +1527,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_next_hs_tombstone += WT_STAT_DSRC_READ(from, cursor_next_hs_tombstone);
     to->cursor_next_skip_lt_100 += WT_STAT_DSRC_READ(from, cursor_next_skip_lt_100);
     to->cursor_next_skip_ge_100 += WT_STAT_DSRC_READ(from, cursor_next_skip_ge_100);
+    to->cursor_next_loop_time_us += WT_STAT_DSRC_READ(from, cursor_next_loop_time_us);
     to->cursor_next_random_error += WT_STAT_DSRC_READ(from, cursor_next_random_error);
+    to->cursor_next_loop_iterations += WT_STAT_DSRC_READ(from, cursor_next_loop_iterations);
     to->cursor_prev_error += WT_STAT_DSRC_READ(from, cursor_prev_error);
     to->cursor_prev_hs_tombstone += WT_STAT_DSRC_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_DSRC_READ(from, cursor_prev_skip_ge_100);
