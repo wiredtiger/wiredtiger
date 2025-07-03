@@ -549,6 +549,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_dirty_pages_during_checkpoint;
     int64_t eviction_server_skip_intl_page_with_active_child;
     int64_t eviction_server_skip_metatdata_with_history;
+    int64_t eviction_server_skip_pages_checkpoint_timestamp;
     int64_t eviction_server_skip_pages_last_running;
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
@@ -1138,6 +1139,14 @@ struct __wt_connection_stats {
     int64_t rec_time_window_bytes_txn;
     int64_t rec_average_internal_page_delta_chain_length;
     int64_t rec_average_leaf_page_delta_chain_length;
+    int64_t rec_page_mods_le5;
+    int64_t rec_page_mods_le10;
+    int64_t rec_page_mods_le20;
+    int64_t rec_page_mods_le50;
+    int64_t rec_page_mods_le100;
+    int64_t rec_page_mods_le200;
+    int64_t rec_page_mods_le500;
+    int64_t rec_page_mods_gt500;
     int64_t rec_skip_empty_deltas;
     int64_t rec_page_delete_fast;
     int64_t rec_page_full_image_internal;
@@ -1604,6 +1613,14 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_bytes_txn;
     int64_t rec_average_internal_page_delta_chain_length;
     int64_t rec_average_leaf_page_delta_chain_length;
+    int64_t rec_page_mods_le5;
+    int64_t rec_page_mods_le10;
+    int64_t rec_page_mods_le20;
+    int64_t rec_page_mods_le50;
+    int64_t rec_page_mods_le100;
+    int64_t rec_page_mods_le200;
+    int64_t rec_page_mods_le500;
+    int64_t rec_page_mods_gt500;
     int64_t rec_dictionary;
     int64_t rec_skip_empty_deltas;
     int64_t rec_page_delete_fast;

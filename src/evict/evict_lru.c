@@ -1799,6 +1799,17 @@ retry:
         }
 
         /*
+         * If the cache walk flags have changed since the prior eviction pass on this tree then
+         * reset the walk effectiveness tracking. Imagine a case where only dirty content has been
+         * looked for and this tree doesn't have much dirty content. Then eviction starts looking
+         * for clean content - this tree might be a cornucopia of good clean candidate pages.
+         */
+        if (btree->last_evict_walk_flags != evict->flags) {
+            __wt_atomic_store32(&btree->evict_walk_period, 0);
+            btree->last_evict_walk_flags = evict->flags;
+        }
+
+        /*
          * If we are filling the queue, skip files that haven't been useful in the past.
          */
         evict_walk_period = __wt_atomic_load32(&btree->evict_walk_period);
@@ -2036,8 +2047,49 @@ __evict_skip_dirty_candidate(WT_SESSION_IMPL *session, WT_PAGE *page)
       __wt_atomic_loadv64(&conn->txn_global.last_running)) {
         WT_STAT_CONN_INCR(session, eviction_server_skip_pages_last_running);
         return (true);
+    } else if (F_ISSET_ATOMIC_32(conn, WT_CONN_PRECISE_CHECKPOINT)) {
+        wt_timestamp_t pinned_stable_ts;
+        __wt_txn_pinned_stable_timestamp(session, &pinned_stable_ts);
+        if (__wt_atomic_load64(&page->modify->newest_commit_timestamp) > pinned_stable_ts) {
+            WT_STAT_CONN_INCR(session, eviction_server_skip_pages_checkpoint_timestamp);
+            return (true);
+        }
     }
 
+    /*
+     * For pages that are getting random updates (often index pages), try not to reconcile them too
+     * often. It makes better use of I/O if they accumulate more changes between reconciliations
+     */
+#define WT_EVICT_MODIFY_COUNT_MIN 15 /* Number of modifications since the prior reconciliation */
+    /*
+     * If the cache is dirty, but not under pressure skip pages with just a few modifications
+     * hopefully they can accumulate more changes before being reconciled. The cache has low
+     * pressure if cache usage is less than 90% of the eviction dirty trigger threshold. Currently
+     * only for disaggregated storage.
+     */
+#define WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD \
+    0.9 /* Cache usage below 90% of the eviction trigger threshold is considered low pressure */
+    if (__wt_conn_is_disagg(session) &&
+      __wt_atomic_load32(&page->modify->page_state) < WT_EVICT_MODIFY_COUNT_MIN) {
+        double pct_dirty = 0.0, pct_updates = 0.0;
+        bool low_pressure = false;
+
+        if (F_ISSET(conn->evict, WT_EVICT_CACHE_DIRTY)) {
+            WT_IGNORE_RET(__wt_evict_dirty_needed(session, &pct_dirty));
+            low_pressure = (pct_dirty <
+              (conn->evict->eviction_dirty_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+        }
+
+        if (F_ISSET(conn->evict, WT_EVICT_CACHE_UPDATES)) {
+            WT_IGNORE_RET(__wti_evict_updates_needed(session, &pct_updates));
+            low_pressure = low_pressure ||
+              (pct_updates <
+                (conn->evict->eviction_updates_trigger * WT_DIRTY_PAGE_LOW_PRESSURE_THRESHOLD));
+        }
+
+        if (low_pressure)
+            return (true);
+    }
     return (false);
 }
 

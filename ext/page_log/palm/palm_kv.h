@@ -39,6 +39,11 @@
 #endif
 
 /*
+ * PALM flags start at the 16th bit (0x10000u) to avoid conflicts with __wt_page_log_put_args flags.
+ */
+#define WT_PALM_KV_TOMBSTONE 0x10000u
+
+/*
  * This include file creates a tiny bit of abstraction for the KV database used, in case we want to
  * ever change to a different implementation.
  *
