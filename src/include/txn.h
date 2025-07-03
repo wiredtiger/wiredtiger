@@ -158,6 +158,7 @@ struct __wt_txn_global {
     wt_shared wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
     wt_shared wt_timestamp_t stable_timestamp;
+    wt_shared wt_timestamp_t newest_seen_timestamp; /* Used by eviction to make guesses */
     wt_timestamp_t version_cursor_pinned_timestamp;
     bool has_durable_timestamp;
     wt_shared bool has_oldest_timestamp;
