@@ -3206,7 +3206,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                  * We need to retain the block address if we skipped writing an empty delta again.
                  * Free the block address otherwise.
                  */
-                if (r->multi_next > 1 || r->multi->addr.block_cookie != NULL)
+                if (ref->addr != NULL && (r->multi_next > 1 || r->multi->addr.block_cookie != NULL))
                     WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
             } else
                 WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
