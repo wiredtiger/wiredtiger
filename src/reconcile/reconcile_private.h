@@ -176,6 +176,9 @@ struct __wti_reconcile {
     /* Track the pinned timestamp at the time reconciliation started. */
     wt_timestamp_t rec_start_pinned_ts;
 
+    /* Track the pinned stable timestamp at the time reconciliation started. */
+    wt_timestamp_t rec_start_pinned_stable_ts;
+
     /* Track the prune timestamp at the time reconciliation started. */
     wt_timestamp_t rec_prune_timestamp;
 

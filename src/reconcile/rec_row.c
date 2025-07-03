@@ -634,7 +634,7 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
-    WT_UPDATE *first_upd, *tombstone, **upd_entry;
+    WT_UPDATE *first_upd, *tombstone, *upd, **upd_entry;
 
     btree = S2BT(session);
     page = r->page;
@@ -642,14 +642,18 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
 
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
         return (0);
+
     if ((first_upd = WT_ROW_UPDATE(page, rip)) == NULL)
         return (0);
 
-    if (first_upd->type == WT_UPDATE_TOMBSTONE)
+    for (upd = first_upd; upd->txnid == WT_TXN_ABORTED; upd = first_upd->next)
+        ;
+
+    if (upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    if (WT_TXNID_LT(first_upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
-      first_upd->durable_ts <= r->rec_prune_timestamp) {
+    if (WT_TXNID_LT(upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
+      upd->durable_ts <= r->rec_prune_timestamp) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
@@ -670,7 +674,7 @@ __rec_row_garbage_collect_fixup_insert_list(
   WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
-    WT_UPDATE *first_upd, *tombstone;
+    WT_UPDATE *first_upd, *tombstone, *upd;
 
     btree = S2BT(session);
 
@@ -680,11 +684,14 @@ __rec_row_garbage_collect_fixup_insert_list(
     if ((first_upd = ins->upd) == NULL)
         return (0);
 
-    if (first_upd->type == WT_UPDATE_TOMBSTONE)
+    for (upd = first_upd; upd->txnid == WT_TXN_ABORTED; upd = upd->next)
+        ;
+
+    if (upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    if (WT_TXNID_LT(first_upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
-      first_upd->durable_ts <= r->rec_prune_timestamp) {
+    if (WT_TXNID_LT(upd->txnid, r->last_running) && r->rec_prune_timestamp != WT_TS_NONE &&
+      upd->durable_ts <= r->rec_prune_timestamp) {
         WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->next = first_upd;
         ins->upd = tombstone;
