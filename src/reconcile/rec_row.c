@@ -664,6 +664,7 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
 
         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
     }
+
     return (0);
 }
 
@@ -683,6 +684,7 @@ __rec_row_garbage_collect_fixup_insert_list(
 
     if (!F_ISSET(btree, WT_BTREE_GARBAGE_COLLECT) || !F_ISSET(r, WT_REC_EVICT))
         return (0);
+
     /* The insert list should have an update, but be paranoid */
     if ((first_upd = ins->upd) == NULL)
         return (0);
@@ -704,6 +706,7 @@ __rec_row_garbage_collect_fixup_insert_list(
 
         WT_STAT_CONN_DSRC_INCR(session, rec_ingest_garbage_collection_keys);
     }
+
     return (0);
 }
 
