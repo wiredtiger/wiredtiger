@@ -49,6 +49,7 @@ race:__evict_clear_all_walks
 race:__session_clear
 race:__rec_row_leaf_insert
 race:__wt_cache_dirty_decr
+race:__wt_reconcile
 
 # FIXME-WT-14856 Unresolved warnings for ex_all
 race:__wti_conn_reconfig
