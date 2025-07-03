@@ -1147,8 +1147,8 @@ struct __wt_connection_stats {
     int64_t rec_page_mods_le200;
     int64_t rec_page_mods_le500;
     int64_t rec_page_mods_gt500;
-    int64_t rec_skip_empty_deltas;
     int64_t rec_hs_wrapup_next_prev_calls;
+    int64_t rec_skip_empty_deltas;
     int64_t rec_page_delete_fast;
     int64_t rec_page_full_image_internal;
     int64_t rec_page_full_image_leaf;

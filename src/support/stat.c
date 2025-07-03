@@ -2451,8 +2451,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: changes since prior reconciliation (bucket 6) between 101 and 200",
   "reconciliation: changes since prior reconciliation (bucket 7) between 201 and 500",
   "reconciliation: changes since prior reconciliation (bucket 8) greater than 500",
-  "reconciliation: empty deltas skipped in disaggregated storage",
   "reconciliation: cursor next/prev calls during HS wrapup search_near",
+  "reconciliation: empty deltas skipped in disaggregated storage",
   "reconciliation: fast-path pages deleted",
   "reconciliation: full internal pages written instead of a page delta",
   "reconciliation: full leaf pages written instead of a page delta",
@@ -3400,8 +3400,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_page_mods_le200 = 0;
     stats->rec_page_mods_le500 = 0;
     stats->rec_page_mods_gt500 = 0;
-    stats->rec_skip_empty_deltas = 0;
     stats->rec_hs_wrapup_next_prev_calls = 0;
+    stats->rec_skip_empty_deltas = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_page_full_image_internal = 0;
     stats->rec_page_full_image_leaf = 0;
@@ -4501,8 +4501,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_page_mods_le200 += WT_STAT_CONN_READ(from, rec_page_mods_le200);
     to->rec_page_mods_le500 += WT_STAT_CONN_READ(from, rec_page_mods_le500);
     to->rec_page_mods_gt500 += WT_STAT_CONN_READ(from, rec_page_mods_gt500);
-    to->rec_skip_empty_deltas += WT_STAT_CONN_READ(from, rec_skip_empty_deltas);
     to->rec_hs_wrapup_next_prev_calls += WT_STAT_CONN_READ(from, rec_hs_wrapup_next_prev_calls);
+    to->rec_skip_empty_deltas += WT_STAT_CONN_READ(from, rec_skip_empty_deltas);
     to->rec_page_delete_fast += WT_STAT_CONN_READ(from, rec_page_delete_fast);
     to->rec_page_full_image_internal += WT_STAT_CONN_READ(from, rec_page_full_image_internal);
     to->rec_page_full_image_leaf += WT_STAT_CONN_READ(from, rec_page_full_image_leaf);
