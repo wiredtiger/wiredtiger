@@ -433,9 +433,8 @@ kv_workload_runner_wt::do_operation(const operation::get &op)
     session_context_ptr session = txn_session(op.txn_id);
     WT_CURSOR *cursor = session->cursor(op.table_id);
     int ret = wt_cursor_search(cursor, op.key);
-    if (ret != 0) {
+    if (ret != 0)
         return ret;
-    }
     data_value value = get_wt_cursor_value(cursor);
     /* FIXME-WT-14863 actually use the value we read. */
     return 0;

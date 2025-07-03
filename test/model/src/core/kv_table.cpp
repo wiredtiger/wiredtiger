@@ -241,9 +241,8 @@ kv_table::remove(kv_transaction_ptr txn, const data_value &key)
      * as that is what removals look like with recnos, and this remove should succeed while doing
      * nothing.
      */
-    if (_config.type == kv_table_type::column_fix && item->implicit()) {
+    if (_config.type == kv_table_type::column_fix && item->implicit())
         return 0;
-    }
 
     std::shared_ptr<kv_update> update = fix_timestamps(
       std::make_shared<kv_update>(_config.type == kv_table_type::column_fix ? ZERO : NONE, txn));

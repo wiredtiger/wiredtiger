@@ -270,12 +270,11 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
              * If our read timestamp can see a prepared commit, raise a conflict (due to how our
              * std::upper_bound works, we can only see prepares before our timestamps).
              */
-            if (u->prepared()) {
+            if (u->prepared())
                 throw wiredtiger_exception(WT_PREPARE_CONFLICT);
-            } else if (u->committed()) {
+            else if (u->committed())
                 /* All else aside, committed updates before our read timestamp are visible. */
                 return u->value();
-            }
         }
         return NONE;
     } else {
@@ -290,13 +289,12 @@ kv_table_item::get(kv_transaction_snapshot_ptr txn_snapshot, txn_id_t txn_id,
                  * are ignored, unless they are also committed before this read, then they are
                  * visible.
                  */
-                if (u->prepared()) {
+                if (u->prepared())
                     throw wiredtiger_exception(WT_PREPARE_CONFLICT);
-                } else {
+                else
                     /* Otherwise, the update must have been committed, and we read it. */
                     assert(u->committed());
-                    return u->value();
-                }
+                return u->value();
             }
         }
         return NONE;

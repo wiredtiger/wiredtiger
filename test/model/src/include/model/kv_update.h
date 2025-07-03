@@ -133,11 +133,10 @@ public:
         {
             if (!right)
                 return false;
-            if (right->prepared()) {
+            else if (right->prepared())
                 return timestamp < right->txn()->prepare_timestamp();
-            } else {
+            else
                 return timestamp < right->_commit_timestamp;
-            }
         }
     };
 
