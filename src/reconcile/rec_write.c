@@ -2652,6 +2652,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
             multi->addr.type = mod->mod_replace.type;
+            WT_CLEAR(mod->mod_replace);
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2664,6 +2665,7 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
             multi->addr.type = mod->mod_multi->addr.type;
+            WT_CLEAR(mod->mod_multi->addr);
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
