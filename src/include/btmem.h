@@ -335,6 +335,8 @@ struct __wt_page_block_meta {
     uint64_t disagg_lsn;
 
     uint32_t checksum;
+
+    WT_PAGE_LOG_ENCRYPTION encryption;
 };
 
 /*

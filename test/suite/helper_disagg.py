@@ -94,6 +94,7 @@ def disagg_test_class(cls):
 # This mixin class provides disaggregated storage configuration methods.
 class DisaggConfigMixin:
     palm_debug = False        # can be overridden in test class
+    palm_config = None        # a string, can be overridden in test class
     palm_cache_size_mb = -1   # this uses the default, can be overridden
 
     # Returns True if the current scenario is disaggregated.
@@ -146,6 +147,8 @@ class DisaggConfigMixin:
                 extension_config += ',verbose=0'
             if self.palm_cache_size_mb != -1:
                 extension_config += f',cache_size_mb={self.palm_cache_size_mb}'
+            if self.palm_config:
+                extension_config += ',' + self.palm_config
         return extension_config
 
     # Load disaggregated storage extension.
