@@ -3197,9 +3197,20 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                              * need a separate API to tell the SLS that we are discarding a root
                              * page?
                              */
-        if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
-              mod->mod_replace.block_cookie_size, r->multi_next == 1));
+        if (!__wt_ref_is_root(ref)) {
+            /* We have skipped writing a delta. The latest block is on the ref. */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && mod->mod_replace.block_cookie == NULL) {
+                WT_ASSERT(session, ref->addr != NULL);
+                /*
+                 * We need to retain the block address if we skipped writing an empty delta again.
+                 * Free the block address otherwise.
+                 */
+                if (r->multi_next > 1 || r->multi->addr.block_cookie != NULL)
+                    WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
+            } else
+                WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
+                  mod->mod_replace.block_cookie_size, r->multi_next == 1));
+        }
 
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
