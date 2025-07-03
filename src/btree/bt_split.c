@@ -1616,7 +1616,7 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
      * disaggregated storage.
      */
     WT_ASSERT(session,
-      !F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) || multi->supd_entries == 0 ||
+      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) || multi->supd_entries == 0 ||
         multi->supd_restore);
 
     if (!multi->supd_restore)

@@ -649,6 +649,9 @@ __rec_row_garbage_collect_fixup_update_list(WT_SESSION_IMPL *session, WTI_RECONC
     for (upd = first_upd; upd->txnid == WT_TXN_ABORTED; upd = first_upd->next)
         ;
 
+    if (upd == NULL)
+        return (0);
+
     if (upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
@@ -686,6 +689,9 @@ __rec_row_garbage_collect_fixup_insert_list(
 
     for (upd = first_upd; upd->txnid == WT_TXN_ABORTED; upd = upd->next)
         ;
+
+    if (upd == NULL)
+        return (0);
 
     if (upd->type == WT_UPDATE_TOMBSTONE)
         return (0);
