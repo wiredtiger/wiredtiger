@@ -63,7 +63,7 @@ echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 # unexpected diff entries in the original output.
 echo 'that could be related to the following output entries:'
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-grep '^>' "$t_diff_result" | sed 's/^> *//' | while read line; do
+grep '^>' "$t_diff_result" | sed 's/^> *//' | uniq | while read line; do
     path=${line%% *} # Cut off all at the first space
     msg=${line#* } # Cut off all up to the first space
     grep -F "$path:" "$t_out_errors" | grep -F "$msg"
