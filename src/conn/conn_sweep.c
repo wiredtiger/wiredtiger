@@ -40,7 +40,7 @@ __sweep_file_dhandle_check_and_reset_tod(WT_SESSION_IMPL *session, WT_DATA_HANDL
          * Reset the time of death if the file dhandle exists for the associated table dhandle.
          */
         if (ret == 0) {
-            dhandle->timeofdeath = 0;
+            __wt_atomic_store64(&dhandle->gg_timeofdeath, 0);
             session->dhandle = NULL;
             return (ret);
         }
@@ -72,14 +72,15 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
          * of death.
          */
         if (__wt_atomic_loadi32(&dhandle->session_inuse) > 1)
-            dhandle->timeofdeath = 0;
+            __wt_atomic_store64(&dhandle->gg_timeofdeath, 0);
 
         /*
          * If the handle is open exclusive or currently in use, or the time of death is already set,
          * move on.
          */
         if (F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
-          __wt_atomic_loadi32(&dhandle->session_inuse) > 0 || dhandle->timeofdeath != 0)
+          __wt_atomic_loadi32(&dhandle->session_inuse) > 0 ||
+          __wt_atomic_load64(&dhandle->gg_timeofdeath) != 0)
             continue;
 
         /* For table dhandles, skip expiration if associated file dhandles exist. */
@@ -106,7 +107,7 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
         __wt_verbose_level(session, WT_VERB_SWEEP, WT_VERBOSE_DEBUG_3,
           "Sweep server setting the time of death for dhandle %s", dhandle->name);
 
-        dhandle->timeofdeath = now;
+        __wt_atomic_store64(&dhandle->gg_timeofdeath, now);
         WT_STAT_CONN_INCR(session, dh_sweep_tod);
     }
 }
@@ -176,6 +177,7 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    uint64_t timeofdeath;
 
     conn = S2C(session);
 
@@ -186,9 +188,10 @@ __sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
         if (__wt_atomic_load32(&conn->open_btree_count) < conn->sweep_handles_min)
             break;
 
+        timeofdeath = __wt_atomic_load64(&dhandle->gg_timeofdeath);
         if (WT_IS_METADATA(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-          __wt_atomic_loadi32(&dhandle->session_inuse) != 0 || dhandle->timeofdeath == 0 ||
-          now - dhandle->timeofdeath <= conn->sweep_idle_time)
+          __wt_atomic_loadi32(&dhandle->session_inuse) != 0 || timeofdeath == 0 ||
+          now - timeofdeath <= conn->sweep_idle_time)
             continue;
 
         /*

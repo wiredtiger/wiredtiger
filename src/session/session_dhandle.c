@@ -793,7 +793,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
-    uint64_t now;
+    uint64_t now, timeofdeath;
 
     conn = S2C(session);
 
@@ -816,9 +816,10 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
          * evicted. These checks are not done with any locks in place, other than the data handle
          * reference, so we cannot peer past what is in the dhandle directly.
          */
+        timeofdeath = __wt_atomic_load64(&dhandle->gg_timeofdeath);
         if (dhandle != session->dhandle && __wt_atomic_loadi32(&dhandle->session_inuse) == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) || F_ISSET(dhandle, WT_DHANDLE_OUTDATED) ||
-            (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time)) &&
+            (timeofdeath != 0 && now - timeofdeath > conn->sweep_idle_time)) &&
           (!WT_DHANDLE_BTREE(dhandle) ||
             FLD_ISSET(dhandle->advisory_flags, WT_DHANDLE_ADVISORY_EVICTED))) {
             WT_STAT_CONN_INCR(session, dh_session_handles);
