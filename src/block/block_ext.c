@@ -1501,7 +1501,7 @@ err:
  *     is detected.
  */
 int
-__wti_block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el)
+__wti_block_extlist_dump(WT_SESSION_IMPL *session, WT_EXTLIST *el)
 {
     WT_DECL_ITEM(ext_buf);
     WT_DECL_ITEM(fmt_size_buf);
@@ -1510,15 +1510,7 @@ __wti_block_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
     WT_VERBOSE_LEVEL level;
     uint32_t ext_count, printed_ext_logs, num_ext_logs;
 
-    if (!block->verify_layout &&
-      !WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_BLOCK, WT_VERBOSE_DEBUG_3) &&
-      !F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))
-        return (0);
-
-    if (F_ISSET_ATOMIC_32(S2C(session), WT_CONN_DATA_CORRUPTION))
-        level = WT_VERBOSE_WARNING;
-    else
-        level = WT_VERBOSE_DEBUG_3;
+    level = WT_VERBOSE_WARNING;
 
     WT_ERR(__wt_scr_alloc(session, 0, &fmt_size_buf));
     __wt_verbose_level(session, WT_VERB_BLOCK, level,

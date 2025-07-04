@@ -1111,15 +1111,15 @@ __wti_block_checkpoint_extlist_dump(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
         if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET &&
           __wti_block_extlist_read(session, block, &ci->alloc, ci->file_size) == 0)
-            WT_TRET(__wti_block_extlist_dump(session, block, &ci->alloc));
+            WT_TRET(__wti_block_extlist_dump(session, &ci->alloc));
 
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET &&
           __wti_block_extlist_read(session, block, &ci->avail, ci->file_size) == 0)
-            WT_TRET(__wti_block_extlist_dump(session, block, &ci->avail));
+            WT_TRET(__wti_block_extlist_dump(session, &ci->avail));
 
         if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET &&
           __wti_block_extlist_read(session, block, &ci->discard, ci->file_size) == 0)
-            WT_TRET(__wti_block_extlist_dump(session, block, &ci->discard));
+            WT_TRET(__wti_block_extlist_dump(session, &ci->discard));
 
         WT_ERR(ret);
     }
