@@ -2652,6 +2652,8 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_replace.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_replace.block_cookie_size;
             multi->addr.type = mod->mod_replace.type;
+            __wt_free(session, mod->mod_replace.block_cookie);
+            mod->mod_replace.block_cookie_size = 0;
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -2664,6 +2666,8 @@ __rec_copy_prev_addr(WT_SESSION_IMPL *session, WTI_RECONCILE *r)
               mod->mod_multi->addr.block_cookie_size, &multi->addr.block_cookie));
             multi->addr.block_cookie_size = mod->mod_multi->addr.block_cookie_size;
             multi->addr.type = mod->mod_multi->addr.type;
+            __wt_free(session, mod->mod_multi->addr.block_cookie);
+            mod->mod_multi->addr.block_cookie_size = 0;
         } else
             WT_ASSERT(session, r->ref->addr != NULL);
         break;
@@ -3172,9 +3176,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
             break;
 
         /* We need to retain the block address if we skipped writing an empty delta. */
-        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ref->addr != NULL && r->multi_next == 1 &&
-          r->multi->addr.block_cookie == NULL)
-            break;
+        if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && ref->addr != NULL) {
+            bool empty_delta = r->multi_next == 1 && r->multi->addr.block_cookie == NULL;
+            if (empty_delta)
+                break;
+        }
 
         WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
         break;
@@ -3197,9 +3203,22 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                              * need a separate API to tell the SLS that we are discarding a root
                              * page?
                              */
-        if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
-              mod->mod_replace.block_cookie_size, r->multi_next == 1));
+        if (!__wt_ref_is_root(ref)) {
+            /* We have skipped writing a delta. */
+            if (F_ISSET(btree, WT_BTREE_DISAGGREGATED) && mod->mod_replace.block_cookie == NULL) {
+                /*
+                 * We need to retain the block address if we skipped writing an empty delta again.
+                 * Free the block address otherwise if it is available.
+                 */
+                if (ref->addr != NULL) {
+                    bool empty_delta = r->multi_next == 1 && r->multi->addr.block_cookie == NULL;
+                    if (!empty_delta)
+                        WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
+                }
+            } else
+                WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
+                  mod->mod_replace.block_cookie_size, r->multi_next == 1));
+        }
 
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
