@@ -53,12 +53,16 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     ++*pp;
 
     flags = 0;
-    const bool pack_prepare_info_to_start = tw->prepare && tw->prepare_ts != WT_TS_NONE && (tw->stop_txn == WT_TXN_MAX || tw->stop_txn == tw->start_txn);
-    const bool pack_prepare_info_to_stop = tw->prepare && tw->prepare_ts != WT_TS_NONE && tw->stop_txn != WT_TXN_MAX;
+    const bool pack_prepare_info_to_start = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      tw->prepare && tw->prepare_ts != WT_TS_NONE &&
+      (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
+    const bool pack_prepare_info_to_stop = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      tw->prepare && tw->prepare_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw);
+    wt_timestamp_t reference_ts = tw->start_ts;
 
-    // if there is prepare ts and no stop ts -> prepare_ts belongs to  write prepare_ts to start_ts
     if (pack_prepare_info_to_start) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->prepare_ts));
+        reference_ts = tw->prepare_ts;
         LF_SET(WT_CELL_TS_START);
     } else if (tw->start_ts != WT_TS_NONE) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->start_ts));
@@ -69,27 +73,25 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         LF_SET(WT_CELL_TXN_START);
     }
 
-    // If we write prepare_ts to start_ts, we write prepared_id to durable_start_ts as well
+    /* If we write prepare_ts to start_ts, we write prepared_id to durable_start_ts as well */
     if (pack_prepare_info_to_start) {
         WT_ASSERT(session, tw->prepared_id != WT_PREPARED_ID_NONE);
         WT_RET(__wt_vpack_uint(pp, 0, tw->prepared_id));
         LF_SET(WT_CELL_TS_DURABLE_START);
-    }
-    else if (tw->durable_start_ts != WT_TS_NONE) {
-        WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
+    } else if (tw->durable_start_ts != WT_TS_NONE) {
+        WT_ASSERT(session, reference_ts <= tw->durable_start_ts);
         /* Store differences if any, not absolutes. */
-        if (tw->durable_start_ts - tw->start_ts > 0) {
-            WT_RET(__wt_vpack_uint(pp, 0, tw->durable_start_ts - tw->start_ts));
+        if (tw->durable_start_ts - reference_ts > 0) {
+            WT_RET(__wt_vpack_uint(pp, 0, tw->durable_start_ts - reference_ts));
             LF_SET(WT_CELL_TS_DURABLE_START);
         }
     }
     if (pack_prepare_info_to_stop) {
-        WT_RET(__wt_vpack_uint(pp, 0, tw->prepare_ts));
+        WT_RET(__wt_vpack_uint(pp, 0, tw->prepare_ts - reference_ts));
         LF_SET(WT_CELL_TS_STOP);
     } else if (tw->stop_ts != WT_TS_MAX) {
         /* Store differences, not absolutes. */
-        // If we write prepare_ts to start_ts before, should we write stop_ts - prepare_ts instead?
-        WT_RET(__wt_vpack_uint(pp, 0, tw->stop_ts - tw->start_ts));
+        WT_RET(__wt_vpack_uint(pp, 0, tw->stop_ts - reference_ts));
         LF_SET(WT_CELL_TS_STOP);
     }
     if (tw->stop_txn != WT_TXN_MAX) {
@@ -97,13 +99,16 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         WT_RET(__wt_vpack_uint(pp, 0, tw->stop_txn - tw->start_txn));
         LF_SET(WT_CELL_TXN_STOP);
     }
-    /* If we already written prepared_id to durable_start, do we still need to rewrite this here as well if start_txn == stop_txn? */
+    /*
+     * We pack the difference if the start is also a prepared. But we pack the full value if only
+     * the stop is prepared. For the latter case, the start durable ts is a different type so we
+     * should not pack the difference.
+     */
     if (pack_prepare_info_to_stop) {
         WT_ASSERT(session, tw->prepared_id != WT_PREPARED_ID_NONE);
-        WT_RET(__wt_vpack_uint(pp, 0, tw->prepared_id));
+        WT_RET(__wt_vpack_uint(pp, 0, pack_prepare_info_to_start ? 0 : tw->prepared_id));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
-    }
-    else if (tw->durable_stop_ts != WT_TS_NONE) {
+    } else if (tw->durable_stop_ts != WT_TS_NONE) {
         WT_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts);
         /* Store differences if any, not absolutes. */
         if (tw->durable_stop_ts - tw->stop_ts > 0) {
@@ -874,47 +879,87 @@ copy_cell_restart:
             break;
         flags = *p++; /* skip second descriptor byte */
         WT_CELL_LEN_CHK(p, 0, dsk, end);
+        wt_timestamp_t temp_start_ts, temp_durable_start_ts, temp_stop_ts, temp_durable_stop_ts;
+        temp_start_ts = temp_durable_start_ts = temp_stop_ts = temp_durable_stop_ts = WT_TS_NONE;
 
         if (LF_ISSET(WT_CELL_PREPARE))
             tw->prepare = 1;
         if (LF_ISSET(WT_CELL_TS_START)) {
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), tw->prepare && LF_ISSET(WT_CELL_TS_DURABLE_START) ? &tw->prepare_ts : &tw->start_ts));
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_start_ts));
         }
         if (LF_ISSET(WT_CELL_TXN_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_txn));
-        if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
-            if (tw->prepare) {
-                /* In prepared transaction, durable ts is 0, the only case when there is value here is when we pack prepared_id in place of durable_ts */
-                WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->prepared_id));
-            } else {
-                WT_RET(
-                  __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->durable_start_ts));
-                tw->durable_start_ts += tw->start_ts;
-            }
-        } else
-            tw->durable_start_ts = tw->start_ts;
+        if (LF_ISSET(WT_CELL_TS_DURABLE_START))
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_start_ts));
 
         if (LF_ISSET(WT_CELL_TS_STOP)) {
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), tw->prepare && LF_ISSET(WT_CELL_TS_DURABLE_STOP) ? &tw->prepare_ts : &tw->stop_ts));
-            tw->stop_ts += tw->start_ts;
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_stop_ts));
         }
         if (LF_ISSET(WT_CELL_TXN_STOP)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->stop_txn));
             tw->stop_txn += tw->start_txn;
         }
-        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP)) {
-            /* In prepared transaction, durable ts is 0, the only case when there is value here is when we pack prepared_id in place of durable_ts */
-            if (tw->prepare) {
-                WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->prepared_id));
+        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP))
+            WT_RET(
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_stop_ts));
+
+        /* Load temporary values to the right fields */
+        if (F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && tw->prepare) {
+            if (tw->start_txn == tw->stop_txn) {
+                /*
+                 * This is a special case where both transaction start and stop are in prepared
+                 * state (same prepared id), so the same prepared id is packed to
+                 * WT_CELL_TS_DURABLE_START and 0 is packed into WT_CELL_TS_DURABLE_STOP since we
+                 * only store the difference.
+                 */
+                WT_ASSERT(session, temp_stop_ts == 0 && temp_durable_stop_ts == 0);
+                WT_ASSERT(session,
+                  LF_ISSET(WT_CELL_TS_START) && LF_ISSET(WT_CELL_TS_DURABLE_START) &&
+                    LF_ISSET(WT_CELL_TS_STOP) && LF_ISSET(WT_CELL_TS_DURABLE_STOP));
+                tw->prepare_ts = temp_start_ts;
+                tw->prepared_id = temp_durable_start_ts;
+            } else if (tw->stop_txn != WT_TXN_MAX) {
+                /*
+                 * This case happens where the transaction is done, but the transaction stop is
+                 * prepared. In this case, we store the start timestamp and durable start timestamp
+                 * in WT_CELL_TS_START and WT_CELL_TS_DURABLE_START, prepare ts in WT_CELL_TS_STOP
+                 * prepared id in WT_CELL_TS_DURABLE_STOP.
+                 */
+                WT_ASSERT(session,
+                  LF_ISSET(WT_CELL_TS_START) && LF_ISSET(WT_CELL_TS_DURABLE_START) &&
+                    LF_ISSET(WT_CELL_TS_STOP) && LF_ISSET(WT_CELL_TS_DURABLE_STOP));
+                tw->start_ts = temp_start_ts;
+                tw->durable_start_ts = temp_durable_start_ts + tw->start_ts;
+                tw->prepare_ts = tw->start_ts + temp_stop_ts;
+                tw->prepared_id = temp_durable_stop_ts;
             } else {
-                WT_RET(
-                __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->durable_stop_ts));
-                tw->durable_stop_ts += tw->stop_ts;
+                /*
+                 * This case happens when only transaction start is prepared, and there is no
+                 * transaction stop. In this case, we store the prepare ts in WT_CELL_TS_START and
+                 * prepared id in WT_CELL_TS_DURABLE_START.
+                 */
+                WT_ASSERT(session,
+                  LF_ISSET(WT_CELL_TS_START) && LF_ISSET(WT_CELL_TS_DURABLE_START) &&
+                    !LF_ISSET(WT_CELL_TS_STOP) && !LF_ISSET(WT_CELL_TS_DURABLE_STOP));
+                tw->prepare_ts = temp_start_ts;
+                tw->prepared_id = temp_durable_start_ts;
             }
-        } else if (tw->stop_ts != WT_TS_MAX)
-            tw->durable_stop_ts = tw->stop_ts;
-        else
-            tw->durable_stop_ts = WT_TS_NONE;
+        } else {
+            if (LF_ISSET(WT_CELL_TS_START))
+                tw->start_ts = temp_start_ts;
+            if (LF_ISSET(WT_CELL_TS_DURABLE_START))
+                tw->durable_start_ts = temp_durable_start_ts + tw->start_ts;
+            else
+                tw->durable_start_ts = tw->start_ts;
+
+            if (LF_ISSET(WT_CELL_TS_STOP))
+                tw->stop_ts = temp_stop_ts + tw->start_ts;
+            if (LF_ISSET(WT_CELL_TS_DURABLE_STOP))
+                tw->durable_stop_ts = temp_durable_stop_ts + tw->durable_stop_ts;
+            else if (tw->stop_ts != WT_TS_MAX)
+                tw->durable_stop_ts = tw->stop_ts;
+        }
 
         WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;

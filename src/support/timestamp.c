@@ -507,8 +507,19 @@ __wt_time_value_validate(
               "value time window is prepared and has preserve_prepared enabled but has no prepared "
               "id; time window %s",
               __wt_time_window_to_string(tw, time_string[0]));
-        /* should i also check whether prepare_ts is larger than start_ts? */
     }
+    /* Validate that we only have either prepare_ts or start_ts */
+    if (tw->prepare_ts != WT_TS_NONE && tw->start_ts != WT_TS_NONE) {
+        WT_TIME_VALIDATE_RET(session,
+          "value time window has both prepare_ts and start_ts set; time window %s",
+          __wt_time_window_to_string(tw, time_string[0]));
+    }
+    if (tw->prepare_ts == WT_TS_NONE && tw->start_ts == WT_TS_NONE) {
+        WT_TIME_VALIDATE_RET(session,
+          "value time window has neither prepare_ts nor start_ts set; time window %s",
+          __wt_time_window_to_string(tw, time_string[0]));
+    }
+
     /*
      * Optionally validate the time window against a parent's time window.
      *
