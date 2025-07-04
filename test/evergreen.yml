@@ -1582,16 +1582,6 @@ tasks:
         vars:
           directory: examples/c
 
-  - name: examples-c-tsan
-    tags: ["pull_request"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "make check directory"
-        vars:
-          directory: examples/c
-          ctest_extra_args: -E "(ex_all|ex_backup|ex_backup_block)" -j ${num_jobs}
-
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
     commands:
@@ -2140,6 +2130,16 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -R cursor13 schema03 timestamp22
+
+  - name: unit-test-hook-timing-stress-log
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --hook timing_stress_log_conn_close
 
   - name: unit-test-hook-tiered
     tags: ["python"]
@@ -5382,6 +5382,7 @@ buildvariants:
     - name: unit-test-hook-tiered
     - name: unit-test-hook-tiered-with-delays
     - name: unit-test-hook-tiered-timestamp
+    - name: unit-test-hook-timing-stress-log
     - name: unit-test-hook-timestamp
     - name: test-prepare-hs03-hook-timestamp
     - name: spinlock-gcc-test
@@ -5459,7 +5460,7 @@ buildvariants:
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: examples-c-tsan
+    - name: examples-c-test
     - name: tsan-warning-metrics
       batchtime: 10080 # 7 days
 
@@ -5867,6 +5868,7 @@ buildvariants:
     - name: unit-test
     - name: unit-test-extra-long
       distros: amazon2-arm64-large
+    - name: unit-test-hook-timing-stress-log
     - name: unit-test-zstd
     - name: wtperf-test
 
@@ -6282,7 +6284,7 @@ buildvariants:
       export TSAN_OPTIONS="$COMMON_SAN_OPTIONS:history_size=7:print_suppressions=0:suppressions=$(git rev-parse --show-toplevel)/test/evergreen/tsan_warnings.supp"
     num_jobs: $(echo "`grep -c ^processor /proc/cpuinfo`" | bc)
   tasks:
-    - name: examples-c-tsan
+    - name: examples-c-test
 
 - name: amazon2023-armv9-msan
   display_name: "(ARMV9) Amazon Linux 2023 MSAN"

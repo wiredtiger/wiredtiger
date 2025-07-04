@@ -52,6 +52,23 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     else if (page->memory_footprint > WT_MEGABYTE)
         WT_STAT_CONN_DSRC_INCR(session, rec_pages_size_1MB_to_10MB);
 
+    if (page->modify->page_state <= 5)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le5);
+    else if (page->modify->page_state <= 10)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le10);
+    else if (page->modify->page_state <= 20)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le20);
+    else if (page->modify->page_state <= 50)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le50);
+    else if (page->modify->page_state <= 100)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le100);
+    else if (page->modify->page_state <= 200)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le200);
+    else if (page->modify->page_state <= 500)
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_le500);
+    else
+        WT_STAT_CONN_DSRC_INCR(session, rec_page_mods_gt500);
+
     /*
      * Sanity check flags.
      *
@@ -2937,7 +2954,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
          */
         if (multi->addr.block_cookie != NULL) {
             WT_RET(__wt_btree_block_free(
-              session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size, false));
             __wt_free(session, multi->addr.block_cookie);
         }
 
@@ -3097,7 +3114,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
           r->multi->addr.block_cookie == NULL)
             break;
 
-        WT_RET(__wt_ref_block_free(session, ref));
+        WT_RET(__wt_ref_block_free(session, ref, r->multi_next == 1));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -3119,8 +3136,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
                              * page?
                              */
         if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_btree_block_free(
-              session, mod->mod_replace.block_cookie, mod->mod_replace.block_cookie_size));
+            WT_RET(__wt_btree_block_free(session, mod->mod_replace.block_cookie,
+              mod->mod_replace.block_cookie_size, r->multi_next == 1));
 
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.block_cookie);
@@ -3326,7 +3343,7 @@ __rec_write_err(WT_SESSION_IMPL *session, WTI_RECONCILE *r, WT_PAGE *page)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->addr.block_cookie != NULL)
             WT_TRET(__wt_btree_block_free(
-              session, multi->addr.block_cookie, multi->addr.block_cookie_size));
+              session, multi->addr.block_cookie, multi->addr.block_cookie_size, false));
 
     WT_TRET(__wti_ovfl_track_wrapup_err(session, page));
 
