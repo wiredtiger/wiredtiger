@@ -865,7 +865,7 @@ __rec_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_
     btree = S2BT(session);
     result_len = 0;
 
-    if (dsk->type == WT_PAGE_INVALID || dsk->type >= WT_PAGE_TYPE_MAX)
+    if (dsk->type == WT_PAGE_INVALID || dsk->type >= WT_PAGE_TYPE_COUNT)
         return (__wt_illegal_value(session, dsk->type));
 
     if (EXTRA_DIAGNOSTICS_ENABLED(session, WT_DIAGNOSTIC_DISK_VALIDATE)) {
