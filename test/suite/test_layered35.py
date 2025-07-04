@@ -101,6 +101,9 @@ class test_layered35(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # We should build an empty delta
         self.session.checkpoint()
 
+        # We should build another empty delta
+        self.session.checkpoint()
+
         follower_config = self.conn_base_config + 'disaggregated=(role="follower",' +\
             f'checkpoint_meta="{self.disagg_get_complete_checkpoint_meta()}")'
         self.reopen_conn(config = follower_config)
