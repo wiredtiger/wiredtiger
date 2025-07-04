@@ -55,7 +55,6 @@ race:__wt_reconcile
 race:__wti_conn_reconfig
 race:__wt_session_cursor_cache_sweep
 race:__wti_txn_update_pinned_timestamp
-race:__capacity_config
 
 
 # FIXME-WT-13075 Address these warnings separately as they may have perf impacts
