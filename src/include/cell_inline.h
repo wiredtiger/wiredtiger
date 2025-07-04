@@ -54,10 +54,14 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
 
     flags = 0;
     const bool pack_prepare_info_to_start = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-      tw->prepare && tw->prepare_ts != WT_TS_NONE &&
-      (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
-    const bool pack_prepare_info_to_stop = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-      tw->prepare && tw->prepare_ts != WT_TS_NONE && WT_TIME_WINDOW_HAS_STOP(tw);
+      tw->prepare && (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
+    const bool pack_prepare_info_to_stop =
+      F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && tw->prepare && WT_TIME_WINDOW_HAS_STOP(tw);
+    /* Assert that a prepare timestamp is set if and only if we're packing prepare info (either to
+     * start or stop) */
+    WT_ASSERT(session,
+      (tw->prepare_ts != WT_TS_NONE) == (pack_prepare_info_to_start || pack_prepare_info_to_stop));
+
     wt_timestamp_t reference_ts = tw->start_ts;
 
     if (pack_prepare_info_to_start) {
@@ -893,9 +897,9 @@ copy_cell_restart:
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_durable_start_ts));
 
-        if (LF_ISSET(WT_CELL_TS_STOP)) {
+        if (LF_ISSET(WT_CELL_TS_STOP))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &temp_stop_ts));
-        }
+
         if (LF_ISSET(WT_CELL_TXN_STOP)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->stop_txn));
             tw->stop_txn += tw->start_txn;
@@ -956,7 +960,7 @@ copy_cell_restart:
             if (LF_ISSET(WT_CELL_TS_STOP))
                 tw->stop_ts = temp_stop_ts + tw->start_ts;
             if (LF_ISSET(WT_CELL_TS_DURABLE_STOP))
-                tw->durable_stop_ts = temp_durable_stop_ts + tw->durable_stop_ts;
+                tw->durable_stop_ts = temp_durable_stop_ts + tw->stop_ts;
             else if (tw->stop_ts != WT_TS_MAX)
                 tw->durable_stop_ts = tw->stop_ts;
         }
