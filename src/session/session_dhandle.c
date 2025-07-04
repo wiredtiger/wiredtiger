@@ -816,7 +816,7 @@ __wt_session_dhandle_sweep(WT_SESSION_IMPL *session)
          * evicted. These checks are not done with any locks in place, other than the data handle
          * reference, so we cannot peer past what is in the dhandle directly.
          */
-        timeofdeath = __wt_atomic_load64(&dhandle->gg_timeofdeath);
+        timeofdeath = __wt_atomic_load64(&dhandle->timeofdeath);
         if (dhandle != session->dhandle && __wt_atomic_loadi32(&dhandle->session_inuse) == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) || F_ISSET(dhandle, WT_DHANDLE_OUTDATED) ||
             (timeofdeath != 0 && now - timeofdeath > conn->sweep_idle_time)) &&

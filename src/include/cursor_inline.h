@@ -379,8 +379,8 @@ __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session)
 
     /* If we open a handle with a time of death set, clear it. */
     if (__wt_atomic_addi32(&dhandle->session_inuse, 1) == 1 &&
-        __wt_atomic_load64(&dhandle->gg_timeofdeath) != 0)
-        __wt_atomic_store64(&dhandle->gg_timeofdeath, 0);
+        __wt_atomic_load64(&dhandle->timeofdeath) != 0)
+        __wt_atomic_store64(&dhandle->timeofdeath, 0);
 }
 
 /*
@@ -399,9 +399,9 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
      * decrementing the use count, there's a chance that the data handle can be freed.
      */
     WT_ASSERT(session, __wt_atomic_loadi32(&dhandle->session_inuse) > 0);
-    if (__wt_atomic_load64(&dhandle->gg_timeofdeath) != 0 &&
+    if (__wt_atomic_load64(&dhandle->timeofdeath) != 0 &&
         __wt_atomic_loadi32(&dhandle->session_inuse) == 1)
-        __wt_atomic_store64(&dhandle->gg_timeofdeath, 0);
+        __wt_atomic_store64(&dhandle->timeofdeath, 0);
     (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
 }
 
