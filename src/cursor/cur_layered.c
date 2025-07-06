@@ -138,8 +138,7 @@ __clayered_enter(WT_CURSOR_LAYERED *clayered, bool reset, bool update, bool iter
             if ((!update && F_ISSET(clayered, WT_CLAYERED_OPEN_READ)))
                 break;
             else if (update && clayered->ingest_cursor != NULL) {
-                if (!F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE) &&
-                  F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
+                if (F_ISSET(clayered, WT_CLAYERED_OPEN_READ))
                     break;
                 else if (F_ISSET(&clayered->iface, WT_CURSTD_OVERWRITE))
                     break;
