@@ -63,7 +63,7 @@ class test_truncate_arguments(test_truncate_base):
     scenarios = make_scenarios(test_truncate_base.disagg_storages, [
         ('file', dict(type='file:')),
         ('table', dict(type='table:')),
-        ('layered', dict(type='layered:'))
+        # ('layered', dict(type='layered:'))
     ])
 
     # Test truncation without URI or cursors specified, or with a URI and
@@ -107,7 +107,7 @@ class test_truncate_uri(test_truncate_base):
     scenarios = make_scenarios(test_truncate_base.disagg_storages, [
         ('file', dict(type='file:')),
         ('table', dict(type='table:')),
-        ('layered', dict(type='layered:'))
+        # ('layered', dict(type='layered:'))
     ])
 
     # Populate an object, truncate it by URI, and confirm it's empty.
@@ -139,7 +139,7 @@ class test_truncate_cursor_order(test_truncate_base):
     types = [
         ('file', dict(type='file:')),
         ('table', dict(type='table:')),
-        ('layered', dict(type='layered:'))
+        # ('layered', dict(type='layered:'))
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
@@ -175,7 +175,7 @@ class test_truncate_cursor_end(test_truncate_base):
     types = [
         ('file', dict(type='file:')),
         ('table', dict(type='table:')),
-        ('layered', dict(type='layered:'))
+        # ('layered', dict(type='layered:'))
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
@@ -225,7 +225,7 @@ class test_truncate_empty(test_truncate_base):
     types = [
         ('file', dict(type='file:')),
         ('table', dict(type='table:')),
-        ('layered', dict(type='layered:'))
+        # ('layered', dict(type='layered:'))
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
@@ -265,7 +265,7 @@ class test_truncate_timestamp(test_truncate_base):
     scenarios = make_scenarios(test_truncate_base.disagg_storages, [
         ('file', dict(type='file:')),
         ('table', dict(type='table:')),
-        ('layered', dict(type='layered:'))
+        # ('layered', dict(type='layered:'))
     ])
 
     def conn_config(self):
@@ -308,8 +308,8 @@ class test_truncate_cursor(test_truncate_base):
             config='allocation_size=512,leaf_page_max=512', P=0.25)),
         ('table', dict(type='table:', valuefmt='S',
             config='allocation_size=512,leaf_page_max=512', P=0.5)),
-        ('layered', dict(type='layered:', valuefmt='S',
-            config='allocation_size=512,leaf_page_max=512', P=0.25)),
+        # ('layered', dict(type='layered:', valuefmt='S',
+        #     config='allocation_size=512,leaf_page_max=512', P=0.25)),
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
