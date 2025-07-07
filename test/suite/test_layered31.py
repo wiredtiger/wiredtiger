@@ -269,7 +269,7 @@ class test_layered31(wttest.WiredTigerTestCase, DisaggConfigMixin):
         # Part 6: Check that the new leader's open cursor's position
         # does not change after stepping back down to follower.
         #
-        # TODO: enable this test when stepping down is debugged.
+        # FIXME-WT-14545: enable this test when stepping down is debugged.
         if False:
             # Read the first half.
             cursors = self.scan_data_follower(value_prefix5, 0, first_read)
