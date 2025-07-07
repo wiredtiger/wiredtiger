@@ -52,6 +52,11 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
     scenarios = make_scenarios(types, txn_end)
 
     def test_prepare_discover01(self):
+        # Currently this test will fail because we haven't added support for
+        # packing/unpacking prepare_ts and prepared_id on checkpoint yet, so it
+        # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
+        # when the feature is supported.
+        self.skipTest('FIXME-WT-14941 Enable when packing/unpacking prepare_ts and prepared_id on checkpoint is supported')
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(50))
         self.session.create(self.uri, self.s_config)
@@ -69,39 +74,33 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         c[5] = "prepare ts=100"
         # Prepare with a timestamp greater than current stable
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +',prepared_id=123')
-
-        # FIXME-WT-14941: Currently this test will fail because we haven't added support for
-        # packing/unpacking prepare_ts and prepared_id on checkpoint yet, so it
-        # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
-        # when the feature is supported.
-
         # Move the stable timestamp to include the prepared transaction
-        # self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(150))
         # Create a checkpoint
-        # session2 = self.conn.open_session()
-        # session2.checkpoint()
+        session2 = self.conn.open_session()
+        session2.checkpoint()
 
         # Creating backup that will preserve artifacts
-        # backup_dir = 'bkp'
-        # self.backup(backup_dir, session2)
+        backup_dir = 'bkp'
+        self.backup(backup_dir, session2)
 
-        # # Opening backup database
-        # conn2 = self.wiredtiger_open(backup_dir)
+        # Opening backup database
+        conn2 = self.wiredtiger_open(backup_dir)
 
-        # c2s1 = conn2.open_session()
+        c2s1 = conn2.open_session()
 
-        # # Opening prepared discover cursor
-        # prepared_discover_cursor = c2s1.open_cursor("prepared_discover:")
+        # Opening prepared discover cursor
+        prepared_discover_cursor = c2s1.open_cursor("prepared_discover:")
 
-        # # Walking through prepared discover cursor
-        # c2s2 = conn2.open_session()
-        # count = 0
-        # while prepared_discover_cursor.next() == 0:
-        #     count += 1
-        #     prepared_id = prepared_discover_cursor.get_key()
-        #     self.assertEqual(prepared_id, 100)
-        #     c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
-        #     c2s2.rollback_transaction("rollback_timestamp=" + self.timestamp_str(200))
-        # self.assertEqual(count, 1)
+        # Walking through prepared discover cursor
+        c2s2 = conn2.open_session()
+        count = 0
+        while prepared_discover_cursor.next() == 0:
+            count += 1
+            prepared_id = prepared_discover_cursor.get_key()
+            self.assertEqual(prepared_id, 100)
+            c2s2.begin_transaction("claim_prepared=" + self.timestamp_str(prepared_id))
+            c2s2.rollback_transaction("rollback_timestamp=" + self.timestamp_str(200))
+        self.assertEqual(count, 1)
 
-        # prepared_discover_cursor.close()
+        prepared_discover_cursor.close()

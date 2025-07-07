@@ -5,7 +5,6 @@
  *
  * See the file LICENSE for redistribution information.
  */
-
 #pragma once
 
 /*
@@ -53,10 +52,23 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     ++*pp;
 
     flags = 0;
-    const bool pack_prepare_info_to_start = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
-      tw->prepare && (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
+    /* We pack prepared txn info to stop_ts and durable_stop_ts when:
+     *  - disagg is on
+     *  - txn is prepared
+     *  - transaction is in delete prepared (meaning it has stop_txn defined)
+     */
     const bool pack_prepare_info_to_stop =
       F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && tw->prepare && WT_TIME_WINDOW_HAS_STOP(tw);
+
+    /* We pack prepared txn info to start_ts and durable start_ts when:
+     *  - disagg is on
+     *  - txn is prepared
+     *  - transaction is in start prepared (no stop), or both start and delete are prepared, which
+     * means both start and stop transactions are the same
+     */
+    const bool pack_prepare_info_to_start = F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) &&
+      tw->prepare && (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
+
     /*
      * Assert that a prepare timestamp is set if and only if we're packing prepare info (either to
      * start or stop)
