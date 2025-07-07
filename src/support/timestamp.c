@@ -538,9 +538,9 @@ __wt_time_value_validate(
         }
     } else {
         /* Validate that prepare_ts and prepared_id must be none */
-        if (tw->prepare_ts != WT_TS_NONE || tw->start_ts != WT_TS_NONE) {
+        if (tw->prepare_ts != WT_TS_NONE || tw->prepared_id != WT_PREPARED_ID_NONE) {
             WT_TIME_VALIDATE_RET(session,
-              "None-prepared value time window but contains prepared ts and prepared id; time "
+              "Non-prepared value time window but contains prepared ts and prepared id; time "
               "window %s",
               __wt_time_window_to_string(tw, time_string[0]));
         }
