@@ -1036,8 +1036,6 @@ dsrc_stats = [
     CursorStat('cursor_modify_bytes', 'modify key and value bytes affected', 'size'),
     CursorStat('cursor_modify_bytes_touch', 'modify value bytes modified', 'size'),
     CursorStat('cursor_next', 'next calls'),
-    CursorStat('cursor_next_loop_iterations', 'cursor next total loop iterations'),
-    CursorStat('cursor_next_loop_time_us', 'cursor next loop time (usecs)'),
     CursorStat('cursor_prev', 'prev calls'),
     CursorStat('cursor_remove', 'remove calls'),
     CursorStat('cursor_remove_bytes', 'remove key bytes removed', 'size'),
