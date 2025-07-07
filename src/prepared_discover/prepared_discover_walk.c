@@ -16,7 +16,7 @@ static int
 __prepared_discover_btree_has_prepare(WT_SESSION_IMPL *session, const char *config, bool *has_prepp)
 {
     WT_CONFIG ckptconf;
-    WT_CONFIG_ITEM cval, key, value;
+    WT_CONFIG_ITEM cval = {0}, key, value;
     WT_DECL_RET;
 
     *has_prepp = false;
