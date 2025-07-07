@@ -69,7 +69,7 @@ class test_prepare_discover01(wttest.WiredTigerTestCase, suite_subprocess):
         c[5] = "prepare ts=100"
         # Prepare with a timestamp greater than current stable
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(100) +',prepared_id=123')
-        
+
         # FIXME-WT-14941: Currently this test will fail because we haven't added support for
         # packing/unpacking prepare_ts and prepared_id on checkpoint yet, so it
         # will fail cell validation when trying to read prepared_id from disk. Re-enable this test
