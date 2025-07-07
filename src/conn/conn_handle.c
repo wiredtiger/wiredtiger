@@ -56,7 +56,6 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->fh_lock, "file list"));
     WT_RET(__wt_spin_init(session, &conn->flush_tier_lock, "flush tier"));
     WT_SPIN_INIT_TRACKED(session, &conn->metadata_lock, metadata);
-    WT_RET(__wt_spin_init(session, &conn->reconfig_lock, "reconfigure"));
     WT_SPIN_INIT_SESSION_TRACKED(session, &conn->schema_lock, schema);
     WT_RET(__wt_spin_init(session, &conn->storage_lock, "tiered storage"));
     WT_RET(__wt_spin_init(session, &conn->tiered_lock, "tiered work unit list"));
@@ -64,6 +63,7 @@ __wti_connection_init(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_spin_init(session, &conn->prefetch_lock, "prefetch"));
 
     /* Read-write locks */
+    WT_RET(__wt_rwlock_init(session, &conn->reconfig_lock));
     WT_RET(__wt_rwlock_init(session, &conn->log_mgr.debug_log_retention_lock));
     WT_RWLOCK_INIT_SESSION_TRACKED(session, &conn->dhandle_lock, dhandle);
     WT_RET(__wt_rwlock_init(session, &conn->hot_backup_lock));
@@ -123,7 +123,7 @@ __wti_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->flush_tier_lock);
     __wt_rwlock_destroy(session, &conn->hot_backup_lock);
     __wt_spin_destroy(session, &conn->metadata_lock);
-    __wt_spin_destroy(session, &conn->reconfig_lock);
+    __wt_rwlock_destroy(session, &conn->reconfig_lock);
     __wt_spin_destroy(session, &conn->schema_lock);
     __wt_spin_destroy(session, &conn->storage_lock);
     __wt_rwlock_destroy(session, &conn->table_lock);

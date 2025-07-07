@@ -550,6 +550,7 @@ __background_compact_server(void *arg)
             WT_STAT_CONN_SET(session, background_compact_running, running);
             __wt_spin_unlock(session, &conn->background_compact.lock);
         }
+        __wt_readlock(session, &conn->reconfig_lock);
 
         /*
          * Take a break or wait until signalled in any of the following conditions:
@@ -582,6 +583,7 @@ __background_compact_server(void *arg)
             __wt_cond_wait(session, conn->background_compact.cond,
               conn->background_compact.full_iteration_wait_time * WT_MILLION,
               __background_compact_server_run_chk);
+            __wt_readunlock(session, &conn->reconfig_lock);
         }
 
         /* Check if we're quitting or being reconfigured. */
@@ -686,6 +688,7 @@ __background_compact_server(void *arg)
             WT_ERR(ret);
         } else
             WT_STAT_CONN_INCR(session, background_compact_success);
+        __wt_readunlock(session, &conn->reconfig_lock);
     }
 
     WT_STAT_CONN_SET(session, background_compact_running, 0);

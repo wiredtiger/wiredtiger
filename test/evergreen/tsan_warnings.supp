@@ -10,6 +10,7 @@ race:__wt_set_shared_double
 # Stats are allowed to be fuzzy. Ignore races in TSan
 race:src/include/stat.h
 race:src/support/stat.c
+race:__wti_conn_statistics_config
 
 # FIXME-WT-12734 this function copies an 8 byte struct which needs further investigation.
 race:__log_wrlsn_server
@@ -52,10 +53,8 @@ race:__wt_cache_dirty_decr
 race:__wt_reconcile
 
 # FIXME-WT-14856 Unresolved warnings for ex_all
-race:__wti_conn_reconfig
 race:__wt_session_cursor_cache_sweep
 race:__wti_txn_update_pinned_timestamp
-race:__capacity_config
 
 
 # FIXME-WT-13075 Address these warnings separately as they may have perf impacts

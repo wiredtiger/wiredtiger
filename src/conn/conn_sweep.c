@@ -424,6 +424,7 @@ __sweep_server(void *arg)
      */
     __wt_seconds(session, &last);
     for (;;) {
+        __wt_readlock(session, &conn->reconfig_lock);
         /* Wait until the next event. */
         if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
             sweep_interval = conn->sweep_interval / 10;
@@ -483,6 +484,7 @@ __sweep_server(void *arg)
 
         /* Remember the last sweep time. */
         last = now;
+        __wt_readunlock(session, &conn->reconfig_lock);
     }
 
     if (0) {

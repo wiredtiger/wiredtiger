@@ -392,7 +392,7 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     conn = S2C(session);
 
     /* Serialize reconfiguration. */
-    __wt_spin_lock(session, &conn->reconfig_lock);
+    __wt_writelock(session, &conn->reconfig_lock);
     F_SET_ATOMIC_32(conn, WT_CONN_RECONFIGURING);
 
     /*
@@ -483,7 +483,7 @@ done:
 
 err:
     F_CLR_ATOMIC_32(conn, WT_CONN_RECONFIGURING);
-    __wt_spin_unlock(session, &conn->reconfig_lock);
+    __wt_writeunlock(session, &conn->reconfig_lock);
 
     return (ret);
 }

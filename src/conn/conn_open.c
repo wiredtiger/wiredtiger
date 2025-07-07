@@ -279,6 +279,9 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_chunkcache_setup(session, cfg));
     WT_RET(__wti_chunkcache_metadata_create(session));
 
+    /* Start the optional capacity thread. */
+    WT_RET(__wti_capacity_server_create(session, cfg));
+
     /*
      * Create the history store file. This will only actually create it on a clean upgrade or when
      * creating a new database.
@@ -303,9 +306,6 @@ __wti_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Start the compact thread. */
     WT_RET(__wti_background_compact_server_create(session));
-
-    /* Start the optional capacity thread. */
-    WT_RET(__wti_capacity_server_create(session, cfg));
 
     /* Start the optional checkpoint thread. */
     WT_RET(__wt_checkpoint_server_create(session, cfg));
