@@ -2176,7 +2176,7 @@ tasks:
           unit_test_args: -v 2 -R cursor13 schema03 timestamp22
 
   - name: unit-test-hook-disagg-leader
-    tags: ["pull_request", "python"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -2190,7 +2190,7 @@ tasks:
           unit_test_parallel_args: -v 2 --timeout 1800 --hook "disagg=(role=leader)"
 
   - name: unit-test-hook-disagg-follower
-    tags: ["pull_request", "python"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
