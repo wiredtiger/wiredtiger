@@ -57,8 +57,10 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
       tw->prepare && (!WT_TIME_WINDOW_HAS_STOP(tw) || tw->stop_txn == tw->start_txn);
     const bool pack_prepare_info_to_stop =
       F_ISSET(S2BT(session), WT_BTREE_DISAGGREGATED) && tw->prepare && WT_TIME_WINDOW_HAS_STOP(tw);
-    /* Assert that a prepare timestamp is set if and only if we're packing prepare info (either to
-     * start or stop) */
+    /*
+     * Assert that a prepare timestamp is set if and only if we're packing prepare info (either to
+     * start or stop)
+     */
     WT_ASSERT(session,
       (tw->prepare_ts != WT_TS_NONE) == (pack_prepare_info_to_start || pack_prepare_info_to_stop));
 
@@ -70,6 +72,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         LF_SET(WT_CELL_TS_START);
     } else if (tw->start_ts != WT_TS_NONE) {
         WT_RET(__wt_vpack_uint(pp, 0, tw->start_ts));
+        reference_ts = tw->start_ts;
         LF_SET(WT_CELL_TS_START);
     }
     if (tw->start_txn != WT_TXN_NONE) {
@@ -884,7 +887,8 @@ copy_cell_restart:
         flags = *p++; /* skip second descriptor byte */
         WT_CELL_LEN_CHK(p, 0, dsk, end);
         wt_timestamp_t temp_start_ts, temp_durable_start_ts, temp_stop_ts, temp_durable_stop_ts;
-        temp_start_ts = temp_durable_start_ts = temp_stop_ts = temp_durable_stop_ts = WT_TS_NONE;
+        temp_start_ts = temp_durable_start_ts = temp_durable_stop_ts = WT_TS_NONE;
+        temp_stop_ts = WT_TS_MAX;
 
         if (LF_ISSET(WT_CELL_PREPARE))
             tw->prepare = 1;
