@@ -509,9 +509,7 @@ __wt_time_value_validate(
               __wt_time_window_to_string(tw, time_string[0]));
 
         if (WT_TIME_WINDOW_HAS_STOP(tw)) {
-            /*
-             * Validate that prepared timestamp field is valid
-             */
+            /* Validate that prepared timestamp field is valid */
             if (tw->stop_ts != WT_TS_MAX || tw->durable_stop_ts != WT_TS_NONE)
                 WT_TIME_VALIDATE_RET(session,
                   "value time window is prepared but has a stop timestamp or durable stop "
