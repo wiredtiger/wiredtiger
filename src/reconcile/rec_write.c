@@ -2407,7 +2407,6 @@ __rec_build_delta(
     WT_DELTA_HEADER *header;
 
     *build_deltap = false;
-    header = NULL;
     if (F_ISSET(r->ref, WT_REF_FLAG_LEAF)) {
         if (WT_BUILD_DELTA_LEAF(session, r)) {
             WT_RET(__rec_build_delta_leaf(session, full_image, r));
