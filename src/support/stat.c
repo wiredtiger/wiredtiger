@@ -2565,6 +2565,7 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: page delete rollback time sleeping for state change (usecs)",
   "thread-yield: page reconciliation yielded due to child modification",
   "thread-yield: page split and restart read",
+  "thread-yield: pages skipped during read due to deleted state",
   "transaction: Number of prepared updates",
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
@@ -3511,6 +3512,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->page_del_rollback_blocked = 0;
     stats->child_modify_blocked_page = 0;
     stats->page_split_restart = 0;
+    stats->page_read_skip_deleted = 0;
     stats->txn_prepared_updates = 0;
     stats->txn_prepared_updates_committed = 0;
     stats->txn_prepared_updates_key_repeated = 0;
@@ -4633,6 +4635,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->page_del_rollback_blocked += WT_STAT_CONN_READ(from, page_del_rollback_blocked);
     to->child_modify_blocked_page += WT_STAT_CONN_READ(from, child_modify_blocked_page);
     to->page_split_restart += WT_STAT_CONN_READ(from, page_split_restart);
+    to->page_read_skip_deleted += WT_STAT_CONN_READ(from, page_read_skip_deleted);
     to->txn_prepared_updates += WT_STAT_CONN_READ(from, txn_prepared_updates);
     to->txn_prepared_updates_committed += WT_STAT_CONN_READ(from, txn_prepared_updates_committed);
     to->txn_prepared_updates_key_repeated +=

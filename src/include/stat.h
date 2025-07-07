@@ -1258,6 +1258,7 @@ struct __wt_connection_stats {
     int64_t page_del_rollback_blocked;
     int64_t child_modify_blocked_page;
     int64_t page_split_restart;
+    int64_t page_read_skip_deleted;
     int64_t txn_prepared_updates;
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
