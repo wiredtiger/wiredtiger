@@ -532,8 +532,8 @@ __wt_time_value_validate(
         } else {
             if (tw->start_ts != WT_TS_NONE || tw->durable_start_ts != WT_TS_NONE)
                 WT_TIME_VALIDATE_RET(session,
-                  "value time window is prepared but has no stop time point with non-none start or "
-                  "durable start timestamps; time window %s",
+                  "value time window is prepared but has a start or durable start timestamps; "
+                  "time window %s",
                   __wt_time_window_to_string(tw, time_string[0]));
         }
     } else {
