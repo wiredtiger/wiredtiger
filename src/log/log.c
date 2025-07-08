@@ -1166,7 +1166,6 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * set, force that ordering.
      */
     WT_FH *log_fh_tmp;
-    WT_ACQUIRE_READ(log_fh_tmp, log->log_fh);
     if (log_fh_tmp == NULL)
         __wt_atomic_store_pointer(&log->log_close_fh, NULL);
     else {
@@ -1250,7 +1249,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * only write in progress.
      */
     if (conn_open) {
-        WT_RET(__wt_fsync(session, log->log_fh, true));
+        WT_RET(__wt_fsync(session, __wt_atomic_load_pointer(&log->log_fh), true));
         WT_ASSIGN_LSN(&log->sync_lsn, &end_lsn);
         WT_ASSIGN_LSN(&log->write_lsn, &end_lsn);
         WT_ASSIGN_LSN(&log->write_start_lsn, &end_lsn);
@@ -1971,7 +1970,7 @@ __wti_log_release(WT_SESSION_IMPL *session, WTI_LOGSLOT *slot, bool *freep)
         __wt_cond_signal(session, conn->log_mgr.file.cond);
 
     if (F_ISSET_ATOMIC_16(slot, WTI_SLOT_SYNC_DIRTY) && !F_ISSET_ATOMIC_16(slot, WTI_SLOT_SYNC) &&
-      (ret = __wt_fsync(session, log->log_fh, false)) != 0) {
+      (ret = __wt_fsync(session, __wt_atomic_load_pointer(&log->log_fh), false)) != 0) {
         /*
          * Ignore ENOTSUP, but don't try again.
          */
